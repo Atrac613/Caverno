@@ -39,6 +39,8 @@ import '../widgets/conversation_drawer.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
+import '../widgets/queued_messages_strip.dart';
+import '../widgets/token_usage_indicator.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
 import '../widgets/plan/plan_document_editor_sheet.dart';
 import '../widgets/plan/plan_hydrated_task_row.dart';
@@ -660,7 +662,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 if (canCompose &&
                     (chatState.totalTokens > 0 ||
                         chatState.estimatedPromptTokens > 0))
-                  _buildTokenUsageBar(context, chatState),
+                  _buildTokenUsageBar(context, chatState, settings.model),
+                if (canCompose && chatState.queuedMessages.isNotEmpty)
+                  QueuedMessagesStrip(
+                    messages: chatState.queuedMessages,
+                    onRemove: chatNotifier.removeQueuedMessage,
+                  ),
                 // Input area
                 if (canCompose)
                   MessageInput(

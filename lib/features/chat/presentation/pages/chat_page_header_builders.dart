@@ -5,47 +5,26 @@
 part of 'chat_page.dart';
 
 extension _ChatPageHeaderBuilders on _ChatPageState {
-  Widget _buildTokenUsageBar(BuildContext context, ChatState chatState) {
+  Widget _buildTokenUsageBar(
+    BuildContext context,
+    ChatState chatState,
+    String model,
+  ) {
     final theme = Theme.of(context);
-    final pressureColor = switch (chatState.contextTokenPressureLevel) {
-      ContextTokenPressureLevel.normal => theme.colorScheme.outline,
-      ContextTokenPressureLevel.warning => theme.colorScheme.tertiary,
-      ContextTokenPressureLevel.critical => theme.colorScheme.error,
-    };
-    final contextLabel = chatState.estimatedPromptTokens > 0
-        ? ' • estimated prompt ${_formatTokenCount(chatState.estimatedPromptTokens)}'
-        : '';
-    final compactionLabel = chatState.promptCompactionActive
-        ? ' • compaction active'
-        : '';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Icon(Icons.token_outlined, size: 14, color: pressureColor),
-          const SizedBox(width: 4),
-          Text(
-            'chat.token_usage'.tr(
-              namedArgs: {
-                'prompt': _formatTokenCount(chatState.promptTokens),
-                'completion': _formatTokenCount(chatState.completionTokens),
-                'total': _formatTokenCount(chatState.totalTokens),
-              },
-            ),
-            style: theme.textTheme.labelSmall?.copyWith(color: pressureColor),
-          ),
-          if (contextLabel.isNotEmpty || compactionLabel.isNotEmpty)
-            Text(
-              '$contextLabel$compactionLabel',
-              style: theme.textTheme.labelSmall?.copyWith(color: pressureColor),
-            ),
-        ],
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: TokenUsageIndicator(
+          chatState: chatState,
+          model: model,
+          formatTokenCount: _formatTokenCount,
+        ),
       ),
     );
   }

@@ -285,6 +285,52 @@ class PendingWorkflowDecision {
   final Completer<WorkflowPlanningDecisionAnswer?> completer;
 }
 
+class QueuedChatMessage {
+  const QueuedChatMessage({
+    required this.id,
+    required this.content,
+    required this.imageBase64,
+    required this.imageMimeType,
+    required this.languageCode,
+    required this.isVoiceMode,
+    required this.bypassPlanMode,
+  });
+
+  final String id;
+  final String content;
+  final String? imageBase64;
+  final String? imageMimeType;
+  final String languageCode;
+  final bool isVoiceMode;
+  final bool bypassPlanMode;
+
+  bool get hasImage => imageBase64 != null && imageBase64!.isNotEmpty;
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is QueuedChatMessage &&
+            id == other.id &&
+            content == other.content &&
+            imageBase64 == other.imageBase64 &&
+            imageMimeType == other.imageMimeType &&
+            languageCode == other.languageCode &&
+            isVoiceMode == other.isVoiceMode &&
+            bypassPlanMode == other.bypassPlanMode;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    content,
+    imageBase64,
+    imageMimeType,
+    languageCode,
+    isVoiceMode,
+    bypassPlanMode,
+  );
+}
+
 @freezed
 abstract class WorkflowProposalDraft with _$WorkflowProposalDraft {
   const factory WorkflowProposalDraft({
@@ -304,6 +350,7 @@ abstract class WorkflowTaskProposalDraft with _$WorkflowTaskProposalDraft {
 abstract class ChatState with _$ChatState {
   const factory ChatState({
     required List<Message> messages,
+    @Default([]) List<QueuedChatMessage> queuedMessages,
     required bool isLoading,
     String? error,
     @Default(0) int promptTokens,

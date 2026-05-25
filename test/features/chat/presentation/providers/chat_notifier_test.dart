@@ -53,6 +53,58 @@ class _TestConversationsNotifier extends ConversationsNotifier {
   ConversationsState build() => ConversationsState.initial();
 }
 
+class _DivergingSaveConversationsNotifier extends ConversationsNotifier {
+  @override
+  ConversationsState build() {
+    final conversation = Conversation(
+      id: 'queue-sync-conversation',
+      title: 'Queue sync',
+      messages: const <Message>[],
+      createdAt: DateTime(2026, 5, 25, 10),
+      updatedAt: DateTime(2026, 5, 25, 10),
+    );
+    return ConversationsState(
+      conversations: [conversation],
+      currentConversationId: conversation.id,
+      activeWorkspaceMode: WorkspaceMode.chat,
+      activeProjectId: null,
+    );
+  }
+
+  @override
+  Future<void> updateCurrentConversation(List<Message> messages) async {
+    final current = state.currentConversation;
+    if (current == null) {
+      return;
+    }
+
+    final persistedMessages = messages
+        .map(
+          (message) => message.role == MessageRole.assistant
+              ? message.copyWith(
+                  content: message.content.endsWith(' persisted')
+                      ? message.content
+                      : '${message.content} persisted',
+                )
+              : message,
+        )
+        .toList(growable: false);
+    final updated = current.copyWith(messages: persistedMessages);
+    state = state.copyWith(
+      conversations: state.conversations
+          .map(
+            (conversation) =>
+                conversation.id == updated.id ? updated : conversation,
+          )
+          .toList(growable: false),
+    );
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  @override
+  Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+}
+
 class _WorkflowTestConversationsNotifier extends ConversationsNotifier {
   _WorkflowTestConversationsNotifier(this.conversation);
 
@@ -199,6 +251,90 @@ class _StreamingChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) {
     return controller.stream;
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+class _ControllableQueueChatDataSource implements ChatDataSource {
+  _ControllableQueueChatDataSource(this.controllers);
+
+  final Queue<StreamController<String>> controllers;
+  final List<List<Message>> requests = [];
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    requests.add(List<Message>.from(messages));
+    return controllers.removeFirst().stream;
   }
 
   @override
@@ -1378,19 +1514,238 @@ void main() {
   );
 
   test(
-    'sendMessage ignores new user input while a reply is in flight',
+    'sendMessage queues new user input while a reply is in flight',
     () async {
-      await notifier.sendMessage('First request');
-      await notifier.sendMessage('Second request');
+      final firstController = StreamController<String>();
+      final secondController = StreamController<String>();
+      final dataSource = _ControllableQueueChatDataSource(
+        Queue<StreamController<String>>.from([
+          firstController,
+          secondController,
+        ]),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final queueContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        queueContainer.dispose();
+        if (!firstController.isClosed) {
+          await firstController.close();
+        }
+        if (!secondController.isClosed) {
+          await secondController.close();
+        }
+      });
+      final queueNotifier = queueContainer.read(chatNotifierProvider.notifier);
 
-      final userMessages = notifier.state.messages
+      await queueNotifier.sendMessage('First request');
+      await queueNotifier.sendMessage('Second request');
+
+      var userMessages = queueNotifier.state.messages
           .where((message) => message.role == MessageRole.user)
           .map((message) => message.content)
           .toList();
 
-      expect(notifier.state.isLoading, isTrue);
+      expect(queueNotifier.state.isLoading, isTrue);
       expect(userMessages, ['First request']);
-      expect(notifier.state.messages, hasLength(2));
+      expect(queueNotifier.state.messages, hasLength(2));
+      expect(queueNotifier.state.queuedMessages, hasLength(1));
+      expect(
+        queueNotifier.state.queuedMessages.single.content,
+        'Second request',
+      );
+      expect(dataSource.requests, hasLength(1));
+
+      firstController.add('First response');
+      await firstController.close();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      userMessages = queueNotifier.state.messages
+          .where((message) => message.role == MessageRole.user)
+          .map((message) => message.content)
+          .toList();
+
+      expect(dataSource.requests, hasLength(2));
+      expect(queueNotifier.state.isLoading, isTrue);
+      expect(queueNotifier.state.queuedMessages, isEmpty);
+      expect(userMessages, ['First request', 'Second request']);
+      expect(queueNotifier.state.messages.map((message) => message.role), [
+        MessageRole.user,
+        MessageRole.assistant,
+        MessageRole.user,
+        MessageRole.assistant,
+      ]);
+      expect(queueNotifier.state.messages.last.isStreaming, isTrue);
+      expect(
+        dataSource.requests.last
+            .where((message) => message.role != MessageRole.system)
+            .map((message) => message.content)
+            .toList(),
+        ['First request', 'First response', 'Second request'],
+      );
+
+      secondController.add('Second response');
+      await secondController.close();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(queueNotifier.state.isLoading, isFalse);
+      expect(queueNotifier.state.messages.map((message) => message.content), [
+        'First request',
+        'First response',
+        'Second request',
+        'Second response',
+      ]);
+    },
+  );
+
+  test(
+    'queued user input survives same-conversation save synchronization',
+    () async {
+      final firstController = StreamController<String>();
+      final secondController = StreamController<String>();
+      final dataSource = _ControllableQueueChatDataSource(
+        Queue<StreamController<String>>.from([
+          firstController,
+          secondController,
+        ]),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final queueContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _DivergingSaveConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        queueContainer.dispose();
+        if (!firstController.isClosed) {
+          await firstController.close();
+        }
+        if (!secondController.isClosed) {
+          await secondController.close();
+        }
+      });
+      final queueNotifier = queueContainer.read(chatNotifierProvider.notifier);
+
+      await queueNotifier.sendMessage('First request');
+      await queueNotifier.sendMessage('Second request');
+
+      expect(queueNotifier.state.queuedMessages, hasLength(1));
+
+      firstController.add('First response');
+      await firstController.close();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(dataSource.requests, hasLength(2));
+      expect(queueNotifier.state.queuedMessages, isEmpty);
+      expect(queueNotifier.state.isLoading, isTrue);
+      expect(
+        dataSource.requests.last
+            .where((message) => message.role != MessageRole.system)
+            .map((message) => message.content)
+            .toList(),
+        ['First request', 'First response persisted', 'Second request'],
+      );
+
+      secondController.add('Second response');
+      await secondController.close();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(queueNotifier.state.isLoading, isFalse);
+      expect(queueNotifier.state.messages.map((message) => message.content), [
+        'First request',
+        'First response persisted',
+        'Second request',
+        'Second response persisted',
+      ]);
+    },
+  );
+
+  test(
+    'removeQueuedMessage drops a pending user input before it is sent',
+    () async {
+      final firstController = StreamController<String>();
+      final dataSource = _ControllableQueueChatDataSource(
+        Queue<StreamController<String>>.from([firstController]),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final queueContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        queueContainer.dispose();
+        if (!firstController.isClosed) {
+          await firstController.close();
+        }
+      });
+      final queueNotifier = queueContainer.read(chatNotifierProvider.notifier);
+
+      await queueNotifier.sendMessage('First request');
+      await queueNotifier.sendMessage('Second request');
+
+      final queuedId = queueNotifier.state.queuedMessages.single.id;
+      queueNotifier.removeQueuedMessage(queuedId);
+
+      expect(queueNotifier.state.queuedMessages, isEmpty);
+
+      firstController.add('First response');
+      await firstController.close();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(dataSource.requests, hasLength(1));
+      expect(queueNotifier.state.isLoading, isFalse);
+      expect(queueNotifier.state.messages.map((message) => message.content), [
+        'First request',
+        'First response',
+      ]);
     },
   );
 

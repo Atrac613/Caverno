@@ -30,6 +30,8 @@ Future<void> _pumpMessageInput(
   WidgetTester tester, {
   required ValueNotifier<bool> isLoading,
   required VoidCallback onCancel,
+  void Function(String message, String? imageBase64, String? imageMimeType)?
+  onSend,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   final preferences = await SharedPreferences.getInstance();
@@ -59,7 +61,7 @@ Future<void> _pumpMessageInput(
                     valueListenable: isLoading,
                     builder: (context, loading, child) {
                       return MessageInput(
-                        onSend: (_, _, _) {},
+                        onSend: onSend ?? (_, _, _) {},
                         onCancel: onCancel,
                         isLoading: loading,
                         assistantMode: AssistantMode.general,
@@ -81,18 +83,22 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
 
-  testWidgets('disables the composer and shows cancel while loading', (
+  testWidgets('keeps the composer enabled and queues send while loading', (
     tester,
   ) async {
     final isLoading = ValueNotifier<bool>(false);
     addTearDown(isLoading.dispose);
 
     var cancelCount = 0;
+    final sentMessages = <String>[];
     await _pumpMessageInput(
       tester,
       isLoading: isLoading,
       onCancel: () {
         cancelCount += 1;
+      },
+      onSend: (message, _, _) {
+        sentMessages.add(message);
       },
     );
 
@@ -105,7 +111,21 @@ void main() {
 
     expect(find.byIcon(Icons.record_voice_over), findsNothing);
     expect(find.byIcon(Icons.stop_circle), findsOneWidget);
-    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
+
+    await tester.enterText(find.byType(TextField), 'Queued question');
+    await tester.pump();
+
+    expect(find.byIcon(Icons.send), findsOneWidget);
+    expect(find.byIcon(Icons.stop_circle), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    expect(sentMessages, ['Queued question']);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
+    expect(find.byIcon(Icons.send), findsNothing);
+    expect(find.byIcon(Icons.stop_circle), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.stop_circle));
     await tester.pump();

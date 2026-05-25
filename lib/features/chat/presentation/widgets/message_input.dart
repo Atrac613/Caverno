@@ -624,6 +624,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final assistantMode = widget.assistantMode;
+    final canSend =
+        _hasText || _selectedImageBytes != null || _selectedFileContent != null;
 
     final composerColor = _isRecording
         ? theme.colorScheme.errorContainer.withValues(alpha: 0.3)
@@ -725,7 +727,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       child: TextField(
                         controller: _controller,
                         focusNode: _focusNode,
-                        enabled: !widget.isLoading,
+                        enabled: true,
                         contentInsertionConfiguration:
                             ContentInsertionConfiguration(
                               onContentInserted: _handleContentInserted,
@@ -863,7 +865,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       PopupMenuButton<_AttachmentAction>(
                         tooltip: 'message.attachments'.tr(),
                         icon: const Icon(Icons.add),
-                        enabled: !widget.isLoading,
                         onSelected: (action) {
                           switch (action) {
                             case _AttachmentAction.image:
@@ -910,9 +911,20 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       ),
                       const SizedBox(width: 4),
                       // Rightmost slot:
+                      // - when content is present: Send, even while streaming
                       // - while streaming: Cancel (stop)
-                      // - when text is empty: Voice mode overlay
-                      // - when text is present: Send
+                      // - otherwise: Voice mode overlay
+                      if (canSend)
+                        IconButton(
+                          onPressed: _handleSend,
+                          icon: const Icon(Icons.send),
+                          tooltip: 'message.send'.tr(),
+                          style: IconButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primary,
+                            foregroundColor: theme.colorScheme.onPrimary,
+                          ),
+                        ),
+                      if (canSend && widget.isLoading) const SizedBox(width: 4),
                       if (widget.isLoading)
                         IconButton(
                           onPressed: widget.onCancel,
@@ -923,17 +935,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                             foregroundColor: theme.colorScheme.onErrorContainer,
                           ),
                         )
-                      else if (_hasText)
-                        IconButton(
-                          onPressed: _handleSend,
-                          icon: const Icon(Icons.send),
-                          tooltip: 'message.send'.tr(),
-                          style: IconButton.styleFrom(
-                            backgroundColor: theme.colorScheme.primary,
-                            foregroundColor: theme.colorScheme.onPrimary,
-                          ),
-                        )
-                      else
+                      else if (!canSend)
                         IconButton(
                           onPressed: () {
                             showGeneralDialog(

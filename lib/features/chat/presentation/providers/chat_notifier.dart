@@ -397,6 +397,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
     if (!sameConversation) {
+      _queuedChatMessages.clear();
       _latestContentToolResults.clear();
       _latestCompletedToolResults = const [];
     }
@@ -405,7 +406,12 @@ class ChatNotifier extends Notifier<ChatState> {
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;
     this.conversationId = conversationId;
-    state = ChatState(messages: messages, isLoading: false, error: null);
+    state = ChatState(
+      messages: messages,
+      queuedMessages: List<QueuedChatMessage>.unmodifiable(_queuedChatMessages),
+      isLoading: false,
+      error: null,
+    );
     _accumulatedTokenUsage = TokenUsage.zero;
   }
 
@@ -5770,11 +5776,13 @@ class ChatNotifier extends Notifier<ChatState> {
   final Set<String> _executedContentToolCalls = {};
   final Set<String> _seenContentToolCallHashes = {};
   final List<String> _pendingContentToolResults = [];
+  final List<QueuedChatMessage> _queuedChatMessages = [];
   final ToolApprovalCache _toolApprovalCache = ToolApprovalCache();
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
   Future<void> _contentToolExecutionTail = Future<void>.value();
   bool _forcePromptCompactionForNextRequest = false;
+  bool _isDrainingQueuedMessages = false;
 
   Future<void> sendMessage(
     String content, {
@@ -5787,7 +5795,38 @@ class ChatNotifier extends Notifier<ChatState> {
     // Do not send empty input with no attached image.
     if (content.trim().isEmpty && imageBase64 == null) return;
     if (!ref.mounted) return;
-    if (state.isLoading) return;
+
+    final queuedMessage = QueuedChatMessage(
+      id: _uuid.v4(),
+      content: content,
+      imageBase64: imageBase64,
+      imageMimeType: imageMimeType,
+      languageCode: languageCode,
+      isVoiceMode: isVoiceMode,
+      bypassPlanMode: bypassPlanMode,
+    );
+    if (state.isLoading) {
+      _queuedChatMessages.add(queuedMessage);
+      _syncQueuedChatMessagesState();
+      appLog(
+        '[ChatNotifier] Queued user message while a response is in flight '
+        '(${_queuedChatMessages.length} pending)',
+      );
+      return;
+    }
+
+    await _sendMessageNow(queuedMessage);
+  }
+
+  Future<void> _sendMessageNow(QueuedChatMessage queuedMessage) async {
+    if (!ref.mounted) return;
+
+    final content = queuedMessage.content;
+    final imageBase64 = queuedMessage.imageBase64;
+    final imageMimeType = queuedMessage.imageMimeType;
+    final languageCode = queuedMessage.languageCode;
+    final isVoiceMode = queuedMessage.isVoiceMode;
+    final bypassPlanMode = queuedMessage.bypassPlanMode;
 
     _hiddenPrompt = null;
     _languageCode = languageCode;
@@ -5915,6 +5954,54 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     } finally {
       _assistantModeOverride = null;
+    }
+  }
+
+  void removeQueuedMessage(String id) {
+    final beforeLength = _queuedChatMessages.length;
+    _queuedChatMessages.removeWhere((message) => message.id == id);
+    if (_queuedChatMessages.length == beforeLength) {
+      return;
+    }
+    _syncQueuedChatMessagesState();
+    appLog(
+      '[ChatNotifier] Removed queued user message '
+      '(${_queuedChatMessages.length} remaining)',
+    );
+  }
+
+  void _syncQueuedChatMessagesState() {
+    if (!ref.mounted) {
+      return;
+    }
+    state = state.copyWith(
+      queuedMessages: List<QueuedChatMessage>.unmodifiable(_queuedChatMessages),
+    );
+  }
+
+  Future<void> _drainQueuedChatMessagesIfIdle() async {
+    if (_isDrainingQueuedMessages || state.isLoading) {
+      return;
+    }
+    if (_queuedChatMessages.isEmpty) {
+      return;
+    }
+
+    _isDrainingQueuedMessages = true;
+    try {
+      while (ref.mounted &&
+          !state.isLoading &&
+          _queuedChatMessages.isNotEmpty) {
+        final queuedMessage = _queuedChatMessages.removeAt(0);
+        _syncQueuedChatMessagesState();
+        appLog(
+          '[ChatNotifier] Sending queued user message '
+          '(${_queuedChatMessages.length} remaining)',
+        );
+        await _sendMessageNow(queuedMessage);
+      }
+    } finally {
+      _isDrainingQueuedMessages = false;
     }
   }
 
@@ -6706,7 +6793,7 @@ class ChatNotifier extends Notifier<ChatState> {
             ? streamedAssistantContent
             : result.content;
         _recordHiddenAssistantResponse(hiddenAssistantEvidence);
-        _finishStreaming();
+        await _finishStreaming();
       }
     } catch (e) {
       // Fall back when the LLM likely does not support tools.
@@ -7383,7 +7470,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
       executedToolResults,
     );
-    _finishStreaming();
+    await _finishStreaming();
   }
 
   void _appendToLastMessage(String chunk, {bool scanForTools = true}) {
@@ -8598,15 +8685,17 @@ class ChatNotifier extends Notifier<ChatState> {
       state = state.copyWith(messages: cleaned);
       _hiddenPrompt = null;
       _onResponseCompleted('');
+      await _drainQueuedChatMessagesIfIdle();
       return;
     }
 
     // Persist messages.
     _contentToolContinuationCount = 0;
-    _saveMessages();
+    await _saveMessages();
 
     if (shouldDropLastAssistant || updatedMessages.isEmpty) {
       _onResponseCompleted('');
+      await _drainQueuedChatMessagesIfIdle();
       return;
     }
 
@@ -8626,6 +8715,7 @@ class ChatNotifier extends Notifier<ChatState> {
     } else {
       _onResponseCompleted('');
     }
+    await _drainQueuedChatMessagesIfIdle();
   }
 
   bool _assistantMessageHasVisibleContent(String content) {
@@ -8818,7 +8908,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Persists the current conversation messages.
-  void _saveMessages() {
+  Future<void> _saveMessages() async {
     // Save only messages that are no longer streaming.
     final messagesToSave = state.messages
         .where((m) => !m.isStreaming)
@@ -8833,7 +8923,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
 
-    unawaited(_onMessagesChanged(messagesToSave));
+    await _onMessagesChanged(messagesToSave);
 
     final currentConversationId = conversationId;
     if (currentConversationId != null && targetAssistantMessageId != null) {
@@ -9074,6 +9164,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _seenContentToolCallHashes.clear();
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
+    _queuedChatMessages.clear();
     _latestContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
