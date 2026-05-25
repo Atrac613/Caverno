@@ -9,7 +9,7 @@ settings, or feature-specific execution behavior.
 
 | Surface | Current canaries | Covered behavior | Main gaps | Priority |
 |---------|------------------|------------------|-----------|----------|
-| Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, content-embedded tool-call execution, oversized tool-result compaction retry, final marker extraction | Native tool-role compatibility and multi-turn continuity beyond the memory extraction probe | Keep the chat canary suite in every model switch baseline |
+| Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction | Native tool-role compatibility and broad multi-turn continuity beyond focused parser recovery | Keep the chat canary suite in every model switch baseline |
 | Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, report quality | Native coding mode outside Plan Mode is not isolated, multi-file edits with tests are only indirectly covered | Keep PM5 as baseline; keep content-fit assertions on artifact-sensitive canaries |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
 
@@ -354,7 +354,8 @@ The chat, chat-budget, and routine live scripts write
 `canary_summary.json`, `canary_summary.md`, and `flutter_test.jsonl` under
 `build/integration_test_reports/<canary_name>_<timestamp>/`. The summary records
 pass/fail counts plus recovery signals such as non-streaming fallback after a
-streaming disconnect and tool-result compaction retry counts.
+streaming disconnect, incomplete content-tool recovery, ignored
+assistant-authored `tool_result` tags, and tool-result compaction retry counts.
 
 ## Chat Coverage
 
@@ -367,6 +368,14 @@ The chat live canary suite covers the default and parser-sensitive paths:
   memory evidence.
 - `chat_embedded_tool_call_live_canary`: asks for one content-embedded
   `<tool_call>`, executes the test tool once, and asserts the result marker.
+- `chat_inline_tool_recovery_live_canary`: injects one deliberately incomplete
+  `<tool_use>` stream chunk, verifies the recovered tool executes once, and
+  asks the live model to finish from the trusted tool result without raw tool
+  artifacts in model history.
+- `chat_assistant_tool_result_rejection_live_canary`: injects one
+  assistant-authored `<tool_result>`, verifies the untrusted result is ignored
+  without executing a tool, and asks the live model to finish from the recovery
+  notice.
 
 The separate tool-result budget canary forces a live model through this failure
 mode:
@@ -377,8 +386,9 @@ mode:
 - answer from the compacted result with the expected marker
 
 Together these canaries catch regressions in ordinary chat, memory extraction,
-embedded tool parsing, and prompt-budget recovery. They still do not prove
-native tool-role compatibility across every endpoint.
+embedded tool parsing, focused inline tool recovery, untrusted tool-result
+rejection, and prompt-budget recovery. They still do not prove native tool-role
+compatibility across every endpoint.
 
 ## Coding Coverage
 

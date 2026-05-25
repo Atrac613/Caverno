@@ -396,7 +396,10 @@ class ChatNotifier extends Notifier<ChatState> {
     _seenContentToolCallHashes.clear();
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
-    _latestContentToolResults.clear();
+    if (!sameConversation) {
+      _latestContentToolResults.clear();
+      _latestCompletedToolResults = const [];
+    }
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _sessionMemoryContext = null;
@@ -5632,7 +5635,11 @@ class ChatNotifier extends Notifier<ChatState> {
     final currentConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
-    final messages = state.messages.where((m) => !m.isStreaming).toList();
+    final messages = state.messages
+        .where((m) => !m.isStreaming)
+        .map(_sanitizeMessageForModelHistory)
+        .where(_shouldKeepMessageForModelHistory)
+        .toList();
     final shouldForceCompaction =
         forceCompaction || _forcePromptCompactionForNextRequest;
     _forcePromptCompactionForNextRequest = false;
@@ -5688,6 +5695,25 @@ class ChatNotifier extends Notifier<ChatState> {
       compactionActive: compactionArtifact?.hasContent ?? false,
     );
     return result;
+  }
+
+  Message _sanitizeMessageForModelHistory(Message message) {
+    if (message.role != MessageRole.assistant) {
+      return message;
+    }
+
+    final strippedContent = ContentParser.stripToolArtifacts(message.content);
+    if (strippedContent == message.content) {
+      return message;
+    }
+    return message.copyWith(content: strippedContent);
+  }
+
+  bool _shouldKeepMessageForModelHistory(Message message) {
+    if (message.role != MessageRole.assistant) {
+      return true;
+    }
+    return message.content.trim().isNotEmpty;
   }
 
   ConversationCompactionArtifact? _resolvePromptCompactionArtifact({
@@ -7425,6 +7451,10 @@ class ChatNotifier extends Notifier<ChatState> {
       return _seenContentToolCallHashes.add(_contentToolCallHash(tc));
     }).toList();
 
+    _queueContentToolCalls(freshToolCalls);
+  }
+
+  void _queueContentToolCalls(List<ToolCallData> freshToolCalls) {
     if (freshToolCalls.isNotEmpty) {
       appLog('[ContentTool] Detected tool_call(s): ${freshToolCalls.length}');
       for (final tc in freshToolCalls) {
@@ -8390,7 +8420,113 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  void _recoverIncompleteContentToolCallsFromLastMessage() {
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final lastMessage = state.messages.last;
+    if (lastMessage.role != MessageRole.assistant ||
+        !ContentParser.hasIncompleteToolCall(lastMessage.content)) {
+      return;
+    }
+
+    final recoveredToolCalls =
+        ContentParser.extractRecoverableIncompleteToolCalls(
+          lastMessage.content,
+        ).where((tc) {
+          return _seenContentToolCallHashes.add(_contentToolCallHash(tc));
+        }).toList();
+
+    if (recoveredToolCalls.isEmpty) {
+      appLog(
+        '[ContentTool] Incomplete tool call could not be parsed; requesting continuation recovery',
+      );
+      _stripToolArtifactsFromLastAssistantMessage();
+      _pendingContentToolResults.add(
+        '[Incomplete assistant tool call]\n'
+        'The assistant emitted an unfinished tool call tag. Reissue the needed '
+        'tool call as one complete <tool_use>...</tool_use> tag, or finish with '
+        'a concise text answer if no more tools are needed. Do not write '
+        '<tool_result> tags yourself.',
+      );
+      return;
+    }
+
+    appLog(
+      '[ContentTool] Recovering incomplete tool_call(s): ${recoveredToolCalls.length}',
+    );
+    _stripToolArtifactsFromLastAssistantMessage();
+    _queueContentToolCalls(recoveredToolCalls);
+  }
+
+  bool _recoverUntrustedAssistantToolResultsFromLastMessage() {
+    if (!ref.mounted || state.messages.isEmpty) return false;
+
+    final lastMessage = state.messages.last;
+    if (lastMessage.role != MessageRole.assistant) {
+      return false;
+    }
+
+    final toolResults = ContentParser.extractToolResultMarkers(
+      lastMessage.content,
+    );
+    if (toolResults.isEmpty) {
+      return false;
+    }
+
+    appLog(
+      '[ContentTool] Ignoring assistant-authored tool_result tag(s): '
+      '${toolResults.map((tc) => tc.name).join(", ")}',
+    );
+    _stripToolArtifactsFromLastAssistantMessage();
+    _pendingContentToolResults.add(
+      '[Assistant-authored tool_result ignored]\n'
+      'The assistant emitted <tool_result> tags without a corresponding tool '
+      'execution. Tool results must come from executed tools only. If the data '
+      'is still needed, call the tool with one complete <tool_use>...</tool_use> '
+      'tag; otherwise answer from verified prior tool results only.',
+    );
+    return true;
+  }
+
+  void _stripToolArtifactsFromLastAssistantMessage() {
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    if (lastMessage.role != MessageRole.assistant) {
+      return;
+    }
+
+    final strippedContent = ContentParser.stripToolArtifacts(
+      lastMessage.content,
+    );
+    if (strippedContent.trim().isEmpty) {
+      updatedMessages.removeAt(lastIndex);
+    } else {
+      updatedMessages[lastIndex] = lastMessage.copyWith(
+        content: strippedContent,
+      );
+    }
+    state = state.copyWith(messages: updatedMessages);
+  }
+
+  void _appendToolContinuationLimitNotice() {
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    updatedMessages[lastIndex] = lastMessage.copyWith(
+      content:
+          '${lastMessage.content}\n\n[Tool continuation limit reached. Please ask again with a more specific request.]',
+    );
+    state = state.copyWith(messages: updatedMessages);
+  }
+
   Future<void> _finishStreaming() async {
+    _recoverIncompleteContentToolCallsFromLastMessage();
+
     // Wait for pending tool executions before finalizing the response.
     if (_pendingToolExecutions.isNotEmpty) {
       appLog(
@@ -8406,20 +8542,27 @@ class ChatNotifier extends Notifier<ChatState> {
       _pendingContentToolResults.clear();
 
       if (_contentToolContinuationCount >= _maxContentToolContinuations) {
-        if (ref.mounted && state.messages.isNotEmpty) {
-          final updatedMessages = [...state.messages];
-          final lastIndex = updatedMessages.length - 1;
-          final lastMessage = updatedMessages[lastIndex];
-          updatedMessages[lastIndex] = lastMessage.copyWith(
-            content:
-                '${lastMessage.content}\n\n[Tool continuation limit reached. Please ask again with a more specific request.]',
-          );
-          state = state.copyWith(messages: updatedMessages);
-        }
+        _appendToolContinuationLimitNotice();
       } else {
         _contentToolContinuationCount += 1;
         await _continueAfterContentToolResults(toolResults);
         return;
+      }
+    }
+
+    if (_pendingContentToolResults.isEmpty) {
+      final recoveredUntrustedToolResult =
+          _recoverUntrustedAssistantToolResultsFromLastMessage();
+      if (recoveredUntrustedToolResult) {
+        final toolResults = List<String>.from(_pendingContentToolResults);
+        _pendingContentToolResults.clear();
+        if (_contentToolContinuationCount >= _maxContentToolContinuations) {
+          _appendToolContinuationLimitNotice();
+        } else {
+          _contentToolContinuationCount += 1;
+          await _continueAfterContentToolResults(toolResults);
+          return;
+        }
       }
     }
 
@@ -8497,11 +8640,12 @@ class ChatNotifier extends Notifier<ChatState> {
             return true;
           }
         case ContentType.toolCall:
-        case ContentType.toolResult:
           final toolName = segment.toolCall?.name.toLowerCase();
           if (toolName != 'memory_update') {
             return true;
           }
+        case ContentType.toolResult:
+          continue;
       }
     }
 
@@ -8572,6 +8716,11 @@ class ChatNotifier extends Notifier<ChatState> {
             'Do not repeat a tool call with the same arguments after a '
             'successful result. Reuse the tool result that is already '
             'provided and continue from it. '
+            'Do not write <tool_result> tags or claim a tool result yourself; '
+            'tool results are trusted only when the application executes the '
+            'tool. If you need a tool, emit exactly one complete '
+            '<tool_use>...</tool_use> tag with valid JSON, including the '
+            'closing tag. '
             'If the latest tool result already completed the current saved '
             'task or confirmed the saved validation command, do not call '
             'more tools for that task and finish with a brief text answer. '
@@ -8671,7 +8820,11 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Persists the current conversation messages.
   void _saveMessages() {
     // Save only messages that are no longer streaming.
-    final messagesToSave = state.messages.where((m) => !m.isStreaming).toList();
+    final messagesToSave = state.messages
+        .where((m) => !m.isStreaming)
+        .map(_sanitizeMessageForModelHistory)
+        .where(_shouldKeepMessageForModelHistory)
+        .toList();
     String? targetAssistantMessageId;
     for (var i = messagesToSave.length - 1; i >= 0; i--) {
       if (messagesToSave[i].role == MessageRole.assistant) {

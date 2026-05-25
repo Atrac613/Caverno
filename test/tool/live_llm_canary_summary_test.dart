@@ -51,6 +51,19 @@ void main() {
         }),
         jsonEncode({
           'testID': 2,
+          'message': '[ContentTool] Recovering incomplete tool_call(s): 1',
+          'type': 'print',
+          'time': 31,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[ContentTool] Ignoring assistant-authored tool_result tag(s): arp',
+          'type': 'print',
+          'time': 32,
+        }),
+        jsonEncode({
+          'testID': 2,
           'result': 'success',
           'skipped': false,
           'hidden': false,
@@ -105,6 +118,8 @@ void main() {
     expect(summary.durationMs, 250);
     expect(summary.signals.recoveredStreamFallbackCount, 1);
     expect(summary.signals.toolResultCompactionRetryCount, 1);
+    expect(summary.signals.incompleteContentToolRecoveryCount, 1);
+    expect(summary.signals.ignoredAssistantToolResultCount, 1);
 
     final json = summary.toJson();
     expect(json['schemaName'], 'live_llm_canary_summary');
@@ -112,6 +127,10 @@ void main() {
     expect(json['tests'], hasLength(2));
     expect(summary.toMarkdown(), contains('Live LLM Canary Summary'));
     expect(summary.toMarkdown(), contains('Recovered stream fallback count'));
+    expect(
+      summary.toMarkdown(),
+      contains('Incomplete content-tool recovery count'),
+    );
   });
 
   test('marks skipped live canaries as skipped instead of passed', () async {

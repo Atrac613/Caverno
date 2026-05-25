@@ -5126,6 +5126,8 @@ void main() {
       await toolNotifier.sendMessage('Run the saved validation command');
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
 
       final latestResults = toolNotifier.takeLatestToolResults();
       expect(latestResults, hasLength(1));
@@ -5133,6 +5135,147 @@ void main() {
       expect(latestResults.single.arguments['command'], 'pwd');
       expect(latestResults.single.result, contains('"exit_code":0'));
       expect(toolNotifier.takeLatestToolResults(), isEmpty);
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test(
+    'incomplete content tool calls are recovered before finalizing',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final streamingDataSource = _QueuedStreamingChatDataSource([
+        [
+          'Checking clients.\n'
+              '<tool_use>{"name":"arp","arguments":{"ip_version":"all"}}',
+        ],
+        ['Client analysis complete.'],
+      ]);
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'arp': '{"entries":15,"table":[{"ip":"192.168.100.1"}]}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ContentToolSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(streamingDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Deep dive clients');
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolService.executedToolNames, contains('arp'));
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Client analysis complete.'),
+        );
+        expect(
+          toolNotifier.state.messages
+              .map((message) => message.content)
+              .join('\n'),
+          isNot(contains('<tool_use>')),
+        );
+
+        final continuationRequest = streamingDataSource.requests.last;
+        final assistantHistory = continuationRequest
+            .where((message) => message.role == MessageRole.assistant)
+            .map((message) => message.content)
+            .join('\n');
+        expect(assistantHistory, isNot(contains('<tool_use>')));
+        expect(assistantHistory, isNot(contains('<tool_result>')));
+        expect(continuationRequest.last.content, contains('[Result of arp]'));
+        expect(
+          continuationRequest.last.content,
+          contains('Do not write <tool_result> tags'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('assistant-authored tool results are ignored and recovered', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final streamingDataSource = _QueuedStreamingChatDataSource([
+      [
+        '<tool_result>{"name":"arp","summary":"Completed","details":["entries: 15"]}</tool_result>',
+      ],
+      ['Answering from verified prior results only.'],
+    ]);
+    final toolService = _FakeMcpToolService(
+      results: const {'arp': '{"entries":15}'},
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ContentToolSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(streamingDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Deep dive clients');
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(toolNotifier.state.isLoading, isFalse);
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('Answering from verified prior results only.'),
+      );
+      expect(
+        toolNotifier.state.messages
+            .map((message) => message.content)
+            .join('\n'),
+        isNot(contains('<tool_result>')),
+      );
+
+      final continuationPrompt = streamingDataSource.requests.last.last.content;
+      expect(
+        continuationPrompt,
+        contains('[Assistant-authored tool_result ignored]'),
+      );
+      expect(
+        continuationPrompt,
+        contains('Tool results must come from executed tools only.'),
+      );
     } finally {
       toolContainer.dispose();
     }

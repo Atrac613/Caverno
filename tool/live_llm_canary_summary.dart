@@ -213,6 +213,14 @@ class LiveLlmCanarySummary {
         '`${signals.toolResultCompactionRetryCount}`',
       )
       ..writeln(
+        '- Incomplete content-tool recovery count: '
+        '`${signals.incompleteContentToolRecoveryCount}`',
+      )
+      ..writeln(
+        '- Ignored assistant-authored tool_result count: '
+        '`${signals.ignoredAssistantToolResultCount}`',
+      )
+      ..writeln(
         '- Transport disconnect count: `${signals.transportDisconnectCount}`',
       )
       ..writeln(
@@ -238,12 +246,16 @@ class LiveLlmCanarySignals {
   const LiveLlmCanarySignals({
     required this.recoveredStreamFallbackCount,
     required this.toolResultCompactionRetryCount,
+    required this.incompleteContentToolRecoveryCount,
+    required this.ignoredAssistantToolResultCount,
     required this.transportDisconnectCount,
     required this.memoryExtractionFallbackCount,
   });
 
   final int recoveredStreamFallbackCount;
   final int toolResultCompactionRetryCount;
+  final int incompleteContentToolRecoveryCount;
+  final int ignoredAssistantToolResultCount;
   final int transportDisconnectCount;
   final int memoryExtractionFallbackCount;
 
@@ -256,6 +268,14 @@ class LiveLlmCanarySignals {
       toolResultCompactionRetryCount: _countMatches(
         rawLog,
         RegExp('Retrying tool-result follow-up after context-length error'),
+      ),
+      incompleteContentToolRecoveryCount: _countMatches(
+        rawLog,
+        RegExp(r'Recovering incomplete tool_call\(s\)'),
+      ),
+      ignoredAssistantToolResultCount: _countMatches(
+        rawLog,
+        RegExp('Ignoring assistant-authored tool_result tag'),
       ),
       transportDisconnectCount: _countMatches(
         rawLog,
@@ -279,6 +299,8 @@ class LiveLlmCanarySignals {
     return {
       'recoveredStreamFallbackCount': recoveredStreamFallbackCount,
       'toolResultCompactionRetryCount': toolResultCompactionRetryCount,
+      'incompleteContentToolRecoveryCount': incompleteContentToolRecoveryCount,
+      'ignoredAssistantToolResultCount': ignoredAssistantToolResultCount,
       'transportDisconnectCount': transportDisconnectCount,
       'memoryExtractionFallbackCount': memoryExtractionFallbackCount,
     };

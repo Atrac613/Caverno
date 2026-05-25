@@ -32,6 +32,11 @@ import 'package:caverno/features/settings/presentation/providers/settings_notifi
 
 const _basicMarker = 'CHAT_BASIC_LIVE_OK';
 const _embeddedMarker = 'EMBEDDED_TOOL_LIVE_OK';
+const _inlineRecoveryMarker = 'INLINE_TOOL_RECOVERY_LIVE_OK';
+const _inlineRecoveryTrigger = 'INLINE_TOOL_RECOVERY_CANARY_TRIGGER';
+const _toolResultIgnoredMarker = 'ASSISTANT_TOOL_RESULT_IGNORED_LIVE_OK';
+const _toolResultIgnoredTrigger =
+    'ASSISTANT_TOOL_RESULT_IGNORED_CANARY_TRIGGER';
 const _toolSearchArtifactMarker = 'TOOL_SEARCH_ARTIFACT_LIVE_OK';
 
 void main() {
@@ -181,6 +186,152 @@ void main() {
   );
 
   test(
+    'live LLM continues after recovered incomplete content tool call',
+    () async {
+      final env = _ChatLiveEnv.fromEnvironment();
+      final prelude = _ScriptedIncompleteToolPrelude(
+        trigger: _inlineRecoveryTrigger,
+        toolName: _InlineRecoveryToolService.toolName,
+        marker: _inlineRecoveryMarker,
+      );
+      final dataSource = _ChatLiveDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+        scriptedIncompleteToolPrelude: prelude,
+      );
+      final toolService = _InlineRecoveryToolService();
+      final container = _buildChatContainer(
+        env,
+        mcpEnabled: true,
+        toolService: toolService,
+        chatDataSource: dataSource,
+      );
+
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Run $_inlineRecoveryTrigger. '
+          'After the recovered tool result is available, answer with exactly '
+          '$_inlineRecoveryMarker and no extra text.',
+        );
+        await _waitForChatIdle(container);
+
+        expect(prelude.used, isTrue, reason: _chatDiagnostic(container));
+        expect(
+          toolService.executedToolNames,
+          [_InlineRecoveryToolService.toolName],
+          reason: _inlineRecoveryDiagnostic(container, toolService),
+        );
+        expect(
+          toolService.executedArguments.single['marker'],
+          _inlineRecoveryMarker,
+          reason: _inlineRecoveryDiagnostic(container, toolService),
+        );
+        expect(
+          _lastAssistantContent(container).toUpperCase(),
+          contains(_inlineRecoveryMarker),
+          reason: _inlineRecoveryDiagnostic(container, toolService),
+        );
+
+        final liveContinuationRequest = dataSource.streamRequests.lastOrNull;
+        expect(
+          liveContinuationRequest,
+          isNotNull,
+          reason: _inlineRecoveryDiagnostic(container, toolService),
+        );
+        final assistantHistory = liveContinuationRequest!
+            .where((message) => message.role == MessageRole.assistant)
+            .map((message) => message.content)
+            .join('\n');
+        expect(
+          assistantHistory,
+          isNot(contains('<tool_use>')),
+          reason: _inlineRecoveryDiagnostic(container, toolService),
+        );
+        expect(
+          assistantHistory,
+          isNot(contains('<tool_result>')),
+          reason: _inlineRecoveryDiagnostic(container, toolService),
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
+
+  test(
+    'live LLM continues after ignored assistant-authored tool result',
+    () async {
+      final env = _ChatLiveEnv.fromEnvironment();
+      final prelude = _ScriptedAssistantToolResultPrelude(
+        trigger: _toolResultIgnoredTrigger,
+        toolName: _ToolResultIgnoredToolService.toolName,
+        marker: _toolResultIgnoredMarker,
+      );
+      final dataSource = _ChatLiveDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+        scriptedAssistantToolResultPrelude: prelude,
+      );
+      final toolService = _ToolResultIgnoredToolService();
+      final container = _buildChatContainer(
+        env,
+        mcpEnabled: true,
+        toolService: toolService,
+        chatDataSource: dataSource,
+      );
+
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Run $_toolResultIgnoredTrigger. '
+          'This is a no-tool recovery canary. If the application reports that '
+          'an assistant-authored tool_result was ignored, do not call tools. '
+          'Answer with exactly $_toolResultIgnoredMarker and no extra text.',
+        );
+        await _waitForChatIdle(container);
+
+        expect(prelude.used, isTrue, reason: _chatDiagnostic(container));
+        expect(
+          toolService.executedToolNames,
+          isEmpty,
+          reason: _toolResultIgnoredDiagnostic(container, toolService),
+        );
+        expect(
+          _lastAssistantContent(container).toUpperCase(),
+          contains(_toolResultIgnoredMarker),
+          reason: _toolResultIgnoredDiagnostic(container, toolService),
+        );
+        expect(
+          _chatTranscript(container),
+          isNot(contains('<tool_result>')),
+          reason: _toolResultIgnoredDiagnostic(container, toolService),
+        );
+
+        final liveContinuationRequest = dataSource.streamRequests.lastOrNull;
+        expect(
+          liveContinuationRequest,
+          isNotNull,
+          reason: _toolResultIgnoredDiagnostic(container, toolService),
+        );
+        expect(
+          liveContinuationRequest!.last.content,
+          contains('[Assistant-authored tool_result ignored]'),
+          reason: _toolResultIgnoredDiagnostic(container, toolService),
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
+
+  test(
     'live LLM discovers a deferred tool and reads its persisted artifact',
     () async {
       final env = _ChatLiveEnv.fromEnvironment();
@@ -289,6 +440,7 @@ ProviderContainer _buildChatContainer(
   _ChatLiveEnv env, {
   required bool mcpEnabled,
   required McpToolService toolService,
+  ChatDataSource? chatDataSource,
   ToolResultArtifactStore? artifactStore,
 }) {
   final appLifecycleService = _MockAppLifecycleService();
@@ -305,9 +457,10 @@ ProviderContainer _buildChatContainer(
         _LiveCodingProjectsNotifier.new,
       ),
       chatRemoteDataSourceProvider.overrideWithValue(
-        _ChatLiveDataSource(
-          ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
-        ),
+        chatDataSource ??
+            _ChatLiveDataSource(
+              ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+            ),
       ),
       sessionMemoryServiceProvider.overrideWithValue(
         _NoopSessionMemoryService(),
@@ -393,6 +546,28 @@ String _toolSearchArtifactDiagnostic(
     'executedArguments=${toolService.executedArguments.map(jsonEncode).join(' | ')}',
     'artifactRoot=${artifactRoot.path}',
     'artifactPaths=$artifactPaths',
+  ].join('\n');
+}
+
+String _inlineRecoveryDiagnostic(
+  ProviderContainer container,
+  _InlineRecoveryToolService toolService,
+) {
+  return [
+    _chatDiagnostic(container),
+    'executedToolNames=${toolService.executedToolNames.join(',')}',
+    'executedArguments=${toolService.executedArguments.map(jsonEncode).join(' | ')}',
+  ].join('\n');
+}
+
+String _toolResultIgnoredDiagnostic(
+  ProviderContainer container,
+  _ToolResultIgnoredToolService toolService,
+) {
+  return [
+    _chatDiagnostic(container),
+    'executedToolNames=${toolService.executedToolNames.join(',')}',
+    'executedArguments=${toolService.executedArguments.map(jsonEncode).join(' | ')}',
   ].join('\n');
 }
 
@@ -530,9 +705,17 @@ class _NoopSessionMemoryService extends SessionMemoryService {
 }
 
 class _ChatLiveDataSource implements ChatDataSource {
-  _ChatLiveDataSource(this.delegate);
+  _ChatLiveDataSource(
+    this.delegate, {
+    this.scriptedIncompleteToolPrelude,
+    this.scriptedAssistantToolResultPrelude,
+  });
 
   final ChatRemoteDataSource delegate;
+  final _ScriptedIncompleteToolPrelude? scriptedIncompleteToolPrelude;
+  final _ScriptedAssistantToolResultPrelude? scriptedAssistantToolResultPrelude;
+  final List<List<Message>> streamRequests = [];
+  final List<List<Message>> streamWithToolsRequests = [];
 
   @override
   Stream<String> streamChatCompletion({
@@ -541,6 +724,7 @@ class _ChatLiveDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
+    streamRequests.add(List<Message>.unmodifiable(messages));
     return delegate.streamChatCompletion(
       messages: messages,
       model: model,
@@ -594,6 +778,15 @@ class _ChatLiveDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
+    streamWithToolsRequests.add(List<Message>.unmodifiable(messages));
+    final prelude = scriptedIncompleteToolPrelude;
+    if (prelude != null && prelude.shouldHandle(messages)) {
+      return prelude.buildResult();
+    }
+    final toolResultPrelude = scriptedAssistantToolResultPrelude;
+    if (toolResultPrelude != null && toolResultPrelude.shouldHandle(messages)) {
+      return toolResultPrelude.buildResult();
+    }
     return delegate.streamChatCompletionWithTools(
       messages: messages,
       tools: tools,
@@ -677,6 +870,84 @@ class _ChatLiveDataSource implements ChatDataSource {
   }
 }
 
+class _ScriptedIncompleteToolPrelude {
+  _ScriptedIncompleteToolPrelude({
+    required this.trigger,
+    required this.toolName,
+    required this.marker,
+  });
+
+  final String trigger;
+  final String toolName;
+  final String marker;
+  bool used = false;
+
+  bool shouldHandle(List<Message> messages) {
+    if (used) {
+      return false;
+    }
+    return messages.any(
+      (message) =>
+          message.role == MessageRole.user && message.content.contains(trigger),
+    );
+  }
+
+  StreamWithToolsResult buildResult() {
+    used = true;
+    final content =
+        'Starting inline recovery canary.\n'
+        '<tool_use>{"name":"$toolName","arguments":{"marker":"$marker"}}';
+    return StreamWithToolsResult(
+      stream: Stream<String>.fromIterable([
+        'Starting inline recovery canary.\n',
+        '<tool_use>{"name":"$toolName","arguments":{"marker":"$marker"}}',
+      ]),
+      completion: Future<ChatCompletionResult>.value(
+        ChatCompletionResult(content: content, finishReason: 'stop'),
+      ),
+    );
+  }
+}
+
+class _ScriptedAssistantToolResultPrelude {
+  _ScriptedAssistantToolResultPrelude({
+    required this.trigger,
+    required this.toolName,
+    required this.marker,
+  });
+
+  final String trigger;
+  final String toolName;
+  final String marker;
+  bool used = false;
+
+  bool shouldHandle(List<Message> messages) {
+    if (used) {
+      return false;
+    }
+    return messages.any(
+      (message) =>
+          message.role == MessageRole.user && message.content.contains(trigger),
+    );
+  }
+
+  StreamWithToolsResult buildResult() {
+    used = true;
+    final payload = jsonEncode({
+      'name': toolName,
+      'summary': 'Completed',
+      'details': ['marker: $marker'],
+    });
+    final content = '<tool_result>$payload</tool_result>';
+    return StreamWithToolsResult(
+      stream: Stream<String>.fromIterable([content]),
+      completion: Future<ChatCompletionResult>.value(
+        ChatCompletionResult(content: content, finishReason: 'stop'),
+      ),
+    );
+  }
+}
+
 class _NoToolsMcpToolService extends McpToolService {
   @override
   Future<void> connect({
@@ -700,6 +971,119 @@ class _NoToolsMcpToolService extends McpToolService {
       result: jsonEncode({'error': 'Tool is not available'}),
       isSuccess: false,
       errorMessage: 'Tool is not available',
+    );
+  }
+}
+
+class _ToolResultIgnoredToolService extends McpToolService {
+  static const toolName = 'assistant_tool_result_marker';
+
+  final List<String> executedToolNames = [];
+  final List<Map<String, dynamic>> executedArguments = [];
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    return const <Map<String, dynamic>>[
+      {
+        'type': 'function',
+        'function': {
+          'name': toolName,
+          'description':
+              'A canary tool that must not be executed from assistant-authored tool_result content.',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'marker': {'type': 'string'},
+            },
+          },
+        },
+      },
+    ];
+  }
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    executedArguments.add(Map<String, dynamic>.from(arguments));
+    return McpToolResult(
+      toolName: name,
+      result: jsonEncode({'error': 'This canary tool should not execute'}),
+      isSuccess: false,
+      errorMessage: 'This canary tool should not execute',
+    );
+  }
+}
+
+class _InlineRecoveryToolService extends McpToolService {
+  static const toolName = 'inline_recovery_marker';
+
+  final List<String> executedToolNames = [];
+  final List<Map<String, dynamic>> executedArguments = [];
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    return const <Map<String, dynamic>>[
+      {
+        'type': 'function',
+        'function': {
+          'name': toolName,
+          'description':
+              'Return a marker after the harness recovers an incomplete inline tool call.',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'marker': {'type': 'string'},
+            },
+            'required': ['marker'],
+          },
+        },
+      },
+    ];
+  }
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    executedArguments.add(Map<String, dynamic>.from(arguments));
+    if (name != toolName) {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({'error': 'Unsupported tool'}),
+        isSuccess: false,
+        errorMessage: 'Unsupported tool',
+      );
+    }
+    final marker = arguments['marker']?.toString() ?? '';
+    return McpToolResult(
+      toolName: name,
+      result: jsonEncode({
+        'marker': marker,
+        'instruction': 'Answer with exactly $marker and no extra text.',
+      }),
+      isSuccess: marker == _inlineRecoveryMarker,
+      errorMessage: marker == _inlineRecoveryMarker
+          ? null
+          : 'Unexpected marker',
     );
   }
 }

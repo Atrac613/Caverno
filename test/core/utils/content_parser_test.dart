@@ -59,6 +59,47 @@ void main() {
     expect(toolCalls.first.arguments['path'], 'pubspec.yaml');
   });
 
+  test('extractRecoverableIncompleteToolCalls parses unclosed tool_use', () {
+    const content =
+        'Gathering data.\n<tool_use>{"name":"arp","arguments":{"ip_version":"all"}}';
+
+    final toolCalls = ContentParser.extractRecoverableIncompleteToolCalls(
+      content,
+    );
+
+    expect(toolCalls, hasLength(1));
+    expect(toolCalls.first.name, 'arp');
+    expect(toolCalls.first.arguments['ip_version'], 'all');
+  });
+
+  test('extractToolResultMarkers parses assistant-authored tool results', () {
+    const content =
+        '<tool_result>{"name":"arp","summary":"Completed","details":["entries: 15"]}</tool_result>';
+
+    final toolResults = ContentParser.extractToolResultMarkers(content);
+
+    expect(toolResults, hasLength(1));
+    expect(toolResults.first.name, 'arp');
+    expect(toolResults.first.arguments['summary'], 'Completed');
+  });
+
+  test('stripToolArtifacts removes calls, results, and incomplete tags', () {
+    const content =
+        'Checking clients.\n'
+        '<tool_use>{"name":"get_wifi_health","arguments":{"minutes":60}}</tool_use>\n'
+        '<tool_result>{"name":"get_wifi_health","summary":"Completed"}</tool_result>\n'
+        'Next step.\n'
+        '<tool_use>{"name":"arp","arguments":{"ip_version":"all"}}';
+
+    final stripped = ContentParser.stripToolArtifacts(content);
+
+    expect(stripped, contains('Checking clients.'));
+    expect(stripped, contains('Next step.'));
+    expect(stripped, isNot(contains('<tool_use>')));
+    expect(stripped, isNot(contains('<tool_result>')));
+    expect(stripped, isNot(contains('arp')));
+  });
+
   test('extractCompletedToolCalls parses legacy malformed closing tokens', () {
     const content =
         '<|tool_call>call:write_file{path:"lan_devices.json",contents:"[]"}<tool_call|>';

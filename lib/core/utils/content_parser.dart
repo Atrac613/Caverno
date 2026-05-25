@@ -385,6 +385,97 @@ class ContentParser {
     return toolCalls;
   }
 
+  /// Extracts parseable tool calls from unfinished tool-call tags.
+  static List<ToolCallData> extractRecoverableIncompleteToolCalls(
+    String content,
+  ) {
+    final executableContent = _withoutThinkingBlocks(content);
+    final match =
+        _incompleteToolCallStart.firstMatch(executableContent) ??
+        _incompleteToolUseStart.firstMatch(executableContent);
+    if (match == null) {
+      return const [];
+    }
+
+    final rawMatch = match.group(0) ?? '';
+    final innerContent = _stripOpeningToolTag(rawMatch);
+    final parsed = _parseToolCallContent(innerContent);
+    if (parsed == null || parsed.name == 'memory_update') {
+      return const [];
+    }
+
+    return [
+      ToolCallData(
+        name: parsed.name,
+        arguments: parsed.arguments,
+        isComplete: true,
+        occurrenceId: '${match.start}:${match.end}',
+      ),
+    ];
+  }
+
+  /// Extracts tool result tags emitted in assistant content.
+  static List<ToolCallData> extractToolResultMarkers(String content) {
+    final toolResults = <ToolCallData>[];
+    for (final match in _toolResultPattern.allMatches(content)) {
+      final parsed = _parseToolCallContent(match.group(1) ?? '');
+      if (parsed != null && parsed.name != 'memory_update') {
+        toolResults.add(
+          ToolCallData(
+            name: parsed.name,
+            arguments: parsed.arguments,
+            isComplete: true,
+            occurrenceId: '${match.start}:${match.end}',
+          ),
+        );
+      }
+    }
+    return toolResults;
+  }
+
+  /// Removes raw tool call/result artifacts while preserving readable text.
+  static String stripToolArtifacts(String content) {
+    if (content.isEmpty) {
+      return content;
+    }
+
+    final result = parse(content);
+    final buffer = StringBuffer();
+    for (final segment in result.segments) {
+      switch (segment.type) {
+        case ContentType.text:
+        case ContentType.thinking:
+          buffer.write(segment.content);
+        case ContentType.toolCall:
+        case ContentType.toolResult:
+          break;
+      }
+    }
+    return buffer.toString().trim();
+  }
+
+  static bool hasIncompleteToolCall(String content) {
+    final result = parse(content);
+    return result.hasIncompleteTag && result.incompleteTagType == 'tool_call';
+  }
+
+  static String _stripOpeningToolTag(String content) {
+    final trimmed = content.trim();
+    for (final prefix in const [
+      '<tool_call>',
+      '<tool_use>',
+      '<|tool_call>',
+      '<|tool_call|>',
+      '<|tool_use>',
+      '<|tool_use|>',
+    ]) {
+      if (trimmed.startsWith(prefix)) {
+        return trimmed.substring(prefix.length);
+      }
+    }
+    return trimmed;
+  }
+
   static String _withoutThinkingBlocks(String content) {
     var executableContent = content.replaceAll(_thinkPattern, '');
     final incompleteThink = _incompleteThinkStart.firstMatch(executableContent);
