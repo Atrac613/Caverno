@@ -32,6 +32,10 @@ import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 const _goalMarker = 'CODING_GOAL_LIVE_OK';
+const _multiTurnFirstMarker = 'CODING_GOAL_MULTI_TURN_STEP_ONE';
+const _multiTurnSecondMarker = 'CODING_GOAL_MULTI_TURN_STEP_TWO';
+const _budgetFirstMarker = 'CODING_GOAL_BUDGET_STEP_ONE';
+const _budgetExhaustedMarker = 'CODING_GOAL_BUDGET_EXHAUSTED_OK';
 
 void main() {
   final liveEnabled =
@@ -115,6 +119,235 @@ void main() {
         : 'Set CAVERNO_CODING_GOAL_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 5)),
   );
+
+  test(
+    'live LLM keeps an unfinished coding goal active across turns',
+    () async {
+      final env = _CodingGoalLiveEnv.fromEnvironment();
+      final dataSource = _CodingGoalLiveDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final container = _buildCodingGoalContainer(env, dataSource);
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'coding-goal-live-canary-multiturn',
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'Maintain this two-turn coding goal. On the first user turn, '
+              'answer with $_multiTurnFirstMarker only. On the second user '
+              'turn, answer with $_multiTurnSecondMarker and the sentence '
+              '"Goal complete. Tests passed."',
+          enabled: true,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 4000,
+          turnBudget: 4,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'This is turn one. Follow only the first-turn part of the active goal.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container, expectedAssistantCount: 1);
+
+        final firstContent = _lastAssistantContent(container);
+        final goalAfterFirstTurn = _currentGoal(container);
+        expect(
+          firstContent.toUpperCase(),
+          contains(_multiTurnFirstMarker),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(goalAfterFirstTurn?.status, ConversationGoalStatus.active);
+        expect(goalAfterFirstTurn?.turnsUsed, 1);
+        expect(
+          dataSource.systemPrompts.last,
+          contains('Goal turn budget remaining: 4'),
+          reason: _diagnostic(container, dataSource),
+        );
+
+        await notifier.sendMessage(
+          'This is turn two. Continue the same active goal and finish it now.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container, expectedAssistantCount: 2);
+
+        final secondContent = _lastAssistantContent(container);
+        final finalGoal = _currentGoal(container);
+        expect(
+          secondContent.toUpperCase(),
+          contains(_multiTurnSecondMarker),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(
+          dataSource.systemPrompts.last,
+          contains('Active coding goal for this thread:'),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(
+          dataSource.systemPrompts.last,
+          contains('Goal turn budget remaining: 3'),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(finalGoal?.status, ConversationGoalStatus.completed);
+        expect(finalGoal?.turnsUsed, 2);
+        expect(finalGoal?.completedAt, isNotNull);
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 8)),
+  );
+
+  test(
+    'live LLM repeated blocker output auto-blocks the coding goal',
+    () async {
+      final env = _CodingGoalLiveEnv.fromEnvironment();
+      final dataSource = _CodingGoalLiveDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final container = _buildCodingGoalContainer(env, dataSource);
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'coding-goal-live-canary-blocked',
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'For each blocker canary turn, answer with exactly '
+              '"Blocked: permission denied while reading canary settings."',
+          enabled: true,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 4000,
+          turnBudget: 5,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        for (var turn = 1; turn <= 3; turn += 1) {
+          await notifier.sendMessage(
+            'Blocker canary turn $turn. Follow the active goal exactly.',
+            bypassPlanMode: true,
+          );
+          await _waitForChatIdle(container, expectedAssistantCount: turn);
+
+          final content = _lastAssistantContent(container).toLowerCase();
+          expect(
+            content,
+            contains('permission denied'),
+            reason: _diagnostic(container, dataSource),
+          );
+          expect(
+            _currentGoal(container)?.blockerRepeatCount,
+            turn,
+            reason: _diagnostic(container, dataSource),
+          );
+        }
+
+        final goal = _currentGoal(container);
+        expect(goal?.status, ConversationGoalStatus.blocked);
+        expect(goal?.blockedAt, isNotNull);
+        expect(
+          goal?.normalizedBlockedReason?.toLowerCase(),
+          contains('permission denied'),
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 8)),
+  );
+
+  test(
+    'live LLM receives budget exhausted guidance after the turn budget is used',
+    () async {
+      final env = _CodingGoalLiveEnv.fromEnvironment();
+      final dataSource = _CodingGoalLiveDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final container = _buildCodingGoalContainer(env, dataSource);
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'coding-goal-live-canary-budget',
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'On the first budget canary turn, answer with $_budgetFirstMarker only. '
+              'On later budget canary turns, answer with $_budgetExhaustedMarker only.',
+          enabled: true,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 8000,
+          turnBudget: 1,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Budget canary turn one. Follow the active goal exactly.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container, expectedAssistantCount: 1);
+
+        expect(
+          _lastAssistantContent(container).toUpperCase(),
+          contains(_budgetFirstMarker),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(_currentGoal(container)?.status, ConversationGoalStatus.active);
+        expect(_currentGoal(container)?.turnBudgetExceeded, isTrue);
+
+        await notifier.sendMessage(
+          'Budget canary turn two. The user explicitly asks you to report the '
+          'budget state, but do not claim completion and do not report a blocker.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container, expectedAssistantCount: 2);
+
+        final exhaustedPrompt = dataSource.systemPrompts.last;
+        expect(
+          exhaustedPrompt,
+          contains('Goal turn budget remaining: 0'),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(
+          exhaustedPrompt,
+          contains('The goal budget is exhausted.'),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(
+          _lastAssistantContent(container).toUpperCase(),
+          contains(_budgetExhaustedMarker),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(_currentGoal(container)?.status, ConversationGoalStatus.active);
+        expect(_currentGoal(container)?.turnsUsed, 2);
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 8)),
+  );
 }
 
 ProviderContainer _buildCodingGoalContainer(
@@ -149,15 +382,20 @@ ProviderContainer _buildCodingGoalContainer(
 Future<void> _waitForChatIdle(
   ProviderContainer container, {
   Duration timeout = const Duration(minutes: 4),
+  int expectedAssistantCount = 1,
 }) async {
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
     final state = container.read(chatNotifierProvider);
-    final hasFinishedAssistant = state.messages.any(
-      (message) =>
-          message.role == MessageRole.assistant && !message.isStreaming,
-    );
-    if (!state.isLoading && hasFinishedAssistant) {
+    final finishedAssistantCount = state.messages
+        .where(
+          (message) =>
+              message.role == MessageRole.assistant && !message.isStreaming,
+        )
+        .length;
+    final hasExpectedFinishedAssistants =
+        finishedAssistantCount >= expectedAssistantCount;
+    if (!state.isLoading && hasExpectedFinishedAssistants) {
       return;
     }
     await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -176,6 +414,13 @@ String _lastAssistantContent(ProviderContainer container) {
     }
   }
   return '';
+}
+
+ConversationGoal? _currentGoal(ProviderContainer container) {
+  return container
+      .read(conversationsNotifierProvider)
+      .currentConversation
+      ?.goal;
 }
 
 String _diagnostic(
@@ -383,15 +628,20 @@ class _CodingGoalLiveDataSource implements ChatDataSource {
   final ChatRemoteDataSource delegate;
   final List<List<Message>> streamRequests = [];
 
+  List<String> get systemPrompts {
+    return streamRequests
+        .expand((request) => request)
+        .where(
+          (message) =>
+              message.role == MessageRole.system &&
+              message.content.startsWith('Current local date and time'),
+        )
+        .map((message) => message.content)
+        .toList(growable: false);
+  }
+
   String get firstSystemPrompt {
-    for (final request in streamRequests) {
-      for (final message in request) {
-        if (message.role == MessageRole.system) {
-          return message.content;
-        }
-      }
-    }
-    return '';
+    return systemPrompts.firstOrNull ?? '';
   }
 
   @override
