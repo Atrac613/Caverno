@@ -152,6 +152,145 @@ void main() {
         : 'Set CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 8)),
   );
+
+  test(
+    '${testNamePrefix}live LLM repairs code after observing the failing fixture test',
+    () async {
+      final env = _CodingGoalLiveEditEnv.fromEnvironment();
+      final fixture = _CodingGoalEditFixture.create(env.workspaceRoot);
+      final project = fixture.project;
+      final dataSource = _CodingGoalLiveEditDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final toolService = _SandboxCodingToolService(fixture.root);
+      final container = _buildCodingGoalLiveEditContainer(
+        env: env,
+        dataSource: dataSource,
+        toolService: toolService,
+        project: project,
+      );
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'Repair the selected coding project with a red-green workflow. '
+              'First run local_execute_command with command "$_testCommand" '
+              'in the project root before any edit_file or write_file call; '
+              'that first test failure is expected. Use the failure output to '
+              'edit lib/canary_greeting.dart so canaryGreeting("Ada") returns '
+              'exactly "Hello, Ada! $_editMarker". Then rerun '
+              'local_execute_command with the same command. The goal is '
+              'complete only after a later command exits with code 0 and '
+              'prints $_editMarker.',
+          enabled: true,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 16000,
+          turnBudget: 6,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Use the active coding goal. Run exactly "$_testCommand" before '
+          'editing any file, inspect the failure, make the smallest repair, '
+          'rerun exactly "$_testCommand", and finish only after the rerun '
+          'passes. Mention $_editMarker and say '
+          '"Goal complete. Tests passed." in the final answer.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container);
+
+        final testResult = await fixture.runTest();
+        final goal = _currentGoal(container);
+        final finalContent = _lastAssistantContent(container);
+        final testExitCodes = toolService.testCommandExitCodes;
+        final sourceBeforeTestCommands =
+            toolService.testCommandSourceContainsMarkerBeforeCall;
+
+        expect(
+          dataSource.firstSystemPrompt,
+          contains('Active coding goal for this thread:'),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          dataSource.firstSystemPrompt,
+          contains(project.rootPath),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.firstTestCommandIndex,
+          isNot(-1),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.firstMutationIndex,
+          greaterThan(toolService.firstTestCommandIndex),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          testExitCodes.length,
+          greaterThanOrEqualTo(2),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          testExitCodes.first,
+          isNot(0),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          testExitCodes.last,
+          0,
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          sourceBeforeTestCommands.first,
+          isFalse,
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          fixture.sourceFile.readAsStringSync(),
+          contains(_editMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.successfulTestCommandCount,
+          greaterThanOrEqualTo(1),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          testResult.exitCode,
+          0,
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          testResult.stdout,
+          contains(_editMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          finalContent.toUpperCase(),
+          contains(_editMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(goal?.status, ConversationGoalStatus.completed);
+        expect(goal?.turnsUsed, 1);
+        expect(goal?.completedAt, isNotNull);
+      } finally {
+        container.dispose();
+        fixture.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 10)),
+  );
 }
 
 ProviderContainer _buildCodingGoalLiveEditContainer({
@@ -497,12 +636,14 @@ class _SandboxToolCall {
     required this.arguments,
     required this.result,
     required this.success,
+    required this.sourceBeforeCall,
   });
 
   final String name;
   final Map<String, dynamic> arguments;
   final String result;
   final bool success;
+  final String? sourceBeforeCall;
 
   Map<String, dynamic> toJson() {
     return {
@@ -510,6 +651,7 @@ class _SandboxToolCall {
       'arguments': arguments,
       'success': success,
       'result': result,
+      if (sourceBeforeCall != null) 'sourceBeforeCall': sourceBeforeCall,
     };
   }
 }
@@ -522,6 +664,25 @@ class _SandboxCodingToolService extends McpToolService {
 
   List<String> get executedToolNames =>
       executedCalls.map((call) => call.name).toList(growable: false);
+
+  List<int> get testCommandExitCodes => executedCalls
+      .where((call) => call.name == 'local_execute_command')
+      .map((call) => _tryDecodeObject(call.result)['exit_code'])
+      .whereType<num>()
+      .map((code) => code.toInt())
+      .toList(growable: false);
+
+  List<bool> get testCommandSourceContainsMarkerBeforeCall => executedCalls
+      .where((call) => call.name == 'local_execute_command')
+      .map((call) => call.sourceBeforeCall?.contains(_editMarker) ?? false)
+      .toList(growable: false);
+
+  int get firstTestCommandIndex =>
+      executedCalls.indexWhere((call) => call.name == 'local_execute_command');
+
+  int get firstMutationIndex => executedCalls.indexWhere(
+    (call) => call.name == 'edit_file' || call.name == 'write_file',
+  );
 
   int get successfulTestCommandCount => executedCalls.where((call) {
     if (call.name != 'local_execute_command' || !call.success) {
@@ -637,6 +798,7 @@ class _SandboxCodingToolService extends McpToolService {
     required String name,
     required Map<String, dynamic> arguments,
   }) async {
+    final sourceBeforeCall = _sourceText();
     final result = await _executeTool(name: name, arguments: arguments);
     executedCalls.add(
       _SandboxToolCall(
@@ -644,9 +806,18 @@ class _SandboxCodingToolService extends McpToolService {
         arguments: Map<String, dynamic>.from(arguments),
         result: result.result,
         success: result.isSuccess,
+        sourceBeforeCall: sourceBeforeCall,
       ),
     );
     return result;
+  }
+
+  String? _sourceText() {
+    final file = File('${root.path}/lib/canary_greeting.dart');
+    if (!file.existsSync()) {
+      return null;
+    }
+    return file.readAsStringSync();
   }
 
   Future<McpToolResult> _executeTool({
