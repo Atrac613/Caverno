@@ -432,8 +432,14 @@ class _FlutterJsonTestLogParser {
           );
         case 'done':
           doneSeen = true;
-          runnerSuccess = decoded['success'] as bool?;
-          durationMs = (decoded['time'] as num?)?.toInt();
+          final runSuccess = decoded['success'] as bool?;
+          if (runSuccess != null) {
+            runnerSuccess = (runnerSuccess ?? true) && runSuccess;
+          }
+          final runDurationMs = (decoded['time'] as num?)?.toInt();
+          if (runDurationMs != null) {
+            durationMs = (durationMs ?? 0) + runDurationMs;
+          }
       }
     }
 

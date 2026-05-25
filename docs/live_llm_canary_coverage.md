@@ -58,6 +58,11 @@ For each model switch, run this minimum set before comparing model quality:
    tool/run_coding_goal_live_edit_canary.sh
    ```
 
+   For a stability read after prompt, tool execution, or model changes, set
+   `CAVERNO_CODING_GOAL_LIVE_EDIT_REPEAT_COUNT=3`. The wrapper runs each
+   iteration in an isolated fixture workspace and writes one aggregate
+   `canary_summary.json` that fails if any iteration fails.
+
 5. Chat branch checks:
 
    ```bash

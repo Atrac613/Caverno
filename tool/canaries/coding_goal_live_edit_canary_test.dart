@@ -39,9 +39,15 @@ const _testCommand = 'dart lib/canary_greeting_test.dart';
 void main() {
   final liveEnabled =
       Platform.environment['CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY'] == '1';
+  final runLabel = Platform
+      .environment['CAVERNO_CODING_GOAL_LIVE_EDIT_RUN_LABEL']
+      ?.trim();
+  final testNamePrefix = runLabel == null || runLabel.isEmpty
+      ? ''
+      : '[$runLabel] ';
 
   test(
-    'live LLM edits code and runs the fixture test for an active coding goal',
+    '${testNamePrefix}live LLM edits code and runs the fixture test for an active coding goal',
     () async {
       final env = _CodingGoalLiveEditEnv.fromEnvironment();
       final fixture = _CodingGoalEditFixture.create(env.workspaceRoot);

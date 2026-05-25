@@ -180,4 +180,75 @@ void main() {
     expect(summary.skippedCount, 1);
     expect(summary.tests.single.skipReason, contains('CAVERNO_CHAT'));
   });
+
+  test('aggregates repeated Flutter JSON reporter output', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'live-llm-summary-repeat-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final logFile = File('${directory.path}/flutter_test.jsonl');
+    await logFile.writeAsString(
+      [
+        jsonEncode({'protocolVersion': '0.1.1', 'type': 'start', 'time': 0}),
+        jsonEncode({
+          'test': {
+            'id': 1,
+            'name': '[run_01] live LLM edits code and runs the fixture test',
+            'metadata': {'skip': false, 'skipReason': null},
+          },
+          'type': 'testStart',
+          'time': 10,
+        }),
+        jsonEncode({
+          'testID': 1,
+          'result': 'success',
+          'skipped': false,
+          'hidden': false,
+          'type': 'testDone',
+          'time': 110,
+        }),
+        jsonEncode({'success': true, 'type': 'done', 'time': 120}),
+        jsonEncode({'protocolVersion': '0.1.1', 'type': 'start', 'time': 0}),
+        jsonEncode({
+          'test': {
+            'id': 1,
+            'name': '[run_02] live LLM edits code and runs the fixture test',
+            'metadata': {'skip': false, 'skipReason': null},
+          },
+          'type': 'testStart',
+          'time': 20,
+        }),
+        jsonEncode({
+          'testID': 1,
+          'result': 'success',
+          'skipped': false,
+          'hidden': false,
+          'type': 'testDone',
+          'time': 140,
+        }),
+        jsonEncode({'success': false, 'type': 'done', 'time': 160}),
+      ].join('\n'),
+    );
+
+    final summary = await buildLiveLlmCanarySummary(
+      logFile: logFile,
+      canaryName: 'coding_goal_live_edit_canary',
+      surface: 'coding_goal_edit',
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'test-model',
+      command: 'tool/run_coding_goal_live_edit_canary.sh',
+      generatedAt: DateTime.utc(2026, 5, 26),
+    );
+
+    expect(summary.result, 'failed');
+    expect(summary.runnerSuccess, isFalse);
+    expect(summary.testCount, 2);
+    expect(summary.passedCount, 2);
+    expect(summary.failedCount, 0);
+    expect(summary.durationMs, 280);
+    expect(summary.tests.map((test) => test.name), [
+      '[run_01] live LLM edits code and runs the fixture test',
+      '[run_02] live LLM edits code and runs the fixture test',
+    ]);
+  });
 }

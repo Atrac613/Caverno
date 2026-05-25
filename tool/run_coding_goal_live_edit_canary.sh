@@ -13,26 +13,55 @@ RUN_DIR="${REPORT_ROOT}/coding_goal_live_edit_canary_$(date +%s)"
 LOG_PATH="${RUN_DIR}/flutter_test.jsonl"
 WORK_ROOT="${RUN_DIR}/workspace"
 REPORTER="json"
+REPEAT_COUNT="${CAVERNO_CODING_GOAL_LIVE_EDIT_REPEAT_COUNT:-1}"
+
+if ! [[ "${REPEAT_COUNT}" =~ ^[0-9]+$ ]] || [[ "${REPEAT_COUNT}" -lt 1 ]]; then
+  echo "CAVERNO_CODING_GOAL_LIVE_EDIT_REPEAT_COUNT must be a positive integer." >&2
+  exit 64
+fi
 
 echo "Running Coding Goal live edit canary"
 echo "  Base URL: ${CAVERNO_LLM_BASE_URL}"
 echo "  Model: ${CAVERNO_LLM_MODEL}"
 echo "  Reporter: ${REPORTER}"
+echo "  Repeat count: ${REPEAT_COUNT}"
 echo "  Report directory: ${RUN_DIR}"
-echo "  Workspace: ${WORK_ROOT}"
+echo "  Workspace root: ${WORK_ROOT}"
 
 cd "${ROOT_DIR}"
 mkdir -p "${RUN_DIR}"
+: > "${LOG_PATH}"
 
-set +e
-CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 \
-CAVERNO_CODING_GOAL_LIVE_EDIT_WORK_ROOT="${WORK_ROOT}" \
-CAVERNO_LLM_BASE_URL="${CAVERNO_LLM_BASE_URL}" \
-CAVERNO_LLM_API_KEY="${CAVERNO_LLM_API_KEY}" \
-CAVERNO_LLM_MODEL="${CAVERNO_LLM_MODEL}" \
-flutter test tool/canaries/coding_goal_live_edit_canary_test.dart -r "${REPORTER}" > "${LOG_PATH}" 2>&1
-TEST_STATUS=$?
-set -e
+TEST_STATUS=0
+for index in $(seq 1 "${REPEAT_COUNT}"); do
+  run_label="$(printf 'run_%02d' "${index}")"
+  run_log_path="${RUN_DIR}/${run_label}_flutter_test.jsonl"
+  run_work_root="${WORK_ROOT}/${run_label}"
+  echo "Running ${run_label}/${REPEAT_COUNT}"
+
+  set +e
+  CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 \
+  CAVERNO_CODING_GOAL_LIVE_EDIT_RUN_LABEL="${run_label}" \
+  CAVERNO_CODING_GOAL_LIVE_EDIT_WORK_ROOT="${run_work_root}" \
+  CAVERNO_LLM_BASE_URL="${CAVERNO_LLM_BASE_URL}" \
+  CAVERNO_LLM_API_KEY="${CAVERNO_LLM_API_KEY}" \
+  CAVERNO_LLM_MODEL="${CAVERNO_LLM_MODEL}" \
+  flutter test tool/canaries/coding_goal_live_edit_canary_test.dart -r "${REPORTER}" > "${run_log_path}" 2>&1
+  run_status=$?
+  set -e
+
+  {
+    echo "[CanaryRunner] ${run_label}"
+    cat "${run_log_path}"
+    if [[ "${run_status}" -ne 0 ]] && ! grep -Eq '"type"[[:space:]]*:[[:space:]]*"done"' "${run_log_path}"; then
+      printf '{"success":false,"type":"done","time":0}\n'
+    fi
+  } >> "${LOG_PATH}"
+
+  if [[ "${run_status}" -ne 0 ]]; then
+    TEST_STATUS="${run_status}"
+  fi
+done
 
 set +e
 dart run "${ROOT_DIR}/tool/live_llm_canary_summary.dart" \
@@ -42,7 +71,7 @@ dart run "${ROOT_DIR}/tool/live_llm_canary_summary.dart" \
   --surface coding_goal_edit \
   --base-url "${CAVERNO_LLM_BASE_URL}" \
   --model "${CAVERNO_LLM_MODEL}" \
-  --command "tool/run_coding_goal_live_edit_canary.sh"
+  --command "CAVERNO_CODING_GOAL_LIVE_EDIT_REPEAT_COUNT=${REPEAT_COUNT} tool/run_coding_goal_live_edit_canary.sh"
 SUMMARY_STATUS=$?
 set -e
 
