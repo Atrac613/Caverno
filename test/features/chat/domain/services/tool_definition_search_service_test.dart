@@ -32,6 +32,31 @@ void main() {
       },
     );
 
+    test('keeps network diagnostic tools available in large catalogs', () {
+      final definitions = [
+        _tool('get_current_datetime', 'Return the current date and time.'),
+        _tool('get_wifi_health', 'Return Wi-Fi health facts.'),
+        _tool('wifi_get_connection_info', 'Return current Wi-Fi connection.'),
+        _tool('get_wan_status', 'Return WAN and ISP reachability status.'),
+        for (var i = 0; i < 30; i++)
+          _tool('remote_tool_$i', 'Remote MCP capability number $i.'),
+      ];
+
+      final selection = ToolDefinitionSearchService.buildInitialSelection(
+        ToolDefinitionSearchService.appendSearchToolIfUseful(definitions),
+      );
+      final names = ToolDefinitionSearchService.toolNamesFromDefinitions(
+        selection.toolDefinitions,
+      );
+
+      expect(selection.toolSearchEnabled, isTrue);
+      expect(names, contains(ToolDefinitionSearchService.toolName));
+      expect(names, contains('get_wifi_health'));
+      expect(names, contains('wifi_get_connection_info'));
+      expect(names, contains('get_wan_status'));
+      expect(names, isNot(contains('remote_tool_29')));
+    });
+
     test('keeps legacy initial search behavior for small catalogs', () {
       final selection = ToolDefinitionSearchService.buildInitialSelection([
         _tool('web_search', 'Search the web.'),

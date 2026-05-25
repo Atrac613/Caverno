@@ -92,4 +92,40 @@ The schema shape is {"not_memory":"example"}.
     expect(draft.preferences, ['Concise English summaries']);
     expect(draft.entries.single.text, contains('1200 yen'));
   });
+
+  test('parseDraft recovers structured reasoning when JSON is truncated', () {
+    const raw = '''
+<think>
+*   Summary: User prefers concise English summaries and purchased a model canary notebook for 1200 yen on 2026-05-22.
+*   Open Loops: None.
+*   Profile:
+    *   Persona: []
+    *   Preferences: ["concise English summaries"]
+    *   Do Not: []
+*   Memories:
+    1. Text: "Prefers concise English summaries." | Type: "preference" | Confidence: 1.0 | Importance: 0.8 | TTL: null
+    2. Text: "Bought a model canary notebook for 1200 yen on 2026-05-22." | Type: "fact" | Confidence: 1.0 | Importance: 0.9 | TTL: null
+
+Final JSON Structure Check:
+`{"summary":"User prefers concise English summaries","open_loops":[],"profile":{"persona":[],"preferences":["concise English summaries"],"do_not":[]},"memories":[{"text":"Prefers concise English summaries.","type":"preference","confidence":1.</think>
+''';
+
+    final repairMessages = <String>[];
+    final draft = MemoryExtractionDraftService.parseDraft(
+      raw,
+      onRepair: repairMessages.add,
+    );
+
+    expect(draft, isNotNull);
+    expect(draft!.summary, contains('concise English summaries'));
+    expect(draft.preferences, ['concise English summaries']);
+    expect(draft.entries, hasLength(2));
+    expect(draft.entries.first.type, 'preference');
+    expect(draft.entries.last.text, contains('1200 yen'));
+    expect(draft.entries.last.importance, 0.9);
+    expect(
+      repairMessages,
+      contains('Recovered memory extraction from structured reasoning text'),
+    );
+  });
 }

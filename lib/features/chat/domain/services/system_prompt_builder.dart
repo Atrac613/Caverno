@@ -34,6 +34,7 @@ class SystemPromptBuilder {
     final hasSearchTool = uniqueToolNames.any(
       (name) => name == 'searxng_web_search' || name == 'web_search',
     );
+    final hasToolSearch = uniqueToolNames.contains('tool_search');
     final hasWebReader = uniqueToolNames.contains('web_url_read');
     final hasDatetimeTool = uniqueToolNames.contains('get_current_datetime');
     final hasProjectReadTools =
@@ -307,6 +308,15 @@ class SystemPromptBuilder {
       );
       buffer.writeln(SystemPromptConstants.toolInterpretationInstruction);
       buffer.writeln('Available tools: ${uniqueToolNames.join(', ')}.');
+      if (hasToolSearch) {
+        buffer.writeln(
+          'If the task needs a tool or capability that is not listed in '
+          'Available tools, call tool_search with a concise capability query '
+          'before claiming that you will use the missing tool. After '
+          'tool_search returns a match, call the discovered tool in the next '
+          'tool-call turn.',
+        );
+      }
       if (hasDatetimeTool) {
         buffer.writeln(
           'When the user asks about dates/times such as today, this week, '

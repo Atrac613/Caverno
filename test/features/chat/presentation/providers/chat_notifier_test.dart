@@ -472,6 +472,7 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   final bool failFirstToolResultCompletionWithContextLength;
   final bool failFirstFinalAnswerStreamWithContextLength;
   final List<List<ToolResultInfo>> toolResultBatches = [];
+  final List<List<Message>> initialRequestMessages = [];
   final List<List<Message>> toolResultRequestMessages = [];
   final List<List<Map<String, dynamic>>> initialToolDefinitionBatches = [];
   final List<List<Map<String, dynamic>>> followUpToolDefinitionBatches = [];
@@ -517,6 +518,7 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
+    initialRequestMessages.add(List<Message>.from(messages));
     initialToolDefinitionBatches.add(List<Map<String, dynamic>>.from(tools));
     return StreamWithToolsResult(
       stream: const Stream.empty(),
@@ -1814,6 +1816,17 @@ void main() {
         );
         expect(initialNames, contains(ToolDefinitionSearchService.toolName));
         expect(initialNames, isNot(contains('special_remote_diagnostics')));
+        final initialSystemPrompt =
+            toolDataSource.initialRequestMessages.single.first.content;
+        expect(initialSystemPrompt, contains('tool_search'));
+        expect(
+          initialSystemPrompt,
+          contains('If the task needs a tool or capability that is not listed'),
+        );
+        expect(
+          initialSystemPrompt,
+          isNot(contains('special_remote_diagnostics')),
+        );
 
         final firstFollowUpNames = _toolNamesFromDefinitions(
           toolDataSource.followUpToolDefinitionBatches.first,
@@ -3797,6 +3810,86 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'sendMessage streams a final answer when duplicate recovery repeats a tool',
+    () async {
+      final duplicateDatetimeCall = ToolCallInfo(
+        id: 'datetime-duplicate',
+        name: 'get_current_datetime',
+        arguments: const {},
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'datetime-1',
+            name: 'get_current_datetime',
+            arguments: const {},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'I still need the current time.',
+            toolCalls: [duplicateDatetimeCall],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'I still need the current time.',
+            toolCalls: [duplicateDatetimeCall],
+            finishReason: 'tool_calls',
+          ),
+        ],
+        finalAnswerChunks: const ['Recovered from the prior datetime result.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'get_current_datetime':
+              '{"local_datetime":"2026-05-25 10:39:03","timezone":"JST"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Check the current status');
+
+        expect(toolService.executedToolNames, ['get_current_datetime']);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Recovered from the prior datetime result.'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('problem executing the tools')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test(
     'sendMessage allows rerunning the same validation command after a file rewrite',

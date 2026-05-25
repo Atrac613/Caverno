@@ -85,6 +85,24 @@ void main() {
     expect(prompt, isNot(contains('Project name: "caverno".')));
   });
 
+  test('instructs tool search before missing tool claims', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      toolNames: const ['tool_search', 'get_current_datetime'],
+    );
+
+    expect(prompt, contains('Available tools:'));
+    expect(
+      prompt,
+      contains(
+        'If the task needs a tool or capability that is not listed in Available tools, call tool_search',
+      ),
+    );
+    expect(prompt, contains('After tool_search returns a match'));
+  });
+
   test('includes saved workflow context in coding mode prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),

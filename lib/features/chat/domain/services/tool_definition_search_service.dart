@@ -51,6 +51,29 @@ class ToolDefinitionSearchService {
     'search_files',
     'local_execute_command',
     'git_execute_command',
+    'ping6',
+    'arp',
+    'ndp',
+    'route_lookup',
+    'interface_info',
+    'dns_query',
+    'http_get',
+    'http_head',
+    'path_mtu',
+    'mdns_browse',
+    'wifi_scan',
+    'wifi_get_scan_results',
+    'wifi_get_connection_info',
+    'lan_scan',
+    'lan_get_scan_results',
+    'get_wifi_health',
+    'get_wan_status',
+    'get_dns_health',
+    'get_conn_overview',
+    'get_capture_health',
+    'get_weird_events',
+    'get_notice_events',
+    'explain_network_slowdown_context',
   };
 
   static Map<String, dynamic> get toolDefinition => const {
@@ -244,7 +267,18 @@ class ToolDefinitionSearchService {
     List<Map<String, dynamic>> definitions,
   ) {
     final names = toolNamesFromDefinitions(definitions);
-    return names.intersection(_alwaysLoadedToolNames)..add(toolName);
+    return names.where(_shouldLoadInitially).toSet()..add(toolName);
+  }
+
+  static bool _shouldLoadInitially(String toolName) {
+    final normalized = toolName.trim().toLowerCase();
+    return _alwaysLoadedToolNames.contains(normalized) ||
+        normalized.startsWith('wifi_') ||
+        normalized.startsWith('get_wifi_') ||
+        normalized.startsWith('wan_') ||
+        normalized.startsWith('get_wan_') ||
+        normalized.startsWith('lan_') ||
+        normalized.startsWith('get_lan_');
   }
 
   static List<Map<String, dynamic>> _definitionsMatchingNames(

@@ -407,15 +407,18 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Builds the system message, including the current date and time.
-  Message _createSystemMessage() {
+  Message _createSystemMessage({List<String>? toolNamesOverride}) {
     final now = DateTime.now();
     final activeCodingProject = _getActiveCodingProject();
     final currentConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
-    final toolNames = <String>[];
+    final toolNames = toolNamesOverride == null
+        ? <String>[]
+        : List<String>.from(toolNamesOverride);
     final mcpToolService = _mcpToolService;
-    if (mcpToolService != null &&
+    if (toolNamesOverride == null &&
+        mcpToolService != null &&
         (_settings.mcpEnabled || _temporalReferenceContext != null)) {
       for (final tool in mcpToolService.getOpenAiToolDefinitions()) {
         final function = tool['function'];
@@ -5619,7 +5622,10 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Prepares the message list sent to the LLM, including system messages.
-  List<Message> _prepareMessagesForLLM({bool forceCompaction = false}) {
+  List<Message> _prepareMessagesForLLM({
+    bool forceCompaction = false,
+    List<Map<String, dynamic>>? toolDefinitionsOverride,
+  }) {
     final currentConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
@@ -5627,7 +5633,15 @@ class ChatNotifier extends Notifier<ChatState> {
     final shouldForceCompaction =
         forceCompaction || _forcePromptCompactionForNextRequest;
     _forcePromptCompactionForNextRequest = false;
-    final promptMessages = <Message>[_createSystemMessage()];
+    final promptMessages = <Message>[
+      _createSystemMessage(
+        toolNamesOverride: toolDefinitionsOverride == null
+            ? null
+            : ToolDefinitionSearchService.toolNamesFromDefinitions(
+                toolDefinitionsOverride,
+              ).toList(),
+      ),
+    ];
     if (_temporalReferenceContext != null) {
       promptMessages.add(
         Message(
@@ -6618,7 +6632,9 @@ class ChatNotifier extends Notifier<ChatState> {
       // Stream the initial request to show thinking/content in real-time
       // while also detecting tool calls.
       final streamResult = _dataSource.streamChatCompletionWithTools(
-        messages: _prepareMessagesForLLM(),
+        messages: _prepareMessagesForLLM(
+          toolDefinitionsOverride: initialToolSelection.toolDefinitions,
+        ),
         tools: initialToolSelection.toolDefinitions,
         model: _settings.model,
         temperature: _settings.temperature,
@@ -6793,7 +6809,6 @@ class ChatNotifier extends Notifier<ChatState> {
     final toolFailureCounts = <String, int>{};
     final executedToolResults = <ToolResultInfo>[];
     var commandRetryGeneration = 0;
-    var skippedDuplicateOnlyBatch = false;
     var attemptedDuplicateInspectionRecovery = false;
     var attemptedDuplicateFollowUpRecovery = false;
     var attemptedToolLoopExhaustionRecovery = false;
@@ -6924,7 +6939,6 @@ class ChatNotifier extends Notifier<ChatState> {
             _appendRecoveredAssistantResponse(fallbackResponse);
             currentAssistantContent = fallbackResponse;
             hasTextResponse = true;
-            skippedDuplicateOnlyBatch = false;
             break;
           }
           if (!attemptedDuplicateInspectionRecovery &&
@@ -6947,6 +6961,7 @@ class ChatNotifier extends Notifier<ChatState> {
             List<Message> buildRecoveryMessages(bool forceCompaction) {
               final messages = _prepareMessagesForLLM(
                 forceCompaction: forceCompaction,
+                toolDefinitionsOverride: tools,
               );
               messages.add(
                 Message(
@@ -6993,10 +7008,8 @@ class ChatNotifier extends Notifier<ChatState> {
               _appendRecoveredAssistantResponse(fallbackResponse);
               currentAssistantContent = fallbackResponse;
               hasTextResponse = true;
-              skippedDuplicateOnlyBatch = false;
               break;
             }
-            skippedDuplicateOnlyBatch = false;
             break;
           }
           if (!attemptedDuplicateFollowUpRecovery &&
@@ -7018,6 +7031,7 @@ class ChatNotifier extends Notifier<ChatState> {
             List<Message> buildRecoveryMessages(bool forceCompaction) {
               final messages = _prepareMessagesForLLM(
                 forceCompaction: forceCompaction,
+                toolDefinitionsOverride: tools,
               );
               messages.add(
                 Message(
@@ -7064,16 +7078,13 @@ class ChatNotifier extends Notifier<ChatState> {
               _appendRecoveredAssistantResponse(fallbackResponse);
               currentAssistantContent = fallbackResponse;
               hasTextResponse = true;
-              skippedDuplicateOnlyBatch = false;
               break;
             }
-            skippedDuplicateOnlyBatch = false;
             break;
           }
           appLog(
-            '[Tool] Skipped duplicate follow-up tool calls, preserving prior tool results for saved-task recovery',
+            '[Tool] Skipped duplicate follow-up tool calls, falling back to prior tool results',
           );
-          skippedDuplicateOnlyBatch = true;
         }
         currentToolCalls = [];
         break;
@@ -7114,8 +7125,10 @@ class ChatNotifier extends Notifier<ChatState> {
       final tools = selectedDefinitionsFor(mcpToolService);
       final nextResult = await _createToolResultCompletionWithContextRetry(
         logLabel: 'tool-result follow-up',
-        buildMessages: (forceCompaction) =>
-            _prepareMessagesForLLM(forceCompaction: forceCompaction),
+        buildMessages: (forceCompaction) => _prepareMessagesForLLM(
+          forceCompaction: forceCompaction,
+          toolDefinitionsOverride: tools,
+        ),
         toolResults: batchToolResults,
         assistantContent: currentAssistantContent,
         tools: tools,
@@ -7148,7 +7161,6 @@ class ChatNotifier extends Notifier<ChatState> {
           _appendRecoveredAssistantResponse(completionResponse);
           currentAssistantContent = completionResponse;
           hasTextResponse = true;
-          skippedDuplicateOnlyBatch = false;
           break;
         }
         if (_containsOnlyReadOnlyInspectionToolCalls(nextToolCalls) &&
@@ -7161,7 +7173,6 @@ class ChatNotifier extends Notifier<ChatState> {
           _appendRecoveredAssistantResponse(fallbackResponse);
           currentAssistantContent = fallbackResponse;
           hasTextResponse = true;
-          skippedDuplicateOnlyBatch = false;
           break;
         }
         appLog('[Tool] LLM requested additional tool calls');
@@ -7195,6 +7206,7 @@ class ChatNotifier extends Notifier<ChatState> {
           List<Message> buildRecoveryMessages(bool forceCompaction) {
             final messages = _prepareMessagesForLLM(
               forceCompaction: forceCompaction,
+              toolDefinitionsOverride: tools,
             );
             messages.add(
               Message(
@@ -7242,7 +7254,6 @@ class ChatNotifier extends Notifier<ChatState> {
               _appendRecoveredAssistantResponse(fallbackResponse);
               currentAssistantContent = fallbackResponse;
               hasTextResponse = true;
-              skippedDuplicateOnlyBatch = false;
               break;
             }
           }
@@ -7269,9 +7280,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // If tool results exist and no text response has been shown yet,
     // resend them as a user message and stream the final answer.
-    if (!hasTextResponse &&
-        !skippedDuplicateOnlyBatch &&
-        executedToolResults.isNotEmpty) {
+    if (!hasTextResponse && executedToolResults.isNotEmpty) {
       appLog('[Tool] Resending tool results as user message');
 
       if (!ref.mounted) return;
