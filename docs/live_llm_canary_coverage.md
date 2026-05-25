@@ -10,7 +10,7 @@ settings, or feature-specific execution behavior.
 | Surface | Current canaries | Covered behavior | Main gaps | Priority |
 |---------|------------------|------------------|-----------|----------|
 | Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction | Native tool-role compatibility and broad multi-turn continuity beyond focused parser recovery | Keep the chat canary suite in every model switch baseline |
-| Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, report quality | Native coding mode outside Plan Mode is not isolated, multi-file edits with tests are only indirectly covered | Keep PM5 as baseline; keep content-fit assertions on artifact-sensitive canaries |
+| Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal prompt injection, budget prompt context, automatic goal completion, report quality | Native coding mode multi-file edits with tests are still only indirectly covered outside Plan Mode | Keep PM5 as baseline; run the focused coding-goal canary after changing goal state, coding prompts, or completion/blocker inference |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
 
 ## Baseline Model Switch Flow
@@ -40,7 +40,16 @@ For each model switch, run this minimum set before comparing model quality:
    tool/run_plan_mode_live_test.sh
    ```
 
-3. Chat branch checks:
+3. Coding goal check:
+
+   ```bash
+   CAVERNO_LLM_BASE_URL=... \
+   CAVERNO_LLM_API_KEY=... \
+   CAVERNO_LLM_MODEL=... \
+   tool/run_coding_goal_live_canary.sh
+   ```
+
+4. Chat branch checks:
 
    ```bash
    CAVERNO_LLM_BASE_URL=... \
@@ -49,7 +58,7 @@ For each model switch, run this minimum set before comparing model quality:
    tool/run_chat_live_llm_canary.sh
    ```
 
-4. Chat tool-result budget check:
+5. Chat tool-result budget check:
 
    ```bash
    CAVERNO_LLM_BASE_URL=... \
@@ -58,7 +67,7 @@ For each model switch, run this minimum set before comparing model quality:
    tool/run_tool_result_budget_live_canary.sh
    ```
 
-5. Routine branch checks, when routines are in scope:
+6. Routine branch checks, when routines are in scope:
 
    ```bash
    CAVERNO_LLM_BASE_URL=... \
@@ -87,8 +96,9 @@ dart run tool/live_llm_canary_reference_report.dart \
 ```
 
 The `--report-root` mode discovers the latest available PM5 smoke, PM5 ping,
-README, chat, tool-result budget, and routine artifacts. Use explicit paths
-when reconstructing an older run set or overriding one discovered artifact:
+README, coding goal, chat, tool-result budget, and routine artifacts. Use
+explicit paths when reconstructing an older run set or overriding one
+discovered artifact:
 
 ```bash
 dart run tool/live_llm_canary_reference_report.dart \
@@ -97,6 +107,7 @@ dart run tool/live_llm_canary_reference_report.dart \
   --pm5-smoke-report build/integration_test_reports/<smoke>/plan_mode_live_suite_macos_report.json \
   --pm5-ping-summary build/integration_test_reports/<ping>/canary_summary.json \
   --readme-report build/integration_test_reports/<readme>/plan_mode_live_suite_macos_report.json \
+  --coding-goal-summary build/integration_test_reports/<coding-goal>/canary_summary.json \
   --chat-summary build/integration_test_reports/<chat>/canary_summary.json \
   --budget-summary build/integration_test_reports/<budget>/canary_summary.json \
   --routine-summary build/integration_test_reports/<routine>/canary_summary.json

@@ -80,6 +80,15 @@ void main() {
       testCount: 3,
       signals: const {},
     );
+    final codingGoalSummary = _writeLiveSummary(
+      directory: directory,
+      fileName: 'coding_goal_summary.json',
+      surface: 'coding_goal',
+      canaryName: 'coding_goal_live_llm_canary',
+      passedCount: 1,
+      testCount: 1,
+      signals: const {},
+    );
     final budgetSummary = _writeLiveSummary(
       directory: directory,
       fileName: 'budget_summary.json',
@@ -104,6 +113,7 @@ void main() {
       pm5SmokeReport: pm5Smoke,
       pm5PingSummary: pingSummary,
       readmeReport: readmeReport,
+      codingGoalSummary: codingGoalSummary,
       chatSummary: chatSummary,
       budgetSummary: budgetSummary,
       routineSummary: routineSummary,
@@ -113,9 +123,9 @@ void main() {
     expect(report.result, 'passed');
     expect(report.model, 'qwen3.6-27b-mtp-vision');
     expect(report.baseUrl, 'http://127.0.0.1:1234/v1');
-    expect(report.totalPassed, 13);
-    expect(report.totalCount, 13);
-    expect(report.entries, hasLength(6));
+    expect(report.totalPassed, 14);
+    expect(report.totalCount, 14);
+    expect(report.entries, hasLength(7));
     expect(report.entries.first.riskSummary, contains('approval fallback 3'));
     expect(
       report.entries.first.riskSummary,
@@ -234,6 +244,16 @@ void main() {
     );
     _writeJsonPath(
       directory,
+      'coding_goal_live_llm_canary_550/canary_summary.json',
+      _liveSummaryJson(
+        surface: 'coding_goal',
+        canaryName: 'coding_goal_live_llm_canary',
+        testCount: 1,
+        passedCount: 1,
+      ),
+    );
+    _writeJsonPath(
+      directory,
       'tool_result_budget_live_canary_600/canary_summary.json',
       _liveSummaryJson(
         surface: 'chat_budget',
@@ -261,7 +281,7 @@ void main() {
     );
 
     expect(report.result, 'passed');
-    expect(report.entries, hasLength(6));
+    expect(report.entries, hasLength(7));
     expect(report.model, 'new-model');
     expect(
       report.entries
@@ -278,6 +298,12 @@ void main() {
       endsWith(
         'plan_mode_live_suite_macos_300/plan_mode_live_suite_macos_report.json',
       ),
+    );
+    expect(
+      report.entries
+          .singleWhere((entry) => entry.surface == 'coding_goal')
+          .evidencePath,
+      endsWith('coding_goal_live_llm_canary_550/canary_summary.json'),
     );
     expect(
       report.entries

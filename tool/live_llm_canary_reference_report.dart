@@ -9,7 +9,8 @@ Future<void> main(List<String> args) async {
       '--out-dir PATH --label LABEL '
       '[--report-root PATH] '
       '[--pm5-smoke-report PATH] [--pm5-ping-summary PATH] '
-      '[--readme-report PATH] [--chat-summary PATH] '
+      '[--readme-report PATH] [--coding-goal-summary PATH] '
+      '[--chat-summary PATH] '
       '[--budget-summary PATH] [--routine-summary PATH]',
     );
     exitCode = 64;
@@ -24,6 +25,7 @@ Future<void> main(List<String> args) async {
       pm5SmokeReport: options.optionalFile('pm5-smoke-report'),
       pm5PingSummary: options.optionalFile('pm5-ping-summary'),
       readmeReport: options.optionalFile('readme-report'),
+      codingGoalSummary: options.optionalFile('coding-goal-summary'),
       chatSummary: options.optionalFile('chat-summary'),
       budgetSummary: options.optionalFile('budget-summary'),
       routineSummary: options.optionalFile('routine-summary'),
@@ -67,6 +69,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
   File? pm5SmokeReport,
   File? pm5PingSummary,
   File? readmeReport,
+  File? codingGoalSummary,
   File? chatSummary,
   File? budgetSummary,
   File? routineSummary,
@@ -77,6 +80,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
     pm5SmokeReport: pm5SmokeReport,
     pm5PingSummary: pm5PingSummary,
     readmeReport: readmeReport,
+    codingGoalSummary: codingGoalSummary,
     chatSummary: chatSummary,
     budgetSummary: budgetSummary,
     routineSummary: routineSummary,
@@ -86,6 +90,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
     pm5SmokeReport: evidence.pm5SmokeReport,
     pm5PingSummary: evidence.pm5PingSummary,
     readmeReport: evidence.readmeReport,
+    codingGoalSummary: evidence.codingGoalSummary,
     chatSummary: evidence.chatSummary,
     budgetSummary: evidence.budgetSummary,
     routineSummary: evidence.routineSummary,
@@ -98,6 +103,7 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
   File? pm5SmokeReport,
   File? pm5PingSummary,
   File? readmeReport,
+  File? codingGoalSummary,
   File? chatSummary,
   File? budgetSummary,
   File? routineSummary,
@@ -132,6 +138,9 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
       ),
     );
   }
+  if (codingGoalSummary != null) {
+    entries.add(await _buildLiveSummaryEntry(codingGoalSummary));
+  }
   if (chatSummary != null) {
     entries.add(await _buildLiveSummaryEntry(chatSummary));
   }
@@ -160,6 +169,7 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
   File? pm5SmokeReport,
   File? pm5PingSummary,
   File? readmeReport,
+  File? codingGoalSummary,
   File? chatSummary,
   File? budgetSummary,
   File? routineSummary,
@@ -169,6 +179,7 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
       pm5SmokeReport: pm5SmokeReport,
       pm5PingSummary: pm5PingSummary,
       readmeReport: readmeReport,
+      codingGoalSummary: codingGoalSummary,
       chatSummary: chatSummary,
       budgetSummary: budgetSummary,
       routineSummary: routineSummary,
@@ -192,6 +203,13 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
     readmeReport:
         readmeReport ??
         await _findLatestPlanSuiteReport(reportRoot, _isReadmeFirstReport),
+    codingGoalSummary:
+        codingGoalSummary ??
+        _findLatestReportFile(
+          reportRoot: reportRoot,
+          directoryPrefix: 'coding_goal_live_llm_canary_',
+          fileName: 'canary_summary.json',
+        ),
     chatSummary:
         chatSummary ??
         _findLatestReportFile(
@@ -221,6 +239,7 @@ class LiveLlmCanaryReferenceEvidenceFiles {
     required this.pm5SmokeReport,
     required this.pm5PingSummary,
     required this.readmeReport,
+    required this.codingGoalSummary,
     required this.chatSummary,
     required this.budgetSummary,
     required this.routineSummary,
@@ -229,6 +248,7 @@ class LiveLlmCanaryReferenceEvidenceFiles {
   final File? pm5SmokeReport;
   final File? pm5PingSummary;
   final File? readmeReport;
+  final File? codingGoalSummary;
   final File? chatSummary;
   final File? budgetSummary;
   final File? routineSummary;
