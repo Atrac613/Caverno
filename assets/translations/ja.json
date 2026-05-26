@@ -478,6 +478,8 @@
     "coding_approval_auto_review_desc": "設定済みの LLM エンドポイントでコーディング承認リクエストをレビューします。",
     "coding_approval_full_access": "フルアクセス",
     "coding_approval_full_access_desc": "Caverno の承認プロンプトなしでコーディングのファイル、ローカルコマンド、Git 書き込みツールを実行します。",
+    "coding_agents_md_title": "Coding モードで AGENTS.md を読み込む",
+    "coding_agents_md_desc": "Coding / Plan モード時にプロジェクトルートの AGENTS.md（および存在すれば優先される AGENTS.override.md）をシステムプロンプトに注入します。",
     "debug_section": "デバッグ",
     "mcp_add_server": "サーバーを追加",
     "mcp_no_servers": "MCPサーバーがまだありません",

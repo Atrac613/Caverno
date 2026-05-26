@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/services/agents_md_loader.dart';
 import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
@@ -505,6 +506,13 @@ class ChatNotifier extends Notifier<ChatState> {
     final resolvedAssistantMode = _resolveAssistantMode(
       currentConversation: currentConversation,
     );
+    final agentsMarkdown =
+        (_settings.enableAgentsMd &&
+            resolvedAssistantMode != AssistantMode.general)
+        ? ref
+              .read(agentsMdLoaderProvider)
+              .loadForProject(activeCodingProject?.rootPath)
+        : null;
 
     return Message(
       id: 'system',
@@ -523,6 +531,7 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowSpec: currentConversation?.workflowSpec,
         planArtifact: currentConversation?.planArtifact,
         isVoiceMode: _isVoiceMode,
+        agentsMarkdown: agentsMarkdown,
       ),
       role: MessageRole.system,
       timestamp: now,

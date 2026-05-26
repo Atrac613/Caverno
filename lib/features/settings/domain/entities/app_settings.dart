@@ -195,6 +195,7 @@ abstract class AppSettings with _$AppSettings {
     @Default(true) bool confirmFileMutations,
     @Default(true) bool confirmLocalCommands,
     @Default(true) bool confirmGitWrites,
+    @Default(true) bool enableAgentsMd,
     @Default(false) bool showMemoryUpdates,
     @Default(false) bool enableLlmSessionLogs,
     @Default(false) bool demoMode,

@@ -478,6 +478,8 @@
     "coding_approval_auto_review_desc": "Use the configured LLM endpoint to review coding approval requests.",
     "coding_approval_full_access": "Full access",
     "coding_approval_full_access_desc": "Run coding file, local command, and git write tools without Caverno approval prompts.",
+    "coding_agents_md_title": "Read AGENTS.md in coding mode",
+    "coding_agents_md_desc": "Inject the project root AGENTS.md (and AGENTS.override.md if present, with higher priority) into the system prompt while in Coding or Plan mode.",
     "debug_section": "Debug",
     "mcp_add_server": "Add Server",
     "mcp_no_servers": "No MCP servers configured yet",

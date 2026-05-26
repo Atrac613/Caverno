@@ -337,6 +337,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateEnableAgentsMd(bool value) async {
+    state = state.copyWith(enableAgentsMd: value);
+    await _repository.save(state);
+  }
+
   Future<void> updateCodingApprovalMode(
     CodingApprovalMode codingApprovalMode,
   ) async {

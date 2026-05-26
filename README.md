@@ -30,6 +30,7 @@
 - **Content Parsing** — Renders `<think>` reasoning blocks and inline `<tool_call>` / `<tool_use>` tags
 - **Image Input** — Attach images to messages (base64 with MIME type)
 - **Assistant Modes** — Switch between `general`, `coding`, and `plan` modes with specialized system prompts
+- **AGENTS.md Support** — In coding and plan modes, the project root `AGENTS.md` (and the higher-priority `AGENTS.override.md`) is injected into the system prompt, following the [OpenAI Codex AGENTS.md spec](https://developers.openai.com/codex/guides/agents-md)
 - **Settings Import/Export** — Share configuration via JSON file or QR code with validation
 - **Localization** — English and Japanese UI (easy_localization)
 - **Local Notifications** — Background response notifications
@@ -113,6 +114,7 @@ All settings are configurable in-app via the Settings page:
 | VOICEVOX URL | `http://localhost:50021` |
 | Language | `system` |
 | Assistant Mode | `general` |
+| Read AGENTS.md in coding mode | `true` |
 
 Optional integrations:
 - **MCP Servers** — Configure trusted HTTP or desktop stdio servers for external
@@ -122,6 +124,40 @@ Optional integrations:
 - **TTS / STT** — Enable voice features and auto-read in settings
 - **Routines** — Configure scheduled prompt runs, workspace access, tool use,
   and Google Chat completion delivery
+
+### Project Instructions (AGENTS.md)
+
+When the assistant mode is `coding` or `plan` and the toggle **Tools → Coding
+Agent Approvals → Read AGENTS.md in coding mode** is enabled (default), Caverno
+loads `AGENTS.md` from the active coding project's root directory and injects it
+into the system prompt. This lets you keep project-specific rules — build
+commands, code style, approval workflows — alongside the code so any compatible
+agent (Caverno, Codex, etc.) can apply them.
+
+Behavior:
+
+- **Discovery** — Only the project root is scanned: `<projectRoot>/AGENTS.md`
+  and `<projectRoot>/AGENTS.override.md`. Nested subdirectory files and the
+  global `~/.codex/AGENTS.md` are not loaded in this version.
+- **Precedence** — If `AGENTS.override.md` exists, it takes priority over
+  `AGENTS.md`. Empty files are treated as absent.
+- **Size cap** — 32 KiB, matching the Codex spec. Larger files are truncated
+  and marked in the prompt.
+- **Caching** — Contents are cached in memory and re-read when the file's mtime
+  changes, so editing `AGENTS.md` takes effect on the next message without an
+  app restart.
+- **Modes** — Not injected in `general` mode. Disable the toggle if you would
+  rather keep `AGENTS.md` purely for other tools.
+
+Example `AGENTS.md`:
+
+```markdown
+# Project Rules
+
+- Use `pnpm` instead of `npm`.
+- Run `pnpm test` before claiming a change is complete.
+- All new files must pass `pnpm lint` with no warnings.
+```
 
 ## Local Server Setup (Ubuntu)
 

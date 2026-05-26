@@ -58,6 +58,13 @@ class ToolsSettingsPage extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: Text('settings.coding_agents_md_title'.tr()),
+            subtitle: Text('settings.coding_agents_md_desc'.tr()),
+            value: settings.enableAgentsMd,
+            onChanged: notifier.updateEnableAgentsMd,
+          ),
           const Divider(),
           _buildBuiltInToolsTile(context, settings),
           _buildLocalCommandPermissionRulesTile(context, settings),

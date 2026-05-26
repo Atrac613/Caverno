@@ -30,6 +30,7 @@ class SystemPromptBuilder {
     ConversationWorkflowSpec? workflowSpec,
     ConversationPlanArtifact? planArtifact,
     bool isVoiceMode = false,
+    String? agentsMarkdown,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
     final hasTools = uniqueToolNames.isNotEmpty;
@@ -115,6 +116,20 @@ class SystemPromptBuilder {
             projectRootPath: normalizedProjectRootPath,
           ),
         );
+      }
+      final normalizedAgentsMarkdown = agentsMarkdown?.trim();
+      if (normalizedAgentsMarkdown != null &&
+          normalizedAgentsMarkdown.isNotEmpty) {
+        buffer.writeln(
+          'The following AGENTS.md from the project root contains '
+          'project-specific guidance the user maintains for coding agents. '
+          'Treat it as authoritative for this project unless it conflicts '
+          'with the user\'s current request or the safety and oversight '
+          'rules above.',
+        );
+        buffer.writeln('<agents_md>');
+        buffer.writeln(normalizedAgentsMarkdown);
+        buffer.writeln('</agents_md>');
       }
       if (activeGoal != null) {
         buffer.writeln('Active coding goal for this thread:');
