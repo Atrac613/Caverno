@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 class _TestTranslationLoader extends AssetLoader {
@@ -26,15 +27,19 @@ class _TestTranslationLoader extends AssetLoader {
   }
 }
 
-Future<void> _pumpMessageInput(
+Future<SharedPreferences> _pumpMessageInput(
   WidgetTester tester, {
   required ValueNotifier<bool> isLoading,
   required VoidCallback onCancel,
   void Function(String message, String? imageBase64, String? imageMimeType)?
   onSend,
   MessageInputImageAttachment? droppedImageAttachment,
+  AppSettings? initialSettings,
 }) async {
-  SharedPreferences.setMockInitialValues(<String, Object>{});
+  SharedPreferences.setMockInitialValues(<String, Object>{
+    if (initialSettings != null)
+      'app_settings': jsonEncode(initialSettings.toJson()),
+  });
   final preferences = await SharedPreferences.getInstance();
 
   await tester.runAsync(() async {
@@ -79,6 +84,7 @@ Future<void> _pumpMessageInput(
     );
   });
   await tester.pump();
+  return preferences;
 }
 
 void main() {
@@ -182,5 +188,41 @@ void main() {
     expect(sentMessage, isEmpty);
     expect(sentImageBase64, isNotEmpty);
     expect(sentImageMimeType, 'image/png');
+  });
+
+  testWidgets('updates reasoning effort from the composer menu', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final preferences = await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+    );
+
+    expect(find.byIcon(Icons.psychology_alt_outlined), findsOneWidget);
+    expect(find.byTooltip('Reasoning effort: API default'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.psychology_alt_outlined));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithText(
+        CheckedPopupMenuItem<ReasoningEffortPreference>,
+        'High',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final storedJson = preferences.getString('app_settings');
+    expect(storedJson, isNotNull);
+
+    final storedSettings = AppSettings.fromJson(
+      jsonDecode(storedJson!) as Map<String, dynamic>,
+    );
+    expect(storedSettings.reasoningEffort, ReasoningEffortPreference.high);
+    expect(find.byTooltip('Reasoning effort: High'), findsOneWidget);
   });
 }

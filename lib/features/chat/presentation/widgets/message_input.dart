@@ -14,6 +14,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 import '../../../../core/services/macos_main_app_permissions_service.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
+import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import 'voice_mode_overlay.dart';
 
@@ -674,10 +675,24 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     };
   }
 
+  String _reasoningEffortLabel(ReasoningEffortPreference value) {
+    return switch (value) {
+      ReasoningEffortPreference.automatic =>
+        'settings.reasoning_effort_automatic'.tr(),
+      ReasoningEffortPreference.low => 'settings.reasoning_effort_low'.tr(),
+      ReasoningEffortPreference.medium =>
+        'settings.reasoning_effort_medium'.tr(),
+      ReasoningEffortPreference.high => 'settings.reasoning_effort_high'.tr(),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final settings = ref.watch(settingsNotifierProvider);
+    final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
     final assistantMode = widget.assistantMode;
+    final reasoningEffort = settings.reasoningEffort;
     final canSend =
         _hasText || _selectedImageBytes != null || _selectedFileContent != null;
 
@@ -915,7 +930,36 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Leftmost "+" attachments menu (image / file)
+                      Opacity(
+                        opacity: widget.isLoading ? 0.6 : 1.0,
+                        child: PopupMenuButton<ReasoningEffortPreference>(
+                          enabled: !widget.isLoading,
+                          tooltip: 'message.reasoning_effort_tooltip'.tr(
+                            namedArgs: {
+                              'value': _reasoningEffortLabel(reasoningEffort),
+                            },
+                          ),
+                          icon: const Icon(Icons.psychology_alt_outlined),
+                          onSelected: (value) {
+                            settingsNotifier.updateReasoningEffort(value);
+                          },
+                          itemBuilder: (context) => ReasoningEffortPreference
+                              .values
+                              .map(
+                                (value) =>
+                                    CheckedPopupMenuItem<
+                                      ReasoningEffortPreference
+                                    >(
+                                      value: value,
+                                      checked: reasoningEffort == value,
+                                      child: Text(_reasoningEffortLabel(value)),
+                                    ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      // Attachments menu (image / file)
                       PopupMenuButton<_AttachmentAction>(
                         tooltip: 'message.attachments'.tr(),
                         icon: const Icon(Icons.add),

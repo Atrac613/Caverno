@@ -339,6 +339,7 @@
     "input_hint_coding": "Ask for a bug fix, refactor, diff, or git command...",
     "input_hint_plan": "Describe the coding task and plan mode will propose a workflow before implementation...",
     "mode_tooltip": "Assistant mode",
+    "reasoning_effort_tooltip": "Reasoning effort: {value}",
     "listening": "Listening...",
     "attachments": "Attachments",
     "attach_image": "Attach image",

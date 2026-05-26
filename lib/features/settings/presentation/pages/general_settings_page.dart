@@ -86,17 +86,6 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     return 'settings.compatibility_api_key_configured'.tr();
   }
 
-  String _reasoningEffortLabel(ReasoningEffortPreference value) {
-    return switch (value) {
-      ReasoningEffortPreference.automatic =>
-        'settings.reasoning_effort_automatic'.tr(),
-      ReasoningEffortPreference.low => 'settings.reasoning_effort_low'.tr(),
-      ReasoningEffortPreference.medium =>
-        'settings.reasoning_effort_medium'.tr(),
-      ReasoningEffortPreference.high => 'settings.reasoning_effort_high'.tr(),
-    };
-  }
-
   Widget _buildCompatibilityDetail({
     required IconData icon,
     required String text,
@@ -697,28 +686,6 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                             int.tryParse(_maxTokensController.text) ?? 4096;
                         notifier.updateMaxTokens(value);
                       });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<ReasoningEffortPreference>(
-                    initialValue: settings.reasoningEffort,
-                    decoration: InputDecoration(
-                      labelText: 'settings.reasoning_effort_label'.tr(),
-                      border: const OutlineInputBorder(),
-                      helperText: 'settings.reasoning_effort_helper'.tr(),
-                    ),
-                    items: ReasoningEffortPreference.values
-                        .map(
-                          (value) =>
-                              DropdownMenuItem<ReasoningEffortPreference>(
-                                value: value,
-                                child: Text(_reasoningEffortLabel(value)),
-                              ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      notifier.updateReasoningEffort(value);
                     },
                   ),
                   const SizedBox(height: 24),

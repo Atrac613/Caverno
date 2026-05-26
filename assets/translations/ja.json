@@ -339,6 +339,7 @@
     "input_hint_coding": "バグ修正、リファクタ、差分確認、git操作などを依頼...",
     "input_hint_plan": "コーディングタスクを説明すると、plan mode が実装前の workflow を提案します...",
     "mode_tooltip": "アシスタントモード",
+    "reasoning_effort_tooltip": "Reasoning effort: {value}",
     "listening": "聞き取り中...",
     "attachments": "添付",
     "attach_image": "画像を添付",
