@@ -314,7 +314,62 @@ void main() {
     );
     expect(prompt, contains('Goal token budget remaining: 15000'));
     expect(prompt, contains('Goal turn budget remaining: 3'));
+    expect(prompt, contains('Continue moving it forward'));
+    expect(prompt, contains('When the goal is complete'));
   });
+
+  test('suppresses autonomous continuation guidance for exhausted goals', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 5, 25, 10, 30),
+      assistantMode: AssistantMode.coding,
+      goal: ConversationGoal(
+        id: 'goal-1',
+        objective: 'Fix the login crash and verify the regression test',
+        tokenBudget: 20000,
+        tokenUsage: 20000,
+        turnBudget: 5,
+        turnsUsed: 5,
+        createdAt: DateTime(2026, 5, 25, 10),
+        updatedAt: DateTime(2026, 5, 25, 10),
+      ),
+    );
+
+    expect(prompt, contains('Active coding goal for this thread:'));
+    expect(
+      prompt,
+      contains('Fix the login crash and verify the regression test'),
+    );
+    expect(prompt, contains('Goal token budget remaining: 0'));
+    expect(prompt, contains('Goal turn budget remaining: 0'));
+    expect(prompt, contains('The goal budget is exhausted.'));
+    expect(prompt, isNot(contains('Continue moving it forward')));
+    expect(prompt, isNot(contains('When the goal is complete')));
+  });
+
+  test(
+    'does not inject completed goals even when their budget is exhausted',
+    () {
+      final prompt = SystemPromptBuilder.build(
+        now: DateTime(2026, 5, 25, 10, 30),
+        assistantMode: AssistantMode.coding,
+        goal: ConversationGoal(
+          id: 'goal-1',
+          objective: 'Fix the login crash',
+          status: ConversationGoalStatus.completed,
+          tokenBudget: 100,
+          tokenUsage: 100,
+          turnBudget: 1,
+          turnsUsed: 1,
+          createdAt: DateTime(2026, 5, 25, 10),
+          updatedAt: DateTime(2026, 5, 25, 10),
+        ),
+      );
+
+      expect(prompt, isNot(contains('Active coding goal for this thread:')));
+      expect(prompt, isNot(contains('Fix the login crash')));
+      expect(prompt, isNot(contains('The goal budget is exhausted.')));
+    },
+  );
 
   test('does not inject disabled coding goals', () {
     final prompt = SystemPromptBuilder.build(

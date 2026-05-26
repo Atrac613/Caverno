@@ -119,15 +119,17 @@ class SystemPromptBuilder {
       if (activeGoal != null) {
         buffer.writeln('Active coding goal for this thread:');
         buffer.writeln(activeGoal.normalizedObjective!);
-        buffer.writeln(
-          'Keep this goal in force across turns. Continue moving it forward '
-          'until it is complete, genuinely blocked, disabled, or the user '
-          'changes direction.',
-        );
-        buffer.writeln(
-          'When the goal is complete, state the concrete completion evidence. '
-          'When blocked, state the blocking condition and what is needed next.',
-        );
+        if (!activeGoal.budgetExceeded) {
+          buffer.writeln(
+            'Keep this goal in force across turns. Continue moving it forward '
+            'until it is complete, genuinely blocked, disabled, or the user '
+            'changes direction.',
+          );
+          buffer.writeln(
+            'When the goal is complete, state the concrete completion evidence. '
+            'When blocked, state the blocking condition and what is needed next.',
+          );
+        }
         final remainingTokens = activeGoal.remainingTokenBudget;
         if (remainingTokens != null) {
           buffer.writeln(
