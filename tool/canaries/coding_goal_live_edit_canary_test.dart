@@ -291,6 +291,123 @@ void main() {
         : 'Set CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 10)),
   );
+
+  test(
+    '${testNamePrefix}live LLM coordinates a two-file coding goal edit',
+    () async {
+      final env = _CodingGoalLiveEditEnv.fromEnvironment();
+      final fixture = _CodingGoalEditFixture.createTwoFile(env.workspaceRoot);
+      final project = fixture.project;
+      final dataSource = _CodingGoalLiveEditDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final toolService = _SandboxCodingToolService(fixture.root);
+      final container = _buildCodingGoalLiveEditContainer(
+        env: env,
+        dataSource: dataSource,
+        toolService: toolService,
+        project: project,
+      );
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'Fix the selected coding project by coordinating two source '
+              'files. Edit lib/canary_suffix.dart so canarySuffix() returns '
+              'exactly "! $_editMarker", and edit lib/canary_greeting.dart '
+              'so canaryGreeting("Ada") uses canarySuffix() and returns '
+              'exactly "Hello, Ada! $_editMarker". Then run '
+              'local_execute_command with command "$_testCommand" in the '
+              'project root. The goal is complete only after both production '
+              'files are updated and the command exits with code 0 and prints '
+              '$_editMarker.',
+          enabled: true,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 16000,
+          turnBudget: 6,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Use the active coding goal. Inspect both production files, update '
+          'lib/canary_suffix.dart and lib/canary_greeting.dart, run exactly '
+          '"$_testCommand", and finish only after the test passes. Mention '
+          '$_editMarker and say "Goal complete. Tests passed." in the final '
+          'answer.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container);
+
+        final testResult = await fixture.runTest();
+        final goal = _currentGoal(container);
+        final finalContent = _lastAssistantContent(container);
+        final mutatedPaths = toolService.mutatedRelativePaths;
+
+        expect(
+          dataSource.firstSystemPrompt,
+          contains('Active coding goal for this thread:'),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          dataSource.firstSystemPrompt,
+          contains(project.rootPath),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          mutatedPaths,
+          containsAll(['lib/canary_greeting.dart', 'lib/canary_suffix.dart']),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          fixture.sourceFile.readAsStringSync(),
+          contains('canarySuffix()'),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          fixture.suffixFile.readAsStringSync(),
+          contains(_editMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.successfulTestCommandCount,
+          greaterThanOrEqualTo(1),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          testResult.exitCode,
+          0,
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          testResult.stdout,
+          contains(_editMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          finalContent.toUpperCase(),
+          contains(_editMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(goal?.status, ConversationGoalStatus.completed);
+        expect(goal?.turnsUsed, 1);
+        expect(goal?.completedAt, isNotNull);
+      } finally {
+        container.dispose();
+        fixture.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 10)),
+  );
 }
 
 ProviderContainer _buildCodingGoalLiveEditContainer({
@@ -384,7 +501,7 @@ String _diagnostic(
     'streamRequests=${dataSource?.streamRequests.length ?? 0}',
     'streamWithToolsRequests=${dataSource?.streamWithToolsRequests.length ?? 0}',
     'fixtureRoot=${fixture?.root.path ?? '(none)'}',
-    'source=${fixture?.sourceFile.existsSync() == true ? fixture!.sourceFile.readAsStringSync() : '(missing)'}',
+    'sources=${fixture?._sourceDiagnostics() ?? '(missing)'}',
     'toolCalls=${toolService?.executedCalls.map((call) => call.toJson()).map(jsonEncode).join(' | ') ?? '(none)'}',
     messages,
   ].join('\n');
@@ -402,13 +519,14 @@ class _CodingGoalEditFixture {
   final bool deleteOnDispose;
 
   File get sourceFile => File('${root.path}/lib/canary_greeting.dart');
+  File get suffixFile => File('${root.path}/lib/canary_suffix.dart');
 
   static _CodingGoalEditFixture create(String? workspaceRoot) {
     final deleteOnDispose = workspaceRoot == null || workspaceRoot.isEmpty;
     final root = deleteOnDispose
         ? Directory.systemTemp.createTempSync('coding_goal_live_edit_')
         : Directory(workspaceRoot);
-    root.createSync(recursive: true);
+    _resetRoot(root);
     final lib = Directory('${root.path}/lib')..createSync(recursive: true);
     File('${lib.path}/canary_greeting.dart').writeAsStringSync('''
 String canaryGreeting(String name) {
@@ -444,6 +562,66 @@ void main() {
     );
   }
 
+  static _CodingGoalEditFixture createTwoFile(String? workspaceRoot) {
+    final deleteOnDispose = workspaceRoot == null || workspaceRoot.isEmpty;
+    final root = deleteOnDispose
+        ? Directory.systemTemp.createTempSync('coding_goal_live_edit_')
+        : Directory(workspaceRoot);
+    _resetRoot(root);
+    final lib = Directory('${root.path}/lib')..createSync(recursive: true);
+    File('${lib.path}/canary_greeting.dart').writeAsStringSync('''
+String canaryGreeting(String name) {
+  return 'Hello, \$name';
+}
+''');
+    File('${lib.path}/canary_suffix.dart').writeAsStringSync('''
+String canarySuffix() {
+  return '.';
+}
+''');
+    File('${lib.path}/canary_greeting_test.dart').writeAsStringSync('''
+import 'dart:io';
+
+import 'canary_greeting.dart';
+import 'canary_suffix.dart';
+
+void main() {
+  const marker = '$_editMarker';
+  final suffix = canarySuffix();
+  const expectedSuffix = '! $_editMarker';
+  if (suffix != expectedSuffix) {
+    throw StateError('Expected suffix "\$expectedSuffix" but got "\$suffix".');
+  }
+
+  final actual = canaryGreeting('Ada');
+  const expected = 'Hello, Ada! $_editMarker';
+  if (actual != expected) {
+    throw StateError('Expected "\$expected" but got "\$actual".');
+  }
+  stdout.writeln(marker);
+}
+''');
+    final now = DateTime.now();
+    return _CodingGoalEditFixture(
+      root: root,
+      project: CodingProject(
+        id: 'coding-goal-live-edit-project',
+        name: 'coding_goal_live_edit_fixture',
+        rootPath: root.absolute.path,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      deleteOnDispose: deleteOnDispose,
+    );
+  }
+
+  static void _resetRoot(Directory root) {
+    if (root.existsSync()) {
+      root.deleteSync(recursive: true);
+    }
+    root.createSync(recursive: true);
+  }
+
   Future<ProcessResult> runTest() {
     return Process.run('dart', [
       'lib/canary_greeting_test.dart',
@@ -454,6 +632,36 @@ void main() {
     if (deleteOnDispose && root.existsSync()) {
       root.deleteSync(recursive: true);
     }
+  }
+
+  String _sourceDiagnostics() {
+    final files = [
+      sourceFile,
+      suffixFile,
+      File('${root.path}/lib/canary_greeting_test.dart'),
+    ];
+    return files
+        .map((file) {
+          if (!file.existsSync()) {
+            return '${_relativePath(file)}=(missing)';
+          }
+          return '${_relativePath(file)}=${file.readAsStringSync()}';
+        })
+        .join('\n');
+  }
+
+  String _relativePath(File file) {
+    final absolutePath = file.absolute.path;
+    final rootPath = root.absolute.path;
+    if (absolutePath == rootPath) {
+      return '.';
+    }
+    if (absolutePath.startsWith('$rootPath${Platform.pathSeparator}')) {
+      return absolutePath
+          .substring(rootPath.length + 1)
+          .replaceAll(Platform.pathSeparator, '/');
+    }
+    return absolutePath;
   }
 }
 
@@ -684,6 +892,22 @@ class _SandboxCodingToolService extends McpToolService {
     (call) => call.name == 'edit_file' || call.name == 'write_file',
   );
 
+  List<String> get mutatedRelativePaths {
+    final paths = <String>{};
+    for (final call in executedCalls) {
+      if (call.name != 'edit_file' && call.name != 'write_file') {
+        continue;
+      }
+      final relativePath = _relativePathForToolArgument(
+        call.arguments['path'] as String?,
+      );
+      if (relativePath != null) {
+        paths.add(relativePath);
+      }
+    }
+    return paths.toList(growable: false)..sort();
+  }
+
   int get successfulTestCommandCount => executedCalls.where((call) {
     if (call.name != 'local_execute_command' || !call.success) {
       return false;
@@ -818,6 +1042,27 @@ class _SandboxCodingToolService extends McpToolService {
       return null;
     }
     return file.readAsStringSync();
+  }
+
+  String? _relativePathForToolArgument(String? rawPath) {
+    final resolved = FilesystemTools.resolvePath(
+      rawPath,
+      defaultRoot: root.absolute.path,
+    );
+    if (resolved == null || resolved.trim().isEmpty) {
+      return null;
+    }
+    final rootPath = root.absolute.path;
+    final targetPath = File(resolved).absolute.path;
+    if (targetPath == rootPath) {
+      return '.';
+    }
+    if (!targetPath.startsWith('$rootPath${Platform.pathSeparator}')) {
+      return null;
+    }
+    return targetPath
+        .substring(rootPath.length + 1)
+        .replaceAll(Platform.pathSeparator, '/');
   }
 
   Future<McpToolResult> _executeTool({
