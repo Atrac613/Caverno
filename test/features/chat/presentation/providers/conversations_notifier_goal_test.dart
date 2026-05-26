@@ -115,4 +115,40 @@ void main() {
     expect(goal.blockerRepeatCount, 3);
     expect(goal.blockedAt, isNotNull);
   });
+
+  test('recordCurrentGoalTurn blocks after equivalent blocker wording', () async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+
+    notifier.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await notifier.saveCurrentGoal(
+      objective: 'Update the project settings',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+    );
+
+    for (final response in const [
+      'Blocked: permission denied while reading `/tmp/project/settings.json`.',
+      'Cannot proceed because permission was denied when reading /var/settings.json.',
+      'I am blocked: access denied while reading the settings file.',
+    ]) {
+      await notifier.recordCurrentGoalTurn(
+        assistantResponse: response,
+        tokenUsageDelta: 10,
+      );
+    }
+
+    final goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!
+        .goal!;
+    expect(goal.status, ConversationGoalStatus.blocked);
+    expect(goal.blockerSignature, 'permission denied reading');
+    expect(goal.blockerRepeatCount, 3);
+    expect(goal.blockedAt, isNotNull);
+  });
 }

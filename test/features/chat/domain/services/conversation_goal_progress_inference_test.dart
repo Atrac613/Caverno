@@ -101,6 +101,16 @@ void main() {
 
     expect(result.status, isNull);
     expect(result.hasBlocker, isTrue);
-    expect(result.blockerSignature, 'blocked permission denied while reading');
+    expect(result.blockerSignature, 'permission denied reading');
+  });
+
+  test('normalizes equivalent permission blocker wording', () {
+    final signatures = [
+      'Blocked: permission denied while reading `/tmp/project/settings.json`.',
+      'Cannot proceed because permission was denied when reading /var/settings.json.',
+      'I am blocked: access denied while reading the settings file.',
+    ].map(ConversationGoalProgressInference.blockerSignatureFor).toSet();
+
+    expect(signatures, {'permission denied reading'});
   });
 }

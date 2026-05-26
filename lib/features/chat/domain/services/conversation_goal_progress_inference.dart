@@ -22,6 +22,54 @@ class ConversationGoalProgressInferenceResult {
 class ConversationGoalProgressInference {
   static const int blockedRepeatThreshold = 3;
 
+  static const _blockerSignatureStopWords = <String>{
+    'a',
+    'after',
+    'am',
+    'an',
+    'are',
+    'because',
+    'been',
+    'being',
+    'blocked',
+    'blocker',
+    'by',
+    'can',
+    'cannot',
+    'due',
+    'for',
+    'from',
+    'i',
+    'is',
+    'it',
+    'of',
+    'on',
+    'proceed',
+    'proceeding',
+    't',
+    'the',
+    'to',
+    'was',
+    'we',
+    'were',
+    'when',
+    'while',
+    'with',
+  };
+
+  static const _permissionActionAliases = <String, String>{
+    'execute': 'executing',
+    'executing': 'executing',
+    'open': 'opening',
+    'opening': 'opening',
+    'read': 'reading',
+    'reading': 'reading',
+    'run': 'running',
+    'running': 'running',
+    'write': 'writing',
+    'writing': 'writing',
+  };
+
   static const _completionSignals = <String>[
     'goal is complete',
     'goal complete',
@@ -151,13 +199,49 @@ class ConversationGoalProgressInference {
         .toLowerCase()
         .replaceAll(RegExp(r'`[^`]*`'), ' ')
         .replaceAll(RegExp(r'[/\\][^\s,.;:]+'), ' ')
+        .replaceAll(
+          RegExp(r'\baccess\s+(?:was\s+)?denied\b'),
+          'permission denied',
+        )
+        .replaceAll(
+          RegExp(r'\bpermission\s+(?:was\s+)?denied\b'),
+          'permission denied',
+        )
+        .replaceAll(
+          RegExp(r'\bwaiting\s+(?:on|for)\s+(?:the\s+)?user\b'),
+          'waiting user',
+        )
         .replaceAll(RegExp(r'[^a-z0-9\s]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    if (normalized.length <= 96) {
-      return normalized;
+    final tokens = normalized
+        .split(' ')
+        .where((token) => token.isNotEmpty)
+        .where((token) => !_blockerSignatureStopWords.contains(token))
+        .toList(growable: false);
+    final permissionDeniedSignature = _permissionDeniedSignature(tokens);
+    final signature = permissionDeniedSignature ?? tokens.join(' ');
+    final fallback = signature.isEmpty ? normalized : signature;
+    if (fallback.length <= 96) {
+      return fallback;
     }
-    return normalized.substring(0, 96).trimRight();
+    return fallback.substring(0, 96).trimRight();
+  }
+
+  static String? _permissionDeniedSignature(List<String> tokens) {
+    final permissionIndex = tokens.indexOf('permission');
+    if (permissionIndex < 0 ||
+        permissionIndex + 1 >= tokens.length ||
+        tokens[permissionIndex + 1] != 'denied') {
+      return null;
+    }
+    for (final token in tokens.skip(permissionIndex + 2)) {
+      final action = _permissionActionAliases[token];
+      if (action != null) {
+        return 'permission denied $action';
+      }
+    }
+    return 'permission denied';
   }
 
   static bool _allTasksCompleted(Iterable<ConversationWorkflowTask> tasks) {
