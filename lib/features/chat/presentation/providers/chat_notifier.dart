@@ -7818,10 +7818,12 @@ class ChatNotifier extends Notifier<ChatState> {
       (toolResult) => toolResult.name == 'read_file',
     );
     return [
-      'You already attempted the same follow-up tool call for the current saved task.',
+      'You already attempted the same follow-up tool call for the current task.',
       if (repeatedToolNames.isNotEmpty)
         'Do not repeat identical tool calls again in this turn: $repeatedToolNames.',
-      'Use the previous tool results and take the next concrete saved-task step now.',
+      'Use the previous tool results and take the next concrete task step now.',
+      'If the user requested local file creation or modification and no successful file mutation result is already provided, your next action must be write_file or edit_file, or a concise blocker that clearly says no files were created.',
+      'Do not claim that files were created, edited, saved, moved, or deleted unless the provided tool results include the successful file operation.',
       'If the current saved task still needs work, create or edit the saved target file.',
       if (inspectedFailingFile && repeatedValidationTool)
         'If you just read a failing saved target file, your next action must modify that same file before rerunning the saved validation command.',

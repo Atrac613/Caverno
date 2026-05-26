@@ -3485,6 +3485,36 @@ void main() {
   );
 
   test(
+    'buildDuplicateFollowUpRecoveryPromptForTest prevents unverified file completion claims',
+    () {
+      final prompt = notifier.buildDuplicateFollowUpRecoveryPromptForTest([
+        ToolCallInfo(
+          id: 'tool-weather',
+          name: 'http_get',
+          arguments: const {'url': 'https://example.com/weather'},
+        ),
+      ]);
+
+      expect(
+        prompt,
+        contains(
+          'If the user requested local file creation or modification and no successful file mutation result is already provided',
+        ),
+      );
+      expect(
+        prompt,
+        contains('your next action must be write_file or edit_file'),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not claim that files were created, edited, saved, moved, or deleted',
+        ),
+      );
+    },
+  );
+
+  test(
     'buildDuplicateInspectionRecoveryPromptForTest redirects failed exit-code validation to a target edit',
     () {
       final prompt = notifier.buildDuplicateInspectionRecoveryPromptForTest(

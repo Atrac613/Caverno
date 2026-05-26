@@ -67,6 +67,22 @@ void main() {
       expect(prompt, contains('Scope note:'));
     });
 
+    test('guards against unverified local file side-effect claims', () {
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'http_get',
+          arguments: const {'url': 'https://example.com/weather'},
+          result: '{"status_code":200,"body":"Weather data"}',
+        ),
+      ]);
+
+      expect(prompt, contains('Only claim that a local file was created'));
+      expect(prompt, contains('If the user requested local file changes'));
+      expect(prompt, contains('<tool_use>...</tool_use>'));
+      expect(prompt, contains('write_file or edit_file'));
+    });
+
     test('redacts screenshot base64 from answer prompts', () {
       final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
         ToolResultInfo(

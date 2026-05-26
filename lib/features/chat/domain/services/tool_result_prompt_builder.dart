@@ -181,6 +181,21 @@ class ToolResultPromptBuilder {
         'Prefer explicit fields such as role, type, kind, category, or '
         'interpretation_hint over heuristics based on how an identifier looks.',
       )
+      ..writeln(
+        'Only claim that a local file was created, edited, saved, moved, or '
+        'deleted when the provided tool results include a successful tool '
+        'result for that side effect, such as write_file, edit_file, '
+        'rollback_last_file_change, or an explicit file-operation tool. If the '
+        'user requested local file changes but no such successful result is '
+        'provided, say the files were not created yet instead of implying they '
+        'exist.',
+      )
+      ..writeln(
+        'If local file changes are still needed and all required content is '
+        'known, emit complete <tool_use>...</tool_use> tags for the needed '
+        'write_file or edit_file calls rather than describing those changes as '
+        'already done.',
+      )
       ..writeln()
       ..write(
         formatToolResults(toolResults, descriptionsByName: descriptionsByName),
