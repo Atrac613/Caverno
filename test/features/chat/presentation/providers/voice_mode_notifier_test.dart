@@ -50,6 +50,7 @@ class _ControllableChatNotifier extends ChatNotifier {
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
+    ChatInteractionOrigin origin = ChatInteractionOrigin.local,
   }) async {
     sentMessages.add(content);
   }

@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -16,6 +16,7 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../routines/presentation/pages/routines_home_page.dart';
 import '../../../routines/presentation/providers/routine_scheduler.dart';
+import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -57,6 +58,23 @@ part 'chat_page_goal_builders.dart';
 part 'chat_page_header_builders.dart';
 part 'chat_page_plan_builders.dart';
 part 'chat_page_workflow_builders.dart';
+
+@visibleForTesting
+bool Function()? debugRemoteCodingMobilePlatformOverride;
+
+@visibleForTesting
+bool isRemoteCodingMobilePlatform() {
+  final override = debugRemoteCodingMobilePlatformOverride;
+  if (override != null) {
+    return override();
+  }
+  return !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+}
+
+@visibleForTesting
+bool shouldPresentDesktopApproval(ChatInteractionOrigin origin) {
+  return origin == ChatInteractionOrigin.local;
+}
 
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
@@ -532,7 +550,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ref.listen<PendingGitCommand?>(
       chatNotifierProvider.select((s) => s.pendingGitCommand),
       (prev, next) {
-        if (next != null && prev?.id != next.id) {
+        if (next != null &&
+            shouldPresentDesktopApproval(next.origin) &&
+            prev?.id != next.id) {
           _showApprovalDialogOnce(
             next.id,
             () => _showGitCommandDialog(context, next),
@@ -544,7 +564,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ref.listen<PendingLocalCommand?>(
       chatNotifierProvider.select((s) => s.pendingLocalCommand),
       (prev, next) {
-        if (next != null && prev?.id != next.id) {
+        if (next != null &&
+            shouldPresentDesktopApproval(next.origin) &&
+            prev?.id != next.id) {
           _showApprovalDialogOnce(
             next.id,
             () => _showLocalCommandDialog(context, next),
@@ -568,7 +590,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ref.listen<PendingFileOperation?>(
       chatNotifierProvider.select((s) => s.pendingFileOperation),
       (prev, next) {
-        if (next != null && prev?.id != next.id) {
+        if (next != null &&
+            shouldPresentDesktopApproval(next.origin) &&
+            prev?.id != next.id) {
           _showApprovalDialogOnce(
             next.id,
             () => _showFileOperationDialog(context, next),
@@ -607,6 +631,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
         conversationsState.activeWorkspaceMode == WorkspaceMode.routines;
     final isCodingWorkspace =
         conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
+    final isMobileRemoteCoding =
+        isCodingWorkspace && isRemoteCodingMobilePlatform();
     final activeProject = codingProjectsState.findById(
       conversationsState.activeProjectId,
     );
@@ -744,13 +770,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ],
         ),
         actions: [
-          if (isCodingWorkspace)
+          if (isCodingWorkspace && !isMobileRemoteCoding)
             IconButton(
               onPressed: () => _pickAndActivateProject(context),
               icon: const Icon(Icons.create_new_folder_outlined),
               tooltip: 'chat.add_project'.tr(),
             ),
-          if (!isRoutinesWorkspace)
+          if (!isRoutinesWorkspace && !isMobileRemoteCoding)
             IconButton(
               onPressed: canCompose
                   ? () => conversationsNotifier.createNewConversation(
@@ -763,7 +789,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   ? 'chat.new_thread'.tr()
                   : 'chat.new_conversation'.tr(),
             ),
-          if (!isRoutinesWorkspace && currentConversation != null)
+          if (!isRoutinesWorkspace &&
+              !isMobileRemoteCoding &&
+              currentConversation != null)
             IconButton(
               onPressed: () => _showDeleteConversationDialog(
                 context,
@@ -785,9 +813,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ),
         ],
       ),
-      drawer: isRoutinesWorkspace ? null : const ConversationDrawer(),
+      drawer: isRoutinesWorkspace || isMobileRemoteCoding
+          ? null
+          : const ConversationDrawer(),
       body: isRoutinesWorkspace
           ? const RoutinesHomePage()
+          : isMobileRemoteCoding
+          ? const RemoteCodingPage()
           : _buildImageDropTarget(
               context,
               enabled: canCompose,

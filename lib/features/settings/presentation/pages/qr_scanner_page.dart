@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class QrScannerPage extends StatefulWidget {
-  const QrScannerPage({super.key});
+  const QrScannerPage({super.key, this.title, this.hint});
+
+  final String? title;
+  final String? hint;
 
   @override
   State<QrScannerPage> createState() => _QrScannerPageState();
@@ -23,7 +26,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('settings.qr_scan_title'.tr()),
+        title: Text(widget.title ?? 'settings.qr_scan_title'.tr()),
       ),
       body: Stack(
         children: [
@@ -66,7 +69,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'settings.qr_scan_hint'.tr(),
+                    widget.hint ?? 'settings.qr_scan_hint'.tr(),
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ),

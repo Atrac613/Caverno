@@ -10,6 +10,8 @@ part 'chat_state.freezed.dart';
 
 enum ContextTokenPressureLevel { normal, warning, critical }
 
+enum ChatInteractionOrigin { local, remote }
+
 /// Approval payload returned by the SSH connect dialog.
 ///
 /// All fields may have been edited by the user before approval.
@@ -84,6 +86,7 @@ class PendingGitCommand {
     required this.workingDirectory,
     required this.reason,
     required this.completer,
+    this.origin = ChatInteractionOrigin.local,
   });
 
   final String id;
@@ -91,6 +94,7 @@ class PendingGitCommand {
   final String workingDirectory;
   final String? reason;
   final Completer<bool> completer;
+  final ChatInteractionOrigin origin;
 }
 
 /// Pending local shell command awaiting user approval.
@@ -103,6 +107,7 @@ class PendingLocalCommand {
     required this.warningTitle,
     required this.warningMessage,
     required this.completer,
+    this.origin = ChatInteractionOrigin.local,
   });
 
   final String id;
@@ -112,6 +117,7 @@ class PendingLocalCommand {
   final String? warningTitle;
   final String? warningMessage;
   final Completer<LocalCommandApproval> completer;
+  final ChatInteractionOrigin origin;
 }
 
 class LocalCommandApproval {
@@ -204,6 +210,7 @@ class PendingFileOperation {
     required this.preview,
     required this.reason,
     required this.completer,
+    this.origin = ChatInteractionOrigin.local,
   });
 
   final String id;
@@ -212,6 +219,7 @@ class PendingFileOperation {
   final String preview;
   final String? reason;
   final Completer<bool> completer;
+  final ChatInteractionOrigin origin;
 }
 
 /// Pending BLE connect request awaiting user confirmation in the UI.
@@ -294,6 +302,7 @@ class QueuedChatMessage {
     required this.languageCode,
     required this.isVoiceMode,
     required this.bypassPlanMode,
+    this.origin = ChatInteractionOrigin.local,
   });
 
   final String id;
@@ -303,6 +312,7 @@ class QueuedChatMessage {
   final String languageCode;
   final bool isVoiceMode;
   final bool bypassPlanMode;
+  final ChatInteractionOrigin origin;
 
   bool get hasImage => imageBase64 != null && imageBase64!.isNotEmpty;
 
@@ -316,7 +326,8 @@ class QueuedChatMessage {
             imageMimeType == other.imageMimeType &&
             languageCode == other.languageCode &&
             isVoiceMode == other.isVoiceMode &&
-            bypassPlanMode == other.bypassPlanMode;
+            bypassPlanMode == other.bypassPlanMode &&
+            origin == other.origin;
   }
 
   @override
@@ -328,6 +339,7 @@ class QueuedChatMessage {
     languageCode,
     isVoiceMode,
     bypassPlanMode,
+    origin,
   );
 }
 

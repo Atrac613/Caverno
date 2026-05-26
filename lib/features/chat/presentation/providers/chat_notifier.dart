@@ -5786,6 +5786,10 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<void> _contentToolExecutionTail = Future<void>.value();
   bool _forcePromptCompactionForNextRequest = false;
   bool _isDrainingQueuedMessages = false;
+  ChatInteractionOrigin _activeInteractionOrigin = ChatInteractionOrigin.local;
+
+  bool get _isRemoteInteraction =>
+      _activeInteractionOrigin == ChatInteractionOrigin.remote;
 
   Future<void> sendMessage(
     String content, {
@@ -5794,6 +5798,7 @@ class ChatNotifier extends Notifier<ChatState> {
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
+    ChatInteractionOrigin origin = ChatInteractionOrigin.local,
   }) async {
     // Do not send empty input with no attached image.
     if (content.trim().isEmpty && imageBase64 == null) return;
@@ -5807,6 +5812,7 @@ class ChatNotifier extends Notifier<ChatState> {
       languageCode: languageCode,
       isVoiceMode: isVoiceMode,
       bypassPlanMode: bypassPlanMode,
+      origin: origin,
     );
     if (state.isLoading) {
       _queuedChatMessages.add(queuedMessage);
@@ -5830,6 +5836,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final languageCode = queuedMessage.languageCode;
     final isVoiceMode = queuedMessage.isVoiceMode;
     final bypassPlanMode = queuedMessage.bypassPlanMode;
+    _activeInteractionOrigin = queuedMessage.origin;
 
     _hiddenPrompt = null;
     _languageCode = languageCode;
@@ -5957,6 +5964,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     } finally {
       _assistantModeOverride = null;
+      _activeInteractionOrigin = ChatInteractionOrigin.local;
     }
   }
 

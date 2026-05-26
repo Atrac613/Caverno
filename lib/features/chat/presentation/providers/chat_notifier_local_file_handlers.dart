@@ -32,7 +32,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    if (!_settings.confirmFileMutations) {
+    if (!_settings.confirmFileMutations && !_isRemoteInteraction) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: resolvedArguments,
@@ -101,7 +101,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    if (!_settings.confirmFileMutations) {
+    if (!_settings.confirmFileMutations && !_isRemoteInteraction) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: resolvedArguments,
@@ -166,7 +166,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
 
-    if (!_settings.confirmFileMutations) {
+    if (!_settings.confirmFileMutations && !_isRemoteInteraction) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: toolCall.arguments,
@@ -254,7 +254,9 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         errorMessage: 'Local command was denied by a saved permission rule',
       );
     }
-    if (permissionDecision.isAllowed && !requiresExplicitApproval) {
+    if (!_isRemoteInteraction &&
+        permissionDecision.isAllowed &&
+        !requiresExplicitApproval) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: localArguments,
@@ -276,7 +278,9 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    if (!_settings.confirmLocalCommands && !requiresExplicitApproval) {
+    if (!_settings.confirmLocalCommands &&
+        !requiresExplicitApproval &&
+        !_isRemoteInteraction) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: localArguments,
@@ -292,7 +296,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       warningMessage: riskWarning?.message,
     );
 
-    if (approval.shouldRemember) {
+    if (approval.shouldRemember && !_isRemoteInteraction) {
       await ref
           .read(settingsNotifierProvider.notifier)
           .upsertLocalCommandPermissionRule(
@@ -342,6 +346,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         warningTitle: warningTitle,
         warningMessage: warningMessage,
         completer: completer,
+        origin: _activeInteractionOrigin,
       ),
     );
     return completer.future;
@@ -374,6 +379,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         preview: preview,
         reason: reason,
         completer: completer,
+        origin: _activeInteractionOrigin,
       ),
     );
     return completer.future;

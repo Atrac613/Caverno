@@ -50,7 +50,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    if (!_settings.confirmGitWrites) {
+    if (!_settings.confirmGitWrites && !_isRemoteInteraction) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: gitArguments,
@@ -98,6 +98,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
         workingDirectory: workingDirectory,
         reason: reason,
         completer: completer,
+        origin: _activeInteractionOrigin,
       ),
     );
     return completer.future;

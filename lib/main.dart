@@ -17,6 +17,7 @@ import 'features/chat/presentation/pages/chat_page.dart';
 import 'features/settings/data/settings_repository.dart';
 import 'features/settings/domain/services/app_language_resolver.dart';
 import 'features/settings/presentation/providers/settings_notifier.dart';
+import 'features/remote_coding/presentation/remote_coding_server_notifier.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -134,6 +135,10 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      ref.watch(remoteCodingServerProvider);
+    }
+
     final languagePreference = ref.watch(
       settingsNotifierProvider.select((settings) => settings.language),
     );

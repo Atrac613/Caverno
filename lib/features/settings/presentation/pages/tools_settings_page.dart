@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/built_in_tool_info.dart';
 import '../providers/settings_notifier.dart';
+import '../../../remote_coding/presentation/remote_coding_settings_page.dart';
 import 'built_in_tools_settings_page.dart';
 import 'local_command_permission_rules_page.dart';
 import 'mcp_servers_settings_page.dart';
@@ -65,6 +66,7 @@ class ToolsSettingsPage extends ConsumerWidget {
           _buildBuiltInToolsTile(context, settings),
           _buildLocalCommandPermissionRulesTile(context, settings),
           _buildRoutineComputerUseAllowlistTile(context, settings),
+          _buildRemoteCodingTile(context),
           _buildMcpServersTile(context, settings),
         ],
       ),
@@ -151,6 +153,19 @@ class ToolsSettingsPage extends ConsumerWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const McpServersSettingsPage()),
+      ),
+    );
+  }
+
+  Widget _buildRemoteCodingTile(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.phonelink),
+      title: const Text('Remote Coding Host'),
+      subtitle: const Text('Pair mobile devices for LAN coding control'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const RemoteCodingSettingsPage()),
       ),
     );
   }

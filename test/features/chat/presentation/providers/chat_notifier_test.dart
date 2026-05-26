@@ -949,6 +949,30 @@ class _ToolEnabledNoConfirmSettingsNotifier extends SettingsNotifier {
       demoMode: false,
       confirmFileMutations: false,
       confirmLocalCommands: false,
+      confirmGitWrites: false,
+    );
+  }
+}
+
+class _ToolEnabledRemoteDenySettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      mcpEnabled: true,
+      demoMode: false,
+      confirmFileMutations: false,
+      confirmLocalCommands: false,
+      confirmGitWrites: false,
+      localCommandPermissionRules: const [
+        LocalCommandPermissionRule(
+          id: 'deny-rm',
+          action: LocalCommandPermissionAction.deny,
+          match: LocalCommandPermissionMatch.prefix,
+          pattern: 'rm',
+          workingDirectory: '/tmp/project',
+        ),
+      ],
     );
   }
 }
@@ -6620,6 +6644,428 @@ void main() {
         final result = toolDataSource.toolResultBatches.single.single;
         expect(result.name, 'git_execute_command');
         expect(result.result, contains('"code":"permission_denied"'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'remote file mutations require approval even when local confirmations are disabled',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'write_file',
+            arguments: const {'path': 'README.md', 'content': 'remote update'},
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'write_file': 'unexpected write'},
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        final sendFuture = toolNotifier.sendMessage(
+          'Write the README remotely',
+          bypassPlanMode: true,
+          origin: ChatInteractionOrigin.remote,
+        );
+        for (
+          var i = 0;
+          i < 10 && toolNotifier.state.pendingFileOperation == null;
+          i += 1
+        ) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        final pending = toolNotifier.state.pendingFileOperation;
+        expect(pending, isNotNull);
+        expect(pending!.origin, ChatInteractionOrigin.remote);
+        expect(toolService.executedToolNames, isEmpty);
+
+        toolNotifier.resolveFileOperation(id: pending.id, approved: false);
+        await sendFuture;
+        expect(toolService.executedToolNames, isEmpty);
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('remote non-read-only local commands require approval', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'local_execute_command',
+          arguments: const {
+            'command': 'rm -rf build',
+            'working_directory': '/tmp/project',
+          },
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'local_execute_command': 'unexpected command'},
+    );
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/tmp/project',
+      createdAt: DateTime(2026, 5, 26),
+      updatedAt: DateTime(2026, 5, 26),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      final sendFuture = toolNotifier.sendMessage(
+        'Run the remote cleanup command',
+        bypassPlanMode: true,
+        origin: ChatInteractionOrigin.remote,
+      );
+      for (
+        var i = 0;
+        i < 10 && toolNotifier.state.pendingLocalCommand == null;
+        i += 1
+      ) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      final pending = toolNotifier.state.pendingLocalCommand;
+      expect(pending, isNotNull);
+      expect(pending!.origin, ChatInteractionOrigin.remote);
+      expect(toolService.executedToolNames, isEmpty);
+
+      toolNotifier.resolveLocalCommand(
+        id: pending.id,
+        approval: const LocalCommandApproval(approved: false),
+      );
+      await sendFuture;
+      expect(toolService.executedToolNames, isEmpty);
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test(
+    'remote saved deny rules block local commands before mobile approval',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'rm -rf build',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'local_execute_command': 'unexpected command'},
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledRemoteDenySettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage(
+          'Run the denied remote cleanup command',
+          bypassPlanMode: true,
+          origin: ChatInteractionOrigin.remote,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolNotifier.state.pendingLocalCommand, isNull);
+        expect(toolService.executedToolNames, isEmpty);
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        final result = toolDataSource.toolResultBatches.single.single;
+        expect(result.name, 'local_execute_command');
+        expect(
+          result.result,
+          contains('Local command was denied by a saved permission rule'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'remote read-only local commands can execute without approval',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'pwd',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command': '{"command":"pwd","stdout":"/tmp/project"}',
+        },
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage(
+          'Inspect the remote working directory',
+          bypassPlanMode: true,
+          origin: ChatInteractionOrigin.remote,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolNotifier.state.pendingLocalCommand, isNull);
+        expect(toolService.executedToolNames, ['local_execute_command']);
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'remote git writes require approval even when local confirmations are disabled',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'git_execute_command',
+            arguments: const {
+              'command': 'checkout -b remote-branch',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'git_execute_command': 'unexpected git write'},
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        final sendFuture = toolNotifier.sendMessage(
+          'Create a branch remotely',
+          bypassPlanMode: true,
+          origin: ChatInteractionOrigin.remote,
+        );
+        for (
+          var i = 0;
+          i < 10 && toolNotifier.state.pendingGitCommand == null;
+          i += 1
+        ) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        final pending = toolNotifier.state.pendingGitCommand;
+        expect(pending, isNotNull);
+        expect(pending!.origin, ChatInteractionOrigin.remote);
+        expect(toolService.executedToolNames, isEmpty);
+
+        toolNotifier.resolveGitCommand(id: pending.id, approved: false);
+        await sendFuture;
+        expect(toolService.executedToolNames, isEmpty);
       } finally {
         toolContainer.dispose();
       }
