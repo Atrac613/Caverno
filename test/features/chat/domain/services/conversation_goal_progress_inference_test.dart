@@ -68,6 +68,18 @@ void main() {
     expect(result.hasCompletion, isTrue);
   });
 
+  test('completes on successfully completed goal narration', () {
+    final result = ConversationGoalProgressInference.infer(
+      assistantResponse:
+          'I have successfully completed the coding goal. The validation '
+          'command exited with code 0 and printed the expected marker.',
+      tasks: const [],
+    );
+
+    expect(result.status, ConversationGoalStatus.completed);
+    expect(result.hasCompletion, isTrue);
+  });
+
   test('does not complete when failure narration has no recovery evidence', () {
     final result = ConversationGoalProgressInference.infer(
       assistantResponse:

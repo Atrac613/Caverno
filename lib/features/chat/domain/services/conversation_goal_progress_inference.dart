@@ -42,6 +42,7 @@ class ConversationGoalProgressInference {
     'validation passed',
     'validated successfully',
     'completed successfully',
+    'successfully completed',
   ];
 
   static const _unresolvedIncompleteSignals = <String>[
