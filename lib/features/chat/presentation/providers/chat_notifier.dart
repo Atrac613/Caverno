@@ -281,7 +281,20 @@ class ChatNotifier extends Notifier<ChatState> {
         conversationId: next.currentConversation?.id,
         messages: next.currentConversation?.messages ?? const [],
       );
+      final nextProjectId = next.activeProjectId;
+      if (nextProjectId != null &&
+          nextProjectId != previous?.activeProjectId) {
+        unawaited(_prewarmProjectAccess(nextProjectId));
+      }
     });
+
+    // Warm bookmark access for the initially-active project so the very first
+    // system-prompt build (and AGENTS.md read) does not race the bookmark
+    // restore.
+    final initialProjectId = conversationsState.activeProjectId;
+    if (initialProjectId != null) {
+      unawaited(_prewarmProjectAccess(initialProjectId));
+    }
 
     // Cancel any in-flight streaming when the provider is disposed.
     ref.onDispose(() {
@@ -576,6 +589,18 @@ class ChatNotifier extends Notifier<ChatState> {
 
   String? _getActiveProjectRootPath() {
     return _getActiveCodingProject()?.rootPath.trim();
+  }
+
+  Future<void> _prewarmProjectAccess(String projectId) async {
+    final notifier = ref.read(codingProjectsNotifierProvider.notifier);
+    await notifier.ensureProjectAccess(projectId);
+    // Drop any stale cached AGENTS.md for the new project so the next
+    // system-prompt build re-reads it under the freshly restored bookmark.
+    final rootPath = ref
+        .read(codingProjectsNotifierProvider)
+        .findById(projectId)
+        ?.rootPath;
+    ref.read(agentsMdLoaderProvider).invalidate(rootPath);
   }
 
   Future<_PlanningResearchContext> _buildPlanningResearchContext({
