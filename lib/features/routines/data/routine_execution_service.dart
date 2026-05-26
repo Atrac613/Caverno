@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/agents_md_loader.dart';
 import '../../../core/services/google_chat_delivery_service.dart';
 import '../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../core/services/macos_computer_use_tool_policy.dart';
@@ -50,6 +51,7 @@ final routineExecutionServiceProvider = Provider<RoutineExecutionService>((
     googleChatDeliveryService: ref.watch(googleChatDeliveryServiceProvider),
     mcpToolService: ref.watch(mcpToolServiceProvider),
     settings: settings,
+    agentsMdLoader: ref.watch(agentsMdLoaderProvider),
   );
 });
 
@@ -64,12 +66,14 @@ class RoutineExecutionService {
     required AppSettings settings,
     RoutineToolRunner? toolRunner,
     RoutineProcessRunner? processRunner,
+    AgentsMdLoader? agentsMdLoader,
   }) : _dataSource = dataSource,
        _googleChatDeliveryService = googleChatDeliveryService,
        _mcpToolService = mcpToolService,
        _toolRunner = toolRunner ?? RoutineToolRunner(dataSource: dataSource),
        _processRunner = processRunner ?? _defaultProcessRunner,
-       _settings = settings;
+       _settings = settings,
+       _agentsMdLoader = agentsMdLoader;
 
   static const String googleChatPostToolName = 'routine_google_chat_post';
   static const String _googleChatSourceLabel = 'Google Chat';
@@ -146,6 +150,7 @@ class RoutineExecutionService {
   final RoutineToolRunner _toolRunner;
   final RoutineProcessRunner _processRunner;
   final AppSettings _settings;
+  final AgentsMdLoader? _agentsMdLoader;
   final Uuid _uuid = const Uuid();
   static const int _maxStoredOutputLength = 24000;
   static const int _maxStoredToolArgumentsLength = 4000;
@@ -288,6 +293,7 @@ class RoutineExecutionService {
             id: 'routine_plan_system',
             content: _buildRoutinePlanSystemPrompt(
               now: now,
+              routine: routine,
               allowedToolNames: toolNames,
             ),
             role: MessageRole.system,
@@ -352,6 +358,7 @@ class RoutineExecutionService {
 
   String _buildRoutinePlanSystemPrompt({
     required DateTime now,
+    required Routine routine,
     required List<String> allowedToolNames,
   }) {
     final basePrompt = SystemPromptBuilder.build(
@@ -361,8 +368,11 @@ class RoutineExecutionService {
       toolNames: allowedToolNames,
     );
 
+    final agentsMdBlock = _routineAgentsMdBlock(routine);
+
     return [
       basePrompt,
+      ?agentsMdBlock,
       'Routine plan mode: create a reviewable Markdown execution plan for an '
           'unattended routine. Do not execute the routine. Do not call tools. '
           'Do not ask follow-up questions. If information is missing, write '
@@ -457,14 +467,18 @@ class RoutineExecutionService {
       allowedToolNames: toolNames.toSet(),
     );
 
+    final agentsMdBlock = _routineAgentsMdBlock(routine);
+
     if (allowedTools.isEmpty &&
         routineGuidance.isEmpty &&
-        approvedPlan == null) {
+        approvedPlan == null &&
+        agentsMdBlock == null) {
       return basePrompt;
     }
 
     return [
       basePrompt,
+      ?agentsMdBlock,
       if (approvedPlan != null) ...[
         'Approved routine plan: the user approved this plan for the current '
             'routine configuration. Follow it during unattended execution. '
@@ -488,6 +502,26 @@ class RoutineExecutionService {
 
   String _truncateApprovedPlanForPrompt(String plan) {
     return RoutineScheduleService.truncateOutput(plan, maxLength: 6000);
+  }
+
+  String? _routineAgentsMdBlock(Routine routine) {
+    if (!_settings.enableAgentsMd) return null;
+    final loader = _agentsMdLoader;
+    if (loader == null) return null;
+    if (!routine.hasWorkspaceDirectory) return null;
+    final content = loader.loadForProject(routine.trimmedWorkspaceDirectory);
+    final trimmed = content?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return [
+      'The following AGENTS.md from the routine workspace directory '
+          'contains project-specific guidance the user maintains for coding '
+          'agents. Treat it as authoritative for this routine unless it '
+          'conflicts with the routine prompt or the safety and oversight '
+          'rules above.',
+      '<agents_md>',
+      trimmed,
+      '</agents_md>',
+    ].join('\n');
   }
 
   String _textSegmentsOnly(String content) {
