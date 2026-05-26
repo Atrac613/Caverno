@@ -159,6 +159,27 @@ are recorded as watch signals instead of hard failures.
 
 ## Latest Full-Surface Evidence
 
+### 2026-05-26: `qwen3.6-27b-mtp-vision` Focused Coding Goal Edit Stability
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model: `qwen3.6-27b-mtp-vision`
+- API key: `no-key`
+- Scope note: focused repeat evidence for the coding-goal edit path after the
+  direct edit, red-green repair, and two-file coordination canaries were added.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding goal edit | `CAVERNO_CODING_GOAL_LIVE_EDIT_REPEAT_COUNT=3 tool/run_coding_goal_live_edit_canary.sh` | Passed | 9/9 tests passed | Three isolated runs each passed direct edit-and-test, red-green repair, and two-file helper/caller coordination. Recovery signals were all 0, malformed JSON lines were 0, and the aggregate duration was 298198 ms. |
+
+Artifacts:
+
+- Coding goal edit repeat summary:
+  `build/integration_test_reports/coding_goal_live_edit_canary_1779754432/canary_summary.json`
+- Coding goal edit repeat Markdown:
+  `build/integration_test_reports/coding_goal_live_edit_canary_1779754432/canary_summary.md`
+- Captured Flutter JSON log:
+  `build/integration_test_reports/coding_goal_live_edit_canary_1779754432/flutter_test.jsonl`
+
 ### 2026-05-23: `qwen3.6-27b-mtp-vision`
 
 - Endpoint: `http://192.168.100.241:1234/v1`

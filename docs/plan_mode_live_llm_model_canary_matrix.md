@@ -54,11 +54,13 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Same-revision PM5 rerun | Failed | 3/3 | 0/1 | 0 | 0 detected | Not rerun after PM5 failure | PM5 smoke passed, but the ping CLI canary failed with `workflowBlocked`. The model wrote a syntax error (`return result.return`) in `ping_cli.py`, then repeated the same failing validation command instead of repairing the file. |
 | 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Same-revision PM5 retry | Passed | 3/3 | 1/1 | 0 | 0 detected | Not rerun in this PM5 retry | The immediate PM5 retry passed, so the ping CLI failure is not deterministic. Keep this as recovery-heavy evidence: smoke still needed task-proposal recovery, memory fallback, tool-less recovery, and one cleanup cancellation; ping finished with a saved-validation guard. |
 | 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Same-revision full-surface rerun after PM5 retry | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | README 1/1, chat 3/3, budget 1/1, and routine 4/4 passed on the same app revision after the PM5 retry. The generated reference report passed 13/13; comparison against qwen had 0 hard regressions, 1 README guard watch signal, and 1 PM5 cleanup improvement. Keep qwen as the named reference until gemma has repeat clean same-revision evidence or the team accepts the prior PM5 instability. |
+| 2026-05-26 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Focused coding goal edit repeat | Passed | Not applicable | Not applicable | 0 | 0 detected | Not applicable | `CAVERNO_CODING_GOAL_LIVE_EDIT_REPEAT_COUNT=3 tool/run_coding_goal_live_edit_canary.sh` passed 9/9. Direct edit-and-test, red-green repair, and two-file helper/caller coordination each passed in three isolated workspaces with 0 Live LLM recovery signals. |
 
 ## Current Comparison Baseline
 
 Use `qwen3.6-27b-mtp-vision` as the current reference model after the
-2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` now has a
+2026-05-23 post-hardening full-surface rerun, with an additional 2026-05-26
+focused coding-goal edit repeat passing 9/9. `gemma4-26b-vision` now has a
 same-revision full-surface candidate pass after the PM5 retry: 13/13 checks,
 0 hard regressions against qwen, 1 README guard watch signal, and 1 PM5 cleanup
 improvement. The same app revision also produced a preceding PM5 ping failure
