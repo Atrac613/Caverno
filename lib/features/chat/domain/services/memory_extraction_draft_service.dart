@@ -1,5 +1,6 @@
 import '../entities/message.dart';
 import '../entities/session_memory.dart';
+import '../entities/tool_call_info.dart';
 import 'memory_extraction_json_parser.dart';
 import 'session_memory_service.dart';
 
@@ -46,7 +47,11 @@ class MemoryExtractionDraftService {
       'Facts should have detailed text (up to 300 chars) to preserve specifics. '
       'Do not include temporary assistant instructions.';
 
-  static String buildInput(List<Message> messages, UserMemoryProfile profile) {
+  static String buildInput(
+    List<Message> messages,
+    UserMemoryProfile profile, {
+    List<ToolResultInfo> toolResults = const [],
+  }) {
     final buffer = StringBuffer()
       ..writeln('Current profile:')
       ..writeln('- persona: ${profile.persona.join(' | ')}')
@@ -70,6 +75,23 @@ class MemoryExtractionDraftService {
       buffer.writeln('- $role: $clipped');
     }
 
+    buffer.writeln();
+    if (toolResults.isEmpty) {
+      buffer.writeln('Application-executed tool results for the latest turn:');
+      buffer.writeln('- none');
+    } else {
+      buffer.writeln('Application-executed tool results for the latest turn:');
+      for (final toolResult in toolResults.take(8)) {
+        final result = toolResult.result.replaceAll(_whitespaceRun, ' ').trim();
+        final clipped = result.length > 420
+            ? '${result.substring(0, 420)}...'
+            : result;
+        buffer.writeln(
+          '- ${toolResult.name}: arguments=${toolResult.arguments}; result=$clipped',
+        );
+      }
+    }
+
     buffer
       ..writeln()
       ..writeln('Output rules:')
@@ -77,7 +99,13 @@ class MemoryExtractionDraftService {
       ..writeln('- open_loops max 3 items')
       ..writeln('- memories max 8 items')
       ..writeln('- confidence/importance range: 0.0 to 1.0')
-      ..writeln('- Set confidence low for uncertain items');
+      ..writeln('- Set confidence low for uncertain items')
+      ..writeln(
+        '- Do not save assistant claims about local file, git, command, or external state changes as facts unless they are supported by the application-executed tool results above or directly stated by the user.',
+      )
+      ..writeln(
+        '- If an assistant claimed an action happened but no supporting tool result is present, treat it as unverified and use open_loops only when follow-up is still needed.',
+      );
 
     return buffer.toString();
   }

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
+import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
 
 void main() {
@@ -27,11 +28,22 @@ void main() {
         doNot: const ['Avoid long digressions'],
         updatedAt: DateTime(2026, 4, 18, 11, 30),
       ),
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'git_execute_command',
+          arguments: const {'command': 'status --short'},
+          result: '{"exit_code":0,"stdout":"","stderr":""}',
+        ),
+      ],
     );
 
     expect(input, contains('Current profile:'));
     expect(input, contains('Flutter developer'));
     expect(input, contains('- user: I prefer concise coding explanations.'));
+    expect(input, contains('Application-executed tool results'));
+    expect(input, contains('git_execute_command'));
+    expect(input, contains('Do not save assistant claims about local file'));
     expect(input, contains('Output rules:'));
   });
 

@@ -31,6 +31,8 @@ import '../../data/datasources/filesystem_tools.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/local_shell_tools.dart';
 import '../../data/datasources/mcp_tool_service.dart';
+import '../../data/datasources/llm_session_log_store.dart';
+import '../../data/datasources/session_logging_chat_datasource.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
@@ -39,6 +41,7 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
+import '../../domain/services/coding_approval_auto_review_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/temporal_context_builder.dart';
@@ -241,7 +244,10 @@ class ChatNotifier extends Notifier<ChatState> {
   @override
   ChatState build() {
     _settings = ref.read(settingsNotifierProvider);
-    _dataSource = ref.read(chatRemoteDataSourceProvider);
+    _dataSource = _withChatSessionLogging(
+      ref.read(chatRemoteDataSourceProvider),
+      _settings,
+    );
     _mcpToolService = ref.read(mcpToolServiceProvider);
     _memoryService = ref.read(sessionMemoryServiceProvider);
     _toolResultArtifactStore = ref.read(toolResultArtifactStoreProvider);
@@ -357,15 +363,66 @@ class ChatNotifier extends Notifier<ChatState> {
 
   void updateConnectionSettings(AppSettings settings) {
     _settings = settings;
+    _dataSource = _withChatSessionLogging(
+      _buildChatDataSource(settings),
+      settings,
+    );
+  }
+
+  LlmSessionLogContext? _currentLlmSessionLogContext() {
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final workspaceMode =
+        currentConversation?.workspaceMode ??
+        (_settings.assistantMode == AssistantMode.coding ||
+                _settings.assistantMode == AssistantMode.plan
+            ? WorkspaceMode.coding
+            : WorkspaceMode.chat);
+    final resolvedConversationId =
+        currentConversation?.id ?? conversationId ?? 'unassigned';
+
+    return LlmSessionLogContext(
+      workspaceMode: workspaceMode,
+      sessionId: resolvedConversationId,
+      sessionTitle: currentConversation?.title,
+      conversationId: resolvedConversationId,
+      phase: _hiddenPrompt != null
+          ? 'hidden_prompt'
+          : (_isRemoteInteraction ? 'remote_interaction' : 'chat_turn'),
+    );
+  }
+
+  ChatDataSource _buildChatDataSource(AppSettings settings) {
     if (settings.demoMode) {
-      _dataSource = DemoDataSource();
-    } else {
-      _dataSource = ChatRemoteDataSource(
-        baseUrl: settings.baseUrl,
-        apiKey: settings.apiKey,
-        reasoningEffort: settings.reasoningEffort.apiValue,
-      );
+      return DemoDataSource();
     }
+
+    return ChatRemoteDataSource(
+      baseUrl: settings.baseUrl,
+      apiKey: settings.apiKey,
+      reasoningEffort: settings.reasoningEffort.apiValue,
+    );
+  }
+
+  ChatDataSource _withChatSessionLogging(
+    ChatDataSource dataSource,
+    AppSettings settings,
+  ) {
+    final loggingEnabled = LlmSessionLogStore.isEnabled(
+      settingsEnabled: settings.enableLlmSessionLogs,
+    );
+    if (!loggingEnabled ||
+        settings.demoMode ||
+        dataSource is DemoDataSource ||
+        dataSource is! ChatRemoteDataSource) {
+      return dataSource;
+    }
+    return SessionLoggingChatDataSource(
+      delegate: dataSource,
+      logStore: ref.read(llmSessionLogStoreProvider),
+      contextProvider: _currentLlmSessionLogContext,
+    );
   }
 
   void updateMcpToolService(McpToolService? mcpToolService) {
@@ -8177,6 +8234,80 @@ class ChatNotifier extends Notifier<ChatState> {
     return _toolApprovalCache.remember(toolName, arguments, result);
   }
 
+  bool get _hasFullCodingApprovalAccess =>
+      _settings.codingApprovalMode == CodingApprovalMode.fullAccess;
+
+  bool get _usesCodingApprovalAutoReview =>
+      _settings.codingApprovalMode == CodingApprovalMode.autoReview;
+
+  Future<CodingApprovalAutoReviewDecision?> _reviewCodingApproval({
+    required ToolCallInfo toolCall,
+    required String actionKind,
+    required Map<String, dynamic> arguments,
+    String? path,
+    String? workingDirectory,
+    String? reason,
+    String? warningTitle,
+    String? warningMessage,
+    String? preview,
+  }) async {
+    if (!_usesCodingApprovalAutoReview) {
+      return null;
+    }
+
+    final request = CodingApprovalAutoReviewRequest(
+      actionKind: actionKind,
+      toolName: toolCall.name,
+      arguments: arguments,
+      path: path,
+      workingDirectory: workingDirectory,
+      reason: reason,
+      warningTitle: warningTitle,
+      warningMessage: warningMessage,
+      preview: preview,
+      conversationTail: CodingApprovalAutoReviewService.buildConversationTail(
+        state.messages,
+      ),
+    );
+
+    try {
+      final response = await _dataSource.createChatCompletion(
+        messages: CodingApprovalAutoReviewService.buildMessages(request),
+        model: _settings.model,
+        temperature: 0,
+        maxTokens: 512,
+      );
+      final decision = CodingApprovalAutoReviewService.parseDecision(
+        response.content,
+      );
+      if (decision == null) {
+        appLog('[AutoReview] Reviewer returned malformed output.');
+        return null;
+      }
+      appLog(
+        '[AutoReview] ${decision.outcome.name} ${toolCall.name}: '
+        '${decision.rationale}',
+      );
+      return decision;
+    } catch (error) {
+      appLog('[AutoReview] Reviewer failed: $error');
+      return null;
+    }
+  }
+
+  McpToolResult _autoReviewDeniedResult({
+    required String toolName,
+    required CodingApprovalAutoReviewDecision decision,
+  }) {
+    return McpToolResult(
+      toolName: toolName,
+      result:
+          'Auto-review denied this action. Rationale: ${decision.rationale}',
+      isSuccess: false,
+      errorMessage: 'Auto-review denied: ${decision.rationale}',
+    );
+  }
+
   Map<String, dynamic> _buildContentToolResultPayload(
     String toolName,
     String result,
@@ -8506,9 +8637,11 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Read and accumulate the latest token usage from the data source.
   void _updateTokenUsage() {
     final ds = _dataSource;
-    if (ds is! ChatRemoteDataSource) return;
-
-    final usage = ds.lastUsage;
+    final usage = switch (ds) {
+      ChatRemoteDataSource() => ds.lastUsage,
+      SessionLoggingChatDataSource() => ds.lastUsage,
+      _ => TokenUsage.zero,
+    };
     if (usage.totalTokens <= 0) return;
 
     // Use the latest usage directly (represents the full conversation context)
@@ -9007,6 +9140,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final extractionInput = MemoryExtractionDraftService.buildInput(
       messages,
       profile,
+      toolResults: _latestCompletedToolResults,
     );
 
     final extractionMessages = [

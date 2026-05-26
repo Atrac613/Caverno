@@ -37,29 +37,25 @@ class ToolsSettingsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  title: Text('settings.confirm_file_mutations'.tr()),
-                  subtitle: Text('settings.confirm_file_mutations_desc'.tr()),
-                  value: settings.confirmFileMutations,
-                  onChanged: notifier.updateConfirmFileMutations,
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: Text('settings.confirm_local_commands'.tr()),
-                  subtitle: Text('settings.confirm_local_commands_desc'.tr()),
-                  value: settings.confirmLocalCommands,
-                  onChanged: notifier.updateConfirmLocalCommands,
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: Text('settings.confirm_git_writes'.tr()),
-                  subtitle: Text('settings.confirm_git_writes_desc'.tr()),
-                  value: settings.confirmGitWrites,
-                  onChanged: notifier.updateConfirmGitWrites,
-                ),
-              ],
+            child: RadioGroup<CodingApprovalMode>(
+              groupValue: settings.codingApprovalMode,
+              onChanged: (value) {
+                if (value == null) return;
+                notifier.updateCodingApprovalMode(value);
+              },
+              child: Column(
+                children: [
+                  for (final mode in CodingApprovalMode.values) ...[
+                    RadioListTile<CodingApprovalMode>(
+                      title: Text(_codingApprovalModeLabel(mode)),
+                      subtitle: Text(_codingApprovalModeDescription(mode)),
+                      value: mode,
+                    ),
+                    if (mode != CodingApprovalMode.values.last)
+                      const Divider(height: 1),
+                  ],
+                ],
+              ),
             ),
           ),
           const Divider(),
@@ -168,5 +164,27 @@ class ToolsSettingsPage extends ConsumerWidget {
         MaterialPageRoute(builder: (_) => const RemoteCodingSettingsPage()),
       ),
     );
+  }
+
+  String _codingApprovalModeLabel(CodingApprovalMode mode) {
+    return switch (mode) {
+      CodingApprovalMode.defaultPermissions =>
+        'settings.coding_approval_default'.tr(),
+      CodingApprovalMode.autoReview =>
+        'settings.coding_approval_auto_review'.tr(),
+      CodingApprovalMode.fullAccess =>
+        'settings.coding_approval_full_access'.tr(),
+    };
+  }
+
+  String _codingApprovalModeDescription(CodingApprovalMode mode) {
+    return switch (mode) {
+      CodingApprovalMode.defaultPermissions =>
+        'settings.coding_approval_default_desc'.tr(),
+      CodingApprovalMode.autoReview =>
+        'settings.coding_approval_auto_review_desc'.tr(),
+      CodingApprovalMode.fullAccess =>
+        'settings.coding_approval_full_access_desc'.tr(),
+    };
   }
 }

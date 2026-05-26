@@ -50,15 +50,40 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    if (!_settings.confirmGitWrites && !_isRemoteInteraction) {
+    if (_hasFullCodingApprovalAccess) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: gitArguments,
       );
     }
 
-    // Write commands require user approval.
     final reason = toolCall.arguments['reason'] as String?;
+    final autoReviewDecision = await _reviewCodingApproval(
+      toolCall: toolCall,
+      actionKind: 'git_execute_command',
+      arguments: gitArguments,
+      workingDirectory: workingDirectory,
+      reason: reason,
+    );
+    if (autoReviewDecision?.isAllowed == true) {
+      final result = await _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: gitArguments,
+      );
+      return _rememberToolApprovalResult(toolCall.name, gitArguments, result);
+    }
+    if (autoReviewDecision != null) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        gitArguments,
+        _autoReviewDeniedResult(
+          toolName: toolCall.name,
+          decision: autoReviewDecision,
+        ),
+      );
+    }
+
+    // Write commands require user approval.
     final approved = await requestGitCommand(
       command: command,
       workingDirectory: workingDirectory,

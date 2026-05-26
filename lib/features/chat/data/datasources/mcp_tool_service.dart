@@ -579,6 +579,35 @@ class McpToolService {
     }
   }
 
+  String? _commandResultFailureMessage(String result, String toolLabel) {
+    try {
+      final decoded = jsonDecode(result);
+      if (decoded is! Map<String, dynamic>) return null;
+
+      final error = decoded['error'];
+      if (error is String && error.trim().isNotEmpty) {
+        return error.trim();
+      }
+
+      final exitCode = decoded['exit_code'];
+      if (exitCode is num && exitCode.toInt() != 0) {
+        final stderr = decoded['stderr'];
+        final stdout = decoded['stdout'];
+        final detail = stderr is String && stderr.trim().isNotEmpty
+            ? stderr.trim()
+            : stdout is String && stdout.trim().isNotEmpty
+            ? stdout.trim()
+            : null;
+        return detail == null
+            ? '$toolLabel exited with code ${exitCode.toInt()}'
+            : '$toolLabel exited with code ${exitCode.toInt()}: $detail';
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
   /// Executes a tool.
   Future<McpToolResult> executeTool({
     required String name,
@@ -1465,6 +1494,19 @@ class McpToolService {
           command: command,
           workingDirectory: workingDirectory,
         );
+        final failureMessage = _commandResultFailureMessage(
+          result,
+          'Git command',
+        );
+        if (failureMessage != null) {
+          appLog('[McpToolService] Git command failed: $failureMessage');
+          return McpToolResult(
+            toolName: name,
+            result: result,
+            isSuccess: false,
+            errorMessage: failureMessage,
+          );
+        }
         appLog('[McpToolService] Git command executed successfully');
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
@@ -3506,6 +3548,8 @@ class McpToolService {
             'type': 'string',
             'description':
                 'Git subcommand and arguments (without the leading "git"), '
+                'exactly one git subcommand per call. Do not use shell '
+                'operators such as &&, ;, |, or redirection. '
                 'e.g. "status", "log --oneline -20", "diff HEAD~1", '
                 '"commit -m \\"fix typo\\"".',
           },

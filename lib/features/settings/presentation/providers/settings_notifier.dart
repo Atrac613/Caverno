@@ -337,23 +337,68 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateCodingApprovalMode(
+    CodingApprovalMode codingApprovalMode,
+  ) async {
+    final confirms = codingApprovalMode != CodingApprovalMode.fullAccess;
+    state = state.copyWith(
+      codingApprovalMode: codingApprovalMode,
+      confirmFileMutations: confirms,
+      confirmLocalCommands: confirms,
+      confirmGitWrites: confirms,
+    );
+    await _repository.save(state);
+  }
+
   Future<void> updateConfirmFileMutations(bool value) async {
-    state = state.copyWith(confirmFileMutations: value);
+    final confirmLocalCommands = state.confirmLocalCommands;
+    final confirmGitWrites = state.confirmGitWrites;
+    state = state.copyWith(
+      confirmFileMutations: value,
+      codingApprovalMode: _legacyCodingApprovalModeFor(
+        confirmFileMutations: value,
+        confirmLocalCommands: confirmLocalCommands,
+        confirmGitWrites: confirmGitWrites,
+      ),
+    );
     await _repository.save(state);
   }
 
   Future<void> updateConfirmLocalCommands(bool value) async {
-    state = state.copyWith(confirmLocalCommands: value);
+    final confirmFileMutations = state.confirmFileMutations;
+    final confirmGitWrites = state.confirmGitWrites;
+    state = state.copyWith(
+      confirmLocalCommands: value,
+      codingApprovalMode: _legacyCodingApprovalModeFor(
+        confirmFileMutations: confirmFileMutations,
+        confirmLocalCommands: value,
+        confirmGitWrites: confirmGitWrites,
+      ),
+    );
     await _repository.save(state);
   }
 
   Future<void> updateConfirmGitWrites(bool value) async {
-    state = state.copyWith(confirmGitWrites: value);
+    final confirmFileMutations = state.confirmFileMutations;
+    final confirmLocalCommands = state.confirmLocalCommands;
+    state = state.copyWith(
+      confirmGitWrites: value,
+      codingApprovalMode: _legacyCodingApprovalModeFor(
+        confirmFileMutations: confirmFileMutations,
+        confirmLocalCommands: confirmLocalCommands,
+        confirmGitWrites: value,
+      ),
+    );
     await _repository.save(state);
   }
 
   Future<void> updateShowMemoryUpdates(bool value) async {
     state = state.copyWith(showMemoryUpdates: value);
+    await _repository.save(state);
+  }
+
+  Future<void> updateEnableLlmSessionLogs(bool value) async {
+    state = state.copyWith(enableLlmSessionLogs: value);
     await _repository.save(state);
   }
 
@@ -416,5 +461,15 @@ class SettingsNotifier extends Notifier<AppSettings> {
     }
 
     return normalized;
+  }
+
+  CodingApprovalMode _legacyCodingApprovalModeFor({
+    required bool confirmFileMutations,
+    required bool confirmLocalCommands,
+    required bool confirmGitWrites,
+  }) {
+    return !confirmFileMutations && !confirmLocalCommands && !confirmGitWrites
+        ? CodingApprovalMode.fullAccess
+        : CodingApprovalMode.defaultPermissions;
   }
 }

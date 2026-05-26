@@ -32,7 +32,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    if (!_settings.confirmFileMutations && !_isRemoteInteraction) {
+    if (_hasFullCodingApprovalAccess) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: resolvedArguments,
@@ -43,11 +43,42 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       path: path,
       newContent: content,
     );
+    final reason = toolCall.arguments['reason'] as String?;
+    final autoReviewDecision = await _reviewCodingApproval(
+      toolCall: toolCall,
+      actionKind: 'write_file',
+      arguments: resolvedArguments,
+      path: path,
+      reason: reason,
+      preview: preview,
+    );
+    if (autoReviewDecision?.isAllowed == true) {
+      final result = await _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: resolvedArguments,
+      );
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        resolvedArguments,
+        result,
+      );
+    }
+    if (autoReviewDecision != null) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        resolvedArguments,
+        _autoReviewDeniedResult(
+          toolName: toolCall.name,
+          decision: autoReviewDecision,
+        ),
+      );
+    }
+
     final approved = await requestFileOperation(
       operation: 'Write File',
       path: path,
       preview: preview,
-      reason: toolCall.arguments['reason'] as String?,
+      reason: reason,
     );
     if (!approved) {
       return _rememberToolApprovalResult(
@@ -101,7 +132,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    if (!_settings.confirmFileMutations && !_isRemoteInteraction) {
+    if (_hasFullCodingApprovalAccess) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: resolvedArguments,
@@ -114,12 +145,42 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       newText: newText,
       replaceAll: resolvedArguments['replace_all'] as bool? ?? false,
     );
+    final reason = toolCall.arguments['reason'] as String?;
+    final autoReviewDecision = await _reviewCodingApproval(
+      toolCall: toolCall,
+      actionKind: 'edit_file',
+      arguments: resolvedArguments,
+      path: path,
+      reason: reason,
+      preview: preview,
+    );
+    if (autoReviewDecision?.isAllowed == true) {
+      final result = await _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: resolvedArguments,
+      );
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        resolvedArguments,
+        result,
+      );
+    }
+    if (autoReviewDecision != null) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        resolvedArguments,
+        _autoReviewDeniedResult(
+          toolName: toolCall.name,
+          decision: autoReviewDecision,
+        ),
+      );
+    }
 
     final approved = await requestFileOperation(
       operation: 'Edit File',
       path: path,
       preview: preview,
-      reason: toolCall.arguments['reason'] as String?,
+      reason: reason,
     );
     if (!approved) {
       return _rememberToolApprovalResult(
@@ -166,7 +227,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
 
-    if (!_settings.confirmFileMutations && !_isRemoteInteraction) {
+    if (_hasFullCodingApprovalAccess) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: toolCall.arguments,
@@ -177,6 +238,36 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         (toolCall.arguments['reason'] as String?)?.trim().isNotEmpty == true
         ? toolCall.arguments['reason'] as String?
         : preview.summary;
+
+    final autoReviewDecision = await _reviewCodingApproval(
+      toolCall: toolCall,
+      actionKind: 'rollback_last_file_change',
+      arguments: toolCall.arguments,
+      path: preview.path,
+      reason: reason,
+      preview: preview.preview,
+    );
+    if (autoReviewDecision?.isAllowed == true) {
+      final result = await _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+      );
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        toolCall.arguments,
+        result,
+      );
+    }
+    if (autoReviewDecision != null) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        toolCall.arguments,
+        _autoReviewDeniedResult(
+          toolName: toolCall.name,
+          decision: autoReviewDecision,
+        ),
+      );
+    }
 
     final approved = await requestFileOperation(
       operation: 'Rollback File Change',
@@ -278,9 +369,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    if (!_settings.confirmLocalCommands &&
-        !requiresExplicitApproval &&
-        !_isRemoteInteraction) {
+    if (_hasFullCodingApprovalAccess) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: localArguments,
@@ -288,10 +377,38 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     }
 
     final riskWarning = LocalCommandPermissionService.riskWarningFor(command);
+    final reason = toolCall.arguments['reason'] as String?;
+    final autoReviewDecision = await _reviewCodingApproval(
+      toolCall: toolCall,
+      actionKind: 'local_execute_command',
+      arguments: localArguments,
+      workingDirectory: workingDirectory,
+      reason: reason,
+      warningTitle: riskWarning?.title,
+      warningMessage: riskWarning?.message,
+    );
+    if (autoReviewDecision?.isAllowed == true) {
+      final result = await _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: localArguments,
+      );
+      return _rememberToolApprovalResult(toolCall.name, localArguments, result);
+    }
+    if (autoReviewDecision != null) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        localArguments,
+        _autoReviewDeniedResult(
+          toolName: toolCall.name,
+          decision: autoReviewDecision,
+        ),
+      );
+    }
+
     final approval = await requestLocalCommand(
       command: command,
       workingDirectory: workingDirectory,
-      reason: toolCall.arguments['reason'] as String?,
+      reason: reason,
       warningTitle: riskWarning?.title,
       warningMessage: riskWarning?.message,
     );

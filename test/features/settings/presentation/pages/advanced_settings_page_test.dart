@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/advanced_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/debug_settings_page.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -66,6 +67,29 @@ void main() {
     expect(find.byType(DebugSettingsPage), findsOneWidget);
     expect(find.text('Debug'), findsAtLeastNWidgets(1));
     expect(find.text('Computer Use Smoke Sequence'), findsOneWidget);
+    expect(find.text('Save LLM session logs'), findsOneWidget);
+  });
+
+  testWidgets('toggles LLM session logs from Debug settings', (tester) async {
+    final prefs = await _setUpPreferences();
+    await _pumpPage(
+      tester,
+      prefs,
+      computerUseBuilder: (_) =>
+          const Scaffold(body: Center(child: Text('Computer Use destination'))),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-menu-debug')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save LLM session logs'));
+    await tester.pumpAndSettle();
+
+    final rawSettings = prefs.getString('app_settings');
+    expect(rawSettings, isNotNull);
+    final decoded = AppSettings.fromJson(
+      jsonDecode(rawSettings!) as Map<String, dynamic>,
+    );
+    expect(decoded.enableLlmSessionLogs, isTrue);
   });
 }
 

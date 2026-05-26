@@ -35,6 +35,7 @@ Future<SharedPreferences> _pumpMessageInput(
   onSend,
   MessageInputImageAttachment? droppedImageAttachment,
   AppSettings? initialSettings,
+  bool isCodingWorkspace = false,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     if (initialSettings != null)
@@ -72,6 +73,7 @@ Future<SharedPreferences> _pumpMessageInput(
                         isLoading: loading,
                         assistantMode: AssistantMode.general,
                         droppedImageAttachment: droppedImageAttachment,
+                        isCodingWorkspace: isCodingWorkspace,
                       );
                     },
                   ),
@@ -224,5 +226,45 @@ void main() {
     );
     expect(storedSettings.reasoningEffort, ReasoningEffortPreference.high);
     expect(find.byTooltip('Reasoning effort: High'), findsOneWidget);
+  });
+
+  testWidgets('updates coding approval mode from the composer menu', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final preferences = await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      isCodingWorkspace: true,
+    );
+
+    expect(find.text('Default permissions'), findsOneWidget);
+    expect(
+      find.byTooltip('Permission mode: Default permissions'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Default permissions'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithText(
+        CheckedPopupMenuItem<CodingApprovalMode>,
+        'Auto-review',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final storedJson = preferences.getString('app_settings');
+    expect(storedJson, isNotNull);
+
+    final storedSettings = AppSettings.fromJson(
+      jsonDecode(storedJson!) as Map<String, dynamic>,
+    );
+    expect(storedSettings.codingApprovalMode, CodingApprovalMode.autoReview);
+    expect(find.byTooltip('Permission mode: Auto-review'), findsOneWidget);
   });
 }

@@ -686,6 +686,28 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     };
   }
 
+  String _codingApprovalModeLabel(CodingApprovalMode mode) {
+    return switch (mode) {
+      CodingApprovalMode.defaultPermissions =>
+        'settings.coding_approval_default'.tr(),
+      CodingApprovalMode.autoReview =>
+        'settings.coding_approval_auto_review'.tr(),
+      CodingApprovalMode.fullAccess =>
+        'settings.coding_approval_full_access'.tr(),
+    };
+  }
+
+  String _codingApprovalModeDescription(CodingApprovalMode mode) {
+    return switch (mode) {
+      CodingApprovalMode.defaultPermissions =>
+        'settings.coding_approval_default_desc'.tr(),
+      CodingApprovalMode.autoReview =>
+        'settings.coding_approval_auto_review_desc'.tr(),
+      CodingApprovalMode.fullAccess =>
+        'settings.coding_approval_full_access_desc'.tr(),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -693,6 +715,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
     final assistantMode = widget.assistantMode;
     final reasoningEffort = settings.reasoningEffort;
+    final codingApprovalMode = settings.codingApprovalMode;
     final canSend =
         _hasText || _selectedImageBytes != null || _selectedFileContent != null;
 
@@ -930,6 +953,81 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                         ),
                       ),
                       const SizedBox(width: 8),
+                      if (widget.isCodingWorkspace) ...[
+                        Opacity(
+                          opacity: widget.isLoading ? 0.6 : 1.0,
+                          child: PopupMenuButton<CodingApprovalMode>(
+                            enabled: !widget.isLoading,
+                            tooltip: 'message.permission_mode_tooltip'.tr(
+                              namedArgs: {
+                                'value': _codingApprovalModeLabel(
+                                  codingApprovalMode,
+                                ),
+                              },
+                            ),
+                            padding: EdgeInsets.zero,
+                            onSelected: (value) {
+                              settingsNotifier.updateCodingApprovalMode(value);
+                            },
+                            itemBuilder: (context) => CodingApprovalMode.values
+                                .map(
+                                  (value) =>
+                                      CheckedPopupMenuItem<CodingApprovalMode>(
+                                        height: 72,
+                                        value: value,
+                                        checked: codingApprovalMode == value,
+                                        child: ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: const Icon(
+                                            Icons.shield_outlined,
+                                          ),
+                                          title: Text(
+                                            _codingApprovalModeLabel(value),
+                                          ),
+                                          subtitle: Text(
+                                            _codingApprovalModeDescription(
+                                              value,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                )
+                                .toList(),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHigh,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: theme.colorScheme.outlineVariant,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.shield_outlined, size: 18),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _codingApprovalModeLabel(
+                                      codingApprovalMode,
+                                    ),
+                                    style: theme.textTheme.labelLarge,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.keyboard_arrow_down,
+                                    size: 18,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       Opacity(
                         opacity: widget.isLoading ? 0.6 : 1.0,
                         child: PopupMenuButton<ReasoningEffortPreference>(

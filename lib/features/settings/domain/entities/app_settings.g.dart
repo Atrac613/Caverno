@@ -181,10 +181,18 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
         unknownValue: AssistantMode.general,
       ) ??
       AssistantMode.general,
+  codingApprovalMode:
+      $enumDecodeNullable(
+        _$CodingApprovalModeEnumMap,
+        json['codingApprovalMode'],
+        unknownValue: CodingApprovalMode.defaultPermissions,
+      ) ??
+      CodingApprovalMode.defaultPermissions,
   confirmFileMutations: json['confirmFileMutations'] as bool? ?? true,
   confirmLocalCommands: json['confirmLocalCommands'] as bool? ?? true,
   confirmGitWrites: json['confirmGitWrites'] as bool? ?? true,
   showMemoryUpdates: json['showMemoryUpdates'] as bool? ?? false,
+  enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? false,
   demoMode: json['demoMode'] as bool? ?? false,
   disabledBuiltInTools:
       (json['disabledBuiltInTools'] as List<dynamic>?)
@@ -233,10 +241,13 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'voicevoxSpeakerId': instance.voicevoxSpeakerId,
       'language': instance.language,
       'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
+      'codingApprovalMode':
+          _$CodingApprovalModeEnumMap[instance.codingApprovalMode]!,
       'confirmFileMutations': instance.confirmFileMutations,
       'confirmLocalCommands': instance.confirmLocalCommands,
       'confirmGitWrites': instance.confirmGitWrites,
       'showMemoryUpdates': instance.showMemoryUpdates,
+      'enableLlmSessionLogs': instance.enableLlmSessionLogs,
       'demoMode': instance.demoMode,
       'disabledBuiltInTools': instance.disabledBuiltInTools,
       'localCommandPermissionRules': instance.localCommandPermissionRules,
@@ -255,4 +266,10 @@ const _$AssistantModeEnumMap = {
   AssistantMode.general: 'general',
   AssistantMode.coding: 'coding',
   AssistantMode.plan: 'plan',
+};
+
+const _$CodingApprovalModeEnumMap = {
+  CodingApprovalMode.defaultPermissions: 'defaultPermissions',
+  CodingApprovalMode.autoReview: 'autoReview',
+  CodingApprovalMode.fullAccess: 'fullAccess',
 };

@@ -63,6 +63,34 @@ void main() {
       }
     });
 
+    test('returns failure for non-zero git command results', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'mcp_tool_service_git_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      await Process.run('git', ['init'], workingDirectory: tempDir.path);
+      await File('${tempDir.path}/README.md').writeAsString('hello\n');
+
+      final service = McpToolService();
+      final result = await service.executeTool(
+        name: 'git_execute_command',
+        arguments: {
+          'command': 'add README.md && commit -m "Add README"',
+          'working_directory': tempDir.path,
+        },
+      );
+
+      final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, contains('one git subcommand'));
+      expect(decoded['exit_code'], 2);
+    });
+
     test('includes macOS computer-use tool definitions when available', () {
       final service = McpToolService(
         computerUseService: _FakeMacosComputerUseService(),

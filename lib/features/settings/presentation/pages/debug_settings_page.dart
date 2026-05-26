@@ -33,6 +33,13 @@ class DebugSettingsPage extends ConsumerWidget {
                   onChanged: notifier.updateShowMemoryUpdates,
                 ),
                 const Divider(height: 1),
+                SwitchListTile(
+                  title: Text('settings.enable_llm_session_logs'.tr()),
+                  subtitle: Text('settings.enable_llm_session_logs_desc'.tr()),
+                  value: settings.enableLlmSessionLogs,
+                  onChanged: notifier.updateEnableLlmSessionLogs,
+                ),
+                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.desktop_mac_outlined),
                   title: const Text('Computer Use Smoke Sequence'),

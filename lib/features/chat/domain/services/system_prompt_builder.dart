@@ -158,6 +158,11 @@ class SystemPromptBuilder {
           'For file changes, prefer edit_file for targeted replacements and '
           'write_file only when creating or fully rewriting files.',
         );
+        buffer.writeln(
+          'Do not claim that local files were created, edited, moved, saved, '
+          'or deleted unless an application-executed tool result confirms '
+          'the successful operation.',
+        );
       }
       if (hasRollbackTool) {
         buffer.writeln(
@@ -172,6 +177,13 @@ class SystemPromptBuilder {
           'formatters, or other toolchain commands that are awkward to '
           'express with the file tools.',
         );
+        if (hasProjectWriteTools) {
+          buffer.writeln(
+            'If the user asks to delete a local project file and no dedicated '
+            'file-delete tool is available, use local_execute_command with an '
+            'exact non-interactive deletion command in the project workspace.',
+          );
+        }
       }
       if (hasOsSystemInfoTool) {
         buffer.writeln(
@@ -196,6 +208,16 @@ class SystemPromptBuilder {
         buffer.writeln(
           'Use git_execute_command for repository inspection and git write '
           'operations instead of generic shell commands when possible.',
+        );
+        buffer.writeln(
+          'Each git_execute_command call must contain exactly one git '
+          'subcommand without shell operators such as &&, ;, |, or '
+          'redirection. Split staging, committing, and other git steps into '
+          'separate tool calls.',
+        );
+        buffer.writeln(
+          'Do not claim that git state changed unless a successful '
+          'application-executed git_execute_command result confirms it.',
         );
       }
       if (hasProjectReadTools || hasLocalShellTool || hasGitTool) {

@@ -110,6 +110,50 @@ class GitTools {
     return normalized;
   }
 
+  /// Returns the first shell control operator outside quotes, if present.
+  static String? firstShellControlOperator(String command) {
+    final normalized = normalizeCommand(command);
+    String? quoteChar;
+
+    for (var i = 0; i < normalized.length; i++) {
+      final c = normalized[i];
+
+      if (quoteChar != null) {
+        if (quoteChar == '"' && c == '\\') {
+          i += 1;
+          continue;
+        }
+        if (c == quoteChar) {
+          quoteChar = null;
+        }
+        continue;
+      }
+
+      if (c == '"' || c == "'") {
+        quoteChar = c;
+        continue;
+      }
+
+      if (c == '&') {
+        if (i + 1 < normalized.length && normalized[i + 1] == '&') {
+          return '&&';
+        }
+        return '&';
+      }
+      if (c == '|') {
+        if (i + 1 < normalized.length && normalized[i + 1] == '|') {
+          return '||';
+        }
+        return '|';
+      }
+      if (c == ';' || c == '<' || c == '>' || c == '\n') {
+        return c == '\n' ? 'newline' : c;
+      }
+    }
+
+    return null;
+  }
+
   /// `git branch` is read-only when listing (no create/delete/rename flags
   /// and no positional branch-name argument that would create a branch).
   static bool _isBranchReadOnly(List<String> args) {
@@ -218,6 +262,18 @@ class GitTools {
     final args = splitArgs(normalizedCommand);
     if (args.isEmpty) {
       return jsonEncode({'error': 'Empty git command'});
+    }
+    final shellOperator = firstShellControlOperator(normalizedCommand);
+    if (shellOperator != null) {
+      return jsonEncode({
+        'command': 'git $normalizedCommand',
+        'working_directory': workingDirectory,
+        'exit_code': 2,
+        'error':
+            'git_execute_command accepts one git subcommand per tool call. '
+            'Shell control operator "$shellOperator" is not supported. '
+            'Run separate git_execute_command calls instead.',
+      });
     }
 
     try {

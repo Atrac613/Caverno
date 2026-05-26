@@ -15,6 +15,7 @@ void main() {
       toolNames: const [
         'list_directory',
         'read_file',
+        'write_file',
         'local_execute_command',
         'os_get_system_info',
         'os_log_read',
@@ -65,6 +66,24 @@ void main() {
       prompt,
       contains(
         'If a tool result contains permission_denied or bookmark_restore_failed',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Each git_execute_command call must contain exactly one git subcommand',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not claim that local files were created, edited, moved, saved, or deleted unless an application-executed tool result confirms the successful operation.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'If the user asks to delete a local project file and no dedicated file-delete tool is available',
       ),
     );
     expect(

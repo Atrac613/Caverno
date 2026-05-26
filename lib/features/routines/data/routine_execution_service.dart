@@ -8,10 +8,13 @@ import '../../../core/services/google_chat_delivery_service.dart';
 import '../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../core/types/assistant_mode.dart';
+import '../../../core/types/workspace_mode.dart';
 import '../../../core/utils/content_parser.dart';
 import '../../chat/data/datasources/chat_datasource.dart';
 import '../../chat/data/datasources/chat_remote_datasource.dart';
+import '../../chat/data/datasources/llm_session_log_store.dart';
 import '../../chat/data/datasources/mcp_tool_service.dart';
+import '../../chat/data/datasources/session_logging_chat_datasource.dart';
 import '../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../chat/domain/entities/message.dart';
 import '../../chat/domain/services/system_prompt_builder.dart';
@@ -28,11 +31,25 @@ import 'routine_tool_runner.dart';
 final routineExecutionServiceProvider = Provider<RoutineExecutionService>((
   ref,
 ) {
+  final settings = ref.watch(settingsNotifierProvider);
+  final rawDataSource = ref.watch(chatRemoteDataSourceProvider);
+  final loggingEnabled = LlmSessionLogStore.isEnabled(
+    settingsEnabled: settings.enableLlmSessionLogs,
+  );
+  final dataSource =
+      !loggingEnabled ||
+          settings.demoMode ||
+          rawDataSource is! ChatRemoteDataSource
+      ? rawDataSource
+      : SessionLoggingChatDataSource(
+          delegate: rawDataSource,
+          logStore: ref.watch(llmSessionLogStoreProvider),
+        );
   return RoutineExecutionService(
-    dataSource: ref.watch(chatRemoteDataSourceProvider),
+    dataSource: dataSource,
     googleChatDeliveryService: ref.watch(googleChatDeliveryServiceProvider),
     mcpToolService: ref.watch(mcpToolServiceProvider),
-    settings: ref.watch(settingsNotifierProvider),
+    settings: settings,
   );
 });
 
@@ -147,148 +164,181 @@ class RoutineExecutionService {
     RoutineRunTrigger trigger = RoutineRunTrigger.manual,
   }) async {
     final startedAt = DateTime.now();
+    final runId = _uuid.v4();
 
-    try {
-      final allowedTools = _allowedRoutineTools(routine);
-      final approvedPlan = routine.freshApprovedPlanMarkdown;
-      final systemPrompt = _buildRoutineSystemPrompt(
-        now: startedAt,
-        routine: routine,
-        allowedTools: allowedTools,
-        approvedPlan: approvedPlan,
-      );
-      final messages = [
-        Message(
-          id: 'routine_system',
-          content: systemPrompt,
-          role: MessageRole.system,
-          timestamp: startedAt,
-        ),
-        Message(
-          id: 'routine_user',
-          content: routine.trimmedPrompt,
-          role: MessageRole.user,
-          timestamp: startedAt,
-        ),
-      ];
+    return LlmSessionLogContext.run(
+      _routineLogContext(routine, runId: runId, phase: 'routine_run'),
+      () async {
+        try {
+          final allowedTools = _allowedRoutineTools(routine);
+          final approvedPlan = routine.freshApprovedPlanMarkdown;
+          final systemPrompt = _buildRoutineSystemPrompt(
+            now: startedAt,
+            routine: routine,
+            allowedTools: allowedTools,
+            approvedPlan: approvedPlan,
+          );
+          final messages = [
+            Message(
+              id: 'routine_system',
+              content: systemPrompt,
+              role: MessageRole.system,
+              timestamp: startedAt,
+            ),
+            Message(
+              id: 'routine_user',
+              content: routine.trimmedPrompt,
+              role: MessageRole.user,
+              timestamp: startedAt,
+            ),
+          ];
 
-      final executionResult = await _executeRoutine(
-        messages: messages,
-        routine: routine,
-        allowedTools: allowedTools,
-      );
-      final output = RoutineScheduleService.truncateOutput(
-        executionResult.output,
-        maxLength: _maxStoredOutputLength,
-      );
-      final visibleOutput = RoutineScheduleService.visibleOutput(output);
-      final preview = RoutineScheduleService.summarizeOutput(output);
-      final toolNames = _toolNamesFromResults(executionResult.toolResults);
-      final toolCalls = _toolCallsFromResults(executionResult.toolResults);
-      final toolSourceLabels = _toolSourceLabelsFromResults(
-        executionResult.toolResults,
-        allowedTools,
-      );
-      final finishedAt = DateTime.now();
-      final durationMs = finishedAt.difference(startedAt).inMilliseconds;
+          final executionResult = await _executeRoutine(
+            messages: messages,
+            routine: routine,
+            allowedTools: allowedTools,
+          );
+          final output = RoutineScheduleService.truncateOutput(
+            executionResult.output,
+            maxLength: _maxStoredOutputLength,
+          );
+          final visibleOutput = RoutineScheduleService.visibleOutput(output);
+          final preview = RoutineScheduleService.summarizeOutput(output);
+          final toolNames = _toolNamesFromResults(executionResult.toolResults);
+          final toolCalls = _toolCallsFromResults(executionResult.toolResults);
+          final toolSourceLabels = _toolSourceLabelsFromResults(
+            executionResult.toolResults,
+            allowedTools,
+          );
+          final finishedAt = DateTime.now();
+          final durationMs = finishedAt.difference(startedAt).inMilliseconds;
 
-      if (visibleOutput.isEmpty) {
-        final failureMessage = executionResult.wasTruncated
-            ? 'Routine response was truncated before producing visible output.'
-            : 'Routine completed without any visible output.';
-        return RoutineRunRecord(
-          id: _uuid.v4(),
-          startedAt: startedAt,
-          finishedAt: finishedAt,
-          status: RoutineRunStatus.failed,
-          trigger: trigger,
-          usedPlan: approvedPlan != null,
-          planSourceHash: approvedPlan == null ? '' : routine.planSourceHash,
-          durationMs: durationMs,
-          usedTools: executionResult.toolResults.isNotEmpty,
-          toolCallCount: executionResult.toolResults.length,
-          toolNames: toolNames,
-          toolCalls: toolCalls,
-          toolSourceLabels: toolSourceLabels,
-          preview: failureMessage,
-          output: output,
-          error: failureMessage,
-        );
-      }
+          if (visibleOutput.isEmpty) {
+            final failureMessage = executionResult.wasTruncated
+                ? 'Routine response was truncated before producing visible output.'
+                : 'Routine completed without any visible output.';
+            return RoutineRunRecord(
+              id: runId,
+              startedAt: startedAt,
+              finishedAt: finishedAt,
+              status: RoutineRunStatus.failed,
+              trigger: trigger,
+              usedPlan: approvedPlan != null,
+              planSourceHash: approvedPlan == null
+                  ? ''
+                  : routine.planSourceHash,
+              durationMs: durationMs,
+              usedTools: executionResult.toolResults.isNotEmpty,
+              toolCallCount: executionResult.toolResults.length,
+              toolNames: toolNames,
+              toolCalls: toolCalls,
+              toolSourceLabels: toolSourceLabels,
+              preview: failureMessage,
+              output: output,
+              error: failureMessage,
+            );
+          }
 
-      return RoutineRunRecord(
-        id: _uuid.v4(),
-        startedAt: startedAt,
-        finishedAt: finishedAt,
-        status: RoutineRunStatus.completed,
-        trigger: trigger,
-        usedPlan: approvedPlan != null,
-        planSourceHash: approvedPlan == null ? '' : routine.planSourceHash,
-        durationMs: durationMs,
-        usedTools: executionResult.toolResults.isNotEmpty,
-        toolCallCount: executionResult.toolResults.length,
-        toolNames: toolNames,
-        toolCalls: toolCalls,
-        toolSourceLabels: toolSourceLabels,
-        preview: preview,
-        output: output,
-      );
-    } catch (error) {
-      final finishedAt = DateTime.now();
-      final durationMs = finishedAt.difference(startedAt).inMilliseconds;
-      final message = error.toString().trim();
+          return RoutineRunRecord(
+            id: runId,
+            startedAt: startedAt,
+            finishedAt: finishedAt,
+            status: RoutineRunStatus.completed,
+            trigger: trigger,
+            usedPlan: approvedPlan != null,
+            planSourceHash: approvedPlan == null ? '' : routine.planSourceHash,
+            durationMs: durationMs,
+            usedTools: executionResult.toolResults.isNotEmpty,
+            toolCallCount: executionResult.toolResults.length,
+            toolNames: toolNames,
+            toolCalls: toolCalls,
+            toolSourceLabels: toolSourceLabels,
+            preview: preview,
+            output: output,
+          );
+        } catch (error) {
+          final finishedAt = DateTime.now();
+          final durationMs = finishedAt.difference(startedAt).inMilliseconds;
+          final message = error.toString().trim();
 
-      return RoutineRunRecord(
-        id: _uuid.v4(),
-        startedAt: startedAt,
-        finishedAt: finishedAt,
-        status: RoutineRunStatus.failed,
-        trigger: trigger,
-        durationMs: durationMs,
-        preview: message,
-        error: message,
-      );
-    }
+          return RoutineRunRecord(
+            id: runId,
+            startedAt: startedAt,
+            finishedAt: finishedAt,
+            status: RoutineRunStatus.failed,
+            trigger: trigger,
+            durationMs: durationMs,
+            preview: message,
+            error: message,
+          );
+        }
+      },
+    );
   }
 
   Future<String> generatePlanDraft(Routine routine) async {
-    final now = DateTime.now();
-    final allowedTools = _allowedRoutineTools(routine);
-    final toolNames = _toolNamesFromDefinitions(allowedTools);
-    final messages = [
-      Message(
-        id: 'routine_plan_system',
-        content: _buildRoutinePlanSystemPrompt(
-          now: now,
-          allowedToolNames: toolNames,
-        ),
-        role: MessageRole.system,
-        timestamp: now,
-      ),
-      Message(
-        id: 'routine_plan_user',
-        content: _buildRoutinePlanDraftRequest(
-          routine: routine,
-          allowedToolNames: toolNames,
-        ),
-        role: MessageRole.user,
-        timestamp: now,
-      ),
-    ];
+    return LlmSessionLogContext.run(
+      _routineLogContext(routine, phase: 'routine_plan'),
+      () async {
+        final now = DateTime.now();
+        final allowedTools = _allowedRoutineTools(routine);
+        final toolNames = _toolNamesFromDefinitions(allowedTools);
+        final messages = [
+          Message(
+            id: 'routine_plan_system',
+            content: _buildRoutinePlanSystemPrompt(
+              now: now,
+              allowedToolNames: toolNames,
+            ),
+            role: MessageRole.system,
+            timestamp: now,
+          ),
+          Message(
+            id: 'routine_plan_user',
+            content: _buildRoutinePlanDraftRequest(
+              routine: routine,
+              allowedToolNames: toolNames,
+            ),
+            role: MessageRole.user,
+            timestamp: now,
+          ),
+        ];
 
-    final result = await _dataSource.createChatCompletion(
-      messages: messages,
-      model: _settings.model,
-      temperature: _settings.temperature,
-      maxTokens: _settings.maxTokens,
+        final result = await _dataSource.createChatCompletion(
+          messages: messages,
+          model: _settings.model,
+          temperature: _settings.temperature,
+          maxTokens: _settings.maxTokens,
+        );
+        final markdown = _textSegmentsOnly(result.content).trimRight();
+        if (markdown.trim().isEmpty) {
+          throw StateError(
+            'Routine plan draft generation returned no content.',
+          );
+        }
+        return RoutineScheduleService.truncateOutput(
+          markdown,
+          maxLength: _maxGeneratedPlanLength,
+        );
+      },
     );
-    final markdown = _textSegmentsOnly(result.content).trimRight();
-    if (markdown.trim().isEmpty) {
-      throw StateError('Routine plan draft generation returned no content.');
-    }
-    return RoutineScheduleService.truncateOutput(
-      markdown,
-      maxLength: _maxGeneratedPlanLength,
+  }
+
+  LlmSessionLogContext _routineLogContext(
+    Routine routine, {
+    String? runId,
+    required String phase,
+  }) {
+    final sessionId = runId == null
+        ? 'routine-plan-${routine.id}'
+        : 'routine-${routine.id}-run-$runId';
+    return LlmSessionLogContext(
+      workspaceMode: WorkspaceMode.routines,
+      sessionId: sessionId,
+      sessionTitle: routine.trimmedName,
+      routineId: routine.id,
+      routineRunId: runId,
+      phase: phase,
     );
   }
 

@@ -17,6 +17,8 @@ enum LocalCommandPermissionAction { allow, deny, ask }
 
 enum LocalCommandPermissionMatch { exact, prefix }
 
+enum CodingApprovalMode { defaultPermissions, autoReview, fullAccess }
+
 enum ReasoningEffortPreference { automatic, low, medium, high }
 
 extension ReasoningEffortPreferenceApi on ReasoningEffortPreference {
@@ -187,10 +189,14 @@ abstract class AppSettings with _$AppSettings {
     @JsonKey(unknownEnumValue: AssistantMode.general)
     @Default(AssistantMode.general)
     AssistantMode assistantMode,
+    @JsonKey(unknownEnumValue: CodingApprovalMode.defaultPermissions)
+    @Default(CodingApprovalMode.defaultPermissions)
+    CodingApprovalMode codingApprovalMode,
     @Default(true) bool confirmFileMutations,
     @Default(true) bool confirmLocalCommands,
     @Default(true) bool confirmGitWrites,
     @Default(false) bool showMemoryUpdates,
+    @Default(false) bool enableLlmSessionLogs,
     @Default(false) bool demoMode,
     @Default(<String>[]) List<String> disabledBuiltInTools,
     @Default(<LocalCommandPermissionRule>[])
@@ -213,7 +219,25 @@ abstract class AppSettings with _$AppSettings {
   );
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>
-      _$AppSettingsFromJson(json);
+      _$AppSettingsFromJson(migrateLegacyJson(json));
+
+  static Map<String, dynamic> migrateLegacyJson(Map<String, dynamic> json) {
+    if (json.containsKey('codingApprovalMode')) {
+      return json;
+    }
+
+    final migrated = Map<String, dynamic>.from(json);
+    final confirmFileMutations =
+        migrated['confirmFileMutations'] as bool? ?? true;
+    final confirmLocalCommands =
+        migrated['confirmLocalCommands'] as bool? ?? true;
+    final confirmGitWrites = migrated['confirmGitWrites'] as bool? ?? true;
+    migrated['codingApprovalMode'] =
+        !confirmFileMutations && !confirmLocalCommands && !confirmGitWrites
+        ? 'fullAccess'
+        : 'defaultPermissions';
+    return migrated;
+  }
 
   String get normalizedGoogleChatWebhookUrl => googleChatWebhookUrl.trim();
 

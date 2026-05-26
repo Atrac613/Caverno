@@ -118,6 +118,26 @@ The tool calling implementation in `ChatNotifier._sendWithTools()` /
 - Tracks user profile (persona, preferences, constraints) with TTL and confidence scores
 - Falls back to rule-based extraction if LLM extraction fails
 
+### LLM Session Logs
+
+Caverno records Chat, Coding, and Routines LLM request/response exchanges as
+JSONL session logs for later debugging and Codex analysis.
+- Logs are opt-in. They are disabled by default unless the user enables
+  Advanced > Debug > Save LLM session logs or sets
+  `CAVERNO_SESSION_LOG_ENABLED=1`.
+- Default location: `$HOME/.caverno/session_logs/`
+- Override: `CAVERNO_SESSION_LOG_DIR`
+- Retention controls: `CAVERNO_SESSION_LOG_MAX_FILE_BYTES`,
+  `CAVERNO_SESSION_LOG_MAX_AGE_DAYS`, and
+  `CAVERNO_SESSION_LOG_MAX_ROTATED_FILES`
+- Workspace subdirectories: `chat/`, `coding/`, and `routines/`
+- Schema name: `caverno_llm_session_log_entry`
+- Treat logs as sensitive: prompts, tool arguments, tool results, auto-review
+  packets, and diff previews may be present even after redaction.
+- Do not commit session log files.
+- See `docs/session_logs.md` before changing log schema, redaction, retention,
+  or analysis workflows.
+
 ### Content Parsing
 
 `ContentParser` handles special tags in LLM responses:

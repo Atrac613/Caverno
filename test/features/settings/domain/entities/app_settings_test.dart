@@ -81,6 +81,63 @@ void main() {
     expect(ReasoningEffortPreference.automatic.apiValue, isNull);
   });
 
+  test('persists coding approval mode', () {
+    final settings = AppSettings.defaults().copyWith(
+      codingApprovalMode: CodingApprovalMode.autoReview,
+    );
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.codingApprovalMode, CodingApprovalMode.autoReview);
+  });
+
+  test('defaults LLM session logs to disabled and persists opt in', () {
+    expect(AppSettings.defaults().enableLlmSessionLogs, isFalse);
+
+    final settings = AppSettings.defaults().copyWith(
+      enableLlmSessionLogs: true,
+    );
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.enableLlmSessionLogs, isTrue);
+  });
+
+  test('migrates legacy disabled confirmation settings to full access', () {
+    final legacyJson =
+        jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
+              as Map<String, dynamic>
+          ..remove('codingApprovalMode')
+          ..['confirmFileMutations'] = false
+          ..['confirmLocalCommands'] = false
+          ..['confirmGitWrites'] = false;
+
+    final decoded = AppSettings.fromJson(legacyJson);
+
+    expect(decoded.codingApprovalMode, CodingApprovalMode.fullAccess);
+  });
+
+  test(
+    'migrates partial legacy confirmation settings to default permissions',
+    () {
+      final legacyJson =
+          jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
+                as Map<String, dynamic>
+            ..remove('codingApprovalMode')
+            ..['confirmFileMutations'] = false
+            ..['confirmLocalCommands'] = true
+            ..['confirmGitWrites'] = false;
+
+      final decoded = AppSettings.fromJson(legacyJson);
+
+      expect(decoded.codingApprovalMode, CodingApprovalMode.defaultPermissions);
+    },
+  );
+
   test('preserves routine Computer Use action allowlist entries', () {
     const settings = AppSettings(
       baseUrl: 'http://localhost:1234/v1',
