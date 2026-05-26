@@ -474,6 +474,7 @@ class LiveLlmCanaryReferenceSignals {
     this.approvalFallbackCount = 0,
     this.recoveredStreamFallbackCount = 0,
     this.toolResultCompactionRetryCount = 0,
+    this.assistantAuthoredToolBlockCount = 0,
     this.transportDisconnectCount = 0,
     this.memoryExtractionFallbackCount = 0,
     this.failureClassCounts = const <String, int>{},
@@ -496,6 +497,9 @@ class LiveLlmCanaryReferenceSignals {
       toolResultCompactionRetryCount: _asInt(
         json['toolResultCompactionRetryCount'],
       ),
+      assistantAuthoredToolBlockCount: _asInt(
+        json['assistantAuthoredToolBlockCount'],
+      ),
       transportDisconnectCount: _asInt(json['transportDisconnectCount']),
       memoryExtractionFallbackCount: _asInt(
         json['memoryExtractionFallbackCount'],
@@ -515,6 +519,7 @@ class LiveLlmCanaryReferenceSignals {
   final int approvalFallbackCount;
   final int recoveredStreamFallbackCount;
   final int toolResultCompactionRetryCount;
+  final int assistantAuthoredToolBlockCount;
   final int transportDisconnectCount;
   final int memoryExtractionFallbackCount;
   final Map<String, int> failureClassCounts;
@@ -524,6 +529,7 @@ class LiveLlmCanaryReferenceSignals {
       taskDriftCount > 0 ||
       reportQualityBlockerCount > 0 ||
       recoveredStreamFallbackCount > 0 ||
+      assistantAuthoredToolBlockCount > 0 ||
       transportDisconnectCount > 0 ||
       memoryExtractionFallbackCount > 0;
 
@@ -540,6 +546,7 @@ class LiveLlmCanaryReferenceSignals {
       'approvalFallbackCount': approvalFallbackCount,
       'recoveredStreamFallbackCount': recoveredStreamFallbackCount,
       'toolResultCompactionRetryCount': toolResultCompactionRetryCount,
+      'assistantAuthoredToolBlockCount': assistantAuthoredToolBlockCount,
       'transportDisconnectCount': transportDisconnectCount,
       'memoryExtractionFallbackCount': memoryExtractionFallbackCount,
       'failureClassCounts': failureClassCounts,
@@ -576,6 +583,9 @@ class LiveLlmCanaryReferenceSignals {
     }
     if (toolResultCompactionRetryCount > 0) {
       parts.add('compaction retry $toolResultCompactionRetryCount');
+    }
+    if (assistantAuthoredToolBlockCount > 0) {
+      parts.add('assistant tool blocks $assistantAuthoredToolBlockCount');
     }
     if (transportDisconnectCount > 0) {
       parts.add('transport disconnect $transportDisconnectCount');
@@ -742,11 +752,14 @@ Future<LiveLlmCanaryReferenceEntry> _buildLiveSummaryEntry(
   final json = await _readJsonObject(summaryFile);
   final signals = _asObject(json['signals']);
   final result = json['result'] as String? ?? 'failed';
+  final assistantAuthoredToolBlockCount = _asInt(
+    signals['assistantAuthoredToolBlockCount'],
+  );
 
   return LiveLlmCanaryReferenceEntry(
     surface: json['surface'] as String? ?? 'unknown',
     check: json['canaryName'] as String? ?? summaryFile.uri.pathSegments.last,
-    result: result,
+    result: assistantAuthoredToolBlockCount > 0 ? 'failed' : result,
     model: json['model'] as String?,
     baseUrl: json['baseUrl'] as String?,
     evidencePath: summaryFile.path,
@@ -759,6 +772,9 @@ Future<LiveLlmCanaryReferenceEntry> _buildLiveSummaryEntry(
       ),
       toolResultCompactionRetryCount: _asInt(
         signals['toolResultCompactionRetryCount'],
+      ),
+      assistantAuthoredToolBlockCount: _asInt(
+        signals['assistantAuthoredToolBlockCount'],
       ),
       transportDisconnectCount: _asInt(signals['transportDisconnectCount']),
       memoryExtractionFallbackCount: _asInt(

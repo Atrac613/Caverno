@@ -64,6 +64,13 @@ void main() {
         }),
         jsonEncode({
           'testID': 2,
+          'message':
+              'assistant: I can fix it now.\n\n[Tool: edit_file]\nArguments: {"path":"lib/src/ping_command.dart"}',
+          'type': 'print',
+          'time': 33,
+        }),
+        jsonEncode({
+          'testID': 2,
           'result': 'success',
           'skipped': false,
           'hidden': false,
@@ -120,6 +127,7 @@ void main() {
     expect(summary.signals.toolResultCompactionRetryCount, 1);
     expect(summary.signals.incompleteContentToolRecoveryCount, 1);
     expect(summary.signals.ignoredAssistantToolResultCount, 1);
+    expect(summary.signals.assistantAuthoredToolBlockCount, 1);
 
     final json = summary.toJson();
     expect(json['schemaName'], 'live_llm_canary_summary');
@@ -131,6 +139,7 @@ void main() {
       summary.toMarkdown(),
       contains('Incomplete content-tool recovery count'),
     );
+    expect(summary.toMarkdown(), contains('Assistant-authored tool block'));
   });
 
   test('marks skipped live canaries as skipped instead of passed', () async {

@@ -221,6 +221,10 @@ class LiveLlmCanarySummary {
         '`${signals.ignoredAssistantToolResultCount}`',
       )
       ..writeln(
+        '- Assistant-authored tool block count: '
+        '`${signals.assistantAuthoredToolBlockCount}`',
+      )
+      ..writeln(
         '- Transport disconnect count: `${signals.transportDisconnectCount}`',
       )
       ..writeln(
@@ -248,6 +252,7 @@ class LiveLlmCanarySignals {
     required this.toolResultCompactionRetryCount,
     required this.incompleteContentToolRecoveryCount,
     required this.ignoredAssistantToolResultCount,
+    required this.assistantAuthoredToolBlockCount,
     required this.transportDisconnectCount,
     required this.memoryExtractionFallbackCount,
   });
@@ -256,6 +261,7 @@ class LiveLlmCanarySignals {
   final int toolResultCompactionRetryCount;
   final int incompleteContentToolRecoveryCount;
   final int ignoredAssistantToolResultCount;
+  final int assistantAuthoredToolBlockCount;
   final int transportDisconnectCount;
   final int memoryExtractionFallbackCount;
 
@@ -276,6 +282,10 @@ class LiveLlmCanarySignals {
       ignoredAssistantToolResultCount: _countMatches(
         rawLog,
         RegExp('Ignoring assistant-authored tool_result tag'),
+      ),
+      assistantAuthoredToolBlockCount: _countMatches(
+        rawLog,
+        RegExp(r'\[Tool: [A-Za-z0-9_]+\]'),
       ),
       transportDisconnectCount: _countMatches(
         rawLog,
@@ -301,6 +311,7 @@ class LiveLlmCanarySignals {
       'toolResultCompactionRetryCount': toolResultCompactionRetryCount,
       'incompleteContentToolRecoveryCount': incompleteContentToolRecoveryCount,
       'ignoredAssistantToolResultCount': ignoredAssistantToolResultCount,
+      'assistantAuthoredToolBlockCount': assistantAuthoredToolBlockCount,
       'transportDisconnectCount': transportDisconnectCount,
       'memoryExtractionFallbackCount': memoryExtractionFallbackCount,
     };

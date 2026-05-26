@@ -63,6 +63,28 @@ void main() {
       }
     });
 
+    test('executes git init in a non-repository directory', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'mcp_tool_service_git_init_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      final service = McpToolService();
+      final result = await service.executeTool(
+        name: 'git_execute_command',
+        arguments: {'command': 'init', 'working_directory': tempDir.path},
+      );
+
+      final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+      expect(result.isSuccess, isTrue);
+      expect(decoded['exit_code'], 0);
+      expect(Directory('${tempDir.path}/.git').existsSync(), isTrue);
+    });
+
     test('returns failure for non-zero git command results', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'mcp_tool_service_git_test_',

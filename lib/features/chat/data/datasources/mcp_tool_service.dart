@@ -3535,7 +3535,8 @@ class McpToolService {
     'function': {
       'name': 'git_execute_command',
       'description':
-          'Execute a git command in a local repository (desktop only — '
+          'Execute a git command in a local repository, or initialize one '
+          'with git init (desktop only — '
           'macOS, Linux, Windows). Read-only commands (status, log, diff, '
           'show, branch, tag, remote, blame, etc.) run immediately. Write '
           'operations (commit, push, pull, checkout, merge, rebase, reset, '

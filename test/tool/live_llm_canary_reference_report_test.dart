@@ -191,6 +191,36 @@ void main() {
     );
   });
 
+  test('fails when live canary evidence has assistant tool blocks', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'live-llm-reference-tool-block-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+
+    final codingGoalEditSummary = _writeLiveSummary(
+      directory: directory,
+      fileName: 'coding_goal_edit_summary.json',
+      surface: 'coding_goal_edit',
+      canaryName: 'coding_goal_live_edit_canary',
+      passedCount: 1,
+      testCount: 1,
+      signals: const {'assistantAuthoredToolBlockCount': 1},
+    );
+
+    final report = await buildLiveLlmCanaryReferenceReport(
+      label: 'tool block case',
+      codingGoalEditSummary: codingGoalEditSummary,
+      generatedAt: DateTime.utc(2026, 5, 26),
+    );
+
+    expect(report.result, 'failed');
+    expect(report.isSuccessful, isFalse);
+    expect(
+      report.entries.single.riskSummary,
+      contains('assistant tool blocks 1'),
+    );
+  });
+
   test('fails when evidence mixes models or base URLs', () async {
     final directory = Directory.systemTemp.createTempSync(
       'live-llm-reference-metadata-test-',
@@ -419,6 +449,7 @@ File _writeLiveSummary({
     'signals': {
       'recoveredStreamFallbackCount': 0,
       'toolResultCompactionRetryCount': 0,
+      'assistantAuthoredToolBlockCount': 0,
       'transportDisconnectCount': 0,
       'memoryExtractionFallbackCount': 0,
       ...signals,
@@ -498,6 +529,7 @@ Map<String, Object?> _liveSummaryJson({
     'signals': {
       'recoveredStreamFallbackCount': 0,
       'toolResultCompactionRetryCount': 0,
+      'assistantAuthoredToolBlockCount': 0,
       'transportDisconnectCount': 0,
       'memoryExtractionFallbackCount': 0,
       ...signals,

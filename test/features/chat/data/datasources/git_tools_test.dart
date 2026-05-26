@@ -56,6 +56,79 @@ void main() {
   });
 
   group('GitTools.execute', () {
+    test('runs init, commit, and revert lifecycle commands', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'git_tools_lifecycle_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      Map<String, dynamic> decode(String raw) =>
+          jsonDecode(raw) as Map<String, dynamic>;
+
+      final initResult = decode(
+        await GitTools.execute(command: 'init', workingDirectory: tempDir.path),
+      );
+      expect(initResult['exit_code'], 0);
+      expect(Directory('${tempDir.path}/.git').existsSync(), isTrue);
+
+      await File('${tempDir.path}/sample.txt').writeAsString('hello\n');
+
+      final emailResult = decode(
+        await GitTools.execute(
+          command: 'config user.email "canary@example.com"',
+          workingDirectory: tempDir.path,
+        ),
+      );
+      expect(emailResult['exit_code'], 0);
+
+      final nameResult = decode(
+        await GitTools.execute(
+          command: 'config user.name "Canary Bot"',
+          workingDirectory: tempDir.path,
+        ),
+      );
+      expect(nameResult['exit_code'], 0);
+
+      final addResult = decode(
+        await GitTools.execute(
+          command: 'add sample.txt',
+          workingDirectory: tempDir.path,
+        ),
+      );
+      expect(addResult['exit_code'], 0);
+
+      final commitResult = decode(
+        await GitTools.execute(
+          command: 'commit -m "Add sample"',
+          workingDirectory: tempDir.path,
+        ),
+      );
+      expect(commitResult['exit_code'], 0);
+      expect(File('${tempDir.path}/sample.txt').existsSync(), isTrue);
+
+      final revertResult = decode(
+        await GitTools.execute(
+          command: 'revert --no-edit HEAD',
+          workingDirectory: tempDir.path,
+        ),
+      );
+      expect(revertResult['exit_code'], 0);
+      expect(File('${tempDir.path}/sample.txt').existsSync(), isFalse);
+
+      final statusResult = decode(
+        await GitTools.execute(
+          command: 'status --short',
+          workingDirectory: tempDir.path,
+        ),
+      );
+      expect(statusResult['exit_code'], 0);
+      expect((statusResult['stdout'] as String).trim(), isEmpty);
+    });
+
     test('rejects chained commands before execution', () async {
       final tempDir = await Directory.systemTemp.createTemp('git_tools_test_');
       addTearDown(() async {

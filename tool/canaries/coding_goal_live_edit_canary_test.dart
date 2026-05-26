@@ -16,6 +16,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
+import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
@@ -35,6 +36,15 @@ import 'package:caverno/features/settings/presentation/providers/settings_notifi
 
 const _editMarker = 'CODING_GOAL_EDIT_TEST_OK';
 const _testCommand = 'dart lib/canary_greeting_test.dart';
+const _fileCreateMarker = 'CODING_GOAL_FILE_CREATE_OK';
+const _fileUpdateMarker = 'CODING_GOAL_FILE_UPDATE_OK';
+const _fileLifecyclePath = 'lib/live_file_ops_note.txt';
+const _fileLifecycleDeleteCommand = 'rm lib/live_file_ops_note.txt';
+const _fileLifecycleVerifyDeletedCommand =
+    'test ! -e lib/live_file_ops_note.txt';
+const _gitLifecycleMarker = 'CODING_GOAL_GIT_LIFECYCLE_OK';
+const _gitLifecyclePath = 'lib/git_lifecycle_note.txt';
+const _gitCommitMessage = 'Add git lifecycle canary';
 
 void main() {
   final liveEnabled =
@@ -537,6 +547,269 @@ void main() {
         : 'Set CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 10)),
   );
+
+  test(
+    '${testNamePrefix}live LLM creates, reads, updates, and deletes a file',
+    () async {
+      final env = _CodingGoalLiveEditEnv.fromEnvironment();
+      final fixture = _CodingGoalEditFixture.createEmpty(
+        env.workspaceRoot,
+        projectId: 'coding-goal-live-file-ops-project',
+        projectName: 'coding_goal_live_file_ops_fixture',
+      );
+      final project = fixture.project;
+      final dataSource = _CodingGoalLiveEditDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final toolService = _SandboxCodingToolService(
+        fixture.root,
+        acceptedLocalCommands: const {
+          _fileLifecycleDeleteCommand,
+          _fileLifecycleVerifyDeletedCommand,
+        },
+      );
+      final container = _buildCodingGoalLiveEditContainer(
+        env: env,
+        dataSource: dataSource,
+        toolService: toolService,
+        project: project,
+      );
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'Perform a complete local file lifecycle in the selected coding '
+              'project. Create $_fileLifecyclePath with UTF-8 text containing '
+              '$_fileCreateMarker, read $_fileLifecyclePath with read_file, '
+              'update the same file so it contains $_fileUpdateMarker while '
+              'preserving $_fileCreateMarker, read it again with read_file, '
+              'delete it by running local_execute_command with command '
+              '"$_fileLifecycleDeleteCommand" in the project root, then verify '
+              'deletion by running local_execute_command with command '
+              '"$_fileLifecycleVerifyDeletedCommand" in the project root. The '
+              'goal is complete only after the create, read, update, second '
+              'read, delete, and deletion verification all have successful tool '
+              'results.',
+          enabled: true,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 16000,
+          turnBudget: 6,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Use the active coding goal. Actually create, read, update, read '
+          'again, delete, and verify deletion for $_fileLifecyclePath. Finish '
+          'only after the deletion verification command succeeds. Mention '
+          '$_fileCreateMarker, $_fileUpdateMarker, and say '
+          '"Goal complete. Tests passed." in the final answer.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container);
+
+        final goal = _currentGoal(container);
+        final finalContent = _lastAssistantContent(container);
+        final readContents = toolService.readFileContentsForRelativePath(
+          _fileLifecyclePath,
+        );
+        final target = File('${fixture.root.path}/$_fileLifecyclePath');
+
+        expect(
+          dataSource.firstSystemPrompt,
+          contains('Active coding goal for this thread:'),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.successfulWritePaths,
+          contains(_fileLifecyclePath),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          readContents.any((content) => content.contains(_fileCreateMarker)),
+          isTrue,
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          readContents.any((content) => content.contains(_fileUpdateMarker)),
+          isTrue,
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.successfulMutationPaths,
+          contains(_fileLifecyclePath),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.successfulLocalCommandCount(_fileLifecycleDeleteCommand),
+          greaterThanOrEqualTo(1),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.successfulLocalCommandCount(
+            _fileLifecycleVerifyDeletedCommand,
+          ),
+          greaterThanOrEqualTo(1),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          target.existsSync(),
+          isFalse,
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          finalContent.toUpperCase(),
+          contains(_fileCreateMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          finalContent.toUpperCase(),
+          contains(_fileUpdateMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(goal?.status, ConversationGoalStatus.completed);
+        expect(goal?.turnsUsed, 1);
+        expect(goal?.completedAt, isNotNull);
+      } finally {
+        container.dispose();
+        fixture.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 10)),
+  );
+
+  test(
+    '${testNamePrefix}live LLM initializes git, commits, and reverts safely',
+    () async {
+      final env = _CodingGoalLiveEditEnv.fromEnvironment();
+      final fixture = _CodingGoalEditFixture.createEmpty(
+        env.workspaceRoot,
+        projectId: 'coding-goal-live-git-ops-project',
+        projectName: 'coding_goal_live_git_ops_fixture',
+      );
+      final project = fixture.project;
+      final dataSource = _CodingGoalLiveEditDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final toolService = _SandboxCodingToolService(
+        fixture.root,
+        enableGit: true,
+      );
+      final container = _buildCodingGoalLiveEditContainer(
+        env: env,
+        dataSource: dataSource,
+        toolService: toolService,
+        project: project,
+      );
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'Perform a safe Git lifecycle in the selected coding project. '
+              'Initialize the repository by using git_execute_command with '
+              'command "init" in the project root. Create $_gitLifecyclePath '
+              'containing $_gitLifecycleMarker. Then use git_execute_command, '
+              'one git subcommand per call, to set user.email to '
+              'canary@example.com, set user.name to Canary Bot, add '
+              '$_gitLifecyclePath, commit with message '
+              '"$_gitCommitMessage", inspect status, revert the commit with '
+              'revert --no-edit HEAD, and inspect status again. The goal is '
+              'complete only after git init, file creation, commit, revert, '
+              'and a clean final status all have successful tool results.',
+          enabled: true,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 20000,
+          turnBudget: 6,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Use the active coding goal. Use git_execute_command with command '
+          '"init" for initialization, use git_execute_command for each later '
+          'git step, '
+          'and finish only after the revert succeeds and final status is '
+          'clean. Mention $_gitLifecycleMarker and say '
+          '"Goal complete. Tests passed." in the final answer.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container, timeout: const Duration(minutes: 8));
+
+        final goal = _currentGoal(container);
+        final finalContent = _lastAssistantContent(container);
+        final status = await Process.run('git', [
+          'status',
+          '--short',
+        ], workingDirectory: fixture.root.path);
+        final log = await Process.run('git', [
+          'log',
+          '--oneline',
+          '--max-count',
+          '2',
+        ], workingDirectory: fixture.root.path);
+
+        expect(
+          Directory('${fixture.root.path}/.git').existsSync(),
+          isTrue,
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.successfulWritePaths,
+          contains(_gitLifecyclePath),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.successfulGitCommands,
+          containsAll([
+            'init',
+            'add $_gitLifecyclePath',
+            'commit -m "$_gitCommitMessage"',
+            'revert --no-edit HEAD',
+          ]),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          File('${fixture.root.path}/$_gitLifecyclePath').existsSync(),
+          isFalse,
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(status.exitCode, 0);
+        expect((status.stdout as String).trim(), isEmpty);
+        expect(log.exitCode, 0);
+        expect(log.stdout as String, contains(_gitCommitMessage));
+        expect(
+          finalContent.toUpperCase(),
+          contains(_gitLifecycleMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(goal?.status, ConversationGoalStatus.completed);
+        expect(goal?.turnsUsed, 1);
+        expect(goal?.completedAt, isNotNull);
+      } finally {
+        container.dispose();
+        fixture.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 12)),
+  );
 }
 
 ProviderContainer _buildCodingGoalLiveEditContainer({
@@ -652,6 +925,8 @@ class _CodingGoalEditFixture {
   File get hostTargetParserFile =>
       File('${root.path}/lib/src/host_target_parser.dart');
   File get pingCommandFile => File('${root.path}/lib/src/ping_command.dart');
+  File get fileLifecycleNoteFile => File('${root.path}/$_fileLifecyclePath');
+  File get gitLifecycleNoteFile => File('${root.path}/$_gitLifecyclePath');
 
   static _CodingGoalEditFixture create(String? workspaceRoot) {
     final deleteOnDispose = workspaceRoot == null || workspaceRoot.isEmpty;
@@ -819,6 +1094,31 @@ void _expectEqual(Object? actual, Object? expected, String label) {
     );
   }
 
+  static _CodingGoalEditFixture createEmpty(
+    String? workspaceRoot, {
+    required String projectId,
+    required String projectName,
+  }) {
+    final deleteOnDispose = workspaceRoot == null || workspaceRoot.isEmpty;
+    final root = deleteOnDispose
+        ? Directory.systemTemp.createTempSync('coding_goal_live_ops_')
+        : Directory(workspaceRoot);
+    _resetRoot(root);
+    Directory('${root.path}/lib').createSync(recursive: true);
+    final now = DateTime.now();
+    return _CodingGoalEditFixture(
+      root: root,
+      project: CodingProject(
+        id: projectId,
+        name: projectName,
+        rootPath: root.absolute.path,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      deleteOnDispose: deleteOnDispose,
+    );
+  }
+
   static void _resetRoot(Directory root) {
     if (root.existsSync()) {
       root.deleteSync(recursive: true);
@@ -936,8 +1236,10 @@ class _LiveSettingsNotifier extends SettingsNotifier {
       temperature: env.temperature,
       maxTokens: env.maxTokens,
       mcpEnabled: true,
+      codingApprovalMode: CodingApprovalMode.fullAccess,
       confirmFileMutations: false,
       confirmLocalCommands: false,
+      confirmGitWrites: false,
       demoMode: false,
     );
   }
@@ -1073,9 +1375,15 @@ class _SandboxToolCall {
 }
 
 class _SandboxCodingToolService extends McpToolService {
-  _SandboxCodingToolService(this.root);
+  _SandboxCodingToolService(
+    this.root, {
+    this.acceptedLocalCommands = const {},
+    this.enableGit = false,
+  });
 
   final Directory root;
+  final Set<String> acceptedLocalCommands;
+  final bool enableGit;
   final List<_SandboxToolCall> executedCalls = [];
 
   List<String> get executedToolNames =>
@@ -1116,6 +1424,41 @@ class _SandboxCodingToolService extends McpToolService {
     return paths.toList(growable: false)..sort();
   }
 
+  List<String> get successfulWritePaths =>
+      executedCalls
+          .where((call) => call.name == 'write_file' && call.success)
+          .map(
+            (call) =>
+                _relativePathForToolArgument(call.arguments['path'] as String?),
+          )
+          .whereType<String>()
+          .toSet()
+          .toList(growable: false)
+        ..sort();
+
+  List<String> get successfulMutationPaths =>
+      executedCalls
+          .where(
+            (call) =>
+                (call.name == 'write_file' || call.name == 'edit_file') &&
+                call.success,
+          )
+          .map(
+            (call) =>
+                _relativePathForToolArgument(call.arguments['path'] as String?),
+          )
+          .whereType<String>()
+          .toSet()
+          .toList(growable: false)
+        ..sort();
+
+  List<String> get successfulGitCommands => executedCalls
+      .where((call) => call.name == 'git_execute_command' && call.success)
+      .map((call) => (call.arguments['command'] as String?)?.trim())
+      .whereType<String>()
+      .map(GitTools.normalizeCommand)
+      .toList(growable: false);
+
   int get successfulTestCommandCount => executedCalls.where((call) {
     if (call.name != 'local_execute_command' || !call.success) {
       return false;
@@ -1124,6 +1467,32 @@ class _SandboxCodingToolService extends McpToolService {
     return decoded['exit_code'] == 0 &&
         (decoded['stdout'] as String? ?? '').contains(_editMarker);
   }).length;
+
+  int successfulLocalCommandCount(String command) {
+    return executedCalls.where((call) {
+      if (call.name != 'local_execute_command' || !call.success) {
+        return false;
+      }
+      final decoded = _tryDecodeObject(call.result);
+      return decoded['command'] == command && decoded['exit_code'] == 0;
+    }).length;
+  }
+
+  List<String> readFileContentsForRelativePath(String relativePath) {
+    return executedCalls
+        .where((call) {
+          if (call.name != 'read_file' || !call.success) {
+            return false;
+          }
+          return _relativePathForToolArgument(
+                call.arguments['path'] as String?,
+              ) ==
+              relativePath;
+        })
+        .map((call) => _tryDecodeObject(call.result)['content'])
+        .whereType<String>()
+        .toList(growable: false);
+  }
 
   @override
   Future<void> connect({
@@ -1134,7 +1503,11 @@ class _SandboxCodingToolService extends McpToolService {
 
   @override
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
-    return const [
+    final acceptedCommands = [
+      _testCommand,
+      ...acceptedLocalCommands,
+    ].join(', ');
+    final tools = <Map<String, dynamic>>[
       {
         'type': 'function',
         'function': {
@@ -1210,7 +1583,8 @@ class _SandboxCodingToolService extends McpToolService {
         'function': {
           'name': 'local_execute_command',
           'description':
-              'Run the fixture test. Only "dart lib/canary_greeting_test.dart" is accepted.',
+              'Run approved fixture commands. Accepted commands: '
+              '$acceptedCommands.',
           'parameters': {
             'type': 'object',
             'properties': {
@@ -1223,6 +1597,35 @@ class _SandboxCodingToolService extends McpToolService {
         },
       },
     ];
+    if (enableGit) {
+      tools.add({
+        'type': 'function',
+        'function': {
+          'name': 'git_execute_command',
+          'description':
+              'Execute one git subcommand in the isolated canary repository. '
+              'Use one tool call per subcommand and avoid shell operators.',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'command': {
+                'type': 'string',
+                'description':
+                    'Git subcommand and arguments without the leading "git".',
+              },
+              'working_directory': {
+                'type': 'string',
+                'description':
+                    'Project root. Optional; defaults to the canary root.',
+              },
+              'reason': {'type': 'string'},
+            },
+            'required': ['command'],
+          },
+        },
+      });
+    }
+    return tools;
   }
 
   @override
@@ -1331,21 +1734,24 @@ class _SandboxCodingToolService extends McpToolService {
         );
         return _toolResult(name, result);
       case 'local_execute_command':
-        return _executeTestCommand(name, arguments);
+        return _executeLocalCommand(name, arguments);
+      case 'git_execute_command':
+        return _executeGitCommand(name, arguments);
       default:
         return _toolError(name, 'Unsupported canary tool: $name');
     }
   }
 
-  Future<McpToolResult> _executeTestCommand(
+  Future<McpToolResult> _executeLocalCommand(
     String name,
     Map<String, dynamic> arguments,
   ) async {
     final command = (arguments['command'] as String?)?.trim() ?? '';
-    if (!_isAcceptedTestCommand(command)) {
+    if (!_isAcceptedTestCommand(command) &&
+        !acceptedLocalCommands.contains(command)) {
       return _toolError(
         name,
-        'Only "$_testCommand" is accepted by this canary fixture.',
+        'Unsupported local command for this canary fixture: $command',
       );
     }
     final workingDirectory = _resolveInsideRoot(
@@ -1363,23 +1769,118 @@ class _SandboxCodingToolService extends McpToolService {
       );
     }
 
+    if (command == _fileLifecycleDeleteCommand) {
+      final target = File('${root.path}/$_fileLifecyclePath');
+      if (target.existsSync()) {
+        await target.delete();
+      }
+      return _commandResult(name: name, command: command, exitCode: 0);
+    }
+
+    if (command == _fileLifecycleVerifyDeletedCommand) {
+      final target = File('${root.path}/$_fileLifecyclePath');
+      final exists = target.existsSync();
+      return _commandResult(
+        name: name,
+        command: command,
+        exitCode: exists ? 1 : 0,
+        stderr: exists ? 'File still exists: $_fileLifecyclePath\n' : '',
+      );
+    }
+
     final result = await Process.run('dart', [
       'lib/canary_greeting_test.dart',
     ], workingDirectory: root.path).timeout(const Duration(seconds: 30));
-    final stdoutText = result.stdout as String;
-    final stderrText = result.stderr as String;
+    return _processResult(
+      name: name,
+      command: _testCommand,
+      result: result,
+      failureMessage: 'Fixture test failed',
+    );
+  }
+
+  Future<McpToolResult> _executeGitCommand(
+    String name,
+    Map<String, dynamic> arguments,
+  ) async {
+    if (!enableGit) {
+      return _toolError(name, 'Git commands are not enabled for this fixture.');
+    }
+    final command = (arguments['command'] as String?)?.trim() ?? '';
+    if (command.isEmpty) {
+      return _toolError(name, 'command is required');
+    }
+    final workingDirectory = _resolveInsideRoot(
+      arguments['working_directory'] as String?,
+      allowEmpty: true,
+      directory: true,
+    );
+    if (workingDirectory.error != null) {
+      return _toolError(name, workingDirectory.error!);
+    }
+    if (workingDirectory.value != root.absolute.path) {
+      return _toolError(
+        name,
+        'working_directory must be the canary project root.',
+      );
+    }
+
+    final result = await GitTools.execute(
+      command: command,
+      workingDirectory: root.path,
+    );
+    final decoded = _tryDecodeObject(result);
+    final exitCode = decoded['exit_code'];
+    final error = decoded['error'];
+    final success = error == null && (exitCode == null || exitCode == 0);
+    return McpToolResult(
+      toolName: name,
+      result: result,
+      isSuccess: success,
+      errorMessage: success
+          ? null
+          : (error as String? ?? 'Git command exited with code $exitCode'),
+    );
+  }
+
+  McpToolResult _processResult({
+    required String name,
+    required String command,
+    required ProcessResult result,
+    String? failureMessage,
+  }) {
+    return _commandResult(
+      name: name,
+      command: command,
+      exitCode: result.exitCode,
+      stdout: result.stdout as String,
+      stderr: result.stderr as String,
+      failureMessage: failureMessage,
+    );
+  }
+
+  McpToolResult _commandResult({
+    required String name,
+    required String command,
+    required int exitCode,
+    String stdout = '',
+    String stderr = '',
+    String? failureMessage,
+  }) {
     final payload = jsonEncode({
-      'command': _testCommand,
+      'command': command,
       'working_directory': root.absolute.path,
-      'exit_code': result.exitCode,
-      'stdout': stdoutText,
-      'stderr': stderrText,
+      'exit_code': exitCode,
+      'stdout': stdout,
+      'stderr': stderr,
     });
     return McpToolResult(
       toolName: name,
       result: payload,
-      isSuccess: result.exitCode == 0,
-      errorMessage: result.exitCode == 0 ? null : 'Fixture test failed',
+      isSuccess: exitCode == 0,
+      errorMessage: exitCode == 0
+          ? null
+          : (failureMessage ?? 'Command exited with code $exitCode'),
     );
   }
 

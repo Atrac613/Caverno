@@ -246,19 +246,6 @@ class GitTools {
       });
     }
 
-    // Verify it is inside a git repository.
-    try {
-      final check = await Process.run('git', [
-        'rev-parse',
-        '--git-dir',
-      ], workingDirectory: workingDirectory);
-      if (check.exitCode != 0) {
-        return jsonEncode({'error': 'Not a git repository: $workingDirectory'});
-      }
-    } catch (e) {
-      return jsonEncode({'error': 'Failed to verify git repository: $e'});
-    }
-
     final args = splitArgs(normalizedCommand);
     if (args.isEmpty) {
       return jsonEncode({'error': 'Empty git command'});
@@ -274,6 +261,24 @@ class GitTools {
             'Shell control operator "$shellOperator" is not supported. '
             'Run separate git_execute_command calls instead.',
       });
+    }
+
+    // `git init` is the one write operation that must run before a repository
+    // exists. All other subcommands keep the repository preflight.
+    if (args.first != 'init') {
+      try {
+        final check = await Process.run('git', [
+          'rev-parse',
+          '--git-dir',
+        ], workingDirectory: workingDirectory);
+        if (check.exitCode != 0) {
+          return jsonEncode({
+            'error': 'Not a git repository: $workingDirectory',
+          });
+        }
+      } catch (e) {
+        return jsonEncode({'error': 'Failed to verify git repository: $e'});
+      }
     }
 
     try {

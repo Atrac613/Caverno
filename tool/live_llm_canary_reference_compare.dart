@@ -415,6 +415,13 @@ LiveLlmCanaryReferenceComparisonEntry _compareEntry(
     referenceValue: referenceEntry.signals.memoryExtractionFallbackCount,
     candidateValue: candidateEntry.signals.memoryExtractionFallbackCount,
   );
+  _compareInt(
+    hardRegressions,
+    improvements,
+    name: 'assistant tool blocks',
+    referenceValue: referenceEntry.signals.assistantAuthoredToolBlockCount,
+    candidateValue: candidateEntry.signals.assistantAuthoredToolBlockCount,
+  );
   _compareWatchInt(
     watchSignals,
     improvements,
