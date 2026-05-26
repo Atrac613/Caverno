@@ -408,6 +408,135 @@ void main() {
         : 'Set CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 10)),
   );
+
+  test(
+    '${testNamePrefix}live LLM fixes a package-like parser fixture',
+    () async {
+      final env = _CodingGoalLiveEditEnv.fromEnvironment();
+      final fixture = _CodingGoalEditFixture.createParserPackage(
+        env.workspaceRoot,
+      );
+      final project = fixture.project;
+      final dataSource = _CodingGoalLiveEditDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final toolService = _SandboxCodingToolService(fixture.root);
+      final container = _buildCodingGoalLiveEditContainer(
+        env: env,
+        dataSource: dataSource,
+        toolService: toolService,
+        project: project,
+      );
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'Fix the selected package-like Dart CLI fixture without editing '
+              'lib/canary_greeting_test.dart. Inspect '
+              'lib/src/host_target_parser.dart, lib/src/ping_command.dart, '
+              'and lib/canary_greeting_test.dart. Implement --count <number> '
+              'parsing, --ipv6 parsing, and positional host selection in the '
+              'production files. buildPingCommand(["--count", "3", "--ipv6", '
+              '"example.com"]) must return exactly '
+              '"ping -6 -c 3 example.com". Then run local_execute_command '
+              'with command "$_testCommand" in the project root. The goal is '
+              'complete only after the production files are updated and the '
+              'command exits with code 0 and prints $_editMarker.',
+          enabled: true,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 18000,
+          turnBudget: 6,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Use the active coding goal. Read the package-like fixture, update '
+          'only the production files under lib/src, run exactly '
+          '"$_testCommand", and finish only after the test passes. Do not edit '
+          'lib/canary_greeting_test.dart. Mention $_editMarker and say '
+          '"Goal complete. Tests passed." in the final answer.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container);
+
+        final testResult = await fixture.runTest();
+        final goal = _currentGoal(container);
+        final finalContent = _lastAssistantContent(container);
+        final mutatedPaths = toolService.mutatedRelativePaths;
+
+        expect(
+          dataSource.firstSystemPrompt,
+          contains('Active coding goal for this thread:'),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          dataSource.firstSystemPrompt,
+          contains(project.rootPath),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          mutatedPaths,
+          containsAll([
+            'lib/src/host_target_parser.dart',
+            'lib/src/ping_command.dart',
+          ]),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          mutatedPaths,
+          isNot(contains('lib/canary_greeting_test.dart')),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          fixture.hostTargetParserFile.readAsStringSync(),
+          contains('--count'),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          fixture.pingCommandFile.readAsStringSync(),
+          contains('-6'),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          toolService.successfulTestCommandCount,
+          greaterThanOrEqualTo(1),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          testResult.exitCode,
+          0,
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          testResult.stdout,
+          contains(_editMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(
+          finalContent.toUpperCase(),
+          contains(_editMarker),
+          reason: _diagnostic(container, dataSource, toolService, fixture),
+        );
+        expect(goal?.status, ConversationGoalStatus.completed);
+        expect(goal?.turnsUsed, 1);
+        expect(goal?.completedAt, isNotNull);
+      } finally {
+        container.dispose();
+        fixture.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_EDIT_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 10)),
+  );
 }
 
 ProviderContainer _buildCodingGoalLiveEditContainer({
@@ -520,6 +649,9 @@ class _CodingGoalEditFixture {
 
   File get sourceFile => File('${root.path}/lib/canary_greeting.dart');
   File get suffixFile => File('${root.path}/lib/canary_suffix.dart');
+  File get hostTargetParserFile =>
+      File('${root.path}/lib/src/host_target_parser.dart');
+  File get pingCommandFile => File('${root.path}/lib/src/ping_command.dart');
 
   static _CodingGoalEditFixture create(String? workspaceRoot) {
     final deleteOnDispose = workspaceRoot == null || workspaceRoot.isEmpty;
@@ -615,6 +747,78 @@ void main() {
     );
   }
 
+  static _CodingGoalEditFixture createParserPackage(String? workspaceRoot) {
+    final deleteOnDispose = workspaceRoot == null || workspaceRoot.isEmpty;
+    final root = deleteOnDispose
+        ? Directory.systemTemp.createTempSync('coding_goal_live_edit_')
+        : Directory(workspaceRoot);
+    _resetRoot(root);
+    final src = Directory('${root.path}/lib/src')..createSync(recursive: true);
+    File('${src.path}/host_target_parser.dart').writeAsStringSync('''
+class HostTarget {
+  const HostTarget({
+    required this.host,
+    required this.count,
+    required this.useIpv6,
+  });
+
+  final String host;
+  final int count;
+  final bool useIpv6;
+}
+
+HostTarget parseHostTarget(List<String> args) {
+  final host = args.isEmpty ? 'localhost' : args.first;
+  return HostTarget(host: host, count: 1, useIpv6: false);
+}
+''');
+    File('${src.path}/ping_command.dart').writeAsStringSync('''
+import 'host_target_parser.dart';
+
+String buildPingCommand(List<String> args) {
+  final target = parseHostTarget(args);
+  return 'ping -c \${target.count} \${target.host}';
+}
+''');
+    File('${root.path}/lib/canary_greeting_test.dart').writeAsStringSync('''
+import 'dart:io';
+
+import 'src/host_target_parser.dart';
+import 'src/ping_command.dart';
+
+void main() {
+  const marker = '$_editMarker';
+  final args = ['--count', '3', '--ipv6', 'example.com'];
+  final target = parseHostTarget(args);
+  _expectEqual(target.host, 'example.com', 'host');
+  _expectEqual(target.count, 3, 'count');
+  _expectEqual(target.useIpv6, true, 'useIpv6');
+
+  final command = buildPingCommand(args);
+  _expectEqual(command, 'ping -6 -c 3 example.com', 'command');
+  stdout.writeln(marker);
+}
+
+void _expectEqual(Object? actual, Object? expected, String label) {
+  if (actual != expected) {
+    throw StateError('Expected \$label "\$expected" but got "\$actual".');
+  }
+}
+''');
+    final now = DateTime.now();
+    return _CodingGoalEditFixture(
+      root: root,
+      project: CodingProject(
+        id: 'coding-goal-live-edit-project',
+        name: 'coding_goal_live_edit_fixture',
+        rootPath: root.absolute.path,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      deleteOnDispose: deleteOnDispose,
+    );
+  }
+
   static void _resetRoot(Directory root) {
     if (root.existsSync()) {
       root.deleteSync(recursive: true);
@@ -635,11 +839,15 @@ void main() {
   }
 
   String _sourceDiagnostics() {
-    final files = [
-      sourceFile,
-      suffixFile,
-      File('${root.path}/lib/canary_greeting_test.dart'),
-    ];
+    final lib = Directory('${root.path}/lib');
+    final files = lib.existsSync()
+        ? lib
+              .listSync(recursive: true)
+              .whereType<File>()
+              .where((file) => file.path.endsWith('.dart'))
+              .toList()
+        : <File>[];
+    files.sort((a, b) => _relativePath(a).compareTo(_relativePath(b)));
     return files
         .map((file) {
           if (!file.existsSync()) {

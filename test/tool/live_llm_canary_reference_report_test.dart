@@ -94,8 +94,8 @@ void main() {
       fileName: 'coding_goal_edit_summary.json',
       surface: 'coding_goal_edit',
       canaryName: 'coding_goal_live_edit_canary',
-      passedCount: 3,
-      testCount: 3,
+      passedCount: 4,
+      testCount: 4,
       signals: const {},
     );
     final budgetSummary = _writeLiveSummary(
@@ -133,8 +133,8 @@ void main() {
     expect(report.result, 'passed');
     expect(report.model, 'qwen3.6-27b-mtp-vision');
     expect(report.baseUrl, 'http://127.0.0.1:1234/v1');
-    expect(report.totalPassed, 17);
-    expect(report.totalCount, 17);
+    expect(report.totalPassed, 18);
+    expect(report.totalCount, 18);
     expect(report.validationErrors, isEmpty);
     expect(report.entries, hasLength(8));
     expect(report.entries.first.riskSummary, contains('approval fallback 3'));
@@ -323,8 +323,8 @@ void main() {
       _liveSummaryJson(
         surface: 'coding_goal_edit',
         canaryName: 'coding_goal_live_edit_canary',
-        testCount: 3,
-        passedCount: 3,
+        testCount: 4,
+        passedCount: 4,
       ),
     );
     _writeJsonPath(
