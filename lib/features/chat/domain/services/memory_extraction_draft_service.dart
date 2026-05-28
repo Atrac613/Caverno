@@ -7,6 +7,11 @@ import 'session_memory_service.dart';
 class MemoryExtractionDraftService {
   MemoryExtractionDraftService._();
 
+  static const _maxToolResultsForInput = 8;
+  static const _toolResultHeadCount = 4;
+  static const _unverifiedCausalConfidenceCap = 0.4;
+  static const _unverifiedCausalImportanceCap = 0.6;
+
   static final RegExp _whitespaceRun = RegExp(r'\s+');
   static final RegExp _leadingReasoningBullet = RegExp(
     r'^\s*(?:[*\-]\s*)?(?:\d+\.\s*)?',
@@ -32,6 +37,14 @@ class MemoryExtractionDraftService {
     r'\bttl(?:_days)?\s*:\s*(null|[0-9]+)',
     caseSensitive: false,
   );
+  static final RegExp _uncertaintyQualifierPattern = RegExp(
+    r'\b(likely|probably|possibly|possible|suspected|suggested|suggests|appears|seems|may|might|could|candidate|hypothesis|inferred|unverified)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _causalDiagnosticPattern = RegExp(
+    r'\b(cause|causes|caused|causing|root cause|trigger|triggered|triggering|terminate|terminated|terminating|termination|interruption|failure|failed|stopped|disconnect|disconnection|timeout|stream_end|structural anomaly|structural anomalies)\b',
+    caseSensitive: false,
+  );
 
   static const systemPrompt =
       'You extract reusable user memory from a conversation. '
@@ -45,6 +58,14 @@ class MemoryExtractionDraftService {
       'purchases, dates, decisions, events, and other concrete data points. '
       'Use type "fact" with high importance for these. '
       'Facts should have detailed text (up to 300 chars) to preserve specifics. '
+      'Do not save prior assistant conclusions, search_past_conversations '
+      'snippets, or recall_memory snippets as facts unless they are supported '
+      'by direct user statements or current application-executed tool results. '
+      'When an investigation claim is unsupported, store it only as a '
+      'low-confidence topic or leave it out. '
+      'Do not store likely, possible, suspected, inferred, or otherwise '
+      'unverified causes of interruptions, failures, stream_end completions, '
+      'timeouts, missing files, or root causes as facts. '
       'Do not include temporary assistant instructions.';
 
   static String buildInput(
@@ -81,13 +102,25 @@ class MemoryExtractionDraftService {
       buffer.writeln('- none');
     } else {
       buffer.writeln('Application-executed tool results for the latest turn:');
-      for (final toolResult in toolResults.take(8)) {
+      final retainedToolResults = _retainedToolResults(toolResults);
+      final omittedCount = toolResults.length - retainedToolResults.length;
+      for (var index = 0; index < retainedToolResults.length; index += 1) {
+        if (omittedCount > 0 && index == _toolResultHeadCount) {
+          buffer.writeln(
+            '- omitted $omittedCount intermediate tool result(s); latest retained results follow',
+          );
+        }
+        final toolResult = retainedToolResults[index];
         final result = toolResult.result.replaceAll(_whitespaceRun, ' ').trim();
         final clipped = result.length > 420
             ? '${result.substring(0, 420)}...'
             : result;
+        final evidenceScope = _toolResultEvidenceScope(toolResult.name);
+        final scopeText = evidenceScope == null
+            ? ''
+            : '; evidence_scope=$evidenceScope';
         buffer.writeln(
-          '- ${toolResult.name}: arguments=${toolResult.arguments}; result=$clipped',
+          '- ${toolResult.name}: arguments=${toolResult.arguments}$scopeText; result=$clipped',
         );
       }
     }
@@ -107,10 +140,40 @@ class MemoryExtractionDraftService {
         '- Do not save assistant claims about local file, git, command, or external state changes as facts unless they are supported by the application-executed tool results above or directly stated by the user.',
       )
       ..writeln(
+        '- Treat search_past_conversations and recall_memory results as historical context, not verified evidence. Do not turn unsupported prior assistant conclusions from them into facts.',
+      )
+      ..writeln(
+        '- When current tool results show missing files, directories, permissions, runtime data, or external dependencies, preserve that as a blocker instead of saving the missing evidence as a root-cause fact.',
+      )
+      ..writeln(
+        '- Do not store likely, possible, suspected, inferred, or otherwise unverified causes of interruptions, failures, stream_end completions, timeouts, missing files, or root causes as facts; use a low-confidence topic or leave them out.',
+      )
+      ..writeln(
         '- If an assistant claimed an action happened but no supporting tool result is present, treat it as unverified and use open_loops only when follow-up is still needed.',
       );
 
     return buffer.toString();
+  }
+
+  static List<ToolResultInfo> _retainedToolResults(
+    List<ToolResultInfo> toolResults,
+  ) {
+    if (toolResults.length <= _maxToolResultsForInput) {
+      return toolResults;
+    }
+    final tailCount = _maxToolResultsForInput - _toolResultHeadCount;
+    return [
+      ...toolResults.take(_toolResultHeadCount),
+      ...toolResults.skip(toolResults.length - tailCount),
+    ];
+  }
+
+  static String? _toolResultEvidenceScope(String toolName) {
+    if (toolName == 'search_past_conversations' ||
+        toolName == 'recall_memory') {
+      return 'historical context; verify against direct user statements and current application-executed tool results before saving as fact';
+    }
+    return null;
   }
 
   static MemoryExtractionDraft? parseDraft(
@@ -188,7 +251,7 @@ class MemoryExtractionDraftService {
         final importance = (item['importance'] as num?)?.toDouble() ?? 0.6;
         final ttlDays = (item['ttl_days'] as num?)?.toInt();
         entries.add(
-          MemoryDraftEntry(
+          _normalizedDraftEntry(
             text: text,
             type: type,
             confidence: confidence,
@@ -324,7 +387,7 @@ class MemoryExtractionDraftService {
         _importancePattern.firstMatch(normalizedLine),
       );
       entries.add(
-        MemoryDraftEntry(
+        _normalizedDraftEntry(
           text: text,
           type: type?.toLowerCase() ?? 'topic',
           confidence: confidence ?? 0.6,
@@ -382,6 +445,39 @@ class MemoryExtractionDraftService {
       return null;
     }
     return int.tryParse(value);
+  }
+
+  static MemoryDraftEntry _normalizedDraftEntry({
+    required String text,
+    required String type,
+    required double confidence,
+    required double importance,
+    required int? ttlDays,
+  }) {
+    var normalizedType = type.trim().toLowerCase();
+    var normalizedConfidence = confidence.clamp(0.0, 1.0).toDouble();
+    var normalizedImportance = importance.clamp(0.0, 1.0).toDouble();
+    if (normalizedType == 'fact' && _isUnverifiedCausalDiagnostic(text)) {
+      normalizedType = 'topic';
+      normalizedConfidence = normalizedConfidence
+          .clamp(0.0, _unverifiedCausalConfidenceCap)
+          .toDouble();
+      normalizedImportance = normalizedImportance
+          .clamp(0.0, _unverifiedCausalImportanceCap)
+          .toDouble();
+    }
+    return MemoryDraftEntry(
+      text: text,
+      type: normalizedType,
+      confidence: normalizedConfidence,
+      importance: normalizedImportance,
+      ttlDays: ttlDays,
+    );
+  }
+
+  static bool _isUnverifiedCausalDiagnostic(String text) {
+    return _uncertaintyQualifierPattern.hasMatch(text) &&
+        _causalDiagnosticPattern.hasMatch(text);
   }
 
   static List<String> _stringList(Object? raw, {required int maxLength}) {

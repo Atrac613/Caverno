@@ -81,7 +81,48 @@ void main() {
       expect(prompt, contains('If the user requested local file changes'));
       expect(prompt, contains('the files were not created yet'));
       expect(prompt, contains('instead of emitting tool-call tags'));
+      expect(prompt, contains('This final answer request cannot call tools'));
+      expect(prompt, contains('Do not output JSON command arrays'));
+      expect(prompt, contains('state that it remains unexecuted'));
+      expect(prompt, contains('Do not restate an investigation plan'));
+      expect(prompt, contains('answer from the executed tool results'));
+      expect(prompt, contains('Do not convert a missing source file'));
+      expect(prompt, contains('preserve that blocker'));
+      expect(prompt, contains('Treat search_past_conversations'));
+      expect(prompt, contains('historical context'));
+      expect(prompt, contains('not verified evidence'));
+      expect(prompt, contains('current application-executed tool results'));
+      expect(prompt, contains('Do not treat finishReason=stream_end'));
+      expect(prompt, contains('unfinished tool-call tag'));
+      expect(prompt, contains('concrete transport error'));
       expect(prompt, isNot(contains('<tool_use>')));
+    });
+
+    test('marks recalled conversation results as unverified context', () {
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'search_past_conversations',
+          arguments: const {'query': 'Android BLE data corruption'},
+          result: 'assistant: The root cause is native-side byte conversion.',
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'list_directory',
+          arguments: const {'path': 'packages/universal_ble'},
+          result:
+              '{"error":"Directory does not exist: /workspace/packages/universal_ble"}',
+        ),
+      ]);
+
+      expect(prompt, contains('[Tool: search_past_conversations]'));
+      expect(
+        prompt,
+        contains('Scope note: This is recalled historical context'),
+      );
+      expect(prompt, contains('prior assistant hypotheses'));
+      expect(prompt, contains('treat it as unverified'));
+      expect(prompt, contains('Directory does not exist'));
     });
 
     test('redacts screenshot base64 from answer prompts', () {

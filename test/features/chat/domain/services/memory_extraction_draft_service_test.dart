@@ -45,7 +45,78 @@ void main() {
     expect(input, contains('git_execute_command'));
     expect(input, contains('Only include open_loops when the latest turn'));
     expect(input, contains('Do not save assistant claims about local file'));
+    expect(input, contains('Treat search_past_conversations'));
+    expect(input, contains('missing files'));
+    expect(input, contains('unverified causes of interruptions'));
+    expect(input, contains('stream_end completions'));
     expect(input, contains('Output rules:'));
+  });
+
+  test('buildInput marks recalled context and keeps latest tool blockers', () {
+    final toolResults = <ToolResultInfo>[
+      ToolResultInfo(
+        id: 'tool-1',
+        name: 'search_past_conversations',
+        arguments: const {'query': 'Android BLE data corruption'},
+        result: 'assistant: Native byte processing is the root cause.',
+      ),
+      for (var index = 2; index <= 8; index += 1)
+        ToolResultInfo(
+          id: 'tool-$index',
+          name: 'read_file',
+          arguments: {'path': 'lib/file_$index.dart'},
+          result: '{"path":"lib/file_$index.dart","content":"ok"}',
+        ),
+      ToolResultInfo(
+        id: 'tool-9',
+        name: 'read_file',
+        arguments: const {
+          'path': 'packages/pes1_ble/android/UBProviderImpl.kt',
+        },
+        result:
+            '{"error":"File does not exist: packages/pes1_ble/android/UBProviderImpl.kt"}',
+      ),
+      ToolResultInfo(
+        id: 'tool-10',
+        name: 'list_directory',
+        arguments: const {'path': 'packages/universal_ble'},
+        result: '{"error":"Directory does not exist: packages/universal_ble"}',
+      ),
+    ];
+
+    final input = MemoryExtractionDraftService.buildInput(
+      [
+        Message(
+          id: 'user-1',
+          content: 'Find the Android BLE data corruption root cause.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 5, 28, 12),
+        ),
+        Message(
+          id: 'assistant-1',
+          content:
+              'Past investigation suspected native-side byte conversion, but source files are missing.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 5, 28, 12, 1),
+        ),
+      ],
+      UserMemoryProfile(
+        persona: const [],
+        preferences: const [],
+        doNot: const [],
+        updatedAt: DateTime(2026, 5, 28, 11, 30),
+      ),
+      toolResults: toolResults,
+    );
+
+    expect(input, contains('evidence_scope=historical context'));
+    expect(input, contains('verify against direct user statements'));
+    expect(input, contains('omitted 2 intermediate tool result(s)'));
+    expect(input, contains('File does not exist'));
+    expect(input, contains('Directory does not exist'));
+    expect(input, isNot(contains('lib/file_5.dart')));
+    expect(input, contains('unsupported prior assistant conclusions'));
+    expect(input, contains('root-cause fact'));
   });
 
   test('parseDraft returns normalized memory extraction draft', () {
@@ -74,6 +145,47 @@ void main() {
     expect(draft.doNot, ['Avoid long digressions']);
     expect(draft.entries, hasLength(1));
     expect(draft.entries.single.type, 'preference');
+  });
+
+  test('parseDraft demotes unverified causal diagnostics from facts', () {
+    const raw = '''
+{
+  "summary":"Investigated a session log interruption.",
+  "open_loops":[],
+  "profile":{
+    "persona":[],
+    "preferences":[],
+    "do_not":[]
+  },
+  "memories":[
+    {
+      "text":"Session log e42da492 contains 19 entries with no recorded errors, network timeouts, or server disconnections.",
+      "type":"fact",
+      "confidence":1.0,
+      "importance":0.9,
+      "ttl_days":30
+    },
+    {
+      "text":"Entries 17 and 18 in session log e42da492 show structural anomalies (stream_end) likely causing Caverno to terminate the session, despite no explicit error flags.",
+      "type":"fact",
+      "confidence":0.8,
+      "importance":0.9,
+      "ttl_days":30
+    }
+  ]
+}
+''';
+
+    final draft = MemoryExtractionDraftService.parseDraft(raw);
+
+    expect(draft, isNotNull);
+    expect(draft!.entries, hasLength(2));
+    expect(draft.entries.first.type, 'fact');
+    expect(draft.entries.first.confidence, 1.0);
+    expect(draft.entries.last.type, 'topic');
+    expect(draft.entries.last.confidence, 0.4);
+    expect(draft.entries.last.importance, 0.6);
+    expect(draft.entries.last.text, contains('likely causing Caverno'));
   });
 
   test('parseDraft recovers JSON from reasoning text with other objects', () {

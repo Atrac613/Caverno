@@ -5583,6 +5583,19 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   @visibleForTesting
+  List<ToolResultInfo> buildDuplicateRecoveryToolResultsForTest({
+    required List<ToolCallInfo> currentToolCalls,
+    required List<ToolResultInfo> executedToolResults,
+    required List<ToolResultInfo> fallbackToolResults,
+  }) {
+    return _buildDuplicateRecoveryToolResults(
+      currentToolCalls: currentToolCalls,
+      executedToolResults: executedToolResults,
+      fallbackToolResults: fallbackToolResults,
+    );
+  }
+
+  @visibleForTesting
   bool assistantMessageHasVisibleContentForTest(String content) {
     return _assistantMessageHasVisibleContent(content);
   }
@@ -6299,6 +6312,63 @@ class ChatNotifier extends Notifier<ChatState> {
     return true;
   }
 
+  bool _shouldAcceptTerminalToolRoleBlockerResponse(String response) {
+    final candidate = response.trim();
+    if (candidate.isEmpty || candidate.length > 3000) {
+      return false;
+    }
+    if (_looksLikeUnexecutedToolRequest(candidate) ||
+        _looksLikePlanOnlyFinalToolAnswer(candidate)) {
+      return false;
+    }
+
+    final normalized = candidate.toLowerCase();
+    final hasBlockerMarker = _containsAny(normalized, const [
+      'blocked',
+      'blocker',
+      'cannot continue',
+      "can't continue",
+      'unable to continue',
+      'required before',
+      'is required',
+      'are required',
+      'not available',
+      'not present',
+      'missing',
+      'does not exist',
+      'permission denied',
+      'access denied',
+      'need access',
+      'need the source',
+      'need the repository',
+      'need the path',
+      'need the file',
+      'need the logs',
+      'please provide',
+    ]);
+    final hasMissingEvidenceMarker = _containsAny(normalized, const [
+      'source code',
+      'repository',
+      'repo',
+      'path',
+      'file',
+      'logs',
+      'runtime data',
+      'permission',
+      'access',
+      'credentials',
+      'external dependency',
+      'external package',
+      'implementation',
+    ]);
+    final hasCjkBlockerMarker = _containsCjkBlockerMarker(candidate);
+    final hasCjkMissingEvidenceMarker = _containsCjkMissingEvidenceMarker(
+      candidate,
+    );
+    return (hasBlockerMarker && hasMissingEvidenceMarker) ||
+        (hasCjkBlockerMarker && hasCjkMissingEvidenceMarker);
+  }
+
   void _appendRecoveredAssistantResponse(String response) {
     final candidate = response.trim();
     if (candidate.isEmpty || state.messages.isEmpty) {
@@ -6787,6 +6857,7 @@ class ChatNotifier extends Notifier<ChatState> {
         _removeTrailingThinkTag();
       }
       _stripToolArtifactsFromLastAssistantMessage();
+      _appendUnexecutedToolRequestNoticeIfNeeded();
     }
 
     try {
@@ -7198,6 +7269,12 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       if (batchToolResults.isEmpty) {
         if (pendingBatchCalls.isEmpty && currentToolCalls.isNotEmpty) {
+          final duplicateRecoveryToolResults =
+              _buildDuplicateRecoveryToolResults(
+                currentToolCalls: currentToolCalls,
+                executedToolResults: executedToolResults,
+                fallbackToolResults: lastNonEmptyBatchToolResults,
+              );
           if (_containsOnlyPreviouslySuccessfulCommandToolCalls(
             currentToolCalls,
             executedToolResults,
@@ -7220,7 +7297,7 @@ class ChatNotifier extends Notifier<ChatState> {
           }
           if (!attemptedDuplicateInspectionRecovery &&
               _containsOnlyReadOnlyInspectionToolCalls(currentToolCalls) &&
-              lastNonEmptyBatchToolResults.isNotEmpty) {
+              duplicateRecoveryToolResults.isNotEmpty) {
             attemptedDuplicateInspectionRecovery = true;
             appLog(
               '[Tool] Duplicate read-only follow-up tool calls detected, requesting bounded recovery',
@@ -7246,7 +7323,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   role: MessageRole.user,
                   content: _buildDuplicateInspectionRecoveryPrompt(
                     currentToolCalls,
-                    previousToolResults: lastNonEmptyBatchToolResults,
+                    previousToolResults: duplicateRecoveryToolResults,
                   ),
                   timestamp: DateTime.now(),
                 ),
@@ -7258,7 +7335,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 await _createToolResultCompletionWithContextRetry(
                   logLabel: 'duplicate inspection recovery',
                   buildMessages: buildRecoveryMessages,
-                  toolResults: lastNonEmptyBatchToolResults,
+                  toolResults: duplicateRecoveryToolResults,
                   assistantContent: currentAssistantContent,
                   tools: tools,
                 );
@@ -7290,7 +7367,7 @@ class ChatNotifier extends Notifier<ChatState> {
             break;
           }
           if (!attemptedDuplicateFollowUpRecovery &&
-              lastNonEmptyBatchToolResults.isNotEmpty) {
+              duplicateRecoveryToolResults.isNotEmpty) {
             attemptedDuplicateFollowUpRecovery = true;
             appLog(
               '[Tool] Duplicate follow-up tool calls detected, requesting bounded recovery',
@@ -7316,7 +7393,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   role: MessageRole.user,
                   content: _buildDuplicateFollowUpRecoveryPrompt(
                     currentToolCalls,
-                    previousToolResults: lastNonEmptyBatchToolResults,
+                    previousToolResults: duplicateRecoveryToolResults,
                   ),
                   timestamp: DateTime.now(),
                 ),
@@ -7328,7 +7405,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 await _createToolResultCompletionWithContextRetry(
                   logLabel: 'duplicate follow-up recovery',
                   buildMessages: buildRecoveryMessages,
-                  toolResults: lastNonEmptyBatchToolResults,
+                  toolResults: duplicateRecoveryToolResults,
                   assistantContent: currentAssistantContent,
                   tools: tools,
                 );
@@ -7574,6 +7651,15 @@ class ChatNotifier extends Notifier<ChatState> {
           hasTextResponse = true;
           break;
         }
+        if (_shouldAcceptTerminalToolRoleBlockerResponse(fallbackResponse)) {
+          appLog(
+            '[Tool] Accepting terminal tool-role blocker response without final answer fallback',
+          );
+          _appendRecoveredAssistantResponse(fallbackResponse);
+          currentAssistantContent = fallbackResponse;
+          hasTextResponse = true;
+          break;
+        }
         // Responses through the tool role often claim real-time data is
         // unavailable, so resend the results later as a user message.
       }
@@ -7605,15 +7691,25 @@ class ChatNotifier extends Notifier<ChatState> {
       currentToolCalls = [];
     }
 
+    final unexecutedPendingToolResults = _buildUnexecutedPendingToolResults(
+      toolCalls: currentToolCalls,
+      executedToolCallKeys: executedToolCallKeys,
+      commandRetryGeneration: commandRetryGeneration,
+    );
+    final finalToolResults = <ToolResultInfo>[
+      ...executedToolResults,
+      ...unexecutedPendingToolResults,
+    ];
+
     // If tool results exist and no text response has been shown yet,
     // resend them as a user message and stream the final answer.
-    if (!hasTextResponse && executedToolResults.isNotEmpty) {
+    if (!hasTextResponse && finalToolResults.isNotEmpty) {
       appLog('[Tool] Resending tool results as user message');
 
       if (!ref.mounted) return;
 
       await _streamToolResultAnswerWithContextRetry(
-        toolResults: executedToolResults,
+        toolResults: finalToolResults,
       );
     } else if (!hasTextResponse) {
       appLog('[Tool] Tool loop reached maximum iterations (no text response)');
@@ -7638,7 +7734,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }) async {
     final pendingToolCalls = <ToolCallInfo>[];
     for (final toolCall in toolCalls) {
-      if (!_isReadOnlyInspectionTool(toolCall.name)) {
+      if (!_isReadOnlyInspectionToolCall(toolCall)) {
         continue;
       }
       final toolCallKey = _toolExecutionKey(
@@ -7857,9 +7953,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (toolCalls.isEmpty) {
       return false;
     }
-    return toolCalls.every(
-      (toolCall) => _isReadOnlyInspectionTool(toolCall.name),
-    );
+    return toolCalls.every(_isReadOnlyInspectionToolCall);
   }
 
   bool _hasUnseenReadOnlyInspectionToolCalls(
@@ -8104,6 +8198,53 @@ class ChatNotifier extends Notifier<ChatState> {
     return false;
   }
 
+  bool _isReadOnlyInspectionToolCall(ToolCallInfo toolCall) {
+    if (_isReadOnlyInspectionTool(toolCall.name)) {
+      return true;
+    }
+    if (toolCall.name.trim().toLowerCase() != 'local_execute_command') {
+      return false;
+    }
+    final command = _toolCommandArgument(toolCall.arguments);
+    return command != null && LocalShellTools.isReadOnly(command);
+  }
+
+  List<ToolResultInfo> _buildUnexecutedPendingToolResults({
+    required List<ToolCallInfo> toolCalls,
+    required Set<String> executedToolCallKeys,
+    required int commandRetryGeneration,
+  }) {
+    if (toolCalls.isEmpty) {
+      return const [];
+    }
+
+    final pending = <ToolResultInfo>[];
+    for (final toolCall in toolCalls) {
+      final toolCallKey = _toolExecutionKey(
+        toolCall,
+        commandRetryGeneration: commandRetryGeneration,
+      );
+      if (executedToolCallKeys.contains(toolCallKey)) {
+        continue;
+      }
+      pending.add(
+        ToolResultInfo(
+          id: toolCall.id,
+          name: toolCall.name,
+          arguments: toolCall.arguments,
+          result: jsonEncode({
+            'code': 'tool_call_not_executed',
+            'error':
+                'Tool call was requested after the bounded tool loop stopped and was not executed before the final answer.',
+            'reason': 'bounded_tool_loop_exhausted',
+            'tool_name': toolCall.name,
+          }),
+        ),
+      );
+    }
+    return pending;
+  }
+
   String _buildDuplicateInspectionRecoveryPrompt(
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
@@ -8226,14 +8367,33 @@ class ChatNotifier extends Notifier<ChatState> {
     return _dedupeRecoveryToolResults(recoveryToolResults);
   }
 
+  List<ToolResultInfo> _buildDuplicateRecoveryToolResults({
+    required List<ToolCallInfo> currentToolCalls,
+    required List<ToolResultInfo> executedToolResults,
+    required List<ToolResultInfo> fallbackToolResults,
+  }) {
+    final recoveryToolResults = <ToolResultInfo>[];
+    for (final toolCall in currentToolCalls) {
+      final matchingResult = executedToolResults.reversed
+          .where(
+            (toolResult) => _toolResultMatchesToolCall(toolResult, toolCall),
+          )
+          .firstOrNull;
+      if (matchingResult != null) {
+        recoveryToolResults.add(matchingResult);
+      }
+    }
+    recoveryToolResults.addAll(fallbackToolResults);
+    return _dedupeRecoveryToolResults(recoveryToolResults);
+  }
+
   List<ToolResultInfo> _dedupeRecoveryToolResults(
     List<ToolResultInfo> toolResults,
   ) {
     final deduped = <ToolResultInfo>[];
     final seenKeys = <String>{};
     for (final toolResult in toolResults) {
-      final key =
-          '${toolResult.name}:${_normalizeToolExecutionValue(toolResult.arguments)}:${toolResult.result}';
+      final key = '${_toolResultDedupKey(toolResult)}:${toolResult.result}';
       if (seenKeys.add(key)) {
         deduped.add(toolResult);
       }
@@ -8270,7 +8430,64 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   String _toolCallDedupKey(String name, Object? arguments) {
-    return '$name:${_normalizeToolExecutionValue(arguments)}';
+    final normalizedName = name.trim().toLowerCase();
+    final normalizedArguments = _normalizeToolArgumentsForDedup(
+      normalizedName,
+      arguments,
+    );
+    return '$normalizedName:${_normalizeToolExecutionValue(normalizedArguments)}';
+  }
+
+  String _toolResultDedupKey(ToolResultInfo toolResult) {
+    return _toolCallDedupKey(toolResult.name, toolResult.arguments);
+  }
+
+  bool _toolResultMatchesToolCall(
+    ToolResultInfo toolResult,
+    ToolCallInfo toolCall,
+  ) {
+    return _toolResultDedupKey(toolResult) ==
+        _toolCallDedupKey(toolCall.name, toolCall.arguments);
+  }
+
+  Object? _normalizeToolArgumentsForDedup(String toolName, Object? arguments) {
+    if (arguments is! Map) {
+      return arguments;
+    }
+    final normalized = <String, dynamic>{...arguments};
+    if (_usesProjectScopedPathArgument(toolName)) {
+      final normalizedPath = _normalizeToolPathForDedup(normalized['path']);
+      if (normalizedPath != null) {
+        normalized['path'] = normalizedPath;
+      }
+    }
+    return normalized;
+  }
+
+  bool _usesProjectScopedPathArgument(String toolName) {
+    switch (toolName.trim().toLowerCase()) {
+      case 'list_directory':
+      case 'read_file':
+      case 'find_files':
+      case 'search_files':
+      case 'write_file':
+      case 'edit_file':
+      case 'rollback_last_file_change':
+        return true;
+    }
+    return false;
+  }
+
+  String? _normalizeToolPathForDedup(Object? rawPath) {
+    if (rawPath is! String) {
+      return null;
+    }
+    final trimmed = rawPath.trim();
+    final resolved = FilesystemTools.resolvePath(
+      trimmed,
+      defaultRoot: _getActiveProjectRootPath(),
+    );
+    return resolved ?? trimmed;
   }
 
   String? _toolPathFromArguments(Object? arguments) {
@@ -9012,6 +9229,184 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
     state = state.copyWith(messages: updatedMessages);
+  }
+
+  void _appendUnexecutedToolRequestNoticeIfNeeded() {
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    if (lastMessage.role != MessageRole.assistant) {
+      return;
+    }
+
+    final content = lastMessage.content;
+    const notice =
+        'I could not execute the additional tool request above in this final-answer step. '
+        'Treat it as unexecuted; ask me to continue with a narrower follow-up '
+        'if the missing action still matters.';
+    if (content.contains(notice) || !_looksLikeUnexecutedToolRequest(content)) {
+      return;
+    }
+
+    updatedMessages[lastIndex] = lastMessage.copyWith(
+      content: '${content.trimRight()}\n\n$notice',
+    );
+    state = state.copyWith(messages: updatedMessages);
+  }
+
+  bool _looksLikeUnexecutedToolRequest(String content) {
+    final fencedJsonBlocks = RegExp(
+      r'```(?:json)?\s*([\s\S]*?)```',
+      caseSensitive: false,
+    ).allMatches(content);
+    for (final block in fencedJsonBlocks) {
+      final snippet = block.group(1);
+      if (snippet != null && _jsonLooksLikeCommandProposal(snippet)) {
+        return true;
+      }
+    }
+
+    final trimmed = content.trim();
+    if ((trimmed.startsWith('[') || trimmed.startsWith('{')) &&
+        _jsonLooksLikeCommandProposal(trimmed)) {
+      return true;
+    }
+
+    return _looksLikePlanOnlyFinalToolAnswer(trimmed);
+  }
+
+  bool _looksLikePlanOnlyFinalToolAnswer(String content) {
+    if (content.isEmpty || content.length > 1600) {
+      return false;
+    }
+
+    final numberedStepCount = RegExp(
+      r'^\s*\d+[.)]\s+\S',
+      multiLine: true,
+    ).allMatches(content).length;
+    final lowerContent = content.toLowerCase();
+    final hasPlanHeading = RegExp(
+      r'^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:investigation\s+plan|plan|next\s+steps?|checklist)\b',
+      caseSensitive: false,
+      multiLine: true,
+    ).hasMatch(content);
+    final hasFutureAction = _containsAny(lowerContent, const [
+      'i will inspect',
+      'i will check',
+      'i will confirm',
+      'i will trace',
+      'i will verify',
+      "i'll inspect",
+      "i'll check",
+      'we will inspect',
+      'we will check',
+      'need to inspect',
+      'need to check',
+      'need to confirm',
+      'first, i will',
+      'next, i will',
+    ]);
+    final hasCjkFutureAction = _containsCjkFutureActionMarker(content);
+
+    if ((hasPlanHeading || numberedStepCount >= 2) &&
+        (hasFutureAction || hasCjkFutureAction)) {
+      return true;
+    }
+    return hasPlanHeading && numberedStepCount >= 2 && content.length <= 600;
+  }
+
+  bool _containsAny(String value, List<String> markers) {
+    return markers.any(value.contains);
+  }
+
+  bool _containsCjkFutureActionMarker(String value) {
+    final markers = [
+      String.fromCharCodes([0x78ba, 0x8a8d, 0x3057, 0x307e, 0x3059]),
+      String.fromCharCodes([0x8abf, 0x67fb, 0x3057, 0x307e, 0x3059]),
+      String.fromCharCodes([0x8ffd, 0x8de1, 0x3057, 0x307e, 0x3059]),
+      String.fromCharCodes([0x691c, 0x8a3c, 0x3057, 0x307e, 0x3059]),
+      String.fromCharCodes([0x8abf, 0x67fb, 0x8a08, 0x753b]),
+    ];
+    return markers.any(value.contains);
+  }
+
+  bool _containsCjkBlockerMarker(String value) {
+    final markers = [
+      String.fromCharCodes([0x5fc5, 0x8981, 0x3067, 0x3059]),
+      String.fromCharCodes([0x304a, 0x9858, 0x3044, 0x3057, 0x307e, 0x3059]),
+      String.fromCharCodes([
+        0x6559,
+        0x3048,
+        0x3066,
+        0x304f,
+        0x3060,
+        0x3055,
+        0x3044,
+      ]),
+    ];
+    return markers.any(value.contains);
+  }
+
+  bool _containsCjkMissingEvidenceMarker(String value) {
+    final markers = [
+      String.fromCharCodes([0x30bd, 0x30fc, 0x30b9, 0x30b3, 0x30fc, 0x30c9]),
+      String.fromCharCodes([0x30ea, 0x30dd, 0x30b8, 0x30c8, 0x30ea]),
+      String.fromCharCodes([0x30d1, 0x30b9]),
+      String.fromCharCodes([0x30a2, 0x30af, 0x30bb, 0x30b9]),
+      String.fromCharCodes([0x629c, 0x7c8b]),
+    ];
+    return markers.any(value.contains);
+  }
+
+  bool _jsonLooksLikeCommandProposal(String snippet) {
+    try {
+      return _jsonValueLooksLikeCommandProposal(jsonDecode(snippet));
+    } on FormatException {
+      return false;
+    }
+  }
+
+  bool _jsonValueLooksLikeCommandProposal(Object? value) {
+    if (value is List && value.isNotEmpty) {
+      final mapItems = value.whereType<Map<Object?, Object?>>().toList();
+      return mapItems.length == value.length &&
+          mapItems.any(_jsonMapLooksLikeCommandProposal);
+    }
+    if (value is Map<Object?, Object?>) {
+      return _jsonMapLooksLikeCommandProposal(value);
+    }
+    return false;
+  }
+
+  bool _jsonMapLooksLikeCommandProposal(Map<Object?, Object?> value) {
+    final keys = value.keys
+        .whereType<String>()
+        .map((key) => key.toLowerCase())
+        .toSet();
+    if (keys.contains('command')) {
+      return !keys.contains('exit_code') &&
+          !keys.contains('stdout') &&
+          !keys.contains('stderr');
+    }
+    if (!keys.contains('name') || !keys.contains('arguments')) {
+      return false;
+    }
+
+    final name = value.entries
+        .firstWhere(
+          (entry) =>
+              entry.key is String &&
+              (entry.key! as String).toLowerCase() == 'name',
+          orElse: () => const MapEntry<Object?, Object?>(null, null),
+        )
+        .value
+        ?.toString()
+        .toLowerCase();
+    return name == 'local_execute_command' ||
+        name == 'git_execute_command' ||
+        name == 'ssh_execute_command';
   }
 
   void _appendToolContinuationLimitNotice() {

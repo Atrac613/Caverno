@@ -2335,6 +2335,542 @@ void main() {
   );
 
   test(
+    'sendMessage executes pending read-only local command at tool loop limit',
+    () async {
+      final toolLoopResponses = [
+        for (var index = 1; index < 12; index += 1)
+          ChatCompletionResult(
+            content: 'Continue lookup $index',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-command-$index',
+                name: 'local_execute_command',
+                arguments: {
+                  'command': 'probe-$index',
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ChatCompletionResult(
+          content: 'Found the target log search; run it now.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-find-target',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'find /tmp -name session-log.jsonl',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      ];
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-command-0',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'probe-0',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: toolLoopResponses,
+        finalAnswerChunks: const [
+          'Final answer after running the pending local search.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'local_execute_command': ''},
+        queuedResults: {
+          'local_execute_command': [
+            for (var index = 0; index < 12; index += 1)
+              '{"command":"probe-$index","exit_code":0,"stdout":"ok $index\\n","stderr":""}',
+            '{"command":"find /tmp -name session-log.jsonl","exit_code":0,"stdout":"/tmp/session-log.jsonl\\n","stderr":""}',
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Find the interrupted log path');
+
+        expect(
+          toolService.executedToolNames,
+          List.filled(13, 'local_execute_command'),
+        );
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        final finalPrompt = toolDataSource.finalAnswerMessages
+            .map((message) => message.content)
+            .join('\n');
+        expect(finalPrompt, contains('/tmp/session-log.jsonl'));
+        expect(finalPrompt, isNot(contains('tool_call_not_executed')));
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Final answer after running the pending local search.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage reports unsafe pending local command as unexecuted at tool loop limit',
+    () async {
+      final pendingCommand = 'find /tmp -type f -name "*.jsonl" | head -50';
+      final toolLoopResponses = [
+        for (var index = 1; index < 12; index += 1)
+          ChatCompletionResult(
+            content: 'Continue lookup $index',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-command-$index',
+                name: 'local_execute_command',
+                arguments: {
+                  'command': 'probe-$index',
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ChatCompletionResult(
+          content: 'Recover with one more project probe.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-recovery-trigger',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'probe-recovery',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Recovery asks for one more bounded probe.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-after-recovery-1',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'probe-after-recovery-1',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'One more probe before the final search.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-after-recovery-2',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'probe-after-recovery-2',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Search for matching logs with a shell pipeline.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-piped-find',
+              name: 'local_execute_command',
+              arguments: {
+                'command': pendingCommand,
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      ];
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-command-0',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'probe-0',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: toolLoopResponses,
+        finalAnswerChunks: const [
+          'Final answer acknowledges the unexecuted local command.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"probe","exit_code":0,"stdout":"ok\\n","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Find the interrupted log path');
+
+        expect(
+          toolService.executedToolNames,
+          List.filled(14, 'local_execute_command'),
+        );
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        final finalPrompt = toolDataSource.finalAnswerMessages
+            .map((message) => message.content)
+            .join('\n');
+        expect(finalPrompt, contains('[Tool: local_execute_command]'));
+        expect(finalPrompt, contains('*.jsonl'));
+        expect(finalPrompt, contains('head -50'));
+        expect(finalPrompt, contains('tool_call_not_executed'));
+        expect(finalPrompt, contains('bounded_tool_loop_exhausted'));
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Final answer acknowledges the unexecuted local command.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('sendMessage preserves terminal blocker tool-role answers', () async {
+    final cjkSourceCode = String.fromCharCodes([
+      0x30bd,
+      0x30fc,
+      0x30b9,
+      0x30b3,
+      0x30fc,
+      0x30c9,
+    ]);
+    final cjkRequired = String.fromCharCodes([0x5fc5, 0x8981, 0x3067, 0x3059]);
+    final cjkRepository = String.fromCharCodes([
+      0x30ea,
+      0x30dd,
+      0x30b8,
+      0x30c8,
+      0x30ea,
+    ]);
+    final cjkPath = String.fromCharCodes([0x30d1, 0x30b9]);
+    final cjkTeachMe = String.fromCharCodes([
+      0x6559,
+      0x3048,
+      0x3066,
+      0x304f,
+      0x3060,
+      0x3055,
+      0x3044,
+    ]);
+    final blockerResponse =
+        'universal_ble $cjkSourceCode$cjkRequired. '
+        '$cjkRepository$cjkPath$cjkTeachMe.';
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-read-dependency',
+          name: 'read_file',
+          arguments: const {
+            'path': '/tmp/project/packages/pes1_ble/pubspec.yaml',
+          },
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(content: blockerResponse, finishReason: 'stop'),
+      ],
+      finalAnswerChunks: const ['This final answer should never be requested.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'read_file':
+            '{"path":"/tmp/project/packages/pes1_ble/pubspec.yaml","content":"universal_ble:\\n  git:\\n    url: git@example.com:org/universal_ble.git\\n    ref: v1.2.0"}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Investigate Android BLE corruption');
+
+      expect(toolService.executedToolNames, ['read_file']);
+      expect(toolDataSource.finalAnswerMessages, isEmpty);
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('universal_ble'),
+      );
+      expect(
+        toolNotifier.state.messages.last.content,
+        isNot(contains('This final answer should never be requested.')),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test(
+    'sendMessage marks command JSON in final tool answers as unexecuted',
+    () async {
+      final toolLoopResponses = [
+        for (var index = 1; index < 12; index += 1)
+          ChatCompletionResult(
+            content: 'Continue lookup $index',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-command-$index',
+                name: 'local_execute_command',
+                arguments: {'command': 'probe-$index'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ChatCompletionResult(
+          content: 'Found the target file; read it now.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-read-target',
+              name: 'read_file',
+              arguments: const {'path': '/tmp/session-log.jsonl'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      ];
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-command-0',
+            name: 'local_execute_command',
+            arguments: const {'command': 'probe-0'},
+          ),
+        ],
+        toolLoopResponses: toolLoopResponses,
+        finalAnswerChunks: const [
+          'The investigation needs the Android implementation next.\n\n'
+              '```json\n'
+              '[\n'
+              '  {"command": "find . -type d -name universal_ble", "description": "Locate the package"},\n'
+              '  {"command": "cat packages/pes1_ble/pubspec.yaml", "description": "Read dependencies"}\n'
+              ']\n'
+              '```',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"probe","exit_code":0,"stdout":"ok\\n","stderr":""}',
+          'read_file':
+              '{"path":"/tmp/session-log.jsonl","content":"target log body"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Find and read the interrupted log');
+
+        expect(toolService.executedToolNames.last, 'read_file');
+        final finalPrompt = toolDataSource.finalAnswerMessages
+            .map((message) => message.content)
+            .join('\n');
+        expect(
+          finalPrompt,
+          contains('This final answer request cannot call tools'),
+        );
+        expect(finalPrompt, contains('Do not output JSON command arrays'));
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains(
+            'I could not execute the additional tool request above in this final-answer step.',
+          ),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('sendMessage marks plan-only final tool answers as unexecuted', () async {
+    final toolLoopResponses = [
+      for (var index = 1; index < 12; index += 1)
+        ChatCompletionResult(
+          content: 'Continue lookup $index',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-command-$index',
+              name: 'local_execute_command',
+              arguments: {'command': 'probe-$index'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      ChatCompletionResult(
+        content: 'Found the target file; read it now.',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'tool-read-target',
+            name: 'read_file',
+            arguments: const {'path': '/tmp/session-log.jsonl'},
+          ),
+        ],
+        finishReason: 'tool_calls',
+      ),
+    ];
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-command-0',
+          name: 'local_execute_command',
+          arguments: const {'command': 'probe-0'},
+        ),
+      ],
+      toolLoopResponses: toolLoopResponses,
+      finalAnswerChunks: const [
+        'Investigation plan\n\n'
+            '1. Inspect the universal_ble Android implementation.\n'
+            '2. Trace the notification byte flow.\n'
+            '3. Check parser conversion boundaries.\n\n'
+            'First, I will inspect the universal_ble Android implementation.',
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'local_execute_command':
+            '{"command":"probe","exit_code":0,"stdout":"ok\\n","stderr":""}',
+        'read_file':
+            '{"path":"/tmp/session-log.jsonl","content":"target log body"}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Find and read the interrupted log');
+
+      final finalPrompt = toolDataSource.finalAnswerMessages
+          .map((message) => message.content)
+          .join('\n');
+      expect(finalPrompt, contains('Do not restate an investigation plan'));
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains(
+          'I could not execute the additional tool request above in this final-answer step.',
+        ),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test(
     'sendMessage discovers a deferred tool with tool_search before execution',
     () async {
       final toolDataSource = _ToolBatchChatDataSource(
@@ -3810,6 +4346,52 @@ void main() {
   );
 
   test(
+    'buildDuplicateRecoveryToolResultsForTest includes matching previous result before fallback context',
+    () {
+      final recoveryToolResults = notifier
+          .buildDuplicateRecoveryToolResultsForTest(
+            currentToolCalls: [
+              ToolCallInfo(
+                id: 'tool-backend-repeat',
+                name: 'list_directory',
+                arguments: const {'path': 'packages/pes1_ble/lib/src/backend'},
+              ),
+            ],
+            executedToolResults: [
+              ToolResultInfo(
+                id: 'tool-src',
+                name: 'list_directory',
+                arguments: const {'path': 'packages/pes1_ble/lib/src'},
+                result: '{"entries":["backend","core","value_state"]}',
+              ),
+              ToolResultInfo(
+                id: 'tool-backend',
+                name: 'list_directory',
+                arguments: const {'path': 'packages/pes1_ble/lib/src/backend'},
+                result: '{"entries":["bt_backend_type.dart"]}',
+              ),
+            ],
+            fallbackToolResults: [
+              ToolResultInfo(
+                id: 'tool-src',
+                name: 'list_directory',
+                arguments: const {'path': 'packages/pes1_ble/lib/src'},
+                result: '{"entries":["backend","core","value_state"]}',
+              ),
+            ],
+          );
+
+      expect(
+        recoveryToolResults.map((toolResult) => toolResult.result).toList(),
+        [
+          '{"entries":["bt_backend_type.dart"]}',
+          '{"entries":["backend","core","value_state"]}',
+        ],
+      );
+    },
+  );
+
+  test(
     'buildToolLoopExhaustionRecoveryPromptForTest forbids rereading edit mismatch files when read context exists',
     () {
       final prompt = notifier.buildToolLoopExhaustionRecoveryPromptForTest(
@@ -3953,7 +4535,7 @@ void main() {
         [
           ['list_directory'],
           ['read_file'],
-          ['read_file'],
+          ['list_directory', 'read_file'],
           ['write_test_file'],
         ],
       );
@@ -3965,6 +4547,111 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'sendMessage treats relative and absolute read-only paths as duplicate inspections',
+    () async {
+      final project = CodingProject(
+        id: 'project-path-dedupe',
+        name: 'path-dedupe',
+        rootPath: '/tmp/caverno-path-dedupe',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'list_directory',
+            arguments: const {'path': 'packages/pes1_ble/lib/src/backend'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-2',
+                name: 'list_directory',
+                arguments: {
+                  'path':
+                      '${project.rootPath}/packages/pes1_ble/lib/src/backend',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The duplicate inspection recovery is complete.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'list_directory': '{"entries":["bt_backend_type.dart"]}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Inspect the BLE backend directory');
+
+        expect(toolService.executedToolNames, ['list_directory']);
+        expect(
+          toolDataSource.toolResultBatches
+              .map((batch) => batch.map((item) => item.name).toList())
+              .toList(),
+          [
+            ['list_directory'],
+            ['list_directory'],
+          ],
+        );
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('The duplicate inspection recovery is complete.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test(
     'sendMessage accepts terminal duplicate inspection recovery text without streaming a final answer',
@@ -4051,7 +4738,7 @@ void main() {
           [
             ['list_directory'],
             ['read_file'],
-            ['read_file'],
+            ['list_directory', 'read_file'],
           ],
         );
         expect(toolDataSource.finalAnswerMessages, isEmpty);
@@ -4411,7 +5098,7 @@ void main() {
         [
           ['create_tests_dir'],
           ['read_file'],
-          ['read_file'],
+          ['create_tests_dir', 'read_file'],
           ['write_test_file'],
         ],
       );

@@ -71,6 +71,16 @@ class SessionMemoryService {
     r'\b(blocked|blocker|cannot|can not|unable|waiting|pending)\b|\bfailed\s+to\b',
     caseSensitive: false,
   );
+  static final RegExp _logInterruptionOpenLoopPattern = RegExp(
+    r'\b(identify|find|determine|investigate)\b.*\b(reason|cause|root cause|trigger)\b.*\b(log|session|conversation|interruption|stopped)\b|'
+    r'\b(log|session|conversation|interruption|stopped)\b.*\b(reason|cause|root cause|trigger)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _logInvestigationAnswerPattern = RegExp(
+    r'\b(entry\s*\d+|finishreason|stream_end|tool_call|tool_use|incomplete assistant tool call|verified trigger|direct trigger|transport error|server timeout)\b|'
+    r'<tool_call>|<tool_use>',
+    caseSensitive: false,
+  );
 
   final ChatMemoryRepository _repository;
   final _uuid = const Uuid();
@@ -116,6 +126,12 @@ class SessionMemoryService {
 
     if (summaries.isNotEmpty) {
       buffer.writeln('[Recent Session Summaries]');
+      buffer.writeln(
+        'Note: These summaries are historical context from prior turns. '
+        'They may include prior assistant hypotheses or stale investigation '
+        'state; verify them against the current request and current tool '
+        'results before treating them as facts.',
+      );
       for (final summary in summaries) {
         buffer.writeln('- ${summary.summary}');
         if (summary.openLoops.isNotEmpty) {
@@ -485,6 +501,11 @@ class SessionMemoryService {
     }
 
     final normalizedLoop = _normalizeMemoryText(openLoop);
+    if (_logInterruptionOpenLoopPattern.hasMatch(normalizedLoop) &&
+        _logInvestigationAnswerPattern.hasMatch(assistantText)) {
+      return true;
+    }
+
     final normalizedUser = _normalizeMemoryText(latestUser);
     if (normalizedLoop.length < 24 || normalizedUser.length < 24) {
       return false;

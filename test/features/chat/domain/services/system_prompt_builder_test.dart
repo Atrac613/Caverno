@@ -129,6 +129,48 @@ void main() {
     expect(prompt, contains('After tool_search returns a match'));
   });
 
+  test('marks injected session context as historical evidence', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 5, 28, 13, 50),
+      assistantMode: AssistantMode.coding,
+      languageCode: 'en',
+      toolNames: const ['list_directory', 'read_file'],
+      sessionMemoryContext: '''
+[Recent Session Summaries]
+- Investigation identified native byte processing as the root cause.
+[Retrieved Memories]
+- (high) Android BLE data reception is corrupted.
+''',
+    );
+
+    expect(
+      prompt,
+      contains(
+        'Treat [Recent Session Summaries] and [Retrieved Memories] as historical context',
+      ),
+    );
+    expect(
+      prompt,
+      contains('not verified evidence about the current workspace'),
+    );
+    expect(
+      prompt,
+      contains(
+        'do not present prior assistant conclusions from it as confirmed',
+      ),
+    );
+    expect(
+      prompt,
+      contains('current application-executed tool results support them'),
+    );
+    expect(
+      prompt,
+      contains(
+        'Investigation identified native byte processing as the root cause.',
+      ),
+    );
+  });
+
   test('includes saved workflow context in coding mode prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),

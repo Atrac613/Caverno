@@ -196,6 +196,41 @@ class ToolResultPromptBuilder {
         'the files were not created yet and name the exact missing action '
         'instead of emitting tool-call tags.',
       )
+      ..writeln(
+        'This final answer request cannot call tools. Do not output JSON '
+        'command arrays, function-call payloads, or tool-call shaped text as '
+        'a substitute for tool execution. If additional tool execution is '
+        'required, state that it remains unexecuted and name the missing '
+        'action briefly in prose.',
+      )
+      ..writeln(
+        'Do not restate an investigation plan, checklist, or future action '
+        'such as "I will inspect" as the final answer. Either answer from the '
+        'executed tool results or give a concise blocker that names the exact '
+        'unexecuted action.',
+      )
+      ..writeln(
+        'Do not convert a missing source file, repository, permission, runtime '
+        'data, or external dependency into a confirmed root cause. If the '
+        'executed results show that required evidence is unavailable, preserve '
+        'that blocker and separate any inference from verified facts.',
+      )
+      ..writeln(
+        'Treat search_past_conversations and recall_memory results as '
+        'historical context, not verified evidence about the current '
+        'workspace, filesystem, network, runtime, or external dependencies. '
+        'Use them to choose what to verify next. Mark their claims as prior '
+        'and unverified unless current application-executed tool results or '
+        'direct user statements support them.',
+      )
+      ..writeln(
+        'Do not treat finishReason=stream_end, finishReason=stop, or another '
+        'finish reason by itself as proof of an LLM server, network, timeout, '
+        'or transport failure. If streamed content contains an unfinished '
+        'tool-call tag, report the verified incomplete assistant tool request '
+        'and keep server or network causes explicitly unverified unless the '
+        'tool results include a concrete transport error.',
+      )
       ..writeln()
       ..write(
         formatToolResults(toolResults, descriptionsByName: descriptionsByName),
@@ -267,6 +302,13 @@ class ToolResultPromptBuilder {
     required String toolName,
     String? description,
   }) {
+    if (toolName == 'search_past_conversations' ||
+        toolName == 'recall_memory') {
+      return 'This is recalled historical context. It may contain prior '
+          'assistant hypotheses or stale facts; treat it as unverified until '
+          'corroborated by current tool results or direct user statements.';
+    }
+
     final combinedText = '$toolName ${description ?? ''}'.toLowerCase();
     if (combinedText.contains('router') || combinedText.contains('gateway')) {
       return 'This is infrastructure-side telemetry. Identifiers may refer '

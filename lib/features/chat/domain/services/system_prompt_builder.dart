@@ -553,6 +553,15 @@ class SystemPromptBuilder {
         'Use the following context from past conversations to maintain '
         'continuity when helpful.',
       );
+      buffer.writeln(
+        'Treat [Recent Session Summaries] and [Retrieved Memories] as '
+        'historical context, not verified evidence about the current '
+        'workspace, filesystem, runtime, network, external dependencies, or '
+        'root cause. Use this context to choose what to verify next; do not '
+        'present prior assistant conclusions from it as confirmed unless the '
+        'current user message or current application-executed tool results '
+        'support them.',
+      );
       buffer.writeln(memoryContext);
       buffer.writeln(
         'Treat low-confidence memories as hypotheses and verify against the '

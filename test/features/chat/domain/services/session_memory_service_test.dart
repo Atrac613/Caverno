@@ -257,4 +257,73 @@ void main() {
 
     expect(repository.summaries.single.openLoops, isEmpty);
   });
+
+  test('drops generic log interruption loops after a concrete answer', () async {
+    final repository = _InMemoryChatMemoryRepository();
+    final service = SessionMemoryService(repository);
+
+    await service.updateFromConversation(
+      conversationId: 'conversation-4',
+      messages: [
+        Message(
+          id: 'message-5',
+          content:
+              'Investigate the coding session log and identify why the LLM conversation stopped.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 5, 28, 14, 54),
+        ),
+        Message(
+          id: 'message-6',
+          content:
+              'Conclusion: the verified trigger is an incomplete `<tool_call>` emitted near Entry 16. The log contains no transport error, so server timeout remains unverified.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 5, 28, 15, 2),
+        ),
+      ],
+      draft: const MemoryExtractionDraft(
+        summary: 'User investigated a coding session log interruption.',
+        openLoops: [
+          'Identify the specific root cause of the conversation interruption based on analyzed entries.',
+        ],
+        persona: [],
+        preferences: [],
+        doNot: [],
+        entries: [],
+      ),
+    );
+
+    expect(repository.summaries.single.openLoops, isEmpty);
+  });
+
+  test('labels recent summaries as historical context', () {
+    final repository = _InMemoryChatMemoryRepository();
+    repository.summaries.add(
+      MemorySessionSummary(
+        conversationId: 'previous-conversation',
+        summary:
+            'Investigation identified native byte processing as the root cause.',
+        openLoops: const ['Verify Android native implementation'],
+        updatedAt: DateTime(2026, 5, 28, 12),
+      ),
+    );
+    final service = SessionMemoryService(repository);
+
+    final context = service.buildPromptContext(
+      currentUserInput: 'Android BLE data is corrupted.',
+      currentConversationId: 'current-conversation',
+      now: DateTime(2026, 5, 28, 13),
+    );
+
+    expect(context, isNotNull);
+    expect(context!, contains('[Recent Session Summaries]'));
+    expect(context, contains('historical context from prior turns'));
+    expect(context, contains('prior assistant hypotheses'));
+    expect(context, contains('verify them against the current request'));
+    expect(
+      context,
+      contains(
+        'Investigation identified native byte processing as the root cause.',
+      ),
+    );
+  });
 }
