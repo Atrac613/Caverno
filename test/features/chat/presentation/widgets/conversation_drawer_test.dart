@@ -31,6 +31,9 @@ class _TestTranslationLoader extends AssetLoader {
   }
 }
 
+const _collapsedProjectIdsPrefsKey =
+    'conversationDrawer.collapsedCodingProjectIds';
+
 class _TestSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
@@ -348,7 +351,7 @@ void main() {
       ),
     ];
 
-    await _pumpDrawerApp(
+    final container = await _pumpDrawerApp(
       tester,
       conversationsState: ConversationsState(
         conversations: conversations,
@@ -374,6 +377,12 @@ void main() {
     expect(find.text('caverno'), findsOneWidget);
     expect(find.text('Thread 1'), findsNothing);
     expect(find.text('Thread 2'), findsNothing);
+    expect(
+      container
+          .read(sharedPreferencesProvider)
+          .getStringList(_collapsedProjectIdsPrefsKey),
+      ['project-1'],
+    );
 
     await tester.tap(
       find.byKey(const ValueKey('drawer-project-project-1-toggle')),
@@ -382,6 +391,51 @@ void main() {
 
     expect(find.text('Thread 1'), findsOneWidget);
     expect(find.text('Thread 2'), findsOneWidget);
+    expect(
+      container
+          .read(sharedPreferencesProvider)
+          .getStringList(_collapsedProjectIdsPrefsKey),
+      isEmpty,
+    );
+  });
+
+  testWidgets('coding drawer restores collapsed project state', (tester) async {
+    final project = _project(id: 'project-1', name: 'caverno');
+    final conversations = [
+      _conversation(
+        id: 'thread-1',
+        title: 'Thread 1',
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+      ),
+    ];
+
+    await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: conversations,
+        currentConversationId: 'thread-1',
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+      projectsState: CodingProjectsState(
+        projects: [project],
+        selectedProjectId: project.id,
+      ),
+      initialPreferences: const {
+        _collapsedProjectIdsPrefsKey: ['project-1'],
+      },
+    );
+
+    expect(find.text('caverno'), findsOneWidget);
+    expect(find.text('Thread 1'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('drawer-project-project-1-toggle')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Thread 1'), findsOneWidget);
   });
 }
 
@@ -389,13 +443,14 @@ Future<ProviderContainer> _pumpDrawerApp(
   WidgetTester tester, {
   required ConversationsState conversationsState,
   required CodingProjectsState projectsState,
+  Map<String, Object> initialPreferences = const <String, Object>{},
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(900, 1400);
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 
-  SharedPreferences.setMockInitialValues(<String, Object>{});
+  SharedPreferences.setMockInitialValues(initialPreferences);
   final preferences = await SharedPreferences.getInstance();
   late final ProviderContainer container;
   container = ProviderContainer(

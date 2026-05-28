@@ -1,13 +1,19 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
+import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../providers/conversations_notifier.dart';
+
+const _collapsedCodingProjectIdsPrefsKey =
+    'conversationDrawer.collapsedCodingProjectIds';
 
 class ConversationDrawer extends ConsumerStatefulWidget {
   const ConversationDrawer({
@@ -37,6 +43,12 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
 
   final Set<String> _expandedProjectIds = <String>{};
   final Set<String> _collapsedProjectIds = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCollapsedProjectIds();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +101,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                     setState(() {
                       _collapsedProjectIds.remove(projectId);
                     });
+                    _persistCollapsedProjectIds();
                     await widget.onCodingProjectSelected(projectId);
                   },
                   onConversationSelected: (conversationId) =>
@@ -122,6 +135,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                         _collapsedProjectIds.remove(projectId);
                       }
                     });
+                    _persistCollapsedProjectIds();
                   },
                   closeDrawer: () => _closeDrawerIfNeeded(context),
                 ),
@@ -272,6 +286,9 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
 
     await conversationsNotifier.deleteConversationsForProject(project.id);
     await projectsNotifier.removeProject(project.id);
+    _expandedProjectIds.remove(project.id);
+    _collapsedProjectIds.remove(project.id);
+    _persistCollapsedProjectIds();
 
     final fallbackProjectId = ref
         .read(codingProjectsNotifierProvider)
@@ -286,6 +303,33 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     }
 
     await widget.onCodingProjectSelected(fallbackProjectId);
+  }
+
+  void _loadCollapsedProjectIds() {
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      final stored = prefs.getStringList(_collapsedCodingProjectIdsPrefsKey);
+      if (stored == null || stored.isEmpty) {
+        return;
+      }
+      _collapsedProjectIds
+        ..clear()
+        ..addAll(stored.where((id) => id.trim().isNotEmpty));
+    } catch (e) {
+      debugPrint('Failed to load collapsed coding projects: $e');
+    }
+  }
+
+  void _persistCollapsedProjectIds() {
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      final projectIds = _collapsedProjectIds.toList()..sort();
+      unawaited(
+        prefs.setStringList(_collapsedCodingProjectIdsPrefsKey, projectIds),
+      );
+    } catch (e) {
+      debugPrint('Failed to persist collapsed coding projects: $e');
+    }
   }
 }
 
