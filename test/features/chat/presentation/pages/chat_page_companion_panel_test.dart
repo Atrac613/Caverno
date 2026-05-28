@@ -216,6 +216,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const ValueKey('drawer-workspace-coding')),
+      findsOneWidget,
+    );
+    expect(find.text('example_app'), findsWidgets);
     expect(find.text('Progress'), findsOneWidget);
     expect(find.text('Environment'), findsOneWidget);
     expect(find.text('Sources'), findsOneWidget);

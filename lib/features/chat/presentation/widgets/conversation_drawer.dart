@@ -16,6 +16,8 @@ class ConversationDrawer extends ConsumerStatefulWidget {
     required this.onCodingProjectSelected,
     required this.onConversationSelected,
     required this.onAddCodingProject,
+    this.closeOnAction = true,
+    this.width,
   });
 
   final Future<void> Function(WorkspaceMode workspaceMode)
@@ -23,6 +25,8 @@ class ConversationDrawer extends ConsumerStatefulWidget {
   final Future<void> Function(String projectId) onCodingProjectSelected;
   final Future<void> Function(String conversationId) onConversationSelected;
   final Future<void> Function(BuildContext context) onAddCodingProject;
+  final bool closeOnAction;
+  final double? width;
 
   @override
   ConsumerState<ConversationDrawer> createState() => _ConversationDrawerState();
@@ -43,6 +47,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     final projectsNotifier = ref.read(codingProjectsNotifierProvider.notifier);
 
     return Drawer(
+      width: widget.width,
       child: SafeArea(
         child: Column(
           children: [
@@ -69,6 +74,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                     conversationsNotifier,
                     isCodingWorkspace: false,
                   ),
+                  closeDrawer: () => _closeDrawerIfNeeded(context),
                 ),
                 WorkspaceMode.coding => _CodingProjectsSection(
                   projectsState: projectsState,
@@ -103,6 +109,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                       }
                     });
                   },
+                  closeDrawer: () => _closeDrawerIfNeeded(context),
                 ),
                 WorkspaceMode.routines => const SizedBox.expand(),
               },
@@ -121,7 +128,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
   ) async {
     await widget.onWorkspaceModeSelected(workspaceMode);
     if (!context.mounted) return;
-    Navigator.pop(context);
+    _closeDrawerIfNeeded(context);
   }
 
   Future<void> _selectConversation(
@@ -130,13 +137,22 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
   ) async {
     await widget.onConversationSelected(conversationId);
     if (!context.mounted) return;
-    Navigator.pop(context);
+    _closeDrawerIfNeeded(context);
   }
 
   void _openSettings(BuildContext context) {
     final navigator = Navigator.of(context);
-    navigator.pop();
+    if (widget.closeOnAction) {
+      navigator.pop();
+    }
     navigator.push(MaterialPageRoute(builder: (_) => const SettingsPage()));
+  }
+
+  void _closeDrawerIfNeeded(BuildContext context) {
+    if (!widget.closeOnAction) {
+      return;
+    }
+    Navigator.pop(context);
   }
 
   void _showDeleteDialog(
@@ -345,6 +361,7 @@ class _ChatConversationSection extends StatelessWidget {
     required this.onConversationSelected,
     required this.onDeleteConversation,
     required this.onDeleteAll,
+    required this.closeDrawer,
   });
 
   final ConversationsState conversationsState;
@@ -352,6 +369,7 @@ class _ChatConversationSection extends StatelessWidget {
   final Future<void> Function(String conversationId) onConversationSelected;
   final ValueChanged<Conversation> onDeleteConversation;
   final VoidCallback onDeleteAll;
+  final VoidCallback closeDrawer;
 
   @override
   Widget build(BuildContext context) {
@@ -379,7 +397,7 @@ class _ChatConversationSection extends StatelessWidget {
                 conversationsNotifier.createNewConversation(
                   workspaceMode: WorkspaceMode.chat,
                 );
-                Navigator.pop(context);
+                closeDrawer();
               },
             ),
           ],
@@ -427,6 +445,7 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.onDeleteAllThreads,
     required this.onDeleteProject,
     required this.onToggleProjectExpanded,
+    required this.closeDrawer,
   });
 
   final CodingProjectsState projectsState;
@@ -441,6 +460,7 @@ class _CodingProjectsSection extends StatelessWidget {
   final VoidCallback onDeleteAllThreads;
   final ValueChanged<CodingProject> onDeleteProject;
   final ValueChanged<String> onToggleProjectExpanded;
+  final VoidCallback closeDrawer;
 
   @override
   Widget build(BuildContext context) {
@@ -468,7 +488,7 @@ class _CodingProjectsSection extends StatelessWidget {
                     workspaceMode: WorkspaceMode.coding,
                     projectId: activeProject.id,
                   );
-                  Navigator.pop(context);
+                  closeDrawer();
                 },
               ),
             if (activeThreads.isNotEmpty)
