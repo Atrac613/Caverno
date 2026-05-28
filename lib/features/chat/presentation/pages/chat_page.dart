@@ -970,138 +970,292 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             thickness: 1,
             color: Theme.of(context).dividerColor,
           ),
-          Expanded(child: workspaceBody),
+          Expanded(
+            child: Column(
+              children: [
+                _buildPersistentWorkspaceHeader(
+                  context,
+                  isRoutinesWorkspace: isRoutinesWorkspace,
+                  isCodingWorkspace: isCodingWorkspace,
+                  isMobileRemoteCoding: isMobileRemoteCoding,
+                  activeProject: activeProject,
+                  currentTitle: currentTitle,
+                  settings: settings,
+                  canCompose: canCompose,
+                  canShowCompanionPanel: canShowCompanionPanel,
+                  isWideForCompanion: isWideForCompanion,
+                  currentConversation: currentConversation,
+                  conversationsState: conversationsState,
+                  conversationsNotifier: conversationsNotifier,
+                  chatState: chatState,
+                ),
+                Expanded(child: workspaceBody),
+              ],
+            ),
+          ),
         ],
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Expanded(
-              child: isRoutinesWorkspace
-                  ? Text(
-                      'chat.workspace_routines'.tr(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  : isCodingWorkspace
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          activeProject?.name ?? 'chat.workspace_coding'.tr(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          activeProject == null
-                              ? 'chat.coding_no_project_short'.tr()
-                              : currentTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ],
-                    )
-                  : Text(
-                      currentTitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-            ),
-            if (settings.demoMode) ...[
-              const SizedBox(width: 8),
-              Chip(
-                label: Text('chat.demo_banner'.tr()),
-                labelStyle: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(context).colorScheme.onTertiaryContainer,
-                ),
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.tertiaryContainer,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          if (isCodingWorkspace && !isMobileRemoteCoding)
-            IconButton(
-              onPressed: () => _pickAndActivateProject(context),
-              icon: const Icon(Icons.create_new_folder_outlined),
-              tooltip: 'chat.add_project'.tr(),
-            ),
-          if (!isRoutinesWorkspace && !isMobileRemoteCoding)
-            IconButton(
-              onPressed: canCompose
-                  ? () => conversationsNotifier.createNewConversation(
-                      workspaceMode: conversationsState.activeWorkspaceMode,
-                      projectId: activeProject?.id,
-                    )
-                  : null,
-              icon: const Icon(Icons.add),
-              tooltip: isCodingWorkspace
-                  ? 'chat.new_thread'.tr()
-                  : 'chat.new_conversation'.tr(),
-            ),
-          if (!isRoutinesWorkspace &&
-              !isMobileRemoteCoding &&
-              currentConversation != null)
-            IconButton(
-              onPressed: () => _showDeleteConversationDialog(
+      appBar: usePersistentDrawer
+          ? null
+          : AppBar(
+              title: _buildWorkspaceHeaderTitle(
                 context,
-                conversationsNotifier,
-                currentConversation.id,
-                currentConversation.title,
+                isRoutinesWorkspace: isRoutinesWorkspace,
+                isCodingWorkspace: isCodingWorkspace,
+                activeProject: activeProject,
+                currentTitle: currentTitle,
+                settings: settings,
+                prominent: false,
               ),
-              icon: const Icon(Icons.delete_outline),
-              tooltip: 'chat.delete_current'.tr(),
-            ),
-          if (canShowCompanionPanel)
-            IconButton(
-              onPressed: () {
-                if (isWideForCompanion) {
-                  setState(() {
-                    _isCompanionSidebarVisible = !_isCompanionSidebarVisible;
-                  });
-                  return;
-                }
-                _showCompanionPanelSheet(
-                  context,
-                  currentConversation: currentConversation,
-                  chatState: chatState,
-                  activeProject: activeProject,
-                );
-              },
-              icon: const Icon(Icons.view_sidebar_outlined),
-              tooltip: 'chat.companion_panel_toggle'.tr(),
-            ),
-          IconButton(
-            onPressed: () {
-              Navigator.of(
+              actions: _buildWorkspaceHeaderActions(
                 context,
-              ).push(MaterialPageRoute(builder: (_) => const SettingsPage()));
-            },
-            icon: const Icon(Icons.settings),
-            tooltip: 'chat.settings'.tr(),
-          ),
-        ],
-      ),
+                isRoutinesWorkspace: isRoutinesWorkspace,
+                isCodingWorkspace: isCodingWorkspace,
+                isMobileRemoteCoding: isMobileRemoteCoding,
+                activeProject: activeProject,
+                canCompose: canCompose,
+                canShowCompanionPanel: canShowCompanionPanel,
+                isWideForCompanion: isWideForCompanion,
+                currentConversation: currentConversation,
+                conversationsState: conversationsState,
+                conversationsNotifier: conversationsNotifier,
+                chatState: chatState,
+                compact: false,
+              ),
+            ),
       drawer: isMobileRemoteCoding || usePersistentDrawer
           ? null
           : _buildConversationDrawer(closeOnAction: true),
       body: buildScaffoldBody(),
     );
+  }
+
+  Widget _buildPersistentWorkspaceHeader(
+    BuildContext context, {
+    required bool isRoutinesWorkspace,
+    required bool isCodingWorkspace,
+    required bool isMobileRemoteCoding,
+    required CodingProject? activeProject,
+    required String currentTitle,
+    required AppSettings settings,
+    required bool canCompose,
+    required bool canShowCompanionPanel,
+    required bool isWideForCompanion,
+    required Conversation? currentConversation,
+    required ConversationsState conversationsState,
+    required ConversationsNotifier conversationsNotifier,
+    required ChatState chatState,
+  }) {
+    return Container(
+      key: const ValueKey('persistent-workspace-header'),
+      height: 64,
+      padding: const EdgeInsets.only(left: 16, right: 6),
+      alignment: Alignment.center,
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildWorkspaceHeaderTitle(
+              context,
+              isRoutinesWorkspace: isRoutinesWorkspace,
+              isCodingWorkspace: isCodingWorkspace,
+              activeProject: activeProject,
+              currentTitle: currentTitle,
+              settings: settings,
+              prominent: true,
+            ),
+          ),
+          ..._buildWorkspaceHeaderActions(
+            context,
+            isRoutinesWorkspace: isRoutinesWorkspace,
+            isCodingWorkspace: isCodingWorkspace,
+            isMobileRemoteCoding: isMobileRemoteCoding,
+            activeProject: activeProject,
+            canCompose: canCompose,
+            canShowCompanionPanel: canShowCompanionPanel,
+            isWideForCompanion: isWideForCompanion,
+            currentConversation: currentConversation,
+            conversationsState: conversationsState,
+            conversationsNotifier: conversationsNotifier,
+            chatState: chatState,
+            compact: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkspaceHeaderTitle(
+    BuildContext context, {
+    required bool isRoutinesWorkspace,
+    required bool isCodingWorkspace,
+    required CodingProject? activeProject,
+    required String currentTitle,
+    required AppSettings settings,
+    required bool prominent,
+  }) {
+    final theme = Theme.of(context);
+    final titleStyle = prominent
+        ? theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)
+        : null;
+
+    final title = isRoutinesWorkspace
+        ? Text(
+            'chat.workspace_routines'.tr(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: titleStyle,
+          )
+        : isCodingWorkspace
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                activeProject?.name ?? 'chat.workspace_coding'.tr(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: titleStyle,
+              ),
+              Text(
+                activeProject == null
+                    ? 'chat.coding_no_project_short'.tr()
+                    : currentTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          )
+        : Text(
+            currentTitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: titleStyle,
+          );
+
+    return Row(
+      children: [
+        Expanded(child: title),
+        if (settings.demoMode) ...[
+          const SizedBox(width: 8),
+          Chip(
+            label: Text('chat.demo_banner'.tr()),
+            labelStyle: TextStyle(
+              fontSize: 11,
+              color: theme.colorScheme.onTertiaryContainer,
+            ),
+            backgroundColor: theme.colorScheme.tertiaryContainer,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+          ),
+        ],
+      ],
+    );
+  }
+
+  List<Widget> _buildWorkspaceHeaderActions(
+    BuildContext context, {
+    required bool isRoutinesWorkspace,
+    required bool isCodingWorkspace,
+    required bool isMobileRemoteCoding,
+    required CodingProject? activeProject,
+    required bool canCompose,
+    required bool canShowCompanionPanel,
+    required bool isWideForCompanion,
+    required Conversation? currentConversation,
+    required ConversationsState conversationsState,
+    required ConversationsNotifier conversationsNotifier,
+    required ChatState chatState,
+    required bool compact,
+  }) {
+    Widget actionButton({
+      required IconData icon,
+      required String tooltip,
+      required VoidCallback? onPressed,
+    }) {
+      return IconButton(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        tooltip: tooltip,
+        visualDensity: compact ? VisualDensity.compact : null,
+        constraints: compact
+            ? const BoxConstraints.tightFor(width: 40, height: 40)
+            : null,
+      );
+    }
+
+    final companionConversation = currentConversation;
+    final companionProject = activeProject;
+
+    return [
+      if (isCodingWorkspace && !isMobileRemoteCoding)
+        actionButton(
+          onPressed: () => _pickAndActivateProject(context),
+          icon: Icons.create_new_folder_outlined,
+          tooltip: 'chat.add_project'.tr(),
+        ),
+      if (!isRoutinesWorkspace && !isMobileRemoteCoding)
+        actionButton(
+          onPressed: canCompose
+              ? () => conversationsNotifier.createNewConversation(
+                  workspaceMode: conversationsState.activeWorkspaceMode,
+                  projectId: activeProject?.id,
+                )
+              : null,
+          icon: Icons.add,
+          tooltip: isCodingWorkspace
+              ? 'chat.new_thread'.tr()
+              : 'chat.new_conversation'.tr(),
+        ),
+      if (!isRoutinesWorkspace &&
+          !isMobileRemoteCoding &&
+          currentConversation != null)
+        actionButton(
+          onPressed: () => _showDeleteConversationDialog(
+            context,
+            conversationsNotifier,
+            currentConversation.id,
+            currentConversation.title,
+          ),
+          icon: Icons.delete_outline,
+          tooltip: 'chat.delete_current'.tr(),
+        ),
+      if (canShowCompanionPanel &&
+          companionConversation != null &&
+          companionProject != null)
+        actionButton(
+          onPressed: () {
+            if (isWideForCompanion) {
+              setState(() {
+                _isCompanionSidebarVisible = !_isCompanionSidebarVisible;
+              });
+              return;
+            }
+            _showCompanionPanelSheet(
+              context,
+              currentConversation: companionConversation,
+              chatState: chatState,
+              activeProject: companionProject,
+            );
+          },
+          icon: Icons.view_sidebar_outlined,
+          tooltip: 'chat.companion_panel_toggle'.tr(),
+        ),
+      actionButton(
+        onPressed: () {
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const SettingsPage()));
+        },
+        icon: Icons.settings,
+        tooltip: 'chat.settings'.tr(),
+      ),
+    ];
   }
 
   String _formatTokenCount(int count) {

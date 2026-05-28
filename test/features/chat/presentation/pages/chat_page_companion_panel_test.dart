@@ -216,6 +216,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byType(AppBar), findsNothing);
+    expect(
+      find.byKey(const ValueKey('persistent-workspace-header')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('drawer-workspace-coding')),
       findsOneWidget,
