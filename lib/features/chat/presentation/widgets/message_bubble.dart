@@ -14,6 +14,9 @@ import '../../../settings/presentation/pages/chat_settings_page.dart';
 import '../../domain/entities/message.dart';
 import 'parsed_content_view.dart';
 
+const double _messageImagePreviewWidth = 200;
+const double _messageImagePreviewHeight = 140;
+
 class MessageBubble extends ConsumerStatefulWidget {
   const MessageBubble({
     super.key,
@@ -32,6 +35,8 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
   bool _isHovering = false;
   bool _copied = false;
   int _copyFeedbackToken = 0;
+  String? _cachedImageBase64;
+  Uint8List? _cachedImageBytes;
 
   /// Extracts text for TTS playback by removing tags such as `<think>`.
   String _extractReadableText(String content) {
@@ -99,6 +104,28 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     setState(() => _copied = false);
   }
 
+  Uint8List? _imageBytesFor(String? imageBase64) {
+    if (imageBase64 == null || imageBase64.isEmpty) {
+      _cachedImageBase64 = null;
+      _cachedImageBytes = null;
+      return null;
+    }
+    if (_cachedImageBase64 == imageBase64 && _cachedImageBytes != null) {
+      return _cachedImageBytes;
+    }
+
+    try {
+      final bytes = base64Decode(imageBase64);
+      _cachedImageBase64 = imageBase64;
+      _cachedImageBytes = bytes;
+      return bytes;
+    } catch (_) {
+      _cachedImageBase64 = imageBase64;
+      _cachedImageBytes = null;
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final message = widget.message;
@@ -110,6 +137,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
         ? _extractProjectAccessIssue(message.content)
         : null;
     final hasBodyContent = message.content.isNotEmpty || message.isStreaming;
+    final imageBytes = _imageBytesFor(message.imageBase64);
     final bubble = Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.8,
@@ -170,24 +198,18 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
               padding: EdgeInsets.only(bottom: hasBodyContent ? 8 : 0),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.memory(
-                  base64Decode(message.imageBase64!),
-                  fit: BoxFit.cover,
-                  width: 200,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 200,
-                      height: 100,
-                      color: theme.colorScheme.errorContainer,
-                      child: Center(
-                        child: Icon(
-                          Icons.broken_image,
-                          color: theme.colorScheme.onErrorContainer,
-                        ),
+                child: imageBytes == null
+                    ? _BrokenImagePreview(theme: theme)
+                    : Image.memory(
+                        imageBytes,
+                        fit: BoxFit.cover,
+                        width: _messageImagePreviewWidth,
+                        height: _messageImagePreviewHeight,
+                        gaplessPlayback: true,
+                        errorBuilder: (context, error, stackTrace) {
+                          return _BrokenImagePreview(theme: theme);
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
             ),
           if (hasBodyContent)
@@ -349,6 +371,29 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     }
     await tts.setSpeechRate(settings.speechRate);
     await tts.speak(readableText);
+  }
+}
+
+class _BrokenImagePreview extends StatelessWidget {
+  const _BrokenImagePreview({required this.theme});
+
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _messageImagePreviewWidth,
+      height: _messageImagePreviewHeight,
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: theme.colorScheme.errorContainer),
+        child: Center(
+          child: Icon(
+            Icons.broken_image,
+            color: theme.colorScheme.onErrorContainer,
+          ),
+        ),
+      ),
+    );
   }
 }
 

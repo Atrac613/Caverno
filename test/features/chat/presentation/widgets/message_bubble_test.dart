@@ -121,4 +121,36 @@ void main() {
     final timestampRect = tester.getRect(timestampFinder);
     expect(timestampRect.top, greaterThan(messageRect.bottom));
   });
+
+  testWidgets('keeps attached image bytes stable across rebuilds', (
+    tester,
+  ) async {
+    const imageBase64 =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUl'
+        'EQVR42mP8z8BQDwAFgwJ/lA0T8QAAAABJRU5ErkJggg==';
+    final message = Message(
+      id: 'image-message',
+      content: 'Describe this image',
+      role: MessageRole.user,
+      timestamp: DateTime(2026, 5, 28, 21),
+      imageBase64: imageBase64,
+      imageMimeType: 'image/png',
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+    final firstImage = tester.widget<Image>(find.byType(Image));
+    final firstProvider = firstImage.image as MemoryImage;
+
+    await _pumpMessageBubble(
+      tester,
+      message: message.copyWith(content: 'Describe this image, please'),
+    );
+    final secondImage = tester.widget<Image>(find.byType(Image));
+    final secondProvider = secondImage.image as MemoryImage;
+
+    expect(identical(firstProvider.bytes, secondProvider.bytes), isTrue);
+    expect(secondImage.width, 200);
+    expect(secondImage.height, 140);
+    expect(secondImage.gaplessPlayback, isTrue);
+  });
 }

@@ -102,6 +102,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   String _composerPrefillText = '';
   int _composerPrefillVersion = 0;
   bool _isImageDragActive = false;
+  bool _isScrollToBottomScheduled = false;
+  bool _scheduledScrollShouldAnimate = false;
   int _droppedImageAttachmentId = 0;
   MessageInputImageAttachment? _droppedImageAttachment;
 
@@ -136,14 +138,46 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
+  bool _isNearScrollBottom() {
+    if (!_scrollController.hasClients) {
+      return true;
+    }
+    final position = _scrollController.position;
+    return position.maxScrollExtent - position.pixels <= 80;
+  }
+
+  void _scheduleScrollToBottom({required bool animated}) {
+    _scheduledScrollShouldAnimate = _scheduledScrollShouldAnimate || animated;
+    if (_isScrollToBottomScheduled) {
+      return;
+    }
+
+    _isScrollToBottomScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final shouldAnimate = _scheduledScrollShouldAnimate;
+      _isScrollToBottomScheduled = false;
+      _scheduledScrollShouldAnimate = false;
+      if (!mounted) {
+        return;
+      }
+      _scrollToBottom(animated: shouldAnimate);
+    });
+  }
+
+  void _scrollToBottom({bool animated = true}) {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    final target = _scrollController.position.maxScrollExtent;
+    if (animated) {
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
+        target,
+        duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
       );
+      return;
     }
+    _scrollController.jumpTo(target);
   }
 
   void _showApprovalDialogOnce(String id, Future<void> Function() showDialog) {
@@ -560,12 +594,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     // Scroll when the message list changes.
     ref.listen(chatNotifierProvider, (previous, next) {
-      if (previous?.messages.length != next.messages.length ||
-          (next.messages.isNotEmpty && next.messages.last.isStreaming)) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToBottom();
-        });
+      final messageCountChanged =
+          previous?.messages.length != next.messages.length;
+      final isStreamingUpdate =
+          !messageCountChanged &&
+          next.messages.isNotEmpty &&
+          next.messages.last.isStreaming;
+      if (!messageCountChanged && !isStreamingUpdate) {
+        return;
       }
+      if (!messageCountChanged && !_isNearScrollBottom()) {
+        return;
+      }
+      _scheduleScrollToBottom(animated: messageCountChanged);
     });
 
     ref.listen<String?>(
