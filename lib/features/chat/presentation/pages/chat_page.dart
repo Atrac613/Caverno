@@ -86,13 +86,11 @@ class ChatPage extends ConsumerStatefulWidget {
   ConsumerState<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends ConsumerState<ChatPage>
-    with SingleTickerProviderStateMixin {
+class _ChatPageState extends ConsumerState<ChatPage> {
   final _scrollController = ScrollController();
   final _workflowPanelScrollController = ScrollController();
   final Set<String> _activeApprovalDialogIds = <String>{};
   final _uuid = const Uuid();
-  late final TabController _workspaceTabController;
   String? _workflowPanelConversationId;
   bool _isApprovedPlanExpanded = false;
   bool _isPresentingPlanReviewSheet = false;
@@ -126,13 +124,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
   @override
   void initState() {
     super.initState();
-    _workspaceTabController = TabController(length: 3, vsync: this);
     ref.read(routineSchedulerProvider);
   }
 
   @override
   void dispose() {
-    _workspaceTabController.dispose();
     _scrollController.dispose();
     _workflowPanelScrollController.dispose();
     super.dispose();
@@ -170,7 +166,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
       conversationsNotifierProvider.notifier,
     );
     final projectsState = ref.read(codingProjectsNotifierProvider);
-    final projectsNotifier = ref.read(codingProjectsNotifierProvider.notifier);
     final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
     final currentAssistantMode = ref
         .read(settingsNotifierProvider)
@@ -198,20 +193,46 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ref.read(conversationsNotifierProvider).activeProjectId ??
         projectsState.selectedProjectId;
     if (projectId != null) {
-      projectsNotifier.selectProject(projectId);
+      await _activateCodingProject(projectId, createFreshOnFirstOpen: true);
+      return;
     }
 
     conversationsNotifier.activateWorkspace(
       workspaceMode: WorkspaceMode.coding,
-      projectId: projectId,
-      createIfMissing: projectId != null,
-      createFreshOnFirstOpen: projectId != null,
+      projectId: null,
+      createIfMissing: false,
     );
     await settingsNotifier.updateAssistantMode(
       currentAssistantMode == AssistantMode.general
           ? AssistantMode.coding
           : currentAssistantMode,
     );
+  }
+
+  Future<void> _activateCodingProject(
+    String projectId, {
+    bool createFreshOnFirstOpen = false,
+  }) async {
+    ref.read(codingProjectsNotifierProvider.notifier).selectProject(projectId);
+    ref
+        .read(conversationsNotifierProvider.notifier)
+        .activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: projectId,
+          createIfMissing: true,
+          createFreshOnFirstOpen: createFreshOnFirstOpen,
+        );
+
+    final currentAssistantMode = ref
+        .read(settingsNotifierProvider)
+        .assistantMode;
+    await ref
+        .read(settingsNotifierProvider.notifier)
+        .updateAssistantMode(
+          currentAssistantMode == AssistantMode.general
+              ? AssistantMode.coding
+              : currentAssistantMode,
+        );
   }
 
   Future<void> _pickAndActivateProject(BuildContext context) async {
@@ -223,25 +244,48 @@ class _ChatPageState extends ConsumerState<ChatPage>
         .addProject(selectedDirectory);
     if (project == null || !context.mounted) return;
 
-    ref.read(codingProjectsNotifierProvider.notifier).selectProject(project.id);
+    await _activateCodingProject(project.id, createFreshOnFirstOpen: true);
+  }
+
+  Future<void> _selectDrawerConversation(String conversationId) async {
+    final conversationsState = ref.read(conversationsNotifierProvider);
+    final conversation = conversationsState.conversations
+        .where((item) => item.id == conversationId)
+        .firstOrNull;
+    if (conversation == null) {
+      return;
+    }
+
+    final normalizedProjectId = conversation.normalizedProjectId;
+    if (conversation.workspaceMode == WorkspaceMode.coding &&
+        normalizedProjectId != null) {
+      ref
+          .read(codingProjectsNotifierProvider.notifier)
+          .selectProject(normalizedProjectId);
+    }
+
     ref
         .read(conversationsNotifierProvider.notifier)
-        .activateWorkspace(
-          workspaceMode: WorkspaceMode.coding,
-          projectId: project.id,
-          createIfMissing: true,
-          createFreshOnFirstOpen: true,
-        );
+        .selectConversation(conversationId);
+
+    final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
     final currentAssistantMode = ref
         .read(settingsNotifierProvider)
         .assistantMode;
-    await ref
-        .read(settingsNotifierProvider.notifier)
-        .updateAssistantMode(
+    switch (conversation.workspaceMode) {
+      case WorkspaceMode.chat:
+        await settingsNotifier.updateAssistantMode(AssistantMode.general);
+        break;
+      case WorkspaceMode.coding:
+        await settingsNotifier.updateAssistantMode(
           currentAssistantMode == AssistantMode.general
               ? AssistantMode.coding
               : currentAssistantMode,
         );
+        break;
+      case WorkspaceMode.routines:
+        break;
+    }
   }
 
   Widget _buildImageDropTarget(
@@ -658,14 +702,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
               ? 'chat.new_thread'.tr()
               : 'chat.new_conversation'.tr())
         : rawTitle;
-    final workspaceIndex = switch (conversationsState.activeWorkspaceMode) {
-      WorkspaceMode.chat => 0,
-      WorkspaceMode.coding => 1,
-      WorkspaceMode.routines => 2,
-    };
-    if (_workspaceTabController.index != workspaceIndex) {
-      _workspaceTabController.index = workspaceIndex;
-    }
     final canCompose = !isCodingWorkspace || activeProject != null;
     final shouldShowPlanFooterCard =
         isCodingWorkspace &&
@@ -758,30 +794,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ],
           ],
         ),
-        bottom: TabBar(
-          controller: _workspaceTabController,
-          onTap: (index) {
-            _switchWorkspaceMode(switch (index) {
-              0 => WorkspaceMode.chat,
-              1 => WorkspaceMode.coding,
-              _ => WorkspaceMode.routines,
-            });
-          },
-          tabs: [
-            Tab(
-              text: 'chat.workspace_chat'.tr(),
-              icon: const Icon(Icons.chat_bubble_outline),
-            ),
-            Tab(
-              text: 'chat.workspace_coding'.tr(),
-              icon: const Icon(Icons.code),
-            ),
-            Tab(
-              text: 'chat.workspace_routines'.tr(),
-              icon: const Icon(Icons.schedule_outlined),
-            ),
-          ],
-        ),
         actions: [
           if (isCodingWorkspace && !isMobileRemoteCoding)
             IconButton(
@@ -845,9 +857,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ),
         ],
       ),
-      drawer: isRoutinesWorkspace || isMobileRemoteCoding
+      drawer: isMobileRemoteCoding
           ? null
-          : const ConversationDrawer(),
+          : ConversationDrawer(
+              onWorkspaceModeSelected: _switchWorkspaceMode,
+              onCodingProjectSelected: _activateCodingProject,
+              onConversationSelected: _selectDrawerConversation,
+              onAddCodingProject: _pickAndActivateProject,
+            ),
       body: isRoutinesWorkspace
           ? const RoutinesHomePage()
           : isMobileRemoteCoding

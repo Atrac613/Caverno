@@ -1,141 +1,142 @@
 import 'package:easy_localization/easy_localization.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
+import '../../../settings/presentation/pages/settings_page.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../providers/conversations_notifier.dart';
 
-class ConversationDrawer extends ConsumerWidget {
-  const ConversationDrawer({super.key});
+class ConversationDrawer extends ConsumerStatefulWidget {
+  const ConversationDrawer({
+    super.key,
+    required this.onWorkspaceModeSelected,
+    required this.onCodingProjectSelected,
+    required this.onConversationSelected,
+    required this.onAddCodingProject,
+  });
+
+  final Future<void> Function(WorkspaceMode workspaceMode)
+  onWorkspaceModeSelected;
+  final Future<void> Function(String projectId) onCodingProjectSelected;
+  final Future<void> Function(String conversationId) onConversationSelected;
+  final Future<void> Function(BuildContext context) onAddCodingProject;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ConversationDrawer> createState() => _ConversationDrawerState();
+}
+
+class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
+  static const int _collapsedProjectThreadLimit = 5;
+
+  final Set<String> _expandedProjectIds = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
     final conversationsState = ref.watch(conversationsNotifierProvider);
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
     final projectsState = ref.watch(codingProjectsNotifierProvider);
     final projectsNotifier = ref.read(codingProjectsNotifierProvider.notifier);
-    final isCodingWorkspace =
-        conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
-    final activeProject = projectsState.findById(
-      conversationsState.activeProjectId,
-    );
-    final visibleConversations = conversationsState.visibleConversations;
 
     return Drawer(
       child: SafeArea(
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      isCodingWorkspace
-                          ? 'drawer.coding_title'.tr()
-                          : 'drawer.title'.tr(),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  if (visibleConversations.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(Icons.delete_sweep_outlined),
-                      tooltip: isCodingWorkspace
-                          ? 'drawer.delete_all_threads_tooltip'.tr()
-                          : 'drawer.delete_all_tooltip'.tr(),
-                      onPressed: () {
-                        _showDeleteScopedDialog(
-                          context,
-                          conversationsNotifier,
-                          isCodingWorkspace: isCodingWorkspace,
-                        );
-                      },
-                    ),
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    tooltip: isCodingWorkspace
-                        ? 'drawer.new_thread'.tr()
-                        : 'drawer.new_conversation'.tr(),
-                    onPressed: isCodingWorkspace && activeProject == null
-                        ? null
-                        : () {
-                            conversationsNotifier.createNewConversation(
-                              workspaceMode:
-                                  conversationsState.activeWorkspaceMode,
-                              projectId: activeProject?.id,
-                            );
-                            Navigator.pop(context);
-                          },
-                  ),
-                ],
-              ),
+            _WorkspaceSwitcher(
+              activeWorkspaceMode: conversationsState.activeWorkspaceMode,
+              onSelected: (workspaceMode) =>
+                  _selectWorkspace(context, workspaceMode),
             ),
-            if (isCodingWorkspace) ...[
-              const Divider(height: 1),
-              Expanded(
-                flex: 4,
-                child: _CodingProjectsSection(
-                  projectsState: projectsState,
-                  projectsNotifier: projectsNotifier,
-                  conversationsNotifier: conversationsNotifier,
-                  selectedProjectId: activeProject?.id,
-                ),
-              ),
-            ],
             const Divider(height: 1),
             Expanded(
-              flex: isCodingWorkspace ? 5 : 1,
-              child: visibleConversations.isEmpty
-                  ? Center(
-                      child: Text(
-                        isCodingWorkspace
-                            ? 'drawer.no_threads'.tr()
-                            : 'drawer.no_conversations'.tr(),
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: visibleConversations.length,
-                      itemBuilder: (context, index) {
-                        final conversation = visibleConversations[index];
-                        final isSelected =
-                            conversation.id ==
-                            conversationsState.currentConversationId;
-
-                        return _ConversationTile(
-                          conversation: conversation,
-                          isSelected: isSelected,
-                          isCodingWorkspace: isCodingWorkspace,
-                          onTap: () {
-                            conversationsNotifier.selectConversation(
-                              conversation.id,
-                            );
-                            Navigator.pop(context);
-                          },
-                          onDelete: () {
-                            _showDeleteDialog(
-                              context,
-                              conversationsNotifier,
-                              conversation,
-                            );
-                          },
-                        );
-                      },
-                    ),
+              child: switch (conversationsState.activeWorkspaceMode) {
+                WorkspaceMode.chat => _ChatConversationSection(
+                  conversationsState: conversationsState,
+                  conversationsNotifier: conversationsNotifier,
+                  onConversationSelected: (conversationId) =>
+                      _selectConversation(context, conversationId),
+                  onDeleteConversation: (conversation) => _showDeleteDialog(
+                    context,
+                    conversationsNotifier,
+                    conversation,
+                  ),
+                  onDeleteAll: () => _showDeleteScopedDialog(
+                    context,
+                    conversationsNotifier,
+                    isCodingWorkspace: false,
+                  ),
+                ),
+                WorkspaceMode.coding => _CodingProjectsSection(
+                  projectsState: projectsState,
+                  conversationsState: conversationsState,
+                  conversationsNotifier: conversationsNotifier,
+                  expandedProjectIds: _expandedProjectIds,
+                  collapsedThreadLimit: _collapsedProjectThreadLimit,
+                  onAddProject: () => widget.onAddCodingProject(context),
+                  onProjectSelected: widget.onCodingProjectSelected,
+                  onConversationSelected: (conversationId) =>
+                      _selectConversation(context, conversationId),
+                  onDeleteConversation: (conversation) => _showDeleteDialog(
+                    context,
+                    conversationsNotifier,
+                    conversation,
+                  ),
+                  onDeleteAllThreads: () => _showDeleteScopedDialog(
+                    context,
+                    conversationsNotifier,
+                    isCodingWorkspace: true,
+                  ),
+                  onDeleteProject: (project) => _showDeleteProjectDialog(
+                    context,
+                    conversationsNotifier,
+                    projectsNotifier,
+                    project,
+                  ),
+                  onToggleProjectExpanded: (projectId) {
+                    setState(() {
+                      if (!_expandedProjectIds.add(projectId)) {
+                        _expandedProjectIds.remove(projectId);
+                      }
+                    });
+                  },
+                ),
+                WorkspaceMode.routines => const SizedBox.expand(),
+              },
             ),
+            const Divider(height: 1),
+            _SettingsDrawerTile(onTap: () => _openSettings(context)),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _selectWorkspace(
+    BuildContext context,
+    WorkspaceMode workspaceMode,
+  ) async {
+    await widget.onWorkspaceModeSelected(workspaceMode);
+    if (!context.mounted) return;
+    Navigator.pop(context);
+  }
+
+  Future<void> _selectConversation(
+    BuildContext context,
+    String conversationId,
+  ) async {
+    await widget.onConversationSelected(conversationId);
+    if (!context.mounted) return;
+    Navigator.pop(context);
+  }
+
+  void _openSettings(BuildContext context) {
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    navigator.push(MaterialPageRoute(builder: (_) => const SettingsPage()));
   }
 
   void _showDeleteDialog(
@@ -209,114 +210,11 @@ class ConversationDrawer extends ConsumerWidget {
       context,
     ).showSnackBar(SnackBar(content: Text('drawer.delete_all_done'.tr())));
   }
-}
-
-class _CodingProjectsSection extends ConsumerWidget {
-  const _CodingProjectsSection({
-    required this.projectsState,
-    required this.projectsNotifier,
-    required this.conversationsNotifier,
-    required this.selectedProjectId,
-  });
-
-  final CodingProjectsState projectsState;
-  final CodingProjectsNotifier projectsNotifier;
-  final ConversationsNotifier conversationsNotifier;
-  final String? selectedProjectId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      children: [
-        ListTile(
-          title: Text(
-            'drawer.projects'.tr(),
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          trailing: IconButton(
-            icon: const Icon(Icons.create_new_folder_outlined),
-            tooltip: 'chat.add_project'.tr(),
-            onPressed: () => _pickProject(context, ref),
-          ),
-        ),
-        Expanded(
-          child: projectsState.projects.isEmpty
-              ? Center(
-                  child: Text(
-                    'drawer.no_projects'.tr(),
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: projectsState.projects.length,
-                  itemBuilder: (context, index) {
-                    final project = projectsState.projects[index];
-                    final isSelected = project.id == selectedProjectId;
-                    return ListTile(
-                      selected: isSelected,
-                      selectedTileColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                      leading: Icon(
-                        Icons.folder_outlined,
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : null,
-                      ),
-                      title: Text(
-                        project.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        project.rootPath,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 20),
-                        tooltip: 'drawer.delete_tooltip'.tr(),
-                        onPressed: () =>
-                            _showDeleteProjectDialog(context, ref, project),
-                      ),
-                      onTap: () {
-                        projectsNotifier.selectProject(project.id);
-                        conversationsNotifier.activateWorkspace(
-                          workspaceMode: WorkspaceMode.coding,
-                          projectId: project.id,
-                          createIfMissing: true,
-                        );
-                      },
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _pickProject(BuildContext context, WidgetRef ref) async {
-    final selectedDirectory = await FilePicker.getDirectoryPath();
-    if (selectedDirectory == null || !context.mounted) return;
-
-    final project = await ref
-        .read(codingProjectsNotifierProvider.notifier)
-        .addProject(selectedDirectory);
-    if (project == null || !context.mounted) return;
-
-    projectsNotifier.selectProject(project.id);
-    conversationsNotifier.activateWorkspace(
-      workspaceMode: WorkspaceMode.coding,
-      projectId: project.id,
-      createIfMissing: true,
-    );
-  }
 
   Future<void> _showDeleteProjectDialog(
     BuildContext context,
-    WidgetRef ref,
+    ConversationsNotifier conversationsNotifier,
+    CodingProjectsNotifier projectsNotifier,
     CodingProject project,
   ) async {
     final shouldDelete = await showDialog<bool>(
@@ -348,10 +246,526 @@ class _CodingProjectsSection extends ConsumerWidget {
     final fallbackProjectId = ref
         .read(codingProjectsNotifierProvider)
         .selectedProjectId;
-    conversationsNotifier.activateWorkspace(
-      workspaceMode: WorkspaceMode.coding,
-      projectId: fallbackProjectId,
-      createIfMissing: fallbackProjectId != null,
+    if (fallbackProjectId == null) {
+      conversationsNotifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: null,
+        createIfMissing: false,
+      );
+      return;
+    }
+
+    await widget.onCodingProjectSelected(fallbackProjectId);
+  }
+}
+
+class _WorkspaceSwitcher extends StatelessWidget {
+  const _WorkspaceSwitcher({
+    required this.activeWorkspaceMode,
+    required this.onSelected,
+  });
+
+  final WorkspaceMode activeWorkspaceMode;
+  final ValueChanged<WorkspaceMode> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+      child: Column(
+        children: [
+          _WorkspaceTile(
+            key: const ValueKey('drawer-workspace-chat'),
+            icon: Icons.chat_bubble_outline,
+            label: 'chat.workspace_chat'.tr(),
+            selected: activeWorkspaceMode == WorkspaceMode.chat,
+            onTap: () => onSelected(WorkspaceMode.chat),
+          ),
+          _WorkspaceTile(
+            key: const ValueKey('drawer-workspace-coding'),
+            icon: Icons.code,
+            label: 'chat.workspace_coding'.tr(),
+            selected: activeWorkspaceMode == WorkspaceMode.coding,
+            onTap: () => onSelected(WorkspaceMode.coding),
+          ),
+          _WorkspaceTile(
+            key: const ValueKey('drawer-workspace-routines'),
+            icon: Icons.schedule_outlined,
+            label: 'chat.workspace_routines'.tr(),
+            selected: activeWorkspaceMode == WorkspaceMode.routines,
+            onTap: () => onSelected(WorkspaceMode.routines),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkspaceTile extends StatelessWidget {
+  const _WorkspaceTile({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      selected: selected,
+      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
+        alpha: 0.3,
+      ),
+      leading: Icon(
+        icon,
+        size: 20,
+        color: selected ? theme.colorScheme.primary : null,
+      ),
+      minLeadingWidth: 24,
+      title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      onTap: onTap,
+    );
+  }
+}
+
+class _ChatConversationSection extends StatelessWidget {
+  const _ChatConversationSection({
+    required this.conversationsState,
+    required this.conversationsNotifier,
+    required this.onConversationSelected,
+    required this.onDeleteConversation,
+    required this.onDeleteAll,
+  });
+
+  final ConversationsState conversationsState;
+  final ConversationsNotifier conversationsNotifier;
+  final Future<void> Function(String conversationId) onConversationSelected;
+  final ValueChanged<Conversation> onDeleteConversation;
+  final VoidCallback onDeleteAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final conversations = conversationsState.conversations
+        .where(
+          (conversation) => conversation.workspaceMode == WorkspaceMode.chat,
+        )
+        .toList(growable: false);
+
+    return Column(
+      children: [
+        _DrawerSectionHeader(
+          title: 'drawer.title'.tr(),
+          actions: [
+            if (conversations.isNotEmpty)
+              _HeaderIconButton(
+                icon: Icons.delete_sweep_outlined,
+                tooltip: 'drawer.delete_all_tooltip'.tr(),
+                onPressed: onDeleteAll,
+              ),
+            _HeaderIconButton(
+              icon: Icons.add,
+              tooltip: 'drawer.new_conversation'.tr(),
+              onPressed: () {
+                conversationsNotifier.createNewConversation(
+                  workspaceMode: WorkspaceMode.chat,
+                );
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+        Expanded(
+          child: conversations.isEmpty
+              ? Center(
+                  child: Text(
+                    'drawer.no_conversations'.tr(),
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  itemCount: conversations.length,
+                  itemBuilder: (context, index) {
+                    final conversation = conversations[index];
+                    return _ConversationTile(
+                      conversation: conversation,
+                      isSelected:
+                          conversation.id ==
+                          conversationsState.currentConversationId,
+                      onTap: () => onConversationSelected(conversation.id),
+                      onDelete: () => onDeleteConversation(conversation),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CodingProjectsSection extends StatelessWidget {
+  const _CodingProjectsSection({
+    required this.projectsState,
+    required this.conversationsState,
+    required this.conversationsNotifier,
+    required this.expandedProjectIds,
+    required this.collapsedThreadLimit,
+    required this.onAddProject,
+    required this.onProjectSelected,
+    required this.onConversationSelected,
+    required this.onDeleteConversation,
+    required this.onDeleteAllThreads,
+    required this.onDeleteProject,
+    required this.onToggleProjectExpanded,
+  });
+
+  final CodingProjectsState projectsState;
+  final ConversationsState conversationsState;
+  final ConversationsNotifier conversationsNotifier;
+  final Set<String> expandedProjectIds;
+  final int collapsedThreadLimit;
+  final Future<void> Function() onAddProject;
+  final Future<void> Function(String projectId) onProjectSelected;
+  final Future<void> Function(String conversationId) onConversationSelected;
+  final ValueChanged<Conversation> onDeleteConversation;
+  final VoidCallback onDeleteAllThreads;
+  final ValueChanged<CodingProject> onDeleteProject;
+  final ValueChanged<String> onToggleProjectExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeProject = projectsState.findById(
+      conversationsState.activeProjectId,
+    );
+    final activeThreads = conversationsState.visibleConversations;
+
+    return Column(
+      children: [
+        _DrawerSectionHeader(
+          title: 'drawer.projects'.tr(),
+          actions: [
+            _HeaderIconButton(
+              icon: Icons.create_new_folder_outlined,
+              tooltip: 'chat.add_project'.tr(),
+              onPressed: onAddProject,
+            ),
+            if (activeProject != null)
+              _HeaderIconButton(
+                icon: Icons.add,
+                tooltip: 'drawer.new_thread'.tr(),
+                onPressed: () {
+                  conversationsNotifier.createNewConversation(
+                    workspaceMode: WorkspaceMode.coding,
+                    projectId: activeProject.id,
+                  );
+                  Navigator.pop(context);
+                },
+              ),
+            if (activeThreads.isNotEmpty)
+              _HeaderIconButton(
+                icon: Icons.delete_sweep_outlined,
+                tooltip: 'drawer.delete_all_threads_tooltip'.tr(),
+                onPressed: onDeleteAllThreads,
+              ),
+          ],
+        ),
+        Expanded(
+          child: projectsState.projects.isEmpty
+              ? Center(
+                  child: Text(
+                    'drawer.no_projects'.tr(),
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  itemCount: projectsState.projects.length,
+                  itemBuilder: (context, index) {
+                    final project = projectsState.projects[index];
+                    final threads = _threadsForProject(project.id);
+                    return _ProjectThreadGroup(
+                      project: project,
+                      threads: threads,
+                      isSelected:
+                          project.id == conversationsState.activeProjectId,
+                      selectedConversationId:
+                          conversationsState.currentConversationId,
+                      isExpanded: expandedProjectIds.contains(project.id),
+                      collapsedThreadLimit: collapsedThreadLimit,
+                      onProjectSelected: () => onProjectSelected(project.id),
+                      onDeleteProject: () => onDeleteProject(project),
+                      onConversationSelected: onConversationSelected,
+                      onDeleteConversation: onDeleteConversation,
+                      onToggleExpanded: () =>
+                          onToggleProjectExpanded(project.id),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  List<Conversation> _threadsForProject(String projectId) {
+    return conversationsState.conversations
+        .where(
+          (conversation) =>
+              conversation.workspaceMode == WorkspaceMode.coding &&
+              conversation.normalizedProjectId == projectId,
+        )
+        .toList(growable: false);
+  }
+}
+
+class _ProjectThreadGroup extends StatelessWidget {
+  const _ProjectThreadGroup({
+    required this.project,
+    required this.threads,
+    required this.isSelected,
+    required this.selectedConversationId,
+    required this.isExpanded,
+    required this.collapsedThreadLimit,
+    required this.onProjectSelected,
+    required this.onDeleteProject,
+    required this.onConversationSelected,
+    required this.onDeleteConversation,
+    required this.onToggleExpanded,
+  });
+
+  final CodingProject project;
+  final List<Conversation> threads;
+  final bool isSelected;
+  final String? selectedConversationId;
+  final bool isExpanded;
+  final int collapsedThreadLimit;
+  final VoidCallback onProjectSelected;
+  final VoidCallback onDeleteProject;
+  final Future<void> Function(String conversationId) onConversationSelected;
+  final ValueChanged<Conversation> onDeleteConversation;
+  final VoidCallback onToggleExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleThreads = isExpanded
+        ? threads
+        : threads.take(collapsedThreadLimit).toList(growable: false);
+    final hiddenThreadCount = threads.length - collapsedThreadLimit;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ProjectTile(
+          project: project,
+          isSelected: isSelected,
+          onTap: onProjectSelected,
+          onDelete: onDeleteProject,
+        ),
+        for (final thread in visibleThreads)
+          _ProjectThreadTile(
+            conversation: thread,
+            isSelected: thread.id == selectedConversationId,
+            onTap: () => onConversationSelected(thread.id),
+            onDelete: () => onDeleteConversation(thread),
+          ),
+        if (hiddenThreadCount > 0)
+          _ShowMoreThreadsTile(
+            projectId: project.id,
+            isExpanded: isExpanded,
+            onTap: onToggleExpanded,
+          ),
+      ],
+    );
+  }
+}
+
+class _DrawerSectionHeader extends StatelessWidget {
+  const _DrawerSectionHeader({required this.title, required this.actions});
+
+  final String title;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+          ...actions,
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, size: 20),
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+      onPressed: onPressed,
+    );
+  }
+}
+
+class _ProjectTile extends StatelessWidget {
+  const _ProjectTile({
+    required this.project,
+    required this.isSelected,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final CodingProject project;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      key: ValueKey('drawer-project-${project.id}'),
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      selected: isSelected,
+      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
+        alpha: 0.3,
+      ),
+      leading: Icon(
+        Icons.folder_outlined,
+        size: 20,
+        color: isSelected ? theme.colorScheme.primary : null,
+      ),
+      minLeadingWidth: 24,
+      title: Text(project.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: IconButton(
+        icon: const Icon(Icons.delete_outline, size: 18),
+        tooltip: 'drawer.delete_tooltip'.tr(),
+        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+        onPressed: onDelete,
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _ProjectThreadTile extends StatelessWidget {
+  const _ProjectThreadTile({
+    required this.conversation,
+    required this.isSelected,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final Conversation conversation;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      key: ValueKey('drawer-thread-${conversation.id}'),
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsets.only(left: 44, right: 8),
+      selected: isSelected,
+      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
+        alpha: 0.3,
+      ),
+      title: Text(
+        _conversationTitle(conversation),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _formatConversationDate(conversation.updatedAt),
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 18),
+            tooltip: 'drawer.delete_tooltip'.tr(),
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+            onPressed: onDelete,
+          ),
+        ],
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _ShowMoreThreadsTile extends StatelessWidget {
+  const _ShowMoreThreadsTile({
+    required this.projectId,
+    required this.isExpanded,
+    required this.onTap,
+  });
+
+  final String projectId;
+  final bool isExpanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: ValueKey('drawer-project-$projectId-show-more'),
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsets.only(left: 44, right: 16),
+      title: Text(
+        isExpanded ? 'drawer.show_less'.tr() : 'drawer.show_more'.tr(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: Theme.of(context).colorScheme.primary),
+      ),
+      onTap: onTap,
     );
   }
 }
@@ -360,14 +774,12 @@ class _ConversationTile extends StatelessWidget {
   const _ConversationTile({
     required this.conversation,
     required this.isSelected,
-    required this.isCodingWorkspace,
     required this.onTap,
     required this.onDelete,
   });
 
   final Conversation conversation;
   final bool isSelected;
-  final bool isCodingWorkspace;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
@@ -376,20 +788,17 @@ class _ConversationTile extends StatelessWidget {
     final theme = Theme.of(context);
 
     return ListTile(
+      key: ValueKey('drawer-conversation-${conversation.id}'),
       selected: isSelected,
       selectedTileColor: theme.colorScheme.primaryContainer.withValues(
         alpha: 0.3,
       ),
       leading: Icon(
-        isCodingWorkspace ? Icons.code : Icons.chat_bubble_outline,
+        Icons.chat_bubble_outline,
         color: isSelected ? theme.colorScheme.primary : null,
       ),
       title: Text(
-        conversation.title == defaultConversationTitle
-            ? (isCodingWorkspace
-                  ? 'drawer.new_thread'.tr()
-                  : 'drawer.new_conversation'.tr())
-            : conversation.title,
+        _conversationTitle(conversation),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -397,7 +806,7 @@ class _ConversationTile extends StatelessWidget {
         ),
       ),
       subtitle: Text(
-        _formatDate(conversation.updatedAt),
+        _formatConversationDate(conversation.updatedAt),
         style: TextStyle(
           fontSize: 12,
           color: theme.colorScheme.onSurfaceVariant,
@@ -411,21 +820,48 @@ class _ConversationTile extends StatelessWidget {
       onTap: onTap,
     );
   }
+}
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date);
+class _SettingsDrawerTile extends StatelessWidget {
+  const _SettingsDrawerTile({required this.onTap});
 
-    if (diff.inDays == 0) {
-      final time =
-          '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-      return 'drawer.date_today'.tr(namedArgs: {'time': time});
-    } else if (diff.inDays == 1) {
-      return 'drawer.date_yesterday'.tr();
-    } else if (diff.inDays < 7) {
-      return 'drawer.days_ago'.tr(namedArgs: {'days': diff.inDays.toString()});
-    } else {
-      return '${date.month}/${date.day}';
-    }
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: const ValueKey('drawer-settings'),
+      dense: true,
+      leading: const Icon(Icons.settings_outlined),
+      title: Text('chat.settings'.tr()),
+      onTap: onTap,
+    );
+  }
+}
+
+String _conversationTitle(Conversation conversation) {
+  if (conversation.title != defaultConversationTitle) {
+    return conversation.title;
+  }
+  return switch (conversation.workspaceMode) {
+    WorkspaceMode.coding => 'drawer.new_thread'.tr(),
+    _ => 'drawer.new_conversation'.tr(),
+  };
+}
+
+String _formatConversationDate(DateTime date) {
+  final now = DateTime.now();
+  final diff = now.difference(date);
+
+  if (diff.inDays == 0) {
+    final time =
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    return 'drawer.date_today'.tr(namedArgs: {'time': time});
+  } else if (diff.inDays == 1) {
+    return 'drawer.date_yesterday'.tr();
+  } else if (diff.inDays < 7) {
+    return 'drawer.days_ago'.tr(namedArgs: {'days': diff.inDays.toString()});
+  } else {
+    return '${date.month}/${date.day}';
   }
 }

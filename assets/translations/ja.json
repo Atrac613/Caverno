@@ -347,6 +347,8 @@
     "project_delete_title": "プロジェクトを削除",
     "project_delete_confirm": "「{name}」とそのコーディングスレッドをすべて削除しますか？",
     "delete_tooltip": "削除",
+    "show_more": "さらに表示",
+    "show_less": "折りたたむ",
     "date_today": "今日 {time}",
     "date_yesterday": "昨日",
     "days_ago": "{days}日前"
