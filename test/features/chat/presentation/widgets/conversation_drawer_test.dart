@@ -327,6 +327,62 @@ void main() {
       expect(find.text('Show less'), findsOneWidget);
     },
   );
+
+  testWidgets('coding drawer collapses and reopens project threads', (
+    tester,
+  ) async {
+    final project = _project(id: 'project-1', name: 'caverno');
+    final conversations = [
+      _conversation(
+        id: 'thread-1',
+        title: 'Thread 1',
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+      ),
+      _conversation(
+        id: 'thread-2',
+        title: 'Thread 2',
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+        minutesAgo: 1,
+      ),
+    ];
+
+    await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: conversations,
+        currentConversationId: 'thread-1',
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+      projectsState: CodingProjectsState(
+        projects: [project],
+        selectedProjectId: project.id,
+      ),
+    );
+
+    expect(find.text('caverno'), findsOneWidget);
+    expect(find.text('Thread 1'), findsOneWidget);
+    expect(find.text('Thread 2'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('drawer-project-project-1-toggle')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('caverno'), findsOneWidget);
+    expect(find.text('Thread 1'), findsNothing);
+    expect(find.text('Thread 2'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('drawer-project-project-1-toggle')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Thread 1'), findsOneWidget);
+    expect(find.text('Thread 2'), findsOneWidget);
+  });
 }
 
 Future<ProviderContainer> _pumpDrawerApp(

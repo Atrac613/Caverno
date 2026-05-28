@@ -347,6 +347,8 @@
     "project_delete_title": "Remove Project",
     "project_delete_confirm": "Remove \"{name}\" and all of its coding threads?",
     "delete_tooltip": "Delete",
+    "expand_project": "Expand project",
+    "collapse_project": "Collapse project",
     "show_more": "Show more",
     "show_less": "Show less",
     "date_today": "Today {time}",

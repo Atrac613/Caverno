@@ -36,6 +36,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
   static const int _collapsedProjectThreadLimit = 5;
 
   final Set<String> _expandedProjectIds = <String>{};
+  final Set<String> _collapsedProjectIds = <String>{};
 
   @override
   Widget build(BuildContext context) {
@@ -81,9 +82,15 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                   conversationsState: conversationsState,
                   conversationsNotifier: conversationsNotifier,
                   expandedProjectIds: _expandedProjectIds,
+                  collapsedProjectIds: _collapsedProjectIds,
                   collapsedThreadLimit: _collapsedProjectThreadLimit,
                   onAddProject: () => widget.onAddCodingProject(context),
-                  onProjectSelected: widget.onCodingProjectSelected,
+                  onProjectSelected: (projectId) async {
+                    setState(() {
+                      _collapsedProjectIds.remove(projectId);
+                    });
+                    await widget.onCodingProjectSelected(projectId);
+                  },
                   onConversationSelected: (conversationId) =>
                       _selectConversation(context, conversationId),
                   onDeleteConversation: (conversation) => _showDeleteDialog(
@@ -106,6 +113,13 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                     setState(() {
                       if (!_expandedProjectIds.add(projectId)) {
                         _expandedProjectIds.remove(projectId);
+                      }
+                    });
+                  },
+                  onToggleProjectCollapsed: (projectId) {
+                    setState(() {
+                      if (!_collapsedProjectIds.add(projectId)) {
+                        _collapsedProjectIds.remove(projectId);
                       }
                     });
                   },
@@ -437,6 +451,7 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.conversationsState,
     required this.conversationsNotifier,
     required this.expandedProjectIds,
+    required this.collapsedProjectIds,
     required this.collapsedThreadLimit,
     required this.onAddProject,
     required this.onProjectSelected,
@@ -445,6 +460,7 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.onDeleteAllThreads,
     required this.onDeleteProject,
     required this.onToggleProjectExpanded,
+    required this.onToggleProjectCollapsed,
     required this.closeDrawer,
   });
 
@@ -452,6 +468,7 @@ class _CodingProjectsSection extends StatelessWidget {
   final ConversationsState conversationsState;
   final ConversationsNotifier conversationsNotifier;
   final Set<String> expandedProjectIds;
+  final Set<String> collapsedProjectIds;
   final int collapsedThreadLimit;
   final Future<void> Function() onAddProject;
   final Future<void> Function(String projectId) onProjectSelected;
@@ -460,6 +477,7 @@ class _CodingProjectsSection extends StatelessWidget {
   final VoidCallback onDeleteAllThreads;
   final ValueChanged<CodingProject> onDeleteProject;
   final ValueChanged<String> onToggleProjectExpanded;
+  final ValueChanged<String> onToggleProjectCollapsed;
   final VoidCallback closeDrawer;
 
   @override
@@ -521,6 +539,7 @@ class _CodingProjectsSection extends StatelessWidget {
                       selectedConversationId:
                           conversationsState.currentConversationId,
                       isExpanded: expandedProjectIds.contains(project.id),
+                      isCollapsed: collapsedProjectIds.contains(project.id),
                       collapsedThreadLimit: collapsedThreadLimit,
                       onProjectSelected: () => onProjectSelected(project.id),
                       onDeleteProject: () => onDeleteProject(project),
@@ -528,6 +547,8 @@ class _CodingProjectsSection extends StatelessWidget {
                       onDeleteConversation: onDeleteConversation,
                       onToggleExpanded: () =>
                           onToggleProjectExpanded(project.id),
+                      onToggleCollapsed: () =>
+                          onToggleProjectCollapsed(project.id),
                     );
                   },
                 ),
@@ -554,12 +575,14 @@ class _ProjectThreadGroup extends StatelessWidget {
     required this.isSelected,
     required this.selectedConversationId,
     required this.isExpanded,
+    required this.isCollapsed,
     required this.collapsedThreadLimit,
     required this.onProjectSelected,
     required this.onDeleteProject,
     required this.onConversationSelected,
     required this.onDeleteConversation,
     required this.onToggleExpanded,
+    required this.onToggleCollapsed,
   });
 
   final CodingProject project;
@@ -567,17 +590,21 @@ class _ProjectThreadGroup extends StatelessWidget {
   final bool isSelected;
   final String? selectedConversationId;
   final bool isExpanded;
+  final bool isCollapsed;
   final int collapsedThreadLimit;
   final VoidCallback onProjectSelected;
   final VoidCallback onDeleteProject;
   final Future<void> Function(String conversationId) onConversationSelected;
   final ValueChanged<Conversation> onDeleteConversation;
   final VoidCallback onToggleExpanded;
+  final VoidCallback onToggleCollapsed;
 
   @override
   Widget build(BuildContext context) {
-    final visibleThreads = isExpanded
+    final visibleThreads = isExpanded && !isCollapsed
         ? threads
+        : isCollapsed
+        ? const <Conversation>[]
         : threads.take(collapsedThreadLimit).toList(growable: false);
     final hiddenThreadCount = threads.length - collapsedThreadLimit;
 
@@ -587,8 +614,10 @@ class _ProjectThreadGroup extends StatelessWidget {
         _ProjectTile(
           project: project,
           isSelected: isSelected,
+          isCollapsed: isCollapsed,
           onTap: onProjectSelected,
           onDelete: onDeleteProject,
+          onToggleCollapsed: onToggleCollapsed,
         ),
         for (final thread in visibleThreads)
           _ProjectThreadTile(
@@ -597,7 +626,7 @@ class _ProjectThreadGroup extends StatelessWidget {
             onTap: () => onConversationSelected(thread.id),
             onDelete: () => onDeleteConversation(thread),
           ),
-        if (hiddenThreadCount > 0)
+        if (!isCollapsed && hiddenThreadCount > 0)
           _ShowMoreThreadsTile(
             projectId: project.id,
             isExpanded: isExpanded,
@@ -664,14 +693,18 @@ class _ProjectTile extends StatelessWidget {
   const _ProjectTile({
     required this.project,
     required this.isSelected,
+    required this.isCollapsed,
     required this.onTap,
     required this.onDelete,
+    required this.onToggleCollapsed,
   });
 
   final CodingProject project;
   final bool isSelected;
+  final bool isCollapsed;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final VoidCallback onToggleCollapsed;
 
   @override
   Widget build(BuildContext context) {
@@ -684,13 +717,37 @@ class _ProjectTile extends StatelessWidget {
       selectedTileColor: theme.colorScheme.primaryContainer.withValues(
         alpha: 0.3,
       ),
-      leading: Icon(
-        Icons.folder_outlined,
-        size: 20,
-        color: isSelected ? theme.colorScheme.primary : null,
+      leading: IconButton(
+        key: ValueKey('drawer-project-${project.id}-toggle'),
+        icon: Icon(
+          isCollapsed ? Icons.chevron_right : Icons.expand_more,
+          size: 20,
+        ),
+        tooltip: isCollapsed
+            ? 'drawer.expand_project'.tr()
+            : 'drawer.collapse_project'.tr(),
+        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+        onPressed: onToggleCollapsed,
       ),
-      minLeadingWidth: 24,
-      title: Text(project.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      minLeadingWidth: 36,
+      title: Row(
+        children: [
+          Icon(
+            Icons.folder_outlined,
+            size: 20,
+            color: isSelected ? theme.colorScheme.primary : null,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              project.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
       trailing: IconButton(
         icon: const Icon(Icons.delete_outline, size: 18),
         tooltip: 'drawer.delete_tooltip'.tr(),
