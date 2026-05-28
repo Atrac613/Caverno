@@ -29,6 +29,10 @@ void main() {
     expect(LocalShellTools.isReadOnly('flutter test'), isFalse);
     expect(LocalShellTools.isReadOnly('rm -rf build'), isFalse);
     expect(LocalShellTools.isReadOnly('rg ChatPage lib | head'), isFalse);
+    expect(
+      LocalShellTools.isReadOnly(r'echo $CAVERNO_SESSION_LOG_DIR'),
+      isFalse,
+    );
     expect(LocalShellTools.isReadOnly('sed -i s/foo/bar/g file.txt'), isFalse);
   });
 
@@ -88,6 +92,34 @@ void main() {
     expect(result['stderr'], isEmpty);
     expect(result['stdout'], isNot(contains('unsupported option')));
     expect(srcDir.existsSync(), isTrue);
+  });
+
+  test('uses the platform shell for shell expansion syntax', () async {
+    if (Platform.isWindows) {
+      return;
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp(
+      'local_shell_tools_shell_syntax_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await File('${tempDir.path}/README.md').writeAsString('hello\n');
+
+    final raw = await LocalShellTools.execute(
+      command: 'ls -la "${tempDir.path}" 2>/dev/null | head -20',
+      workingDirectory: tempDir.path,
+    );
+
+    final result = jsonDecode(raw) as Map<String, dynamic>;
+    expect(result['exit_code'], 0);
+    expect(result['executed_internally'], isNull);
+    expect(result['stdout'], contains('README.md'));
+    expect(result['stderr'], isEmpty);
   });
 
   test('executes head, tail, wc, find, and rg internally', () async {

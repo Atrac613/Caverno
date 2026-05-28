@@ -64,6 +64,13 @@ class SessionMemoryService {
     r'(\d+円|\d+ドル|\$\d|\d+kg|\d+g|\d+ml|\d+リットル|\d+個|\d+枚|\d+本|\d+台|\d+回|買った|購入|契約|決めた|予約|申し込|登録|支払|paid|bought|purchased|cost|price|\d+\s*yen)',
     caseSensitive: false,
   );
+  static final RegExp _durableIdentifierPattern = RegExp(
+    r'[A-Za-z0-9][A-Za-z0-9._/-]{15,}',
+  );
+  static final RegExp _assistantUnresolvedPattern = RegExp(
+    r'\b(blocked|blocker|cannot|can not|unable|waiting|pending)\b|\bfailed\s+to\b',
+    caseSensitive: false,
+  );
 
   final ChatMemoryRepository _repository;
   final _uuid = const Uuid();
@@ -159,12 +166,10 @@ class SessionMemoryService {
         : MemorySessionSummary(
             conversationId: conversationId,
             summary: _truncate(_normalizeSentence(draft.summary), 160),
-            openLoops: draft.openLoops
-                .map(_normalizeSentence)
-                .where((loop) => loop.isNotEmpty)
-                .take(3)
-                .map((loop) => _truncate(loop, 80))
-                .toList(),
+            openLoops: _filterDraftOpenLoops(
+              draft.openLoops,
+              normalizedMessages,
+            ),
             updatedAt: timestamp,
           );
     await _repository.upsertSessionSummary(summary);
@@ -428,6 +433,79 @@ class SessionMemoryService {
       openLoops: openLoops,
       updatedAt: now,
     );
+  }
+
+  List<String> _filterDraftOpenLoops(
+    List<String> rawOpenLoops,
+    List<Message> messages,
+  ) {
+    final normalizedOpenLoops = rawOpenLoops
+        .map(_normalizeSentence)
+        .where((loop) => loop.isNotEmpty)
+        .toList();
+    if (normalizedOpenLoops.isEmpty) return const [];
+
+    return normalizedOpenLoops
+        .where((loop) => !_isCoveredByLatestAssistantTurn(loop, messages))
+        .take(3)
+        .map((loop) => _truncate(loop, 80))
+        .toList();
+  }
+
+  bool _isCoveredByLatestAssistantTurn(
+    String openLoop,
+    List<Message> messages,
+  ) {
+    final latestUserIndex = messages.lastIndexWhere(
+      (message) =>
+          message.role == MessageRole.user && message.content.trim().isNotEmpty,
+    );
+    if (latestUserIndex < 0) return false;
+
+    Message? latestAssistant;
+    for (final message in messages.skip(latestUserIndex + 1)) {
+      if (message.role == MessageRole.assistant &&
+          message.content.trim().isNotEmpty) {
+        latestAssistant = message;
+      }
+    }
+    if (latestAssistant == null) return false;
+
+    final assistantText = _normalizeSentence(latestAssistant.content);
+    if (assistantText.isEmpty ||
+        assistantText.contains('?') ||
+        _assistantUnresolvedPattern.hasMatch(assistantText)) {
+      return false;
+    }
+
+    final latestUser = _normalizeSentence(messages[latestUserIndex].content);
+    if (_sharesDurableIdentifier(openLoop, latestUser) ||
+        _sharesDurableIdentifier(openLoop, assistantText)) {
+      return true;
+    }
+
+    final normalizedLoop = _normalizeMemoryText(openLoop);
+    final normalizedUser = _normalizeMemoryText(latestUser);
+    if (normalizedLoop.length < 24 || normalizedUser.length < 24) {
+      return false;
+    }
+    return normalizedUser.contains(normalizedLoop) ||
+        normalizedLoop.contains(normalizedUser);
+  }
+
+  bool _sharesDurableIdentifier(String first, String second) {
+    final firstIdentifiers = _durableIdentifierPattern
+        .allMatches(first)
+        .map((match) => match.group(0)!.toLowerCase())
+        .toSet();
+    if (firstIdentifiers.isEmpty) return false;
+
+    for (final match in _durableIdentifierPattern.allMatches(second)) {
+      if (firstIdentifiers.contains(match.group(0)!.toLowerCase())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   List<MemoryEntry> _extractMemories({

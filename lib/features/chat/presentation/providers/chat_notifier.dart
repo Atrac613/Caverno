@@ -282,8 +282,7 @@ class ChatNotifier extends Notifier<ChatState> {
         messages: next.currentConversation?.messages ?? const [],
       );
       final nextProjectId = next.activeProjectId;
-      if (nextProjectId != null &&
-          nextProjectId != previous?.activeProjectId) {
+      if (nextProjectId != null && nextProjectId != previous?.activeProjectId) {
         unawaited(_prewarmProjectAccess(nextProjectId));
       }
     });
@@ -6756,6 +6755,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }) async {
       final messagesForLLM = _prepareMessagesForLLM(
         forceCompaction: forceCompaction,
+        toolDefinitionsOverride: const <Map<String, dynamic>>[],
       );
       messagesForLLM.addAll(
         _buildToolResultAnswerMessages(toolResults, budgetMode: budgetMode),
@@ -6778,14 +6778,15 @@ class ChatNotifier extends Notifier<ChatState> {
           _removeTrailingThinkTag();
           if (state.messages.isNotEmpty &&
               state.messages.last.content.isNotEmpty) {
-            _appendToLastMessage('\n');
+            _appendToLastMessage('\n', scanForTools: false);
           }
         }
-        _appendToLastMessage(chunk);
+        _appendToLastMessage(chunk, scanForTools: false);
       }
       if (isFirstChunk) {
         _removeTrailingThinkTag();
       }
+      _stripToolArtifactsFromLastAssistantMessage();
     }
 
     try {
@@ -7204,9 +7205,13 @@ class ChatNotifier extends Notifier<ChatState> {
             appLog(
               '[Tool] Duplicate command follow-up already has a successful result',
             );
-            currentToolCalls = [];
             final fallbackResponse =
-                'The saved validation command already succeeded for the current saved task, so the current saved task is complete.';
+                _buildDuplicateSuccessfulCommandFallbackResponse(
+                  toolCalls: currentToolCalls,
+                  previousToolResults: executedToolResults,
+                  currentAssistantContent: currentAssistantContent,
+                );
+            currentToolCalls = [];
             _recordHiddenAssistantResponse(fallbackResponse);
             _appendRecoveredAssistantResponse(fallbackResponse);
             currentAssistantContent = fallbackResponse;
@@ -7454,6 +7459,30 @@ class ChatNotifier extends Notifier<ChatState> {
             ? nextResult.content
             : null;
         if (iteration >= maxIterations &&
+            _hasUnseenReadOnlyInspectionToolCalls(
+              currentToolCalls,
+              executedToolCallKeys,
+              commandRetryGeneration: commandRetryGeneration,
+            )) {
+          appLog(
+            '[Tool] Tool loop reached limit with pending read-only inspection; '
+            'executing one final inspection batch',
+          );
+          final finalInspectionResults =
+              await _executeFinalReadOnlyInspectionToolCalls(
+                toolCalls: currentToolCalls,
+                executedToolCallKeys: executedToolCallKeys,
+                commandRetryGeneration: commandRetryGeneration,
+                loopIndex: iteration + 1,
+              );
+          if (!ref.mounted) return;
+          if (finalInspectionResults.isNotEmpty) {
+            executedToolResults.addAll(finalInspectionResults);
+          }
+          currentToolCalls = [];
+          break;
+        }
+        if (iteration >= maxIterations &&
             !attemptedToolLoopExhaustionRecovery &&
             batchToolResults.isNotEmpty) {
           attemptedToolLoopExhaustionRecovery = true;
@@ -7550,6 +7579,32 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
 
+    if (!hasTextResponse &&
+        currentToolCalls.isNotEmpty &&
+        iteration >= maxIterations &&
+        _hasUnseenReadOnlyInspectionToolCalls(
+          currentToolCalls,
+          executedToolCallKeys,
+          commandRetryGeneration: commandRetryGeneration,
+        )) {
+      appLog(
+        '[Tool] Tool loop reached limit with pending read-only inspection; '
+        'executing one final inspection batch',
+      );
+      final finalInspectionResults =
+          await _executeFinalReadOnlyInspectionToolCalls(
+            toolCalls: currentToolCalls,
+            executedToolCallKeys: executedToolCallKeys,
+            commandRetryGeneration: commandRetryGeneration,
+            loopIndex: iteration + 1,
+          );
+      if (!ref.mounted) return;
+      if (finalInspectionResults.isNotEmpty) {
+        executedToolResults.addAll(finalInspectionResults);
+      }
+      currentToolCalls = [];
+    }
+
     // If tool results exist and no text response has been shown yet,
     // resend them as a user message and stream the final answer.
     if (!hasTextResponse && executedToolResults.isNotEmpty) {
@@ -7573,6 +7628,98 @@ class ChatNotifier extends Notifier<ChatState> {
       executedToolResults,
     );
     await _finishStreaming();
+  }
+
+  Future<List<ToolResultInfo>> _executeFinalReadOnlyInspectionToolCalls({
+    required List<ToolCallInfo> toolCalls,
+    required Set<String> executedToolCallKeys,
+    required int commandRetryGeneration,
+    required int loopIndex,
+  }) async {
+    final pendingToolCalls = <ToolCallInfo>[];
+    for (final toolCall in toolCalls) {
+      if (!_isReadOnlyInspectionTool(toolCall.name)) {
+        continue;
+      }
+      final toolCallKey = _toolExecutionKey(
+        toolCall,
+        commandRetryGeneration: commandRetryGeneration,
+      );
+      if (executedToolCallKeys.contains(toolCallKey)) {
+        appLog(
+          '[Tool] Skipping duplicate final inspection call: '
+          '${toolCall.name} ${toolCall.arguments}',
+        );
+        _logToolLifecycleEvent(
+          toolCall: toolCall,
+          lifecycleState: 'skipped',
+          loopIndex: loopIndex,
+          schedulerMode: ToolExecutionScheduler.executionModeFor(toolCall),
+          resultStatus: 'skipped',
+          skipReason: 'duplicate_tool_call',
+        );
+        continue;
+      }
+
+      appLog('[Tool] Executing final inspection tool: ${toolCall.name}');
+      appLog('[Tool] Arguments: ${toolCall.arguments}');
+      _appendToolUseToLastMessage(toolCall);
+      pendingToolCalls.add(toolCall);
+    }
+
+    if (pendingToolCalls.isEmpty) {
+      return const [];
+    }
+
+    final scheduledResults = await ToolExecutionScheduler.executeBatch(
+      toolCalls: pendingToolCalls,
+      execute: _dispatchToolCall,
+      onLifecycle: (event) =>
+          _logScheduledToolLifecycleEvent(event, loopIndex: loopIndex),
+      onBatch: (telemetry) {
+        appLog(
+          '[Tool] Scheduler ${telemetry.mode.name} final inspection batch '
+          '(size=${telemetry.batchSize}, tools=${telemetry.toolNames.join(', ')})'
+          '${telemetry.note == null ? '' : ' • ${telemetry.note}'}',
+        );
+      },
+    );
+
+    final toolResults = <ToolResultInfo>[];
+    for (final scheduledResult in scheduledResults) {
+      final toolCall = scheduledResult.toolCall;
+      final toolCallKey = _toolExecutionKey(
+        toolCall,
+        commandRetryGeneration: commandRetryGeneration,
+      );
+      final result = scheduledResult.result;
+      final toolResult = switch ((result, scheduledResult.error)) {
+        (final McpToolResult result, null) =>
+          result.isSuccess
+              ? result.result
+              : (result.result.trim().isNotEmpty
+                    ? result.result
+                    : 'Error: ${result.errorMessage}'),
+        (_, final Object error?) => 'Error: $error',
+        _ => 'Error: Tool execution did not return a result',
+      };
+
+      final promptToolResult = await _toolResultArtifactStore.persistIfLarge(
+        ToolResultInfo(
+          id: toolCall.id,
+          name: toolCall.name,
+          arguments: toolCall.arguments,
+          result: toolResult,
+        ),
+        conversationId: conversationId,
+      );
+      toolResults.add(promptToolResult);
+
+      if (result?.isSuccess ?? false) {
+        executedToolCallKeys.add(toolCallKey);
+      }
+    }
+    return toolResults;
   }
 
   void _appendToLastMessage(String chunk, {bool scanForTools = true}) {
@@ -7715,6 +7862,23 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  bool _hasUnseenReadOnlyInspectionToolCalls(
+    List<ToolCallInfo> toolCalls,
+    Set<String> executedToolCallKeys, {
+    required int commandRetryGeneration,
+  }) {
+    if (!_containsOnlyReadOnlyInspectionToolCalls(toolCalls)) {
+      return false;
+    }
+    return toolCalls.any((toolCall) {
+      final toolCallKey = _toolExecutionKey(
+        toolCall,
+        commandRetryGeneration: commandRetryGeneration,
+      );
+      return !executedToolCallKeys.contains(toolCallKey);
+    });
+  }
+
   bool _containsOnlyPreviouslySuccessfulCommandToolCalls(
     List<ToolCallInfo> toolCalls,
     List<ToolResultInfo> previousToolResults,
@@ -7736,6 +7900,78 @@ class ChatNotifier extends Notifier<ChatState> {
             _toolCommandArgument(result.arguments) == command &&
             _toolResultHasSuccessfulExit(result),
       );
+    });
+  }
+
+  String _buildDuplicateSuccessfulCommandFallbackResponse({
+    required List<ToolCallInfo> toolCalls,
+    required List<ToolResultInfo> previousToolResults,
+    required String? currentAssistantContent,
+  }) {
+    if (_containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(
+      toolCalls,
+      previousToolResults,
+    )) {
+      return 'The saved validation command already succeeded for the current saved task, so the current saved task is complete.';
+    }
+
+    final candidate = currentAssistantContent?.trim() ?? '';
+    if (candidate.isNotEmpty) {
+      return candidate;
+    }
+
+    final repeatedCommands = toolCalls
+        .map((toolCall) => _toolCommandArgument(toolCall.arguments))
+        .whereType<String>()
+        .toSet()
+        .join(', ');
+    if (repeatedCommands.isEmpty) {
+      return 'The repeated command already succeeded, so I used the previous result and stopped the duplicate command loop.';
+    }
+    return 'The repeated command already succeeded ($repeatedCommands), so I used the previous result and stopped the duplicate command loop.';
+  }
+
+  bool _containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(
+    List<ToolCallInfo> toolCalls,
+    List<ToolResultInfo> previousToolResults,
+  ) {
+    if (toolCalls.isEmpty || previousToolResults.isEmpty) {
+      return false;
+    }
+    final validationCommand = _currentSavedValidationCommandForToolLoop();
+    if (validationCommand == null) {
+      return false;
+    }
+    final normalizedValidationCommand = _normalizeToolCommandForComparison(
+      validationCommand,
+    );
+
+    return toolCalls.every((toolCall) {
+      if (!_isCommandExecutionTool(toolCall.name)) {
+        return false;
+      }
+      final command = _toolCommandArgument(toolCall.arguments);
+      if (command == null) {
+        return false;
+      }
+      final normalizedCommand = _normalizeToolCommandForComparison(command);
+      return previousToolResults.any((result) {
+        if (result.name != toolCall.name ||
+            !_toolResultHasSuccessfulExit(result)) {
+          return false;
+        }
+        final resultCommand = _toolCommandArgument(result.arguments);
+        if (resultCommand == null ||
+            _normalizeToolCommandForComparison(resultCommand) !=
+                normalizedCommand) {
+          return false;
+        }
+        return _toolCommandMatchesSavedValidation(
+          result: result,
+          command: command,
+          normalizedValidationCommand: normalizedValidationCommand,
+        );
+      });
     });
   }
 

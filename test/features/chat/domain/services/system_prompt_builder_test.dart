@@ -47,6 +47,12 @@ void main() {
     expect(
       prompt,
       contains(
+        'When analyzing Caverno LLM session logs, treat each JSONL line as a caverno_llm_session_log_entry object',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
         'Use os_get_system_info when the current machine operating system or version matters.',
       ),
     );

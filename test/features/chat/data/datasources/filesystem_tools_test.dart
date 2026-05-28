@@ -32,6 +32,27 @@ void main() {
     );
   });
 
+  test('resolvePath expands home-relative paths', () {
+    if (Platform.isWindows) {
+      return;
+    }
+
+    final home = Platform.environment['HOME'];
+    if (home == null || home.trim().isEmpty) {
+      return;
+    }
+
+    final resolved = FilesystemTools.resolvePath(
+      '~/.caverno/session_logs',
+      defaultRoot: tempDir.path,
+    );
+
+    expect(
+      resolved,
+      '${Directory(home).absolute.path}${Platform.pathSeparator}.caverno${Platform.pathSeparator}session_logs',
+    );
+  });
+
   test('write, read, and edit file round-trip', () async {
     final targetPath =
         '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}sample.txt';

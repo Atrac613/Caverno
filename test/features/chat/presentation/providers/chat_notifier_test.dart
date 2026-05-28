@@ -2160,6 +2160,181 @@ void main() {
   });
 
   test(
+    'final tool-result answers do not execute embedded content tool calls',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'read_file',
+            arguments: const {'path': 'lib/main.dart'},
+          ),
+        ],
+        finalAnswerChunks: const [
+          'Summary before hidden call.\n'
+              '<tool_call>{"name":"search_files","arguments":{"query":"widgets"}}</tool_call>\n'
+              '<tool_call>read_file',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'read_file': '{"content":"void main() {}"}',
+          'search_files': '{"matches":["should-not-run"]}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Inspect the file');
+
+        expect(toolService.executedToolNames, ['read_file']);
+        expect(toolDataSource.finalAnswerRequestMessages, hasLength(1));
+        expect(
+          toolDataSource.finalAnswerMessages.first.content,
+          isNot(contains('Available tools:')),
+        );
+        final answerPrompt = toolDataSource.finalAnswerMessages.singleWhere(
+          (message) => message.content.contains('[Tool: read_file]'),
+        );
+        expect(answerPrompt.content, isNot(contains('<tool_use>')));
+        expect(
+          answerPrompt.content,
+          contains('instead of emitting tool-call tags'),
+        );
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Summary before hidden call.'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('<tool_call>')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage executes pending read-only inspection at tool loop limit',
+    () async {
+      final toolLoopResponses = [
+        for (var index = 1; index < 12; index += 1)
+          ChatCompletionResult(
+            content: 'Continue lookup $index',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-command-$index',
+                name: 'local_execute_command',
+                arguments: {'command': 'probe-$index'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ChatCompletionResult(
+          content: 'Found the target log; read it now.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-read-target',
+              name: 'read_file',
+              arguments: const {'path': '/tmp/session-log.jsonl'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      ];
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-command-0',
+            name: 'local_execute_command',
+            arguments: const {'command': 'probe-0'},
+          ),
+        ],
+        toolLoopResponses: toolLoopResponses,
+        finalAnswerChunks: const ['Final answer after reading the target log.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"probe","exit_code":0,"stdout":"ok\\n","stderr":""}',
+          'read_file':
+              '{"path":"/tmp/session-log.jsonl","content":"target log body"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Find and read the interrupted log');
+
+        expect(toolDataSource.toolResultBatches, hasLength(12));
+        expect(
+          toolDataSource.toolResultBatches
+              .expand((batch) => batch)
+              .map((result) => result.name),
+          everyElement('local_execute_command'),
+        );
+        expect(toolService.executedToolNames.last, 'read_file');
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        final finalPrompt = toolDataSource.finalAnswerMessages
+            .map((message) => message.content)
+            .join('\n');
+        expect(finalPrompt, contains('[Tool: read_file]'));
+        expect(finalPrompt, contains('target log body'));
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Final answer after reading the target log.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage discovers a deferred tool with tool_search before execution',
     () async {
       final toolDataSource = _ToolBatchChatDataSource(
@@ -4436,6 +4611,27 @@ void main() {
   test(
     'sendMessage stops duplicate command follow-up after successful validation',
     () async {
+      final conversation = Conversation(
+        id: 'conversation-duplicate-validation',
+        title: 'Plan thread',
+        messages: const <Message>[],
+        createdAt: DateTime(2026, 4, 24, 12),
+        updatedAt: DateTime(2026, 4, 24, 12, 5),
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-ping-cli',
+              title: 'Implement ping CLI',
+              targetFiles: ['ping_cli.py'],
+              validationCommand: 'python3 ping_cli.py --help',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+          ],
+        ),
+      );
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -4494,11 +4690,14 @@ void main() {
             _ToolEnabledNoConfirmSettingsNotifier.new,
           ),
           conversationsNotifierProvider.overrideWith(
-            _TestConversationsNotifier.new,
+            () => _WorkflowTestConversationsNotifier(conversation),
           ),
           chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
           sessionMemoryServiceProvider.overrideWithValue(
             _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
           ),
           mcpToolServiceProvider.overrideWithValue(toolService),
           appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
@@ -4520,7 +4719,95 @@ void main() {
         expect(toolDataSource.finalAnswerMessages, isEmpty);
         expect(
           toolNotifier.state.messages.last.content,
-          contains('saved validation command already succeeded'),
+          contains('validation command already passed'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('This final answer should never be requested.')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage preserves duplicate read-only command investigation content',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-log-summary',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'python3 summarize_session_log.py',
+              'working_directory': '/tmp',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                'The session log shows the conversation reset after a duplicate inspection command.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-log-summary-duplicate',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'python3 summarize_session_log.py',
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"python3 summarize_session_log.py","exit_code":0,"stdout":"summary\\n","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Investigate the session log');
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('conversation reset after a duplicate inspection command'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('saved validation command')),
         );
         expect(
           toolNotifier.state.messages.last.content,

@@ -3502,7 +3502,7 @@ class McpToolService {
     'function': {
       'name': 'local_execute_command',
       'description':
-          'Execute a local shell command inside the current project. Read-only commands may run immediately; commands that can modify files or state require user approval.',
+          'Execute a local shell command inside the current project. Read-only commands may run immediately; commands that can modify files or state require user approval. Prefer file tools for file discovery and reading; prefer absolute paths or working_directory over shell-only features such as pipes, redirection, environment variables, or command substitution.',
       'parameters': {
         'type': 'object',
         'properties': {

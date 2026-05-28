@@ -43,6 +43,7 @@ void main() {
     expect(input, contains('- user: I prefer concise coding explanations.'));
     expect(input, contains('Application-executed tool results'));
     expect(input, contains('git_execute_command'));
+    expect(input, contains('Only include open_loops when the latest turn'));
     expect(input, contains('Do not save assistant claims about local file'));
     expect(input, contains('Output rules:'));
   });

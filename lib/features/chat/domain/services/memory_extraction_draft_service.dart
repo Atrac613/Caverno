@@ -101,6 +101,9 @@ class MemoryExtractionDraftService {
       ..writeln('- confidence/importance range: 0.0 to 1.0')
       ..writeln('- Set confidence low for uncertain items')
       ..writeln(
+        '- Only include open_loops when the latest turn still needs user or assistant follow-up. Leave open_loops empty when the latest assistant response answered or completed the request, even if it suggested optional next steps.',
+      )
+      ..writeln(
         '- Do not save assistant claims about local file, git, command, or external state changes as facts unless they are supported by the application-executed tool results above or directly stated by the user.',
       )
       ..writeln(

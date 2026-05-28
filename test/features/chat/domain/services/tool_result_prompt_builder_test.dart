@@ -79,8 +79,9 @@ void main() {
 
       expect(prompt, contains('Only claim that a local file was created'));
       expect(prompt, contains('If the user requested local file changes'));
-      expect(prompt, contains('<tool_use>...</tool_use>'));
-      expect(prompt, contains('write_file or edit_file'));
+      expect(prompt, contains('the files were not created yet'));
+      expect(prompt, contains('instead of emitting tool-call tags'));
+      expect(prompt, isNot(contains('<tool_use>')));
     });
 
     test('redacts screenshot base64 from answer prompts', () {

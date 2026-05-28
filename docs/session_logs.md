@@ -60,11 +60,28 @@ Do not commit generated session log files.
 When debugging a session with Codex:
 
 1. Identify the relevant workspace subdirectory.
-2. Open the matching `.jsonl` file for the conversation or routine run.
-3. Inspect entries in timestamp order.
-4. Compare the model request, tool calls, tool results, and final response.
-5. Check whether auto-review or memory extraction introduced a secondary LLM
+2. Start with the bounded summary command:
+   `dart run tool/caverno_session_log_summary.dart --log path/to/session.jsonl`
+3. Open the matching `.jsonl` file only when the summary flags an error, a
+   loop-limit prompt, missing final answer, malformed lines, or ambiguous tool
+   call sequence.
+4. Inspect entries in timestamp order.
+5. Compare the model request, tool calls, tool results, and final response.
+6. Check whether auto-review or memory extraction introduced a secondary LLM
    call that affected the turn.
+
+Entries store Caverno's normalized response shape directly. Inspect
+`response.content`, `response.finishReason`, `response.toolCalls`, and
+`response.usage` instead of assuming an OpenAI `choices[]` wrapper. Start with a
+compact per-line metadata summary before reading large message payloads so a
+debugging turn does not spend most of its tool budget on repeated ad hoc
+parsing.
+
+For streaming operations wrapped by `SessionLoggingChatDataSource`, `stream_end`
+means Caverno finished reading the stream and wrote the accumulated text to the
+log. It is not an interruption signal by itself. Treat it as suspicious only
+when paired with an explicit `error`, an empty or visibly incomplete final
+answer, or a tool-loop limit prompt without a usable final answer.
 
 ## Recommended Next Improvements
 

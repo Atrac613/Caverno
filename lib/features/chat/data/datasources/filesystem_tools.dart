@@ -68,8 +68,13 @@ class FilesystemTools {
       return Directory(normalizedDefaultRoot).absolute.path;
     }
 
-    if (_isAbsolutePath(trimmed)) {
-      return File(trimmed).absolute.path;
+    final expandedPath = _expandHomeRelativePath(trimmed);
+    if (expandedPath == null) {
+      return null;
+    }
+
+    if (_isAbsolutePath(expandedPath)) {
+      return File(expandedPath).absolute.path;
     }
 
     if (normalizedDefaultRoot == null || normalizedDefaultRoot.isEmpty) {
@@ -77,7 +82,26 @@ class FilesystemTools {
     }
 
     return File.fromUri(
-      Directory(normalizedDefaultRoot).uri.resolve(trimmed),
+      Directory(normalizedDefaultRoot).uri.resolve(expandedPath),
+    ).absolute.path;
+  }
+
+  static String? _expandHomeRelativePath(String path) {
+    if (Platform.isWindows || (path != '~' && !path.startsWith('~/'))) {
+      return path;
+    }
+
+    final home = Platform.environment['HOME']?.trim();
+    if (home == null || home.isEmpty) {
+      return null;
+    }
+
+    if (path == '~') {
+      return Directory(home).absolute.path;
+    }
+
+    return File.fromUri(
+      Directory(home).uri.resolve(path.substring(2)),
     ).absolute.path;
   }
 

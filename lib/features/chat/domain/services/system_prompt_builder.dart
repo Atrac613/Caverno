@@ -167,6 +167,13 @@ class SystemPromptBuilder {
           'For codebase exploration, prefer list_directory, find_files, '
           'search_files, and read_file before using local shell commands.',
         );
+        buffer.writeln(
+          'When analyzing Caverno LLM session logs, treat each JSONL line as '
+          'a caverno_llm_session_log_entry object and inspect response.content, '
+          'response.finishReason, response.toolCalls, and response.usage '
+          'directly instead of assuming an OpenAI choices[] wrapper. Start '
+          'with compact per-line metadata before deeper content reads.',
+        );
       }
       if (hasProjectWriteTools) {
         buffer.writeln(
@@ -191,6 +198,13 @@ class SystemPromptBuilder {
           'Use local_execute_command mainly for running tests, analyzers, '
           'formatters, or other toolchain commands that are awkward to '
           'express with the file tools.',
+        );
+        buffer.writeln(
+          'For file discovery and reading, prefer list_directory, find_files, '
+          'search_files, and read_file. If local_execute_command is necessary, '
+          'prefer absolute paths or working_directory over shell-only features '
+          'such as pipes, redirection, environment variables, or command '
+          'substitution.',
         );
         if (hasProjectWriteTools) {
           buffer.writeln(

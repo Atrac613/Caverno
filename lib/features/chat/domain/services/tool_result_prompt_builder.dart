@@ -192,9 +192,9 @@ class ToolResultPromptBuilder {
       )
       ..writeln(
         'If local file changes are still needed and all required content is '
-        'known, emit complete <tool_use>...</tool_use> tags for the needed '
-        'write_file or edit_file calls rather than describing those changes as '
-        'already done.',
+        'known but no successful file-operation tool result is provided, say '
+        'the files were not created yet and name the exact missing action '
+        'instead of emitting tool-call tags.',
       )
       ..writeln()
       ..write(

@@ -220,4 +220,41 @@ void main() {
     expect(repository.memories.single.sourceConversationId, 'conversation-2');
     expect(repository.reviewQueue.single.sourceConversationId, 'conversation-2');
   });
+
+  test('drops draft open loops covered by the latest assistant answer', () async {
+    final repository = _InMemoryChatMemoryRepository();
+    final service = SessionMemoryService(repository);
+
+    await service.updateFromConversation(
+      conversationId: 'conversation-3',
+      messages: [
+        Message(
+          id: 'message-3',
+          content:
+              'Investigate session log e42da492-acc6-419e-9c6f-66dcb82ba13d.jsonl and identify why the LLM conversation stopped.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 5, 28, 0, 42),
+        ),
+        Message(
+          id: 'message-4',
+          content:
+              'Session log e42da492-acc6-419e-9c6f-66dcb82ba13d.jsonl analysis results: the final response completed normally with finishReason stop.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 5, 28, 0, 49),
+        ),
+      ],
+      draft: const MemoryExtractionDraft(
+        summary: 'User investigated a session log interruption.',
+        openLoops: [
+          'Identify specific reason for conversation interruption in session log e42da492-acc6-419e-9c6f-66dcb82ba13d.jsonl',
+        ],
+        persona: [],
+        preferences: [],
+        doNot: [],
+        entries: [],
+      ),
+    );
+
+    expect(repository.summaries.single.openLoops, isEmpty);
+  });
 }

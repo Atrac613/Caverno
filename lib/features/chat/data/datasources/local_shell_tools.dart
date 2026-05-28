@@ -127,7 +127,7 @@ class LocalShellTools {
   }
 
   static bool _hasUnsafeShellSyntax(String command) {
-    const blockedTokens = ['|', '||', ';', '>', '<', '`', r'$(', '\n'];
+    const blockedTokens = ['|', '||', ';', '>', '<', '`', r'$', '\n'];
     return blockedTokens.any(command.contains);
   }
 
@@ -138,6 +138,8 @@ class LocalShellTools {
   }
 
   static bool _canExecuteSingleCommandInternally(String command) {
+    if (_hasUnsafeShellSyntax(command)) return false;
+
     final args = _splitArgs(command.trim());
     if (args.isEmpty) return false;
 
