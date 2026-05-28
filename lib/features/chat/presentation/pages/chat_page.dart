@@ -22,6 +22,7 @@ import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/git_tools.dart';
+import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
@@ -38,6 +39,7 @@ import '../../domain/services/conversation_validation_tool_result_inference.dart
 import '../../../settings/domain/entities/app_settings.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
+import '../providers/coding_environment_snapshot_provider.dart';
 import '../providers/conversations_notifier.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/message_bubble.dart';
@@ -54,6 +56,7 @@ import '../widgets/plan/plan_review_sheet.dart';
 import '../widgets/plan/plan_revision_history_sheet.dart';
 
 part 'chat_page_empty_state_builders.dart';
+part 'chat_page_companion_builders.dart';
 part 'chat_page_goal_builders.dart';
 part 'chat_page_header_builders.dart';
 part 'chat_page_plan_builders.dart';
@@ -97,11 +100,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
   String? _lastAutoPresentedPlanReviewDraftKey;
   bool _wasGeneratingPlanForTrackedConversation = false;
   bool _wasShowingPlanDraft = false;
+  bool _isCompanionSidebarVisible = true;
   String _composerPrefillText = '';
   int _composerPrefillVersion = 0;
   bool _isImageDragActive = false;
   int _droppedImageAttachmentId = 0;
   MessageInputImageAttachment? _droppedImageAttachment;
+
+  static const double _companionSidebarBreakpoint = 1180;
+  static const double _companionSidebarWidth = 344;
 
   static const Set<String> _imageDropExtensions = {
     '.png',
@@ -679,6 +686,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 !currentConversation.hasPlanArtifact &&
                 chatState.workflowProposalDraft == null &&
                 chatState.taskProposalDraft == null));
+    final canShowCompanionPanel =
+        isCodingWorkspace &&
+        activeProject != null &&
+        currentConversation != null;
+    final isWideForCompanion =
+        MediaQuery.sizeOf(context).width >= _companionSidebarBreakpoint;
     _maybePresentPlanReviewSheet(
       context,
       currentConversation: currentConversation,
@@ -802,6 +815,25 @@ class _ChatPageState extends ConsumerState<ChatPage>
               icon: const Icon(Icons.delete_outline),
               tooltip: 'chat.delete_current'.tr(),
             ),
+          if (canShowCompanionPanel)
+            IconButton(
+              onPressed: () {
+                if (isWideForCompanion) {
+                  setState(() {
+                    _isCompanionSidebarVisible = !_isCompanionSidebarVisible;
+                  });
+                  return;
+                }
+                _showCompanionPanelSheet(
+                  context,
+                  currentConversation: currentConversation,
+                  chatState: chatState,
+                  activeProject: activeProject,
+                );
+              },
+              icon: const Icon(Icons.view_sidebar_outlined),
+              tooltip: 'chat.companion_panel_toggle'.tr(),
+            ),
           IconButton(
             onPressed: () {
               Navigator.of(
@@ -823,155 +855,188 @@ class _ChatPageState extends ConsumerState<ChatPage>
           : _buildImageDropTarget(
               context,
               enabled: canCompose,
-              child: Column(
-                children: [
-                  // Error banner
-                  if (chatState.error != null)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(8),
-                      color: Theme.of(context).colorScheme.errorContainer,
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onErrorContainer,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              chatState.error!,
-                              style: TextStyle(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final showCompanionSidebar =
+                      canShowCompanionPanel &&
+                      _isCompanionSidebarVisible &&
+                      constraints.maxWidth >= _companionSidebarBreakpoint;
+                  final chatContent = Column(
+                    children: [
+                      // Error banner
+                      if (chatState.error != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(8),
+                          color: Theme.of(context).colorScheme.errorContainer,
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.error_outline,
                                 color: Theme.of(
                                   context,
                                 ).colorScheme.onErrorContainer,
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  if (currentConversation?.hasCompactionArtifact ?? false)
-                    _buildConversationCompactionBanner(
-                      context,
-                      currentConversation!,
-                    ),
-                  // Message list
-                  Expanded(
-                    child: !canCompose
-                        ? _buildCodingProjectEmptyState(context)
-                        : chatState.messages.isEmpty
-                        ? _buildEmptyState(
-                            context,
-                            isCodingWorkspace: isCodingWorkspace,
-                          )
-                        : ListView.builder(
-                            controller: _scrollController,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            itemCount:
-                                chatState.messages.length +
-                                (shouldShowPlanStatusMessage ? 1 : 0),
-                            itemBuilder: (context, index) {
-                              if (index >= chatState.messages.length) {
-                                return MessageBubble(
-                                  key: const ValueKey('plan-status-message'),
-                                  message: _buildPlanStatusMessage(
-                                    context,
-                                    chatState: chatState,
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  chatState.error!,
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onErrorContainer,
                                   ),
-                                  onReselectProject: isCodingWorkspace
-                                      ? () => _pickAndActivateProject(context)
-                                      : null,
-                                );
-                              }
-                              final message = chatState.messages[index];
-                              return MessageBubble(
-                                key: ValueKey(message.id),
-                                message: message,
-                                onReselectProject: isCodingWorkspace
-                                    ? () => _pickAndActivateProject(context)
-                                    : null,
-                              );
-                            },
+                                ),
+                              ),
+                            ],
                           ),
-                  ),
-                  if (canCompose && shouldShowPlanFooterCard)
-                    _buildFooterPlanCard(
-                      context,
-                      currentConversation: currentConversation,
-                      chatState: chatState,
-                      isPlanMode: isPlanMode,
-                    ),
-                  if (canCompose &&
-                      isCodingWorkspace &&
-                      currentConversation != null)
-                    _buildGoalFooterCard(
-                      context,
-                      currentConversation: currentConversation,
-                      chatState: chatState,
-                    ),
-                  // Token usage indicator
-                  if (canCompose &&
-                      (chatState.totalTokens > 0 ||
-                          chatState.estimatedPromptTokens > 0))
-                    _buildTokenUsageBar(context, chatState, settings.model),
-                  if (canCompose && chatState.queuedMessages.isNotEmpty)
-                    QueuedMessagesStrip(
-                      messages: chatState.queuedMessages,
-                      onRemove: chatNotifier.removeQueuedMessage,
-                    ),
-                  // Input area
-                  if (canCompose)
-                    MessageInput(
-                      onSend: (message, imageBase64, imageMimeType) {
-                        setState(() {
-                          _composerPrefillText = '';
-                          _composerPrefillVersion++;
-                        });
-                        chatNotifier.sendMessage(
-                          message,
-                          imageBase64: imageBase64,
-                          imageMimeType: imageMimeType,
-                          languageCode: context.locale.languageCode,
-                        );
-                      },
-                      onCancel: () => chatNotifier.cancelStreaming(),
-                      isLoading: chatState.isLoading,
-                      assistantMode: effectiveAssistantMode,
-                      onAssistantModeSelected: (mode) async {
-                        final settingsNotifier = ref.read(
-                          settingsNotifierProvider.notifier,
-                        );
-                        if (mode == AssistantMode.plan) {
-                          if (!isCodingWorkspace ||
-                              currentConversation == null) {
-                            return;
-                          }
-                          await conversationsNotifier.enterPlanningSession();
-                          return;
-                        }
+                        ),
+                      if (currentConversation?.hasCompactionArtifact ?? false)
+                        _buildConversationCompactionBanner(
+                          context,
+                          currentConversation!,
+                        ),
+                      // Message list
+                      Expanded(
+                        child: !canCompose
+                            ? _buildCodingProjectEmptyState(context)
+                            : chatState.messages.isEmpty
+                            ? _buildEmptyState(
+                                context,
+                                isCodingWorkspace: isCodingWorkspace,
+                              )
+                            : ListView.builder(
+                                controller: _scrollController,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                itemCount:
+                                    chatState.messages.length +
+                                    (shouldShowPlanStatusMessage ? 1 : 0),
+                                itemBuilder: (context, index) {
+                                  if (index >= chatState.messages.length) {
+                                    return MessageBubble(
+                                      key: const ValueKey(
+                                        'plan-status-message',
+                                      ),
+                                      message: _buildPlanStatusMessage(
+                                        context,
+                                        chatState: chatState,
+                                      ),
+                                      onReselectProject: isCodingWorkspace
+                                          ? () =>
+                                                _pickAndActivateProject(context)
+                                          : null,
+                                    );
+                                  }
+                                  final message = chatState.messages[index];
+                                  return MessageBubble(
+                                    key: ValueKey(message.id),
+                                    message: message,
+                                    onReselectProject: isCodingWorkspace
+                                        ? () => _pickAndActivateProject(context)
+                                        : null,
+                                  );
+                                },
+                              ),
+                      ),
+                      if (canCompose && shouldShowPlanFooterCard)
+                        _buildFooterPlanCard(
+                          context,
+                          currentConversation: currentConversation,
+                          chatState: chatState,
+                          isPlanMode: isPlanMode,
+                        ),
+                      if (canCompose &&
+                          isCodingWorkspace &&
+                          currentConversation != null)
+                        _buildGoalFooterCard(
+                          context,
+                          currentConversation: currentConversation,
+                          chatState: chatState,
+                        ),
+                      // Token usage indicator
+                      if (canCompose &&
+                          (chatState.totalTokens > 0 ||
+                              chatState.estimatedPromptTokens > 0))
+                        _buildTokenUsageBar(context, chatState, settings.model),
+                      if (canCompose && chatState.queuedMessages.isNotEmpty)
+                        QueuedMessagesStrip(
+                          messages: chatState.queuedMessages,
+                          onRemove: chatNotifier.removeQueuedMessage,
+                        ),
+                      // Input area
+                      if (canCompose)
+                        MessageInput(
+                          onSend: (message, imageBase64, imageMimeType) {
+                            setState(() {
+                              _composerPrefillText = '';
+                              _composerPrefillVersion++;
+                            });
+                            chatNotifier.sendMessage(
+                              message,
+                              imageBase64: imageBase64,
+                              imageMimeType: imageMimeType,
+                              languageCode: context.locale.languageCode,
+                            );
+                          },
+                          onCancel: () => chatNotifier.cancelStreaming(),
+                          isLoading: chatState.isLoading,
+                          assistantMode: effectiveAssistantMode,
+                          onAssistantModeSelected: (mode) async {
+                            final settingsNotifier = ref.read(
+                              settingsNotifierProvider.notifier,
+                            );
+                            if (mode == AssistantMode.plan) {
+                              if (!isCodingWorkspace ||
+                                  currentConversation == null) {
+                                return;
+                              }
+                              await conversationsNotifier
+                                  .enterPlanningSession();
+                              return;
+                            }
 
-                        if (currentConversation?.isPlanningSession ?? false) {
-                          await conversationsNotifier.exitPlanningSession();
-                          ref
-                              .read(chatNotifierProvider.notifier)
-                              .dismissPlanProposal();
-                        }
-                        await settingsNotifier.updateAssistantMode(mode);
-                      },
-                      isCodingWorkspace: isCodingWorkspace,
-                      inputHintKey: isCodingWorkspace
-                          ? (isPlanMode
-                                ? 'message.input_hint_plan'
-                                : 'message.input_hint_coding')
-                          : 'message.input_hint',
-                      composerPrefillText: _composerPrefillText,
-                      composerPrefillVersion: _composerPrefillVersion,
-                      droppedImageAttachment: _droppedImageAttachment,
-                    ),
-                ],
+                            if (currentConversation?.isPlanningSession ??
+                                false) {
+                              await conversationsNotifier.exitPlanningSession();
+                              ref
+                                  .read(chatNotifierProvider.notifier)
+                                  .dismissPlanProposal();
+                            }
+                            await settingsNotifier.updateAssistantMode(mode);
+                          },
+                          isCodingWorkspace: isCodingWorkspace,
+                          inputHintKey: isCodingWorkspace
+                              ? (isPlanMode
+                                    ? 'message.input_hint_plan'
+                                    : 'message.input_hint_coding')
+                              : 'message.input_hint',
+                          composerPrefillText: _composerPrefillText,
+                          composerPrefillVersion: _composerPrefillVersion,
+                          droppedImageAttachment: _droppedImageAttachment,
+                        ),
+                    ],
+                  );
+                  if (!showCompanionSidebar) {
+                    return chatContent;
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: chatContent),
+                      SizedBox(
+                        width: _companionSidebarWidth,
+                        child: _buildCompanionPanel(
+                          context,
+                          currentConversation: currentConversation,
+                          chatState: chatState,
+                          activeProject: activeProject,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
     );
