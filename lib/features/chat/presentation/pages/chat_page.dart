@@ -7,6 +7,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -104,6 +105,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _isImageDragActive = false;
   bool _isScrollToBottomScheduled = false;
   bool _scheduledScrollShouldAnimate = false;
+  bool _autoFollowBottom = true;
   int _droppedImageAttachmentId = 0;
   MessageInputImageAttachment? _droppedImageAttachment;
 
@@ -144,6 +146,30 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     final position = _scrollController.position;
     return position.maxScrollExtent - position.pixels <= 80;
+  }
+
+  /// Tracks deliberate user scrolling so streaming auto-scroll backs off when
+  /// the user scrolls up to read history and resumes once they return to the
+  /// bottom. Programmatic `animateTo`/`jumpTo` never emit a
+  /// [UserScrollNotification], so this reacts only to real gestures and is
+  /// therefore immune to the scroll position lagging behind streamed content.
+  bool _handleScrollNotification(ScrollNotification notification) {
+    // Ignore notifications bubbling up from scrollables nested inside messages.
+    if (notification.depth != 0) {
+      return false;
+    }
+    if (notification is UserScrollNotification) {
+      if (notification.direction == ScrollDirection.forward) {
+        // Dragging toward older messages: stop following the live stream.
+        _autoFollowBottom = false;
+      }
+    } else if (notification is ScrollEndNotification && !_autoFollowBottom) {
+      // Re-engage following once the user settles back near the bottom.
+      if (_isNearScrollBottom()) {
+        _autoFollowBottom = true;
+      }
+    }
+    return false;
   }
 
   void _scheduleScrollToBottom({required bool animated}) {
@@ -596,17 +622,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     ref.listen(chatNotifierProvider, (previous, next) {
       final messageCountChanged =
           previous?.messages.length != next.messages.length;
-      final isStreamingUpdate =
-          !messageCountChanged &&
-          next.messages.isNotEmpty &&
-          next.messages.last.isStreaming;
-      if (!messageCountChanged && !isStreamingUpdate) {
+      if (messageCountChanged) {
+        // A message was added or removed: snap to the newest entry and resume
+        // following the live stream.
+        _autoFollowBottom = true;
+        _scheduleScrollToBottom(animated: true);
         return;
       }
-      if (!messageCountChanged && !_isNearScrollBottom()) {
+      // Same message count: only react to the last message growing while it
+      // streams, and only while the user has not scrolled up to read history.
+      if (next.messages.isEmpty || !next.messages.last.isStreaming) {
         return;
       }
-      _scheduleScrollToBottom(animated: messageCountChanged);
+      if (!_autoFollowBottom) {
+        return;
+      }
+      _scheduleScrollToBottom(animated: false);
     });
 
     ref.listen<String?>(
@@ -855,39 +886,45 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 context,
                                 isCodingWorkspace: isCodingWorkspace,
                               )
-                            : ListView.builder(
-                                controller: _scrollController,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8,
-                                ),
-                                itemCount:
-                                    chatState.messages.length +
-                                    (shouldShowPlanStatusMessage ? 1 : 0),
-                                itemBuilder: (context, index) {
-                                  if (index >= chatState.messages.length) {
+                            : NotificationListener<ScrollNotification>(
+                                onNotification: _handleScrollNotification,
+                                child: ListView.builder(
+                                  key: const ValueKey('chat-message-list'),
+                                  controller: _scrollController,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  itemCount:
+                                      chatState.messages.length +
+                                      (shouldShowPlanStatusMessage ? 1 : 0),
+                                  itemBuilder: (context, index) {
+                                    if (index >= chatState.messages.length) {
+                                      return MessageBubble(
+                                        key: const ValueKey(
+                                          'plan-status-message',
+                                        ),
+                                        message: _buildPlanStatusMessage(
+                                          context,
+                                          chatState: chatState,
+                                        ),
+                                        onReselectProject: isCodingWorkspace
+                                            ? () => _pickAndActivateProject(
+                                                context,
+                                              )
+                                            : null,
+                                      );
+                                    }
+                                    final message = chatState.messages[index];
                                     return MessageBubble(
-                                      key: const ValueKey(
-                                        'plan-status-message',
-                                      ),
-                                      message: _buildPlanStatusMessage(
-                                        context,
-                                        chatState: chatState,
-                                      ),
+                                      key: ValueKey(message.id),
+                                      message: message,
                                       onReselectProject: isCodingWorkspace
                                           ? () =>
                                                 _pickAndActivateProject(context)
                                           : null,
                                     );
-                                  }
-                                  final message = chatState.messages[index];
-                                  return MessageBubble(
-                                    key: ValueKey(message.id),
-                                    message: message,
-                                    onReselectProject: isCodingWorkspace
-                                        ? () => _pickAndActivateProject(context)
-                                        : null,
-                                  );
-                                },
+                                  },
+                                ),
                               ),
                       ),
                       if (canCompose && shouldShowPlanFooterCard)
