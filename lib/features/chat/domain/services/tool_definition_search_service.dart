@@ -33,6 +33,8 @@ class ToolDefinitionSearchService {
     'get_current_datetime',
     'search_past_conversations',
     'recall_memory',
+    'ask_user_question',
+    'load_skill',
     'searxng_web_search',
     'web_search',
     'ping',

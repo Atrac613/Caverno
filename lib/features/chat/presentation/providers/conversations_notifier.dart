@@ -470,9 +470,18 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
   /// Updates messages for the current conversation.
   Future<void> updateCurrentConversation(List<Message> messages) async {
-    if (state.currentConversationId == null) return;
+    final currentConversationId = state.currentConversationId;
+    if (currentConversationId == null) return;
+    await updateConversationMessages(currentConversationId, messages);
+  }
 
-    final conversation = state.currentConversation;
+  Future<void> updateConversationMessages(
+    String conversationId,
+    List<Message> messages,
+  ) async {
+    final conversation = state.conversations
+        .where((item) => item.id == conversationId)
+        .firstOrNull;
     if (conversation == null) return;
 
     String title = conversation.title;

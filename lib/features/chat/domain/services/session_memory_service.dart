@@ -81,6 +81,18 @@ class SessionMemoryService {
     r'<tool_call>|<tool_use>',
     caseSensitive: false,
   );
+  static final RegExp _explicitHistoryReferencePattern = RegExp(
+    '\\b(previous|earlier|prior|last\\s+time|last\\s+session|resume|'
+    'pick\\s+up|continue\\s+from|same\\s+issue|that\\s+issue|'
+    'this\\s+issue|we\\s+discussed|you\\s+said|i\\s+mentioned)\\b|'
+    '\\u524d\\u56de|\\u4ee5\\u524d|\\u5148\\u307b\\u3069|'
+    '\\u3055\\u3063\\u304d|\\u3053\\u306e\\u524d|\\u524d\\u306b|'
+    '\\u524d\\u306e|\\u7d9a\\u304d|\\u5f15\\u304d\\u7d9a\\u304d|'
+    '\\u3053\\u306e\\u4ef6|\\u305d\\u306e\\u4ef6|'
+    '\\u3042\\u306e\\u4ef6|\\u3055\\u3063\\u304d\\u306e|'
+    '\\u524d\\u56de\\u306e',
+    caseSensitive: false,
+  );
 
   final ChatMemoryRepository _repository;
   final _uuid = const Uuid();
@@ -92,17 +104,26 @@ class SessionMemoryService {
   }) {
     final timestamp = now ?? DateTime.now();
     final profile = _repository.loadProfile();
-    final summaries = _repository
-        .loadSessionSummaries()
-        .where((summary) => summary.conversationId != currentConversationId)
-        .take(3)
-        .toList();
-
-    final scored = _scoreMemories(
-      currentUserInput: currentUserInput,
-      currentConversationId: currentConversationId,
-      now: timestamp,
+    final includeHistoricalTaskContext = _shouldIncludeHistoricalTaskContext(
+      currentUserInput,
     );
+    final summaries = includeHistoricalTaskContext
+        ? _repository
+              .loadSessionSummaries()
+              .where(
+                (summary) => summary.conversationId != currentConversationId,
+              )
+              .take(3)
+              .toList()
+        : <MemorySessionSummary>[];
+
+    final scored = includeHistoricalTaskContext
+        ? _scoreMemories(
+            currentUserInput: currentUserInput,
+            currentConversationId: currentConversationId,
+            now: timestamp,
+          )
+        : const <_ScoredMemory>[];
     final topMemories = scored.take(6).toList();
 
     if (profile.isEmpty && summaries.isEmpty && topMemories.isEmpty) {
@@ -158,6 +179,10 @@ class SessionMemoryService {
     return buffer.toString().trim();
   }
 
+  bool _shouldIncludeHistoricalTaskContext(String currentUserInput) {
+    return _explicitHistoryReferencePattern.hasMatch(currentUserInput);
+  }
+
   Future<MemoryUpdateResult> updateFromConversation({
     required String conversationId,
     required List<Message> messages,
@@ -207,18 +232,21 @@ class SessionMemoryService {
             now: timestamp,
           );
     final suppressionRules = _repository.loadSuppressionRules();
-    final filteredExtracted = extracted.where((entry) {
-      final normalizedEntry = _normalizeMemoryText(entry.text);
-      return suppressionRules.every((rule) {
-        final pattern = rule.normalizedPattern;
-        if (pattern.isEmpty) {
-          return true;
-        }
-        return !normalizedEntry.contains(pattern) &&
-            !pattern.contains(normalizedEntry);
-      });
-    }).toList(growable: false);
-    final suppressedCandidateCount = extracted.length - filteredExtracted.length;
+    final filteredExtracted = extracted
+        .where((entry) {
+          final normalizedEntry = _normalizeMemoryText(entry.text);
+          return suppressionRules.every((rule) {
+            final pattern = rule.normalizedPattern;
+            if (pattern.isEmpty) {
+              return true;
+            }
+            return !normalizedEntry.contains(pattern) &&
+                !pattern.contains(normalizedEntry);
+          });
+        })
+        .toList(growable: false);
+    final suppressedCandidateCount =
+        extracted.length - filteredExtracted.length;
     if (suppressedCandidateCount > 0) {
       await _repository.incrementSuppressionHitCount(suppressedCandidateCount);
     }
@@ -692,7 +720,10 @@ class SessionMemoryService {
 
     for (final entry in extracted) {
       if (entry.type == MemoryEntryType.preference) {
-        final line = _extractProfileText(entry.text, 'Response style preference:');
+        final line = _extractProfileText(
+          entry.text,
+          'Response style preference:',
+        );
         if (line.isNotEmpty && !preferences.contains(line)) {
           preferences.add(line);
           changed = true;

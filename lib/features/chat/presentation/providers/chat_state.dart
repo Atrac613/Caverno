@@ -300,6 +300,7 @@ class AskUserQuestionAnswer {
 class PendingAskUserQuestion {
   PendingAskUserQuestion({
     required this.id,
+    required this.conversationId,
     required this.question,
     required this.help,
     required this.options,
@@ -310,6 +311,7 @@ class PendingAskUserQuestion {
   });
 
   final String id;
+  final String? conversationId;
   final String question;
   final String help;
   final List<AskUserQuestionOption> options;

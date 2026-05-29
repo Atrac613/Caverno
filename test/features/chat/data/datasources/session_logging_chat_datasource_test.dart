@@ -346,6 +346,46 @@ void main() {
       expect(decoded['response']['usage']['totalTokens'], 15);
     });
 
+    test('prefers zone context over fallback provider', () async {
+      const fallbackContext = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.chat,
+        sessionId: 'selected-chat',
+        conversationId: 'selected-chat',
+      );
+      const activeContext = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.chat,
+        sessionId: 'origin-chat',
+        conversationId: 'origin-chat',
+      );
+      final dataSource = SessionLoggingChatDataSource(
+        delegate: _FakeChatDataSource(
+          completionResult: ChatCompletionResult(
+            content: 'Origin response',
+            finishReason: 'stop',
+          ),
+        ),
+        logStore: store,
+        contextProvider: () => fallbackContext,
+      );
+
+      await LlmSessionLogContext.run(activeContext, () {
+        return dataSource.createChatCompletion(
+          messages: [_message('user-1', MessageRole.user, 'Hi')],
+        );
+      });
+
+      final line = (await (await store.fileForContext(
+        activeContext,
+      )).readAsLines()).single;
+      final decoded = jsonDecode(line) as Map<String, dynamic>;
+      expect(decoded['context']['sessionId'], 'origin-chat');
+      expect(decoded['context']['conversationId'], 'origin-chat');
+      expect(
+        File('${tempDir.path}/chat/selected-chat.jsonl').existsSync(),
+        isFalse,
+      );
+    });
+
     test(
       'records streamed tool completions after the stream is consumed',
       () async {

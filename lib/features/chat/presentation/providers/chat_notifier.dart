@@ -316,6 +316,24 @@ class ChatNotifier extends Notifier<ChatState> {
         .updateCurrentConversation(messages);
   }
 
+  Future<void> _onConversationMessagesChanged(
+    String conversationId,
+    List<Message> messages,
+  ) {
+    return ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateConversationMessages(conversationId, messages);
+  }
+
+  void _persistCurrentNonStreamingMessages() {
+    final messagesToSave = state.messages
+        .where((message) => !message.isStreaming)
+        .map(_sanitizeMessageForModelHistory)
+        .where(_shouldKeepMessageForModelHistory)
+        .toList(growable: false);
+    unawaited(_onMessagesChanged(messagesToSave));
+  }
+
   /// Speaks the assistant response via TTS when auto-read is enabled.
   /// Replaces the previous `onAutoRead` callback.
   void _onAutoRead(String content) {
@@ -384,10 +402,13 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  LlmSessionLogContext? _currentLlmSessionLogContext() {
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
+  LlmSessionLogContext _buildLlmSessionLogContext({
+    String? targetConversationId,
+  }) {
+    final conversationsState = ref.read(conversationsNotifierProvider);
+    final currentConversation = targetConversationId == null
+        ? conversationsState.currentConversation
+        : _conversationForId(targetConversationId);
     final workspaceMode =
         currentConversation?.workspaceMode ??
         (_settings.assistantMode == AssistantMode.coding ||
@@ -395,7 +416,10 @@ class ChatNotifier extends Notifier<ChatState> {
             ? WorkspaceMode.coding
             : WorkspaceMode.chat);
     final resolvedConversationId =
-        currentConversation?.id ?? conversationId ?? 'unassigned';
+        targetConversationId ??
+        currentConversation?.id ??
+        conversationId ??
+        'unassigned';
 
     return LlmSessionLogContext(
       workspaceMode: workspaceMode,
@@ -405,6 +429,40 @@ class ChatNotifier extends Notifier<ChatState> {
       phase: _hiddenPrompt != null
           ? 'hidden_prompt'
           : (_isRemoteInteraction ? 'remote_interaction' : 'chat_turn'),
+    );
+  }
+
+  Conversation? _conversationForId(String conversationId) {
+    for (final conversation
+        in ref.read(conversationsNotifierProvider).conversations) {
+      if (conversation.id == conversationId) {
+        return conversation;
+      }
+    }
+    return null;
+  }
+
+  LlmSessionLogContext? _currentLlmSessionLogContext() {
+    return _buildLlmSessionLogContext();
+  }
+
+  LlmSessionLogContext _llmSessionLogContextForGeneration(int generation) {
+    final existing = _llmSessionLogContextsByGeneration[generation];
+    if (existing != null) return existing;
+    return _buildLlmSessionLogContext(
+      targetConversationId: _activeResponseConversationIdForGeneration(
+        generation,
+      ),
+    );
+  }
+
+  T _runWithLlmSessionLogContextForGeneration<T>(
+    int generation,
+    T Function() body,
+  ) {
+    return LlmSessionLogContext.run(
+      _llmSessionLogContextForGeneration(generation),
+      body,
     );
   }
 
@@ -465,28 +523,69 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
-    cancelStreaming();
-    _executedContentToolCalls.clear();
-    _seenContentToolCallHashes.clear();
-    _toolApprovalCache.clear();
-    _pendingContentToolResults.clear();
-    if (!sameConversation) {
-      _queuedChatMessages.clear();
-      _latestContentToolResults.clear();
-      _latestCompletedToolResults = const [];
+    final preservingActiveResponse = !sameConversation && _hasActiveResponse;
+    final visibleActiveGeneration = _activeResponseGenerationForConversation(
+      this.conversationId,
+    );
+    if (!sameConversation &&
+        state.isLoading &&
+        visibleActiveGeneration != null) {
+      _cacheActiveResponseMessagesForGeneration(
+        visibleActiveGeneration,
+        state.messages,
+      );
     }
-    _contentToolContinuationCount = 0;
-    _contentToolExecutionTail = Future<void>.value();
-    _sessionMemoryContext = null;
-    _temporalReferenceContext = null;
+
+    if (!sameConversation && !preservingActiveResponse) {
+      _beginInteractionGeneration();
+      _clearAllActiveResponses();
+      _dismissAllPendingAskUserQuestions();
+    }
+
+    if (!preservingActiveResponse) {
+      _streamSubscription?.cancel();
+      _streamSubscription = null;
+      _executedContentToolCalls.clear();
+      _seenContentToolCallHashes.clear();
+      _toolApprovalCache.clear();
+      _pendingContentToolResults.clear();
+      _pendingToolExecutions.clear();
+      if (!sameConversation) {
+        _queuedChatMessages.clear();
+        _latestContentToolResults.clear();
+        _latestCompletedToolResults = const [];
+      }
+      _contentToolContinuationCount = 0;
+      _contentToolExecutionTail = Future<void>.value();
+      _sessionMemoryContext = null;
+      _temporalReferenceContext = null;
+    }
+
+    final restoredActiveGeneration = _activeResponseGenerationForConversation(
+      conversationId,
+    );
+    final restoredActiveMessages = restoredActiveGeneration == null
+        ? null
+        : _activeResponseMessagesForGeneration(restoredActiveGeneration);
+    final restoredPendingQuestion = conversationId == null
+        ? null
+        : _pendingAskUserQuestionsByThread[conversationId];
+    final restoredMessages = restoredActiveMessages ?? messages;
+    final restoredLoading = restoredActiveMessages != null;
+
     this.conversationId = conversationId;
     state = ChatState(
-      messages: messages,
-      queuedMessages: List<QueuedChatMessage>.unmodifiable(_queuedChatMessages),
-      isLoading: false,
+      messages: restoredMessages,
+      queuedMessages: restoredLoading
+          ? List<QueuedChatMessage>.unmodifiable(_queuedChatMessages)
+          : const <QueuedChatMessage>[],
+      isLoading: restoredLoading,
       error: null,
+      pendingAskUserQuestion: restoredPendingQuestion,
     );
-    _accumulatedTokenUsage = TokenUsage.zero;
+    if (!preservingActiveResponse) {
+      _accumulatedTokenUsage = TokenUsage.zero;
+    }
   }
 
   /// Builds the system message, including the current date and time.
@@ -5652,6 +5751,14 @@ class ChatNotifier extends Notifier<ChatState> {
     return _normalizeWriteFileArgumentAliases(arguments);
   }
 
+  @visibleForTesting
+  Map<String, dynamic> resolveProjectScopedArgumentsForTest(
+    String toolName,
+    Map<String, dynamic> arguments,
+  ) {
+    return _resolveProjectScopedArguments(toolName, arguments);
+  }
+
   Map<String, dynamic> _resolveProjectScopedArguments(
     String toolName,
     Map<String, dynamic> arguments,
@@ -5671,6 +5778,7 @@ class ChatNotifier extends Notifier<ChatState> {
       String key, {
       bool allowEmpty = false,
       List<String> aliases = const [],
+      String? fallbackWhenMissing,
     }) {
       String? rawValue = (arguments[key] as String?)?.trim();
       for (final alias in aliases) {
@@ -5679,18 +5787,32 @@ class ChatNotifier extends Notifier<ChatState> {
         }
         rawValue = (arguments[alias] as String?)?.trim();
       }
+      final hasExplicitValue = rawValue != null && rawValue.isNotEmpty;
+      if (!hasExplicitValue && fallbackWhenMissing != null) {
+        rawValue = fallbackWhenMissing;
+      }
       if ((rawValue == null || rawValue.isEmpty) && !allowEmpty) {
         return null;
       }
-      return FilesystemTools.resolvePath(
+      final resolved = FilesystemTools.resolvePath(
         rawValue,
         defaultRoot: loadProjectRoot(),
       );
+      if (resolved == null &&
+          !hasExplicitValue &&
+          fallbackWhenMissing != null) {
+        return fallbackWhenMissing;
+      }
+      return resolved;
     }
 
     return switch (toolName) {
       'list_directory' || 'find_files' || 'search_files' => () {
-        final resolvedPath = resolvePathArg('path', allowEmpty: true);
+        final resolvedPath = resolvePathArg(
+          'path',
+          allowEmpty: true,
+          fallbackWhenMissing: '.',
+        );
         final resolvedArguments = <String, dynamic>{...arguments};
         if (resolvedPath != null) {
           resolvedArguments['path'] = resolvedPath;
@@ -5759,11 +5881,24 @@ class ChatNotifier extends Notifier<ChatState> {
   List<Message> _prepareMessagesForLLM({
     bool forceCompaction = false,
     List<Map<String, dynamic>>? toolDefinitionsOverride,
+    int? interactionGeneration,
   }) {
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    final messages = state.messages
+    final conversationsState = ref.read(conversationsNotifierProvider);
+    final activeConversationId = interactionGeneration == null
+        ? _activeResponseConversationId
+        : _activeResponseConversationIdForGeneration(interactionGeneration);
+    final currentConversation = activeConversationId == null
+        ? conversationsState.currentConversation
+        : conversationsState.conversations
+              .where((conversation) => conversation.id == activeConversationId)
+              .firstOrNull;
+    final sourceMessages = interactionGeneration == null
+        ? (_isActiveResponseDetached && _activeResponseMessages != null
+              ? _activeResponseMessages!
+              : state.messages)
+        : (_activeResponseMessagesForGeneration(interactionGeneration) ??
+              state.messages);
+    final messages = sourceMessages
         .where((m) => !m.isStreaming)
         .map(_sanitizeMessageForModelHistory)
         .where(_shouldKeepMessageForModelHistory)
@@ -5905,10 +6040,123 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<void> _contentToolExecutionTail = Future<void>.value();
   bool _forcePromptCompactionForNextRequest = false;
   bool _isDrainingQueuedMessages = false;
+  int _interactionGeneration = 0;
+  String? _activeResponseConversationId;
+  List<Message>? _activeResponseMessages;
+  final Map<int, String> _activeResponseConversationIdsByGeneration =
+      <int, String>{};
+  final Map<int, List<Message>> _activeResponseMessagesByGeneration =
+      <int, List<Message>>{};
+  final Map<int, LlmSessionLogContext> _llmSessionLogContextsByGeneration =
+      <int, LlmSessionLogContext>{};
+  final Map<int, McpToolResult> _askUserQuestionResultsByGeneration =
+      <int, McpToolResult>{};
+  final Map<String, PendingAskUserQuestion> _pendingAskUserQuestionsByThread =
+      <String, PendingAskUserQuestion>{};
   ChatInteractionOrigin _activeInteractionOrigin = ChatInteractionOrigin.local;
 
   bool get _isRemoteInteraction =>
       _activeInteractionOrigin == ChatInteractionOrigin.remote;
+
+  int _beginInteractionGeneration() {
+    _interactionGeneration += 1;
+    return _interactionGeneration;
+  }
+
+  bool _isCurrentInteractionGeneration(int generation) {
+    return ref.mounted &&
+        (generation == _interactionGeneration ||
+            _activeResponseConversationIdsByGeneration.containsKey(generation));
+  }
+
+  bool get _hasActiveResponse =>
+      _activeResponseConversationId != null ||
+      _activeResponseConversationIdsByGeneration.isNotEmpty;
+
+  bool get _isActiveResponseDetached =>
+      _activeResponseConversationId != null &&
+      conversationId != _activeResponseConversationId;
+
+  int? _activeResponseGenerationForConversation(String? targetConversationId) {
+    if (targetConversationId == null) return null;
+    int? matchedGeneration;
+    for (final entry in _activeResponseConversationIdsByGeneration.entries) {
+      if (entry.value == targetConversationId &&
+          (matchedGeneration == null || entry.key > matchedGeneration)) {
+        matchedGeneration = entry.key;
+      }
+    }
+    return matchedGeneration;
+  }
+
+  String? _activeResponseConversationIdForGeneration(int generation) {
+    return _activeResponseConversationIdsByGeneration[generation] ??
+        (generation == _interactionGeneration
+            ? _activeResponseConversationId
+            : null);
+  }
+
+  List<Message>? _activeResponseMessagesForGeneration(int generation) {
+    return _activeResponseMessagesByGeneration[generation] ??
+        (generation == _interactionGeneration ? _activeResponseMessages : null);
+  }
+
+  bool _isActiveResponseDetachedForGeneration(int generation) {
+    final targetConversationId = _activeResponseConversationIdForGeneration(
+      generation,
+    );
+    return targetConversationId != null &&
+        conversationId != targetConversationId;
+  }
+
+  void _registerActiveResponse({
+    required int generation,
+    required String? targetConversationId,
+    required List<Message> messages,
+  }) {
+    if (targetConversationId == null) return;
+    _activeResponseConversationIdsByGeneration[generation] =
+        targetConversationId;
+    _cacheActiveResponseMessagesForGeneration(generation, messages);
+    if (generation == _interactionGeneration) {
+      _activeResponseConversationId = targetConversationId;
+      _activeResponseMessages = List<Message>.unmodifiable(messages);
+    }
+  }
+
+  void _cacheActiveResponseMessagesForGeneration(
+    int generation,
+    List<Message> messages,
+  ) {
+    if (!_activeResponseConversationIdsByGeneration.containsKey(generation)) {
+      return;
+    }
+    final cached = List<Message>.unmodifiable(messages);
+    _activeResponseMessagesByGeneration[generation] = cached;
+    if (generation == _interactionGeneration) {
+      _activeResponseMessages = cached;
+    }
+  }
+
+  void _clearActiveResponseForGeneration(int generation) {
+    _activeResponseConversationIdsByGeneration.remove(generation);
+    _activeResponseMessagesByGeneration.remove(generation);
+    _llmSessionLogContextsByGeneration.remove(generation);
+    _askUserQuestionResultsByGeneration.remove(generation);
+    if (generation == _interactionGeneration) {
+      _activeResponseConversationId = null;
+      _activeResponseMessages = null;
+    }
+  }
+
+  void _clearAllActiveResponses() {
+    _activeResponseConversationIdsByGeneration.clear();
+    _activeResponseMessagesByGeneration.clear();
+    _llmSessionLogContextsByGeneration.clear();
+    _askUserQuestionResultsByGeneration.clear();
+    _activeResponseConversationId = null;
+    _activeResponseMessages = null;
+  }
 
   Future<void> sendMessage(
     String content, {
@@ -5956,12 +6204,14 @@ class ChatNotifier extends Notifier<ChatState> {
     final isVoiceMode = queuedMessage.isVoiceMode;
     final bypassPlanMode = queuedMessage.bypassPlanMode;
     _activeInteractionOrigin = queuedMessage.origin;
+    final interactionGeneration = _beginInteractionGeneration();
 
     _hiddenPrompt = null;
     _languageCode = languageCode;
     _isVoiceMode = isVoiceMode;
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
+    _pendingToolExecutions.clear();
     _latestContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
@@ -5984,20 +6234,12 @@ class ChatNotifier extends Notifier<ChatState> {
         !bypassPlanMode && _shouldAutoEnterPlanningSession(currentConversation);
     if (shouldAutoEnterPlanning) {
       await conversationsNotifier.enterPlanningSession();
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       currentConversation = ref
           .read(conversationsNotifierProvider)
           .currentConversation;
       conversationId = currentConversation?.id;
     }
-    await conversationsNotifier.ensureCurrentPlanArtifactBackfilled();
-    currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    conversationId = currentConversation?.id;
-    final shouldInterceptForPlanMode =
-        !bypassPlanMode &&
-        (currentConversation?.isPlanningSession ?? false) &&
-        currentConversation?.workspaceMode == WorkspaceMode.coding;
 
     // Inject memory context only on the first turn of a new session.
     final isFirstTurn = state.messages.isEmpty;
@@ -6027,6 +6269,25 @@ class ChatNotifier extends Notifier<ChatState> {
       isLoading: true,
       error: null,
     );
+    _llmSessionLogContextsByGeneration[interactionGeneration] =
+        _buildLlmSessionLogContext(targetConversationId: conversationId);
+    _registerActiveResponse(
+      generation: interactionGeneration,
+      targetConversationId: conversationId,
+      messages: state.messages,
+    );
+    _persistCurrentNonStreamingMessages();
+
+    await conversationsNotifier.ensureCurrentPlanArtifactBackfilled();
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+    currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    conversationId = currentConversation?.id;
+    final shouldInterceptForPlanMode =
+        !bypassPlanMode &&
+        (currentConversation?.isPlanningSession ?? false) &&
+        currentConversation?.workspaceMode == WorkspaceMode.coding;
 
     if (shouldInterceptForPlanMode) {
       await _onMessagesChanged(
@@ -6061,7 +6322,21 @@ class ChatNotifier extends Notifier<ChatState> {
     );
 
     if (!ref.mounted) return;
-    state = state.copyWith(messages: [...state.messages, assistantMessage]);
+    if (_isActiveResponseDetachedForGeneration(interactionGeneration)) {
+      final activeMessages =
+          _activeResponseMessagesForGeneration(interactionGeneration) ??
+          const <Message>[];
+      _cacheActiveResponseMessagesForGeneration(interactionGeneration, [
+        ...activeMessages,
+        assistantMessage,
+      ]);
+    } else {
+      state = state.copyWith(messages: [...state.messages, assistantMessage]);
+      _cacheActiveResponseMessagesForGeneration(
+        interactionGeneration,
+        state.messages,
+      );
+    }
 
     // Request extended background execution time on iOS.
     _onSendStarted();
@@ -6074,12 +6349,12 @@ class ChatNotifier extends Notifier<ChatState> {
           (_settings.mcpEnabled || shouldUseTemporalTool)) {
         final mode = _settings.mcpEnabled ? 'MCP' : 'TemporalOnly';
         appLog('[Tool] Sending in tool-aware mode ($mode)');
-        await _sendWithTools();
+        await _sendWithTools(interactionGeneration: interactionGeneration);
       } else {
         appLog(
           '[Tool] Sending in normal mode (mcpToolService: ${_mcpToolService != null}, enabled: ${_settings.mcpEnabled})',
         );
-        await _sendWithoutTools();
+        await _sendWithoutTools(interactionGeneration: interactionGeneration);
       }
     } finally {
       _assistantModeOverride = null;
@@ -6148,6 +6423,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _isVoiceMode = isVoiceMode;
     _languageCode = languageCode;
     _latestHiddenAssistantResponse = null;
+    final interactionGeneration = _beginInteractionGeneration();
     _hiddenPrompt = Message(
       id: _uuid.v4(),
       content: instruction,
@@ -6175,10 +6451,10 @@ class ChatNotifier extends Notifier<ChatState> {
     // Use tool-aware flow when the MCP tool service is available.
     if (_mcpToolService != null && _settings.mcpEnabled) {
       appLog('[Tool] Sending hidden prompt in tool-aware mode');
-      await _sendWithTools();
+      await _sendWithTools(interactionGeneration: interactionGeneration);
     } else {
       appLog('[Tool] Sending hidden prompt in normal mode');
-      await _sendWithoutTools();
+      await _sendWithoutTools(interactionGeneration: interactionGeneration);
     }
   }
 
@@ -6385,20 +6661,30 @@ class ChatNotifier extends Notifier<ChatState> {
         (hasCjkBlockerMarker && hasCjkMissingEvidenceMarker);
   }
 
-  void _appendRecoveredAssistantResponse(String response) {
+  void _appendRecoveredAssistantResponse(
+    String response, {
+    int? interactionGeneration,
+  }) {
     final candidate = response.trim();
-    if (candidate.isEmpty || state.messages.isEmpty) {
+    final generation = interactionGeneration ?? _interactionGeneration;
+    final activeMessages =
+        _activeResponseMessagesForGeneration(generation) ?? state.messages;
+    if (candidate.isEmpty || activeMessages.isEmpty) {
       return;
     }
 
-    final existingContent = state.messages.last.content;
+    final existingContent = activeMessages.last.content;
     if (existingContent.contains(candidate)) {
       return;
     }
     if (existingContent.isNotEmpty && !existingContent.endsWith('\n')) {
-      _appendToLastMessage('\n', scanForTools: false);
+      _appendToLastMessageForGeneration(generation, '\n', scanForTools: false);
     }
-    _appendToLastMessage(candidate, scanForTools: false);
+    _appendToLastMessageForGeneration(
+      generation,
+      candidate,
+      scanForTools: false,
+    );
   }
 
   Future<void> generatePlanProposalWithContext({
@@ -6519,7 +6805,20 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(pendingWorkflowDecision: null);
   }
 
-  Future<McpToolResult> _handleAskUserQuestion(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _handleAskUserQuestion(
+    ToolCallInfo toolCall, {
+    int? interactionGeneration,
+  }) async {
+    final existingResult = interactionGeneration == null
+        ? null
+        : _askUserQuestionResultsByGeneration[interactionGeneration];
+    if (existingResult != null) {
+      appLog(
+        '[AskUserQuestion] Reusing completed answer for repeated question in the same turn',
+      );
+      return _buildRepeatedAskUserQuestionResult(existingResult);
+    }
+
     final question = _trimStringArgument(toolCall.arguments, 'question');
     if (question.isEmpty) {
       return McpToolResult(
@@ -6551,21 +6850,65 @@ class ChatNotifier extends Notifier<ChatState> {
         toolCall.arguments,
         'other_placeholder',
       ),
+      targetConversationId: interactionGeneration == null
+          ? null
+          : _activeResponseConversationIdForGeneration(interactionGeneration),
     );
     if (answer == null || !answer.hasAnswer) {
-      return McpToolResult(
+      final result = McpToolResult(
         toolName: toolCall.name,
         result: jsonEncode({'question': question, 'status': 'cancelled'}),
         isSuccess: false,
         errorMessage: 'User dismissed the question',
       );
+      if (interactionGeneration != null) {
+        _askUserQuestionResultsByGeneration[interactionGeneration] = result;
+      }
+      return result;
     }
 
-    return McpToolResult(
+    final result = McpToolResult(
       toolName: toolCall.name,
       result: jsonEncode({'status': 'answered', ...answer.toJson()}),
       isSuccess: true,
     );
+    if (interactionGeneration != null) {
+      _askUserQuestionResultsByGeneration[interactionGeneration] = result;
+    }
+    return result;
+  }
+
+  McpToolResult _buildRepeatedAskUserQuestionResult(McpToolResult previous) {
+    final decoded = _decodeJsonObject(previous.result);
+    final result = decoded == null
+        ? previous.result
+        : jsonEncode({
+            ...decoded,
+            'reused': true,
+            'note':
+                'The user already answered ask_user_question during this turn. Continue using the existing answer and do not ask again.',
+          });
+    return McpToolResult(
+      toolName: previous.toolName,
+      result: result,
+      isSuccess: previous.isSuccess,
+      errorMessage: previous.errorMessage,
+    );
+  }
+
+  Map<String, dynamic>? _decodeJsonObject(String value) {
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
   }
 
   Future<AskUserQuestionAnswer?> requestAskUserQuestion({
@@ -6575,20 +6918,36 @@ class ChatNotifier extends Notifier<ChatState> {
     required bool allowMultiple,
     required bool allowOther,
     required String otherPlaceholder,
+    String? targetConversationId,
   }) {
+    final resolvedTargetConversationId =
+        targetConversationId ?? _activeResponseConversationId ?? conversationId;
+    final existingPending = resolvedTargetConversationId == null
+        ? state.pendingAskUserQuestion
+        : _pendingAskUserQuestionsByThread[resolvedTargetConversationId];
+    if (existingPending != null) {
+      appLog('[AskUserQuestion] Ignoring question while another is pending');
+      return Future<AskUserQuestionAnswer?>.value();
+    }
     final completer = Completer<AskUserQuestionAnswer?>();
-    state = state.copyWith(
-      pendingAskUserQuestion: PendingAskUserQuestion(
-        id: const Uuid().v4(),
-        question: question,
-        help: help,
-        options: options,
-        allowMultiple: allowMultiple,
-        allowOther: allowOther,
-        otherPlaceholder: otherPlaceholder,
-        completer: completer,
-      ),
+    final pending = PendingAskUserQuestion(
+      id: const Uuid().v4(),
+      conversationId: resolvedTargetConversationId,
+      question: question,
+      help: help,
+      options: options,
+      allowMultiple: allowMultiple,
+      allowOther: allowOther,
+      otherPlaceholder: otherPlaceholder,
+      completer: completer,
     );
+    if (resolvedTargetConversationId != null) {
+      _pendingAskUserQuestionsByThread[resolvedTargetConversationId] = pending;
+    }
+    if (resolvedTargetConversationId == null ||
+        conversationId == resolvedTargetConversationId) {
+      state = state.copyWith(pendingAskUserQuestion: pending);
+    }
     return completer.future;
   }
 
@@ -6596,12 +6955,43 @@ class ChatNotifier extends Notifier<ChatState> {
     required String id,
     AskUserQuestionAnswer? answer,
   }) {
-    final pending = state.pendingAskUserQuestion;
-    if (pending == null || pending.id != id) return;
+    final pending = state.pendingAskUserQuestion?.id == id
+        ? state.pendingAskUserQuestion
+        : _pendingAskUserQuestionsByThread.values
+              .where((item) => item.id == id)
+              .firstOrNull;
+    if (pending == null) return;
     if (!pending.completer.isCompleted) {
       pending.completer.complete(answer);
     }
-    state = state.copyWith(pendingAskUserQuestion: null);
+    final pendingConversationId = pending.conversationId;
+    if (pendingConversationId != null) {
+      _pendingAskUserQuestionsByThread.remove(pendingConversationId);
+    }
+    if (state.pendingAskUserQuestion?.id == id) {
+      state = state.copyWith(pendingAskUserQuestion: null);
+    }
+  }
+
+  void _dismissAllPendingAskUserQuestions() {
+    final pendingQuestions = <PendingAskUserQuestion>[
+      ..._pendingAskUserQuestionsByThread.values,
+      if (state.pendingAskUserQuestion != null &&
+          !_pendingAskUserQuestionsByThread.values.any(
+            (pending) => pending.id == state.pendingAskUserQuestion!.id,
+          ))
+        state.pendingAskUserQuestion!,
+    ];
+
+    for (final pending in pendingQuestions) {
+      if (!pending.completer.isCompleted) {
+        pending.completer.complete();
+      }
+    }
+    _pendingAskUserQuestionsByThread.clear();
+    if (state.pendingAskUserQuestion != null) {
+      state = state.copyWith(pendingAskUserQuestion: null);
+    }
   }
 
   String _trimStringArgument(Map<String, dynamic> arguments, String key) {
@@ -6823,54 +7213,70 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Sends a streaming request without tools.
-  Future<void> _sendWithoutTools({bool allowContextRetry = true}) async {
+  Future<void> _sendWithoutTools({
+    bool allowContextRetry = true,
+    int? interactionGeneration,
+  }) async {
     if (!ref.mounted) return;
+    final generation = interactionGeneration ?? _interactionGeneration;
     try {
-      final stream = _dataSource.streamChatCompletion(
-        messages: _prepareMessagesForLLM(),
-        model: _settings.model,
-        temperature: _settings.temperature,
-        maxTokens: _settings.maxTokens,
-      );
+      _runWithLlmSessionLogContextForGeneration(generation, () {
+        final stream = _dataSource.streamChatCompletion(
+          messages: _prepareMessagesForLLM(interactionGeneration: generation),
+          model: _settings.model,
+          temperature: _settings.temperature,
+          maxTokens: _settings.maxTokens,
+        );
 
-      _streamSubscription = stream.listen(
-        (chunk) {
-          _appendToLastMessage(chunk);
-        },
-        onError: (error, stackTrace) {
-          appLog(
-            '[ChatNotifier] _sendWithoutTools stream onError: ${error.runtimeType}: $error',
-          );
-          appLog('[ChatNotifier] stackTrace: $stackTrace');
-          if (allowContextRetry) {
-            unawaited(
-              _retryAfterContextLengthError(
-                error,
-                () => _sendWithoutTools(allowContextRetry: false),
-              ).then((retried) {
-                if (!retried) {
-                  _handleError(error.toString());
-                }
-              }),
+        _streamSubscription = stream.listen(
+          (chunk) {
+            if (!_isCurrentInteractionGeneration(generation)) return;
+            _appendToLastMessageForGeneration(generation, chunk);
+          },
+          onError: (error, stackTrace) {
+            if (!_isCurrentInteractionGeneration(generation)) return;
+            appLog(
+              '[ChatNotifier] _sendWithoutTools stream onError: ${error.runtimeType}: $error',
             );
-            return;
-          }
-          _handleError(error.toString());
-        },
-        onDone: () {
-          _finishStreaming();
-        },
-      );
+            appLog('[ChatNotifier] stackTrace: $stackTrace');
+            if (allowContextRetry) {
+              unawaited(
+                _retryAfterContextLengthError(
+                  error,
+                  () => _sendWithoutTools(
+                    allowContextRetry: false,
+                    interactionGeneration: generation,
+                  ),
+                ).then((retried) {
+                  if (!_isCurrentInteractionGeneration(generation)) return;
+                  if (!retried) {
+                    _handleError(error.toString());
+                  }
+                }),
+              );
+              return;
+            }
+            _handleError(error.toString());
+          },
+          onDone: () {
+            unawaited(_finishStreaming(interactionGeneration: generation));
+          },
+        );
+      });
     } catch (e, stackTrace) {
       appLog('[ChatNotifier] _sendWithoutTools catch: ${e.runtimeType}: $e');
       appLog('[ChatNotifier] stackTrace: $stackTrace');
       if (allowContextRetry &&
           await _retryAfterContextLengthError(
             e,
-            () => _sendWithoutTools(allowContextRetry: false),
+            () => _sendWithoutTools(
+              allowContextRetry: false,
+              interactionGeneration: generation,
+            ),
           )) {
         return;
       }
+      if (!_isCurrentInteractionGeneration(generation)) return;
       _handleError(e.toString());
     }
   }
@@ -6945,6 +7351,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   Future<ChatCompletionResult> _createToolResultCompletionWithContextRetry({
     required String logLabel,
+    required int interactionGeneration,
     required List<Message> Function(bool forceCompaction) buildMessages,
     required List<ToolResultInfo> toolResults,
     required String? assistantContent,
@@ -6954,14 +7361,20 @@ class ChatNotifier extends Notifier<ChatState> {
       required bool forceCompaction,
       required ToolResultPromptBudgetMode budgetMode,
     }) {
-      return _dataSource.createChatCompletionWithToolResults(
-        messages: buildMessages(forceCompaction),
-        toolResults: _budgetToolResultsForPrompt(toolResults, mode: budgetMode),
-        assistantContent: assistantContent,
-        tools: tools,
-        model: _settings.model,
-        temperature: _settings.temperature,
-        maxTokens: _settings.maxTokens,
+      return _runWithLlmSessionLogContextForGeneration(
+        interactionGeneration,
+        () => _dataSource.createChatCompletionWithToolResults(
+          messages: buildMessages(forceCompaction),
+          toolResults: _budgetToolResultsForPrompt(
+            toolResults,
+            mode: budgetMode,
+          ),
+          assistantContent: assistantContent,
+          tools: tools,
+          model: _settings.model,
+          temperature: _settings.temperature,
+          maxTokens: _settings.maxTokens,
+        ),
       );
     }
 
@@ -6995,46 +7408,71 @@ class ChatNotifier extends Notifier<ChatState> {
 
   Future<void> _streamToolResultAnswerWithContextRetry({
     required List<ToolResultInfo> toolResults,
+    required int interactionGeneration,
   }) async {
     Future<void> streamAnswer({
       required bool forceCompaction,
       required ToolResultPromptBudgetMode budgetMode,
     }) async {
-      final messagesForLLM = _prepareMessagesForLLM(
-        forceCompaction: forceCompaction,
-        toolDefinitionsOverride: const <Map<String, dynamic>>[],
-      );
-      messagesForLLM.addAll(
-        _buildToolResultAnswerMessages(toolResults, budgetMode: budgetMode),
-      );
+      await _runWithLlmSessionLogContextForGeneration(
+        interactionGeneration,
+        () async {
+          final messagesForLLM = _prepareMessagesForLLM(
+            forceCompaction: forceCompaction,
+            toolDefinitionsOverride: const <Map<String, dynamic>>[],
+            interactionGeneration: interactionGeneration,
+          );
+          messagesForLLM.addAll(
+            _buildToolResultAnswerMessages(toolResults, budgetMode: budgetMode),
+          );
 
-      _appendToLastMessage('<think>');
+          _appendToLastMessageForGeneration(interactionGeneration, '<think>');
 
-      final stream = _dataSource.streamChatCompletion(
-        messages: messagesForLLM,
-        model: _settings.model,
-        temperature: _settings.temperature,
-        maxTokens: _settings.maxTokens,
-      );
+          final stream = _dataSource.streamChatCompletion(
+            messages: messagesForLLM,
+            model: _settings.model,
+            temperature: _settings.temperature,
+            maxTokens: _settings.maxTokens,
+          );
 
-      var isFirstChunk = true;
-      await for (final chunk in stream) {
-        if (!ref.mounted) return;
-        if (isFirstChunk) {
-          isFirstChunk = false;
-          _removeTrailingThinkTag();
-          if (state.messages.isNotEmpty &&
-              state.messages.last.content.isNotEmpty) {
-            _appendToLastMessage('\n', scanForTools: false);
+          var isFirstChunk = true;
+          await for (final chunk in stream) {
+            if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+              return;
+            }
+            if (!ref.mounted) return;
+            if (isFirstChunk) {
+              isFirstChunk = false;
+              _removeTrailingThinkTagForGeneration(interactionGeneration);
+              final activeMessages =
+                  _activeResponseMessagesForGeneration(interactionGeneration) ??
+                  state.messages;
+              if (activeMessages.isNotEmpty &&
+                  activeMessages.last.content.isNotEmpty) {
+                _appendToLastMessageForGeneration(
+                  interactionGeneration,
+                  '\n',
+                  scanForTools: false,
+                );
+              }
+            }
+            _appendToLastMessageForGeneration(
+              interactionGeneration,
+              chunk,
+              scanForTools: false,
+            );
           }
-        }
-        _appendToLastMessage(chunk, scanForTools: false);
-      }
-      if (isFirstChunk) {
-        _removeTrailingThinkTag();
-      }
-      _stripToolArtifactsFromLastAssistantMessage();
-      _appendUnexecutedToolRequestNoticeIfNeeded();
+          if (isFirstChunk) {
+            _removeTrailingThinkTagForGeneration(interactionGeneration);
+          }
+          _stripToolArtifactsFromLastAssistantMessage(
+            interactionGeneration: interactionGeneration,
+          );
+          _appendUnexecutedToolRequestNoticeIfNeeded(
+            interactionGeneration: interactionGeneration,
+          );
+        },
+      );
     }
 
     try {
@@ -7058,7 +7496,8 @@ class ChatNotifier extends Notifier<ChatState> {
         'error with ${hasCompactableHistory ? 'forced prompt compaction' : 'unchanged prompt history'} '
         'and compact tool results',
       );
-      _removeTrailingThinkTag();
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      _removeTrailingThinkTagForGeneration(interactionGeneration);
       await streamAnswer(
         forceCompaction: hasCompactableHistory,
         budgetMode: ToolResultPromptBudgetMode.compact,
@@ -7067,14 +7506,21 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Sends a request with tool support (function calling).
-  Future<void> _sendWithTools({bool allowContextRetry = true}) async {
+  Future<void> _sendWithTools({
+    bool allowContextRetry = true,
+    int? interactionGeneration,
+  }) async {
     if (!ref.mounted) return;
+    final generation = interactionGeneration ?? _interactionGeneration;
     try {
       // Fetch tool definitions from the MCP tool service.
       final allTools = _mcpToolService?.getOpenAiToolDefinitions() ?? [];
       if (allTools.isEmpty) {
         // Fall back to normal streaming when no tools are available.
-        await _sendWithoutTools(allowContextRetry: allowContextRetry);
+        await _sendWithoutTools(
+          allowContextRetry: allowContextRetry,
+          interactionGeneration: generation,
+        );
         return;
       }
       appLog(
@@ -7098,25 +7544,31 @@ class ChatNotifier extends Notifier<ChatState> {
 
       // Stream the initial request to show thinking/content in real-time
       // while also detecting tool calls.
-      final streamResult = _dataSource.streamChatCompletionWithTools(
-        messages: _prepareMessagesForLLM(
-          toolDefinitionsOverride: initialToolSelection.toolDefinitions,
+      final streamResult = _runWithLlmSessionLogContextForGeneration(
+        generation,
+        () => _dataSource.streamChatCompletionWithTools(
+          messages: _prepareMessagesForLLM(
+            toolDefinitionsOverride: initialToolSelection.toolDefinitions,
+            interactionGeneration: generation,
+          ),
+          tools: initialToolSelection.toolDefinitions,
+          model: _settings.model,
+          temperature: _settings.temperature,
+          maxTokens: _settings.maxTokens,
         ),
-        tools: initialToolSelection.toolDefinitions,
-        model: _settings.model,
-        temperature: _settings.temperature,
-        maxTokens: _settings.maxTokens,
       );
 
       // Display streamed content (thinking, preamble) in real-time.
       await for (final chunk in streamResult.stream) {
+        if (!_isCurrentInteractionGeneration(generation)) return;
         if (!ref.mounted) return;
-        _appendToLastMessage(chunk);
+        _appendToLastMessageForGeneration(generation, chunk);
       }
 
       // Retrieve the accumulated tool calls after the stream ends.
       final result = await streamResult.completion;
 
+      if (!_isCurrentInteractionGeneration(generation)) return;
       if (!ref.mounted) return;
       appLog(
         '[Tool] LLM response - finishReason: ${result.finishReason}, hasToolCalls: ${result.hasToolCalls}',
@@ -7132,6 +7584,7 @@ class ChatNotifier extends Notifier<ChatState> {
           assistantContent: result.content.isNotEmpty ? result.content : null,
           toolSearchEnabled: initialToolSelection.toolSearchEnabled,
           selectedToolNames: initialToolSelection.selectedToolNames,
+          interactionGeneration: generation,
         );
       } else {
         // No tool calls — content was already streamed in real-time.
@@ -7144,7 +7597,7 @@ class ChatNotifier extends Notifier<ChatState> {
             ? streamedAssistantContent
             : result.content;
         _recordHiddenAssistantResponse(hiddenAssistantEvidence);
-        await _finishStreaming();
+        await _finishStreaming(interactionGeneration: generation);
       }
     } catch (e) {
       // Fall back when the LLM likely does not support tools.
@@ -7154,10 +7607,15 @@ class ChatNotifier extends Notifier<ChatState> {
       if (allowContextRetry &&
           await _retryAfterContextLengthError(
             e,
-            () => _sendWithTools(allowContextRetry: false),
+            () => _sendWithTools(
+              allowContextRetry: false,
+              interactionGeneration: generation,
+            ),
           )) {
         return;
       }
+
+      if (!_isCurrentInteractionGeneration(generation)) return;
 
       // Fall back to normal mode for tool-related failures.
       // Examples include JSON parse errors, empty responses, or invalid payloads.
@@ -7172,9 +7630,13 @@ class ChatNotifier extends Notifier<ChatState> {
           errorStr.contains('500') ||
           errorStr.contains('server error')) {
         appLog('[Tool] LLM may not support tools, falling back to normal mode');
-        await _sendWithoutTools(allowContextRetry: allowContextRetry);
+        await _sendWithoutTools(
+          allowContextRetry: allowContextRetry,
+          interactionGeneration: generation,
+        );
         return;
       }
+      if (!_isCurrentInteractionGeneration(generation)) return;
       _handleError(e.toString());
     }
   }
@@ -7307,6 +7769,7 @@ class ChatNotifier extends Notifier<ChatState> {
     String? assistantContent,
     bool toolSearchEnabled = false,
     Set<String> selectedToolNames = const <String>{},
+    required int interactionGeneration,
   }) async {
     var currentToolCalls = toolCalls;
     var currentAssistantContent = assistantContent;
@@ -7338,6 +7801,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
       iteration++;
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       if (!ref.mounted) return;
 
       appLog('[Tool] Tool loop [$iteration/$maxIterations]');
@@ -7368,13 +7832,19 @@ class ChatNotifier extends Notifier<ChatState> {
         appLog('[Tool] Executing tool: ${toolCall.name}');
         appLog('[Tool] Arguments: ${toolCall.arguments}');
 
-        _appendToolUseToLastMessage(toolCall);
+        _appendToolUseToLastMessage(
+          toolCall,
+          interactionGeneration: interactionGeneration,
+        );
         pendingBatchCalls.add(toolCall);
       }
 
       final scheduledResults = await ToolExecutionScheduler.executeBatch(
         toolCalls: pendingBatchCalls,
-        execute: _dispatchToolCall,
+        execute: (toolCall) => _dispatchToolCall(
+          toolCall,
+          interactionGeneration: interactionGeneration,
+        ),
         onLifecycle: (event) =>
             _logScheduledToolLifecycleEvent(event, loopIndex: iteration),
         onBatch: (telemetry) {
@@ -7386,6 +7856,8 @@ class ChatNotifier extends Notifier<ChatState> {
         },
       );
 
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+
       for (final scheduledResult in scheduledResults) {
         final toolCall = scheduledResult.toolCall;
         final toolCallKey = _toolExecutionKey(
@@ -7395,7 +7867,10 @@ class ChatNotifier extends Notifier<ChatState> {
         if (scheduledResult.error != null) {
           final error = scheduledResult.error!;
           appLog('[Tool] Error: $error');
-          _appendToLastMessage('[Search error: $error]\n');
+          _appendToLastMessageForGeneration(
+            interactionGeneration,
+            '[Search error: $error]\n',
+          );
           hasTextResponse = true;
           break;
         }
@@ -7414,7 +7889,11 @@ class ChatNotifier extends Notifier<ChatState> {
             arguments: toolCall.arguments,
             result: toolResult,
           ),
-          conversationId: conversationId,
+          conversationId:
+              _activeResponseConversationIdForGeneration(
+                interactionGeneration,
+              ) ??
+              conversationId,
         );
         batchToolResults.add(promptToolResult);
         executedToolResults.add(batchToolResults.last);
@@ -7432,7 +7911,8 @@ class ChatNotifier extends Notifier<ChatState> {
             appLog(
               '[Tool] Same tool (${toolCall.name}) failed $failureCount times consecutively, ending loop',
             );
-            _appendToLastMessage(
+            _appendToLastMessageForGeneration(
+              interactionGeneration,
               '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
             );
             hasTextResponse = true;
@@ -7467,7 +7947,10 @@ class ChatNotifier extends Notifier<ChatState> {
                 );
             currentToolCalls = [];
             _recordHiddenAssistantResponse(fallbackResponse);
-            _appendRecoveredAssistantResponse(fallbackResponse);
+            _appendRecoveredAssistantResponse(
+              fallbackResponse,
+              interactionGeneration: interactionGeneration,
+            );
             currentAssistantContent = fallbackResponse;
             hasTextResponse = true;
             break;
@@ -7479,13 +7962,15 @@ class ChatNotifier extends Notifier<ChatState> {
             appLog(
               '[Tool] Duplicate read-only follow-up tool calls detected, requesting bounded recovery',
             );
-            _appendToLastMessage('<think>');
+            _appendToLastMessageForGeneration(interactionGeneration, '<think>');
             final mcpToolService = _mcpToolService;
             if (mcpToolService == null) {
               _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
                 executedToolResults,
               );
-              await _sendWithoutTools();
+              await _sendWithoutTools(
+                interactionGeneration: interactionGeneration,
+              );
               return;
             }
             final tools = selectedDefinitionsFor(mcpToolService);
@@ -7493,6 +7978,7 @@ class ChatNotifier extends Notifier<ChatState> {
               final messages = _prepareMessagesForLLM(
                 forceCompaction: forceCompaction,
                 toolDefinitionsOverride: tools,
+                interactionGeneration: interactionGeneration,
               );
               messages.add(
                 Message(
@@ -7511,13 +7997,17 @@ class ChatNotifier extends Notifier<ChatState> {
             final recoveryResult =
                 await _createToolResultCompletionWithContextRetry(
                   logLabel: 'duplicate inspection recovery',
+                  interactionGeneration: interactionGeneration,
                   buildMessages: buildRecoveryMessages,
                   toolResults: duplicateRecoveryToolResults,
                   assistantContent: currentAssistantContent,
                   tools: tools,
                 );
+            if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+              return;
+            }
             if (!ref.mounted) return;
-            _removeTrailingThinkTag();
+            _removeTrailingThinkTagForGeneration(interactionGeneration);
             if (recoveryResult.hasToolCalls) {
               appLog(
                 '[Tool] Duplicate inspection recovery requested additional tool calls',
@@ -7536,7 +8026,10 @@ class ChatNotifier extends Notifier<ChatState> {
             final fallbackResponse = recoveryResult.content.trim();
             _recordHiddenAssistantResponse(fallbackResponse);
             if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
-              _appendRecoveredAssistantResponse(fallbackResponse);
+              _appendRecoveredAssistantResponse(
+                fallbackResponse,
+                interactionGeneration: interactionGeneration,
+              );
               currentAssistantContent = fallbackResponse;
               hasTextResponse = true;
               break;
@@ -7549,13 +8042,15 @@ class ChatNotifier extends Notifier<ChatState> {
             appLog(
               '[Tool] Duplicate follow-up tool calls detected, requesting bounded recovery',
             );
-            _appendToLastMessage('<think>');
+            _appendToLastMessageForGeneration(interactionGeneration, '<think>');
             final mcpToolService = _mcpToolService;
             if (mcpToolService == null) {
               _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
                 executedToolResults,
               );
-              await _sendWithoutTools();
+              await _sendWithoutTools(
+                interactionGeneration: interactionGeneration,
+              );
               return;
             }
             final tools = selectedDefinitionsFor(mcpToolService);
@@ -7563,6 +8058,7 @@ class ChatNotifier extends Notifier<ChatState> {
               final messages = _prepareMessagesForLLM(
                 forceCompaction: forceCompaction,
                 toolDefinitionsOverride: tools,
+                interactionGeneration: interactionGeneration,
               );
               messages.add(
                 Message(
@@ -7581,13 +8077,17 @@ class ChatNotifier extends Notifier<ChatState> {
             final recoveryResult =
                 await _createToolResultCompletionWithContextRetry(
                   logLabel: 'duplicate follow-up recovery',
+                  interactionGeneration: interactionGeneration,
                   buildMessages: buildRecoveryMessages,
                   toolResults: duplicateRecoveryToolResults,
                   assistantContent: currentAssistantContent,
                   tools: tools,
                 );
+            if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+              return;
+            }
             if (!ref.mounted) return;
-            _removeTrailingThinkTag();
+            _removeTrailingThinkTagForGeneration(interactionGeneration);
             if (recoveryResult.hasToolCalls) {
               appLog(
                 '[Tool] Duplicate follow-up recovery requested additional tool calls',
@@ -7606,7 +8106,10 @@ class ChatNotifier extends Notifier<ChatState> {
             final fallbackResponse = recoveryResult.content.trim();
             _recordHiddenAssistantResponse(fallbackResponse);
             if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
-              _appendRecoveredAssistantResponse(fallbackResponse);
+              _appendRecoveredAssistantResponse(
+                fallbackResponse,
+                interactionGeneration: interactionGeneration,
+              );
               currentAssistantContent = fallbackResponse;
               hasTextResponse = true;
               break;
@@ -7641,7 +8144,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }
 
       // Show a thinking indicator while waiting for the follow-up request.
-      _appendToLastMessage('<think>');
+      _appendToLastMessageForGeneration(interactionGeneration, '<think>');
 
       // Send the tool results back to the LLM and check for follow-up calls.
       // Use a non-streaming request with tool definitions included.
@@ -7650,25 +8153,28 @@ class ChatNotifier extends Notifier<ChatState> {
         _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
           executedToolResults,
         );
-        await _sendWithoutTools();
+        await _sendWithoutTools(interactionGeneration: interactionGeneration);
         return;
       }
       final tools = selectedDefinitionsFor(mcpToolService);
       final nextResult = await _createToolResultCompletionWithContextRetry(
         logLabel: 'tool-result follow-up',
+        interactionGeneration: interactionGeneration,
         buildMessages: (forceCompaction) => _prepareMessagesForLLM(
           forceCompaction: forceCompaction,
           toolDefinitionsOverride: tools,
+          interactionGeneration: interactionGeneration,
         ),
         toolResults: batchToolResults,
         assistantContent: currentAssistantContent,
         tools: tools,
       );
 
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       if (!ref.mounted) return;
 
       // Remove the temporary thinking indicator.
-      _removeTrailingThinkTag();
+      _removeTrailingThinkTagForGeneration(interactionGeneration);
 
       final savedValidationSucceeded =
           _toolResultsContainSuccessfulCurrentSavedValidation(batchToolResults);
@@ -7689,7 +8195,10 @@ class ChatNotifier extends Notifier<ChatState> {
               ? fallbackResponse
               : 'The saved validation command succeeded for the current saved task, so the current saved task is complete.';
           _recordHiddenAssistantResponse(completionResponse);
-          _appendRecoveredAssistantResponse(completionResponse);
+          _appendRecoveredAssistantResponse(
+            completionResponse,
+            interactionGeneration: interactionGeneration,
+          );
           currentAssistantContent = completionResponse;
           hasTextResponse = true;
           break;
@@ -7701,7 +8210,10 @@ class ChatNotifier extends Notifier<ChatState> {
           );
           currentToolCalls = [];
           _recordHiddenAssistantResponse(fallbackResponse);
-          _appendRecoveredAssistantResponse(fallbackResponse);
+          _appendRecoveredAssistantResponse(
+            fallbackResponse,
+            interactionGeneration: interactionGeneration,
+          );
           currentAssistantContent = fallbackResponse;
           hasTextResponse = true;
           break;
@@ -7728,7 +8240,9 @@ class ChatNotifier extends Notifier<ChatState> {
                 executedToolCallKeys: executedToolCallKeys,
                 commandRetryGeneration: commandRetryGeneration,
                 loopIndex: iteration + 1,
+                interactionGeneration: interactionGeneration,
               );
+          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
           if (!ref.mounted) return;
           if (finalInspectionResults.isNotEmpty) {
             executedToolResults.addAll(finalInspectionResults);
@@ -7743,13 +8257,15 @@ class ChatNotifier extends Notifier<ChatState> {
           appLog(
             '[Tool] Tool loop exhausted with pending tool calls, requesting bounded recovery',
           );
-          _appendToLastMessage('<think>');
+          _appendToLastMessageForGeneration(interactionGeneration, '<think>');
           final mcpToolService = _mcpToolService;
           if (mcpToolService == null) {
             _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
               executedToolResults,
             );
-            await _sendWithoutTools();
+            await _sendWithoutTools(
+              interactionGeneration: interactionGeneration,
+            );
             return;
           }
           final tools = selectedDefinitionsFor(mcpToolService);
@@ -7762,6 +8278,7 @@ class ChatNotifier extends Notifier<ChatState> {
             final messages = _prepareMessagesForLLM(
               forceCompaction: forceCompaction,
               toolDefinitionsOverride: tools,
+              interactionGeneration: interactionGeneration,
             );
             messages.add(
               Message(
@@ -7780,13 +8297,15 @@ class ChatNotifier extends Notifier<ChatState> {
           final recoveryResult =
               await _createToolResultCompletionWithContextRetry(
                 logLabel: 'tool-loop exhaustion recovery',
+                interactionGeneration: interactionGeneration,
                 buildMessages: buildRecoveryMessages,
                 toolResults: recoveryToolResults,
                 assistantContent: currentAssistantContent,
                 tools: tools,
               );
+          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
           if (!ref.mounted) return;
-          _removeTrailingThinkTag();
+          _removeTrailingThinkTagForGeneration(interactionGeneration);
           if (recoveryResult.hasToolCalls) {
             appLog(
               '[Tool] Tool loop exhaustion recovery requested additional tool calls',
@@ -7806,7 +8325,10 @@ class ChatNotifier extends Notifier<ChatState> {
             final fallbackResponse = recoveryResult.content.trim();
             _recordHiddenAssistantResponse(fallbackResponse);
             if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
-              _appendRecoveredAssistantResponse(fallbackResponse);
+              _appendRecoveredAssistantResponse(
+                fallbackResponse,
+                interactionGeneration: interactionGeneration,
+              );
               currentAssistantContent = fallbackResponse;
               hasTextResponse = true;
               break;
@@ -7823,7 +8345,10 @@ class ChatNotifier extends Notifier<ChatState> {
           appLog(
             '[Tool] Accepting terminal tool-role final text response without final answer fallback',
           );
-          _appendRecoveredAssistantResponse(fallbackResponse);
+          _appendRecoveredAssistantResponse(
+            fallbackResponse,
+            interactionGeneration: interactionGeneration,
+          );
           currentAssistantContent = fallbackResponse;
           hasTextResponse = true;
           break;
@@ -7832,7 +8357,10 @@ class ChatNotifier extends Notifier<ChatState> {
           appLog(
             '[Tool] Accepting terminal tool-role blocker response without final answer fallback',
           );
-          _appendRecoveredAssistantResponse(fallbackResponse);
+          _appendRecoveredAssistantResponse(
+            fallbackResponse,
+            interactionGeneration: interactionGeneration,
+          );
           currentAssistantContent = fallbackResponse;
           hasTextResponse = true;
           break;
@@ -7860,7 +8388,9 @@ class ChatNotifier extends Notifier<ChatState> {
             executedToolCallKeys: executedToolCallKeys,
             commandRetryGeneration: commandRetryGeneration,
             loopIndex: iteration + 1,
+            interactionGeneration: interactionGeneration,
           );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       if (!ref.mounted) return;
       if (finalInspectionResults.isNotEmpty) {
         executedToolResults.addAll(finalInspectionResults);
@@ -7887,11 +8417,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
       await _streamToolResultAnswerWithContextRetry(
         toolResults: finalToolResults,
+        interactionGeneration: interactionGeneration,
       );
     } else if (!hasTextResponse) {
       appLog('[Tool] Tool loop reached maximum iterations (no text response)');
       if (state.messages.isNotEmpty) {
-        _appendToLastMessage(
+        _appendToLastMessageForGeneration(
+          interactionGeneration,
           '\nSorry, there was a problem executing the tools. Please try again later.',
         );
       }
@@ -7900,7 +8432,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
       executedToolResults,
     );
-    await _finishStreaming();
+    await _finishStreaming(interactionGeneration: interactionGeneration);
   }
 
   Future<List<ToolResultInfo>> _executeFinalReadOnlyInspectionToolCalls({
@@ -7908,7 +8440,11 @@ class ChatNotifier extends Notifier<ChatState> {
     required Set<String> executedToolCallKeys,
     required int commandRetryGeneration,
     required int loopIndex,
+    required int interactionGeneration,
   }) async {
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+      return const [];
+    }
     final pendingToolCalls = <ToolCallInfo>[];
     for (final toolCall in toolCalls) {
       if (!_isReadOnlyInspectionToolCall(toolCall)) {
@@ -7936,7 +8472,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
       appLog('[Tool] Executing final inspection tool: ${toolCall.name}');
       appLog('[Tool] Arguments: ${toolCall.arguments}');
-      _appendToolUseToLastMessage(toolCall);
+      _appendToolUseToLastMessage(
+        toolCall,
+        interactionGeneration: interactionGeneration,
+      );
       pendingToolCalls.add(toolCall);
     }
 
@@ -7946,7 +8485,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingToolCalls,
-      execute: _dispatchToolCall,
+      execute: (toolCall) => _dispatchToolCall(
+        toolCall,
+        interactionGeneration: interactionGeneration,
+      ),
       onLifecycle: (event) =>
           _logScheduledToolLifecycleEvent(event, loopIndex: loopIndex),
       onBatch: (telemetry) {
@@ -7957,6 +8499,9 @@ class ChatNotifier extends Notifier<ChatState> {
         );
       },
     );
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+      return const [];
+    }
 
     final toolResults = <ToolResultInfo>[];
     for (final scheduledResult in scheduledResults) {
@@ -7984,8 +8529,13 @@ class ChatNotifier extends Notifier<ChatState> {
           arguments: toolCall.arguments,
           result: toolResult,
         ),
-        conversationId: conversationId,
+        conversationId:
+            _activeResponseConversationIdForGeneration(interactionGeneration) ??
+            conversationId,
       );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+        return const [];
+      }
       toolResults.add(promptToolResult);
 
       if (result?.isSuccess ?? false) {
@@ -7995,7 +8545,24 @@ class ChatNotifier extends Notifier<ChatState> {
     return toolResults;
   }
 
-  void _appendToLastMessage(String chunk, {bool scanForTools = true}) {
+  void _appendToLastMessageForGeneration(
+    int generation,
+    String chunk, {
+    bool scanForTools = true,
+  }) {
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+
+      final updatedMessages = [...activeMessages];
+      final lastIndex = updatedMessages.length - 1;
+      final lastMessage = updatedMessages[lastIndex];
+      final newContent = lastMessage.content + chunk;
+      updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+      return;
+    }
+
     if (!ref.mounted || state.messages.isEmpty) return;
 
     final updatedMessages = [...state.messages];
@@ -8006,15 +8573,30 @@ class ChatNotifier extends Notifier<ChatState> {
     updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
 
     state = state.copyWith(messages: updatedMessages);
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
 
     // Check whether the content contains completed tool-call tags.
     if (scanForTools) {
-      _checkForContentToolCalls(newContent);
+      _checkForContentToolCalls(newContent, interactionGeneration: generation);
     }
   }
 
-  /// Replaces the last message's content entirely instead of appending.
-  void _replaceLastMessageContent(String newContent) {
+  void _replaceLastMessageContentForGeneration(
+    int generation,
+    String newContent,
+  ) {
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+
+      final updatedMessages = [...activeMessages];
+      final lastIndex = updatedMessages.length - 1;
+      final lastMessage = updatedMessages[lastIndex];
+      updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+      return;
+    }
+
     if (!ref.mounted || state.messages.isEmpty) return;
 
     final updatedMessages = [...state.messages];
@@ -8023,28 +8605,47 @@ class ChatNotifier extends Notifier<ChatState> {
 
     updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
     state = state.copyWith(messages: updatedMessages);
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
   }
 
-  /// Removes a trailing `<think>` tag appended as a temporary indicator.
-  void _removeTrailingThinkTag() {
+  void _removeTrailingThinkTagForGeneration(int generation) {
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+      final lastMessage = activeMessages.last;
+      final content = lastMessage.content;
+      if (content.endsWith('<think>')) {
+        _replaceLastMessageContentForGeneration(
+          generation,
+          content.substring(0, content.length - '<think>'.length),
+        );
+      }
+      return;
+    }
+
     if (!ref.mounted || state.messages.isEmpty) return;
 
     final lastMessage = state.messages.last;
     final content = lastMessage.content;
     if (content.endsWith('<think>')) {
-      _replaceLastMessageContent(
+      _replaceLastMessageContentForGeneration(
+        generation,
         content.substring(0, content.length - '<think>'.length),
       );
     }
   }
 
-  void _appendToolUseToLastMessage(ToolCallInfo toolCall) {
+  void _appendToolUseToLastMessage(
+    ToolCallInfo toolCall, {
+    int? interactionGeneration,
+  }) {
     _markToolCallSeenForContentDedup(toolCall.name, toolCall.arguments);
     final payload = <String, dynamic>{
       'name': toolCall.name,
       'arguments': toolCall.arguments,
     };
-    _appendToLastMessage(
+    _appendToLastMessageForGeneration(
+      interactionGeneration ?? _interactionGeneration,
       '<tool_use>${jsonEncode(payload)}</tool_use>\n',
       scanForTools: false,
     );
@@ -8054,16 +8655,23 @@ class ChatNotifier extends Notifier<ChatState> {
   final List<Future<void>> _pendingToolExecutions = [];
 
   /// Detects and runs `tool_call` tags embedded in the content.
-  void _checkForContentToolCalls(String content) {
+  void _checkForContentToolCalls(String content, {int? interactionGeneration}) {
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
     final freshToolCalls = toolCalls.where((tc) {
       return _seenContentToolCallHashes.add(_contentToolCallHash(tc));
     }).toList();
 
-    _queueContentToolCalls(freshToolCalls);
+    _queueContentToolCalls(
+      freshToolCalls,
+      interactionGeneration: interactionGeneration ?? _interactionGeneration,
+    );
   }
 
-  void _queueContentToolCalls(List<ToolCallData> freshToolCalls) {
+  void _queueContentToolCalls(
+    List<ToolCallData> freshToolCalls, {
+    required int interactionGeneration,
+  }) {
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
     if (freshToolCalls.isNotEmpty) {
       appLog('[ContentTool] Detected tool_call(s): ${freshToolCalls.length}');
       for (final tc in freshToolCalls) {
@@ -8085,7 +8693,7 @@ class ChatNotifier extends Notifier<ChatState> {
       if (!_executedContentToolCalls.contains(hash)) {
         appLog('[ContentTool] Starting execution: $hash');
         _executedContentToolCalls.add(hash);
-        final future = _enqueueContentToolCall(tc);
+        final future = _enqueueContentToolCall(tc, interactionGeneration);
         _pendingToolExecutions.add(future);
       } else {
         appLog('[ContentTool] Already executed: $hash');
@@ -8093,12 +8701,15 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  Future<void> _enqueueContentToolCall(ToolCallData tc) {
+  Future<void> _enqueueContentToolCall(
+    ToolCallData tc,
+    int interactionGeneration,
+  ) {
     final future = _contentToolExecutionTail.then((_) {
-      if (!ref.mounted) {
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
         return Future<void>.value();
       }
-      return _executeContentToolCall(tc);
+      return _executeContentToolCall(tc, interactionGeneration);
     });
     _contentToolExecutionTail = future.catchError((_) {});
     return future;
@@ -8704,8 +9315,11 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Executes a `tool_call` detected from message content.
-  Future<void> _executeContentToolCall(ToolCallData tc) async {
-    if (!ref.mounted) return;
+  Future<void> _executeContentToolCall(
+    ToolCallData tc,
+    int interactionGeneration,
+  ) async {
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
 
     appLog('[ContentTool] Executing tool: ${tc.name}');
     appLog('[ContentTool] Arguments: ${tc.arguments}');
@@ -8717,7 +9331,11 @@ class ChatNotifier extends Notifier<ChatState> {
     );
 
     try {
-      final result = await _dispatchToolCall(toolCall);
+      final result = await _dispatchToolCall(
+        toolCall,
+        interactionGeneration: interactionGeneration,
+      );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
 
       if (!result.isSuccess) {
         appLog('[ContentTool] Execution failed: ${result.errorMessage}');
@@ -8755,6 +9373,7 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
         conversationId: conversationId,
       );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       _recordContentToolResultInfo(contentToolResult);
       final promptResult = contentToolResult.result;
 
@@ -8775,6 +9394,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       _pendingContentToolResults.add('[Result of ${tc.name}]\n$promptResult');
     } catch (e) {
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       appLog('[ContentTool] Error: $e');
       final failureResult = _buildContentToolFailureResult(tc.name, '$e');
       _recordContentToolResult(toolCall: toolCall, result: failureResult);
@@ -9115,7 +9735,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Dispatches a tool call to the MCP tool service, intercepting SSH
   /// tools that require a UI dialog for user confirmation.
-  Future<McpToolResult> _dispatchToolCall(ToolCallInfo toolCall) async {
+  Future<McpToolResult> _dispatchToolCall(
+    ToolCallInfo toolCall, {
+    int? interactionGeneration,
+  }) async {
     final planningPolicyResult = _enforcePlanningToolPolicy(toolCall);
     if (planningPolicyResult != null) {
       return planningPolicyResult;
@@ -9151,7 +9774,10 @@ class ChatNotifier extends Notifier<ChatState> {
       case 'ble_connect':
         return _handleBleConnect(toolCall);
       case 'ask_user_question':
-        return _handleAskUserQuestion(toolCall);
+        return _handleAskUserQuestion(
+          toolCall,
+          interactionGeneration: interactionGeneration,
+        );
       default:
         return _mcpToolService!.executeTool(
           name: toolCall.name,
@@ -9320,8 +9946,13 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  void _recoverIncompleteContentToolCallsFromLastMessage() {
-    if (!ref.mounted || state.messages.isEmpty) return;
+  void _recoverIncompleteContentToolCallsFromLastMessage({
+    required int interactionGeneration,
+  }) {
+    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+        state.messages.isEmpty) {
+      return;
+    }
 
     final lastMessage = state.messages.last;
     if (lastMessage.role != MessageRole.assistant ||
@@ -9340,7 +9971,9 @@ class ChatNotifier extends Notifier<ChatState> {
       appLog(
         '[ContentTool] Incomplete tool call could not be parsed; requesting continuation recovery',
       );
-      _stripToolArtifactsFromLastAssistantMessage();
+      _stripToolArtifactsFromLastAssistantMessage(
+        interactionGeneration: interactionGeneration,
+      );
       _pendingContentToolResults.add(
         '[Incomplete assistant tool call]\n'
         'The assistant emitted an unfinished tool call tag. Reissue the needed '
@@ -9354,11 +9987,18 @@ class ChatNotifier extends Notifier<ChatState> {
     appLog(
       '[ContentTool] Recovering incomplete tool_call(s): ${recoveredToolCalls.length}',
     );
-    _stripToolArtifactsFromLastAssistantMessage();
-    _queueContentToolCalls(recoveredToolCalls);
+    _stripToolArtifactsFromLastAssistantMessage(
+      interactionGeneration: interactionGeneration,
+    );
+    _queueContentToolCalls(
+      recoveredToolCalls,
+      interactionGeneration: interactionGeneration,
+    );
   }
 
-  bool _recoverUntrustedAssistantToolResultsFromLastMessage() {
+  bool _recoverUntrustedAssistantToolResultsFromLastMessage({
+    int? interactionGeneration,
+  }) {
     if (!ref.mounted || state.messages.isEmpty) return false;
 
     final lastMessage = state.messages.last;
@@ -9377,7 +10017,9 @@ class ChatNotifier extends Notifier<ChatState> {
       '[ContentTool] Ignoring assistant-authored tool_result tag(s): '
       '${toolResults.map((tc) => tc.name).join(", ")}',
     );
-    _stripToolArtifactsFromLastAssistantMessage();
+    _stripToolArtifactsFromLastAssistantMessage(
+      interactionGeneration: interactionGeneration,
+    );
     _pendingContentToolResults.add(
       '[Assistant-authored tool_result ignored]\n'
       'The assistant emitted <tool_result> tags without a corresponding tool '
@@ -9388,7 +10030,35 @@ class ChatNotifier extends Notifier<ChatState> {
     return true;
   }
 
-  void _stripToolArtifactsFromLastAssistantMessage() {
+  void _stripToolArtifactsFromLastAssistantMessage({
+    int? interactionGeneration,
+  }) {
+    final generation = interactionGeneration ?? _interactionGeneration;
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+
+      final updatedMessages = [...activeMessages];
+      final lastIndex = updatedMessages.length - 1;
+      final lastMessage = updatedMessages[lastIndex];
+      if (lastMessage.role != MessageRole.assistant) {
+        return;
+      }
+
+      final strippedContent = ContentParser.stripToolArtifacts(
+        lastMessage.content,
+      );
+      if (strippedContent.trim().isEmpty) {
+        updatedMessages.removeAt(lastIndex);
+      } else {
+        updatedMessages[lastIndex] = lastMessage.copyWith(
+          content: strippedContent,
+        );
+      }
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+      return;
+    }
+
     if (!ref.mounted || state.messages.isEmpty) return;
 
     final updatedMessages = [...state.messages];
@@ -9409,9 +10079,41 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
     state = state.copyWith(messages: updatedMessages);
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
   }
 
-  void _appendUnexecutedToolRequestNoticeIfNeeded() {
+  void _appendUnexecutedToolRequestNoticeIfNeeded({
+    int? interactionGeneration,
+  }) {
+    final generation = interactionGeneration ?? _interactionGeneration;
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+
+      final updatedMessages = [...activeMessages];
+      final lastIndex = updatedMessages.length - 1;
+      final lastMessage = updatedMessages[lastIndex];
+      if (lastMessage.role != MessageRole.assistant) {
+        return;
+      }
+
+      final content = lastMessage.content;
+      const notice =
+          'I could not execute the additional tool request above in this final-answer step. '
+          'Treat it as unexecuted; ask me to continue with a narrower follow-up '
+          'if the missing action still matters.';
+      if (content.contains(notice) ||
+          !_looksLikeUnexecutedToolRequest(content)) {
+        return;
+      }
+
+      updatedMessages[lastIndex] = lastMessage.copyWith(
+        content: '${content.trimRight()}\n\n$notice',
+      );
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+      return;
+    }
+
     if (!ref.mounted || state.messages.isEmpty) return;
 
     final updatedMessages = [...state.messages];
@@ -9434,6 +10136,7 @@ class ChatNotifier extends Notifier<ChatState> {
       content: '${content.trimRight()}\n\n$notice',
     );
     state = state.copyWith(messages: updatedMessages);
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
   }
 
   bool _looksLikeUnexecutedToolRequest(String content) {
@@ -9602,16 +10305,87 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(messages: updatedMessages);
   }
 
-  Future<void> _finishStreaming() async {
-    _recoverIncompleteContentToolCallsFromLastMessage();
+  Future<void> _finishDetachedActiveResponse(int generation) async {
+    if (!_isCurrentInteractionGeneration(generation)) return;
+
+    final targetConversationId = _activeResponseConversationIdForGeneration(
+      generation,
+    );
+    final activeMessages = _activeResponseMessagesForGeneration(generation);
+    if (targetConversationId == null ||
+        activeMessages == null ||
+        activeMessages.isEmpty) {
+      _clearActiveResponseForGeneration(generation);
+      return;
+    }
+
+    final updatedMessages = [...activeMessages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    final shouldDropLastAssistant =
+        lastMessage.role == MessageRole.assistant &&
+        !_assistantMessageHasVisibleContent(lastMessage.content);
+
+    if (shouldDropLastAssistant) {
+      updatedMessages.removeAt(lastIndex);
+    } else {
+      updatedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
+    }
+
+    final messagesToSave = updatedMessages
+        .where((message) => !message.isStreaming)
+        .map(_sanitizeMessageForModelHistory)
+        .where(_shouldKeepMessageForModelHistory)
+        .toList(growable: false);
+
+    await _onConversationMessagesChanged(targetConversationId, messagesToSave);
+    if (!_isCurrentInteractionGeneration(generation)) return;
+
+    if (conversationId == targetConversationId) {
+      state = state.copyWith(
+        messages: updatedMessages,
+        isLoading: false,
+        pendingAskUserQuestion: null,
+      );
+    }
+
+    String completedContent = '';
+    if (!shouldDropLastAssistant && updatedMessages.isNotEmpty) {
+      final finalizedLastMessage = updatedMessages.last;
+      if (finalizedLastMessage.role == MessageRole.assistant) {
+        completedContent = finalizedLastMessage.content;
+      }
+    }
+
+    _clearActiveResponseForGeneration(generation);
+    _contentToolContinuationCount = 0;
+    _onResponseCompleted(completedContent);
+  }
+
+  Future<void> _finishStreaming({int? interactionGeneration}) async {
+    final generation = interactionGeneration ?? _interactionGeneration;
+    if (!_isCurrentInteractionGeneration(generation)) return;
+
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      await _finishDetachedActiveResponse(generation);
+      return;
+    }
+
+    _recoverIncompleteContentToolCallsFromLastMessage(
+      interactionGeneration: generation,
+    );
 
     // Wait for pending tool executions before finalizing the response.
     if (_pendingToolExecutions.isNotEmpty) {
-      appLog(
-        '[ChatNotifier] Waiting for pending tool executions: ${_pendingToolExecutions.length}',
+      final pendingToolExecutions = List<Future<void>>.from(
+        _pendingToolExecutions,
       );
-      await Future.wait(_pendingToolExecutions);
       _pendingToolExecutions.clear();
+      appLog(
+        '[ChatNotifier] Waiting for pending tool executions: ${pendingToolExecutions.length}',
+      );
+      await Future.wait(pendingToolExecutions);
+      if (!_isCurrentInteractionGeneration(generation)) return;
       appLog('[ChatNotifier] Tool executions completed');
     }
 
@@ -9623,14 +10397,19 @@ class ChatNotifier extends Notifier<ChatState> {
         _appendToolContinuationLimitNotice();
       } else {
         _contentToolContinuationCount += 1;
-        await _continueAfterContentToolResults(toolResults);
+        await _continueAfterContentToolResults(
+          toolResults,
+          interactionGeneration: generation,
+        );
         return;
       }
     }
 
     if (_pendingContentToolResults.isEmpty) {
       final recoveredUntrustedToolResult =
-          _recoverUntrustedAssistantToolResultsFromLastMessage();
+          _recoverUntrustedAssistantToolResultsFromLastMessage(
+            interactionGeneration: generation,
+          );
       if (recoveredUntrustedToolResult) {
         final toolResults = List<String>.from(_pendingContentToolResults);
         _pendingContentToolResults.clear();
@@ -9638,13 +10417,19 @@ class ChatNotifier extends Notifier<ChatState> {
           _appendToolContinuationLimitNotice();
         } else {
           _contentToolContinuationCount += 1;
-          await _continueAfterContentToolResults(toolResults);
+          await _continueAfterContentToolResults(
+            toolResults,
+            interactionGeneration: generation,
+          );
           return;
         }
       }
     }
 
-    if (!ref.mounted || state.messages.isEmpty) return;
+    if (!_isCurrentInteractionGeneration(generation) ||
+        state.messages.isEmpty) {
+      return;
+    }
 
     final updatedMessages = [...state.messages];
     final lastIndex = updatedMessages.length - 1;
@@ -9662,6 +10447,7 @@ class ChatNotifier extends Notifier<ChatState> {
     // Capture token usage from the data source
     _updateTokenUsage();
 
+    if (!_isCurrentInteractionGeneration(generation)) return;
     state = state.copyWith(messages: updatedMessages, isLoading: false);
 
     // Hidden prompt responses are ephemeral — remove from visible history
@@ -9676,16 +10462,20 @@ class ChatNotifier extends Notifier<ChatState> {
       state = state.copyWith(messages: cleaned);
       _hiddenPrompt = null;
       _onResponseCompleted('');
+      if (!_isCurrentInteractionGeneration(generation)) return;
       await _drainQueuedChatMessagesIfIdle();
       return;
     }
 
     // Persist messages.
     _contentToolContinuationCount = 0;
+    _clearActiveResponseForGeneration(generation);
     await _saveMessages();
+    if (!_isCurrentInteractionGeneration(generation)) return;
 
     if (shouldDropLastAssistant || updatedMessages.isEmpty) {
       _onResponseCompleted('');
+      if (!_isCurrentInteractionGeneration(generation)) return;
       await _drainQueuedChatMessagesIfIdle();
       return;
     }
@@ -9698,6 +10488,7 @@ class ChatNotifier extends Notifier<ChatState> {
           assistantResponse: finalizedLastMessage.content,
           tokenUsageDelta: _accumulatedTokenUsage.totalTokens,
         );
+    if (!_isCurrentInteractionGeneration(generation)) return;
 
     if (_settings.autoReadEnabled && _settings.ttsEnabled) {
       final lastMsg = finalizedLastMessage;
@@ -9713,6 +10504,7 @@ class ChatNotifier extends Notifier<ChatState> {
     } else {
       _onResponseCompleted('');
     }
+    if (!_isCurrentInteractionGeneration(generation)) return;
     await _drainQueuedChatMessagesIfIdle();
   }
 
@@ -9769,9 +10561,13 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<void> _continueAfterContentToolResults(
-    List<String> toolResults,
-  ) async {
-    if (!ref.mounted || state.messages.isEmpty) return;
+    List<String> toolResults, {
+    required int interactionGeneration,
+  }) async {
+    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+        state.messages.isEmpty) {
+      return;
+    }
 
     final finalizedMessages = [...state.messages];
     final lastIndex = finalizedMessages.length - 1;
@@ -9793,7 +10589,9 @@ class ChatNotifier extends Notifier<ChatState> {
       error: null,
     );
 
-    final messagesForLLM = _prepareMessagesForLLM();
+    final messagesForLLM = _prepareMessagesForLLM(
+      interactionGeneration: interactionGeneration,
+    );
     final resultsText = toolResults.join('\n\n');
     messagesForLLM.add(
       Message(
@@ -9833,51 +10631,63 @@ class ChatNotifier extends Notifier<ChatState> {
       ),
     );
 
-    final stream = _dataSource.streamChatCompletion(
-      messages: messagesForLLM,
-      model: _settings.model,
-      temperature: _settings.temperature,
-      maxTokens: _settings.maxTokens,
-    );
-
-    _streamSubscription = stream.listen(
-      (chunk) {
-        _appendToLastMessage(chunk);
-      },
-      onError: (error, stackTrace) {
-        appLog(
-          '[ChatNotifier] _continueAfterContentToolResults onError: ${error.runtimeType}: $error',
-        );
-        appLog('[ChatNotifier] stackTrace: $stackTrace');
-        unawaited(
-          _recoverAfterContentToolResultsStreamError(
-            messagesForLLM,
-            error,
-            stackTrace,
-          ),
-        );
-      },
-      onDone: () {
-        _finishStreaming();
-      },
-      cancelOnError: true,
-    );
-  }
-
-  Future<void> _recoverAfterContentToolResultsStreamError(
-    List<Message> messagesForLLM,
-    Object error,
-    StackTrace stackTrace,
-  ) async {
-    try {
-      final result = await _dataSource.createChatCompletion(
+    _runWithLlmSessionLogContextForGeneration(interactionGeneration, () {
+      final stream = _dataSource.streamChatCompletion(
         messages: messagesForLLM,
         model: _settings.model,
         temperature: _settings.temperature,
         maxTokens: _settings.maxTokens,
       );
 
-      if (!ref.mounted || state.messages.isEmpty) {
+      _streamSubscription = stream.listen(
+        (chunk) {
+          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+          _appendToLastMessageForGeneration(interactionGeneration, chunk);
+        },
+        onError: (error, stackTrace) {
+          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+          appLog(
+            '[ChatNotifier] _continueAfterContentToolResults onError: ${error.runtimeType}: $error',
+          );
+          appLog('[ChatNotifier] stackTrace: $stackTrace');
+          unawaited(
+            _recoverAfterContentToolResultsStreamError(
+              messagesForLLM,
+              error,
+              stackTrace,
+              interactionGeneration: interactionGeneration,
+            ),
+          );
+        },
+        onDone: () {
+          unawaited(
+            _finishStreaming(interactionGeneration: interactionGeneration),
+          );
+        },
+        cancelOnError: true,
+      );
+    });
+  }
+
+  Future<void> _recoverAfterContentToolResultsStreamError(
+    List<Message> messagesForLLM,
+    Object error,
+    StackTrace stackTrace, {
+    required int interactionGeneration,
+  }) async {
+    try {
+      final result = await _runWithLlmSessionLogContextForGeneration(
+        interactionGeneration,
+        () => _dataSource.createChatCompletion(
+          messages: messagesForLLM,
+          model: _settings.model,
+          temperature: _settings.temperature,
+          maxTokens: _settings.maxTokens,
+        ),
+      );
+
+      if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+          state.messages.isEmpty) {
         return;
       }
 
@@ -9892,10 +10702,17 @@ class ChatNotifier extends Notifier<ChatState> {
       appLog(
         '[ChatNotifier] Recovered content-tool continuation with non-streaming completion',
       );
-      _replaceLastMessageContent(result.content);
-      _checkForContentToolCalls(result.content);
-      await _finishStreaming();
+      _replaceLastMessageContentForGeneration(
+        interactionGeneration,
+        result.content,
+      );
+      _checkForContentToolCalls(
+        result.content,
+        interactionGeneration: interactionGeneration,
+      );
+      await _finishStreaming(interactionGeneration: interactionGeneration);
     } catch (fallbackError, fallbackStackTrace) {
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       appLog(
         '[ChatNotifier] Content-tool continuation fallback failed: ${fallbackError.runtimeType}: $fallbackError',
       );
@@ -10145,28 +10962,36 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void cancelStreaming() {
+    final generation = _interactionGeneration;
     _streamSubscription?.cancel();
     _streamSubscription = null;
+    _dismissAllPendingAskUserQuestions();
+    _clearAllActiveResponses();
 
     if (ref.mounted && state.messages.isNotEmpty) {
       final lastMessage = state.messages.last;
       if (lastMessage.isStreaming) {
-        _finishStreaming();
+        unawaited(_finishStreaming(interactionGeneration: generation));
       }
     }
   }
 
   void clearMessages() {
     if (!ref.mounted) return;
-    cancelStreaming();
+    _beginInteractionGeneration();
+    _streamSubscription?.cancel();
+    _streamSubscription = null;
     _executedContentToolCalls.clear();
     _seenContentToolCallHashes.clear();
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
+    _pendingToolExecutions.clear();
     _queuedChatMessages.clear();
     _latestContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
+    _dismissAllPendingAskUserQuestions();
+    _clearAllActiveResponses();
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;
     state = ChatState.initial();

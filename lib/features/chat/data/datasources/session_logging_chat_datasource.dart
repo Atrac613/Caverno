@@ -26,6 +26,10 @@ class SessionLoggingChatDataSource implements ChatDataSource {
   final LlmSessionLogStore _logStore;
   final LlmSessionLogContext? Function() _contextProvider;
 
+  LlmSessionLogContext? _resolveContext() {
+    return LlmSessionLogContext.current ?? _contextProvider();
+  }
+
   TokenUsage get lastUsage {
     final delegate = _delegate;
     if (delegate is ChatRemoteDataSource) {
@@ -44,7 +48,7 @@ class SessionLoggingChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async* {
-    final context = _contextProvider();
+    final context = _resolveContext();
     final startedAt = DateTime.now();
     final response = StringBuffer();
     try {
@@ -99,7 +103,7 @@ class SessionLoggingChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
-    final context = _contextProvider();
+    final context = _resolveContext();
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       operation: 'createChatCompletion',
@@ -143,7 +147,7 @@ class SessionLoggingChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    final context = _contextProvider();
+    final context = _resolveContext();
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       operation: 'streamChatCompletionWithTools',
@@ -216,7 +220,7 @@ class SessionLoggingChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async* {
-    final context = _contextProvider();
+    final context = _resolveContext();
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       operation: 'streamWithToolResult',
@@ -281,7 +285,7 @@ class SessionLoggingChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
-    final context = _contextProvider();
+    final context = _resolveContext();
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       operation: 'createChatCompletionWithToolResult',
@@ -337,7 +341,7 @@ class SessionLoggingChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
-    final context = _contextProvider();
+    final context = _resolveContext();
     final startedAt = DateTime.now();
     final request = LlmSessionLogRequest(
       operation: 'createChatCompletionWithToolResults',

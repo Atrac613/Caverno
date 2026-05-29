@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../utils/logger.dart';
 
@@ -54,7 +55,13 @@ class TtsService {
   /// Stop speaking
   Future<void> stop() async {
     _isSpeaking = false;
-    await _tts.stop();
+    try {
+      await _tts.stop();
+    } on MissingPluginException catch (error) {
+      appLog(
+        '[TTS] Stop skipped because the platform plugin is unavailable: $error',
+      );
+    }
   }
 
   /// Set speech rate (0.0 - 1.0, where 0.5 is normal speed)

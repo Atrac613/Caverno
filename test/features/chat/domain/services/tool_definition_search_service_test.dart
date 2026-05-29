@@ -57,6 +57,28 @@ void main() {
       expect(names, isNot(contains('remote_tool_29')));
     });
 
+    test('keeps interactive and skill tools available in large catalogs', () {
+      final definitions = [
+        _tool('ask_user_question', 'Ask the user a choice question.'),
+        _tool('load_skill', 'Load a saved user skill.'),
+        for (var i = 0; i < 30; i++)
+          _tool('remote_tool_$i', 'Remote MCP capability number $i.'),
+      ];
+
+      final selection = ToolDefinitionSearchService.buildInitialSelection(
+        ToolDefinitionSearchService.appendSearchToolIfUseful(definitions),
+      );
+      final names = ToolDefinitionSearchService.toolNamesFromDefinitions(
+        selection.toolDefinitions,
+      );
+
+      expect(selection.toolSearchEnabled, isTrue);
+      expect(names, contains('ask_user_question'));
+      expect(names, contains('load_skill'));
+      expect(names, contains(ToolDefinitionSearchService.toolName));
+      expect(names, isNot(contains('remote_tool_29')));
+    });
+
     test('keeps legacy initial search behavior for small catalogs', () {
       final selection = ToolDefinitionSearchService.buildInitialSelection([
         _tool('web_search', 'Search the web.'),

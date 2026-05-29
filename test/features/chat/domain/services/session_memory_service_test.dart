@@ -35,7 +35,9 @@ class _InMemoryChatMemoryRepository extends ChatMemoryRepository {
     MemorySessionSummary summary, {
     int maxItems = 20,
   }) async {
-    summaries.removeWhere((item) => item.conversationId == summary.conversationId);
+    summaries.removeWhere(
+      (item) => item.conversationId == summary.conversationId,
+    );
     summaries.add(summary);
   }
 
@@ -114,112 +116,121 @@ class _InMemoryChatMemoryRepository extends ChatMemoryRepository {
 }
 
 void main() {
-  test('queues low-confidence memories for review and stores stable memories directly', () async {
-    final repository = _InMemoryChatMemoryRepository();
-    final service = SessionMemoryService(repository);
+  test(
+    'queues low-confidence memories for review and stores stable memories directly',
+    () async {
+      final repository = _InMemoryChatMemoryRepository();
+      final service = SessionMemoryService(repository);
 
-    final result = await service.updateFromConversation(
-      conversationId: 'conversation-1',
-      messages: [
-        Message(
-          id: 'message-1',
-          content: 'Remember that I prefer concise code review summaries.',
-          role: MessageRole.user,
-          timestamp: DateTime(2026, 4, 18, 10, 0),
-        ),
-      ],
-      draft: const MemoryExtractionDraft(
-        summary: 'User discussed code review preferences.',
-        openLoops: [],
-        persona: [],
-        preferences: [],
-        doNot: [],
-        entries: [
-          MemoryDraftEntry(
-            text: 'The user prefers concise code review summaries.',
-            type: 'preference',
-            confidence: 0.92,
-            importance: 0.9,
-          ),
-          MemoryDraftEntry(
-            text: 'The user may care about short release note summaries.',
-            type: 'topic',
-            confidence: 0.45,
-            importance: 0.4,
+      final result = await service.updateFromConversation(
+        conversationId: 'conversation-1',
+        messages: [
+          Message(
+            id: 'message-1',
+            content: 'Remember that I prefer concise code review summaries.',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 4, 18, 10, 0),
           ),
         ],
-      ),
-    );
-
-    expect(result.addedMemoryCount, 1);
-    expect(result.queuedReviewCount, 1);
-    expect(repository.memories, hasLength(1));
-    expect(repository.reviewQueue, hasLength(1));
-    expect(
-      repository.memories.single.text,
-      'The user prefers concise code review summaries.',
-    );
-  });
-
-  test('tracks suppression hits and preserves source ids in memory artifacts', () async {
-    final repository = _InMemoryChatMemoryRepository();
-    final service = SessionMemoryService(repository);
-    await repository.addSuppressionRule(
-      MemorySuppressionRule(
-        id: 'rule-1',
-        textPattern: 'release note summaries',
-        createdAt: DateTime(2026, 4, 18, 10, 45),
-      ),
-    );
-
-    final result = await service.updateFromConversation(
-      conversationId: 'conversation-2',
-      messages: [
-        Message(
-          id: 'message-2',
-          content: 'Remember both my review and release note preferences.',
-          role: MessageRole.user,
-          timestamp: DateTime(2026, 4, 18, 11, 0),
+        draft: const MemoryExtractionDraft(
+          summary: 'User discussed code review preferences.',
+          openLoops: [],
+          persona: [],
+          preferences: [],
+          doNot: [],
+          entries: [
+            MemoryDraftEntry(
+              text: 'The user prefers concise code review summaries.',
+              type: 'preference',
+              confidence: 0.92,
+              importance: 0.9,
+            ),
+            MemoryDraftEntry(
+              text: 'The user may care about short release note summaries.',
+              type: 'topic',
+              confidence: 0.45,
+              importance: 0.4,
+            ),
+          ],
         ),
-      ],
-      draft: const MemoryExtractionDraft(
-        summary: 'The user described review and release note preferences.',
-        openLoops: [],
-        persona: [],
-        preferences: [],
-        doNot: [],
-        entries: [
-          MemoryDraftEntry(
-            text: 'The user prefers concise code review summaries.',
-            type: 'preference',
-            confidence: 0.9,
-            importance: 0.8,
-          ),
-          MemoryDraftEntry(
-            text: 'The user prefers short release note summaries.',
-            type: 'preference',
-            confidence: 0.86,
-            importance: 0.6,
-          ),
-          MemoryDraftEntry(
-            text: 'The user may want changelog links included.',
-            type: 'topic',
-            confidence: 0.42,
-            importance: 0.3,
+      );
+
+      expect(result.addedMemoryCount, 1);
+      expect(result.queuedReviewCount, 1);
+      expect(repository.memories, hasLength(1));
+      expect(repository.reviewQueue, hasLength(1));
+      expect(
+        repository.memories.single.text,
+        'The user prefers concise code review summaries.',
+      );
+    },
+  );
+
+  test(
+    'tracks suppression hits and preserves source ids in memory artifacts',
+    () async {
+      final repository = _InMemoryChatMemoryRepository();
+      final service = SessionMemoryService(repository);
+      await repository.addSuppressionRule(
+        MemorySuppressionRule(
+          id: 'rule-1',
+          textPattern: 'release note summaries',
+          createdAt: DateTime(2026, 4, 18, 10, 45),
+        ),
+      );
+
+      final result = await service.updateFromConversation(
+        conversationId: 'conversation-2',
+        messages: [
+          Message(
+            id: 'message-2',
+            content: 'Remember both my review and release note preferences.',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 4, 18, 11, 0),
           ),
         ],
-      ),
-    );
+        draft: const MemoryExtractionDraft(
+          summary: 'The user described review and release note preferences.',
+          openLoops: [],
+          persona: [],
+          preferences: [],
+          doNot: [],
+          entries: [
+            MemoryDraftEntry(
+              text: 'The user prefers concise code review summaries.',
+              type: 'preference',
+              confidence: 0.9,
+              importance: 0.8,
+            ),
+            MemoryDraftEntry(
+              text: 'The user prefers short release note summaries.',
+              type: 'preference',
+              confidence: 0.86,
+              importance: 0.6,
+            ),
+            MemoryDraftEntry(
+              text: 'The user may want changelog links included.',
+              type: 'topic',
+              confidence: 0.42,
+              importance: 0.3,
+            ),
+          ],
+        ),
+      );
 
-    final snapshot = service.loadSnapshot();
+      final snapshot = service.loadSnapshot();
 
-    expect(result.addedMemoryCount, 1);
-    expect(result.queuedReviewCount, 1);
-    expect(result.suppressedCandidateCount, 1);
-    expect(snapshot.suppressionHitCount, 1);
-    expect(repository.memories.single.sourceConversationId, 'conversation-2');
-    expect(repository.reviewQueue.single.sourceConversationId, 'conversation-2');
-  });
+      expect(result.addedMemoryCount, 1);
+      expect(result.queuedReviewCount, 1);
+      expect(result.suppressedCandidateCount, 1);
+      expect(snapshot.suppressionHitCount, 1);
+      expect(repository.memories.single.sourceConversationId, 'conversation-2');
+      expect(
+        repository.reviewQueue.single.sourceConversationId,
+        'conversation-2',
+      );
+    },
+  );
 
   test('drops draft open loops covered by the latest assistant answer', () async {
     final repository = _InMemoryChatMemoryRepository();
@@ -309,7 +320,8 @@ void main() {
     final service = SessionMemoryService(repository);
 
     final context = service.buildPromptContext(
-      currentUserInput: 'Android BLE data is corrupted.',
+      currentUserInput:
+          'Continue from the previous Android BLE data investigation.',
       currentConversationId: 'current-conversation',
       now: DateTime(2026, 5, 28, 13),
     );
@@ -325,5 +337,49 @@ void main() {
         'Investigation identified native byte processing as the root cause.',
       ),
     );
+  });
+
+  test('omits task memories for prompts without explicit history reference', () {
+    final repository = _InMemoryChatMemoryRepository();
+    repository.profile = UserMemoryProfile(
+      persona: const [],
+      preferences: const ['The user prefers concise answers.'],
+      doNot: const [],
+      updatedAt: DateTime(2026, 5, 28, 12),
+    );
+    repository.summaries.add(
+      MemorySessionSummary(
+        conversationId: 'previous-conversation',
+        summary:
+            'Investigated EulaAgreementPreferenceProvider Riverpod wiring.',
+        openLoops: const ['Choose a SettingsNotifier refactor direction'],
+        updatedAt: DateTime(2026, 5, 28, 12),
+      ),
+    );
+    repository.memories.add(
+      MemoryEntry(
+        id: 'memory-1',
+        text: 'The prior session discussed EULA agreement preferences.',
+        type: MemoryEntryType.topic,
+        confidence: 0.9,
+        importance: 0.9,
+        updatedAt: DateTime(2026, 5, 28, 12),
+        sourceConversationId: 'previous-conversation',
+      ),
+    );
+    final service = SessionMemoryService(repository);
+
+    final context = service.buildPromptContext(
+      currentUserInput:
+          'Before you continue, call the ask_user_question tool exactly once.',
+      currentConversationId: 'current-conversation',
+      now: DateTime(2026, 5, 28, 13),
+    );
+
+    expect(context, isNotNull);
+    expect(context, contains('[Known User Profile]'));
+    expect(context, isNot(contains('[Recent Session Summaries]')));
+    expect(context, isNot(contains('[Retrieved Memories]')));
+    expect(context, isNot(contains('EulaAgreementPreferenceProvider')));
   });
 }
