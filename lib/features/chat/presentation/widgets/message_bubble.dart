@@ -110,20 +110,20 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
       _cachedImageBytes = null;
       return null;
     }
-    if (_cachedImageBase64 == imageBase64 && _cachedImageBytes != null) {
+    // Reuse the cached result for an unchanged input, including a cached decode
+    // failure (null bytes), so malformed base64 is not re-decoded on every
+    // rebuild while the message streams.
+    if (_cachedImageBase64 == imageBase64) {
       return _cachedImageBytes;
     }
 
+    _cachedImageBase64 = imageBase64;
     try {
-      final bytes = base64Decode(imageBase64);
-      _cachedImageBase64 = imageBase64;
-      _cachedImageBytes = bytes;
-      return bytes;
+      _cachedImageBytes = base64Decode(imageBase64);
     } catch (_) {
-      _cachedImageBase64 = imageBase64;
       _cachedImageBytes = null;
-      return null;
     }
+    return _cachedImageBytes;
   }
 
   @override
