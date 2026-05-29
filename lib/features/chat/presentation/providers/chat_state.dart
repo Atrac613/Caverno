@@ -237,6 +237,88 @@ class PendingBleConnect {
   final Completer<bool> completer;
 }
 
+class AskUserQuestionOption {
+  const AskUserQuestionOption({
+    required this.id,
+    required this.label,
+    this.description = '',
+    this.preview = '',
+  });
+
+  final String id;
+  final String label;
+  final String description;
+  final String preview;
+}
+
+class AskUserQuestionSelection {
+  const AskUserQuestionSelection({
+    required this.id,
+    required this.label,
+    this.description = '',
+    this.preview = '',
+  });
+
+  final String id;
+  final String label;
+  final String description;
+  final String preview;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'label': label,
+    if (description.trim().isNotEmpty) 'description': description.trim(),
+    if (preview.trim().isNotEmpty) 'preview': preview.trim(),
+  };
+}
+
+class AskUserQuestionAnswer {
+  const AskUserQuestionAnswer({
+    required this.question,
+    required this.selectedOptions,
+    this.otherText = '',
+  });
+
+  final String question;
+  final List<AskUserQuestionSelection> selectedOptions;
+  final String otherText;
+
+  bool get hasAnswer =>
+      selectedOptions.isNotEmpty || otherText.trim().isNotEmpty;
+
+  Map<String, dynamic> toJson() => {
+    'question': question,
+    'selected': selectedOptions.map((option) => option.toJson()).toList(),
+    if (otherText.trim().isNotEmpty) 'other': otherText.trim(),
+    'answer': [
+      ...selectedOptions.map((option) => option.label),
+      if (otherText.trim().isNotEmpty) otherText.trim(),
+    ].join('; '),
+  };
+}
+
+class PendingAskUserQuestion {
+  PendingAskUserQuestion({
+    required this.id,
+    required this.question,
+    required this.help,
+    required this.options,
+    required this.allowMultiple,
+    required this.allowOther,
+    required this.otherPlaceholder,
+    required this.completer,
+  });
+
+  final String id;
+  final String question;
+  final String help;
+  final List<AskUserQuestionOption> options;
+  final bool allowMultiple;
+  final bool allowOther;
+  final String otherPlaceholder;
+  final Completer<AskUserQuestionAnswer?> completer;
+}
+
 class WorkflowPlanningDecisionOption {
   const WorkflowPlanningDecisionOption({
     required this.id,
@@ -386,6 +468,8 @@ abstract class ChatState with _$ChatState {
     PendingFileOperation? pendingFileOperation,
     // BLE tool UI flow — same Completer-based pattern as SSH.
     PendingBleConnect? pendingBleConnect,
+    // Generic model-initiated question UI flow.
+    PendingAskUserQuestion? pendingAskUserQuestion,
     // Workflow planning choice UI flow.
     PendingWorkflowDecision? pendingWorkflowDecision,
     @Default(false) bool isGeneratingWorkflowProposal,

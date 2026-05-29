@@ -587,6 +587,47 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     ).showSnackBar(SnackBar(content: Text('chat.deleted'.tr())));
   }
 
+  Future<void> _rewindConversationToMessage(
+    BuildContext context,
+    Message message,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rewind conversation?'),
+        content: const Text(
+          'Messages after this point will be removed. Local file changes are not restored.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Rewind'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final rewound = await ref
+        .read(conversationsNotifierProvider.notifier)
+        .rewindCurrentConversationToMessage(message.id);
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          rewound
+              ? 'Conversation rewound.'
+              : 'Could not rewind to that message.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _showWorkflowDecisionDialog(
     BuildContext context,
     PendingWorkflowDecision pending,
@@ -606,6 +647,26 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     ref
         .read(chatNotifierProvider.notifier)
         .resolveWorkflowDecision(id: pending.id, answer: approvedAnswer);
+  }
+
+  Future<void> _showAskUserQuestionDialog(
+    BuildContext context,
+    PendingAskUserQuestion pending,
+  ) async {
+    final answer = await showModalBottomSheet<AskUserQuestionAnswer>(
+      context: context,
+      isDismissible: false,
+      enableDrag: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _AskUserQuestionSheet(pending: pending),
+    );
+
+    if (!mounted) return;
+
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveAskUserQuestion(id: pending.id, answer: answer);
   }
 
   @override
@@ -747,6 +808,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           _showApprovalDialogOnce(
             next.id,
             () => _showWorkflowDecisionDialog(context, next),
+          );
+        }
+      },
+    );
+
+    ref.listen<PendingAskUserQuestion?>(
+      chatNotifierProvider.select((s) => s.pendingAskUserQuestion),
+      (prev, next) {
+        if (next != null && prev?.id != next.id) {
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showAskUserQuestionDialog(context, next),
           );
         }
       },
@@ -915,9 +988,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       );
                                     }
                                     final message = chatState.messages[index];
+                                    final canRewind =
+                                        !chatState.isLoading &&
+                                        !message.isStreaming &&
+                                        index < chatState.messages.length - 1;
                                     return MessageBubble(
                                       key: ValueKey(message.id),
                                       message: message,
+                                      canRewind: canRewind,
+                                      onRewindToHere: canRewind
+                                          ? () => _rewindConversationToMessage(
+                                              context,
+                                              message,
+                                            )
+                                          : null,
                                       onReselectProject: isCodingWorkspace
                                           ? () =>
                                                 _pickAndActivateProject(context)
@@ -8131,6 +8215,420 @@ class _WorkflowDecisionSheetState extends State<_WorkflowDecisionSheet> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AskUserQuestionSheet extends StatefulWidget {
+  const _AskUserQuestionSheet({required this.pending});
+
+  final PendingAskUserQuestion pending;
+
+  @override
+  State<_AskUserQuestionSheet> createState() => _AskUserQuestionSheetState();
+}
+
+class _AskUserQuestionSheetState extends State<_AskUserQuestionSheet> {
+  late final TextEditingController _otherController;
+  final Set<String> _selectedOptionIds = <String>{};
+  bool _useOther = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _otherController = TextEditingController();
+    _useOther = widget.pending.options.isEmpty && widget.pending.allowOther;
+  }
+
+  @override
+  void dispose() {
+    _otherController.dispose();
+    super.dispose();
+  }
+
+  void _toggleOption(String optionId) {
+    setState(() {
+      if (widget.pending.allowMultiple) {
+        if (!_selectedOptionIds.add(optionId)) {
+          _selectedOptionIds.remove(optionId);
+        }
+        return;
+      }
+      _selectedOptionIds
+        ..clear()
+        ..add(optionId);
+      _useOther = false;
+    });
+  }
+
+  void _toggleOther() {
+    if (!widget.pending.allowOther) return;
+    setState(() {
+      _useOther = !_useOther;
+      if (_useOther && !widget.pending.allowMultiple) {
+        _selectedOptionIds.clear();
+      }
+    });
+  }
+
+  AskUserQuestionAnswer? _buildAnswer() {
+    final selectedOptions = widget.pending.options
+        .where((option) => _selectedOptionIds.contains(option.id))
+        .map(
+          (option) => AskUserQuestionSelection(
+            id: option.id,
+            label: option.label,
+            description: option.description,
+            preview: option.preview,
+          ),
+        )
+        .toList(growable: false);
+    final otherText = _useOther ? _otherController.text.trim() : '';
+    final answer = AskUserQuestionAnswer(
+      question: widget.pending.question,
+      selectedOptions: selectedOptions,
+      otherText: otherText,
+    );
+    return answer.hasAnswer ? answer : null;
+  }
+
+  void _submit() {
+    final answer = _buildAnswer();
+    if (answer == null) return;
+    Navigator.pop(context, answer);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final helpText = widget.pending.help.trim();
+    final submitEnabled = _buildAnswer() != null;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.84,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 12, bottom: 4),
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.4,
+                      ),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.secondaryContainer
+                              .withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.help_outline_rounded,
+                          color: theme.colorScheme.onSecondaryContainer,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Question from assistant',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              widget.pending.allowMultiple
+                                  ? 'Select one or more options.'
+                                  : 'Select an option to continue.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context, null),
+                        icon: const Icon(Icons.close_rounded),
+                        style: IconButton.styleFrom(
+                          backgroundColor:
+                              theme.colorScheme.surfaceContainerHighest,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 24),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.pending.question,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (helpText.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            helpText,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 18),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final twoColumns = constraints.maxWidth >= 640;
+                            final cardWidth = twoColumns
+                                ? (constraints.maxWidth - 12) / 2
+                                : constraints.maxWidth;
+                            return Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                for (final option in widget.pending.options)
+                                  SizedBox(
+                                    width: cardWidth,
+                                    child: _buildOptionCard(theme, option),
+                                  ),
+                                if (widget.pending.allowOther)
+                                  SizedBox(
+                                    width: cardWidth,
+                                    child: _buildOtherCard(theme),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    24,
+                    8,
+                    24,
+                    16 + MediaQuery.of(context).padding.bottom,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context, null),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text('Skip'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton.icon(
+                          onPressed: submitEnabled ? _submit : null,
+                          icon: const Icon(Icons.check_rounded, size: 18),
+                          label: const Text('Send answer'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionCard(ThemeData theme, AskUserQuestionOption option) {
+    final selected = _selectedOptionIds.contains(option.id);
+    return Material(
+      color: selected
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.7)
+          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _toggleOption(option.id),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    widget.pending.allowMultiple
+                        ? (selected
+                              ? Icons.check_box_rounded
+                              : Icons.check_box_outline_blank_rounded)
+                        : (selected
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off),
+                    size: 20,
+                    color: selected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      option.label,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (option.description.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  option.description.trim(),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+              if (option.preview.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.14),
+                    ),
+                  ),
+                  child: Text(
+                    option.preview.trim(),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'monospace',
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOtherCard(ThemeData theme) {
+    return Material(
+      color: _useOther
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.7)
+          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _toggleOther,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    widget.pending.allowMultiple
+                        ? (_useOther
+                              ? Icons.check_box_rounded
+                              : Icons.check_box_outline_blank_rounded)
+                        : (_useOther
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off),
+                    size: 20,
+                    color: _useOther
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Other',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _otherController,
+                minLines: 2,
+                maxLines: 4,
+                enabled: _useOther,
+                decoration: InputDecoration(
+                  hintText: widget.pending.otherPlaceholder.trim().isEmpty
+                      ? 'Type another answer'
+                      : widget.pending.otherPlaceholder.trim(),
+                  filled: true,
+                  fillColor: theme.colorScheme.surface.withValues(alpha: 0.65),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onTap: () {
+                  if (!_useOther) {
+                    _toggleOther();
+                  }
+                },
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
           ),
         ),
       ),

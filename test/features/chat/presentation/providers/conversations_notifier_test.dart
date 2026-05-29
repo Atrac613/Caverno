@@ -129,6 +129,73 @@ void main() {
     expect(repository.getAll(), hasLength(1));
   });
 
+  test(
+    'rewind trims messages and restores checkpointed workflow state',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+      final initial = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      expect(initial, isNotNull);
+
+      final messages = [
+        Message(
+          id: 'm1',
+          content: 'Start',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 5, 29, 9),
+        ),
+        Message(
+          id: 'm2',
+          content: 'First answer',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 5, 29, 9, 1),
+        ),
+      ];
+      await notifier.updateCurrentConversation(messages);
+      await notifier.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(goal: 'Implement feature'),
+      );
+
+      await notifier.updateCurrentConversation([
+        ...messages,
+        Message(
+          id: 'm3',
+          content: 'Continue',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 5, 29, 9, 2),
+        ),
+        Message(
+          id: 'm4',
+          content: 'Later answer',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 5, 29, 9, 3),
+        ),
+      ]);
+      await notifier.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.review,
+        workflowSpec: const ConversationWorkflowSpec(goal: 'Review feature'),
+      );
+
+      final rewound = await notifier.rewindCurrentConversationToMessage('m2');
+      final conversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+
+      expect(rewound, isTrue);
+      expect(conversation!.messages.map((message) => message.id), ['m1', 'm2']);
+      expect(conversation.workflowStage, ConversationWorkflowStage.implement);
+      expect(conversation.effectiveWorkflowSpec.goal, 'Implement feature');
+      expect(
+        conversation.checkpoints.any(
+          (checkpoint) => checkpoint.messageId == 'm4',
+        ),
+        isFalse,
+      );
+    },
+  );
+
   test('deleteConversation removes persisted tool result artifacts', () async {
     const conversationId = 'conversation-with-artifacts';
     await repository.save(

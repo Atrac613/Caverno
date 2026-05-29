@@ -13,6 +13,7 @@ import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/datasources/searxng_client.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/conversation_repository.dart';
+import '../../data/repositories/skill_repository.dart';
 import '../../data/datasources/filesystem_tools.dart';
 
 /// Provides the configured MCP clients.
@@ -71,6 +72,12 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final searxngClient = ref.watch(searxngClientProvider);
   final conversationRepo = ref.watch(conversationRepositoryProvider);
   final memoryRepo = ref.watch(chatMemoryRepositoryProvider);
+  SkillRepository? skillRepo;
+  try {
+    skillRepo = ref.watch(skillRepositoryProvider);
+  } on UnimplementedError {
+    skillRepo = null;
+  }
   final sshService = ref.watch(sshServiceProvider);
   final bleService = ref.watch(bleServiceProvider);
   final wifiService = ref.watch(wifiServiceProvider);
@@ -83,6 +90,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     searxngClient: searxngClient,
     conversationRepository: conversationRepo,
     memoryRepository: memoryRepo,
+    skillRepository: skillRepo,
     sshService: sshService,
     bleService: bleService,
     wifiService: wifiService,

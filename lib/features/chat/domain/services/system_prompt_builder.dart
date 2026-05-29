@@ -31,6 +31,7 @@ class SystemPromptBuilder {
     ConversationPlanArtifact? planArtifact,
     bool isVoiceMode = false,
     String? agentsMarkdown,
+    String? skillsContext,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
     final hasTools = uniqueToolNames.isNotEmpty;
@@ -55,6 +56,7 @@ class SystemPromptBuilder {
     final hasOsSystemInfoTool = uniqueToolNames.contains('os_get_system_info');
     final hasOsLogTool = uniqueToolNames.contains('os_log_read');
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
+    final hasLoadSkillTool = uniqueToolNames.contains('load_skill');
     final hasComputerUseTools = uniqueToolNames.any(
       (name) => name.startsWith('computer_'),
     );
@@ -374,6 +376,13 @@ class SystemPromptBuilder {
       }
     }
 
+    final normalizedSkillsContext = skillsContext?.trim();
+    if (normalizedSkillsContext != null &&
+        normalizedSkillsContext.isNotEmpty &&
+        hasLoadSkillTool) {
+      buffer.writeln(normalizedSkillsContext);
+    }
+
     if (isVoiceMode) {
       buffer.writeln(SystemPromptConstants.voiceModeInstruction);
       if (hasTools) {
@@ -416,6 +425,12 @@ class SystemPromptBuilder {
           'conversations, use search_past_conversations to find the relevant '
           'information before answering from memory alone. '
           'Use recall_memory for quick lookups of known facts and preferences.',
+        );
+      }
+      if (hasLoadSkillTool) {
+        buffer.writeln(
+          'When a listed user skill is relevant, call load_skill before '
+          'using it so you can follow the full saved instructions.',
         );
       }
       if (hasComputerUseTools) {

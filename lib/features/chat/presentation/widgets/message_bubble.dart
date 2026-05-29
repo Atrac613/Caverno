@@ -22,10 +22,14 @@ class MessageBubble extends ConsumerStatefulWidget {
     super.key,
     required this.message,
     this.onReselectProject,
+    this.onRewindToHere,
+    this.canRewind = false,
   });
 
   final Message message;
   final VoidCallback? onReselectProject;
+  final VoidCallback? onRewindToHere;
+  final bool canRewind;
 
   @override
   ConsumerState<MessageBubble> createState() => _MessageBubbleState();
@@ -306,52 +310,40 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: isUser
-          ? MouseRegion(
-              onEnter: (_) => setState(() => _isHovering = true),
-              onExit: (_) => setState(() => _isHovering = false),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  bubble,
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 160),
-                    curve: Curves.easeOut,
-                    child: _isHovering
-                        ? Padding(
-                            padding: const EdgeInsets.only(top: 2, right: 12),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _formatTimestamp(context),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  onPressed: _copyMessageContent,
-                                  tooltip: 'content.code_copy'.tr(),
-                                  visualDensity: VisualDensity.compact,
-                                  splashRadius: 18,
-                                  iconSize: 18,
-                                  icon: Icon(
-                                    _copied
-                                        ? Icons.check_rounded
-                                        : Icons.content_copy_outlined,
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ),
-            )
-          : bubble,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovering = true),
+        onExit: (_) => setState(() => _isHovering = false),
+        child: Column(
+          crossAxisAlignment: isUser
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            bubble,
+            AnimatedSize(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              child: _isHovering
+                  ? Padding(
+                      padding: EdgeInsets.only(
+                        top: 2,
+                        left: isUser ? 0 : 12,
+                        right: isUser ? 12 : 0,
+                      ),
+                      child: _MessageActionRow(
+                        timestamp: _formatTimestamp(context),
+                        copied: _copied,
+                        onCopy: message.content.trim().isEmpty
+                            ? null
+                            : _copyMessageContent,
+                        canRewind: widget.canRewind,
+                        onRewindToHere: widget.onRewindToHere,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -371,6 +363,62 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     }
     await tts.setSpeechRate(settings.speechRate);
     await tts.speak(readableText);
+  }
+}
+
+class _MessageActionRow extends StatelessWidget {
+  const _MessageActionRow({
+    required this.timestamp,
+    required this.copied,
+    required this.canRewind,
+    this.onCopy,
+    this.onRewindToHere,
+  });
+
+  final String timestamp;
+  final bool copied;
+  final VoidCallback? onCopy;
+  final bool canRewind;
+  final VoidCallback? onRewindToHere;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          timestamp,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: onCopy,
+          tooltip: 'content.code_copy'.tr(),
+          visualDensity: VisualDensity.compact,
+          splashRadius: 18,
+          iconSize: 18,
+          icon: Icon(
+            copied ? Icons.check_rounded : Icons.content_copy_outlined,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (canRewind && onRewindToHere != null)
+          IconButton(
+            onPressed: onRewindToHere,
+            tooltip: 'Rewind conversation to here',
+            visualDensity: VisualDensity.compact,
+            splashRadius: 18,
+            iconSize: 18,
+            icon: Icon(
+              Icons.restore_rounded,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+      ],
+    );
   }
 }
 

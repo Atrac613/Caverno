@@ -1528,6 +1528,48 @@ void main() {
   });
 
   test(
+    'requestAskUserQuestion exposes pending question and resolves answer',
+    () async {
+      final future = notifier.requestAskUserQuestion(
+        question: 'Which path should we take?',
+        help: 'Choose the implementation direction.',
+        options: const [
+          AskUserQuestionOption(
+            id: 'small',
+            label: 'Small change',
+            description: 'Keep the change narrow.',
+            preview: 'One file',
+          ),
+        ],
+        allowMultiple: false,
+        allowOther: true,
+        otherPlaceholder: 'Describe another direction',
+      );
+
+      final pending = notifier.state.pendingAskUserQuestion;
+      expect(pending, isNotNull);
+      expect(pending!.question, 'Which path should we take?');
+      expect(pending.options.single.preview, 'One file');
+
+      final answer = AskUserQuestionAnswer(
+        question: pending.question,
+        selectedOptions: const [
+          AskUserQuestionSelection(
+            id: 'small',
+            label: 'Small change',
+            description: 'Keep the change narrow.',
+            preview: 'One file',
+          ),
+        ],
+      );
+      notifier.resolveAskUserQuestion(id: pending.id, answer: answer);
+
+      expect(await future, answer);
+      expect(notifier.state.pendingAskUserQuestion, isNull);
+    },
+  );
+
+  test(
     'sendHiddenPrompt preserves the hidden assistant response for follow-up inference',
     () async {
       final sendFuture = notifier.sendHiddenPrompt('Continue the saved task.');

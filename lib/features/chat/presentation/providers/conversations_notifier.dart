@@ -102,6 +102,8 @@ const defaultConversationTitle = '__new_conversation__';
 
 /// Notifier that manages the conversation list.
 class ConversationsNotifier extends Notifier<ConversationsState> {
+  static const int _maxConversationCheckpoints = 80;
+
   late final ConversationRepository _repository;
   late final ToolResultArtifactStore _toolResultArtifactStore;
   final _uuid = const Uuid();
@@ -262,19 +264,63 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   }
 
   Future<void> _persistUpdatedConversation(
-    Conversation updatedConversation,
-  ) async {
-    await _repository.save(updatedConversation);
+    Conversation updatedConversation, {
+    bool recordCheckpoint = true,
+  }) async {
+    final conversationToSave = recordCheckpoint
+        ? _recordConversationCheckpoint(updatedConversation)
+        : updatedConversation;
+    await _repository.save(conversationToSave);
 
     final newConversations = state.conversations.map((conversation) {
-      if (conversation.id == updatedConversation.id) {
-        return updatedConversation;
+      if (conversation.id == conversationToSave.id) {
+        return conversationToSave;
       }
       return conversation;
     }).toList();
 
     _sortConversations(newConversations);
     state = state.copyWith(conversations: newConversations);
+  }
+
+  Conversation _recordConversationCheckpoint(Conversation conversation) {
+    final messages = conversation.messages
+        .where((message) => !message.isStreaming)
+        .toList(growable: false);
+    if (messages.isEmpty) {
+      return conversation.copyWith(checkpoints: const []);
+    }
+
+    final message = messages.last;
+    final messageCount = messages.length;
+    final checkpoint = ConversationCheckpoint(
+      messageId: message.id,
+      messageCount: messageCount,
+      title: conversation.title,
+      createdAt: DateTime.now(),
+      executionMode: conversation.executionMode,
+      workflowStage: conversation.workflowStage,
+      workflowSpec: conversation.workflowSpec,
+      workflowSourceHash: conversation.workflowSourceHash,
+      workflowDerivedAt: conversation.workflowDerivedAt,
+      executionProgress: conversation.executionProgress,
+      openQuestionProgress: conversation.openQuestionProgress,
+      goal: conversation.goal,
+      planArtifact: conversation.planArtifact,
+      compactionArtifact: conversation.compactionArtifact,
+    );
+
+    final checkpoints = [
+      for (final existing in conversation.checkpoints)
+        if (existing.messageId != message.id &&
+            existing.messageCount <= messageCount)
+          existing,
+      checkpoint,
+    ]..sort((a, b) => a.messageCount.compareTo(b.messageCount));
+    final retained = checkpoints.length <= _maxConversationCheckpoints
+        ? checkpoints
+        : checkpoints.sublist(checkpoints.length - _maxConversationCheckpoints);
+    return conversation.copyWith(checkpoints: retained);
   }
 
   /// Creates a new conversation.
@@ -446,6 +492,71 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<bool> rewindCurrentConversationToMessage(String messageId) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return false;
+    }
+
+    final targetIndex = conversation.messages.indexWhere(
+      (message) => message.id == messageId,
+    );
+    if (targetIndex < 0 || targetIndex >= conversation.messages.length - 1) {
+      return false;
+    }
+
+    final retainedMessages = conversation.messages
+        .take(targetIndex + 1)
+        .where((message) => !message.isStreaming)
+        .toList(growable: false);
+    if (retainedMessages.isEmpty) {
+      return false;
+    }
+
+    final checkpoint = conversation.checkpointForMessage(messageId);
+    final retainedCheckpoints = conversation.checkpoints
+        .where((item) => item.messageCount <= retainedMessages.length)
+        .toList(growable: false);
+    final now = DateTime.now();
+    final planArtifact = checkpoint?.planArtifact;
+    final updatedConversation = conversation.copyWith(
+      title:
+          checkpoint?.title ??
+          _deriveDefaultTitle(retainedMessages) ??
+          defaultConversationTitle,
+      messages: retainedMessages,
+      executionMode:
+          checkpoint?.executionMode ?? ConversationExecutionMode.normal,
+      workflowStage:
+          checkpoint?.workflowStage ?? ConversationWorkflowStage.idle,
+      workflowSpec: checkpoint?.workflowSpec,
+      workflowSourceHash: checkpoint?.workflowSourceHash ?? '',
+      workflowDerivedAt: checkpoint?.workflowDerivedAt,
+      executionProgress:
+          checkpoint?.executionProgress ??
+          const <ConversationExecutionTaskProgress>[],
+      openQuestionProgress:
+          checkpoint?.openQuestionProgress ??
+          const <ConversationOpenQuestionProgress>[],
+      goal: checkpoint?.goal,
+      planArtifact: planArtifact,
+      compactionArtifact: _buildCompactionArtifact(
+        conversation,
+        messages: retainedMessages,
+        planArtifact: planArtifact,
+        now: now,
+      ),
+      checkpoints: retainedCheckpoints,
+      updatedAt: now,
+    );
+
+    await _persistUpdatedConversation(
+      updatedConversation,
+      recordCheckpoint: false,
+    );
+    return true;
   }
 
   Future<void> _deleteToolResultArtifactsForIds(Iterable<String> ids) async {

@@ -16,6 +16,8 @@ class BuiltInToolRegistry {
   BuiltInToolRegistry._();
 
   static const String categoryDatetime = 'datetime';
+  static const String categoryInteraction = 'interaction';
+  static const String categorySkills = 'skills';
   static const String categoryMemory = 'memory';
   static const String categoryNetwork = 'network';
   static const String categoryCoding = 'coding';
@@ -30,6 +32,8 @@ class BuiltInToolRegistry {
 
   static const List<String> categories = [
     categoryDatetime,
+    categoryInteraction,
+    categorySkills,
     categoryMemory,
     categoryNetwork,
     categoryCoding,
@@ -49,6 +53,18 @@ class BuiltInToolRegistry {
       name: 'get_current_datetime',
       descriptionKey: 'settings.tool_get_current_datetime',
       category: categoryDatetime,
+    ),
+    // Interaction
+    BuiltInToolInfo(
+      name: 'ask_user_question',
+      descriptionKey: 'settings.tool_ask_user_question',
+      category: categoryInteraction,
+    ),
+    // Skills
+    BuiltInToolInfo(
+      name: 'load_skill',
+      descriptionKey: 'settings.tool_load_skill',
+      category: categorySkills,
     ),
     // Memory
     BuiltInToolInfo(
@@ -466,6 +482,8 @@ class BuiltInToolRegistry {
   static IconData categoryIcon(String category) {
     return switch (category) {
       categoryDatetime => Icons.schedule,
+      categoryInteraction => Icons.help_outline,
+      categorySkills => Icons.auto_awesome,
       categoryMemory => Icons.memory,
       categoryNetwork => Icons.lan,
       categoryCoding => Icons.code,

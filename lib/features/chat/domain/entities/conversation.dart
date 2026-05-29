@@ -101,6 +101,69 @@ List<Map<String, dynamic>> _openQuestionProgressToJson(
   return progress.map((item) => item.toJson()).toList(growable: false);
 }
 
+List<ConversationCheckpoint> _checkpointsFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const [];
+  }
+  return json
+      .map(
+        (item) => ConversationCheckpoint.fromJson(item as Map<String, dynamic>),
+      )
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _checkpointsToJson(
+  List<ConversationCheckpoint> checkpoints,
+) {
+  return checkpoints.map((item) => item.toJson()).toList(growable: false);
+}
+
+@freezed
+abstract class ConversationCheckpoint with _$ConversationCheckpoint {
+  const ConversationCheckpoint._();
+
+  const factory ConversationCheckpoint({
+    required String messageId,
+    required int messageCount,
+    required String title,
+    required DateTime createdAt,
+    @JsonKey(unknownEnumValue: ConversationExecutionMode.normal)
+    @Default(ConversationExecutionMode.normal)
+    ConversationExecutionMode executionMode,
+    @JsonKey(unknownEnumValue: ConversationWorkflowStage.idle)
+    @Default(ConversationWorkflowStage.idle)
+    ConversationWorkflowStage workflowStage,
+    @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson)
+    ConversationWorkflowSpec? workflowSpec,
+    @Default('') String workflowSourceHash,
+    DateTime? workflowDerivedAt,
+    @JsonKey(
+      fromJson: _executionProgressFromJson,
+      toJson: _executionProgressToJson,
+    )
+    @Default(<ConversationExecutionTaskProgress>[])
+    List<ConversationExecutionTaskProgress> executionProgress,
+    @JsonKey(
+      fromJson: _openQuestionProgressFromJson,
+      toJson: _openQuestionProgressToJson,
+    )
+    @Default(<ConversationOpenQuestionProgress>[])
+    List<ConversationOpenQuestionProgress> openQuestionProgress,
+    @JsonKey(fromJson: _goalFromJson, toJson: _goalToJson)
+    ConversationGoal? goal,
+    @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)
+    ConversationPlanArtifact? planArtifact,
+    @JsonKey(
+      fromJson: _compactionArtifactFromJson,
+      toJson: _compactionArtifactToJson,
+    )
+    ConversationCompactionArtifact? compactionArtifact,
+  }) = _ConversationCheckpoint;
+
+  factory ConversationCheckpoint.fromJson(Map<String, dynamic> json) =>
+      _$ConversationCheckpointFromJson(json);
+}
+
 @freezed
 abstract class Conversation with _$Conversation {
   const Conversation._();
@@ -146,6 +209,9 @@ abstract class Conversation with _$Conversation {
       toJson: _compactionArtifactToJson,
     )
     ConversationCompactionArtifact? compactionArtifact,
+    @JsonKey(fromJson: _checkpointsFromJson, toJson: _checkpointsToJson)
+    @Default(<ConversationCheckpoint>[])
+    List<ConversationCheckpoint> checkpoints,
   }) = _Conversation;
 
   factory Conversation.fromJson(Map<String, dynamic> json) =>
@@ -198,6 +264,19 @@ abstract class Conversation with _$Conversation {
   bool get hasPlanArtifact => effectivePlanArtifact.hasContent;
 
   bool get hasCompactionArtifact => effectiveCompactionArtifact.hasContent;
+
+  ConversationCheckpoint? checkpointForMessage(String messageId) {
+    final normalizedMessageId = messageId.trim();
+    if (normalizedMessageId.isEmpty) {
+      return null;
+    }
+    for (final checkpoint in checkpoints.reversed) {
+      if (checkpoint.messageId == normalizedMessageId) {
+        return checkpoint;
+      }
+    }
+    return null;
+  }
 
   bool get shouldPreferPlanDocument => hasPlanArtifact;
 

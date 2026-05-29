@@ -10,6 +10,7 @@ import 'built_in_tools_settings_page.dart';
 import 'local_command_permission_rules_page.dart';
 import 'mcp_servers_settings_page.dart';
 import 'routine_computer_use_allowlist_page.dart';
+import 'skills_settings_page.dart';
 
 class ToolsSettingsPage extends ConsumerWidget {
   const ToolsSettingsPage({super.key});
@@ -66,12 +67,26 @@ class ToolsSettingsPage extends ConsumerWidget {
             onChanged: notifier.updateEnableAgentsMd,
           ),
           const Divider(),
+          _buildSkillsTile(context),
           _buildBuiltInToolsTile(context, settings),
           _buildLocalCommandPermissionRulesTile(context, settings),
           _buildRoutineComputerUseAllowlistTile(context, settings),
           _buildRemoteCodingTile(context),
           _buildMcpServersTile(context, settings),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSkillsTile(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.auto_awesome_outlined),
+      title: const Text('Skills'),
+      subtitle: const Text('Reusable markdown instructions for repeated work'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SkillsSettingsPage()),
       ),
     );
   }

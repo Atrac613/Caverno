@@ -13,10 +13,12 @@ import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/session_memory.dart';
+import '../../domain/entities/skill.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository.dart';
+import '../repositories/skill_repository.dart';
 import 'ble_tools.dart';
 import 'filesystem_tools.dart';
 import 'git_tools.dart';
@@ -51,6 +53,8 @@ class McpToolService {
     'get_current_datetime',
     'search_past_conversations',
     'recall_memory',
+    'ask_user_question',
+    'load_skill',
     'ping',
     'ping6',
     'arp',
@@ -121,6 +125,7 @@ class McpToolService {
     this.searxngClient,
     this.conversationRepository,
     this.memoryRepository,
+    this.skillRepository,
     this.sshService,
     this.bleService,
     this.wifiService,
@@ -134,6 +139,7 @@ class McpToolService {
   final SearxngClient? searxngClient;
   final ConversationRepository? conversationRepository;
   final ChatMemoryRepository? memoryRepository;
+  final SkillRepository? skillRepository;
   final SshService? sshService;
   final BleService? bleService;
   final WifiService? wifiService;
@@ -161,6 +167,9 @@ class McpToolService {
 
   /// Most recent error message.
   String? get lastError => _lastError;
+
+  bool get _hasEnabledSkills =>
+      skillRepository?.getAll().any((skill) => skill.isUsable) ?? false;
 
   /// Connects to the MCP server and fetches available tools.
   ///
@@ -463,6 +472,7 @@ class McpToolService {
     final toolDefinitions = <Map<String, dynamic>>[];
 
     _addIfEnabled(toolDefinitions, _currentDatetimeTool);
+    _addIfEnabled(toolDefinitions, _askUserQuestionTool);
 
     // Built-in memory tools (always available).
     if (conversationRepository != null) {
@@ -470,6 +480,9 @@ class McpToolService {
     }
     if (memoryRepository != null) {
       _addIfEnabled(toolDefinitions, _recallMemoryTool);
+    }
+    if (_hasEnabledSkills) {
+      _addIfEnabled(toolDefinitions, _loadSkillTool);
     }
 
     // Built-in network tools (always available).
@@ -649,6 +662,20 @@ class McpToolService {
     if (name == 'recall_memory' && memoryRepository != null) {
       final result = _recallMemory(arguments);
       appLog('[McpToolService] Memory recall executed: ${result.length} chars');
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'load_skill' && skillRepository != null) {
+      final result = _loadSkill(arguments);
+      if (result == null) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'No matching enabled skill found',
+        );
+      }
+      appLog('[McpToolService] Skill loaded: ${result.length} chars');
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
@@ -1827,6 +1854,92 @@ class McpToolService {
       'description':
           'Returns the current local date/time and reference date ranges for interpreting relative expressions such as today/this week/recent.',
       'parameters': {'type': 'object', 'properties': {}, 'required': []},
+    },
+  };
+
+  static Map<String, dynamic> get _askUserQuestionTool => {
+    'type': 'function',
+    'function': {
+      'name': 'ask_user_question',
+      'description':
+          'Ask the user a focused choice question before continuing. Use this when a requirement is ambiguous, multiple implementation directions are reasonable, or the user should compare previews before deciding.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'question': {
+            'type': 'string',
+            'description': 'The concise question to show to the user.',
+          },
+          'help': {
+            'type': 'string',
+            'description':
+                'Optional context explaining why the choice matters.',
+          },
+          'options': {
+            'type': 'array',
+            'description':
+                'Choice options. Include preview when side-by-side comparison would help.',
+            'items': {
+              'type': 'object',
+              'properties': {
+                'id': {
+                  'type': 'string',
+                  'description': 'Stable machine-readable option identifier.',
+                },
+                'label': {
+                  'type': 'string',
+                  'description': 'Short user-facing option label.',
+                },
+                'description': {
+                  'type': 'string',
+                  'description': 'One or two sentences about the tradeoff.',
+                },
+                'preview': {
+                  'type': 'string',
+                  'description':
+                      'Optional concrete preview, snippet, or before/after summary.',
+                },
+              },
+              'required': ['label'],
+            },
+          },
+          'allow_multiple': {
+            'type': 'boolean',
+            'description': 'Allow selecting more than one option.',
+          },
+          'allow_other': {
+            'type': 'boolean',
+            'description': 'Allow free-form Other input.',
+          },
+          'other_placeholder': {
+            'type': 'string',
+            'description': 'Placeholder for the Other input.',
+          },
+        },
+        'required': ['question'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _loadSkillTool => {
+    'type': 'function',
+    'function': {
+      'name': 'load_skill',
+      'description':
+          'Load the full markdown instructions for a saved user skill. Use this when the lightweight skills index says a skill matches the task.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'id': {
+            'type': 'string',
+            'description': 'Exact skill id from the lightweight index.',
+          },
+          'name': {
+            'type': 'string',
+            'description': 'Skill name when the id is unavailable.',
+          },
+        },
+      },
     },
   };
 
@@ -4058,6 +4171,38 @@ class McpToolService {
       );
     }
     return buffer.toString();
+  }
+
+  String? _loadSkill(Map<String, dynamic> arguments) {
+    final id = (arguments['id'] as String?)?.trim() ?? '';
+    final name = (arguments['name'] as String?)?.trim() ?? '';
+    final lookup = id.isNotEmpty ? id : name;
+    if (lookup.isEmpty) {
+      return null;
+    }
+
+    final repository = skillRepository;
+    if (repository == null) {
+      return null;
+    }
+
+    final skill = repository.findByIdOrName(lookup);
+    if (skill == null || !skill.isUsable) {
+      return null;
+    }
+    return jsonEncode(_skillToToolResult(skill));
+  }
+
+  Map<String, dynamic> _skillToToolResult(Skill skill) {
+    return {
+      'id': skill.id,
+      'name': skill.normalizedName,
+      if (skill.normalizedDescription.isNotEmpty)
+        'description': skill.normalizedDescription,
+      if (skill.normalizedWhenToUse.isNotEmpty)
+        'whenToUse': skill.normalizedWhenToUse,
+      'content': skill.normalizedContent,
+    };
   }
 
   Set<String> _biGrams(String text) {

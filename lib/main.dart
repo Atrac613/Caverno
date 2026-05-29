@@ -12,6 +12,7 @@ import 'core/services/window_settings_service.dart';
 import 'core/utils/logger.dart';
 import 'features/chat/data/repositories/chat_memory_repository.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
+import 'features/chat/data/repositories/skill_repository.dart';
 import 'features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'features/chat/presentation/pages/chat_page.dart';
 import 'features/settings/data/settings_repository.dart';
@@ -27,6 +28,7 @@ void main() async {
   await Hive.initFlutter();
   final conversationBox = await Hive.openBox<String>('conversations');
   final memoryBox = await Hive.openBox<String>('chat_memory');
+  final skillBox = await Hive.openBox<String>('skills');
 
   final prefs = await SharedPreferences.getInstance();
   final initialSettings = SettingsRepository(prefs).load();
@@ -55,6 +57,7 @@ void main() async {
           sharedPreferencesProvider.overrideWithValue(prefs),
           conversationBoxProvider.overrideWithValue(conversationBox),
           chatMemoryBoxProvider.overrideWithValue(memoryBox),
+          skillBoxProvider.overrideWithValue(skillBox),
         ],
         child: const MyApp(),
       ),

@@ -23,6 +23,7 @@ import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_planning_prompt_service.dart';
 import '../../domain/services/system_prompt_builder.dart';
 import '../../domain/services/session_memory_service.dart';
+import '../../domain/services/skill_prompt_index_builder.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_datasource.dart';
@@ -55,6 +56,7 @@ import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
 import 'macos_computer_use_approval_copy.dart';
 import 'mcp_tool_provider.dart';
+import 'skills_notifier.dart';
 import 'tool_approval_cache.dart';
 
 part 'chat_notifier_ble_handlers.dart';
@@ -544,10 +546,24 @@ class ChatNotifier extends Notifier<ChatState> {
         planArtifact: currentConversation?.planArtifact,
         isVoiceMode: _isVoiceMode,
         agentsMarkdown: agentsMarkdown,
+        skillsContext: _buildSkillsPromptContext(toolNames),
       ),
       role: MessageRole.system,
       timestamp: now,
     );
+  }
+
+  String? _buildSkillsPromptContext(List<String> toolNames) {
+    if (!toolNames.contains('load_skill') ||
+        _settings.disabledBuiltInToolsSet.contains('load_skill')) {
+      return null;
+    }
+    try {
+      final skills = ref.read(skillsNotifierProvider).enabledSkills;
+      return SkillPromptIndexBuilder.build(skills);
+    } catch (_) {
+      return null;
+    }
   }
 
   AssistantMode _resolveAssistantMode({Conversation? currentConversation}) {
@@ -6503,6 +6519,167 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(pendingWorkflowDecision: null);
   }
 
+  Future<McpToolResult> _handleAskUserQuestion(ToolCallInfo toolCall) async {
+    final question = _trimStringArgument(toolCall.arguments, 'question');
+    if (question.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'question is required',
+      );
+    }
+
+    final options = _parseAskUserQuestionOptions(toolCall.arguments['options']);
+    final allowOther = toolCall.arguments['allow_other'] as bool? ?? true;
+    if (options.isEmpty && !allowOther) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'at least one option or allow_other is required',
+      );
+    }
+
+    final answer = await requestAskUserQuestion(
+      question: question,
+      help: _trimStringArgument(toolCall.arguments, 'help'),
+      options: options,
+      allowMultiple: toolCall.arguments['allow_multiple'] as bool? ?? false,
+      allowOther: allowOther,
+      otherPlaceholder: _trimStringArgument(
+        toolCall.arguments,
+        'other_placeholder',
+      ),
+    );
+    if (answer == null || !answer.hasAnswer) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({'question': question, 'status': 'cancelled'}),
+        isSuccess: false,
+        errorMessage: 'User dismissed the question',
+      );
+    }
+
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: jsonEncode({'status': 'answered', ...answer.toJson()}),
+      isSuccess: true,
+    );
+  }
+
+  Future<AskUserQuestionAnswer?> requestAskUserQuestion({
+    required String question,
+    required String help,
+    required List<AskUserQuestionOption> options,
+    required bool allowMultiple,
+    required bool allowOther,
+    required String otherPlaceholder,
+  }) {
+    final completer = Completer<AskUserQuestionAnswer?>();
+    state = state.copyWith(
+      pendingAskUserQuestion: PendingAskUserQuestion(
+        id: const Uuid().v4(),
+        question: question,
+        help: help,
+        options: options,
+        allowMultiple: allowMultiple,
+        allowOther: allowOther,
+        otherPlaceholder: otherPlaceholder,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  void resolveAskUserQuestion({
+    required String id,
+    AskUserQuestionAnswer? answer,
+  }) {
+    final pending = state.pendingAskUserQuestion;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(answer);
+    }
+    state = state.copyWith(pendingAskUserQuestion: null);
+  }
+
+  String _trimStringArgument(Map<String, dynamic> arguments, String key) {
+    return (arguments[key] as String?)?.trim() ?? '';
+  }
+
+  List<AskUserQuestionOption> _parseAskUserQuestionOptions(dynamic rawOptions) {
+    if (rawOptions is! List) {
+      return const [];
+    }
+
+    final options = <AskUserQuestionOption>[];
+    final usedIds = <String>{};
+    for (
+      var index = 0;
+      index < rawOptions.length && options.length < 8;
+      index++
+    ) {
+      final rawOption = rawOptions[index];
+      String label;
+      String id;
+      String description = '';
+      String preview = '';
+
+      if (rawOption is String) {
+        label = rawOption.trim();
+        id = _askUserQuestionOptionId(label, index);
+      } else if (rawOption is Map) {
+        label = (rawOption['label'] as String?)?.trim() ?? '';
+        id = (rawOption['id'] as String?)?.trim().isNotEmpty == true
+            ? (rawOption['id'] as String).trim()
+            : _askUserQuestionOptionId(label, index);
+        description = (rawOption['description'] as String?)?.trim() ?? '';
+        preview = (rawOption['preview'] as String?)?.trim() ?? '';
+      } else {
+        continue;
+      }
+
+      if (label.isEmpty) {
+        continue;
+      }
+      var uniqueId = id;
+      var suffix = 2;
+      while (!usedIds.add(uniqueId)) {
+        uniqueId = '$id-$suffix';
+        suffix++;
+      }
+      options.add(
+        AskUserQuestionOption(
+          id: uniqueId,
+          label: _clipAskUserQuestionText(label, 120),
+          description: _clipAskUserQuestionText(description, 500),
+          preview: _clipAskUserQuestionText(preview, 2000),
+        ),
+      );
+    }
+    return options;
+  }
+
+  String _askUserQuestionOptionId(String label, int index) {
+    final normalized = label
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    if (normalized.isNotEmpty) {
+      return normalized.length > 40 ? normalized.substring(0, 40) : normalized;
+    }
+    return 'option-${index + 1}';
+  }
+
+  String _clipAskUserQuestionText(String value, int maxLength) {
+    final normalized = value.trim();
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    return '${normalized.substring(0, maxLength - 3)}...';
+  }
+
   Future<void> _runPlanProposalFlow({
     required Conversation currentConversation,
     required String languageCode,
@@ -8973,6 +9150,8 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleGitExecuteCommand(toolCall);
       case 'ble_connect':
         return _handleBleConnect(toolCall);
+      case 'ask_user_question':
+        return _handleAskUserQuestion(toolCall);
       default:
         return _mcpToolService!.executeTool(
           name: toolCall.name,
@@ -9019,6 +9198,7 @@ class ChatNotifier extends Notifier<ChatState> {
       case 'search_files':
       case ToolDefinitionSearchService.toolName:
       case 'get_current_datetime':
+      case 'ask_user_question':
       case 'os_get_system_info':
       case 'search_past_conversations':
       case 'recall_memory':

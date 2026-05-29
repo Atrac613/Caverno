@@ -6,6 +6,84 @@ part of 'conversation.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_ConversationCheckpoint _$ConversationCheckpointFromJson(
+  Map<String, dynamic> json,
+) => _ConversationCheckpoint(
+  messageId: json['messageId'] as String,
+  messageCount: (json['messageCount'] as num).toInt(),
+  title: json['title'] as String,
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  executionMode:
+      $enumDecodeNullable(
+        _$ConversationExecutionModeEnumMap,
+        json['executionMode'],
+        unknownValue: ConversationExecutionMode.normal,
+      ) ??
+      ConversationExecutionMode.normal,
+  workflowStage:
+      $enumDecodeNullable(
+        _$ConversationWorkflowStageEnumMap,
+        json['workflowStage'],
+        unknownValue: ConversationWorkflowStage.idle,
+      ) ??
+      ConversationWorkflowStage.idle,
+  workflowSpec: _workflowSpecFromJson(
+    json['workflowSpec'] as Map<String, dynamic>?,
+  ),
+  workflowSourceHash: json['workflowSourceHash'] as String? ?? '',
+  workflowDerivedAt: json['workflowDerivedAt'] == null
+      ? null
+      : DateTime.parse(json['workflowDerivedAt'] as String),
+  executionProgress: json['executionProgress'] == null
+      ? const <ConversationExecutionTaskProgress>[]
+      : _executionProgressFromJson(json['executionProgress'] as List?),
+  openQuestionProgress: json['openQuestionProgress'] == null
+      ? const <ConversationOpenQuestionProgress>[]
+      : _openQuestionProgressFromJson(json['openQuestionProgress'] as List?),
+  goal: _goalFromJson(json['goal'] as Map<String, dynamic>?),
+  planArtifact: _planArtifactFromJson(
+    json['planArtifact'] as Map<String, dynamic>?,
+  ),
+  compactionArtifact: _compactionArtifactFromJson(
+    json['compactionArtifact'] as Map<String, dynamic>?,
+  ),
+);
+
+Map<String, dynamic> _$ConversationCheckpointToJson(
+  _ConversationCheckpoint instance,
+) => <String, dynamic>{
+  'messageId': instance.messageId,
+  'messageCount': instance.messageCount,
+  'title': instance.title,
+  'createdAt': instance.createdAt.toIso8601String(),
+  'executionMode': _$ConversationExecutionModeEnumMap[instance.executionMode]!,
+  'workflowStage': _$ConversationWorkflowStageEnumMap[instance.workflowStage]!,
+  'workflowSpec': _workflowSpecToJson(instance.workflowSpec),
+  'workflowSourceHash': instance.workflowSourceHash,
+  'workflowDerivedAt': instance.workflowDerivedAt?.toIso8601String(),
+  'executionProgress': _executionProgressToJson(instance.executionProgress),
+  'openQuestionProgress': _openQuestionProgressToJson(
+    instance.openQuestionProgress,
+  ),
+  'goal': _goalToJson(instance.goal),
+  'planArtifact': _planArtifactToJson(instance.planArtifact),
+  'compactionArtifact': _compactionArtifactToJson(instance.compactionArtifact),
+};
+
+const _$ConversationExecutionModeEnumMap = {
+  ConversationExecutionMode.normal: 'normal',
+  ConversationExecutionMode.planning: 'planning',
+};
+
+const _$ConversationWorkflowStageEnumMap = {
+  ConversationWorkflowStage.idle: 'idle',
+  ConversationWorkflowStage.clarify: 'clarify',
+  ConversationWorkflowStage.plan: 'plan',
+  ConversationWorkflowStage.tasks: 'tasks',
+  ConversationWorkflowStage.implement: 'implement',
+  ConversationWorkflowStage.review: 'review',
+};
+
 _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
     _Conversation(
       id: json['id'] as String,
@@ -59,6 +137,9 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
       compactionArtifact: _compactionArtifactFromJson(
         json['compactionArtifact'] as Map<String, dynamic>?,
       ),
+      checkpoints: json['checkpoints'] == null
+          ? const <ConversationCheckpoint>[]
+          : _checkpointsFromJson(json['checkpoints'] as List?),
     );
 
 Map<String, dynamic> _$ConversationToJson(
@@ -83,24 +164,11 @@ Map<String, dynamic> _$ConversationToJson(
   'goal': _goalToJson(instance.goal),
   'planArtifact': _planArtifactToJson(instance.planArtifact),
   'compactionArtifact': _compactionArtifactToJson(instance.compactionArtifact),
+  'checkpoints': _checkpointsToJson(instance.checkpoints),
 };
 
 const _$WorkspaceModeEnumMap = {
   WorkspaceMode.chat: 'chat',
   WorkspaceMode.coding: 'coding',
   WorkspaceMode.routines: 'routines',
-};
-
-const _$ConversationExecutionModeEnumMap = {
-  ConversationExecutionMode.normal: 'normal',
-  ConversationExecutionMode.planning: 'planning',
-};
-
-const _$ConversationWorkflowStageEnumMap = {
-  ConversationWorkflowStage.idle: 'idle',
-  ConversationWorkflowStage.clarify: 'clarify',
-  ConversationWorkflowStage.plan: 'plan',
-  ConversationWorkflowStage.tasks: 'tasks',
-  ConversationWorkflowStage.implement: 'implement',
-  ConversationWorkflowStage.review: 'review',
 };
