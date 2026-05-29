@@ -41,6 +41,7 @@ import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/coding_approval_auto_review_service.dart';
@@ -50,6 +51,7 @@ import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../domain/services/turn_diff_service.dart';
 import '../../../settings/domain/services/local_command_permission_service.dart';
 import 'chat_state.dart';
 import 'coding_projects_notifier.dart';
@@ -207,8 +209,11 @@ class ChatNotifier extends Notifier<ChatState> {
   AssistantMode? _assistantModeOverride;
   List<ToolResultInfo> _latestCompletedToolResults = const [];
   final List<ToolResultInfo> _latestContentToolResults = [];
+  final List<TurnDiffFile> _pendingTurnDiffFiles = [];
   late ToolResultArtifactStore _toolResultArtifactStore;
   String? _latestHiddenAssistantResponse;
+  String? _activeTurnUserPrompt;
+  DateTime? _activeTurnStartedAt;
   static const Set<String> _planningResearchStopWords = {
     'about',
     'after',
@@ -555,6 +560,7 @@ class ChatNotifier extends Notifier<ChatState> {
         _latestContentToolResults.clear();
         _latestCompletedToolResults = const [];
       }
+      _clearTurnDiffCapture();
       _contentToolContinuationCount = 0;
       _contentToolExecutionTail = Future<void>.value();
       _sessionMemoryContext = null;
@@ -586,6 +592,95 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!preservingActiveResponse) {
       _accumulatedTokenUsage = TokenUsage.zero;
     }
+  }
+
+  void _beginTurnDiffCapture(String userPrompt) {
+    _pendingTurnDiffFiles.clear();
+    _activeTurnUserPrompt = userPrompt;
+    _activeTurnStartedAt = DateTime.now();
+  }
+
+  void _clearTurnDiffCapture() {
+    _pendingTurnDiffFiles.clear();
+    _activeTurnUserPrompt = null;
+    _activeTurnStartedAt = null;
+  }
+
+  Future<void> _recordFileMutationDiff({
+    required TextFileSnapshot before,
+    required String path,
+  }) async {
+    if (_activeTurnUserPrompt == null) {
+      return;
+    }
+
+    final after = await FilesystemTools.captureTextSnapshot(path);
+    final filePath = after.path.trim().isNotEmpty ? after.path : before.path;
+    final beforeError = before.error?.trim();
+    final afterError = after.error?.trim();
+    final unavailable =
+        beforeError?.isNotEmpty == true || afterError?.isNotEmpty == true;
+
+    final TurnDiffFile? file;
+    if (unavailable) {
+      file = TurnDiffFile(
+        filePath: filePath,
+        isNewFile: !before.exists && after.exists,
+        isDeletedFile: before.exists && !after.exists,
+        isBinary:
+            _snapshotErrorSuggestsBinary(beforeError) ||
+            _snapshotErrorSuggestsBinary(afterError),
+        isLargeFile: false,
+        note: [
+          if (beforeError?.isNotEmpty == true) beforeError!,
+          if (afterError?.isNotEmpty == true) afterError!,
+        ].join('\n'),
+      );
+    } else {
+      file = TurnDiffService.buildFileDiff(
+        filePath: filePath,
+        oldContent: before.exists ? before.content : null,
+        newContent: after.exists ? after.content : null,
+        oldExists: before.exists,
+        newExists: after.exists,
+      )?.file;
+    }
+
+    if (file == null || !file.hasChanges) {
+      return;
+    }
+    _pendingTurnDiffFiles.add(file);
+  }
+
+  bool _snapshotErrorSuggestsBinary(String? error) {
+    final lower = error?.toLowerCase() ?? '';
+    return lower.contains('binary') || lower.contains('utf-8');
+  }
+
+  Future<void> _persistPendingTurnDiffForAssistant(
+    String assistantMessageId,
+  ) async {
+    final userPrompt = _activeTurnUserPrompt;
+    if (userPrompt == null || _pendingTurnDiffFiles.isEmpty) {
+      _clearTurnDiffCapture();
+      return;
+    }
+
+    final turnDiff = TurnDiffService.buildTurnDiff(
+      assistantMessageId: assistantMessageId,
+      userPrompt: userPrompt,
+      files: _pendingTurnDiffFiles,
+      source: TurnDiffSource.tool,
+      timestamp: _activeTurnStartedAt,
+    );
+    _clearTurnDiffCapture();
+    if (!turnDiff.hasChanges) {
+      return;
+    }
+
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .recordCurrentTurnDiff(turnDiff);
   }
 
   /// Builds the system message, including the current date and time.
@@ -6217,6 +6312,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _contentToolExecutionTail = Future<void>.value();
     _latestCompletedToolResults = const [];
     _latestHiddenAssistantResponse = null;
+    _beginTurnDiffCapture(content);
 
     _temporalReferenceContext = TemporalContextBuilder.build(
       now: DateTime.now(),
@@ -6424,6 +6520,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _languageCode = languageCode;
     _latestHiddenAssistantResponse = null;
     final interactionGeneration = _beginInteractionGeneration();
+    _clearTurnDiffCapture();
     _hiddenPrompt = Message(
       id: _uuid.v4(),
       content: instruction,
@@ -10474,6 +10571,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_isCurrentInteractionGeneration(generation)) return;
 
     if (shouldDropLastAssistant || updatedMessages.isEmpty) {
+      _clearTurnDiffCapture();
       _onResponseCompleted('');
       if (!_isCurrentInteractionGeneration(generation)) return;
       await _drainQueuedChatMessagesIfIdle();
@@ -10482,6 +10580,11 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // Trigger auto-read when enabled.
     final finalizedLastMessage = updatedMessages.last;
+    if (finalizedLastMessage.role == MessageRole.assistant) {
+      await _persistPendingTurnDiffForAssistant(finalizedLastMessage.id);
+    } else {
+      _clearTurnDiffCapture();
+    }
     await ref
         .read(conversationsNotifierProvider.notifier)
         .recordCurrentGoalTurn(
@@ -10894,6 +10997,7 @@ class ChatNotifier extends Notifier<ChatState> {
       isLoading: false,
       error: displayError,
     );
+    _clearTurnDiffCapture();
   }
 
   String _buildDisplayError(String rawError) {
@@ -10994,6 +11098,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _clearAllActiveResponses();
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;
+    _clearTurnDiffCapture();
     state = ChatState.initial();
   }
 }

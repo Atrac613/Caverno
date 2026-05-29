@@ -12,6 +12,7 @@ import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../../settings/presentation/pages/chat_settings_page.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/turn_diff.dart';
 import 'parsed_content_view.dart';
 
 const double _messageImagePreviewWidth = 200;
@@ -23,12 +24,16 @@ class MessageBubble extends ConsumerStatefulWidget {
     required this.message,
     this.onReselectProject,
     this.onRewindToHere,
+    this.turnDiff,
+    this.onOpenTurnDiff,
     this.canRewind = false,
   });
 
   final Message message;
   final VoidCallback? onReselectProject;
   final VoidCallback? onRewindToHere;
+  final TurnDiff? turnDiff;
+  final VoidCallback? onOpenTurnDiff;
   final bool canRewind;
 
   @override
@@ -252,6 +257,16 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
               ),
             ),
           if (!isUser &&
+              !message.isStreaming &&
+              widget.turnDiff?.hasChanges == true)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _TurnDiffChip(
+                diff: widget.turnDiff!,
+                onPressed: widget.onOpenTurnDiff,
+              ),
+            ),
+          if (!isUser &&
               settings.ttsEnabled &&
               !message.isStreaming &&
               message.content.isNotEmpty)
@@ -363,6 +378,39 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     }
     await tts.setSpeechRate(settings.speechRate);
     await tts.speak(readableText);
+  }
+}
+
+class _TurnDiffChip extends StatelessWidget {
+  const _TurnDiffChip({required this.diff, this.onPressed});
+
+  final TurnDiff diff;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ActionChip(
+      avatar: Icon(
+        Icons.difference_outlined,
+        size: 16,
+        color: theme.colorScheme.primary,
+      ),
+      label: Text(diff.summaryLabel, overflow: TextOverflow.ellipsis),
+      tooltip: 'View file changes',
+      visualDensity: VisualDensity.compact,
+      onPressed: onPressed,
+      side: BorderSide(
+        color: theme.colorScheme.primary.withValues(alpha: 0.30),
+      ),
+      backgroundColor: theme.colorScheme.primaryContainer.withValues(
+        alpha: 0.28,
+      ),
+      labelStyle: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurface,
+        fontWeight: FontWeight.w700,
+      ),
+    );
   }
 }
 

@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../domain/entities/turn_diff.dart';
+import '../../domain/services/turn_diff_service.dart';
 
 typedef CodingEnvironmentProcessRunner =
     Future<ProcessResult> Function(
@@ -28,6 +32,19 @@ final codingEnvironmentSnapshotProvider = FutureProvider.autoDispose
       );
     });
 
+final codingWorktreeDiffProvider = FutureProvider.autoDispose
+    .family<TurnDiff?, String>((ref, rootPath) async {
+      final normalizedRootPath = rootPath.trim();
+      if (normalizedRootPath.isEmpty || !_isDesktopPlatform) {
+        return null;
+      }
+      final runProcess = ref.watch(codingEnvironmentProcessRunnerProvider);
+      return CodingWorktreeDiffLoader.load(
+        rootPath: normalizedRootPath,
+        runProcess: runProcess,
+      );
+    });
+
 Future<ProcessResult> _defaultProcessRunner(
   String executable,
   List<String> arguments, {
@@ -39,6 +56,9 @@ Future<ProcessResult> _defaultProcessRunner(
     workingDirectory: workingDirectory,
   ).timeout(_gitSnapshotTimeout);
 }
+
+bool get _isDesktopPlatform =>
+    Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
 class CodingEnvironmentSnapshot {
   const CodingEnvironmentSnapshot({
@@ -235,4 +255,165 @@ class _GitShortStat {
     }
     return int.tryParse(match.group(1) ?? '') ?? 0;
   }
+}
+
+class CodingWorktreeDiffLoader {
+  CodingWorktreeDiffLoader._();
+
+  static Future<TurnDiff?> load({
+    required String rootPath,
+    required CodingEnvironmentProcessRunner runProcess,
+  }) async {
+    if (!Directory(rootPath).existsSync()) {
+      return null;
+    }
+
+    try {
+      final repositoryResult = await runProcess('git', const [
+        'rev-parse',
+        '--show-toplevel',
+      ], workingDirectory: rootPath);
+      if (repositoryResult.exitCode != 0) {
+        return null;
+      }
+
+      final repositoryRoot = _stdoutText(repositoryResult).trim();
+      final effectiveRoot = repositoryRoot.isEmpty ? rootPath : repositoryRoot;
+      final trackedFiles = await _loadTrackedFiles(
+        rootPath: rootPath,
+        runProcess: runProcess,
+      );
+      final untrackedFiles = await _loadUntrackedFiles(
+        rootPath: rootPath,
+        repositoryRoot: effectiveRoot,
+        runProcess: runProcess,
+      );
+
+      return TurnDiffService.buildTurnDiff(
+        id: 'git_worktree:${effectiveRoot.hashCode}',
+        assistantMessageId: 'git_worktree',
+        userPrompt: 'Uncommitted changes (git diff HEAD)',
+        timestamp: DateTime.now(),
+        source: TurnDiffSource.git,
+        files: [...trackedFiles, ...untrackedFiles],
+      );
+    } on TimeoutException {
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<List<TurnDiffFile>> _loadTrackedFiles({
+    required String rootPath,
+    required CodingEnvironmentProcessRunner runProcess,
+  }) async {
+    final numstatResult = await runProcess('git', const [
+      'diff',
+      '--numstat',
+      'HEAD',
+      '--',
+    ], workingDirectory: rootPath);
+    if (numstatResult.exitCode != 0) {
+      return const [];
+    }
+
+    final patchResult = await runProcess('git', const [
+      'diff',
+      '--no-ext-diff',
+      '--unified=3',
+      'HEAD',
+      '--',
+    ], workingDirectory: rootPath);
+    final patchOutput = patchResult.exitCode == 0
+        ? _stdoutText(patchResult)
+        : '';
+    return TurnDiffService.buildGitFiles(
+      numstatOutput: _stdoutText(numstatResult),
+      patchOutput: patchOutput,
+    );
+  }
+
+  static Future<List<TurnDiffFile>> _loadUntrackedFiles({
+    required String rootPath,
+    required String repositoryRoot,
+    required CodingEnvironmentProcessRunner runProcess,
+  }) async {
+    final result = await runProcess('git', const [
+      'ls-files',
+      '--others',
+      '--exclude-standard',
+      '-z',
+    ], workingDirectory: rootPath);
+    if (result.exitCode != 0) {
+      return const [];
+    }
+
+    final files = <TurnDiffFile>[];
+    final paths =
+        _stdoutText(result)
+            .split('\u0000')
+            .map((path) => path.trim())
+            .where((path) => path.isNotEmpty)
+            .toList(growable: false)
+          ..sort();
+    for (final path in paths) {
+      final file = _fileFromGitPath(repositoryRoot, path);
+      final entityType = FileSystemEntity.typeSync(file.path);
+      if (entityType != FileSystemEntityType.file) {
+        continue;
+      }
+      final fileLength = file.lengthSync();
+      if (fileLength > TurnDiffService.maxTextFileBytes) {
+        files.add(
+          TurnDiffFile(
+            filePath: path,
+            isLargeFile: true,
+            isUntracked: true,
+            note: 'Untracked file is too large to render.',
+          ),
+        );
+        continue;
+      }
+
+      try {
+        final content = utf8.decode(await file.readAsBytes());
+        final diff = TurnDiffService.buildFileDiff(
+          filePath: path,
+          oldContent: null,
+          newContent: content,
+          oldExists: false,
+          newExists: true,
+          isUntracked: true,
+        )?.file;
+        if (diff != null) {
+          files.add(diff);
+        }
+      } on FormatException {
+        files.add(
+          TurnDiffFile(
+            filePath: path,
+            isBinary: true,
+            isUntracked: true,
+            note: 'Untracked file is not valid UTF-8 text.',
+          ),
+        );
+      } on FileSystemException {
+        continue;
+      }
+    }
+    return files;
+  }
+
+  static File _fileFromGitPath(String repositoryRoot, String path) {
+    final localPath = path
+        .split('/')
+        .where((part) => part.isNotEmpty)
+        .join(Platform.pathSeparator);
+    return File(
+      '${Directory(repositoryRoot).absolute.path}${Platform.pathSeparator}$localPath',
+    );
+  }
+
+  static String _stdoutText(ProcessResult result) => result.stdout.toString();
 }

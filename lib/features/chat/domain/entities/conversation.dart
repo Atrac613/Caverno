@@ -6,6 +6,7 @@ import 'conversation_compaction_artifact.dart';
 import 'conversation_goal.dart';
 import 'message.dart';
 import 'conversation_plan_artifact.dart';
+import 'turn_diff.dart';
 import 'conversation_workflow.dart';
 
 part 'conversation.freezed.dart';
@@ -118,6 +119,19 @@ List<Map<String, dynamic>> _checkpointsToJson(
   return checkpoints.map((item) => item.toJson()).toList(growable: false);
 }
 
+List<TurnDiff> _turnDiffsFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const [];
+  }
+  return json
+      .map((item) => TurnDiff.fromJson(item as Map<String, dynamic>))
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _turnDiffsToJson(List<TurnDiff> turnDiffs) {
+  return turnDiffs.map((item) => item.toJson()).toList(growable: false);
+}
+
 @freezed
 abstract class ConversationCheckpoint with _$ConversationCheckpoint {
   const ConversationCheckpoint._();
@@ -212,6 +226,9 @@ abstract class Conversation with _$Conversation {
     @JsonKey(fromJson: _checkpointsFromJson, toJson: _checkpointsToJson)
     @Default(<ConversationCheckpoint>[])
     List<ConversationCheckpoint> checkpoints,
+    @JsonKey(fromJson: _turnDiffsFromJson, toJson: _turnDiffsToJson)
+    @Default(<TurnDiff>[])
+    List<TurnDiff> turnDiffs,
   }) = _Conversation;
 
   factory Conversation.fromJson(Map<String, dynamic> json) =>
@@ -233,6 +250,9 @@ abstract class Conversation with _$Conversation {
 
   ConversationCompactionArtifact get effectiveCompactionArtifact =>
       compactionArtifact ?? const ConversationCompactionArtifact();
+
+  List<TurnDiff> get effectiveTurnDiffs =>
+      turnDiffs.where((diff) => diff.hasChanges).toList(growable: false);
 
   List<ConversationExecutionTaskProgress> get effectiveExecutionProgress =>
       executionProgress
@@ -273,6 +293,19 @@ abstract class Conversation with _$Conversation {
     for (final checkpoint in checkpoints.reversed) {
       if (checkpoint.messageId == normalizedMessageId) {
         return checkpoint;
+      }
+    }
+    return null;
+  }
+
+  TurnDiff? turnDiffForAssistantMessage(String messageId) {
+    final normalizedMessageId = messageId.trim();
+    if (normalizedMessageId.isEmpty) {
+      return null;
+    }
+    for (final diff in turnDiffs.reversed) {
+      if (diff.assistantMessageId == normalizedMessageId && diff.hasChanges) {
+        return diff;
       }
     }
     return null;

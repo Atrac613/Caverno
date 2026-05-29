@@ -29,6 +29,7 @@ import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
@@ -48,6 +49,7 @@ import '../widgets/message_input.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../widgets/token_usage_indicator.dart';
+import '../widgets/turn_diff_sheet.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
 import '../widgets/plan/plan_document_editor_sheet.dart';
 import '../widgets/plan/plan_hydrated_task_row.dart';
@@ -988,6 +990,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       );
                                     }
                                     final message = chatState.messages[index];
+                                    final turnDiff = currentConversation
+                                        ?.turnDiffForAssistantMessage(
+                                          message.id,
+                                        );
                                     final canRewind =
                                         !chatState.isLoading &&
                                         !message.isStreaming &&
@@ -995,6 +1001,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     return MessageBubble(
                                       key: ValueKey(message.id),
                                       message: message,
+                                      turnDiff: turnDiff,
+                                      onOpenTurnDiff: turnDiff == null
+                                          ? null
+                                          : () => showTurnDiffSheet(
+                                              context,
+                                              diff: turnDiff,
+                                            ),
                                       canRewind: canRewind,
                                       onRewindToHere: canRewind
                                           ? () => _rewindConversationToMessage(
@@ -2852,6 +2865,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final assessment = ConversationPlanExecutionGuardrails.assessTaskDrift(
       task: task,
       toolResults: toolResults,
+      changedFilePaths: _latestTurnChangedFilePaths(),
     );
     if (!assessment.hasDrift) {
       return false;
@@ -3452,6 +3466,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ConversationPlanExecutionGuardrails.assessTaskCompletion(
           task: latestTask,
           toolResults: toolResults,
+          changedFilePaths: _latestTurnChangedFilePaths(),
         );
     if (completionAssessment.hasFailure ||
         completionAssessment.touchedTargetFiles.isEmpty ||
@@ -3966,6 +3981,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ConversationPlanExecutionGuardrails.assessTaskCompletion(
           task: latestTask,
           toolResults: toolResults,
+          changedFilePaths: _latestTurnChangedFilePaths(),
         );
     final existingWorkspaceTargets = _existingWorkspaceTargetFiles(latestTask);
     final canPromote =
@@ -4292,6 +4308,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ConversationPlanExecutionGuardrails.assessTaskCompletion(
           task: task,
           toolResults: toolResults,
+          changedFilePaths: _latestTurnChangedFilePaths(),
         );
     final existingWorkspaceTargets = _existingWorkspaceTargetFiles(task);
     final futureTaskTitles = currentConversation.projectedExecutionTasks
@@ -4730,6 +4747,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   String? _latestAssistantMessageId(Conversation conversation) =>
       _latestAssistantMessage(conversation)?.id;
+
+  List<String> _latestTurnChangedFilePaths() {
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return const [];
+    }
+    final diff = currentConversation.effectiveTurnDiffs.lastOrNull;
+    return diff?.changedFilePaths ?? const [];
+  }
 
   bool _taskReachedTerminalStatus(String taskId) {
     if (!mounted) {

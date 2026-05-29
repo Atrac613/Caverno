@@ -14,6 +14,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
 import 'package:caverno/features/chat/domain/services/conversation_validation_tool_result_inference.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 
@@ -153,6 +154,24 @@ void main() {
         ),
       ];
       await notifier.updateCurrentConversation(messages);
+      await notifier.recordCurrentTurnDiff(
+        TurnDiff(
+          id: 'd1',
+          assistantMessageId: 'm2',
+          userPromptPreview: 'Start',
+          timestamp: DateTime(2026, 5, 29, 9, 1),
+          files: const [
+            TurnDiffFile(
+              filePath: 'lib/first.dart',
+              linesAdded: 1,
+              unifiedPatch: '+first',
+            ),
+          ],
+          filesChanged: 1,
+          linesAdded: 1,
+          changedFilePaths: const ['lib/first.dart'],
+        ),
+      );
       await notifier.updateCurrentWorkflow(
         workflowStage: ConversationWorkflowStage.implement,
         workflowSpec: const ConversationWorkflowSpec(goal: 'Implement feature'),
@@ -173,6 +192,24 @@ void main() {
           timestamp: DateTime(2026, 5, 29, 9, 3),
         ),
       ]);
+      await notifier.recordCurrentTurnDiff(
+        TurnDiff(
+          id: 'd2',
+          assistantMessageId: 'm4',
+          userPromptPreview: 'Continue',
+          timestamp: DateTime(2026, 5, 29, 9, 3),
+          files: const [
+            TurnDiffFile(
+              filePath: 'lib/later.dart',
+              linesAdded: 1,
+              unifiedPatch: '+later',
+            ),
+          ],
+          filesChanged: 1,
+          linesAdded: 1,
+          changedFilePaths: const ['lib/later.dart'],
+        ),
+      );
       await notifier.updateCurrentWorkflow(
         workflowStage: ConversationWorkflowStage.review,
         workflowSpec: const ConversationWorkflowSpec(goal: 'Review feature'),
@@ -185,6 +222,7 @@ void main() {
 
       expect(rewound, isTrue);
       expect(conversation!.messages.map((message) => message.id), ['m1', 'm2']);
+      expect(conversation.turnDiffs.map((diff) => diff.id), ['d1']);
       expect(conversation.workflowStage, ConversationWorkflowStage.implement);
       expect(conversation.effectiveWorkflowSpec.goal, 'Implement feature');
       expect(

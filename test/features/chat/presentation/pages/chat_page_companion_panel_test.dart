@@ -183,6 +183,34 @@ void main() {
               '',
             ),
             'diff --cached --shortstat' => ProcessResult(1, 0, '', ''),
+            'diff --numstat HEAD --' => ProcessResult(
+              1,
+              0,
+              '3\t1\tlib/parser.dart\n1\t0\ttest/parser_test.dart\n',
+              '',
+            ),
+            'diff --no-ext-diff --unified=3 HEAD --' => ProcessResult(1, 0, '''
+diff --git a/lib/parser.dart b/lib/parser.dart
+--- a/lib/parser.dart
++++ b/lib/parser.dart
+@@ -1,3 +1,5 @@
+ const keep = true;
+-const old = true;
++const old = false;
++const next = true;
++const another = true;
+diff --git a/test/parser_test.dart b/test/parser_test.dart
+--- a/test/parser_test.dart
++++ b/test/parser_test.dart
+@@ -0,0 +1 @@
++test('parser', () {});
+''', ''),
+            'ls-files --others --exclude-standard -z' => ProcessResult(
+              1,
+              0,
+              '',
+              '',
+            ),
             _ => ProcessResult(1, 1, '', 'unexpected git command'),
           };
         }),
@@ -233,9 +261,10 @@ void main() {
     expect(find.text('Inspect current parser state'), findsOneWidget);
     expect(find.text('Add parser regression coverage'), findsOneWidget);
     expect(find.text('feature/companion-panel'), findsOneWidget);
+    expect(find.text('Uncommitted changes'), findsOneWidget);
     final changesValueFinder = find.byWidgetPredicate((widget) {
       return widget is Text &&
-          widget.textSpan?.toPlainText() == '2 files, +4 -1';
+          widget.textSpan?.toPlainText() == 'git diff HEAD  +4 -1';
     });
     expect(changesValueFinder, findsOneWidget);
     final changesText = tester.widget<Text>(changesValueFinder);

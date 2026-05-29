@@ -11,6 +11,7 @@ import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_goal_progress_inference.dart';
@@ -528,6 +529,10 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final retainedCheckpoints = conversation.checkpoints
         .where((item) => item.messageCount <= retainedMessages.length)
         .toList(growable: false);
+    final retainedTurnDiffs = _retainTurnDiffsForMessages(
+      conversation.turnDiffs,
+      retainedMessages,
+    );
     final now = DateTime.now();
     final planArtifact = checkpoint?.planArtifact;
     final updatedConversation = conversation.copyWith(
@@ -558,6 +563,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         now: now,
       ),
       checkpoints: retainedCheckpoints,
+      turnDiffs: retainedTurnDiffs,
       updatedAt: now,
     );
 
@@ -566,6 +572,46 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       recordCheckpoint: false,
     );
     return true;
+  }
+
+  List<TurnDiff> _retainTurnDiffsForMessages(
+    List<TurnDiff> turnDiffs,
+    List<Message> messages,
+  ) {
+    final retainedAssistantMessageIds = messages
+        .where((message) => message.role == MessageRole.assistant)
+        .map((message) => message.id)
+        .toSet();
+    if (retainedAssistantMessageIds.isEmpty) {
+      return const [];
+    }
+    return turnDiffs
+        .where(
+          (diff) =>
+              retainedAssistantMessageIds.contains(diff.assistantMessageId),
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> recordCurrentTurnDiff(TurnDiff turnDiff) async {
+    final conversation = state.currentConversation;
+    if (conversation == null || !turnDiff.hasChanges) {
+      return;
+    }
+
+    final updatedTurnDiffs = [
+      for (final existing in conversation.turnDiffs)
+        if (existing.assistantMessageId != turnDiff.assistantMessageId)
+          existing,
+      turnDiff,
+    ];
+
+    await _persistUpdatedConversation(
+      conversation.copyWith(
+        turnDiffs: updatedTurnDiffs,
+        updatedAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> _deleteToolResultArtifactsForIds(Iterable<String> ids) async {

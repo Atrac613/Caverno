@@ -80,6 +80,40 @@ void main() {
     );
   });
 
+  test('assessTaskDrift uses captured changed file paths', () {
+    const task = ConversationWorkflowTask(
+      id: 'task',
+      title: 'Update implementation',
+      targetFiles: ['lib/expected.dart'],
+    );
+
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskDrift(
+      task: task,
+      toolResults: const [],
+      changedFilePaths: const ['README.md'],
+    );
+
+    expect(assessment.hasDrift, isTrue);
+    expect(assessment.unrelatedTouchedPaths, contains('README.md'));
+  });
+
+  test('assessTaskCompletion uses captured changed file paths', () {
+    const task = ConversationWorkflowTask(
+      id: 'task',
+      title: 'Update implementation',
+      targetFiles: ['lib/expected.dart'],
+    );
+
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+      task: task,
+      toolResults: const [],
+      changedFilePaths: const ['/workspace/project/lib/expected.dart'],
+    );
+
+    expect(assessment.touchedTargetFiles, contains('lib/expected.dart'));
+    expect(assessment.untouchedTargetFiles, isEmpty);
+  });
+
   test(
     'canFinalizeScaffoldFromWorkspaceTargets accepts scaffold targets that already exist',
     () {

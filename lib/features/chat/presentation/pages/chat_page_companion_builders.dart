@@ -41,6 +41,9 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
     final snapshotAsync = ref.watch(
       codingEnvironmentSnapshotProvider(activeProject.normalizedRootPath),
     );
+    final worktreeDiffAsync = ref.watch(
+      codingWorktreeDiffProvider(activeProject.normalizedRootPath),
+    );
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -71,6 +74,25 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
                   context,
                   currentConversation: currentConversation,
                   chatState: chatState,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _buildCompanionSection(
+                context,
+                title: 'chat.companion_changes'.tr(),
+                trailing: IconButton(
+                  onPressed: () => ref.invalidate(
+                    codingWorktreeDiffProvider(
+                      activeProject.normalizedRootPath,
+                    ),
+                  ),
+                  icon: const Icon(Icons.refresh, size: 18),
+                  tooltip: 'Refresh changes',
+                ),
+                children: _buildCompanionChangesChildren(
+                  context,
+                  currentConversation: currentConversation,
+                  worktreeDiffAsync: worktreeDiffAsync,
                 ),
               ),
               const SizedBox(height: 18),
@@ -308,8 +330,6 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
                 label: 'chat.companion_branch'.tr(),
                 value: snapshot.displayBranchName,
               ),
-              const SizedBox(height: 10),
-              _buildCompanionChangesRow(context, snapshot: snapshot),
             ] else
               _buildCompanionInfoRow(
                 context,
@@ -344,85 +364,163 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
     );
   }
 
-  Widget _buildCompanionChangesRow(
+  List<Widget> _buildCompanionChangesChildren(
     BuildContext context, {
-    required CodingEnvironmentSnapshot snapshot,
+    required Conversation currentConversation,
+    required AsyncValue<TurnDiff?> worktreeDiffAsync,
   }) {
-    final theme = Theme.of(context);
-    final baseValueStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
+    final turnDiffs = currentConversation.effectiveTurnDiffs.reversed
+        .take(5)
+        .toList(growable: false);
+    final children = <Widget>[
+      for (final diff in turnDiffs) ...[
+        _buildCompanionTurnDiffRow(
+          context,
+          diff: diff,
+          icon: Icons.history_toggle_off,
+          title: diff.userPromptPreview.trim().isEmpty
+              ? 'Assistant turn'
+              : diff.userPromptPreview,
+        ),
+        if (diff != turnDiffs.last) const SizedBox(height: 8),
+      ],
+    ];
+
+    final worktreeWidget = worktreeDiffAsync.when<Widget?>(
+      loading: () => Row(
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Reading git changes...',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+      error: (_, _) => null,
+      data: (diff) {
+        if (diff == null) {
+          return null;
+        }
+        if (!diff.hasChanges) {
+          return _buildCompanionInfoRow(
+            context,
+            icon: Icons.task_alt,
+            label: 'Uncommitted changes',
+            value: 'Working tree is clean',
+            dense: true,
+          );
+        }
+        return _buildCompanionTurnDiffRow(
+          context,
+          diff: diff,
+          icon: Icons.account_tree_outlined,
+          title: 'Uncommitted changes',
+          subtitle: 'git diff HEAD',
+        );
+      },
     );
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 22,
-          height: 22,
-          child: Icon(
-            Icons.edit_note,
-            size: 18,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
+    if (worktreeWidget != null) {
+      if (children.isNotEmpty) {
+        children.add(const SizedBox(height: 10));
+      }
+      children.add(worktreeWidget);
+    }
+
+    if (children.isEmpty) {
+      return [_buildCompanionEmptyText(context, 'No recent file changes.')];
+    }
+    return children;
+  }
+
+  Widget _buildCompanionTurnDiffRow(
+    BuildContext context, {
+    required TurnDiff diff,
+    required IconData icon,
+    required String title,
+    String? subtitle,
+  }) {
+    final theme = Theme.of(context);
+    final effectiveSubtitle =
+        subtitle ??
+        '${diff.filesChanged} ${diff.filesChanged == 1 ? 'file' : 'files'} changed';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => showTurnDiffSheet(context, diff: diff),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'chat.companion_changes'.tr(),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 2),
-              if (snapshot.hasChanges)
-                Text.rich(
-                  TextSpan(
-                    style: baseValueStyle,
-                    children: [
-                      TextSpan(
-                        text: 'chat.companion_changed_files'.tr(
-                          namedArgs: {
-                            'count': snapshot.changedFileCount.toString(),
-                          },
-                        ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
-                      const TextSpan(text: ', '),
+                    ),
+                    const SizedBox(height: 2),
+                    Text.rich(
                       TextSpan(
-                        text: '+${snapshot.insertions}',
-                        style: TextStyle(
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.w700,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
+                        children: [
+                          TextSpan(text: '$effectiveSubtitle  '),
+                          TextSpan(
+                            text: '+${diff.linesAdded}',
+                            style: TextStyle(
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const TextSpan(text: ' '),
+                          TextSpan(
+                            text: '-${diff.linesRemoved}',
+                            style: TextStyle(
+                              color: theme.colorScheme.error,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
-                      const TextSpan(text: ' '),
-                      TextSpan(
-                        text: '-${snapshot.deletions}',
-                        style: TextStyle(
-                          color: theme.colorScheme.error,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                )
-              else
-                Text(
-                  'chat.companion_changes_clean'.tr(),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: baseValueStyle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
+              ),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 

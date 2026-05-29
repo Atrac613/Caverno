@@ -33,9 +33,10 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     }
 
     if (_hasFullCodingApprovalAccess) {
-      return _mcpToolService!.executeTool(
-        name: toolCall.name,
+      return _executeFileMutationToolAndCapture(
+        toolName: toolCall.name,
         arguments: resolvedArguments,
+        path: path,
       );
     }
 
@@ -53,9 +54,10 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       preview: preview,
     );
     if (autoReviewDecision?.isAllowed == true) {
-      final result = await _mcpToolService!.executeTool(
-        name: toolCall.name,
+      final result = await _executeFileMutationToolAndCapture(
+        toolName: toolCall.name,
         arguments: resolvedArguments,
+        path: path,
       );
       return _rememberToolApprovalResult(
         toolCall.name,
@@ -93,9 +95,10 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
 
-    final result = await _mcpToolService!.executeTool(
-      name: toolCall.name,
+    final result = await _executeFileMutationToolAndCapture(
+      toolName: toolCall.name,
       arguments: resolvedArguments,
+      path: path,
     );
     return _rememberToolApprovalResult(
       toolCall.name,
@@ -133,9 +136,10 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     }
 
     if (_hasFullCodingApprovalAccess) {
-      return _mcpToolService!.executeTool(
-        name: toolCall.name,
+      return _executeFileMutationToolAndCapture(
+        toolName: toolCall.name,
         arguments: resolvedArguments,
+        path: path,
       );
     }
 
@@ -155,9 +159,10 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       preview: preview,
     );
     if (autoReviewDecision?.isAllowed == true) {
-      final result = await _mcpToolService!.executeTool(
-        name: toolCall.name,
+      final result = await _executeFileMutationToolAndCapture(
+        toolName: toolCall.name,
         arguments: resolvedArguments,
+        path: path,
       );
       return _rememberToolApprovalResult(
         toolCall.name,
@@ -195,15 +200,44 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
 
-    final result = await _mcpToolService!.executeTool(
-      name: toolCall.name,
+    final result = await _executeFileMutationToolAndCapture(
+      toolName: toolCall.name,
       arguments: resolvedArguments,
+      path: path,
     );
     return _rememberToolApprovalResult(
       toolCall.name,
       resolvedArguments,
       result,
     );
+  }
+
+  Future<McpToolResult> _executeFileMutationToolAndCapture({
+    required String toolName,
+    required Map<String, dynamic> arguments,
+    required String path,
+  }) async {
+    final before = await FilesystemTools.captureTextSnapshot(path);
+    final result = await _mcpToolService!.executeTool(
+      name: toolName,
+      arguments: arguments,
+    );
+    if (_isSuccessfulFileMutationResult(result)) {
+      await _recordFileMutationDiff(before: before, path: path);
+    }
+    return result;
+  }
+
+  bool _isSuccessfulFileMutationResult(McpToolResult result) {
+    if (!result.isSuccess) {
+      return false;
+    }
+    try {
+      final decoded = jsonDecode(result.result);
+      return decoded is! Map<String, dynamic> || decoded['error'] == null;
+    } catch (_) {
+      return true;
+    }
   }
 
   Future<McpToolResult> _handleRollbackLastFileChange(

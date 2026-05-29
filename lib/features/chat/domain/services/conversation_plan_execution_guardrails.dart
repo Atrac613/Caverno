@@ -111,11 +111,16 @@ class ConversationPlanExecutionGuardrails {
   static ConversationPlanExecutionDriftAssessment assessTaskDrift({
     required ConversationWorkflowTask task,
     required List<ToolResultInfo> toolResults,
+    List<String> changedFilePaths = const <String>[],
   }) {
     final isScaffoldTask = _isScaffoldLikeTask(task);
     final declaredTargets = _effectiveTargetPaths(task);
+    final normalizedChangedPaths = _normalizeChangedFilePaths(changedFilePaths);
     final inferredMutationTargets = declaredTargets.isEmpty
-        ? _inferTargetPathsFromFileMutations(toolResults)
+        ? {
+            ..._inferTargetPathsFromFileMutations(toolResults),
+            ...normalizedChangedPaths,
+          }
         : const <String>{};
     final normalizedTargets = declaredTargets.isNotEmpty
         ? declaredTargets
@@ -126,6 +131,7 @@ class ConversationPlanExecutionGuardrails {
     final unrelatedTouchedPaths = <String>{};
     final scaffoldCommands = <String>{};
     final benignSupportCommands = <String>{};
+    final fileMutationToolPaths = <String>{};
 
     for (final toolResult in toolResults) {
       if (toolResult.name == 'write_file' || toolResult.name == 'edit_file') {
@@ -133,18 +139,15 @@ class ConversationPlanExecutionGuardrails {
         if (path.isEmpty) {
           continue;
         }
-        if (_matchesTarget(path, normalizedTargets)) {
-          touchedTargetFiles.add(path);
-          targetTouchCounts.update(
-            path,
-            (count) => count + 1,
-            ifAbsent: () => 1,
-          );
-        } else if (isScaffoldTask && _isScaffoldSupportPath(path)) {
-          continue;
-        } else {
-          unrelatedTouchedPaths.add(path);
-        }
+        fileMutationToolPaths.add(path);
+        _recordTouchedPath(
+          path: path,
+          normalizedTargets: normalizedTargets,
+          isScaffoldTask: isScaffoldTask,
+          touchedTargetFiles: touchedTargetFiles,
+          unrelatedTouchedPaths: unrelatedTouchedPaths,
+          targetTouchCounts: targetTouchCounts,
+        );
         continue;
       }
 
@@ -177,6 +180,20 @@ class ConversationPlanExecutionGuardrails {
       }
     }
 
+    for (final path in normalizedChangedPaths) {
+      if (fileMutationToolPaths.contains(path)) {
+        continue;
+      }
+      _recordTouchedPath(
+        path: path,
+        normalizedTargets: normalizedTargets,
+        isScaffoldTask: isScaffoldTask,
+        touchedTargetFiles: touchedTargetFiles,
+        unrelatedTouchedPaths: unrelatedTouchedPaths,
+        targetTouchCounts: targetTouchCounts,
+      );
+    }
+
     final repeatedTargetFiles = targetTouchCounts.entries
         .where((entry) => entry.value > 1)
         .map((entry) => entry.key)
@@ -198,11 +215,16 @@ class ConversationPlanExecutionGuardrails {
   static ConversationPlanExecutionCompletionAssessment assessTaskCompletion({
     required ConversationWorkflowTask task,
     required List<ToolResultInfo> toolResults,
+    List<String> changedFilePaths = const <String>[],
   }) {
     final isScaffoldTask = _isScaffoldLikeTask(task);
     final declaredTargets = _effectiveTargetPaths(task);
+    final normalizedChangedPaths = _normalizeChangedFilePaths(changedFilePaths);
     final inferredMutationTargets = declaredTargets.isEmpty
-        ? _inferTargetPathsFromFileMutations(toolResults)
+        ? {
+            ..._inferTargetPathsFromFileMutations(toolResults),
+            ...normalizedChangedPaths,
+          }
         : const <String>{};
     final normalizedTargets = declaredTargets.isNotEmpty
         ? declaredTargets
@@ -214,6 +236,7 @@ class ConversationPlanExecutionGuardrails {
     final benignSupportCommands = <String>{};
     final successfulValidationCommands = <String>{};
     final failedValidationCommands = <String>{};
+    final fileMutationToolPaths = <String>{};
     var hasFailure = false;
 
     for (final toolResult in toolResults) {
@@ -228,13 +251,14 @@ class ConversationPlanExecutionGuardrails {
         if (path.isEmpty) {
           continue;
         }
-        if (_matchesTarget(path, normalizedTargets)) {
-          touchedTargetFiles.add(path);
-        } else if (isScaffoldTask && _isScaffoldSupportPath(path)) {
-          continue;
-        } else {
-          unrelatedTouchedPaths.add(path);
-        }
+        fileMutationToolPaths.add(path);
+        _recordTouchedPath(
+          path: path,
+          normalizedTargets: normalizedTargets,
+          isScaffoldTask: isScaffoldTask,
+          touchedTargetFiles: touchedTargetFiles,
+          unrelatedTouchedPaths: unrelatedTouchedPaths,
+        );
         continue;
       }
 
@@ -309,6 +333,19 @@ class ConversationPlanExecutionGuardrails {
           hasFailure = true;
         }
       }
+    }
+
+    for (final path in normalizedChangedPaths) {
+      if (fileMutationToolPaths.contains(path)) {
+        continue;
+      }
+      _recordTouchedPath(
+        path: path,
+        normalizedTargets: normalizedTargets,
+        isScaffoldTask: isScaffoldTask,
+        touchedTargetFiles: touchedTargetFiles,
+        unrelatedTouchedPaths: unrelatedTouchedPaths,
+      );
     }
 
     final untouchedTargetFiles = normalizedTargets
@@ -988,13 +1025,48 @@ class ConversationPlanExecutionGuardrails {
     return 'PYTHONPATH=src $command';
   }
 
-  static bool _matchesTarget(String path, Set<String> normalizedTargets) {
-    if (normalizedTargets.contains(path)) {
-      return true;
+  static List<String> _matchedTargets(
+    String path,
+    Set<String> normalizedTargets,
+  ) {
+    return normalizedTargets
+        .where(
+          (target) =>
+              path == target ||
+              path.endsWith('/$target') ||
+              path.endsWith(target),
+        )
+        .toList(growable: false);
+  }
+
+  static Set<String> _normalizeChangedFilePaths(List<String> paths) {
+    return paths.map(_normalizePath).where((path) => path.isNotEmpty).toSet();
+  }
+
+  static void _recordTouchedPath({
+    required String path,
+    required Set<String> normalizedTargets,
+    required bool isScaffoldTask,
+    required Set<String> touchedTargetFiles,
+    required Set<String> unrelatedTouchedPaths,
+    Map<String, int>? targetTouchCounts,
+  }) {
+    final matchedTargets = _matchedTargets(path, normalizedTargets);
+    if (matchedTargets.isNotEmpty) {
+      touchedTargetFiles.add(path);
+      touchedTargetFiles.addAll(matchedTargets);
+      for (final target in matchedTargets) {
+        targetTouchCounts?.update(
+          target,
+          (count) => count + 1,
+          ifAbsent: () => 1,
+        );
+      }
+    } else if (isScaffoldTask && _isScaffoldSupportPath(path)) {
+      return;
+    } else {
+      unrelatedTouchedPaths.add(path);
     }
-    return normalizedTargets.any(
-      (target) => path.endsWith('/$target') || path.endsWith(target),
-    );
   }
 
   static bool _matchesValidationCommand(

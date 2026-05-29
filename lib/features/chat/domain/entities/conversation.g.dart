@@ -140,6 +140,9 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
       checkpoints: json['checkpoints'] == null
           ? const <ConversationCheckpoint>[]
           : _checkpointsFromJson(json['checkpoints'] as List?),
+      turnDiffs: json['turnDiffs'] == null
+          ? const <TurnDiff>[]
+          : _turnDiffsFromJson(json['turnDiffs'] as List?),
     );
 
 Map<String, dynamic> _$ConversationToJson(
@@ -165,6 +168,7 @@ Map<String, dynamic> _$ConversationToJson(
   'planArtifact': _planArtifactToJson(instance.planArtifact),
   'compactionArtifact': _compactionArtifactToJson(instance.compactionArtifact),
   'checkpoints': _checkpointsToJson(instance.checkpoints),
+  'turnDiffs': _turnDiffsToJson(instance.turnDiffs),
 };
 
 const _$WorkspaceModeEnumMap = {
