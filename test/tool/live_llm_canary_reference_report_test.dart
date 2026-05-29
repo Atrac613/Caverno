@@ -98,6 +98,23 @@ void main() {
       testCount: 4,
       signals: const {},
     );
+    final codingDiagnosticFeedbackSummary = _writeLiveSummary(
+      directory: directory,
+      fileName: 'coding_diagnostic_feedback_summary.json',
+      surface: 'coding_diagnostic_feedback',
+      canaryName: 'coding_diagnostic_feedback_live_canary',
+      passedCount: 6,
+      testCount: 6,
+      tests: _diagnosticFeedbackTests(repeatCount: 3),
+      signals: const {
+        'dartAnalyzeFeedback': {
+          'observed': true,
+          'feedbackCount': 11,
+          'diagnosticCount': 17,
+          'files': ['lib/main.dart', 'packages/nested_app/lib/main.dart'],
+        },
+      },
+    );
     final budgetSummary = _writeLiveSummary(
       directory: directory,
       fileName: 'budget_summary.json',
@@ -124,6 +141,7 @@ void main() {
       readmeReport: readmeReport,
       codingGoalSummary: codingGoalSummary,
       codingGoalEditSummary: codingGoalEditSummary,
+      codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
       chatSummary: chatSummary,
       budgetSummary: budgetSummary,
       routineSummary: routineSummary,
@@ -133,10 +151,10 @@ void main() {
     expect(report.result, 'passed');
     expect(report.model, 'qwen3.6-27b-mtp-vision');
     expect(report.baseUrl, 'http://127.0.0.1:1234/v1');
-    expect(report.totalPassed, 18);
-    expect(report.totalCount, 18);
+    expect(report.totalPassed, 24);
+    expect(report.totalCount, 24);
     expect(report.validationErrors, isEmpty);
-    expect(report.entries, hasLength(8));
+    expect(report.entries, hasLength(9));
     expect(report.entries.first.riskSummary, contains('approval fallback 3'));
     expect(
       report.entries.first.riskSummary,
@@ -147,6 +165,17 @@ void main() {
           .singleWhere((entry) => entry.surface == 'chat_budget')
           .riskSummary,
       contains('compaction retry 1'),
+    );
+    final diagnosticEntry = report.entries.singleWhere(
+      (entry) => entry.surface == 'coding_diagnostic_feedback',
+    );
+    expect(
+      diagnosticEntry.riskSummary,
+      contains('analyzer feedback 11, diagnostics 17'),
+    );
+    expect(
+      diagnosticEntry.signals.toJson(),
+      containsPair('dartAnalyzeDiagnosticCount', 17),
     );
     expect(report.toJson()['schemaName'], 'live_llm_canary_reference_report');
     expect(report.toJson()['schemaVersion'], 2);
@@ -220,6 +249,48 @@ void main() {
       contains('assistant tool blocks 1'),
     );
   });
+
+  test(
+    'fails when diagnostic feedback evidence misses release gate coverage',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'live-llm-reference-diagnostic-gate-test-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+
+      final codingDiagnosticFeedbackSummary = _writeLiveSummary(
+        directory: directory,
+        fileName: 'coding_diagnostic_feedback_summary.json',
+        surface: 'coding_diagnostic_feedback',
+        canaryName: 'coding_diagnostic_feedback_live_canary',
+        passedCount: 2,
+        testCount: 2,
+        tests: _diagnosticFeedbackTests(repeatCount: 1),
+        signals: const {
+          'dartAnalyzeFeedback': {
+            'observed': true,
+            'feedbackCount': 2,
+            'diagnosticCount': 3,
+            'files': ['lib/main.dart'],
+          },
+        },
+      );
+
+      final report = await buildLiveLlmCanaryReferenceReport(
+        label: 'diagnostic gate case',
+        codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
+        generatedAt: DateTime.utc(2026, 5, 30),
+      );
+
+      expect(report.result, 'failed');
+      expect(report.isSuccessful, isFalse);
+      expect(report.entries.single.riskSummary, contains('repeat_coverage 1'));
+      expect(
+        report.entries.single.riskSummary,
+        contains('required_feedback_files 1'),
+      );
+    },
+  );
 
   test('fails when evidence mixes models or base URLs', () async {
     final directory = Directory.systemTemp.createTempSync(
@@ -359,6 +430,25 @@ void main() {
     );
     _writeJsonPath(
       directory,
+      'coding_diagnostic_feedback_live_canary_585/canary_summary.json',
+      _liveSummaryJson(
+        surface: 'coding_diagnostic_feedback',
+        canaryName: 'coding_diagnostic_feedback_live_canary',
+        testCount: 6,
+        passedCount: 6,
+        tests: _diagnosticFeedbackTests(repeatCount: 3),
+        signals: const {
+          'dartAnalyzeFeedback': {
+            'observed': true,
+            'feedbackCount': 11,
+            'diagnosticCount': 17,
+            'files': ['lib/main.dart', 'packages/nested_app/lib/main.dart'],
+          },
+        },
+      ),
+    );
+    _writeJsonPath(
+      directory,
       'tool_result_budget_live_canary_600/canary_summary.json',
       _liveSummaryJson(
         surface: 'chat_budget',
@@ -386,7 +476,7 @@ void main() {
     );
 
     expect(report.result, 'passed');
-    expect(report.entries, hasLength(8));
+    expect(report.entries, hasLength(9));
     expect(report.model, 'new-model');
     expect(
       report.entries
@@ -416,6 +506,19 @@ void main() {
           .evidencePath,
       endsWith('coding_goal_live_edit_canary_575/canary_summary.json'),
     );
+    final diagnosticEntry = report.entries.singleWhere(
+      (entry) => entry.surface == 'coding_diagnostic_feedback',
+    );
+    expect(
+      diagnosticEntry.evidencePath,
+      endsWith(
+        'coding_diagnostic_feedback_live_canary_585/canary_summary.json',
+      ),
+    );
+    expect(
+      diagnosticEntry.riskSummary,
+      contains('analyzer feedback 11, diagnostics 17'),
+    );
     expect(
       report.entries
           .singleWhere((entry) => entry.surface == 'chat_budget')
@@ -432,7 +535,8 @@ File _writeLiveSummary({
   required String canaryName,
   required int passedCount,
   required int testCount,
-  required Map<String, int> signals,
+  required Map<String, Object?> signals,
+  List<Map<String, Object?>> tests = const [],
   String model = 'qwen3.6-27b-mtp-vision',
   String baseUrl = 'http://127.0.0.1:1234/v1',
 }) {
@@ -441,19 +545,28 @@ File _writeLiveSummary({
     'surface': surface,
     'canaryName': canaryName,
     'result': 'passed',
+    'runnerSuccess': true,
+    'doneSeen': true,
     'model': model,
     'baseUrl': baseUrl,
+    'command': 'tool/run_$canaryName.sh',
+    'logPath': '${directory.path}/flutter_test.jsonl',
     'passedCount': passedCount,
     'testCount': testCount,
     'failedCount': 0,
+    'skippedCount': 0,
+    'malformedJsonLineCount': 0,
     'signals': {
       'recoveredStreamFallbackCount': 0,
       'toolResultCompactionRetryCount': 0,
+      'incompleteContentToolRecoveryCount': 0,
+      'ignoredAssistantToolResultCount': 0,
       'assistantAuthoredToolBlockCount': 0,
       'transportDisconnectCount': 0,
       'memoryExtractionFallbackCount': 0,
       ...signals,
     },
+    'tests': tests,
   });
 }
 
@@ -514,25 +627,52 @@ Map<String, Object?> _liveSummaryJson({
   int passedCount = 3,
   String model = 'new-model',
   String baseUrl = 'http://127.0.0.1:1234/v1',
-  Map<String, int> signals = const {},
+  Map<String, Object?> signals = const {},
+  List<Map<String, Object?>> tests = const [],
 }) {
   return {
     'schemaName': 'live_llm_canary_summary',
     'surface': surface,
     'canaryName': canaryName,
     'result': passedCount == testCount ? 'passed' : 'failed',
+    'runnerSuccess': passedCount == testCount,
+    'doneSeen': true,
     'model': model,
     'baseUrl': baseUrl,
+    'command': 'tool/run_$canaryName.sh',
+    'logPath': '/tmp/flutter_test.jsonl',
     'passedCount': passedCount,
     'testCount': testCount,
     'failedCount': testCount - passedCount,
+    'skippedCount': 0,
+    'malformedJsonLineCount': 0,
     'signals': {
       'recoveredStreamFallbackCount': 0,
       'toolResultCompactionRetryCount': 0,
+      'incompleteContentToolRecoveryCount': 0,
+      'ignoredAssistantToolResultCount': 0,
       'assistantAuthoredToolBlockCount': 0,
       'transportDisconnectCount': 0,
       'memoryExtractionFallbackCount': 0,
       ...signals,
     },
+    'tests': tests,
   };
+}
+
+List<Map<String, Object?>> _diagnosticFeedbackTests({
+  required int repeatCount,
+}) {
+  return [
+    for (var index = 1; index <= repeatCount; index += 1)
+      for (final scenario in const ['root package', 'nested package'])
+        {
+          'name':
+              '[run_${index.toString().padLeft(2, '0')}] live LLM repairs $scenario Dart after analyzer feedback',
+          'result': 'passed',
+          'skipped': false,
+          'hidden': false,
+          'durationMs': 1000,
+        },
+  ];
 }

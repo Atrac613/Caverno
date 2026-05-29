@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'coding_diagnostic_feedback_release_gate.dart';
+
 Future<void> main(List<String> args) async {
   final options = LiveLlmCanaryReferenceReportOptions.parse(args);
   if (options == null) {
@@ -11,6 +13,7 @@ Future<void> main(List<String> args) async {
       '[--pm5-smoke-report PATH] [--pm5-ping-summary PATH] '
       '[--readme-report PATH] [--coding-goal-summary PATH] '
       '[--coding-goal-edit-summary PATH] '
+      '[--coding-diagnostic-feedback-summary PATH] '
       '[--chat-summary PATH] '
       '[--budget-summary PATH] [--routine-summary PATH]',
     );
@@ -28,6 +31,9 @@ Future<void> main(List<String> args) async {
       readmeReport: options.optionalFile('readme-report'),
       codingGoalSummary: options.optionalFile('coding-goal-summary'),
       codingGoalEditSummary: options.optionalFile('coding-goal-edit-summary'),
+      codingDiagnosticFeedbackSummary: options.optionalFile(
+        'coding-diagnostic-feedback-summary',
+      ),
       chatSummary: options.optionalFile('chat-summary'),
       budgetSummary: options.optionalFile('budget-summary'),
       routineSummary: options.optionalFile('routine-summary'),
@@ -73,6 +79,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
   File? readmeReport,
   File? codingGoalSummary,
   File? codingGoalEditSummary,
+  File? codingDiagnosticFeedbackSummary,
   File? chatSummary,
   File? budgetSummary,
   File? routineSummary,
@@ -85,6 +92,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
     readmeReport: readmeReport,
     codingGoalSummary: codingGoalSummary,
     codingGoalEditSummary: codingGoalEditSummary,
+    codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
     chatSummary: chatSummary,
     budgetSummary: budgetSummary,
     routineSummary: routineSummary,
@@ -96,6 +104,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
     readmeReport: evidence.readmeReport,
     codingGoalSummary: evidence.codingGoalSummary,
     codingGoalEditSummary: evidence.codingGoalEditSummary,
+    codingDiagnosticFeedbackSummary: evidence.codingDiagnosticFeedbackSummary,
     chatSummary: evidence.chatSummary,
     budgetSummary: evidence.budgetSummary,
     routineSummary: evidence.routineSummary,
@@ -110,6 +119,7 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
   File? readmeReport,
   File? codingGoalSummary,
   File? codingGoalEditSummary,
+  File? codingDiagnosticFeedbackSummary,
   File? chatSummary,
   File? budgetSummary,
   File? routineSummary,
@@ -150,6 +160,9 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
   if (codingGoalEditSummary != null) {
     entries.add(await _buildLiveSummaryEntry(codingGoalEditSummary));
   }
+  if (codingDiagnosticFeedbackSummary != null) {
+    entries.add(await _buildLiveSummaryEntry(codingDiagnosticFeedbackSummary));
+  }
   if (chatSummary != null) {
     entries.add(await _buildLiveSummaryEntry(chatSummary));
   }
@@ -180,6 +193,7 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
   File? readmeReport,
   File? codingGoalSummary,
   File? codingGoalEditSummary,
+  File? codingDiagnosticFeedbackSummary,
   File? chatSummary,
   File? budgetSummary,
   File? routineSummary,
@@ -191,6 +205,7 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
       readmeReport: readmeReport,
       codingGoalSummary: codingGoalSummary,
       codingGoalEditSummary: codingGoalEditSummary,
+      codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
       chatSummary: chatSummary,
       budgetSummary: budgetSummary,
       routineSummary: routineSummary,
@@ -228,6 +243,13 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
           directoryPrefix: 'coding_goal_live_edit_canary_',
           fileName: 'canary_summary.json',
         ),
+    codingDiagnosticFeedbackSummary:
+        codingDiagnosticFeedbackSummary ??
+        _findLatestReportFile(
+          reportRoot: reportRoot,
+          directoryPrefix: 'coding_diagnostic_feedback_live_canary_',
+          fileName: 'canary_summary.json',
+        ),
     chatSummary:
         chatSummary ??
         _findLatestReportFile(
@@ -259,6 +281,7 @@ class LiveLlmCanaryReferenceEvidenceFiles {
     required this.readmeReport,
     required this.codingGoalSummary,
     required this.codingGoalEditSummary,
+    required this.codingDiagnosticFeedbackSummary,
     required this.chatSummary,
     required this.budgetSummary,
     required this.routineSummary,
@@ -269,6 +292,7 @@ class LiveLlmCanaryReferenceEvidenceFiles {
   final File? readmeReport;
   final File? codingGoalSummary;
   final File? codingGoalEditSummary;
+  final File? codingDiagnosticFeedbackSummary;
   final File? chatSummary;
   final File? budgetSummary;
   final File? routineSummary;
@@ -477,10 +501,17 @@ class LiveLlmCanaryReferenceSignals {
     this.assistantAuthoredToolBlockCount = 0,
     this.transportDisconnectCount = 0,
     this.memoryExtractionFallbackCount = 0,
+    this.dartAnalyzeFeedbackCount = 0,
+    this.dartAnalyzeDiagnosticCount = 0,
     this.failureClassCounts = const <String, int>{},
   });
 
   factory LiveLlmCanaryReferenceSignals.fromJson(Map<String, dynamic> json) {
+    final dartAnalyzeFeedback = _asObject(json['dartAnalyzeFeedback']);
+    final dartAnalyzeFeedbackCount = _asInt(json['dartAnalyzeFeedbackCount']);
+    final dartAnalyzeDiagnosticCount = _asInt(
+      json['dartAnalyzeDiagnosticCount'],
+    );
     return LiveLlmCanaryReferenceSignals(
       warningCount: _asInt(json['warningCount']),
       unexpectedWarningCount: _asInt(json['unexpectedWarningCount']),
@@ -504,6 +535,12 @@ class LiveLlmCanaryReferenceSignals {
       memoryExtractionFallbackCount: _asInt(
         json['memoryExtractionFallbackCount'],
       ),
+      dartAnalyzeFeedbackCount: dartAnalyzeFeedbackCount > 0
+          ? dartAnalyzeFeedbackCount
+          : _asInt(dartAnalyzeFeedback['feedbackCount']),
+      dartAnalyzeDiagnosticCount: dartAnalyzeDiagnosticCount > 0
+          ? dartAnalyzeDiagnosticCount
+          : _asInt(dartAnalyzeFeedback['diagnosticCount']),
       failureClassCounts: _stringIntMap(json['failureClassCounts']),
     );
   }
@@ -522,6 +559,8 @@ class LiveLlmCanaryReferenceSignals {
   final int assistantAuthoredToolBlockCount;
   final int transportDisconnectCount;
   final int memoryExtractionFallbackCount;
+  final int dartAnalyzeFeedbackCount;
+  final int dartAnalyzeDiagnosticCount;
   final Map<String, int> failureClassCounts;
 
   bool get hasRisk =>
@@ -549,6 +588,8 @@ class LiveLlmCanaryReferenceSignals {
       'assistantAuthoredToolBlockCount': assistantAuthoredToolBlockCount,
       'transportDisconnectCount': transportDisconnectCount,
       'memoryExtractionFallbackCount': memoryExtractionFallbackCount,
+      'dartAnalyzeFeedbackCount': dartAnalyzeFeedbackCount,
+      'dartAnalyzeDiagnosticCount': dartAnalyzeDiagnosticCount,
       'failureClassCounts': failureClassCounts,
     };
   }
@@ -592,6 +633,11 @@ class LiveLlmCanaryReferenceSignals {
     }
     if (memoryExtractionFallbackCount > 0) {
       parts.add('memory fallback $memoryExtractionFallbackCount');
+    }
+    if (dartAnalyzeFeedbackCount > 0 || dartAnalyzeDiagnosticCount > 0) {
+      parts.add(
+        'analyzer feedback $dartAnalyzeFeedbackCount, diagnostics $dartAnalyzeDiagnosticCount',
+      );
     }
     final failingClasses = failureClassCounts.entries
         .where((entry) => entry.key != 'passed' && entry.value > 0)
@@ -751,15 +797,29 @@ Future<LiveLlmCanaryReferenceEntry> _buildLiveSummaryEntry(
 ) async {
   final json = await _readJsonObject(summaryFile);
   final signals = _asObject(json['signals']);
+  final dartAnalyzeFeedback = _asObject(signals['dartAnalyzeFeedback']);
   final result = json['result'] as String? ?? 'failed';
   final assistantAuthoredToolBlockCount = _asInt(
     signals['assistantAuthoredToolBlockCount'],
   );
+  final isDiagnosticFeedback =
+      json['surface'] == 'coding_diagnostic_feedback' ||
+      json['canaryName'] == 'coding_diagnostic_feedback_live_canary';
+  final diagnosticGate = isDiagnosticFeedback
+      ? buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson(
+          summaryPath: summaryFile.path,
+          summary: json,
+        )
+      : null;
+  final diagnosticGateBlocked =
+      diagnosticGate?.blockedGateIds.isNotEmpty == true;
 
   return LiveLlmCanaryReferenceEntry(
     surface: json['surface'] as String? ?? 'unknown',
     check: json['canaryName'] as String? ?? summaryFile.uri.pathSegments.last,
-    result: assistantAuthoredToolBlockCount > 0 ? 'failed' : result,
+    result: assistantAuthoredToolBlockCount > 0 || diagnosticGateBlocked
+        ? 'failed'
+        : result,
     model: json['model'] as String?,
     baseUrl: json['baseUrl'] as String?,
     evidencePath: summaryFile.path,
@@ -780,6 +840,14 @@ Future<LiveLlmCanaryReferenceEntry> _buildLiveSummaryEntry(
       memoryExtractionFallbackCount: _asInt(
         signals['memoryExtractionFallbackCount'],
       ),
+      dartAnalyzeFeedbackCount: _asInt(dartAnalyzeFeedback['feedbackCount']),
+      dartAnalyzeDiagnosticCount: _asInt(
+        dartAnalyzeFeedback['diagnosticCount'],
+      ),
+      failureClassCounts: {
+        for (final gateId in diagnosticGate?.blockedGateIds ?? const <String>[])
+          gateId: 1,
+      },
     ),
   );
 }

@@ -56,13 +56,15 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Same-revision full-surface rerun after PM5 retry | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | README 1/1, chat 3/3, budget 1/1, and routine 4/4 passed on the same app revision after the PM5 retry. The generated reference report passed 13/13; comparison against qwen had 0 hard regressions, 1 README guard watch signal, and 1 PM5 cleanup improvement. Keep qwen as the named reference until gemma has repeat clean same-revision evidence or the team accepts the prior PM5 instability. |
 | 2026-05-26 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Focused coding goal edit repeat | Passed | Not applicable | Not applicable | 0 | 0 detected | Not applicable | `CAVERNO_CODING_GOAL_LIVE_EDIT_REPEAT_COUNT=3 tool/run_coding_goal_live_edit_canary.sh` passed 9/9. Direct edit-and-test, red-green repair, and two-file helper/caller coordination each passed in three isolated workspaces with 0 Live LLM recovery signals. |
 | 2026-05-26 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Focused package-like coding goal edit | Passed | Not applicable | Not applicable | 0 | 0 detected | Not applicable | `tool/run_coding_goal_live_edit_canary.sh` passed 4/4 after adding the package-like parser fixture. The model repaired production parser and command-builder files, left the test runner unchanged, ran validation successfully, and goal completion handled "successfully completed" narration. |
+| 2026-05-30 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Focused diagnostic feedback repeat | Passed | Not applicable | Not applicable | 0 | 0 detected | Not applicable | `CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_REPEAT_COUNT=3 tool/run_coding_diagnostic_feedback_live_canary.sh` passed 6/6 across root package and nested package Dart repairs. Analyzer feedback was observed with 11 feedback packets, 17 diagnostics, and feedback files `lib/main.dart` and `packages/nested_app/lib/main.dart`; recovery signals were all 0. |
 
 ## Current Comparison Baseline
 
 Use `qwen3.6-27b-mtp-vision` as the current reference model after the
 2026-05-23 post-hardening full-surface rerun, with an additional 2026-05-26
 focused coding-goal edit repeat passing 9/9 and a package-like parser edit
-passing 4/4. `gemma4-26b-vision` now has a
+passing 4/4, plus 2026-05-30 diagnostic feedback repeat evidence passing 6/6
+across root package and nested package Dart repairs. `gemma4-26b-vision` now has a
 same-revision full-surface candidate pass after the PM5 retry: 13/13 checks,
 0 hard regressions against qwen, 1 README guard watch signal, and 1 PM5 cleanup
 improvement. The same app revision also produced a preceding PM5 ping failure
@@ -808,6 +810,10 @@ candidate:
   - The latest routine canary passed all recorded branches, including scoped
     new-IP notification, no-new-IP no-post, LAN scan failure, and the
     `contents` write argument alias, with 0 recovery signals.
+  - The 2026-05-30 focused diagnostic feedback repeat passed 6/6 across root
+    package and nested package Dart repairs. Analyzer feedback was observed for
+    `lib/main.dart` and `packages/nested_app/lib/main.dart`, with 11 feedback
+    packets, 17 diagnostics, and 0 recovery signals.
 
 ### `gemma4-26b-vision`
 

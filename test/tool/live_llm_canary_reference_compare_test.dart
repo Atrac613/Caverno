@@ -164,6 +164,124 @@ void main() {
     );
     expect(chat.hardRegressions, contains('missing candidate check'));
   });
+
+  test('fails when analyzer feedback evidence disappears', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'live-llm-reference-compare-analyzer-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+
+    final reference = _writeReferenceReport(
+      directory: directory,
+      fileName: 'reference.json',
+      label: 'reference',
+      entries: [
+        _entry(
+          surface: 'coding_diagnostic_feedback',
+          check: 'coding_diagnostic_feedback_live_canary',
+          passed: 1,
+          total: 1,
+          signals: const LiveLlmCanaryReferenceSignals(
+            dartAnalyzeFeedbackCount: 1,
+            dartAnalyzeDiagnosticCount: 2,
+          ),
+        ),
+      ],
+    );
+    final candidate = _writeReferenceReport(
+      directory: directory,
+      fileName: 'candidate.json',
+      label: 'candidate',
+      entries: [
+        _entry(
+          surface: 'coding_diagnostic_feedback',
+          check: 'coding_diagnostic_feedback_live_canary',
+          passed: 1,
+          total: 1,
+        ),
+      ],
+    );
+
+    final comparison = await buildLiveLlmCanaryReferenceComparison(
+      referenceReport: reference,
+      candidateReport: candidate,
+      generatedAt: DateTime.utc(2026, 5, 30),
+    );
+
+    expect(comparison.result, 'failed');
+    expect(comparison.hardRegressionCount, 2);
+    final diagnostic = comparison.entries.single;
+    expect(diagnostic.status, 'regressed');
+    expect(
+      diagnostic.hardRegressions,
+      contains('analyzer feedback decreased 1->0'),
+    );
+    expect(
+      diagnostic.hardRegressions,
+      contains('analyzer diagnostics decreased 2->0'),
+    );
+  });
+
+  test('records extra analyzer feedback evidence as watch signals', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'live-llm-reference-compare-analyzer-watch-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+
+    final reference = _writeReferenceReport(
+      directory: directory,
+      fileName: 'reference.json',
+      label: 'reference',
+      entries: [
+        _entry(
+          surface: 'coding_diagnostic_feedback',
+          check: 'coding_diagnostic_feedback_live_canary',
+          passed: 1,
+          total: 1,
+          signals: const LiveLlmCanaryReferenceSignals(
+            dartAnalyzeFeedbackCount: 1,
+            dartAnalyzeDiagnosticCount: 1,
+          ),
+        ),
+      ],
+    );
+    final candidate = _writeReferenceReport(
+      directory: directory,
+      fileName: 'candidate.json',
+      label: 'candidate',
+      entries: [
+        _entry(
+          surface: 'coding_diagnostic_feedback',
+          check: 'coding_diagnostic_feedback_live_canary',
+          passed: 1,
+          total: 1,
+          signals: const LiveLlmCanaryReferenceSignals(
+            dartAnalyzeFeedbackCount: 2,
+            dartAnalyzeDiagnosticCount: 3,
+          ),
+        ),
+      ],
+    );
+
+    final comparison = await buildLiveLlmCanaryReferenceComparison(
+      referenceReport: reference,
+      candidateReport: candidate,
+      generatedAt: DateTime.utc(2026, 5, 30),
+    );
+
+    expect(comparison.result, 'passed');
+    expect(comparison.watchSignalCount, 2);
+    final diagnostic = comparison.entries.single;
+    expect(diagnostic.status, 'watch');
+    expect(
+      diagnostic.watchSignals,
+      contains('analyzer feedback increased 1->2'),
+    );
+    expect(
+      diagnostic.watchSignals,
+      contains('analyzer diagnostics increased 1->3'),
+    );
+  });
 }
 
 File _writeReferenceReport({

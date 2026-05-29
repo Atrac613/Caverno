@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,9 +14,10 @@ import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
-import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
+import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
@@ -28,6 +30,7 @@ import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
+import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
@@ -1444,6 +1447,132 @@ class _FakeMcpToolService extends McpToolService {
       result: results[name] ?? '',
       isSuccess: true,
     );
+  }
+}
+
+class _WritingFileMcpToolService extends McpToolService {
+  _WritingFileMcpToolService(this.root);
+
+  final Directory root;
+  final List<String> executedToolNames = [];
+  final List<Map<String, dynamic>> executedToolArguments = [];
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    return [
+      {
+        'type': 'function',
+        'function': {
+          'name': 'write_file',
+          'description': 'Write a UTF-8 text file in the fixture project.',
+          'parameters': const <String, dynamic>{
+            'type': 'object',
+            'properties': {
+              'path': {'type': 'string'},
+              'content': {'type': 'string'},
+              'create_parents': {'type': 'boolean'},
+            },
+            'required': ['path', 'content'],
+          },
+        },
+      },
+    ];
+  }
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    executedToolArguments.add(Map<String, dynamic>.from(arguments));
+    if (name != 'write_file') {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({'error': 'Unsupported fixture tool: $name'}),
+        isSuccess: false,
+        errorMessage: 'Unsupported fixture tool: $name',
+      );
+    }
+    final resolvedPath = FilesystemTools.resolvePath(
+      arguments['path'] as String?,
+      defaultRoot: root.absolute.path,
+    );
+    if (resolvedPath == null || resolvedPath.trim().isEmpty) {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({'error': 'path is required'}),
+        isSuccess: false,
+        errorMessage: 'path is required',
+      );
+    }
+    final targetPath = File(resolvedPath).absolute.path;
+    final rootPath = root.absolute.path;
+    if (targetPath != rootPath &&
+        !targetPath.startsWith('$rootPath${Platform.pathSeparator}')) {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({'error': 'Path must stay inside the fixture.'}),
+        isSuccess: false,
+        errorMessage: 'Path must stay inside the fixture.',
+      );
+    }
+
+    final result = await FilesystemTools.writeFile(
+      path: targetPath,
+      content: arguments['content'] as String? ?? '',
+      createParents: arguments['create_parents'] as bool? ?? true,
+    );
+    final decoded = _tryDecodeObject(result);
+    final error = decoded['error'] as String?;
+    return McpToolResult(
+      toolName: name,
+      result: result,
+      isSuccess: error == null || error.isEmpty,
+      errorMessage: error,
+    );
+  }
+}
+
+Map<String, dynamic> _tryDecodeObject(String value) {
+  try {
+    final decoded = jsonDecode(value);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    if (decoded is Map) {
+      return Map<String, dynamic>.from(decoded);
+    }
+  } catch (_) {
+    return const {};
+  }
+  return const {};
+}
+
+class _FakeCodingDiagnosticFeedbackService
+    extends CodingDiagnosticFeedbackService {
+  _FakeCodingDiagnosticFeedbackService(this.feedback);
+
+  final ToolResultInfo? feedback;
+  final List<String> requestedProjectRoots = [];
+  final List<List<String>> requestedChangedPaths = [];
+
+  @override
+  Future<ToolResultInfo?> buildFeedbackToolResult({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+    DateTime? now,
+  }) async {
+    requestedProjectRoots.add(projectRoot);
+    requestedChangedPaths.add(List<String>.from(changedPaths));
+    return feedback;
   }
 }
 
@@ -9939,6 +10068,215 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'sendMessage adds analyzer feedback after a successful Dart file mutation',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_chat_diagnostic_feedback_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final changedPath = '${projectRoot.path}/lib/main.dart';
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'write_file',
+            arguments: const {
+              'path': 'lib/main.dart',
+              'content': 'void main() {}\n',
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {'write_file': '{"path":"$changedPath","bytes_written":15}'},
+      );
+      final diagnosticFeedback = ToolResultInfo(
+        id: 'diag-1',
+        name: CodingDiagnosticFeedbackService.toolName,
+        arguments: const {
+          'project_root': 'project',
+          'changed_paths': ['lib/main.dart'],
+        },
+        result: jsonEncode({
+          'schema': CodingDiagnosticFeedbackService.schemaName,
+          'diagnostic_count': 1,
+          'diagnostics': [
+            {
+              'relative_path': 'lib/main.dart',
+              'severity': 'Error',
+              'line': 1,
+              'column': 6,
+              'message': 'Undefined name main.',
+            },
+          ],
+        }),
+      );
+      final diagnosticService = _FakeCodingDiagnosticFeedbackService(
+        diagnosticFeedback,
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+            diagnosticService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Update the Dart entrypoint');
+
+        expect(diagnosticService.requestedProjectRoots, [projectRoot.path]);
+        expect(diagnosticService.requestedChangedPaths.single, [changedPath]);
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        expect(
+          toolDataSource.toolResultBatches.single.map((result) => result.name),
+          ['write_file', CodingDiagnosticFeedbackService.toolName],
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage runs real analyzer feedback after a broken Dart mutation',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_chat_real_diagnostic_feedback_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      await File('${projectRoot.path}/pubspec.yaml').writeAsString('''
+name: caverno_diagnostic_feedback_fixture
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+''');
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'write_file',
+            arguments: const {
+              'path': 'lib/main.dart',
+              'content': '''
+void main() {
+  print(missingAnalyzerFeedbackCanarySymbol);
+}
+''',
+            },
+          ),
+        ],
+      );
+      final toolService = _WritingFileMcpToolService(projectRoot);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Write a broken Dart entrypoint');
+
+        expect(toolService.executedToolNames, ['write_file']);
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        expect(
+          toolDataSource.toolResultBatches.single.map((result) => result.name),
+          ['write_file', CodingDiagnosticFeedbackService.toolName],
+        );
+        final diagnosticResult = toolDataSource.toolResultBatches.single
+            .singleWhere(
+              (result) =>
+                  result.name == CodingDiagnosticFeedbackService.toolName,
+            );
+        final payload =
+            jsonDecode(diagnosticResult.result) as Map<String, dynamic>;
+        expect(payload['schema'], CodingDiagnosticFeedbackService.schemaName);
+        expect(payload['changed_paths'], ['lib/main.dart']);
+        expect(payload['diagnostic_count'], greaterThanOrEqualTo(1));
+        expect(
+          jsonEncode(payload['diagnostics']),
+          contains('missingAnalyzerFeedbackCanarySymbol'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+    timeout: const Timeout(Duration(seconds: 45)),
+  );
 
   test('auto-review denies local commands without executing them', () async {
     final conversationRepository = _FakeConversationRepository();

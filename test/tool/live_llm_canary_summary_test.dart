@@ -71,6 +71,13 @@ void main() {
         }),
         jsonEncode({
           'testID': 2,
+          'message':
+              '[CodingDiagnostics] Analyzer feedback summary: {"toolName":"dart_analyze_feedback","diagnosticCount":2,"files":["lib/main.dart"]}',
+          'type': 'print',
+          'time': 34,
+        }),
+        jsonEncode({
+          'testID': 2,
           'result': 'success',
           'skipped': false,
           'hidden': false,
@@ -128,11 +135,19 @@ void main() {
     expect(summary.signals.incompleteContentToolRecoveryCount, 1);
     expect(summary.signals.ignoredAssistantToolResultCount, 1);
     expect(summary.signals.assistantAuthoredToolBlockCount, 1);
+    expect(summary.signals.dartAnalyzeFeedback.observed, isTrue);
+    expect(summary.signals.dartAnalyzeFeedback.feedbackCount, 1);
+    expect(summary.signals.dartAnalyzeFeedback.diagnosticCount, 2);
+    expect(summary.signals.dartAnalyzeFeedback.files, ['lib/main.dart']);
 
     final json = summary.toJson();
     expect(json['schemaName'], 'live_llm_canary_summary');
     expect(json['generatedAt'], '2026-05-23T01:02:03.000Z');
     expect(json['tests'], hasLength(2));
+    expect(
+      (json['signals'] as Map<String, dynamic>)['dartAnalyzeFeedback'],
+      containsPair('diagnosticCount', 2),
+    );
     expect(summary.toMarkdown(), contains('Live LLM Canary Summary'));
     expect(summary.toMarkdown(), contains('Recovered stream fallback count'));
     expect(
@@ -140,6 +155,11 @@ void main() {
       contains('Incomplete content-tool recovery count'),
     );
     expect(summary.toMarkdown(), contains('Assistant-authored tool block'));
+    expect(
+      summary.toMarkdown(),
+      contains('Dart analyzer feedback observed: `yes`'),
+    );
+    expect(summary.toMarkdown(), contains('lib/main.dart'));
   });
 
   test('marks skipped live canaries as skipped instead of passed', () async {

@@ -422,6 +422,22 @@ LiveLlmCanaryReferenceComparisonEntry _compareEntry(
     referenceValue: referenceEntry.signals.assistantAuthoredToolBlockCount,
     candidateValue: candidateEntry.signals.assistantAuthoredToolBlockCount,
   );
+  _compareRequiredEvidenceInt(
+    hardRegressions,
+    watchSignals,
+    improvements,
+    name: 'analyzer feedback',
+    referenceValue: referenceEntry.signals.dartAnalyzeFeedbackCount,
+    candidateValue: candidateEntry.signals.dartAnalyzeFeedbackCount,
+  );
+  _compareRequiredEvidenceInt(
+    hardRegressions,
+    watchSignals,
+    improvements,
+    name: 'analyzer diagnostics',
+    referenceValue: referenceEntry.signals.dartAnalyzeDiagnosticCount,
+    candidateValue: candidateEntry.signals.dartAnalyzeDiagnosticCount,
+  );
   _compareWatchInt(
     watchSignals,
     improvements,
@@ -489,6 +505,25 @@ void _compareInt(
     hardRegressions.add('$name increased $referenceValue->$candidateValue');
   } else if (candidateValue < referenceValue) {
     improvements.add('$name decreased $referenceValue->$candidateValue');
+  }
+}
+
+void _compareRequiredEvidenceInt(
+  List<String> hardRegressions,
+  List<String> watchSignals,
+  List<String> improvements, {
+  required String name,
+  required int referenceValue,
+  required int candidateValue,
+}) {
+  if (candidateValue < referenceValue) {
+    hardRegressions.add('$name decreased $referenceValue->$candidateValue');
+  } else if (candidateValue > referenceValue) {
+    if (referenceValue == 0) {
+      improvements.add('$name added 0->$candidateValue');
+    } else {
+      watchSignals.add('$name increased $referenceValue->$candidateValue');
+    }
   }
 }
 

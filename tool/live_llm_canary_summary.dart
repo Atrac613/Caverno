@@ -1,6 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+const _dartAnalyzeFeedbackSummaryPrefix =
+    '[CodingDiagnostics] Analyzer feedback summary: ';
+const _dartAnalyzeFeedbackToolName = 'dart_analyze_feedback';
+
 Future<void> main(List<String> args) async {
   final options = _LiveLlmCanarySummaryOptions.parse(args);
   if (options == null) {
@@ -232,6 +236,25 @@ class LiveLlmCanarySummary {
         '`${signals.memoryExtractionFallbackCount}`',
       )
       ..writeln()
+      ..writeln('## Coding Diagnostic Feedback')
+      ..writeln()
+      ..writeln(
+        '- Dart analyzer feedback observed: '
+        '`${signals.dartAnalyzeFeedback.observed ? 'yes' : 'no'}`',
+      )
+      ..writeln(
+        '- Dart analyzer feedback count: '
+        '`${signals.dartAnalyzeFeedback.feedbackCount}`',
+      )
+      ..writeln(
+        '- Dart analyzer diagnostic count: '
+        '`${signals.dartAnalyzeFeedback.diagnosticCount}`',
+      )
+      ..writeln(
+        '- Dart analyzer feedback files: '
+        '`${signals.dartAnalyzeFeedback.files.isEmpty ? '(none)' : signals.dartAnalyzeFeedback.files.join(', ')}`',
+      )
+      ..writeln()
       ..writeln('## Tests')
       ..writeln()
       ..writeln('| Test | Result | Duration |')
@@ -255,6 +278,7 @@ class LiveLlmCanarySignals {
     required this.assistantAuthoredToolBlockCount,
     required this.transportDisconnectCount,
     required this.memoryExtractionFallbackCount,
+    required this.dartAnalyzeFeedback,
   });
 
   final int recoveredStreamFallbackCount;
@@ -264,8 +288,10 @@ class LiveLlmCanarySignals {
   final int assistantAuthoredToolBlockCount;
   final int transportDisconnectCount;
   final int memoryExtractionFallbackCount;
+  final LiveLlmCanaryDartAnalyzeFeedbackSignals dartAnalyzeFeedback;
 
   static LiveLlmCanarySignals fromLog(String rawLog) {
+    final dartAnalyzeFeedback = _extractDartAnalyzeFeedbackSignals(rawLog);
     return LiveLlmCanarySignals(
       recoveredStreamFallbackCount: _countMatches(
         rawLog,
@@ -302,6 +328,7 @@ class LiveLlmCanarySignals {
           caseSensitive: false,
         ),
       ),
+      dartAnalyzeFeedback: dartAnalyzeFeedback,
     );
   }
 
@@ -314,6 +341,30 @@ class LiveLlmCanarySignals {
       'assistantAuthoredToolBlockCount': assistantAuthoredToolBlockCount,
       'transportDisconnectCount': transportDisconnectCount,
       'memoryExtractionFallbackCount': memoryExtractionFallbackCount,
+      'dartAnalyzeFeedback': dartAnalyzeFeedback.toJson(),
+    };
+  }
+}
+
+class LiveLlmCanaryDartAnalyzeFeedbackSignals {
+  const LiveLlmCanaryDartAnalyzeFeedbackSignals({
+    required this.feedbackCount,
+    required this.diagnosticCount,
+    required this.files,
+  });
+
+  final int feedbackCount;
+  final int diagnosticCount;
+  final List<String> files;
+
+  bool get observed => feedbackCount > 0;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'observed': observed,
+      'feedbackCount': feedbackCount,
+      'diagnosticCount': diagnosticCount,
+      'files': files,
     };
   }
 }
@@ -559,6 +610,103 @@ class _LiveLlmCanarySummaryOptions {
 
 int _countMatches(String input, RegExp pattern) {
   return pattern.allMatches(input).length;
+}
+
+LiveLlmCanaryDartAnalyzeFeedbackSignals _extractDartAnalyzeFeedbackSignals(
+  String rawLog,
+) {
+  final files = <String>{};
+  var feedbackCount = 0;
+  var diagnosticCount = 0;
+  var fallbackFeedbackCount = 0;
+
+  for (final line in const LineSplitter().convert(rawLog)) {
+    for (final message in _messagesFromLogLine(line)) {
+      if (message.contains('[CodingDiagnostics] Added analyzer feedback')) {
+        fallbackFeedbackCount += 1;
+      }
+
+      final prefixIndex = message.indexOf(_dartAnalyzeFeedbackSummaryPrefix);
+      if (prefixIndex == -1) {
+        continue;
+      }
+      final encoded = message
+          .substring(prefixIndex + _dartAnalyzeFeedbackSummaryPrefix.length)
+          .trim();
+      final decoded = _tryDecodeObject(encoded);
+      if (decoded.isEmpty) {
+        continue;
+      }
+      final toolName =
+          decoded['toolName'] as String? ?? decoded['tool_name'] as String?;
+      if (toolName != null && toolName != _dartAnalyzeFeedbackToolName) {
+        continue;
+      }
+
+      feedbackCount += 1;
+      final rawDiagnosticCount =
+          decoded['diagnosticCount'] ?? decoded['diagnostic_count'];
+      if (rawDiagnosticCount is num) {
+        diagnosticCount += rawDiagnosticCount.toInt();
+      }
+
+      final rawFiles =
+          decoded['files'] ??
+          decoded['changedPaths'] ??
+          decoded['changed_paths'];
+      if (rawFiles is Iterable) {
+        for (final file in rawFiles) {
+          if (file is String && file.trim().isNotEmpty) {
+            files.add(file.trim());
+          }
+        }
+      }
+    }
+  }
+
+  if (feedbackCount == 0 && fallbackFeedbackCount > 0) {
+    feedbackCount = fallbackFeedbackCount;
+  }
+
+  final sortedFiles = files.toList(growable: false)..sort();
+  return LiveLlmCanaryDartAnalyzeFeedbackSignals(
+    feedbackCount: feedbackCount,
+    diagnosticCount: diagnosticCount,
+    files: sortedFiles,
+  );
+}
+
+Iterable<String> _messagesFromLogLine(String line) sync* {
+  final trimmed = line.trim();
+  if (trimmed.isEmpty) {
+    return;
+  }
+  if (!trimmed.startsWith('{')) {
+    yield trimmed;
+    return;
+  }
+  final decoded = _tryDecodeObject(trimmed);
+  final message = decoded['message'];
+  if (message is String) {
+    yield message;
+    return;
+  }
+  yield trimmed;
+}
+
+Map<String, dynamic> _tryDecodeObject(String value) {
+  try {
+    final decoded = jsonDecode(value);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    if (decoded is Map) {
+      return Map<String, dynamic>.from(decoded);
+    }
+  } catch (_) {
+    return const {};
+  }
+  return const {};
 }
 
 String _tableCell(String value) {

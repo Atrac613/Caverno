@@ -10,7 +10,7 @@ settings, or feature-specific execution behavior.
 | Surface | Current canaries | Covered behavior | Main gaps | Priority |
 |---------|------------------|------------------|-----------|----------|
 | Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction | Native tool-role compatibility and broad multi-turn continuity beyond focused parser recovery | Keep the chat canary suite in every model switch baseline |
-| Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, repeated-blocker auto-blocking, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused coding-goal canaries after changing goal state, coding prompts, budget handling, tool execution, file/Git side effects, or completion/blocker inference |
+| Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_coding_diagnostic_feedback_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, repeated-blocker auto-blocking, Dart analyzer diagnostic feedback after a broken edit, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused coding-goal and diagnostic-feedback canaries after changing goal state, coding prompts, budget handling, tool execution, diagnostic feedback, file/Git side effects, or completion/blocker inference |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
 
 ## Baseline Model Switch Flow
@@ -72,7 +72,29 @@ For each model switch, run this minimum set before comparing model quality:
    iteration in an isolated fixture workspace and writes one aggregate
    `canary_summary.json` that fails if any iteration fails.
 
-5. Chat branch checks:
+5. Coding diagnostic feedback release gate:
+
+   ```bash
+   CAVERNO_LLM_BASE_URL=... \
+   CAVERNO_LLM_API_KEY=... \
+   CAVERNO_LLM_MODEL=... \
+   tool/run_coding_diagnostic_feedback_release_gate.sh
+   ```
+
+   This release gate scripts initial broken Dart writes in both a root package
+   and a nested package, requires the coding loop to consume the automatic
+   `dart_analyze_feedback` result, repair each file, and run the requested
+   command successfully. The wrapper defaults to
+   `CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_REPEAT_COUNT=3`, then verifies the
+   generated `canary_summary.json` with
+   `tool/coding_diagnostic_feedback_release_gate.dart`. The gate blocks unless
+   all six root/nested repairs pass, analyzer feedback includes both Dart files,
+   feedback and diagnostic counts are non-zero, and Live LLM recovery signals
+   are zero. See
+   [`coding_diagnostic_feedback_release_gate.md`](coding_diagnostic_feedback_release_gate.md)
+   for the full gate contract.
+
+6. Chat branch checks:
 
    ```bash
    CAVERNO_LLM_BASE_URL=... \
@@ -81,7 +103,7 @@ For each model switch, run this minimum set before comparing model quality:
    tool/run_chat_live_llm_canary.sh
    ```
 
-6. Chat tool-result budget check:
+7. Chat tool-result budget check:
 
    ```bash
    CAVERNO_LLM_BASE_URL=... \
@@ -90,7 +112,7 @@ For each model switch, run this minimum set before comparing model quality:
    tool/run_tool_result_budget_live_canary.sh
    ```
 
-7. Routine branch checks, when routines are in scope:
+8. Routine branch checks, when routines are in scope:
 
    ```bash
    CAVERNO_LLM_BASE_URL=... \
@@ -119,13 +141,17 @@ dart run tool/live_llm_canary_reference_report.dart \
 ```
 
 The `--report-root` mode discovers the latest available PM5 smoke, PM5 ping,
-README, coding goal, coding goal edit, chat, tool-result budget, and routine artifacts. Use
-explicit paths when reconstructing an older run set or overriding one
-discovered artifact:
+README, coding goal, coding goal edit, coding diagnostic feedback, chat,
+tool-result budget, and routine artifacts. Use explicit paths when
+reconstructing an older run set or overriding one discovered artifact:
 
 The generated report fails if selected artifacts with non-empty model IDs or
-base URLs disagree. When that happens, rerun the missing surfaces on the same
-model and endpoint, or pass explicit artifact paths from a consistent run set.
+base URLs disagree. It also treats selected `coding_diagnostic_feedback`
+summaries as release-gated evidence: the entry fails when the diagnostic
+feedback summary does not satisfy
+`tool/coding_diagnostic_feedback_release_gate.dart`. When that happens, rerun
+the missing surfaces on the same model and endpoint, or pass explicit artifact
+paths from a consistent run set.
 
 ```bash
 dart run tool/live_llm_canary_reference_report.dart \
@@ -136,6 +162,7 @@ dart run tool/live_llm_canary_reference_report.dart \
   --readme-report build/integration_test_reports/<readme>/plan_mode_live_suite_macos_report.json \
   --coding-goal-summary build/integration_test_reports/<coding-goal>/canary_summary.json \
   --coding-goal-edit-summary build/integration_test_reports/<coding-goal-edit>/canary_summary.json \
+  --coding-diagnostic-feedback-summary build/integration_test_reports/<coding-diagnostic-feedback>/canary_summary.json \
   --chat-summary build/integration_test_reports/<chat>/canary_summary.json \
   --budget-summary build/integration_test_reports/<budget>/canary_summary.json \
   --routine-summary build/integration_test_reports/<routine>/canary_summary.json
@@ -158,11 +185,33 @@ dart run tool/live_llm_canary_reference_compare.dart \
 
 The comparison exits non-zero for hard regressions such as failed checks,
 unexpected warnings, task drift, report-quality blockers, transport disconnects,
-stream fallback, or memory fallback increases. Approval fallback, cleanup
-cancellation, guard activation, allowed-warning, and compaction-retry increases
-are recorded as watch signals instead of hard failures.
+stream fallback, memory fallback increases, or analyzer feedback evidence
+decreases. Approval fallback, cleanup cancellation, guard activation,
+allowed-warning, compaction-retry, and analyzer feedback increases are recorded
+as watch signals instead of hard failures.
 
 ## Latest Full-Surface Evidence
+
+### 2026-05-30: `qwen3.6-27b-mtp-vision` Diagnostic Feedback Stability
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model: `qwen3.6-27b-mtp-vision`
+- API key: `no-key`
+- Scope note: focused repeat evidence after extending the diagnostic feedback
+  canary to cover both root package and nested package Dart edits.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding diagnostic feedback | `CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_REPEAT_COUNT=3 tool/run_coding_diagnostic_feedback_live_canary.sh` | Passed | 6/6 tests passed | Three isolated runs each passed root package and nested package repair after automatic `dart_analyze_feedback`. Analyzer feedback was observed, with 11 feedback packets, 17 diagnostics, and feedback files `lib/main.dart` and `packages/nested_app/lib/main.dart`. Recovery signals were all 0 and the aggregate duration was 149229 ms. |
+
+Artifacts:
+
+- Coding diagnostic feedback repeat summary:
+  `build/integration_test_reports/coding_diagnostic_feedback_live_canary_1780074872/canary_summary.json`
+- Coding diagnostic feedback repeat Markdown:
+  `build/integration_test_reports/coding_diagnostic_feedback_live_canary_1780074872/canary_summary.md`
+- Captured Flutter JSON log:
+  `build/integration_test_reports/coding_diagnostic_feedback_live_canary_1780074872/flutter_test.jsonl`
 
 ### 2026-05-26: `qwen3.6-27b-mtp-vision` Package-Like Coding Goal Edit
 

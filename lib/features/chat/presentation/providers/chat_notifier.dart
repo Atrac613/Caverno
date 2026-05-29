@@ -46,6 +46,7 @@ import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/coding_approval_auto_review_service.dart';
+import '../../domain/services/coding_diagnostic_feedback_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/temporal_context_builder.dart';
@@ -84,6 +85,11 @@ final sessionMemoryServiceProvider = Provider<SessionMemoryService>((ref) {
   final repository = ref.watch(chatMemoryRepositoryProvider);
   return SessionMemoryService(repository);
 });
+
+final codingDiagnosticFeedbackServiceProvider =
+    Provider<CodingDiagnosticFeedbackService>((ref) {
+      return CodingDiagnosticFeedbackService();
+    });
 
 final chatNotifierProvider = NotifierProvider<ChatNotifier, ChatState>(
   ChatNotifier.new,
@@ -200,6 +206,7 @@ class ChatNotifier extends Notifier<ChatState> {
   McpToolService? _mcpToolService;
   late SessionMemoryService _memoryService;
   late AppSettings _settings;
+  late CodingDiagnosticFeedbackService _codingDiagnosticFeedbackService;
   String? conversationId;
   String _languageCode = 'en';
   String? _sessionMemoryContext;
@@ -260,6 +267,9 @@ class ChatNotifier extends Notifier<ChatState> {
     _mcpToolService = ref.read(mcpToolServiceProvider);
     _memoryService = ref.read(sessionMemoryServiceProvider);
     _toolResultArtifactStore = ref.read(toolResultArtifactStoreProvider);
+    _codingDiagnosticFeedbackService = ref.read(
+      codingDiagnosticFeedbackServiceProvider,
+    );
 
     // Connect MCP tool service.
     _mcpToolService?.connect();
@@ -8178,6 +8188,130 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  Future<ToolResultInfo?> _buildCodingDiagnosticFeedbackToolResult(
+    List<ToolResultInfo> toolResults, {
+    required int interactionGeneration,
+  }) async {
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+      return null;
+    }
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation?.workspaceMode != WorkspaceMode.coding ||
+        (currentConversation?.isPlanningSession ?? false)) {
+      return null;
+    }
+    final projectRoot = _getActiveProjectRootPath();
+    if (projectRoot == null || projectRoot.isEmpty) {
+      return null;
+    }
+
+    final changedPaths = _changedFileMutationPaths(toolResults);
+    if (changedPaths.isEmpty) {
+      return null;
+    }
+
+    try {
+      final feedback = await _codingDiagnosticFeedbackService
+          .buildFeedbackToolResult(
+            projectRoot: projectRoot,
+            changedPaths: changedPaths,
+          );
+      if (feedback != null) {
+        appLog(
+          '[CodingDiagnostics] Added analyzer feedback for '
+          '${changedPaths.length} changed file(s)',
+        );
+      }
+      return feedback;
+    } catch (error, stackTrace) {
+      appLog('[CodingDiagnostics] Failed to collect analyzer feedback: $error');
+      appLog('[CodingDiagnostics] stackTrace: $stackTrace');
+      return null;
+    }
+  }
+
+  List<String> _changedFileMutationPaths(List<ToolResultInfo> toolResults) {
+    final paths = <String>[];
+    final seen = <String>{};
+    for (final toolResult in toolResults) {
+      if (!_isFileMutationToolName(toolResult.name)) {
+        continue;
+      }
+      if (!_isSuccessfulFileMutationToolResult(toolResult)) {
+        continue;
+      }
+      final path =
+          _toolResultPayloadPath(toolResult.result) ??
+          _toolPathFromArguments(toolResult.arguments);
+      if (path == null || !path.toLowerCase().endsWith('.dart')) {
+        continue;
+      }
+      final resolved = FilesystemTools.resolvePath(
+        path,
+        defaultRoot: _getActiveProjectRootPath(),
+      );
+      final normalized = resolved ?? path;
+      if (seen.add(normalized)) {
+        paths.add(normalized);
+      }
+    }
+    return paths;
+  }
+
+  bool _isFileMutationToolName(String toolName) {
+    switch (toolName.trim().toLowerCase()) {
+      case 'write_file':
+      case 'edit_file':
+      case 'rollback_last_file_change':
+        return true;
+    }
+    return false;
+  }
+
+  bool _isSuccessfulFileMutationToolResult(ToolResultInfo toolResult) {
+    final normalized = toolResult.result.trim().toLowerCase();
+    if (normalized.isEmpty ||
+        normalized.startsWith('error:') ||
+        normalized.startsWith('auto-review denied')) {
+      return false;
+    }
+    try {
+      final decoded = jsonDecode(toolResult.result);
+      if (decoded is! Map<String, dynamic>) {
+        return true;
+      }
+      if (decoded['error'] != null) {
+        return false;
+      }
+      final code = decoded['code']?.toString().trim().toLowerCase();
+      if (code == 'permission_denied' ||
+          code == 'bookmark_restore_failed' ||
+          code == 'tool_execution_failed') {
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  String? _toolResultPayloadPath(String result) {
+    try {
+      final decoded = jsonDecode(result);
+      if (decoded is Map<String, dynamic>) {
+        final path = decoded['path'];
+        if (path is String && path.trim().isNotEmpty) {
+          return path.trim();
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
   List<Message> _buildToolResultAnswerMessages(
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode budgetMode = ToolResultPromptBudgetMode.normal,
@@ -8447,6 +8581,25 @@ class ChatNotifier extends Notifier<ChatState> {
 
       if (hasTextResponse) {
         break;
+      }
+      final diagnosticFeedback = await _buildCodingDiagnosticFeedbackToolResult(
+        batchToolResults,
+        interactionGeneration: interactionGeneration,
+      );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      if (diagnosticFeedback != null) {
+        final promptDiagnosticFeedback = await _toolResultArtifactStore
+            .persistIfLarge(
+              diagnosticFeedback,
+              conversationId:
+                  _activeResponseConversationIdForGeneration(
+                    interactionGeneration,
+                  ) ??
+                  conversationId,
+            );
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+        batchToolResults.add(promptDiagnosticFeedback);
+        executedToolResults.add(promptDiagnosticFeedback);
       }
       if (batchToolResults.isEmpty) {
         if (pendingBatchCalls.isEmpty && currentToolCalls.isNotEmpty) {
