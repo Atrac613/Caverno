@@ -41,6 +41,7 @@ import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/skill.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
@@ -758,6 +759,126 @@ class ChatNotifier extends Notifier<ChatState> {
     } catch (_) {
       return null;
     }
+  }
+
+  ToolCallInfo? _buildSkippedSkillLoadRecoveryToolCall({
+    required ChatCompletionResult result,
+    required String streamedAssistantContent,
+    required List<Map<String, dynamic>> allTools,
+    required int interactionGeneration,
+  }) {
+    if (result.hasToolCalls ||
+        _settings.disabledBuiltInToolsSet.contains('load_skill') ||
+        !ToolDefinitionSearchService.toolNamesFromDefinitions(
+          allTools,
+        ).contains('load_skill')) {
+      return null;
+    }
+
+    final latestUserContent = _latestUserContentForGeneration(
+      interactionGeneration,
+    );
+    if (!_containsSkillKeyword(latestUserContent)) {
+      return null;
+    }
+
+    final skill = _findEnabledSkillNamedInText(latestUserContent);
+    if (skill == null) {
+      return null;
+    }
+
+    final responseContent =
+        (streamedAssistantContent.isNotEmpty
+                ? streamedAssistantContent
+                : result.content)
+            .trim();
+    if (responseContent.isNotEmpty &&
+        !_looksLikeSkippedSkillLoadResponse(responseContent)) {
+      return null;
+    }
+
+    return ToolCallInfo(
+      id: 'recovered_load_skill_${DateTime.now().microsecondsSinceEpoch}',
+      name: 'load_skill',
+      arguments: {'id': skill.id, 'name': skill.normalizedName},
+    );
+  }
+
+  String _latestUserContentForGeneration(int generation) {
+    final messages =
+        _activeResponseMessagesForGeneration(generation) ?? state.messages;
+    for (final message in messages.reversed) {
+      if (message.role != MessageRole.user) {
+        continue;
+      }
+      final content = message.content.trim();
+      if (content.isNotEmpty) {
+        return content;
+      }
+    }
+    return '';
+  }
+
+  Skill? _findEnabledSkillNamedInText(String text) {
+    final normalizedText = text.toLowerCase();
+    if (normalizedText.isEmpty) {
+      return null;
+    }
+    try {
+      final skills = ref.read(skillsNotifierProvider).enabledSkills;
+      for (final skill in skills) {
+        final name = skill.normalizedName.trim();
+        if (name.isEmpty) {
+          continue;
+        }
+        if (normalizedText.contains(name.toLowerCase())) {
+          return skill;
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  bool _containsSkillKeyword(String text) {
+    final normalized = text.toLowerCase();
+    return normalized.contains('skill') ||
+        _containsCodeUnitSequence(text, const [0x30b9, 0x30ad, 0x30eb]);
+  }
+
+  bool _looksLikeSkippedSkillLoadResponse(String text) {
+    final normalized = text.toLowerCase();
+    if (!_containsSkillKeyword(text)) {
+      return false;
+    }
+    return normalized.contains('load') ||
+        normalized.contains('read') ||
+        normalized.contains('use') ||
+        normalized.contains('follow') ||
+        _containsCodeUnitSequence(text, const [0x8aad, 0x307f, 0x8fbc]) ||
+        _containsCodeUnitSequence(text, const [0x30ed, 0x30fc, 0x30c9]) ||
+        text.contains(String.fromCharCode(0x4f7f));
+  }
+
+  bool _containsCodeUnitSequence(String text, List<int> sequence) {
+    if (sequence.isEmpty || text.length < sequence.length) {
+      return false;
+    }
+    final units = text.codeUnits;
+    for (var index = 0; index <= units.length - sequence.length; index++) {
+      var matched = true;
+      for (var offset = 0; offset < sequence.length; offset++) {
+        if (units[index + offset] != sequence[offset]) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) {
+        return true;
+      }
+    }
+    return false;
   }
 
   AssistantMode _resolveAssistantMode({Conversation? currentConversation}) {
@@ -6701,6 +6822,289 @@ class ChatNotifier extends Notifier<ChatState> {
     return true;
   }
 
+  bool _shouldAcceptTerminalSkillToolRoleResponse(
+    String response,
+    List<ToolResultInfo> toolResults,
+  ) {
+    final candidate = response.trim();
+    if (candidate.isEmpty || candidate.length > 3000) {
+      return false;
+    }
+    if (!_hasSuccessfulLoadSkillResult(toolResults)) {
+      return false;
+    }
+    if (_looksLikeStructuredToolRequest(candidate)) {
+      return false;
+    }
+    if (_looksLikePlanOnlyFinalToolAnswer(candidate) &&
+        !_matchesLoadedSkillExplicitMarker(
+          response: candidate,
+          toolResults: toolResults,
+        )) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _shouldAcceptConstrainedSkillResponseBeforeFollowUpTools(
+    String response,
+    List<ToolResultInfo> toolResults,
+  ) {
+    return _shouldAcceptTerminalSkillToolRoleResponse(response, toolResults) &&
+        _matchesLoadedSkillExplicitMarker(
+          response: response,
+          toolResults: toolResults,
+        );
+  }
+
+  String _normalizeTerminalSkillToolRoleResponse(
+    String response,
+    List<ToolResultInfo> toolResults,
+  ) {
+    var candidate = response.trim();
+    if (!_hasSuccessfulLoadSkillResult(toolResults)) {
+      return candidate;
+    }
+    candidate = _stripTrailingOptionalSkillFollowUp(candidate);
+    candidate = _stripTrailingSkillContinuationIntent(candidate);
+    return candidate.trim();
+  }
+
+  String _stripTrailingOptionalSkillFollowUp(String content) {
+    final dividerMatches = RegExp(
+      r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$',
+      multiLine: true,
+    ).allMatches(content).toList(growable: false);
+    if (dividerMatches.isNotEmpty) {
+      final lastDivider = dividerMatches.last;
+      final trailing = content.substring(lastDivider.end).trim();
+      if (_looksLikeOptionalSkillFollowUp(trailing)) {
+        return content.substring(0, lastDivider.start).trimRight();
+      }
+    }
+
+    final paragraphs = content.split(RegExp(r'\n\s*\n'));
+    if (paragraphs.length < 2) {
+      return content;
+    }
+    final trailing = paragraphs.last.trim();
+    if (!_looksLikeOptionalSkillFollowUp(trailing)) {
+      return content;
+    }
+    final prefix = content.substring(0, content.lastIndexOf(paragraphs.last));
+    return prefix.trimRight();
+  }
+
+  bool _looksLikeOptionalSkillFollowUp(String content) {
+    final candidate = content.trim();
+    if (candidate.isEmpty || candidate.length > 500) {
+      return false;
+    }
+    if (candidate.split(RegExp(r'\n\s*\n')).length > 1) {
+      return false;
+    }
+
+    final normalized = candidate.toLowerCase();
+    final hasQuestion =
+        normalized.contains('?') ||
+        candidate.contains(String.fromCharCode(0xff1f));
+    if (!hasQuestion) {
+      return false;
+    }
+
+    if (_containsAny(normalized, const [
+      'would you like me',
+      'do you want me',
+      'should i',
+      'shall i',
+      'can i proceed',
+      'i can proceed',
+      'proceed with',
+      'execute these',
+      'run these',
+      'run the checks',
+      'continue with',
+      'current project',
+      'project directory',
+      'repository',
+    ])) {
+      return true;
+    }
+
+    return _containsCjkOptionalSkillFollowUpMarker(candidate);
+  }
+
+  String _stripTrailingSkillContinuationIntent(String content) {
+    final dividerMatches = RegExp(
+      r'^\s*(?:-{3,}|\*{3,}|_{3,})\s*$',
+      multiLine: true,
+    ).allMatches(content).toList(growable: false);
+    if (dividerMatches.isNotEmpty) {
+      final lastDivider = dividerMatches.last;
+      final trailing = content.substring(lastDivider.end).trim();
+      if (_looksLikeSkillContinuationIntent(trailing)) {
+        return content.substring(0, lastDivider.start).trimRight();
+      }
+    }
+
+    final paragraphs = content.split(RegExp(r'\n\s*\n'));
+    if (paragraphs.length < 2) {
+      return content;
+    }
+    final trailing = paragraphs.last.trim();
+    if (!_looksLikeSkillContinuationIntent(trailing)) {
+      return content;
+    }
+    final prefix = content.substring(0, content.lastIndexOf(paragraphs.last));
+    return prefix.trimRight();
+  }
+
+  bool _looksLikeSkillContinuationIntent(String content) {
+    final candidate = content.trim();
+    if (candidate.isEmpty || candidate.length > 500) {
+      return false;
+    }
+    if (candidate.split(RegExp(r'\n\s*\n')).length > 1) {
+      return false;
+    }
+
+    final normalized = candidate.toLowerCase();
+    if (_containsAny(normalized, const [
+      'first, i will',
+      'first i will',
+      'next, i will',
+      'now i will',
+      'i will now',
+      'i will inspect',
+      'i will check',
+      'i will run',
+      'i will execute',
+      'i will retrieve',
+      'i will get',
+      "i'll inspect",
+      "i'll check",
+      "i'll run",
+      'let me inspect',
+      'let me check',
+      'let me run',
+      'let me verify',
+      'i am going to',
+      "i'm going to",
+      'start by checking',
+      'begin by checking',
+    ])) {
+      return true;
+    }
+
+    return _containsCjkSkillContinuationIntentMarker(candidate);
+  }
+
+  bool _containsCjkSkillContinuationIntentMarker(String value) {
+    final startMarkers = [
+      String.fromCharCodes([0x307e, 0x305a]),
+      String.fromCharCodes([0x6b21, 0x306b]),
+      String.fromCharCodes([0x3053, 0x308c, 0x304b, 0x3089]),
+      String.fromCharCodes([0x5b9f, 0x969b, 0x306b]),
+      String.fromCharCodes([0x73fe, 0x5728, 0x306e]),
+    ];
+    final actionMarkers = [
+      String.fromCharCodes([0x898b, 0x3066]),
+      String.fromCharCodes([0x898b, 0x307e, 0x3059]),
+      String.fromCharCodes([0x898b, 0x307e, 0x3057, 0x3087, 0x3046]),
+      String.fromCharCodes([0x9032, 0x3081]),
+      String.fromCharCodes([0x78ba, 0x8a8d]),
+      String.fromCharCodes([0x53d6, 0x5f97]),
+      String.fromCharCodes([0x5b9f, 0x884c]),
+      String.fromCharCodes([0x691c, 0x8a3c]),
+    ];
+    return startMarkers.any(value.contains) &&
+        actionMarkers.any(value.contains);
+  }
+
+  bool _containsCjkOptionalSkillFollowUpMarker(String value) {
+    final executionMarkers = [
+      String.fromCharCodes([0x5b9f, 0x884c]),
+      String.fromCharCodes([0x9032, 0x3081]),
+    ];
+    final permissionMarkers = [
+      String.fromCharCodes([0x3088, 0x308d, 0x3057, 0x3044]),
+      String.fromCharCodes([0x3067, 0x3057, 0x3087, 0x3046, 0x304b]),
+      String.fromCharCodes([0x3057, 0x307e, 0x3059, 0x304b]),
+      String.fromCharCodes([0x304f, 0x3060, 0x3055, 0x3044]),
+    ];
+    return executionMarkers.any(value.contains) &&
+        permissionMarkers.any(value.contains);
+  }
+
+  bool _hasSuccessfulLoadSkillResult(List<ToolResultInfo> toolResults) {
+    return toolResults.any(
+      (toolResult) =>
+          toolResult.name.trim().toLowerCase() == 'load_skill' &&
+          _toolResultLooksSuccessfulForFinalAnswer(toolResult.result),
+    );
+  }
+
+  bool _toolResultLooksSuccessfulForFinalAnswer(String result) {
+    final trimmed = result.trim();
+    if (trimmed.isEmpty || trimmed.toLowerCase().startsWith('error:')) {
+      return false;
+    }
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is Map<Object?, Object?>) {
+        final keys = decoded.keys
+            .whereType<String>()
+            .map((key) => key.toLowerCase())
+            .toSet();
+        if (keys.contains('error')) {
+          return false;
+        }
+        Object? codeValue;
+        for (final entry in decoded.entries) {
+          final key = entry.key;
+          if (key is String && key.toLowerCase() == 'code') {
+            codeValue = entry.value;
+            break;
+          }
+        }
+        final code = codeValue?.toString().toLowerCase();
+        if (code != null &&
+            (code.contains('denied') ||
+                code.contains('failure') ||
+                code.contains('failed') ||
+                code.contains('not_executed'))) {
+          return false;
+        }
+      }
+    } on FormatException {
+      return true;
+    }
+    return true;
+  }
+
+  bool _matchesLoadedSkillExplicitMarker({
+    required String response,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final responseMarkers = RegExp(
+      r'\b[A-Z][A-Z0-9_]{5,}\b',
+    ).allMatches(response).map((match) => match.group(0)).nonNulls.toSet();
+    if (responseMarkers.isEmpty) {
+      return false;
+    }
+    for (final toolResult in toolResults) {
+      if (toolResult.name.trim().toLowerCase() != 'load_skill') {
+        continue;
+      }
+      for (final marker in responseMarkers) {
+        if (toolResult.result.contains(marker)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   bool _shouldAcceptTerminalToolRoleBlockerResponse(String response) {
     final candidate = response.trim();
     if (candidate.isEmpty || candidate.length > 3000) {
@@ -7684,12 +8088,35 @@ class ChatNotifier extends Notifier<ChatState> {
           interactionGeneration: generation,
         );
       } else {
-        // No tool calls — content was already streamed in real-time.
-        appLog('[Tool] No tool calls, response already streamed');
         final streamedAssistantContent = _extractAssistantStreamDelta(
           messageIndex: streamedMessageIndex,
           startingLength: streamedContentStart,
         );
+        final recoveredSkillToolCall = _buildSkippedSkillLoadRecoveryToolCall(
+          result: result,
+          streamedAssistantContent: streamedAssistantContent,
+          allTools: allTools,
+          interactionGeneration: generation,
+        );
+        if (recoveredSkillToolCall != null) {
+          appLog(
+            '[Tool] Recovering skipped explicit skill load: '
+            '${recoveredSkillToolCall.arguments}',
+          );
+          await _executeToolCalls(
+            [recoveredSkillToolCall],
+            assistantContent: result.content.isNotEmpty ? result.content : null,
+            toolSearchEnabled: initialToolSelection.toolSearchEnabled,
+            selectedToolNames: {
+              ...initialToolSelection.selectedToolNames,
+              'load_skill',
+            },
+            interactionGeneration: generation,
+          );
+          return;
+        }
+        // No tool calls — content was already streamed in real-time.
+        appLog('[Tool] No tool calls, response already streamed');
         final hiddenAssistantEvidence = streamedAssistantContent.isNotEmpty
             ? streamedAssistantContent
             : result.content;
@@ -8315,6 +8742,28 @@ class ChatNotifier extends Notifier<ChatState> {
           hasTextResponse = true;
           break;
         }
+        if (_shouldAcceptConstrainedSkillResponseBeforeFollowUpTools(
+          fallbackResponse,
+          batchToolResults,
+        )) {
+          appLog(
+            '[Tool] Ignoring follow-up tool calls after constrained skill response',
+          );
+          currentToolCalls = [];
+          final normalizedSkillResponse =
+              _normalizeTerminalSkillToolRoleResponse(
+                fallbackResponse,
+                batchToolResults,
+              );
+          _recordHiddenAssistantResponse(normalizedSkillResponse);
+          _appendRecoveredAssistantResponse(
+            normalizedSkillResponse,
+            interactionGeneration: interactionGeneration,
+          );
+          currentAssistantContent = normalizedSkillResponse;
+          hasTextResponse = true;
+          break;
+        }
         appLog('[Tool] LLM requested additional tool calls');
         currentToolCalls = nextToolCalls;
         _recordHiddenAssistantResponse(nextResult.content);
@@ -8447,6 +8896,26 @@ class ChatNotifier extends Notifier<ChatState> {
             interactionGeneration: interactionGeneration,
           );
           currentAssistantContent = fallbackResponse;
+          hasTextResponse = true;
+          break;
+        }
+        if (_shouldAcceptTerminalSkillToolRoleResponse(
+          fallbackResponse,
+          batchToolResults,
+        )) {
+          appLog(
+            '[Tool] Accepting terminal skill tool-role response without final answer fallback',
+          );
+          final normalizedSkillResponse =
+              _normalizeTerminalSkillToolRoleResponse(
+                fallbackResponse,
+                batchToolResults,
+              );
+          _appendRecoveredAssistantResponse(
+            normalizedSkillResponse,
+            interactionGeneration: interactionGeneration,
+          );
+          currentAssistantContent = normalizedSkillResponse;
           hasTextResponse = true;
           break;
         }
@@ -10237,6 +10706,15 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _looksLikeUnexecutedToolRequest(String content) {
+    if (_looksLikeStructuredToolRequest(content)) {
+      return true;
+    }
+
+    final trimmed = content.trim();
+    return _looksLikePlanOnlyFinalToolAnswer(trimmed);
+  }
+
+  bool _looksLikeStructuredToolRequest(String content) {
     final fencedJsonBlocks = RegExp(
       r'```(?:json)?\s*([\s\S]*?)```',
       caseSensitive: false,
@@ -10249,12 +10727,8 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     final trimmed = content.trim();
-    if ((trimmed.startsWith('[') || trimmed.startsWith('{')) &&
-        _jsonLooksLikeCommandProposal(trimmed)) {
-      return true;
-    }
-
-    return _looksLikePlanOnlyFinalToolAnswer(trimmed);
+    return (trimmed.startsWith('[') || trimmed.startsWith('{')) &&
+        _jsonLooksLikeCommandProposal(trimmed);
   }
 
   bool _looksLikePlanOnlyFinalToolAnswer(String content) {
@@ -10262,17 +10736,21 @@ class ChatNotifier extends Notifier<ChatState> {
       return false;
     }
 
-    final numberedStepCount = RegExp(
+    final numberedStepMatches = RegExp(
       r'^\s*\d+[.)]\s+\S',
       multiLine: true,
-    ).allMatches(content).length;
+    ).allMatches(content).toList(growable: false);
+    final numberedStepCount = numberedStepMatches.length;
     final lowerContent = content.toLowerCase();
     final hasPlanHeading = RegExp(
       r'^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:investigation\s+plan|plan|next\s+steps?|checklist)\b',
       caseSensitive: false,
       multiLine: true,
     ).hasMatch(content);
-    final hasFutureAction = _containsAny(lowerContent, const [
+    final futureActionScanStart = hasPlanHeading || numberedStepMatches.isEmpty
+        ? 0
+        : numberedStepMatches.first.start;
+    final hasFutureAction = _containsAnyAtOrAfter(lowerContent, const [
       'i will inspect',
       'i will check',
       'i will confirm',
@@ -10287,8 +10765,11 @@ class ChatNotifier extends Notifier<ChatState> {
       'need to confirm',
       'first, i will',
       'next, i will',
-    ]);
-    final hasCjkFutureAction = _containsCjkFutureActionMarker(content);
+    ], futureActionScanStart);
+    final hasCjkFutureAction = _containsCjkFutureActionMarker(
+      content,
+      startIndex: futureActionScanStart,
+    );
 
     if ((hasPlanHeading || numberedStepCount >= 2) &&
         (hasFutureAction || hasCjkFutureAction)) {
@@ -10301,7 +10782,21 @@ class ChatNotifier extends Notifier<ChatState> {
     return markers.any(value.contains);
   }
 
-  bool _containsCjkFutureActionMarker(String value) {
+  bool _containsAnyAtOrAfter(
+    String value,
+    List<String> markers,
+    int startIndex,
+  ) {
+    final clampedStart = startIndex.clamp(0, value.length).toInt();
+    for (final marker in markers) {
+      if (value.indexOf(marker, clampedStart) >= 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _containsCjkFutureActionMarker(String value, {int startIndex = 0}) {
     final markers = [
       String.fromCharCodes([0x78ba, 0x8a8d, 0x3057, 0x307e, 0x3059]),
       String.fromCharCodes([0x8abf, 0x67fb, 0x3057, 0x307e, 0x3059]),
@@ -10309,7 +10804,13 @@ class ChatNotifier extends Notifier<ChatState> {
       String.fromCharCodes([0x691c, 0x8a3c, 0x3057, 0x307e, 0x3059]),
       String.fromCharCodes([0x8abf, 0x67fb, 0x8a08, 0x753b]),
     ];
-    return markers.any(value.contains);
+    final clampedStart = startIndex.clamp(0, value.length).toInt();
+    for (final marker in markers) {
+      if (value.indexOf(marker, clampedStart) >= 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _containsCjkBlockerMarker(String value) {

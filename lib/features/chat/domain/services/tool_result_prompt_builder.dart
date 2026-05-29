@@ -210,6 +210,12 @@ class ToolResultPromptBuilder {
         'unexecuted action.',
       )
       ..writeln(
+        'When a load_skill result contains explicit output constraints, follow '
+        'those constraints exactly. Do not add optional follow-up questions, '
+        'permission requests, or offers to execute extra checks unless the '
+        'loaded skill explicitly asks for them.',
+      )
+      ..writeln(
         'Do not convert a missing source file, repository, permission, runtime '
         'data, or external dependency into a confirmed root cause. If the '
         'executed results show that required evidence is unavailable, preserve '

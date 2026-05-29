@@ -20,6 +20,7 @@ import 'package:caverno/features/chat/data/repositories/tool_result_artifact_sto
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
+import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
@@ -27,6 +28,7 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
+import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
@@ -38,6 +40,8 @@ const _toolResultIgnoredMarker = 'ASSISTANT_TOOL_RESULT_IGNORED_LIVE_OK';
 const _toolResultIgnoredTrigger =
     'ASSISTANT_TOOL_RESULT_IGNORED_CANARY_TRIGGER';
 const _toolSearchArtifactMarker = 'TOOL_SEARCH_ARTIFACT_LIVE_OK';
+const _skillFollowUpMarker = 'SKILL_FOLLOWUP_LIVE_OK';
+const _skillFollowUpContinuation = 'では実際に確認を進めます';
 
 void main() {
   final liveEnabled = Platform.environment['CAVERNO_CHAT_LIVE_CANARY'] == '1';
@@ -332,6 +336,79 @@ void main() {
   );
 
   test(
+    'live LLM trims load_skill follow-up inspection text',
+    () async {
+      final env = _ChatLiveEnv.fromEnvironment();
+      final toolService = _SkillFollowUpToolService();
+      final dataSource = _ChatLiveDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final container = _buildChatContainer(
+        env,
+        mcpEnabled: true,
+        toolService: toolService,
+        chatDataSource: dataSource,
+      );
+
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Use the Release Check skill to verify release readiness. '
+          'Call load_skill first with id "release-check". '
+          'After the skill is loaded, follow its instructions exactly.',
+        );
+        await _waitForChatIdle(container, timeout: const Duration(minutes: 5));
+
+        final toolResultResponse = dataSource.toolResultResponses.lastOrNull;
+        expect(
+          toolResultResponse,
+          isNotNull,
+          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
+        );
+        final followUpToolNames =
+            toolResultResponse!.toolCalls
+                ?.map((toolCall) => toolCall.name)
+                .toList(growable: false) ??
+            const <String>[];
+        expect(
+          followUpToolNames,
+          containsAll([
+            _SkillFollowUpToolService.listDirectoryToolName,
+            _SkillFollowUpToolService.gitToolName,
+          ]),
+          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
+        );
+        expect(
+          toolResultResponse.content,
+          contains(_skillFollowUpContinuation),
+          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
+        );
+        expect(
+          toolService.executedToolNames,
+          [_SkillFollowUpToolService.loadSkillToolName],
+          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
+        );
+        expect(
+          _lastAssistantContent(container).toUpperCase(),
+          contains(_skillFollowUpMarker),
+          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
+        );
+        expect(
+          _lastAssistantContent(container),
+          isNot(contains(_skillFollowUpContinuation)),
+          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 6)),
+  );
+
+  test(
     'live LLM discovers a deferred tool and reads its persisted artifact',
     () async {
       final env = _ChatLiveEnv.fromEnvironment();
@@ -456,6 +533,7 @@ ProviderContainer _buildChatContainer(
       codingProjectsNotifierProvider.overrideWith(
         _LiveCodingProjectsNotifier.new,
       ),
+      skillsNotifierProvider.overrideWith(_LiveSkillsNotifier.new),
       chatRemoteDataSourceProvider.overrideWithValue(
         chatDataSource ??
             _ChatLiveDataSource(
@@ -571,6 +649,23 @@ String _toolResultIgnoredDiagnostic(
   ].join('\n');
 }
 
+String _skillFollowUpDiagnostic(
+  ProviderContainer container,
+  _SkillFollowUpToolService toolService,
+  _ChatLiveDataSource dataSource,
+) {
+  return [
+    _chatDiagnostic(container),
+    'executedToolNames=${toolService.executedToolNames.join(',')}',
+    'executedArguments=${toolService.executedArguments.map(jsonEncode).join(' | ')}',
+    'toolResultResponses=${dataSource.toolResultResponses.map((response) => {
+      'finishReason': response.finishReason,
+      'content': response.content,
+      'toolCalls': response.toolCalls?.map((toolCall) => {'name': toolCall.name, 'arguments': toolCall.arguments}).toList(growable: false),
+    }).map(jsonEncode).join(' | ')}',
+  ].join('\n');
+}
+
 class _ChatLiveEnv {
   const _ChatLiveEnv({
     required this.baseUrl,
@@ -650,6 +745,26 @@ class _LiveCodingProjectsNotifier extends CodingProjectsNotifier {
   CodingProjectsState build() => CodingProjectsState.initial();
 }
 
+class _LiveSkillsNotifier extends SkillsNotifier {
+  @override
+  SkillsState build() {
+    final now = DateTime(2026, 5, 29, 21, 0);
+    return SkillsState(
+      skills: [
+        Skill(
+          id: 'release-check',
+          name: 'Release Check',
+          description: 'Use for release readiness checks',
+          whenToUse: 'When the user asks to verify release readiness',
+          content: _SkillFollowUpToolService.skillContent,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      ],
+    );
+  }
+}
+
 class _NoopBackgroundTaskService extends BackgroundTaskService {
   @override
   Future<void> beginBackgroundTask() async {}
@@ -716,6 +831,8 @@ class _ChatLiveDataSource implements ChatDataSource {
   final _ScriptedAssistantToolResultPrelude? scriptedAssistantToolResultPrelude;
   final List<List<Message>> streamRequests = [];
   final List<List<Message>> streamWithToolsRequests = [];
+  final List<List<ToolResultInfo>> toolResultBatches = [];
+  final List<ChatCompletionResult> toolResultResponses = [];
 
   @override
   Stream<String> streamChatCompletion({
@@ -805,8 +922,9 @@ class _ChatLiveDataSource implements ChatDataSource {
     String? model,
     double? temperature,
     int? maxTokens,
-  }) {
-    return delegate.createChatCompletionWithToolResults(
+  }) async {
+    toolResultBatches.add(List<ToolResultInfo>.unmodifiable(toolResults));
+    final result = await delegate.createChatCompletionWithToolResults(
       messages: messages,
       toolResults: toolResults,
       assistantContent: assistantContent,
@@ -815,6 +933,8 @@ class _ChatLiveDataSource implements ChatDataSource {
       temperature: temperature,
       maxTokens: maxTokens,
     );
+    toolResultResponses.add(result);
+    return result;
   }
 
   @override
@@ -1084,6 +1204,135 @@ class _InlineRecoveryToolService extends McpToolService {
       errorMessage: marker == _inlineRecoveryMarker
           ? null
           : 'Unexpected marker',
+    );
+  }
+}
+
+class _SkillFollowUpToolService extends McpToolService {
+  static const loadSkillToolName = 'load_skill';
+  static const listDirectoryToolName = 'list_directory';
+  static const gitToolName = 'git_execute_command';
+
+  static const skillContent =
+      'Live canary skill instructions. After this skill is loaded, your next '
+      'assistant response must include $_skillFollowUpMarker, list exactly two '
+      'release verification steps in Japanese, and then end the visible text '
+      'with the exact sentence "$_skillFollowUpContinuation。". In the same '
+      'assistant response, call both list_directory with {"path":"."} and '
+      'git_execute_command with {"command":"status"}. Do not ask a follow-up '
+      'question and do not add extra prose after the exact Japanese sentence.';
+
+  final List<String> executedToolNames = [];
+  final List<Map<String, dynamic>> executedArguments = [];
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    return const <Map<String, dynamic>>[
+      {
+        'type': 'function',
+        'function': {
+          'name': loadSkillToolName,
+          'description':
+              'Load the full markdown instructions for a saved user skill.',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'id': {'type': 'string'},
+              'name': {'type': 'string'},
+            },
+          },
+        },
+      },
+      {
+        'type': 'function',
+        'function': {
+          'name': listDirectoryToolName,
+          'description':
+              'List files in a directory for release readiness inspection.',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'path': {'type': 'string'},
+            },
+            'required': ['path'],
+          },
+        },
+      },
+      {
+        'type': 'function',
+        'function': {
+          'name': gitToolName,
+          'description': 'Run a git command for release readiness inspection.',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'command': {'type': 'string'},
+            },
+            'required': ['command'],
+          },
+        },
+      },
+    ];
+  }
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    executedArguments.add(Map<String, dynamic>.from(arguments));
+
+    if (name == loadSkillToolName) {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({
+          'id': 'release-check',
+          'name': 'Release Check',
+          'description': 'Use for release readiness checks',
+          'whenToUse': 'When the user asks to verify release readiness',
+          'content': skillContent,
+        }),
+        isSuccess: true,
+      );
+    }
+
+    if (name == listDirectoryToolName) {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({
+          'unexpected': true,
+          'message':
+              'list_directory should be suppressed after constrained skill output.',
+        }),
+        isSuccess: true,
+      );
+    }
+
+    if (name == gitToolName) {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({
+          'unexpected': true,
+          'message':
+              'git_execute_command should be suppressed after constrained skill output.',
+        }),
+        isSuccess: true,
+      );
+    }
+
+    return McpToolResult(
+      toolName: name,
+      result: jsonEncode({'error': 'Unsupported tool: $name'}),
+      isSuccess: false,
+      errorMessage: 'Unsupported tool: $name',
     );
   }
 }

@@ -86,6 +86,8 @@ void main() {
       expect(prompt, contains('state that it remains unexecuted'));
       expect(prompt, contains('Do not restate an investigation plan'));
       expect(prompt, contains('answer from the executed tool results'));
+      expect(prompt, contains('When a load_skill result contains explicit'));
+      expect(prompt, contains('Do not add optional follow-up questions'));
       expect(prompt, contains('Do not convert a missing source file'));
       expect(prompt, contains('preserve that blocker'));
       expect(prompt, contains('Treat search_past_conversations'));

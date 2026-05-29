@@ -25,6 +25,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
+import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
@@ -34,6 +35,7 @@ import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
+import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
@@ -237,6 +239,27 @@ class _TestBackgroundTaskService extends BackgroundTaskService {
 
   @override
   void dispose() {}
+}
+
+class _ReleaseCheckSkillsNotifier extends SkillsNotifier {
+  @override
+  SkillsState build() {
+    final now = DateTime(2026, 5, 29, 20, 28);
+    return SkillsState(
+      skills: [
+        Skill(
+          id: 'release-check',
+          name: 'Release Check',
+          description: 'Use for release readiness checks',
+          whenToUse: 'When the user asks to verify a release',
+          content:
+              'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      ],
+    );
+  }
 }
 
 class _StreamingChatDataSource implements ChatDataSource {
@@ -450,6 +473,105 @@ class _DelayedAskQuestionToolChatDataSource implements ChatDataSource {
     return StreamWithToolsResult(
       stream: const Stream.empty(),
       completion: initialCompletion.future,
+    );
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
+    return Future<ChatCompletionResult>.value(
+      ChatCompletionResult(content: '', finishReason: 'stop'),
+    );
+  }
+}
+
+class _SkippedSkillLoadChatDataSource implements ChatDataSource {
+  _SkippedSkillLoadChatDataSource({
+    required this.initialContent,
+    required this.finalAnswerChunks,
+  });
+
+  final String initialContent;
+  final List<String> finalAnswerChunks;
+  final List<List<Message>> initialRequests = [];
+  final List<List<ToolResultInfo>> toolResultBatches = [];
+  final List<List<Message>> finalAnswerRequests = [];
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    finalAnswerRequests.add(List<Message>.from(messages));
+    return Stream<String>.fromIterable(finalAnswerChunks);
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    initialRequests.add(List<Message>.from(messages));
+    return StreamWithToolsResult(
+      stream: const Stream.empty(),
+      completion: Future<ChatCompletionResult>.value(
+        ChatCompletionResult(content: initialContent, finishReason: 'stop'),
+      ),
     );
   }
 
@@ -805,6 +927,8 @@ class _ContinuationFallbackChatDataSource implements ChatDataSource {
 class _ToolBatchChatDataSource implements ChatDataSource {
   _ToolBatchChatDataSource({
     required this.initialToolCalls,
+    this.initialCompletionContent = '',
+    this.initialStreamChunks = const [],
     this.followUpToolCalls = const [],
     this.intermediateToolRoleResponseContent = '',
     this.toolRoleResponseContent = '',
@@ -817,6 +941,8 @@ class _ToolBatchChatDataSource implements ChatDataSource {
        );
 
   final List<ToolCallInfo> initialToolCalls;
+  final String initialCompletionContent;
+  final List<String> initialStreamChunks;
   final List<ToolCallInfo> followUpToolCalls;
   final String intermediateToolRoleResponseContent;
   final String toolRoleResponseContent;
@@ -885,10 +1011,10 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     initialRequestMessages.add(List<Message>.from(messages));
     initialToolDefinitionBatches.add(List<Map<String, dynamic>>.from(tools));
     return StreamWithToolsResult(
-      stream: const Stream.empty(),
+      stream: Stream<String>.fromIterable(initialStreamChunks),
       completion: Future<ChatCompletionResult>.value(
         ChatCompletionResult(
-          content: '',
+          content: initialCompletionContent,
           toolCalls: initialToolCalls,
           finishReason: 'tool_calls',
         ),
@@ -1256,6 +1382,7 @@ class _FakeMcpToolService extends McpToolService {
   final Map<String, String> descriptions;
   final Map<String, Queue<String>> queuedResults;
   final List<String> executedToolNames = [];
+  final List<Map<String, dynamic>> executedToolArguments = [];
 
   @override
   Future<void> connect({
@@ -1288,6 +1415,7 @@ class _FakeMcpToolService extends McpToolService {
     required Map<String, dynamic> arguments,
   }) async {
     executedToolNames.add(name);
+    executedToolArguments.add(Map<String, dynamic>.from(arguments));
     if (name == ToolDefinitionSearchService.toolName) {
       return McpToolResult(
         toolName: name,
@@ -1846,6 +1974,523 @@ void main() {
           'query': 'SettingsScreen',
         }),
         containsPair('path', '.'),
+      );
+    },
+  );
+
+  test(
+    'sendMessage recovers when a named skill is promised but not loaded',
+    () async {
+      final dataSource = _SkippedSkillLoadChatDataSource(
+        initialContent:
+            'I will load the Release Check skill before verifying readiness.',
+        finalAnswerChunks: const [
+          'SKILL_LIVE_OK\n1. Run verification.\n2. Draft release notes.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'load_skill': 'Load the full markdown instructions for a skill.',
+        },
+        results: {
+          'load_skill': jsonEncode({
+            'id': 'release-check',
+            'name': 'Release Check',
+            'content':
+                'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          skillsNotifierProvider.overrideWith(_ReleaseCheckSkillsNotifier.new),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(
+        'Use the Release Check skill if relevant. Verify release readiness.',
+      );
+
+      expect(toolService.executedToolNames, ['load_skill']);
+      expect(toolService.executedToolArguments.single['id'], 'release-check');
+      expect(dataSource.toolResultBatches, hasLength(1));
+      expect(dataSource.toolResultBatches.single.single.name, 'load_skill');
+      expect(dataSource.finalAnswerRequests, hasLength(1));
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('SKILL_LIVE_OK'),
+      );
+    },
+  );
+
+  test(
+    'sendMessage recovers when a Japanese skill load is promised but not loaded',
+    () async {
+      final dataSource = _SkippedSkillLoadChatDataSource(
+        initialContent: 'ユーザーがリリースチェックを依頼したので、Release Checkスキルをロードして手順を確認します。',
+        finalAnswerChunks: const [
+          'SKILL_LIVE_OK\n1. Run verification.\n2. Draft release notes.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'load_skill': 'Load the full markdown instructions for a skill.',
+        },
+        results: {
+          'load_skill': jsonEncode({
+            'id': 'release-check',
+            'name': 'Release Check',
+            'content':
+                'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          skillsNotifierProvider.overrideWith(_ReleaseCheckSkillsNotifier.new),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(
+        'Use the Release Check skill if relevant. Verify release readiness.',
+      );
+
+      expect(toolService.executedToolNames, ['load_skill']);
+      expect(toolService.executedToolArguments.single['id'], 'release-check');
+      expect(dataSource.toolResultBatches, hasLength(1));
+      expect(dataSource.toolResultBatches.single.single.name, 'load_skill');
+      expect(dataSource.finalAnswerRequests, hasLength(1));
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('SKILL_LIVE_OK'),
+      );
+    },
+  );
+
+  test('sendMessage does not mark loaded skill steps as unexecuted', () async {
+    const preamble =
+        'I will verify release readiness with the saved skill before answering.\n\n';
+    const finalAnswer =
+        'SKILL_LIVE_OK\n\n'
+        '## リリース readiness チェック - 2つの検証ステップ\n\n'
+        '1. **ビルド・テストの健全性確認**\n'
+        '2. **リリース設定とバージョンの整合性確認**\n\n'
+        '---\n\n'
+        '実際にプロジェクトに対してこれらを実行して検証しますか？'
+        '（例：`flutter analyze`・テスト実行・バージョン確認を自動で走らせる）';
+    final dataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-load-skill',
+          name: 'load_skill',
+          arguments: const {'id': 'release-check'},
+        ),
+      ],
+      initialCompletionContent: preamble,
+      initialStreamChunks: const [preamble],
+      toolRoleResponseContent: finalAnswer,
+      finalAnswerChunks: const ['FALLBACK_FINAL_SHOULD_NOT_STREAM'],
+    );
+    final toolService = _FakeMcpToolService(
+      descriptions: const {
+        'load_skill': 'Load the full markdown instructions for a skill.',
+      },
+      results: {
+        'load_skill': jsonEncode({
+          'id': 'release-check',
+          'name': 'Release Check',
+          'content':
+              'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
+        }),
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final threadContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(threadContainer.dispose);
+
+    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage(
+      'Use the Release Check skill if relevant. Verify release readiness.',
+    );
+
+    expect(toolService.executedToolNames, ['load_skill']);
+    expect(dataSource.finalAnswerRequestMessages, isEmpty);
+    expect(chatNotifier.state.messages.last.content, contains('SKILL_LIVE_OK'));
+    expect(
+      chatNotifier.state.messages.last.content,
+      isNot(contains('FALLBACK_FINAL_SHOULD_NOT_STREAM')),
+    );
+    expect(
+      chatNotifier.state.messages.last.content,
+      isNot(contains('実際にプロジェクトに対してこれらを実行して検証しますか')),
+    );
+    expect(
+      chatNotifier.state.messages.last.content,
+      isNot(
+        contains(
+          'I could not execute the additional tool request above in this final-answer step.',
+        ),
+      ),
+    );
+  });
+
+  test(
+    'sendMessage ignores follow-up tool calls after constrained skill output',
+    () async {
+      const preamble =
+          'I will verify release readiness with the saved skill before answering.\n\n';
+      const constrainedAnswer =
+          'SKILL_LIVE_OK\n\n'
+          'リリース readiness チェックを開始します。以下の2つの検証ステップを実行します：\n\n'
+          '1. **Git ステータス・変更確認** — 未コミットの変更、ステージング状態、ブランチ状況をチェック\n'
+          '2. **ビルド・テスト実行** — プロジェクトのビルドとテストスイートを実行し、エラーがないか確認\n\n'
+          'では、まずステップ1から進めます。';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-load-skill',
+            name: 'load_skill',
+            arguments: const {'id': 'release-check'},
+          ),
+        ],
+        initialCompletionContent: preamble,
+        initialStreamChunks: const [preamble],
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'tool-git-status',
+            name: 'git_execute_command',
+            arguments: const {'command': 'status'},
+          ),
+        ],
+        intermediateToolRoleResponseContent: constrainedAnswer,
+        finalAnswerChunks: const ['FALLBACK_FINAL_SHOULD_NOT_STREAM'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'load_skill': 'Load the full markdown instructions for a skill.',
+          'git_execute_command': 'Execute a git command in a local repository.',
+        },
+        results: {
+          'load_skill': jsonEncode({
+            'id': 'release-check',
+            'name': 'Release Check',
+            'content':
+                'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
+          }),
+          'git_execute_command': 'unexpected git status',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(
+        'Use the Release Check skill if relevant. Verify release readiness.',
+      );
+
+      expect(toolService.executedToolNames, ['load_skill']);
+      expect(dataSource.toolResultBatches, hasLength(1));
+      expect(dataSource.finalAnswerRequestMessages, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('SKILL_LIVE_OK'),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('FALLBACK_FINAL_SHOULD_NOT_STREAM')),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('では、まずステップ1から進めます')),
+      );
+    },
+  );
+
+  test(
+    'sendMessage trims look-around text before ignored skill follow-up tools',
+    () async {
+      const preamble = 'リリースチェックのスキルをロードして進めます。\n\n';
+      const constrainedAnswer =
+          'SKILL_LIVE_OK\n\n'
+          'リリース準備状況を確認するために、以下の2つの検証ステップを実行します：\n\n'
+          '1. **コードベースのリリース関連チェック** – バージョン番号、変更ログ、ビルド設定ファイルが最新かつ整合性を持っているか確認します。\n'
+          '2. **テストとビルドの健全性チェック** – テストスイートの結果とビルドが正常に完了しているか確認します。\n\n'
+          '現在のプロジェクトの状態を確認するために、まずリポジトリの構造と Git ステータスを見てみましょう。';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-load-skill',
+            name: 'load_skill',
+            arguments: const {'id': 'release-check'},
+          ),
+        ],
+        initialCompletionContent: preamble,
+        initialStreamChunks: const [preamble],
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'tool-list-directory',
+            name: 'list_directory',
+            arguments: const {'recursive': false, 'max_entries': 30},
+          ),
+          ToolCallInfo(
+            id: 'tool-git-status',
+            name: 'git_execute_command',
+            arguments: const {'command': 'status'},
+          ),
+        ],
+        intermediateToolRoleResponseContent: constrainedAnswer,
+        finalAnswerChunks: const ['FALLBACK_FINAL_SHOULD_NOT_STREAM'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'load_skill': 'Load the full markdown instructions for a skill.',
+          'list_directory': 'List files in a directory.',
+          'git_execute_command': 'Execute a git command in a local repository.',
+        },
+        results: {
+          'load_skill': jsonEncode({
+            'id': 'release-check',
+            'name': 'Release Check',
+            'content':
+                'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
+          }),
+          'list_directory': 'unexpected directory listing',
+          'git_execute_command': 'unexpected git status',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(
+        'Use the Release Check skill if relevant. Verify release readiness.',
+      );
+
+      expect(toolService.executedToolNames, ['load_skill']);
+      expect(dataSource.toolResultBatches, hasLength(1));
+      expect(dataSource.finalAnswerRequestMessages, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('SKILL_LIVE_OK'),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('FALLBACK_FINAL_SHOULD_NOT_STREAM')),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('リポジトリの構造と Git ステータスを見てみましょう')),
+      );
+    },
+  );
+
+  test(
+    'sendMessage trims actual-check text before ignored skill follow-up tools',
+    () async {
+      const preamble = 'リリースチェックのスキルをロードして、リリース準備状況を確認します。\n\n';
+      const constrainedAnswer =
+          'SKILL_LIVE_OK\n\n'
+          'リリース準備状況の確認として、以下の2つの検証ステップを行います。\n\n'
+          '1. **プロジェクト構造と設定ファイルの確認** — `pubspec.yaml`、`build.yaml` などの設定がリリースビルドに適切に設定されているか確認します。\n'
+          '2. **Git ステータスの確認** — 未コミットの変更、未プッシュのコミット、ブランチ状態を確認して、リリース対象が正しい状態か検証します。\n\n'
+          'では実際に確認を進めます。';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-load-skill',
+            name: 'load_skill',
+            arguments: const {'id': 'release-check'},
+          ),
+        ],
+        initialCompletionContent: preamble,
+        initialStreamChunks: const [preamble],
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'tool-list-directory',
+            name: 'list_directory',
+            arguments: const {'path': '.'},
+          ),
+          ToolCallInfo(
+            id: 'tool-git-status',
+            name: 'git_execute_command',
+            arguments: const {'command': 'status'},
+          ),
+        ],
+        intermediateToolRoleResponseContent: constrainedAnswer,
+        finalAnswerChunks: const ['FALLBACK_FINAL_SHOULD_NOT_STREAM'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'load_skill': 'Load the full markdown instructions for a skill.',
+          'list_directory': 'List files in a directory.',
+          'git_execute_command': 'Execute a git command in a local repository.',
+        },
+        results: {
+          'load_skill': jsonEncode({
+            'id': 'release-check',
+            'name': 'Release Check',
+            'content':
+                'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
+          }),
+          'list_directory': 'unexpected directory listing',
+          'git_execute_command': 'unexpected git status',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(
+        'Use the Release Check skill if relevant. Verify release readiness.',
+      );
+
+      expect(toolService.executedToolNames, ['load_skill']);
+      expect(dataSource.toolResultBatches, hasLength(1));
+      expect(dataSource.finalAnswerRequestMessages, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('SKILL_LIVE_OK'),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('FALLBACK_FINAL_SHOULD_NOT_STREAM')),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('では実際に確認を進めます')),
       );
     },
   );
