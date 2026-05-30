@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../entities/tool_call_info.dart';
+import 'dart_project_tooling.dart';
 
 typedef CodingDiagnosticCommandRunner =
     Future<CodingDiagnosticCommandOutput> Function(
@@ -40,35 +41,348 @@ class CodingDiagnosticCommandOutput {
   bool get ran => !timedOut && startError == null;
 }
 
+abstract interface class CodingDiagnosticFeedbackProvider {
+  String get providerName;
+
+  Future<CodingDiagnosticSnapshot?> collectSnapshot({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+  });
+}
+
+class CodingDiagnosticSnapshot {
+  const CodingDiagnosticSnapshot({
+    required this.providerName,
+    required this.projectRoot,
+    required this.changedPaths,
+    required this.diagnostics,
+    required this.telemetry,
+    this.selectedAttempt,
+  });
+
+  final String providerName;
+  final String projectRoot;
+  final List<String> changedPaths;
+  final List<CodeDiagnostic> diagnostics;
+  final CodingDiagnosticTelemetry telemetry;
+  final CodingDiagnosticCommandAttempt? selectedAttempt;
+}
+
+class CodingDiagnosticFeedbackBaseline {
+  const CodingDiagnosticFeedbackBaseline({
+    required this.providerName,
+    required this.projectRoot,
+    required this.changedPaths,
+    required this.diagnostics,
+    required this.telemetry,
+  });
+
+  factory CodingDiagnosticFeedbackBaseline.fromSnapshot(
+    CodingDiagnosticSnapshot snapshot,
+  ) {
+    return CodingDiagnosticFeedbackBaseline(
+      providerName: snapshot.providerName,
+      projectRoot: snapshot.projectRoot,
+      changedPaths: snapshot.changedPaths,
+      diagnostics: snapshot.diagnostics,
+      telemetry: snapshot.telemetry,
+    );
+  }
+
+  final String providerName;
+  final String projectRoot;
+  final List<String> changedPaths;
+  final List<CodeDiagnostic> diagnostics;
+  final CodingDiagnosticTelemetry telemetry;
+}
+
+class CodeDiagnostic {
+  const CodeDiagnostic({
+    required this.absolutePath,
+    required this.severity,
+    required this.line,
+    required this.column,
+    required this.message,
+    this.code,
+    this.source,
+  });
+
+  final String absolutePath;
+  final String severity;
+  final int line;
+  final int column;
+  final String message;
+  final String? code;
+  final String? source;
+
+  int get severityRank => _severityRank(severity);
+
+  String get dedupeKey {
+    return [
+      DartProjectPath.pathKey(absolutePath),
+      severity,
+      line,
+      column,
+      code ?? '',
+      source ?? '',
+      message,
+    ].join('|');
+  }
+
+  String relativePath(String projectRoot) {
+    return DartProjectPath.relativePath(absolutePath, projectRoot);
+  }
+
+  Map<String, dynamic> toJson({required String projectRoot}) {
+    return {
+      'path': absolutePath,
+      'relative_path': relativePath(projectRoot),
+      'severity': severity,
+      'line': line,
+      'column': column,
+      if (code != null && code!.isNotEmpty) 'code': code,
+      if (source != null && source!.isNotEmpty) 'source': source,
+      'message': message,
+    };
+  }
+}
+
+class CodingDiagnosticTelemetry {
+  const CodingDiagnosticTelemetry({
+    required this.durationMs,
+    required this.attempts,
+  });
+
+  final int durationMs;
+  final List<CodingDiagnosticCommandAttempt> attempts;
+
+  int get commandAttemptCount => attempts.length;
+
+  int get fallbackCommandCount =>
+      commandAttemptCount == 0 ? 0 : commandAttemptCount - 1;
+
+  int get timedOutCommandCount =>
+      attempts.where((attempt) => attempt.timedOut).length;
+
+  int get startErrorCommandCount =>
+      attempts.where((attempt) => attempt.startError != null).length;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'duration_ms': durationMs,
+      'command_attempt_count': commandAttemptCount,
+      'fallback_command_count': fallbackCommandCount,
+      'timed_out_command_count': timedOutCommandCount,
+      'start_error_command_count': startErrorCommandCount,
+      'attempts': attempts.map((attempt) => attempt.toJson()).toList(),
+    };
+  }
+}
+
+class CodingDiagnosticCommandAttempt {
+  const CodingDiagnosticCommandAttempt({
+    required this.command,
+    required this.exitCode,
+    required this.durationMs,
+    required this.timedOut,
+    required this.diagnosticCount,
+    this.startError,
+  });
+
+  final CodingDiagnosticCommand command;
+  final int exitCode;
+  final int durationMs;
+  final bool timedOut;
+  final int diagnosticCount;
+  final String? startError;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'executable': command.executable,
+      'arguments': command.arguments,
+      'working_directory': command.workingDirectory,
+      'exit_code': exitCode,
+      'duration_ms': durationMs,
+      'timed_out': timedOut,
+      'diagnostic_count': diagnosticCount,
+      if (startError != null) 'start_error': startError,
+    };
+  }
+}
+
 class CodingDiagnosticFeedbackService {
   CodingDiagnosticFeedbackService({
     CodingDiagnosticCommandRunner? commandRunner,
+    CodingDiagnosticFeedbackProvider? provider,
     this.timeout = const Duration(seconds: 20),
     this.maxDiagnosticsPerFile = 10,
     this.maxTotalDiagnostics = 30,
-  }) : _commandRunner = commandRunner ?? _runAnalyzeCommand;
+  }) : _provider =
+           provider ??
+           DartAnalyzerDiagnosticFeedbackProvider(
+             commandRunner: commandRunner,
+             timeout: timeout,
+           );
 
   static const toolName = 'dart_analyze_feedback';
   static const schemaName = 'caverno_dart_analyze_feedback';
 
-  static final RegExp _windowsDriveLetterPath = RegExp(r'^[A-Za-z]:[\\/]');
-
-  final CodingDiagnosticCommandRunner _commandRunner;
+  final CodingDiagnosticFeedbackProvider _provider;
   final Duration timeout;
   final int maxDiagnosticsPerFile;
   final int maxTotalDiagnostics;
 
+  Future<CodingDiagnosticFeedbackBaseline?> captureBaseline({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+  }) async {
+    if (!isDesktopPlatform) {
+      return null;
+    }
+
+    final snapshot = await _provider.collectSnapshot(
+      projectRoot: projectRoot,
+      changedPaths: changedPaths,
+    );
+    if (snapshot == null) {
+      return null;
+    }
+    return CodingDiagnosticFeedbackBaseline.fromSnapshot(snapshot);
+  }
+
   Future<ToolResultInfo?> buildFeedbackToolResult({
     required String projectRoot,
     required Iterable<String> changedPaths,
+    CodingDiagnosticFeedbackBaseline? baseline,
     DateTime? now,
   }) async {
     if (!isDesktopPlatform) {
       return null;
     }
 
+    final snapshot = await _provider.collectSnapshot(
+      projectRoot: projectRoot,
+      changedPaths: changedPaths,
+    );
+    if (snapshot == null || snapshot.diagnostics.isEmpty) {
+      return null;
+    }
+
+    final newDiagnostics = _newDiagnostics(snapshot, baseline);
+    if (newDiagnostics.isEmpty) {
+      return null;
+    }
+
+    final limitedDiagnostics = _limitDiagnostics(newDiagnostics);
+    final selectedAttempt = snapshot.selectedAttempt;
+    final payload = {
+      'schema': schemaName,
+      'provider': snapshot.providerName,
+      'instruction':
+          'These new analyzer diagnostics were detected after the latest Dart file edits. Fix relevant errors or warnings before claiming the coding task is complete.',
+      'project_root': snapshot.projectRoot,
+      'changed_paths': snapshot.changedPaths,
+      'baseline_applied': baseline != null,
+      'baseline_diagnostic_count': baseline?.diagnostics.length ?? 0,
+      'current_diagnostic_count': snapshot.diagnostics.length,
+      'existing_diagnostic_count': baseline == null
+          ? 0
+          : snapshot.diagnostics.length - newDiagnostics.length,
+      'diagnostic_count': limitedDiagnostics.length,
+      'new_diagnostic_count': limitedDiagnostics.length,
+      'telemetry': snapshot.telemetry.toJson(),
+      if (selectedAttempt != null)
+        'analyzer': {
+          'executable': selectedAttempt.command.executable,
+          'arguments': selectedAttempt.command.arguments,
+          'working_directory': selectedAttempt.command.workingDirectory,
+          'exit_code': selectedAttempt.exitCode,
+          'duration_ms': selectedAttempt.durationMs,
+          'timed_out': selectedAttempt.timedOut,
+        },
+      'diagnostics': limitedDiagnostics
+          .map(
+            (diagnostic) =>
+                diagnostic.toJson(projectRoot: snapshot.projectRoot),
+          )
+          .toList(growable: false),
+      if (limitedDiagnostics.length < newDiagnostics.length)
+        'truncated_diagnostic_count':
+            newDiagnostics.length - limitedDiagnostics.length,
+    };
+
+    return ToolResultInfo(
+      id: '${toolName}_${(now ?? DateTime.now()).microsecondsSinceEpoch}',
+      name: toolName,
+      arguments: {
+        'project_root': snapshot.projectRoot,
+        'changed_paths': snapshot.changedPaths,
+      },
+      result: jsonEncode(payload),
+    );
+  }
+
+  static bool get isDesktopPlatform =>
+      Platform.isMacOS || Platform.isLinux || Platform.isWindows;
+
+  List<CodeDiagnostic> _newDiagnostics(
+    CodingDiagnosticSnapshot snapshot,
+    CodingDiagnosticFeedbackBaseline? baseline,
+  ) {
+    if (baseline == null ||
+        baseline.providerName != snapshot.providerName ||
+        DartProjectPath.pathKey(baseline.projectRoot) !=
+            DartProjectPath.pathKey(snapshot.projectRoot)) {
+      return snapshot.diagnostics;
+    }
+
+    final baselineKeys = baseline.diagnostics
+        .map((diagnostic) => diagnostic.dedupeKey)
+        .toSet();
+    return snapshot.diagnostics
+        .where((diagnostic) => !baselineKeys.contains(diagnostic.dedupeKey))
+        .toList(growable: false);
+  }
+
+  List<CodeDiagnostic> _limitDiagnostics(List<CodeDiagnostic> diagnostics) {
+    final perFileCounts = <String, int>{};
+    final limited = <CodeDiagnostic>[];
+    for (final diagnostic in diagnostics) {
+      if (limited.length >= maxTotalDiagnostics) {
+        break;
+      }
+      final fileKey = DartProjectPath.pathKey(diagnostic.absolutePath);
+      final fileCount = perFileCounts[fileKey] ?? 0;
+      if (fileCount >= maxDiagnosticsPerFile) {
+        continue;
+      }
+      perFileCounts[fileKey] = fileCount + 1;
+      limited.add(diagnostic);
+    }
+    return limited;
+  }
+}
+
+class DartAnalyzerDiagnosticFeedbackProvider
+    implements CodingDiagnosticFeedbackProvider {
+  DartAnalyzerDiagnosticFeedbackProvider({
+    CodingDiagnosticCommandRunner? commandRunner,
+    this.timeout = const Duration(seconds: 20),
+  }) : _commandRunner = commandRunner ?? _runAnalyzeCommand;
+
+  @override
+  String get providerName => 'dart_analyzer';
+
+  final CodingDiagnosticCommandRunner _commandRunner;
+  final Duration timeout;
+
+  @override
+  Future<CodingDiagnosticSnapshot?> collectSnapshot({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+  }) async {
     final root = Directory(projectRoot).absolute.path;
-    final changedDartFiles = _changedDartFiles(
+    final changedDartFiles = DartProjectTooling.changedDartFiles(
       projectRoot: root,
       changedPaths: changedPaths,
     );
@@ -76,71 +390,92 @@ class CodingDiagnosticFeedbackService {
       return null;
     }
 
+    final stopwatch = Stopwatch()..start();
+    final attempts = <CodingDiagnosticCommandAttempt>[];
     for (final command in _buildAnalyzeCommands(root, changedDartFiles)) {
+      final attemptStopwatch = Stopwatch()..start();
       final output = await _commandRunner(command, timeout);
+      attemptStopwatch.stop();
+
       final diagnostics = _parseDiagnostics(
         '${output.stdout}\n${output.stderr}',
         projectRoot: root,
         pathBase: command.workingDirectory,
         changedFiles: changedDartFiles,
       );
+      final attempt = CodingDiagnosticCommandAttempt(
+        command: command,
+        exitCode: output.exitCode,
+        durationMs: attemptStopwatch.elapsedMilliseconds,
+        timedOut: output.timedOut,
+        startError: output.startError,
+        diagnosticCount: diagnostics.length,
+      );
+      attempts.add(attempt);
+
       if (diagnostics.isEmpty) {
         if (output.ran && output.exitCode == 0) {
-          return null;
+          stopwatch.stop();
+          return _snapshot(
+            projectRoot: root,
+            changedDartFiles: changedDartFiles,
+            diagnostics: const [],
+            attempts: attempts,
+            durationMs: stopwatch.elapsedMilliseconds,
+            selectedAttempt: attempt,
+          );
         }
         continue;
       }
 
-      final limitedDiagnostics = _limitDiagnostics(diagnostics);
-      final payload = {
-        'schema': schemaName,
-        'instruction':
-            'These analyzer diagnostics were detected after the latest Dart file edits. Fix relevant errors or warnings before claiming the coding task is complete.',
-        'project_root': root,
-        'changed_paths': changedDartFiles
-            .map((file) => file.relativePath)
-            .toList(growable: false),
-        'analyzer': {
-          'executable': command.executable,
-          'arguments': command.arguments,
-          'working_directory': command.workingDirectory,
-          'exit_code': output.exitCode,
-        },
-        'diagnostic_count': limitedDiagnostics.length,
-        'diagnostics': limitedDiagnostics
-            .map((diagnostic) => diagnostic.toJson(projectRoot: root))
-            .toList(growable: false),
-        if (limitedDiagnostics.length < diagnostics.length)
-          'truncated_diagnostic_count':
-              diagnostics.length - limitedDiagnostics.length,
-      };
-
-      return ToolResultInfo(
-        id: '${toolName}_${(now ?? DateTime.now()).microsecondsSinceEpoch}',
-        name: toolName,
-        arguments: {
-          'project_root': root,
-          'changed_paths': changedDartFiles
-              .map((file) => file.relativePath)
-              .toList(growable: false),
-        },
-        result: jsonEncode(payload),
+      stopwatch.stop();
+      return _snapshot(
+        projectRoot: root,
+        changedDartFiles: changedDartFiles,
+        diagnostics: diagnostics,
+        attempts: attempts,
+        durationMs: stopwatch.elapsedMilliseconds,
+        selectedAttempt: attempt,
       );
     }
 
+    stopwatch.stop();
     return null;
   }
 
-  static bool get isDesktopPlatform =>
-      Platform.isMacOS || Platform.isLinux || Platform.isWindows;
+  CodingDiagnosticSnapshot _snapshot({
+    required String projectRoot,
+    required List<DartChangedFile> changedDartFiles,
+    required List<CodeDiagnostic> diagnostics,
+    required List<CodingDiagnosticCommandAttempt> attempts,
+    required int durationMs,
+    required CodingDiagnosticCommandAttempt selectedAttempt,
+  }) {
+    return CodingDiagnosticSnapshot(
+      providerName: providerName,
+      projectRoot: projectRoot,
+      changedPaths: changedDartFiles
+          .map((file) => file.relativePath)
+          .toList(growable: false),
+      diagnostics: diagnostics,
+      telemetry: CodingDiagnosticTelemetry(
+        durationMs: durationMs,
+        attempts: List<CodingDiagnosticCommandAttempt>.unmodifiable(attempts),
+      ),
+      selectedAttempt: selectedAttempt,
+    );
+  }
 
   List<CodingDiagnosticCommand> _buildAnalyzeCommands(
     String projectRoot,
-    List<_ChangedDartFile> changedDartFiles,
+    List<DartChangedFile> changedDartFiles,
   ) {
     final analysisRoot = _analysisRootForFiles(projectRoot, changedDartFiles);
     final analysisRelativePaths = changedDartFiles
-        .map((file) => _relativePath(file.absolutePath, analysisRoot))
+        .map(
+          (file) =>
+              DartProjectPath.relativePath(file.absolutePath, analysisRoot),
+        )
         .toList(growable: false);
     final analyzeArgs = [
       'analyze',
@@ -155,11 +490,10 @@ class CodingDiagnosticFeedbackService {
       ...analysisRelativePaths,
     ];
     final fvmFlutterAnalyzeArgs = ['flutter', ...flutterAnalyzeArgs];
-    final hasFvmMetadata =
-        File('$analysisRoot/.fvm/fvm_config.json').existsSync() ||
-        File('$analysisRoot/.fvmrc').existsSync() ||
-        File('$projectRoot/.fvm/fvm_config.json').existsSync() ||
-        File('$projectRoot/.fvmrc').existsSync();
+    final hasFvmMetadata = DartProjectTooling.hasFvmMetadata(
+      packageRoot: analysisRoot,
+      projectRoot: projectRoot,
+    );
 
     final commands = <CodingDiagnosticCommand>[];
     if (hasFvmMetadata) {
@@ -215,74 +549,21 @@ class CodingDiagnosticFeedbackService {
 
   String _analysisRootForFiles(
     String projectRoot,
-    List<_ChangedDartFile> changedDartFiles,
+    List<DartChangedFile> changedDartFiles,
   ) {
-    final roots = changedDartFiles
-        .map((file) => _nearestPackageRoot(file.absolutePath, projectRoot))
-        .toSet();
-    return roots.length == 1 ? roots.single : projectRoot;
+    return DartProjectTooling.rootForFiles(projectRoot, changedDartFiles);
   }
 
-  String _nearestPackageRoot(String filePath, String projectRoot) {
-    var directory = File(filePath).parent.absolute;
-    final root = Directory(projectRoot).absolute;
-    while (_isInsideRoot(directory.path, root.path)) {
-      if (File.fromUri(directory.uri.resolve('pubspec.yaml')).existsSync()) {
-        return directory.path;
-      }
-      final parent = directory.parent;
-      if (parent.path == directory.path) {
-        break;
-      }
-      directory = parent;
-    }
-    return root.path;
-  }
-
-  List<_ChangedDartFile> _changedDartFiles({
-    required String projectRoot,
-    required Iterable<String> changedPaths,
-  }) {
-    final seen = <String>{};
-    final files = <_ChangedDartFile>[];
-    for (final rawPath in changedPaths) {
-      final absolutePath = _resolvePath(rawPath, projectRoot: projectRoot);
-      if (absolutePath == null) {
-        continue;
-      }
-      if (!_isInsideRoot(absolutePath, projectRoot)) {
-        continue;
-      }
-      if (!absolutePath.toLowerCase().endsWith('.dart')) {
-        continue;
-      }
-      if (!File(absolutePath).existsSync()) {
-        continue;
-      }
-      if (!seen.add(_pathKey(absolutePath))) {
-        continue;
-      }
-      files.add(
-        _ChangedDartFile(
-          absolutePath: absolutePath,
-          relativePath: _relativePath(absolutePath, projectRoot),
-        ),
-      );
-    }
-    files.sort((a, b) => a.relativePath.compareTo(b.relativePath));
-    return files;
-  }
-
-  List<_AnalyzerDiagnostic> _parseDiagnostics(
+  List<CodeDiagnostic> _parseDiagnostics(
     String output, {
     required String projectRoot,
     required String pathBase,
-    required List<_ChangedDartFile> changedFiles,
+    required List<DartChangedFile> changedFiles,
   }) {
     final changedPathKeys = changedFiles
-        .map((file) => _pathKey(file.absolutePath))
+        .map((file) => DartProjectPath.pathKey(file.absolutePath))
         .toSet();
-    final diagnostics = <_AnalyzerDiagnostic>[];
+    final diagnostics = <CodeDiagnostic>[];
     final seen = <String>{};
 
     for (final line in const LineSplitter().convert(output)) {
@@ -293,7 +574,9 @@ class CodingDiagnosticFeedbackService {
       if (diagnostic == null) {
         continue;
       }
-      if (!changedPathKeys.contains(_pathKey(diagnostic.absolutePath))) {
+      if (!changedPathKeys.contains(
+        DartProjectPath.pathKey(diagnostic.absolutePath),
+      )) {
         continue;
       }
       final key = diagnostic.dedupeKey;
@@ -317,7 +600,7 @@ class CodingDiagnosticFeedbackService {
     return diagnostics;
   }
 
-  _AnalyzerDiagnostic? _parseMachineDiagnosticLine(
+  CodeDiagnostic? _parseMachineDiagnosticLine(
     String line, {
     required String pathBase,
   }) {
@@ -329,16 +612,20 @@ class CodingDiagnosticFeedbackService {
     if (severity == null) {
       return null;
     }
-    final absolutePath = _resolvePath(parts[3], projectRoot: pathBase);
+    final absolutePath = DartProjectPath.resolvePath(
+      parts[3],
+      projectRoot: pathBase,
+    );
     final lineNumber = int.tryParse(parts[4]);
     final column = int.tryParse(parts[5]);
     if (absolutePath == null || lineNumber == null || column == null) {
       return null;
     }
 
-    return _AnalyzerDiagnostic(
+    return CodeDiagnostic(
       absolutePath: absolutePath,
       severity: severity,
+      source: parts[1].trim().isEmpty ? null : parts[1].trim(),
       code: parts[2].trim().isEmpty ? null : parts[2].trim(),
       line: lineNumber,
       column: column,
@@ -346,7 +633,7 @@ class CodingDiagnosticFeedbackService {
     );
   }
 
-  _AnalyzerDiagnostic? _parseHumanDiagnosticLine(
+  CodeDiagnostic? _parseHumanDiagnosticLine(
     String line, {
     required String pathBase,
   }) {
@@ -358,7 +645,10 @@ class CodingDiagnosticFeedbackService {
       return null;
     }
     final severity = _normalizeSeverity(match.group(1));
-    final absolutePath = _resolvePath(match.group(2), projectRoot: pathBase);
+    final absolutePath = DartProjectPath.resolvePath(
+      match.group(2),
+      projectRoot: pathBase,
+    );
     final lineNumber = int.tryParse(match.group(3) ?? '');
     final column = int.tryParse(match.group(4) ?? '');
     if (severity == null ||
@@ -367,7 +657,7 @@ class CodingDiagnosticFeedbackService {
         column == null) {
       return null;
     }
-    return _AnalyzerDiagnostic(
+    return CodeDiagnostic(
       absolutePath: absolutePath,
       severity: severity,
       code: match.group(6)?.trim(),
@@ -377,7 +667,7 @@ class CodingDiagnosticFeedbackService {
     );
   }
 
-  _AnalyzerDiagnostic? _parseFlutterDiagnosticLine(
+  CodeDiagnostic? _parseFlutterDiagnosticLine(
     String line, {
     required String pathBase,
   }) {
@@ -398,13 +688,16 @@ class CodingDiagnosticFeedbackService {
     if (severity == null || location == null) {
       return null;
     }
-    final absolutePath = _resolvePath(location.group(1), projectRoot: pathBase);
+    final absolutePath = DartProjectPath.resolvePath(
+      location.group(1),
+      projectRoot: pathBase,
+    );
     final lineNumber = int.tryParse(location.group(2) ?? '');
     final column = int.tryParse(location.group(3) ?? '');
     if (absolutePath == null || lineNumber == null || column == null) {
       return null;
     }
-    return _AnalyzerDiagnostic(
+    return CodeDiagnostic(
       absolutePath: absolutePath,
       severity: severity,
       code: parts[3].trim().isEmpty ? null : parts[3].trim(),
@@ -412,26 +705,6 @@ class CodingDiagnosticFeedbackService {
       column: column,
       message: parts[1],
     );
-  }
-
-  List<_AnalyzerDiagnostic> _limitDiagnostics(
-    List<_AnalyzerDiagnostic> diagnostics,
-  ) {
-    final perFileCounts = <String, int>{};
-    final limited = <_AnalyzerDiagnostic>[];
-    for (final diagnostic in diagnostics) {
-      if (limited.length >= maxTotalDiagnostics) {
-        break;
-      }
-      final fileKey = _pathKey(diagnostic.absolutePath);
-      final fileCount = perFileCounts[fileKey] ?? 0;
-      if (fileCount >= maxDiagnosticsPerFile) {
-        continue;
-      }
-      perFileCounts[fileKey] = fileCount + 1;
-      limited.add(diagnostic);
-    }
-    return limited;
   }
 
   static String? _normalizeSeverity(String? value) {
@@ -448,61 +721,6 @@ class CodingDiagnosticFeedbackService {
       default:
         return null;
     }
-  }
-
-  static int _severityRank(String severity) {
-    return switch (severity) {
-      'Error' => 1,
-      'Warning' => 2,
-      'Info' => 3,
-      'Hint' => 4,
-      _ => 5,
-    };
-  }
-
-  static String? _resolvePath(String? rawPath, {required String projectRoot}) {
-    final trimmed = rawPath?.trim();
-    if (trimmed == null || trimmed.isEmpty) {
-      return null;
-    }
-    if (_isAbsolutePath(trimmed)) {
-      return File(trimmed).absolute.path;
-    }
-    return File.fromUri(Directory(projectRoot).uri.resolve(trimmed)).path;
-  }
-
-  static bool _isAbsolutePath(String path) {
-    return path.startsWith('/') ||
-        path.startsWith(r'\\') ||
-        _windowsDriveLetterPath.hasMatch(path);
-  }
-
-  static bool _isInsideRoot(String candidatePath, String projectRoot) {
-    final rootKey = _pathKey(projectRoot);
-    final candidateKey = _pathKey(candidatePath);
-    final separator = Platform.pathSeparator;
-    return candidateKey == rootKey ||
-        candidateKey.startsWith('$rootKey$separator');
-  }
-
-  static String _relativePath(String absolutePath, String projectRoot) {
-    final root = Directory(projectRoot).absolute.path;
-    final path = File(absolutePath).absolute.path;
-    if (path == root) {
-      return '.';
-    }
-    final prefix = root.endsWith(Platform.pathSeparator)
-        ? root
-        : '$root${Platform.pathSeparator}';
-    if (!path.startsWith(prefix)) {
-      return path;
-    }
-    return path.substring(prefix.length);
-  }
-
-  static String _pathKey(String path) {
-    final normalized = File(path).absolute.path;
-    return Platform.isWindows ? normalized.toLowerCase() : normalized;
   }
 
   static Future<CodingDiagnosticCommandOutput> _runAnalyzeCommand(
@@ -541,63 +759,12 @@ class CodingDiagnosticFeedbackService {
   }
 }
 
-class _ChangedDartFile {
-  const _ChangedDartFile({
-    required this.absolutePath,
-    required this.relativePath,
-  });
-
-  final String absolutePath;
-  final String relativePath;
-}
-
-class _AnalyzerDiagnostic {
-  const _AnalyzerDiagnostic({
-    required this.absolutePath,
-    required this.severity,
-    required this.line,
-    required this.column,
-    required this.message,
-    this.code,
-  });
-
-  final String absolutePath;
-  final String severity;
-  final int line;
-  final int column;
-  final String message;
-  final String? code;
-
-  int get severityRank =>
-      CodingDiagnosticFeedbackService._severityRank(severity);
-
-  String get dedupeKey {
-    return [
-      CodingDiagnosticFeedbackService._pathKey(absolutePath),
-      severity,
-      line,
-      column,
-      code ?? '',
-      message,
-    ].join('|');
-  }
-
-  String relativePath(String projectRoot) {
-    return CodingDiagnosticFeedbackService._relativePath(
-      absolutePath,
-      projectRoot,
-    );
-  }
-
-  Map<String, dynamic> toJson({required String projectRoot}) {
-    return {
-      'path': absolutePath,
-      'relative_path': relativePath(projectRoot),
-      'severity': severity,
-      'line': line,
-      'column': column,
-      if (code != null && code!.isNotEmpty) 'code': code,
-      'message': message,
-    };
-  }
+int _severityRank(String severity) {
+  return switch (severity) {
+    'Error' => 1,
+    'Warning' => 2,
+    'Info' => 3,
+    'Hint' => 4,
+    _ => 5,
+  };
 }

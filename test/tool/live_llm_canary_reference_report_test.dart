@@ -112,6 +112,40 @@ void main() {
           'feedbackCount': 11,
           'diagnosticCount': 17,
           'files': ['lib/main.dart', 'packages/nested_app/lib/main.dart'],
+          'durationMs': 1200,
+          'commandAttemptCount': 11,
+          'fallbackCommandCount': 1,
+          'timedOutCommandCount': 0,
+          'startErrorCommandCount': 0,
+        },
+      },
+    );
+    final codingVerificationFeedbackSummary = _writeLiveSummary(
+      directory: directory,
+      fileName: 'coding_verification_feedback_summary.json',
+      surface: 'coding_verification_feedback',
+      canaryName: 'coding_verification_feedback_live_canary',
+      passedCount: 6,
+      testCount: 6,
+      tests: _verificationFeedbackTests(repeatCount: 3),
+      signals: const {
+        'dartTestFeedback': {
+          'observed': true,
+          'feedbackCount': 6,
+          'passedCount': 6,
+          'failedCount': 6,
+          'skippedCount': 0,
+          'files': [
+            'lib/canary_value.dart',
+            'packages/nested_app/lib/canary_value.dart',
+          ],
+          'triggers': ['completionClaim'],
+          'validationStatuses': ['failed'],
+          'durationMs': 1200,
+          'commandAttemptCount': 6,
+          'fallbackCommandCount': 0,
+          'timedOutCommandCount': 0,
+          'startErrorCommandCount': 0,
         },
       },
     );
@@ -142,6 +176,7 @@ void main() {
       codingGoalSummary: codingGoalSummary,
       codingGoalEditSummary: codingGoalEditSummary,
       codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
+      codingVerificationFeedbackSummary: codingVerificationFeedbackSummary,
       chatSummary: chatSummary,
       budgetSummary: budgetSummary,
       routineSummary: routineSummary,
@@ -151,10 +186,10 @@ void main() {
     expect(report.result, 'passed');
     expect(report.model, 'qwen3.6-27b-mtp-vision');
     expect(report.baseUrl, 'http://127.0.0.1:1234/v1');
-    expect(report.totalPassed, 24);
-    expect(report.totalCount, 24);
+    expect(report.totalPassed, 30);
+    expect(report.totalCount, 30);
     expect(report.validationErrors, isEmpty);
-    expect(report.entries, hasLength(9));
+    expect(report.entries, hasLength(10));
     expect(report.entries.first.riskSummary, contains('approval fallback 3'));
     expect(
       report.entries.first.riskSummary,
@@ -176,6 +211,17 @@ void main() {
     expect(
       diagnosticEntry.signals.toJson(),
       containsPair('dartAnalyzeDiagnosticCount', 17),
+    );
+    final verificationEntry = report.entries.singleWhere(
+      (entry) => entry.surface == 'coding_verification_feedback',
+    );
+    expect(
+      verificationEntry.riskSummary,
+      contains('test feedback 6, failures 6'),
+    );
+    expect(
+      verificationEntry.signals.toJson(),
+      containsPair('dartTestFailureCount', 6),
     );
     expect(report.toJson()['schemaName'], 'live_llm_canary_reference_report');
     expect(report.toJson()['schemaVersion'], 2);
@@ -285,6 +331,55 @@ void main() {
       expect(report.result, 'failed');
       expect(report.isSuccessful, isFalse);
       expect(report.entries.single.riskSummary, contains('repeat_coverage 1'));
+      expect(
+        report.entries.single.riskSummary,
+        contains('required_feedback_files 1'),
+      );
+    },
+  );
+
+  test(
+    'fails when verification feedback evidence misses release gate coverage',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'live-llm-reference-verification-gate-test-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+
+      final codingVerificationFeedbackSummary = _writeLiveSummary(
+        directory: directory,
+        fileName: 'coding_verification_feedback_summary.json',
+        surface: 'coding_verification_feedback',
+        canaryName: 'coding_verification_feedback_live_canary',
+        passedCount: 2,
+        testCount: 2,
+        tests: _verificationFeedbackTests(repeatCount: 1),
+        signals: const {
+          'dartTestFeedback': {
+            'observed': true,
+            'feedbackCount': 2,
+            'passedCount': 2,
+            'failedCount': 2,
+            'files': ['lib/canary_value.dart'],
+            'triggers': ['explicitRequest'],
+            'validationStatuses': ['passed'],
+          },
+        },
+      );
+
+      final report = await buildLiveLlmCanaryReferenceReport(
+        label: 'verification gate case',
+        codingVerificationFeedbackSummary: codingVerificationFeedbackSummary,
+        generatedAt: DateTime.utc(2026, 5, 30),
+      );
+
+      expect(report.result, 'failed');
+      expect(report.isSuccessful, isFalse);
+      expect(report.entries.single.riskSummary, contains('repeat_coverage 1'));
+      expect(
+        report.entries.single.riskSummary,
+        contains('completion_claim_feedback 1'),
+      );
       expect(
         report.entries.single.riskSummary,
         contains('required_feedback_files 1'),
@@ -443,6 +538,42 @@ void main() {
             'feedbackCount': 11,
             'diagnosticCount': 17,
             'files': ['lib/main.dart', 'packages/nested_app/lib/main.dart'],
+            'durationMs': 1200,
+            'commandAttemptCount': 11,
+            'fallbackCommandCount': 1,
+            'timedOutCommandCount': 0,
+            'startErrorCommandCount': 0,
+          },
+        },
+      ),
+    );
+    _writeJsonPath(
+      directory,
+      'coding_verification_feedback_live_canary_590/canary_summary.json',
+      _liveSummaryJson(
+        surface: 'coding_verification_feedback',
+        canaryName: 'coding_verification_feedback_live_canary',
+        testCount: 6,
+        passedCount: 6,
+        tests: _verificationFeedbackTests(repeatCount: 3),
+        signals: const {
+          'dartTestFeedback': {
+            'observed': true,
+            'feedbackCount': 6,
+            'passedCount': 6,
+            'failedCount': 6,
+            'skippedCount': 0,
+            'files': [
+              'lib/canary_value.dart',
+              'packages/nested_app/lib/canary_value.dart',
+            ],
+            'triggers': ['completionClaim'],
+            'validationStatuses': ['failed'],
+            'durationMs': 1200,
+            'commandAttemptCount': 6,
+            'fallbackCommandCount': 0,
+            'timedOutCommandCount': 0,
+            'startErrorCommandCount': 0,
           },
         },
       ),
@@ -476,7 +607,7 @@ void main() {
     );
 
     expect(report.result, 'passed');
-    expect(report.entries, hasLength(9));
+    expect(report.entries, hasLength(10));
     expect(report.model, 'new-model');
     expect(
       report.entries
@@ -518,6 +649,19 @@ void main() {
     expect(
       diagnosticEntry.riskSummary,
       contains('analyzer feedback 11, diagnostics 17'),
+    );
+    final verificationEntry = report.entries.singleWhere(
+      (entry) => entry.surface == 'coding_verification_feedback',
+    );
+    expect(
+      verificationEntry.evidencePath,
+      endsWith(
+        'coding_verification_feedback_live_canary_590/canary_summary.json',
+      ),
+    );
+    expect(
+      verificationEntry.riskSummary,
+      contains('test feedback 6, failures 6'),
     );
     expect(
       report.entries
@@ -669,6 +813,23 @@ List<Map<String, Object?>> _diagnosticFeedbackTests({
         {
           'name':
               '[run_${index.toString().padLeft(2, '0')}] live LLM repairs $scenario Dart after analyzer feedback',
+          'result': 'passed',
+          'skipped': false,
+          'hidden': false,
+          'durationMs': 1000,
+        },
+  ];
+}
+
+List<Map<String, Object?>> _verificationFeedbackTests({
+  required int repeatCount,
+}) {
+  return [
+    for (var index = 1; index <= repeatCount; index += 1)
+      for (final scenario in const ['root package', 'nested package'])
+        {
+          'name':
+              '[run_${index.toString().padLeft(2, '0')}] live LLM repairs $scenario Dart after test feedback',
           'result': 'passed',
           'skipped': false,
           'hidden': false,

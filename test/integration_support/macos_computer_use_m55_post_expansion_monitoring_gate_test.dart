@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart_tool_process.dart';
+
 import '../../integration_test/test_support/macos_computer_use_m55_post_expansion_monitoring_gate.dart';
 
 void main() {
@@ -141,20 +143,21 @@ void main() {
         final outputJson = '${root.path}/out/m55.json';
         final outputMd = '${root.path}/out/m55.md';
 
-        final result = await Process.run('dart', <String>[
-          'run',
+        final result = await runDartTool(
           'tool/macos_computer_use_m55_post_expansion_monitoring_gate.dart',
-          '--root',
-          root.path,
-          '--post-expansion-monitoring-checklist',
-          checklistPath,
-          '--m54-rollout-expansion-gate',
-          m54Path,
-          '--output-json',
-          outputJson,
-          '--output-md',
-          outputMd,
-        ]);
+          <String>[
+            '--root',
+            root.path,
+            '--post-expansion-monitoring-checklist',
+            checklistPath,
+            '--m54-rollout-expansion-gate',
+            m54Path,
+            '--output-json',
+            outputJson,
+            '--output-md',
+            outputMd,
+          ],
+        );
 
         expect(
           result.exitCode,

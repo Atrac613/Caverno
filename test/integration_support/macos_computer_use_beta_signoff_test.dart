@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart_tool_process.dart';
+
 import '../../integration_test/test_support/macos_computer_use_beta_signoff.dart';
 
 void main() {
@@ -142,22 +144,23 @@ void main() {
       final outputJson = '${root.path}/out/m39.json';
       final outputMd = '${root.path}/out/m39.md';
 
-      final result = await Process.run('dart', <String>[
-        'run',
+      final result = await runDartTool(
         'tool/macos_computer_use_beta_signoff.dart',
-        '--root',
-        root.path,
-        '--manual-beta-checklist',
-        checklistPath,
-        '--m36-live-llm-eval',
-        m36Path,
-        '--m23-cycle-outcome',
-        m23Path,
-        '--output-json',
-        outputJson,
-        '--output-md',
-        outputMd,
-      ]);
+        <String>[
+          '--root',
+          root.path,
+          '--manual-beta-checklist',
+          checklistPath,
+          '--m36-live-llm-eval',
+          m36Path,
+          '--m23-cycle-outcome',
+          m23Path,
+          '--output-json',
+          outputJson,
+          '--output-md',
+          outputMd,
+        ],
+      );
 
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
       final summary = jsonDecode(File(outputJson).readAsStringSync()) as Map;

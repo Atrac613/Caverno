@@ -358,6 +358,7 @@ class ToolResultPromptBuilder {
     final budgeted = switch (toolResult.name) {
       'read_file' => _budgetReadFileResult(decoded, budget: budget),
       'local_execute_command' ||
+      'run_tests' ||
       'git_execute_command' => _budgetCommandResult(decoded, budget: budget),
       'search_files' => _budgetListResult(
         decoded,

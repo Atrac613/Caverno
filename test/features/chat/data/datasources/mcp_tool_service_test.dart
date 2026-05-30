@@ -57,10 +57,24 @@ void main() {
       expect(functionNames, contains('mdns_browse'));
       if (Platform.isMacOS || Platform.isLinux || Platform.isWindows) {
         expect(functionNames, contains('os_get_system_info'));
+        expect(functionNames, contains('run_tests'));
       }
       if (Platform.isMacOS || Platform.isLinux) {
         expect(functionNames, contains('os_log_read'));
       }
+    });
+
+    test('requires chat approval flow for run_tests execution', () async {
+      final service = McpToolService();
+
+      final result = await service.executeTool(
+        name: 'run_tests',
+        arguments: const {'test_path': 'test/widget_test.dart'},
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, contains('chat command approval flow'));
+      expect(result.result, contains('"code":"approval_required"'));
     });
 
     test('executes git init in a non-repository directory', () async {

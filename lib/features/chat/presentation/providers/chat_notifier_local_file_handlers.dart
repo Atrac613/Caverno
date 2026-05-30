@@ -480,6 +480,182 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     return _rememberToolApprovalResult(toolCall.name, localArguments, result);
   }
 
+  Future<McpToolResult> _handleRunTests(ToolCallInfo toolCall) async {
+    final projectRoot = _normalizeRunTestsAbsolutePath(
+      _getActiveProjectRootPath()?.trim() ?? '',
+    );
+    if (projectRoot.isEmpty) {
+      return _buildRunTestsError(
+        toolCall,
+        code: 'project_required',
+        message: 'run_tests requires a selected coding project',
+      );
+    }
+
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
+    final rawWorkingDirectory =
+        (toolCall.arguments['working_directory'] as String?)?.trim() ??
+        (toolCall.arguments['cwd'] as String?)?.trim() ??
+        '';
+    final workingDirectory = _normalizeRunTestsAbsolutePath(
+      FilesystemTools.resolvePath(
+            rawWorkingDirectory,
+            defaultRoot: projectRoot,
+          ) ??
+          projectRoot,
+    );
+    if (workingDirectory.isEmpty ||
+        !DartProjectPath.isInsideRoot(workingDirectory, projectRoot)) {
+      return _buildRunTestsError(
+        toolCall,
+        code: 'working_directory_outside_project',
+        message:
+            'working_directory must resolve inside the selected coding project',
+      );
+    }
+
+    final rawTestPath = _runTestsPathArgument(toolCall.arguments);
+    String? commandTestPath;
+    if (rawTestPath != null) {
+      final resolvedTestPath = _normalizeRunTestsAbsolutePath(
+        FilesystemTools.resolvePath(
+              rawTestPath,
+              defaultRoot: workingDirectory,
+            ) ??
+            '',
+      );
+      if (resolvedTestPath.isEmpty ||
+          !DartProjectPath.isInsideRoot(resolvedTestPath, projectRoot)) {
+        return _buildRunTestsError(
+          toolCall,
+          code: 'test_path_outside_project',
+          message: 'test_path must resolve inside the selected coding project',
+        );
+      }
+      commandTestPath =
+          DartProjectPath.isInsideRoot(resolvedTestPath, workingDirectory)
+          ? DartProjectPath.relativePath(resolvedTestPath, workingDirectory)
+          : resolvedTestPath;
+    }
+
+    final runner = _normalizeRunTestsRunner(toolCall.arguments['runner']);
+    if (runner == null) {
+      return _buildRunTestsError(
+        toolCall,
+        code: 'unsupported_runner',
+        message: 'runner must be one of auto, flutter, or dart',
+      );
+    }
+
+    final command = _buildRunTestsCommand(
+      runner: runner,
+      projectRoot: projectRoot,
+      workingDirectory: workingDirectory,
+      testPath: commandTestPath,
+    );
+    final reason = toolCall.arguments['reason']?.toString().trim();
+    final localArguments = <String, dynamic>{
+      'command': command,
+      'working_directory': workingDirectory,
+      'reason': reason == null || reason.isEmpty
+          ? 'Run scoped test validation'
+          : reason,
+      'test_path': ?rawTestPath,
+      if (runner != 'auto') 'runner': runner,
+    };
+
+    final result = await _handleLocalExecuteCommand(
+      ToolCallInfo(
+        id: toolCall.id,
+        name: 'local_execute_command',
+        arguments: localArguments,
+      ),
+    );
+    return result.copyWith(toolName: toolCall.name);
+  }
+
+  McpToolResult _buildRunTestsError(
+    ToolCallInfo toolCall, {
+    required String code,
+    required String message,
+  }) {
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: jsonEncode({'code': code, 'error': message}),
+      isSuccess: false,
+      errorMessage: message,
+    );
+  }
+
+  String? _normalizeRunTestsRunner(Object? rawRunner) {
+    final runner = rawRunner?.toString().trim().toLowerCase();
+    if (runner == null || runner.isEmpty || runner == 'auto') {
+      return 'auto';
+    }
+    if (runner == 'flutter' || runner == 'dart') {
+      return runner;
+    }
+    return null;
+  }
+
+  String _buildRunTestsCommand({
+    required String runner,
+    required String projectRoot,
+    required String workingDirectory,
+    String? testPath,
+  }) {
+    final effectiveRunner = runner == 'auto'
+        ? _inferRunTestsRunner(
+            projectRoot: projectRoot,
+            workingDirectory: workingDirectory,
+          )
+        : runner;
+    final hasFvmMetadata = DartProjectTooling.hasFvmMetadata(
+      packageRoot: workingDirectory,
+      projectRoot: projectRoot,
+    );
+    final executable = switch (effectiveRunner) {
+      'dart' => hasFvmMetadata ? 'fvm dart' : 'dart',
+      _ => hasFvmMetadata ? 'fvm flutter' : 'flutter',
+    };
+    final parts = <String>[executable, 'test'];
+    if (testPath != null && testPath.trim().isNotEmpty) {
+      parts.add(_shellQuoteRunTestsArgument(testPath.trim()));
+    }
+    return parts.join(' ');
+  }
+
+  String _inferRunTestsRunner({
+    required String projectRoot,
+    required String workingDirectory,
+  }) {
+    return DartProjectTooling.isFlutterPackage(workingDirectory) ||
+            DartProjectTooling.isFlutterPackage(projectRoot)
+        ? 'flutter'
+        : 'dart';
+  }
+
+  String _shellQuoteRunTestsArgument(String value) {
+    if (value.isEmpty) {
+      return "''";
+    }
+    return "'${value.replaceAll("'", "'\"'\"'")}'";
+  }
+
+  String _normalizeRunTestsAbsolutePath(String path) {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    try {
+      return Uri.file(trimmed).normalizePath().toFilePath();
+    } catch (_) {
+      return trimmed;
+    }
+  }
+
   Future<LocalCommandApproval> requestLocalCommand({
     required String command,
     required String workingDirectory,

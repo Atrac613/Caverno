@@ -2,34 +2,34 @@ import 'dart:convert';
 import 'dart:io';
 
 const _defaultMinimumRepeatCount = 3;
-const _schemaName = 'coding_diagnostic_feedback_release_gate';
-const _requiredCanaryName = 'coding_diagnostic_feedback_live_canary';
-const _requiredSurface = 'coding_diagnostic_feedback';
+const _schemaName = 'coding_verification_feedback_release_gate';
+const _requiredCanaryName = 'coding_verification_feedback_live_canary';
+const _requiredSurface = 'coding_verification_feedback';
 const _requiredFeedbackFiles = [
-  'lib/main.dart',
-  'packages/nested_app/lib/main.dart',
+  'lib/canary_value.dart',
+  'packages/nested_app/lib/canary_value.dart',
 ];
 const _scenarioNames = ['root package', 'nested package'];
 
 Future<void> main(List<String> args) async {
-  late final CodingDiagnosticFeedbackReleaseGateOptions options;
+  late final CodingVerificationFeedbackReleaseGateOptions options;
   try {
-    options = CodingDiagnosticFeedbackReleaseGateOptions.parse(args);
-  } on CodingDiagnosticFeedbackReleaseGateUsageException catch (error) {
+    options = CodingVerificationFeedbackReleaseGateOptions.parse(args);
+  } on CodingVerificationFeedbackReleaseGateUsageException catch (error) {
     stderr.writeln(error.message);
-    stderr.writeln(codingDiagnosticFeedbackReleaseGateUsage);
+    stderr.writeln(codingVerificationFeedbackReleaseGateUsage);
     exitCode = 64;
     return;
   }
 
   if (options.showHelp) {
-    stdout.writeln(codingDiagnosticFeedbackReleaseGateUsage);
+    stdout.writeln(codingVerificationFeedbackReleaseGateUsage);
     return;
   }
 
-  final CodingDiagnosticFeedbackReleaseGateResult result;
+  final CodingVerificationFeedbackReleaseGateResult result;
   try {
-    result = await buildCodingDiagnosticFeedbackReleaseGate(
+    result = await buildCodingVerificationFeedbackReleaseGate(
       summaryFile: File(options.summaryPath),
       minimumRepeatCount: options.minimumRepeatCount,
     );
@@ -55,7 +55,7 @@ Future<void> main(List<String> args) async {
     await file.parent.create(recursive: true);
     await file.writeAsString(encoded);
     stdout.writeln(
-      'Coding diagnostic feedback release gate JSON written to $outJson',
+      'Coding verification feedback release gate JSON written to $outJson',
     );
   }
 
@@ -65,7 +65,8 @@ Future<void> main(List<String> args) async {
     await file.parent.create(recursive: true);
     await file.writeAsString(result.toMarkdown());
     stdout.writeln(
-      'Coding diagnostic feedback release gate Markdown written to $outMarkdown',
+      'Coding verification feedback release gate Markdown written to '
+      '$outMarkdown',
     );
   }
 
@@ -73,15 +74,15 @@ Future<void> main(List<String> args) async {
 
   if (result.blockedGateIds.isNotEmpty) {
     stderr.writeln(
-      'Coding diagnostic feedback release gate blocked: '
+      'Coding verification feedback release gate blocked: '
       '${result.blockedGateIds.join(', ')}',
     );
     exitCode = 1;
   }
 }
 
-Future<CodingDiagnosticFeedbackReleaseGateResult>
-buildCodingDiagnosticFeedbackReleaseGate({
+Future<CodingVerificationFeedbackReleaseGateResult>
+buildCodingVerificationFeedbackReleaseGate({
   required File summaryFile,
   int minimumRepeatCount = _defaultMinimumRepeatCount,
   DateTime? generatedAt,
@@ -93,7 +94,7 @@ buildCodingDiagnosticFeedbackReleaseGate({
   if (decoded is! Map<String, dynamic>) {
     throw FormatException('Expected a JSON object in ${summaryFile.path}.');
   }
-  return buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson(
+  return buildCodingVerificationFeedbackReleaseGateFromSummaryJson(
     summaryPath: summaryFile.path,
     summary: decoded,
     minimumRepeatCount: minimumRepeatCount,
@@ -101,8 +102,8 @@ buildCodingDiagnosticFeedbackReleaseGate({
   );
 }
 
-CodingDiagnosticFeedbackReleaseGateResult
-buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson({
+CodingVerificationFeedbackReleaseGateResult
+buildCodingVerificationFeedbackReleaseGateFromSummaryJson({
   required String summaryPath,
   required Map<String, dynamic> summary,
   int minimumRepeatCount = _defaultMinimumRepeatCount,
@@ -113,32 +114,32 @@ buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson({
   }
 
   final signals = _asObject(summary['signals']);
-  final dartAnalyzeFeedback = _asObject(signals['dartAnalyzeFeedback']);
+  final dartTestFeedback = _asObject(signals['dartTestFeedback']);
   final tests = _asList(summary['tests'])
       .whereType<Map>()
       .map((test) => Map<String, dynamic>.from(test))
       .toList(growable: false);
-  final coverage = _DiagnosticFeedbackCoverage.fromTests(tests);
-  final feedbackFiles = _stringList(dartAnalyzeFeedback['files']).toSet();
-  final feedbackDurationMs = _asInt(dartAnalyzeFeedback['durationMs']);
-  final commandAttemptCount = _asInt(
-    dartAnalyzeFeedback['commandAttemptCount'],
-  );
-  final fallbackCommandCount = _asInt(
-    dartAnalyzeFeedback['fallbackCommandCount'],
-  );
-  final timedOutCommandCount = _asInt(
-    dartAnalyzeFeedback['timedOutCommandCount'],
-  );
+  final coverage = _VerificationFeedbackCoverage.fromTests(tests);
+  final feedbackFiles = _stringList(dartTestFeedback['files']).toSet();
+  final triggers = _stringList(dartTestFeedback['triggers']).toSet();
+  final validationStatuses = _stringList(
+    dartTestFeedback['validationStatuses'],
+  ).toSet();
+  final feedbackDurationMs = _asInt(dartTestFeedback['durationMs']);
+  final commandAttemptCount = _asInt(dartTestFeedback['commandAttemptCount']);
+  final fallbackCommandCount = _asInt(dartTestFeedback['fallbackCommandCount']);
+  final timedOutCommandCount = _asInt(dartTestFeedback['timedOutCommandCount']);
   final startErrorCommandCount = _asInt(
-    dartAnalyzeFeedback['startErrorCommandCount'],
+    dartTestFeedback['startErrorCommandCount'],
   );
+  final feedbackCount = _asInt(dartTestFeedback['feedbackCount']);
+  final failedCount = _asInt(dartTestFeedback['failedCount']);
   final recoverySignals = _recoverySignals(signals);
 
   final gates = [
     _gate(
       id: 'summary_identity',
-      label: 'Summary is for the coding diagnostic feedback live canary.',
+      label: 'Summary is for the coding verification feedback live canary.',
       ready:
           summary['schemaName'] == 'live_llm_canary_summary' &&
           summary['canaryName'] == _requiredCanaryName &&
@@ -149,7 +150,7 @@ buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson({
         'surface=${summary['surface'] ?? '(missing)'}',
       ],
       nextAction:
-          'Run tool/run_coding_diagnostic_feedback_live_canary.sh and pass its canary_summary.json.',
+          'Run tool/run_coding_verification_feedback_live_canary.sh and pass its canary_summary.json.',
     ),
     _gate(
       id: 'metadata_present',
@@ -187,7 +188,7 @@ buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson({
         'malformedJsonLineCount=${_asInt(summary['malformedJsonLineCount'])}',
       ],
       nextAction:
-          'Rerun the diagnostic feedback live canary until all tests pass without skipped tests or malformed JSON.',
+          'Rerun the verification feedback live canary until all tests pass without skipped tests or malformed JSON.',
     ),
     _gate(
       id: 'repeat_coverage',
@@ -205,41 +206,53 @@ buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson({
         'coveredRuns=${coverage.coveredRuns.join(', ')}',
       ],
       nextAction:
-          'Run with CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_REPEAT_COUNT=$minimumRepeatCount so each repeat passes root and nested package repair.',
+          'Run with CAVERNO_CODING_VERIFICATION_FEEDBACK_LIVE_REPEAT_COUNT=$minimumRepeatCount so each repeat passes root and nested package repair.',
     ),
     _gate(
-      id: 'analyzer_feedback_present',
-      label: 'Dart analyzer feedback and diagnostics were observed.',
+      id: 'test_feedback_present',
+      label: 'Dart test feedback and failing tests were observed.',
       ready:
-          dartAnalyzeFeedback['observed'] == true &&
-          _asInt(dartAnalyzeFeedback['feedbackCount']) > 0 &&
-          _asInt(dartAnalyzeFeedback['diagnosticCount']) > 0,
+          dartTestFeedback['observed'] == true &&
+          feedbackCount > 0 &&
+          failedCount > 0,
       evidence: [
-        'observed=${dartAnalyzeFeedback['observed'] ?? '(missing)'}',
-        'feedbackCount=${_asInt(dartAnalyzeFeedback['feedbackCount'])}',
-        'diagnosticCount=${_asInt(dartAnalyzeFeedback['diagnosticCount'])}',
+        'observed=${dartTestFeedback['observed'] ?? '(missing)'}',
+        'feedbackCount=$feedbackCount',
+        'failedCount=$failedCount',
       ],
       nextAction:
-          'Ensure the coding loop injects dart_analyze_feedback after broken Dart edits.',
+          'Ensure the coding loop injects dart_test_feedback after a completion claim with failing tests.',
+    ),
+    _gate(
+      id: 'completion_claim_feedback',
+      label: 'Verification feedback came from failed completion-claim checks.',
+      ready:
+          triggers.contains('completionClaim') &&
+          validationStatuses.contains('failed'),
+      evidence: [
+        'triggers=${triggers.isEmpty ? '(none)' : triggers.join(', ')}',
+        'validationStatuses=${validationStatuses.isEmpty ? '(none)' : validationStatuses.join(', ')}',
+      ],
+      nextAction:
+          'Keep the live canary scripted premature completion path enabled so completion-claim verification is proven.',
     ),
     _gate(
       id: 'required_feedback_files',
-      label: 'Analyzer feedback covers both root and nested Dart files.',
+      label: 'Test feedback covers both root and nested Dart files.',
       ready: feedbackFiles.containsAll(_requiredFeedbackFiles),
       evidence: [
         'required=${_requiredFeedbackFiles.join(', ')}',
         'actual=${feedbackFiles.isEmpty ? '(none)' : feedbackFiles.join(', ')}',
       ],
       nextAction:
-          'Keep the root and nested diagnostic feedback scenarios enabled in the live canary.',
+          'Keep the root and nested verification feedback scenarios enabled in the live canary.',
     ),
     _gate(
-      id: 'diagnostic_feedback_telemetry_present',
-      label:
-          'Analyzer feedback reports command latency and fallback telemetry.',
+      id: 'verification_feedback_telemetry_present',
+      label: 'Test feedback reports command latency and fallback telemetry.',
       ready:
           feedbackDurationMs > 0 &&
-          commandAttemptCount >= _asInt(dartAnalyzeFeedback['feedbackCount']) &&
+          commandAttemptCount >= feedbackCount &&
           fallbackCommandCount >= 0 &&
           timedOutCommandCount >= 0 &&
           startErrorCommandCount >= 0,
@@ -251,7 +264,7 @@ buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson({
         'startErrorCommandCount=$startErrorCommandCount',
       ],
       nextAction:
-          'Regenerate the live canary summary from logs that include analyzer feedback telemetry.',
+          'Regenerate the live canary summary from logs that include test feedback telemetry.',
     ),
     _gate(
       id: 'recovery_signals_clean',
@@ -270,12 +283,12 @@ buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson({
       if (!gate.isReady) gate.id,
   ];
 
-  return CodingDiagnosticFeedbackReleaseGateResult(
+  return CodingVerificationFeedbackReleaseGateResult(
     generatedAt: generatedAt ?? DateTime.now(),
     summaryPath: summaryPath,
     minimumRepeatCount: minimumRepeatCount,
     status: blockedGateIds.isEmpty
-        ? 'ready_for_coding_diagnostic_feedback_release'
+        ? 'ready_for_coding_verification_feedback_release'
         : 'blocked',
     blockedGateIds: blockedGateIds,
     gates: gates,
@@ -283,22 +296,26 @@ buildCodingDiagnosticFeedbackReleaseGateFromSummaryJson({
     baseUrl: summary['baseUrl'] as String?,
     passedCount: _asInt(summary['passedCount']),
     testCount: _asInt(summary['testCount']),
-    feedbackCount: _asInt(dartAnalyzeFeedback['feedbackCount']),
-    diagnosticCount: _asInt(dartAnalyzeFeedback['diagnosticCount']),
+    feedbackCount: feedbackCount,
+    testFailureCount: failedCount,
+    testPassedCount: _asInt(dartTestFeedback['passedCount']),
+    testSkippedCount: _asInt(dartTestFeedback['skippedCount']),
     feedbackDurationMs: feedbackDurationMs,
     commandAttemptCount: commandAttemptCount,
     fallbackCommandCount: fallbackCommandCount,
     timedOutCommandCount: timedOutCommandCount,
     startErrorCommandCount: startErrorCommandCount,
     feedbackFiles: feedbackFiles.toList(growable: false)..sort(),
+    triggers: triggers.toList(growable: false)..sort(),
+    validationStatuses: validationStatuses.toList(growable: false)..sort(),
     nextAction: blockedGateIds.isEmpty
-        ? 'Coding diagnostic feedback release evidence is complete.'
-        : 'Resolve blocked diagnostic feedback gates before release.',
+        ? 'Coding verification feedback release evidence is complete.'
+        : 'Resolve blocked verification feedback gates before release.',
   );
 }
 
-class CodingDiagnosticFeedbackReleaseGateResult {
-  const CodingDiagnosticFeedbackReleaseGateResult({
+class CodingVerificationFeedbackReleaseGateResult {
+  const CodingVerificationFeedbackReleaseGateResult({
     required this.generatedAt,
     required this.summaryPath,
     required this.minimumRepeatCount,
@@ -310,13 +327,17 @@ class CodingDiagnosticFeedbackReleaseGateResult {
     required this.passedCount,
     required this.testCount,
     required this.feedbackCount,
-    required this.diagnosticCount,
+    required this.testFailureCount,
+    required this.testPassedCount,
+    required this.testSkippedCount,
     required this.feedbackDurationMs,
     required this.commandAttemptCount,
     required this.fallbackCommandCount,
     required this.timedOutCommandCount,
     required this.startErrorCommandCount,
     required this.feedbackFiles,
+    required this.triggers,
+    required this.validationStatuses,
     required this.nextAction,
   });
 
@@ -325,19 +346,23 @@ class CodingDiagnosticFeedbackReleaseGateResult {
   final int minimumRepeatCount;
   final String status;
   final List<String> blockedGateIds;
-  final List<CodingDiagnosticFeedbackGate> gates;
+  final List<CodingVerificationFeedbackGate> gates;
   final String? model;
   final String? baseUrl;
   final int passedCount;
   final int testCount;
   final int feedbackCount;
-  final int diagnosticCount;
+  final int testFailureCount;
+  final int testPassedCount;
+  final int testSkippedCount;
   final int feedbackDurationMs;
   final int commandAttemptCount;
   final int fallbackCommandCount;
   final int timedOutCommandCount;
   final int startErrorCommandCount;
   final List<String> feedbackFiles;
+  final List<String> triggers;
+  final List<String> validationStatuses;
   final String nextAction;
 
   bool get isReady => blockedGateIds.isEmpty;
@@ -354,13 +379,17 @@ class CodingDiagnosticFeedbackReleaseGateResult {
     'passedCount': passedCount,
     'testCount': testCount,
     'feedbackCount': feedbackCount,
-    'diagnosticCount': diagnosticCount,
+    'testFailureCount': testFailureCount,
+    'testPassedCount': testPassedCount,
+    'testSkippedCount': testSkippedCount,
     'feedbackDurationMs': feedbackDurationMs,
     'commandAttemptCount': commandAttemptCount,
     'fallbackCommandCount': fallbackCommandCount,
     'timedOutCommandCount': timedOutCommandCount,
     'startErrorCommandCount': startErrorCommandCount,
     'feedbackFiles': feedbackFiles,
+    'triggers': triggers,
+    'validationStatuses': validationStatuses,
     'blockedGateIds': blockedGateIds,
     'nextAction': nextAction,
     'gates': gates.map((gate) => gate.toJson()).toList(growable: false),
@@ -368,7 +397,7 @@ class CodingDiagnosticFeedbackReleaseGateResult {
 
   String toMarkdown() {
     final buffer = StringBuffer()
-      ..writeln('# Coding Diagnostic Feedback Release Gate')
+      ..writeln('# Coding Verification Feedback Release Gate')
       ..writeln()
       ..writeln('- Status: `$status`')
       ..writeln('- Generated at: `${generatedAt.toIso8601String()}`')
@@ -377,16 +406,25 @@ class CodingDiagnosticFeedbackReleaseGateResult {
       ..writeln('- Base URL: `${baseUrl ?? 'unknown'}`')
       ..writeln('- Minimum repeat count: `$minimumRepeatCount`')
       ..writeln('- Tests: `$passedCount/$testCount` passed')
-      ..writeln('- Analyzer feedback count: `$feedbackCount`')
-      ..writeln('- Analyzer diagnostic count: `$diagnosticCount`')
-      ..writeln('- Analyzer feedback duration: `$feedbackDurationMs ms`')
-      ..writeln('- Analyzer command attempts: `$commandAttemptCount`')
-      ..writeln('- Analyzer fallback commands: `$fallbackCommandCount`')
-      ..writeln('- Analyzer timed-out commands: `$timedOutCommandCount`')
-      ..writeln('- Analyzer start-error commands: `$startErrorCommandCount`')
+      ..writeln('- Test feedback count: `$feedbackCount`')
+      ..writeln('- Test failure count: `$testFailureCount`')
+      ..writeln('- Test passed count: `$testPassedCount`')
+      ..writeln('- Test skipped count: `$testSkippedCount`')
+      ..writeln('- Test feedback duration: `$feedbackDurationMs ms`')
+      ..writeln('- Test command attempts: `$commandAttemptCount`')
+      ..writeln('- Test fallback commands: `$fallbackCommandCount`')
+      ..writeln('- Test timed-out commands: `$timedOutCommandCount`')
+      ..writeln('- Test start-error commands: `$startErrorCommandCount`')
       ..writeln(
-        '- Analyzer feedback files: '
+        '- Test feedback files: '
         '`${feedbackFiles.isEmpty ? '(none)' : feedbackFiles.join(', ')}`',
+      )
+      ..writeln(
+        '- Triggers: `${triggers.isEmpty ? '(none)' : triggers.join(', ')}`',
+      )
+      ..writeln(
+        '- Validation statuses: '
+        '`${validationStatuses.isEmpty ? '(none)' : validationStatuses.join(', ')}`',
       )
       ..writeln('- Next action: $nextAction')
       ..writeln()
@@ -407,8 +445,8 @@ class CodingDiagnosticFeedbackReleaseGateResult {
   }
 }
 
-class CodingDiagnosticFeedbackGate {
-  const CodingDiagnosticFeedbackGate({
+class CodingVerificationFeedbackGate {
+  const CodingVerificationFeedbackGate({
     required this.id,
     required this.label,
     required this.status,
@@ -433,8 +471,8 @@ class CodingDiagnosticFeedbackGate {
   };
 }
 
-class CodingDiagnosticFeedbackReleaseGateOptions {
-  const CodingDiagnosticFeedbackReleaseGateOptions({
+class CodingVerificationFeedbackReleaseGateOptions {
+  const CodingVerificationFeedbackReleaseGateOptions({
     required this.summaryPath,
     required this.minimumRepeatCount,
     this.outJsonPath,
@@ -448,7 +486,7 @@ class CodingDiagnosticFeedbackReleaseGateOptions {
   final String? outMarkdownPath;
   final bool showHelp;
 
-  static CodingDiagnosticFeedbackReleaseGateOptions parse(List<String> args) {
+  static CodingVerificationFeedbackReleaseGateOptions parse(List<String> args) {
     var summaryPath = '';
     var minimumRepeatCount = _defaultMinimumRepeatCount;
     String? outJsonPath;
@@ -459,7 +497,7 @@ class CodingDiagnosticFeedbackReleaseGateOptions {
       switch (arg) {
         case '--help':
         case '-h':
-          return const CodingDiagnosticFeedbackReleaseGateOptions(
+          return const CodingVerificationFeedbackReleaseGateOptions(
             summaryPath: '',
             minimumRepeatCount: _defaultMinimumRepeatCount,
             showHelp: true,
@@ -470,7 +508,7 @@ class CodingDiagnosticFeedbackReleaseGateOptions {
           final raw = _readValue(args, ++index, arg);
           minimumRepeatCount = int.tryParse(raw) ?? -1;
           if (minimumRepeatCount < 1) {
-            throw const CodingDiagnosticFeedbackReleaseGateUsageException(
+            throw const CodingVerificationFeedbackReleaseGateUsageException(
               '--min-repeat-count must be a positive integer.',
             );
           }
@@ -479,18 +517,18 @@ class CodingDiagnosticFeedbackReleaseGateOptions {
         case '--out-md':
           outMarkdownPath = _readValue(args, ++index, arg);
         default:
-          throw CodingDiagnosticFeedbackReleaseGateUsageException(
+          throw CodingVerificationFeedbackReleaseGateUsageException(
             'Unknown argument: $arg',
           );
       }
     }
 
     if (summaryPath.isEmpty) {
-      throw const CodingDiagnosticFeedbackReleaseGateUsageException(
+      throw const CodingVerificationFeedbackReleaseGateUsageException(
         '--summary is required.',
       );
     }
-    return CodingDiagnosticFeedbackReleaseGateOptions(
+    return CodingVerificationFeedbackReleaseGateOptions(
       summaryPath: summaryPath,
       minimumRepeatCount: minimumRepeatCount,
       outJsonPath: outJsonPath,
@@ -499,8 +537,8 @@ class CodingDiagnosticFeedbackReleaseGateOptions {
   }
 }
 
-class CodingDiagnosticFeedbackReleaseGateUsageException implements Exception {
-  const CodingDiagnosticFeedbackReleaseGateUsageException(this.message);
+class CodingVerificationFeedbackReleaseGateUsageException implements Exception {
+  const CodingVerificationFeedbackReleaseGateUsageException(this.message);
 
   final String message;
 
@@ -508,25 +546,25 @@ class CodingDiagnosticFeedbackReleaseGateUsageException implements Exception {
   String toString() => message;
 }
 
-const codingDiagnosticFeedbackReleaseGateUsage = '''
-Usage: dart run tool/coding_diagnostic_feedback_release_gate.dart [options]
+const codingVerificationFeedbackReleaseGateUsage = '''
+Usage: dart run tool/coding_verification_feedback_release_gate.dart [options]
 
 Options:
-  --summary <path>           Coding diagnostic feedback canary_summary.json.
+  --summary <path>           Coding verification feedback canary_summary.json.
   --min-repeat-count <n>     Required complete root/nested repeats. Defaults to 3.
   --out-json <path>          Write the gate report as JSON.
   --out-md <path>            Write the gate report as Markdown.
   --help                     Print this help.
 ''';
 
-CodingDiagnosticFeedbackGate _gate({
+CodingVerificationFeedbackGate _gate({
   required String id,
   required String label,
   required bool ready,
   required List<String> evidence,
   required String nextAction,
 }) {
-  return CodingDiagnosticFeedbackGate(
+  return CodingVerificationFeedbackGate(
     id: id,
     label: label,
     status: ready ? 'ready' : 'blocked',
@@ -561,7 +599,7 @@ Map<String, int> _recoverySignals(Map<String, dynamic> signals) {
 
 String _readValue(List<String> args, int index, String option) {
   if (index >= args.length || args[index].startsWith('--')) {
-    throw CodingDiagnosticFeedbackReleaseGateUsageException(
+    throw CodingVerificationFeedbackReleaseGateUsageException(
       '$option requires a value.',
     );
   }
@@ -601,15 +639,15 @@ int _asInt(Object? value) {
   return 0;
 }
 
-class _DiagnosticFeedbackCoverage {
-  const _DiagnosticFeedbackCoverage(this.coveredRuns);
+class _VerificationFeedbackCoverage {
+  const _VerificationFeedbackCoverage(this.coveredRuns);
 
-  factory _DiagnosticFeedbackCoverage.fromTests(
+  factory _VerificationFeedbackCoverage.fromTests(
     List<Map<String, dynamic>> tests,
   ) {
     final scenariosByRun = <String, Set<String>>{};
     final pattern = RegExp(
-      r'^\[(run_\d+)\] live LLM repairs (root package|nested package) Dart after analyzer feedback$',
+      r'^\[(run_\d+)\] live LLM repairs (root package|nested package) Dart after test feedback$',
     );
     for (final test in tests) {
       if (test['result'] != 'passed' || test['skipped'] == true) {
@@ -634,7 +672,7 @@ class _DiagnosticFeedbackCoverage {
             .map((entry) => entry.key)
             .toList(growable: false)
           ..sort();
-    return _DiagnosticFeedbackCoverage(coveredRuns);
+    return _VerificationFeedbackCoverage(coveredRuns);
   }
 
   final List<String> coveredRuns;

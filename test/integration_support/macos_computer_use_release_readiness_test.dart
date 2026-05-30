@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:caverno/core/services/macos_computer_use_setup.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart_tool_process.dart';
+
 import '../../integration_test/test_support/macos_computer_use_canary_history.dart';
 import '../../integration_test/test_support/macos_computer_use_manual_tcc_report.dart';
 import '../../integration_test/test_support/macos_computer_use_readiness_artifact_index.dart';
@@ -3711,12 +3713,10 @@ void main() {
         ),
       );
 
-      final result = await Process.run('dart', [
-        'run',
+      final result = await runDartTool(
         'tool/macos_computer_use_readiness_artifact_index.dart',
-        '--root',
-        root.path,
-      ]);
+        ['--root', root.path],
+      );
 
       expect(result.exitCode, 0);
       expect('${result.stdout}', contains('M15 action proposal command:'));
@@ -4055,12 +4055,10 @@ CODE_SIGN_IDENTITY = Developer ID Application
           root.deleteSync(recursive: true);
         });
 
-        final result = await Process.run('dart', [
-          'run',
+        final result = await runDartTool(
           'tool/macos_computer_use_release_packaging.dart',
-          '--root',
-          root.path,
-        ]);
+          ['--root', root.path],
+        );
 
         expect(result.exitCode, 0, reason: '${result.stderr}');
         expect('${result.stdout}', contains('M33 release packaging report'));
@@ -4139,12 +4137,10 @@ CODE_SIGN_IDENTITY = Developer ID Application
         };
       _writeJson(File(m30ObserveResultIntakePath), m30Intake);
 
-      final result = await Process.run('dart', [
-        'run',
+      final result = await runDartTool(
         'tool/macos_computer_use_next_step_navigator.dart',
-        '--root',
-        root.path,
-      ]);
+        ['--root', root.path],
+      );
 
       expect(result.exitCode, 0);
       expect('${result.stdout}', contains('M31 next-step navigator'));
@@ -4272,12 +4268,10 @@ CODE_SIGN_IDENTITY = Developer ID Application
         },
       );
 
-      final defaultResult = await Process.run('dart', [
-        'run',
+      final defaultResult = await runDartTool(
         'tool/macos_computer_use_next_step_navigator.dart',
-        '--root',
-        root.path,
-      ]);
+        ['--root', root.path],
+      );
 
       expect(defaultResult.exitCode, 0);
       final defaultSummaryBeforeAutomationSafe =
@@ -4289,13 +4283,10 @@ CODE_SIGN_IDENTITY = Developer ID Application
               as Map<String, dynamic>;
       expect(defaultSummaryBeforeAutomationSafe['mode'], 'default');
 
-      final result = await Process.run('dart', [
-        'run',
+      final result = await runDartTool(
         'tool/macos_computer_use_next_step_navigator.dart',
-        '--root',
-        root.path,
-        '--automation-safe-only',
-      ]);
+        ['--root', root.path, '--automation-safe-only'],
+      );
 
       expect(result.exitCode, 0);
       expect('${result.stdout}', contains('Mode: automation_safe_only'));
@@ -5346,12 +5337,10 @@ CODE_SIGN_IDENTITY = Developer ID Application
         _releaseReport(status: 'ready'),
       );
 
-      final result = await Process.run('dart', [
-        'run',
+      final result = await runDartTool(
         'tool/macos_computer_use_readiness_artifact_index.dart',
-        '--root',
-        root.path,
-      ]);
+        ['--root', root.path],
+      );
 
       expect(result.exitCode, 0, reason: '${result.stderr}');
       final stdout = '${result.stdout}';
@@ -5518,12 +5507,10 @@ CODE_SIGN_IDENTITY = Developer ID Application
         ),
       );
 
-      final result = await Process.run('dart', [
-        'run',
+      final result = await runDartTool(
         'tool/macos_computer_use_readiness_artifact_index.dart',
-        '--root',
-        root.path,
-      ]);
+        ['--root', root.path],
+      );
 
       expect(result.exitCode, 0, reason: '${result.stderr}');
       final stdout = '${result.stdout}';

@@ -24,7 +24,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
-import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
+import 'package:caverno/features/chat/domain/services/coding_verification_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
@@ -33,44 +33,63 @@ import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.d
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
-const _trigger = 'DIAGNOSTIC_FEEDBACK_LIVE_CANARY_TRIGGER';
-const _marker = 'DIAGNOSTIC_FEEDBACK_LIVE_OK';
-const _brokenSymbol = 'diagnosticFeedbackLiveUndefinedSymbol';
+const _trigger = 'VERIFICATION_FEEDBACK_LIVE_CANARY_TRIGGER';
+const _marker = 'VERIFICATION_FEEDBACK_LIVE_OK';
+const _brokenMarker = 'VERIFICATION_FEEDBACK_LIVE_BROKEN';
+const _scriptedWriteId = 'verification-feedback-scripted-write';
 const _scenarios = [
-  _DiagnosticFeedbackScenario(name: 'root package', mainPath: 'lib/main.dart'),
-  _DiagnosticFeedbackScenario(
+  _VerificationFeedbackScenario(
+    name: 'root package',
+    sourcePath: 'lib/canary_value.dart',
+    testPath: 'test/canary_value_test.dart',
+    packageName: 'caverno_coding_verification_feedback_canary',
+  ),
+  _VerificationFeedbackScenario(
     name: 'nested package',
-    mainPath: 'packages/nested_app/lib/main.dart',
+    sourcePath: 'packages/nested_app/lib/canary_value.dart',
+    testPath: 'packages/nested_app/test/canary_value_test.dart',
+    packageName: 'caverno_nested_verification_feedback_canary',
   ),
 ];
 
-class _DiagnosticFeedbackScenario {
-  const _DiagnosticFeedbackScenario({
+class _VerificationFeedbackScenario {
+  const _VerificationFeedbackScenario({
     required this.name,
-    required this.mainPath,
+    required this.sourcePath,
+    required this.testPath,
+    required this.packageName,
   });
 
   final String name;
-  final String mainPath;
-
-  String get runCommand => 'dart $mainPath';
+  final String sourcePath;
+  final String testPath;
+  final String packageName;
 
   String? get packageDirectory {
-    final segments = mainPath.split('/');
+    final segments = sourcePath.split('/');
     final libIndex = segments.indexOf('lib');
     if (libIndex <= 0) {
       return null;
     }
     return segments.take(libIndex).join('/');
   }
+
+  String get packageRelativeTestPath {
+    final packageDir = packageDirectory;
+    if (packageDir == null || packageDir.isEmpty) {
+      return testPath;
+    }
+    return testPath.substring(packageDir.length + 1);
+  }
 }
 
 void main() {
   final liveEnabled =
-      Platform.environment['CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_CANARY'] ==
+      Platform
+          .environment['CAVERNO_CODING_VERIFICATION_FEEDBACK_LIVE_CANARY'] ==
       '1';
   final runLabel = Platform
-      .environment['CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_RUN_LABEL']
+      .environment['CAVERNO_CODING_VERIFICATION_FEEDBACK_LIVE_RUN_LABEL']
       ?.trim();
   final testNamePrefix = runLabel == null || runLabel.isEmpty
       ? ''
@@ -78,23 +97,20 @@ void main() {
 
   for (final scenario in _scenarios) {
     test(
-      '${testNamePrefix}live LLM repairs ${scenario.name} Dart after analyzer feedback',
+      '${testNamePrefix}live LLM repairs ${scenario.name} Dart after test feedback',
       () async {
-        final env = _DiagnosticFeedbackLiveEnv.fromEnvironment();
-        final fixture = _DiagnosticFeedbackFixture.create(
+        final env = _VerificationFeedbackLiveEnv.fromEnvironment();
+        final fixture = _VerificationFeedbackFixture.create(
           env.workspaceRoot,
           scenario,
         );
         final project = fixture.project;
-        final dataSource = _DiagnosticFeedbackLiveDataSource(
+        final dataSource = _VerificationFeedbackLiveDataSource(
           ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
           scenario,
         );
-        final toolService = _DiagnosticFeedbackToolService(
-          fixture.root,
-          scenario,
-        );
-        final container = _buildDiagnosticFeedbackContainer(
+        final toolService = _VerificationFeedbackToolService(fixture.root);
+        final container = _buildVerificationFeedbackContainer(
           env: env,
           dataSource: dataSource,
           toolService: toolService,
@@ -113,16 +129,19 @@ void main() {
           final notifier = container.read(chatNotifierProvider.notifier);
           await notifier.sendMessage(
             'Run $_trigger. The first tool call is intentionally scripted to '
-            'write a broken Dart file. After analyzer feedback is available, '
-            'repair ${scenario.mainPath} so it prints exactly $_marker, then run '
-            'exactly "${scenario.runCommand}" in the project root. Finish only '
-            'after the command exits with code 0 and stdout contains $_marker.',
+            'write a Dart implementation that fails ${scenario.testPath}. The '
+            'next assistant completion is intentionally premature so the '
+            'harness can inject dart_test_feedback. After that test feedback is '
+            'available, repair ${scenario.sourcePath} so the test passes. Keep '
+            'the function named canaryValue; only change the returned marker. '
+            'Finish only after the final verification accepts the completion, '
+            'and include $_marker in the final answer.',
             bypassPlanMode: true,
           );
           await _waitForChatIdle(container);
 
-          final finalRun = await fixture.runMain();
-          final finalSource = fixture.mainFile.readAsStringSync();
+          final finalRun = await fixture.runTest();
+          final finalSource = fixture.sourceFile.readAsStringSync();
           final finalContent = _lastAssistantContent(container);
 
           expect(
@@ -131,7 +150,12 @@ void main() {
             reason: _diagnostic(container, dataSource, toolService, fixture),
           );
           expect(
-            dataSource.sawAnalyzerFeedback,
+            dataSource.scriptedCompletionUsed,
+            isTrue,
+            reason: _diagnostic(container, dataSource, toolService, fixture),
+          );
+          expect(
+            dataSource.sawVerificationFeedback,
             isTrue,
             reason: _diagnostic(container, dataSource, toolService, fixture),
           );
@@ -141,28 +165,18 @@ void main() {
             reason: _diagnostic(container, dataSource, toolService, fixture),
           );
           expect(
-            toolService.successfulLocalCommandCount(scenario.runCommand),
-            greaterThanOrEqualTo(1),
-            reason: _diagnostic(container, dataSource, toolService, fixture),
-          );
-          expect(
             finalSource,
             contains(_marker),
             reason: _diagnostic(container, dataSource, toolService, fixture),
           );
           expect(
             finalSource,
-            isNot(contains(_brokenSymbol)),
+            isNot(contains(_brokenMarker)),
             reason: _diagnostic(container, dataSource, toolService, fixture),
           );
           expect(
             finalRun.exitCode,
             0,
-            reason: _diagnostic(container, dataSource, toolService, fixture),
-          );
-          expect(
-            finalRun.stdout as String,
-            contains(_marker),
             reason: _diagnostic(container, dataSource, toolService, fixture),
           );
           expect(
@@ -177,16 +191,16 @@ void main() {
       },
       skip: liveEnabled
           ? false
-          : 'Set CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
-      timeout: const Timeout(Duration(minutes: 8)),
+          : 'Set CAVERNO_CODING_VERIFICATION_FEEDBACK_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 10)),
     );
   }
 }
 
-ProviderContainer _buildDiagnosticFeedbackContainer({
-  required _DiagnosticFeedbackLiveEnv env,
-  required _DiagnosticFeedbackLiveDataSource dataSource,
-  required _DiagnosticFeedbackToolService toolService,
+ProviderContainer _buildVerificationFeedbackContainer({
+  required _VerificationFeedbackLiveEnv env,
+  required _VerificationFeedbackLiveDataSource dataSource,
+  required _VerificationFeedbackToolService toolService,
   required CodingProject project,
 }) {
   final appLifecycleService = _MockAppLifecycleService();
@@ -194,7 +208,7 @@ ProviderContainer _buildDiagnosticFeedbackContainer({
   return ProviderContainer(
     overrides: [
       settingsNotifierProvider.overrideWith(
-        () => _DiagnosticFeedbackSettingsNotifier(env),
+        () => _VerificationFeedbackSettingsNotifier(env),
       ),
       conversationRepositoryProvider.overrideWithValue(
         _FakeConversationRepository(),
@@ -218,7 +232,7 @@ ProviderContainer _buildDiagnosticFeedbackContainer({
 
 Future<void> _waitForChatIdle(
   ProviderContainer container, {
-  Duration timeout = const Duration(minutes: 6),
+  Duration timeout = const Duration(minutes: 8),
 }) async {
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
@@ -233,7 +247,7 @@ Future<void> _waitForChatIdle(
     await Future<void>.delayed(const Duration(milliseconds: 200));
   }
   throw TimeoutException(
-    'Timed out waiting for coding diagnostic feedback live canary completion.\n'
+    'Timed out waiting for coding verification feedback live canary completion.\n'
     '${_diagnostic(container, null, null, null)}',
   );
 }
@@ -250,9 +264,9 @@ String _lastAssistantContent(ProviderContainer container) {
 
 String _diagnostic(
   ProviderContainer container,
-  _DiagnosticFeedbackLiveDataSource? dataSource,
-  _DiagnosticFeedbackToolService? toolService,
-  _DiagnosticFeedbackFixture? fixture,
+  _VerificationFeedbackLiveDataSource? dataSource,
+  _VerificationFeedbackToolService? toolService,
+  _VerificationFeedbackFixture? fixture,
 ) {
   final chatState = container.read(chatNotifierProvider);
   final messages = chatState.messages
@@ -263,7 +277,8 @@ String _diagnostic(
     'error=${chatState.error}',
     'messages=${chatState.messages.length}',
     'scriptedPreludeUsed=${dataSource?.scriptedPreludeUsed}',
-    'sawAnalyzerFeedback=${dataSource?.sawAnalyzerFeedback}',
+    'scriptedCompletionUsed=${dataSource?.scriptedCompletionUsed}',
+    'sawVerificationFeedback=${dataSource?.sawVerificationFeedback}',
     'fixtureRoot=${fixture?.root.path ?? '(none)'}',
     'source=${fixture?.sourceDiagnostic() ?? '(missing)'}',
     'toolCalls=${toolService?.executedCalls.map((call) => call.toJson()).map(jsonEncode).join(' | ') ?? '(none)'}',
@@ -272,8 +287,8 @@ String _diagnostic(
   ].join('\n');
 }
 
-class _DiagnosticFeedbackFixture {
-  _DiagnosticFeedbackFixture({
+class _VerificationFeedbackFixture {
+  _VerificationFeedbackFixture({
     required this.root,
     required this.project,
     required this.deleteOnDispose,
@@ -283,44 +298,53 @@ class _DiagnosticFeedbackFixture {
   final Directory root;
   final CodingProject project;
   final bool deleteOnDispose;
-  final _DiagnosticFeedbackScenario scenario;
+  final _VerificationFeedbackScenario scenario;
 
-  File get mainFile => File('${root.path}/${scenario.mainPath}');
+  File get sourceFile => File('${root.path}/${scenario.sourcePath}');
 
-  static _DiagnosticFeedbackFixture create(
+  Directory get packageRoot {
+    final packageDir = scenario.packageDirectory;
+    if (packageDir == null || packageDir.isEmpty) {
+      return root;
+    }
+    return Directory('${root.path}/$packageDir');
+  }
+
+  static _VerificationFeedbackFixture create(
     String? workspaceRoot,
-    _DiagnosticFeedbackScenario scenario,
+    _VerificationFeedbackScenario scenario,
   ) {
     final deleteOnDispose = workspaceRoot == null || workspaceRoot.isEmpty;
     final root = deleteOnDispose
-        ? Directory.systemTemp.createTempSync('coding_diagnostic_feedback_')
+        ? Directory.systemTemp.createTempSync('coding_verification_feedback_')
         : Directory(workspaceRoot);
     if (root.existsSync()) {
       root.deleteSync(recursive: true);
     }
     root.createSync(recursive: true);
-    File(
-      '${root.path}/${scenario.mainPath}',
-    ).parent.createSync(recursive: true);
-    File('${root.path}/pubspec.yaml').writeAsStringSync('''
-name: caverno_coding_diagnostic_feedback_canary
-environment:
-  sdk: '>=3.0.0 <4.0.0'
-''');
-    final packageDirectory = scenario.packageDirectory;
-    if (packageDirectory != null) {
-      File('${root.path}/$packageDirectory/pubspec.yaml').writeAsStringSync('''
-name: caverno_nested_diagnostic_feedback_canary
-environment:
-  sdk: '>=3.0.0 <4.0.0'
-''');
-    }
+
+    final packageDir = scenario.packageDirectory;
+    final packageRoot =
+        packageDir == null || packageDir.isEmpty
+              ? root
+              : Directory('${root.path}/$packageDir')
+          ..createSync(recursive: true);
+
+    _writePubspec(packageRoot, scenario.packageName);
+    final sourceFile = File('${root.path}/${scenario.sourcePath}');
+    sourceFile.parent.createSync(recursive: true);
+    sourceFile.writeAsStringSync(_passingSource());
+
+    final testFile = File('${root.path}/${scenario.testPath}');
+    testFile.parent.createSync(recursive: true);
+    testFile.writeAsStringSync(_testSource(scenario.packageName));
+
     final now = DateTime.now();
-    return _DiagnosticFeedbackFixture(
+    return _VerificationFeedbackFixture(
       root: root,
       project: CodingProject(
-        id: 'coding-diagnostic-feedback-live-project',
-        name: 'coding_diagnostic_feedback_live_fixture',
+        id: 'coding-verification-feedback-live-project',
+        name: 'coding_verification_feedback_live_fixture',
         rootPath: root.absolute.path,
         createdAt: now,
         updatedAt: now,
@@ -330,17 +354,18 @@ environment:
     );
   }
 
-  Future<ProcessResult> runMain() {
-    return Process.run('dart', [
-      scenario.mainPath,
-    ], workingDirectory: root.path).timeout(const Duration(seconds: 30));
+  Future<ProcessResult> runTest() {
+    return Process.run('flutter', [
+      'test',
+      scenario.packageRelativeTestPath,
+    ], workingDirectory: packageRoot.path).timeout(const Duration(minutes: 2));
   }
 
   String sourceDiagnostic() {
-    if (!mainFile.existsSync()) {
-      return '${scenario.mainPath}=(missing)';
+    if (!sourceFile.existsSync()) {
+      return '${scenario.sourcePath}=(missing)';
     }
-    return '${scenario.mainPath}=${mainFile.readAsStringSync()}';
+    return '${scenario.sourcePath}=${sourceFile.readAsStringSync()}';
   }
 
   void dispose() {
@@ -348,10 +373,49 @@ environment:
       root.deleteSync(recursive: true);
     }
   }
+
+  static void _writePubspec(Directory directory, String packageName) {
+    File('${directory.path}/pubspec.yaml').writeAsStringSync('''
+name: $packageName
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+''');
+  }
+
+  static String _passingSource() {
+    return '''
+String canaryValue() => '$_marker';
+''';
+  }
+
+  static String _brokenSource() {
+    return '''
+String canaryValue() => '$_brokenMarker';
+''';
+  }
+
+  static String _testSource(String packageName) {
+    return '''
+import 'package:flutter_test/flutter_test.dart';
+import 'package:$packageName/canary_value.dart';
+
+void main() {
+  test('returns verification marker', () {
+    expect(canaryValue(), '$_marker');
+  });
+}
+''';
+  }
 }
 
-class _DiagnosticFeedbackLiveEnv {
-  const _DiagnosticFeedbackLiveEnv({
+class _VerificationFeedbackLiveEnv {
+  const _VerificationFeedbackLiveEnv({
     required this.baseUrl,
     required this.apiKey,
     required this.model,
@@ -367,25 +431,25 @@ class _DiagnosticFeedbackLiveEnv {
   final double temperature;
   final String? workspaceRoot;
 
-  static _DiagnosticFeedbackLiveEnv fromEnvironment() {
-    return _DiagnosticFeedbackLiveEnv(
+  static _VerificationFeedbackLiveEnv fromEnvironment() {
+    return _VerificationFeedbackLiveEnv(
       baseUrl: _requiredEnv('CAVERNO_LLM_BASE_URL'),
       apiKey: _requiredEnv('CAVERNO_LLM_API_KEY'),
       model: _requiredEnv('CAVERNO_LLM_MODEL'),
       maxTokens:
           int.tryParse(
-            Platform.environment['CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_MAX_TOKENS'] ??
+            Platform.environment['CAVERNO_CODING_VERIFICATION_FEEDBACK_LIVE_MAX_TOKENS'] ??
                 '',
           ) ??
           4096,
       temperature:
           double.tryParse(
-            Platform.environment['CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_TEMPERATURE'] ??
+            Platform.environment['CAVERNO_CODING_VERIFICATION_FEEDBACK_LIVE_TEMPERATURE'] ??
                 '',
           ) ??
           0.1,
       workspaceRoot: Platform
-          .environment['CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_WORK_ROOT'],
+          .environment['CAVERNO_CODING_VERIFICATION_FEEDBACK_LIVE_WORK_ROOT'],
     );
   }
 }
@@ -394,16 +458,16 @@ String _requiredEnv(String name) {
   final value = Platform.environment[name]?.trim();
   if (value == null || value.isEmpty) {
     throw StateError(
-      '$name is required for coding diagnostic feedback live validation.',
+      '$name is required for coding verification feedback live validation.',
     );
   }
   return value;
 }
 
-class _DiagnosticFeedbackSettingsNotifier extends SettingsNotifier {
-  _DiagnosticFeedbackSettingsNotifier(this.env);
+class _VerificationFeedbackSettingsNotifier extends SettingsNotifier {
+  _VerificationFeedbackSettingsNotifier(this.env);
 
-  final _DiagnosticFeedbackLiveEnv env;
+  final _VerificationFeedbackLiveEnv env;
 
   @override
   AppSettings build() {
@@ -419,6 +483,7 @@ class _DiagnosticFeedbackSettingsNotifier extends SettingsNotifier {
       confirmFileMutations: false,
       confirmLocalCommands: false,
       demoMode: false,
+      codingVerificationTimeoutSeconds: 120,
     );
   }
 }
@@ -526,8 +591,8 @@ class _NoopSessionMemoryService extends SessionMemoryService {
   }
 }
 
-class _DiagnosticToolCall {
-  const _DiagnosticToolCall({
+class _VerificationToolCall {
+  const _VerificationToolCall({
     required this.name,
     required this.arguments,
     required this.result,
@@ -549,27 +614,16 @@ class _DiagnosticToolCall {
   }
 }
 
-class _DiagnosticFeedbackToolService extends McpToolService {
-  _DiagnosticFeedbackToolService(this.root, this.scenario);
+class _VerificationFeedbackToolService extends McpToolService {
+  _VerificationFeedbackToolService(this.root);
 
   final Directory root;
-  final _DiagnosticFeedbackScenario scenario;
-  final List<_DiagnosticToolCall> executedCalls = [];
+  final List<_VerificationToolCall> executedCalls = [];
 
   int get successfulMutationCount => executedCalls.where((call) {
     return (call.name == 'write_file' || call.name == 'edit_file') &&
         call.success;
   }).length;
-
-  int successfulLocalCommandCount(String command) {
-    return executedCalls.where((call) {
-      if (call.name != 'local_execute_command' || !call.success) {
-        return false;
-      }
-      final decoded = _tryDecodeObject(call.result);
-      return decoded['command'] == command && decoded['exit_code'] == 0;
-    }).length;
-  }
 
   @override
   Future<void> connect({
@@ -586,7 +640,7 @@ class _DiagnosticFeedbackToolService extends McpToolService {
         'function': {
           'name': 'list_directory',
           'description':
-              'List files in the isolated diagnostic feedback canary fixture.',
+              'List files in the isolated verification feedback canary fixture.',
           'parameters': const <String, dynamic>{
             'type': 'object',
             'properties': {
@@ -602,7 +656,7 @@ class _DiagnosticFeedbackToolService extends McpToolService {
         'function': {
           'name': 'read_file',
           'description':
-              'Read a UTF-8 text file from the isolated diagnostic feedback canary fixture.',
+              'Read a UTF-8 text file from the isolated verification feedback canary fixture.',
           'parameters': const <String, dynamic>{
             'type': 'object',
             'properties': {
@@ -619,7 +673,7 @@ class _DiagnosticFeedbackToolService extends McpToolService {
         'function': {
           'name': 'edit_file',
           'description':
-              'Replace exact text inside a fixture file. Use this to repair analyzer diagnostics.',
+              'Replace exact text inside a fixture file. Use this to repair failing tests.',
           'parameters': const <String, dynamic>{
             'type': 'object',
             'properties': {
@@ -638,7 +692,7 @@ class _DiagnosticFeedbackToolService extends McpToolService {
         'function': {
           'name': 'write_file',
           'description':
-              'Write a full UTF-8 text file in the diagnostic feedback canary fixture.',
+              'Write a full UTF-8 text file in the verification feedback canary fixture.',
           'parameters': const <String, dynamic>{
             'type': 'object',
             'properties': {
@@ -648,23 +702,6 @@ class _DiagnosticFeedbackToolService extends McpToolService {
               'reason': {'type': 'string'},
             },
             'required': ['path', 'content'],
-          },
-        },
-      },
-      {
-        'type': 'function',
-        'function': {
-          'name': 'local_execute_command',
-          'description':
-              'Run the approved fixture command. Accepted command: ${scenario.runCommand}.',
-          'parameters': const <String, dynamic>{
-            'type': 'object',
-            'properties': {
-              'command': {'type': 'string'},
-              'working_directory': {'type': 'string'},
-              'reason': {'type': 'string'},
-            },
-            'required': ['command'],
           },
         },
       },
@@ -678,7 +715,7 @@ class _DiagnosticFeedbackToolService extends McpToolService {
   }) async {
     final result = await _executeTool(name: name, arguments: arguments);
     executedCalls.add(
-      _DiagnosticToolCall(
+      _VerificationToolCall(
         name: name,
         arguments: Map<String, dynamic>.from(arguments),
         result: result.result,
@@ -745,86 +782,12 @@ class _DiagnosticFeedbackToolService extends McpToolService {
           createParents: arguments['create_parents'] as bool? ?? true,
         );
         return _toolResult(name, result);
-      case 'local_execute_command':
-        return _executeLocalCommand(name, arguments);
       default:
         return _toolError(name, 'Unsupported canary tool: $name');
     }
   }
 
-  Future<McpToolResult> _executeLocalCommand(
-    String name,
-    Map<String, dynamic> arguments,
-  ) async {
-    final command = (arguments['command'] as String?)?.trim() ?? '';
-    if (!_isAcceptedRunCommand(command)) {
-      return _toolError(
-        name,
-        'Unsupported local command for this canary fixture: $command',
-      );
-    }
-    final workingDirectory = _resolveInsideRoot(
-      arguments['working_directory'] as String?,
-      allowEmpty: true,
-      directory: true,
-    );
-    if (workingDirectory.error != null) {
-      return _toolError(name, workingDirectory.error!);
-    }
-    if (workingDirectory.value != root.absolute.path) {
-      return _toolError(
-        name,
-        'working_directory must be the canary project root.',
-      );
-    }
-
-    final result = await Process.run('dart', [
-      scenario.mainPath,
-    ], workingDirectory: root.path).timeout(const Duration(seconds: 30));
-    return _commandResult(
-      name: name,
-      command: scenario.runCommand,
-      exitCode: result.exitCode,
-      stdout: result.stdout as String,
-      stderr: result.stderr as String,
-    );
-  }
-
-  McpToolResult _commandResult({
-    required String name,
-    required String command,
-    required int exitCode,
-    String stdout = '',
-    String stderr = '',
-  }) {
-    final payload = jsonEncode({
-      'command': command,
-      'working_directory': root.absolute.path,
-      'exit_code': exitCode,
-      'stdout': stdout,
-      'stderr': stderr,
-    });
-    return McpToolResult(
-      toolName: name,
-      result: payload,
-      isSuccess: exitCode == 0,
-      errorMessage: exitCode == 0 ? null : 'Command exited with code $exitCode',
-    );
-  }
-
-  bool _isAcceptedRunCommand(String command) {
-    final normalized = command
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .replaceAll('./${scenario.mainPath}', scenario.mainPath)
-        .trim();
-    return normalized == scenario.runCommand;
-  }
-
-  _ResolvedPath _resolveInsideRoot(
-    String? rawPath, {
-    bool allowEmpty = false,
-    bool directory = false,
-  }) {
+  _ResolvedPath _resolveInsideRoot(String? rawPath, {bool allowEmpty = false}) {
     final trimmed = rawPath?.trim();
     final effectivePath = (trimmed == null || trimmed.isEmpty) && allowEmpty
         ? '.'
@@ -838,9 +801,7 @@ class _DiagnosticFeedbackToolService extends McpToolService {
     }
 
     final rootPath = root.absolute.path;
-    final targetPath = directory
-        ? Directory(resolved).absolute.path
-        : File(resolved).absolute.path;
+    final targetPath = File(resolved).absolute.path;
     if (targetPath != rootPath &&
         !targetPath.startsWith('$rootPath${Platform.pathSeparator}')) {
       return const _ResolvedPath(
@@ -893,21 +854,22 @@ Map<String, dynamic> _tryDecodeObject(String value) {
   return const {};
 }
 
-class _DiagnosticFeedbackLiveDataSource implements ChatDataSource {
-  _DiagnosticFeedbackLiveDataSource(this.delegate, this.scenario);
+class _VerificationFeedbackLiveDataSource implements ChatDataSource {
+  _VerificationFeedbackLiveDataSource(this.delegate, this.scenario);
 
   final ChatRemoteDataSource delegate;
-  final _DiagnosticFeedbackScenario scenario;
+  final _VerificationFeedbackScenario scenario;
   final List<List<Message>> streamRequests = [];
   final List<List<Message>> streamWithToolsRequests = [];
   final List<List<ToolResultInfo>> toolResultBatches = [];
   final List<ChatCompletionResult> toolResultResponses = [];
   bool scriptedPreludeUsed = false;
+  bool scriptedCompletionUsed = false;
 
-  bool get sawAnalyzerFeedback {
+  bool get sawVerificationFeedback {
     return toolResultBatches.any(
       (batch) => batch.any(
-        (result) => result.name == CodingDiagnosticFeedbackService.toolName,
+        (result) => result.name == CodingVerificationFeedbackService.toolName,
       ),
     );
   }
@@ -980,19 +942,14 @@ class _DiagnosticFeedbackLiveDataSource implements ChatDataSource {
         stream: const Stream<String>.empty(),
         completion: Future<ChatCompletionResult>.value(
           ChatCompletionResult(
-            content: 'Writing intentionally broken Dart for analyzer feedback.',
+            content: 'Writing intentionally broken Dart for test feedback.',
             toolCalls: [
               ToolCallInfo(
-                id: 'diagnostic-feedback-scripted-write',
+                id: _scriptedWriteId,
                 name: 'write_file',
                 arguments: {
-                  'path': scenario.mainPath,
-                  'content':
-                      '''
-void main() {
-  print($_brokenSymbol);
-}
-''',
+                  'path': scenario.sourcePath,
+                  'content': _VerificationFeedbackFixture._brokenSource(),
                 },
               ),
             ],
@@ -1021,6 +978,16 @@ void main() {
     int? maxTokens,
   }) async {
     toolResultBatches.add(List<ToolResultInfo>.unmodifiable(toolResults));
+    if (!scriptedCompletionUsed &&
+        toolResults.any((result) => result.id == _scriptedWriteId)) {
+      scriptedCompletionUsed = true;
+      final result = ChatCompletionResult(
+        content: 'Done.',
+        finishReason: 'stop',
+      );
+      toolResultResponses.add(result);
+      return result;
+    }
     final result = await delegate.createChatCompletionWithToolResults(
       messages: messages,
       toolResults: toolResults,

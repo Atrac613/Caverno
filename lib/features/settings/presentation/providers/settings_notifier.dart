@@ -397,6 +397,42 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateEnableCodingVerificationFeedback(bool value) async {
+    state = state.copyWith(enableCodingVerificationFeedback: value);
+    await _repository.save(state);
+  }
+
+  Future<void> updateCodingVerificationTriggerPolicy(
+    CodingVerificationTriggerPolicy value,
+  ) async {
+    state = state.copyWith(codingVerificationTriggerPolicy: value);
+    await _repository.save(state);
+  }
+
+  Future<void> updateCodingVerificationTimeoutSeconds(int value) async {
+    state = state.copyWith(
+      codingVerificationTimeoutSeconds: value
+          .clamp(
+            AppSettings.minCodingVerificationTimeoutSeconds,
+            AppSettings.maxCodingVerificationTimeoutSeconds,
+          )
+          .toInt(),
+    );
+    await _repository.save(state);
+  }
+
+  Future<void> updateCodingVerificationMaxFailures(int value) async {
+    state = state.copyWith(
+      codingVerificationMaxFailures: value
+          .clamp(
+            AppSettings.minCodingVerificationMaxFailures,
+            AppSettings.maxCodingVerificationMaxFailures,
+          )
+          .toInt(),
+    );
+    await _repository.save(state);
+  }
+
   Future<void> updateShowMemoryUpdates(bool value) async {
     state = state.copyWith(showMemoryUpdates: value);
     await _repository.save(state);

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart_tool_process.dart';
+
 import '../../integration_test/test_support/macos_computer_use_m52_product_release_rollout.dart';
 
 void main() {
@@ -127,20 +129,21 @@ void main() {
         final outputJson = '${root.path}/out/m52.json';
         final outputMd = '${root.path}/out/m52.md';
 
-        final result = await Process.run('dart', <String>[
-          'run',
+        final result = await runDartTool(
           'tool/macos_computer_use_m52_product_release_rollout.dart',
-          '--root',
-          root.path,
-          '--product-release-checklist',
-          checklistPath,
-          '--m51-production-launch-gate',
-          m51Path,
-          '--output-json',
-          outputJson,
-          '--output-md',
-          outputMd,
-        ]);
+          <String>[
+            '--root',
+            root.path,
+            '--product-release-checklist',
+            checklistPath,
+            '--m51-production-launch-gate',
+            m51Path,
+            '--output-json',
+            outputJson,
+            '--output-md',
+            outputMd,
+          ],
+        );
 
         expect(
           result.exitCode,

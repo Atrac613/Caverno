@@ -52,6 +52,7 @@ class ToolDefinitionSearchService {
     'find_files',
     'search_files',
     'local_execute_command',
+    'run_tests',
     'git_execute_command',
     'ping6',
     'arp',

@@ -107,6 +107,71 @@ void main() {
     expect(decoded.enableLlmSessionLogs, isTrue);
   });
 
+  test(
+    'defaults coding verification feedback to enabled and persists opt out',
+    () {
+      expect(AppSettings.defaults().enableCodingVerificationFeedback, isTrue);
+      expect(
+        AppSettings.defaults().codingVerificationTriggerPolicy,
+        CodingVerificationTriggerPolicy.onCompletionClaim,
+      );
+      expect(
+        AppSettings.defaults().effectiveCodingVerificationTimeoutSeconds,
+        AppSettings.defaultCodingVerificationTimeoutSeconds,
+      );
+      expect(
+        AppSettings.defaults().effectiveCodingVerificationMaxFailures,
+        AppSettings.defaultCodingVerificationMaxFailures,
+      );
+
+      final settings = AppSettings.defaults().copyWith(
+        enableCodingVerificationFeedback: false,
+        codingVerificationTriggerPolicy:
+            CodingVerificationTriggerPolicy.onRequestOnly,
+        codingVerificationTimeoutSeconds: 120,
+        codingVerificationMaxFailures: 7,
+      );
+
+      final decoded = AppSettings.fromJson(
+        jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+      );
+
+      expect(decoded.enableCodingVerificationFeedback, isFalse);
+      expect(
+        decoded.codingVerificationTriggerPolicy,
+        CodingVerificationTriggerPolicy.onRequestOnly,
+      );
+      expect(decoded.effectiveCodingVerificationTimeoutSeconds, 120);
+      expect(decoded.effectiveCodingVerificationMaxFailures, 7);
+    },
+  );
+
+  test('clamps coding verification policy limits', () {
+    final settings = AppSettings.defaults().copyWith(
+      codingVerificationTimeoutSeconds: 1,
+      codingVerificationMaxFailures: 99,
+    );
+
+    expect(
+      settings.effectiveCodingVerificationTimeoutSeconds,
+      AppSettings.minCodingVerificationTimeoutSeconds,
+    );
+    expect(
+      settings.effectiveCodingVerificationMaxFailures,
+      AppSettings.maxCodingVerificationMaxFailures,
+    );
+    expect(settings.runsCodingVerificationOnCompletionClaim, isTrue);
+    expect(
+      settings
+          .copyWith(
+            codingVerificationTriggerPolicy:
+                CodingVerificationTriggerPolicy.onRequestOnly,
+          )
+          .runsCodingVerificationOnCompletionClaim,
+      isFalse,
+    );
+  });
+
   test('migrates legacy disabled confirmation settings to full access', () {
     final legacyJson =
         jsonDecode(jsonEncode(AppSettings.defaults().toJson()))

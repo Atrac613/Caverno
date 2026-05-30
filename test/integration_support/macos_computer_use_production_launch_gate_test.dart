@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart_tool_process.dart';
+
 import '../../integration_test/test_support/macos_computer_use_production_launch_gate.dart';
 
 void main() {
@@ -188,28 +190,29 @@ void main() {
       final outputJson = '${root.path}/out/m40.json';
       final outputMd = '${root.path}/out/m40.md';
 
-      final result = await Process.run('dart', <String>[
-        'run',
+      final result = await runDartTool(
         'tool/macos_computer_use_production_launch_gate.dart',
-        '--root',
-        root.path,
-        '--launch-checklist',
-        checklistPath,
-        '--release-artifact-report',
-        releaseArtifactPath,
-        '--release-packaging-report',
-        packagingPath,
-        '--m36-live-llm-eval',
-        m36Path,
-        '--m39-beta-signoff',
-        m39Path,
-        '--diagnostics',
-        diagnosticsPath,
-        '--output-json',
-        outputJson,
-        '--output-md',
-        outputMd,
-      ]);
+        <String>[
+          '--root',
+          root.path,
+          '--launch-checklist',
+          checklistPath,
+          '--release-artifact-report',
+          releaseArtifactPath,
+          '--release-packaging-report',
+          packagingPath,
+          '--m36-live-llm-eval',
+          m36Path,
+          '--m39-beta-signoff',
+          m39Path,
+          '--diagnostics',
+          diagnosticsPath,
+          '--output-json',
+          outputJson,
+          '--output-md',
+          outputMd,
+        ],
+      );
 
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
       final summary = jsonDecode(File(outputJson).readAsStringSync()) as Map;

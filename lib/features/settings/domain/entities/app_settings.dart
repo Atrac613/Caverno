@@ -19,6 +19,8 @@ enum LocalCommandPermissionMatch { exact, prefix }
 
 enum CodingApprovalMode { defaultPermissions, autoReview, fullAccess }
 
+enum CodingVerificationTriggerPolicy { onCompletionClaim, onRequestOnly, off }
+
 enum ReasoningEffortPreference { automatic, low, medium, high }
 
 extension ReasoningEffortPreferenceApi on ReasoningEffortPreference {
@@ -195,6 +197,14 @@ abstract class AppSettings with _$AppSettings {
     @Default(true) bool confirmFileMutations,
     @Default(true) bool confirmLocalCommands,
     @Default(true) bool confirmGitWrites,
+    @Default(true) bool enableCodingVerificationFeedback,
+    @JsonKey(
+      unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim,
+    )
+    @Default(CodingVerificationTriggerPolicy.onCompletionClaim)
+    CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,
+    @Default(90) int codingVerificationTimeoutSeconds,
+    @Default(5) int codingVerificationMaxFailures,
     @Default(true) bool enableAgentsMd,
     @Default(false) bool showMemoryUpdates,
     @Default(false) bool enableLlmSessionLogs,
@@ -222,6 +232,13 @@ abstract class AppSettings with _$AppSettings {
   factory AppSettings.fromJson(Map<String, dynamic> json) =>
       _$AppSettingsFromJson(migrateLegacyJson(json));
 
+  static const int minCodingVerificationTimeoutSeconds = 10;
+  static const int maxCodingVerificationTimeoutSeconds = 300;
+  static const int defaultCodingVerificationTimeoutSeconds = 90;
+  static const int minCodingVerificationMaxFailures = 1;
+  static const int maxCodingVerificationMaxFailures = 20;
+  static const int defaultCodingVerificationMaxFailures = 5;
+
   static Map<String, dynamic> migrateLegacyJson(Map<String, dynamic> json) {
     if (json.containsKey('codingApprovalMode')) {
       return json;
@@ -243,6 +260,28 @@ abstract class AppSettings with _$AppSettings {
   String get normalizedGoogleChatWebhookUrl => googleChatWebhookUrl.trim();
 
   bool get hasGoogleChatWebhook => normalizedGoogleChatWebhookUrl.isNotEmpty;
+
+  int get effectiveCodingVerificationTimeoutSeconds =>
+      codingVerificationTimeoutSeconds
+          .clamp(
+            minCodingVerificationTimeoutSeconds,
+            maxCodingVerificationTimeoutSeconds,
+          )
+          .toInt();
+
+  int get effectiveCodingVerificationMaxFailures =>
+      codingVerificationMaxFailures
+          .clamp(
+            minCodingVerificationMaxFailures,
+            maxCodingVerificationMaxFailures,
+          )
+          .toInt();
+
+  bool get runsCodingVerificationOnCompletionClaim {
+    return enableCodingVerificationFeedback &&
+        codingVerificationTriggerPolicy ==
+            CodingVerificationTriggerPolicy.onCompletionClaim;
+  }
 
   Set<String> get disabledBuiltInToolsSet =>
       Set<String>.from(disabledBuiltInTools);

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart_tool_process.dart';
+
 import '../../integration_test/test_support/macos_computer_use_canary_history.dart';
 import '../../integration_test/test_support/macos_computer_use_manual_tcc_report.dart';
 
@@ -203,15 +205,16 @@ void main() {
         '${outputDir.path}/manual_tcc_report_summary.md',
       );
 
-      final result = await Process.run('dart', <String>[
-        'run',
+      final result = await runDartTool(
         'tool/macos_computer_use_manual_tcc_report.dart',
-        inputFile.path,
-        '--output-json',
-        outputJson.path,
-        '--output-md',
-        outputMarkdown.path,
-      ]);
+        <String>[
+          inputFile.path,
+          '--output-json',
+          outputJson.path,
+          '--output-md',
+          outputMarkdown.path,
+        ],
+      );
 
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
       final summaryJson =

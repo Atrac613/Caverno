@@ -66,6 +66,14 @@ class ToolsSettingsPage extends ConsumerWidget {
             value: settings.enableAgentsMd,
             onChanged: notifier.updateEnableAgentsMd,
           ),
+          SwitchListTile(
+            title: Text('settings.coding_verification_feedback_title'.tr()),
+            subtitle: Text('settings.coding_verification_feedback_desc'.tr()),
+            value: settings.enableCodingVerificationFeedback,
+            onChanged: notifier.updateEnableCodingVerificationFeedback,
+          ),
+          if (settings.enableCodingVerificationFeedback)
+            _buildCodingVerificationPolicyCard(settings, notifier),
           const Divider(),
           _buildSkillsTile(context),
           _buildBuiltInToolsTile(context, settings),
@@ -186,6 +194,108 @@ class ToolsSettingsPage extends ConsumerWidget {
         MaterialPageRoute(builder: (_) => const RemoteCodingSettingsPage()),
       ),
     );
+  }
+
+  Widget _buildCodingVerificationPolicyCard(
+    AppSettings settings,
+    SettingsNotifier notifier,
+  ) {
+    final timeoutSeconds = settings.effectiveCodingVerificationTimeoutSeconds
+        .toDouble();
+    final maxFailures = settings.effectiveCodingVerificationMaxFailures
+        .toDouble();
+
+    return Card(
+      child: Column(
+        children: [
+          RadioGroup<CodingVerificationTriggerPolicy>(
+            groupValue: settings.codingVerificationTriggerPolicy,
+            onChanged: (value) {
+              if (value == null) return;
+              notifier.updateCodingVerificationTriggerPolicy(value);
+            },
+            child: Column(
+              children: [
+                for (final policy in CodingVerificationTriggerPolicy.values)
+                  RadioListTile<CodingVerificationTriggerPolicy>(
+                    title: Text(_codingVerificationTriggerPolicyLabel(policy)),
+                    subtitle: Text(
+                      _codingVerificationTriggerPolicyDescription(policy),
+                    ),
+                    value: policy,
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            title: Text(
+              'settings.coding_verification_timeout_title'.tr(
+                namedArgs: {'seconds': '${timeoutSeconds.round()}'},
+              ),
+            ),
+            subtitle: Slider(
+              value: timeoutSeconds,
+              min: AppSettings.minCodingVerificationTimeoutSeconds.toDouble(),
+              max: AppSettings.maxCodingVerificationTimeoutSeconds.toDouble(),
+              divisions:
+                  (AppSettings.maxCodingVerificationTimeoutSeconds -
+                      AppSettings.minCodingVerificationTimeoutSeconds) ~/
+                  10,
+              label: '${timeoutSeconds.round()}s',
+              onChanged: (value) {
+                notifier.updateCodingVerificationTimeoutSeconds(value.round());
+              },
+            ),
+          ),
+          ListTile(
+            title: Text(
+              'settings.coding_verification_max_failures_title'.tr(
+                namedArgs: {'count': '${maxFailures.round()}'},
+              ),
+            ),
+            subtitle: Slider(
+              value: maxFailures,
+              min: AppSettings.minCodingVerificationMaxFailures.toDouble(),
+              max: AppSettings.maxCodingVerificationMaxFailures.toDouble(),
+              divisions:
+                  AppSettings.maxCodingVerificationMaxFailures -
+                  AppSettings.minCodingVerificationMaxFailures,
+              label: '${maxFailures.round()}',
+              onChanged: (value) {
+                notifier.updateCodingVerificationMaxFailures(value.round());
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _codingVerificationTriggerPolicyLabel(
+    CodingVerificationTriggerPolicy policy,
+  ) {
+    return switch (policy) {
+      CodingVerificationTriggerPolicy.onCompletionClaim =>
+        'settings.coding_verification_trigger_completion'.tr(),
+      CodingVerificationTriggerPolicy.onRequestOnly =>
+        'settings.coding_verification_trigger_request_only'.tr(),
+      CodingVerificationTriggerPolicy.off =>
+        'settings.coding_verification_trigger_off'.tr(),
+    };
+  }
+
+  String _codingVerificationTriggerPolicyDescription(
+    CodingVerificationTriggerPolicy policy,
+  ) {
+    return switch (policy) {
+      CodingVerificationTriggerPolicy.onCompletionClaim =>
+        'settings.coding_verification_trigger_completion_desc'.tr(),
+      CodingVerificationTriggerPolicy.onRequestOnly =>
+        'settings.coding_verification_trigger_request_only_desc'.tr(),
+      CodingVerificationTriggerPolicy.off =>
+        'settings.coding_verification_trigger_off_desc'.tr(),
+    };
   }
 
   String _codingApprovalModeLabel(CodingApprovalMode mode) {

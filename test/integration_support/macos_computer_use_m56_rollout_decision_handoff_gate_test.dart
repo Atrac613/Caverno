@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart_tool_process.dart';
+
 import '../../integration_test/test_support/macos_computer_use_m56_rollout_decision_handoff_gate.dart';
 
 void main() {
@@ -180,20 +182,21 @@ void main() {
         final outputJson = '${root.path}/out/m56.json';
         final outputMd = '${root.path}/out/m56.md';
 
-        final result = await Process.run('dart', <String>[
-          'run',
+        final result = await runDartTool(
           'tool/macos_computer_use_m56_rollout_decision_handoff_gate.dart',
-          '--root',
-          root.path,
-          '--rollout-decision-handoff-checklist',
-          checklistPath,
-          '--m55-post-expansion-monitoring-gate',
-          m55Path,
-          '--output-json',
-          outputJson,
-          '--output-md',
-          outputMd,
-        ]);
+          <String>[
+            '--root',
+            root.path,
+            '--rollout-decision-handoff-checklist',
+            checklistPath,
+            '--m55-post-expansion-monitoring-gate',
+            m55Path,
+            '--output-json',
+            outputJson,
+            '--output-md',
+            outputMd,
+          ],
+        );
 
         expect(
           result.exitCode,

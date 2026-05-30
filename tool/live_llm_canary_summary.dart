@@ -4,6 +4,9 @@ import 'dart:io';
 const _dartAnalyzeFeedbackSummaryPrefix =
     '[CodingDiagnostics] Analyzer feedback summary: ';
 const _dartAnalyzeFeedbackToolName = 'dart_analyze_feedback';
+const _dartTestFeedbackSummaryPrefix =
+    '[CodingVerification] Test feedback summary: ';
+const _dartTestFeedbackToolName = 'dart_test_feedback';
 
 Future<void> main(List<String> args) async {
   final options = _LiveLlmCanarySummaryOptions.parse(args);
@@ -254,6 +257,73 @@ class LiveLlmCanarySummary {
         '- Dart analyzer feedback files: '
         '`${signals.dartAnalyzeFeedback.files.isEmpty ? '(none)' : signals.dartAnalyzeFeedback.files.join(', ')}`',
       )
+      ..writeln(
+        '- Dart analyzer feedback duration: '
+        '`${signals.dartAnalyzeFeedback.durationMs} ms`',
+      )
+      ..writeln(
+        '- Dart analyzer command attempts: '
+        '`${signals.dartAnalyzeFeedback.commandAttemptCount}`',
+      )
+      ..writeln(
+        '- Dart analyzer fallback commands: '
+        '`${signals.dartAnalyzeFeedback.fallbackCommandCount}`',
+      )
+      ..writeln(
+        '- Dart analyzer timed-out commands: '
+        '`${signals.dartAnalyzeFeedback.timedOutCommandCount}`',
+      )
+      ..writeln(
+        '- Dart analyzer start-error commands: '
+        '`${signals.dartAnalyzeFeedback.startErrorCommandCount}`',
+      )
+      ..writeln()
+      ..writeln('## Coding Verification Feedback')
+      ..writeln()
+      ..writeln(
+        '- Dart test feedback observed: '
+        '`${signals.dartTestFeedback.observed ? 'yes' : 'no'}`',
+      )
+      ..writeln(
+        '- Dart test feedback count: '
+        '`${signals.dartTestFeedback.feedbackCount}`',
+      )
+      ..writeln(
+        '- Dart test failure count: '
+        '`${signals.dartTestFeedback.failedCount}`',
+      )
+      ..writeln(
+        '- Dart test feedback files: '
+        '`${signals.dartTestFeedback.files.isEmpty ? '(none)' : signals.dartTestFeedback.files.join(', ')}`',
+      )
+      ..writeln(
+        '- Dart test feedback triggers: '
+        '`${signals.dartTestFeedback.triggers.isEmpty ? '(none)' : signals.dartTestFeedback.triggers.join(', ')}`',
+      )
+      ..writeln(
+        '- Dart test validation statuses: '
+        '`${signals.dartTestFeedback.validationStatuses.isEmpty ? '(none)' : signals.dartTestFeedback.validationStatuses.join(', ')}`',
+      )
+      ..writeln(
+        '- Dart test feedback duration: '
+        '`${signals.dartTestFeedback.durationMs} ms`',
+      )
+      ..writeln(
+        '- Dart test command attempts: '
+        '`${signals.dartTestFeedback.commandAttemptCount}`',
+      )
+      ..writeln(
+        '- Dart test fallback commands: '
+        '`${signals.dartTestFeedback.fallbackCommandCount}`',
+      )
+      ..writeln(
+        '- Dart test timed-out commands: '
+        '`${signals.dartTestFeedback.timedOutCommandCount}`',
+      )
+      ..writeln(
+        '- Dart test start-error commands: '
+        '`${signals.dartTestFeedback.startErrorCommandCount}`',
+      )
       ..writeln()
       ..writeln('## Tests')
       ..writeln()
@@ -279,6 +349,7 @@ class LiveLlmCanarySignals {
     required this.transportDisconnectCount,
     required this.memoryExtractionFallbackCount,
     required this.dartAnalyzeFeedback,
+    required this.dartTestFeedback,
   });
 
   final int recoveredStreamFallbackCount;
@@ -289,9 +360,11 @@ class LiveLlmCanarySignals {
   final int transportDisconnectCount;
   final int memoryExtractionFallbackCount;
   final LiveLlmCanaryDartAnalyzeFeedbackSignals dartAnalyzeFeedback;
+  final LiveLlmCanaryDartTestFeedbackSignals dartTestFeedback;
 
   static LiveLlmCanarySignals fromLog(String rawLog) {
     final dartAnalyzeFeedback = _extractDartAnalyzeFeedbackSignals(rawLog);
+    final dartTestFeedback = _extractDartTestFeedbackSignals(rawLog);
     return LiveLlmCanarySignals(
       recoveredStreamFallbackCount: _countMatches(
         rawLog,
@@ -329,6 +402,7 @@ class LiveLlmCanarySignals {
         ),
       ),
       dartAnalyzeFeedback: dartAnalyzeFeedback,
+      dartTestFeedback: dartTestFeedback,
     );
   }
 
@@ -342,6 +416,7 @@ class LiveLlmCanarySignals {
       'transportDisconnectCount': transportDisconnectCount,
       'memoryExtractionFallbackCount': memoryExtractionFallbackCount,
       'dartAnalyzeFeedback': dartAnalyzeFeedback.toJson(),
+      'dartTestFeedback': dartTestFeedback.toJson(),
     };
   }
 }
@@ -351,11 +426,21 @@ class LiveLlmCanaryDartAnalyzeFeedbackSignals {
     required this.feedbackCount,
     required this.diagnosticCount,
     required this.files,
+    required this.durationMs,
+    required this.commandAttemptCount,
+    required this.fallbackCommandCount,
+    required this.timedOutCommandCount,
+    required this.startErrorCommandCount,
   });
 
   final int feedbackCount;
   final int diagnosticCount;
   final List<String> files;
+  final int durationMs;
+  final int commandAttemptCount;
+  final int fallbackCommandCount;
+  final int timedOutCommandCount;
+  final int startErrorCommandCount;
 
   bool get observed => feedbackCount > 0;
 
@@ -365,6 +450,61 @@ class LiveLlmCanaryDartAnalyzeFeedbackSignals {
       'feedbackCount': feedbackCount,
       'diagnosticCount': diagnosticCount,
       'files': files,
+      'durationMs': durationMs,
+      'commandAttemptCount': commandAttemptCount,
+      'fallbackCommandCount': fallbackCommandCount,
+      'timedOutCommandCount': timedOutCommandCount,
+      'startErrorCommandCount': startErrorCommandCount,
+    };
+  }
+}
+
+class LiveLlmCanaryDartTestFeedbackSignals {
+  const LiveLlmCanaryDartTestFeedbackSignals({
+    required this.feedbackCount,
+    required this.passedCount,
+    required this.failedCount,
+    required this.skippedCount,
+    required this.files,
+    required this.triggers,
+    required this.validationStatuses,
+    required this.durationMs,
+    required this.commandAttemptCount,
+    required this.fallbackCommandCount,
+    required this.timedOutCommandCount,
+    required this.startErrorCommandCount,
+  });
+
+  final int feedbackCount;
+  final int passedCount;
+  final int failedCount;
+  final int skippedCount;
+  final List<String> files;
+  final List<String> triggers;
+  final List<String> validationStatuses;
+  final int durationMs;
+  final int commandAttemptCount;
+  final int fallbackCommandCount;
+  final int timedOutCommandCount;
+  final int startErrorCommandCount;
+
+  bool get observed => feedbackCount > 0;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'observed': observed,
+      'feedbackCount': feedbackCount,
+      'passedCount': passedCount,
+      'failedCount': failedCount,
+      'skippedCount': skippedCount,
+      'files': files,
+      'triggers': triggers,
+      'validationStatuses': validationStatuses,
+      'durationMs': durationMs,
+      'commandAttemptCount': commandAttemptCount,
+      'fallbackCommandCount': fallbackCommandCount,
+      'timedOutCommandCount': timedOutCommandCount,
+      'startErrorCommandCount': startErrorCommandCount,
     };
   }
 }
@@ -618,6 +758,11 @@ LiveLlmCanaryDartAnalyzeFeedbackSignals _extractDartAnalyzeFeedbackSignals(
   final files = <String>{};
   var feedbackCount = 0;
   var diagnosticCount = 0;
+  var durationMs = 0;
+  var commandAttemptCount = 0;
+  var fallbackCommandCount = 0;
+  var timedOutCommandCount = 0;
+  var startErrorCommandCount = 0;
   var fallbackFeedbackCount = 0;
 
   for (final line in const LineSplitter().convert(rawLog)) {
@@ -650,6 +795,32 @@ LiveLlmCanaryDartAnalyzeFeedbackSignals _extractDartAnalyzeFeedbackSignals(
         diagnosticCount += rawDiagnosticCount.toInt();
       }
 
+      final rawDurationMs = decoded['durationMs'] ?? decoded['duration_ms'];
+      if (rawDurationMs is num) {
+        durationMs += rawDurationMs.toInt();
+      }
+      final rawCommandAttemptCount =
+          decoded['commandAttemptCount'] ?? decoded['command_attempt_count'];
+      if (rawCommandAttemptCount is num) {
+        commandAttemptCount += rawCommandAttemptCount.toInt();
+      }
+      final rawFallbackCommandCount =
+          decoded['fallbackCommandCount'] ?? decoded['fallback_command_count'];
+      if (rawFallbackCommandCount is num) {
+        fallbackCommandCount += rawFallbackCommandCount.toInt();
+      }
+      final rawTimedOutCommandCount =
+          decoded['timedOutCommandCount'] ?? decoded['timed_out_command_count'];
+      if (rawTimedOutCommandCount is num) {
+        timedOutCommandCount += rawTimedOutCommandCount.toInt();
+      }
+      final rawStartErrorCommandCount =
+          decoded['startErrorCommandCount'] ??
+          decoded['start_error_command_count'];
+      if (rawStartErrorCommandCount is num) {
+        startErrorCommandCount += rawStartErrorCommandCount.toInt();
+      }
+
       final rawFiles =
           decoded['files'] ??
           decoded['changedPaths'] ??
@@ -673,6 +844,127 @@ LiveLlmCanaryDartAnalyzeFeedbackSignals _extractDartAnalyzeFeedbackSignals(
     feedbackCount: feedbackCount,
     diagnosticCount: diagnosticCount,
     files: sortedFiles,
+    durationMs: durationMs,
+    commandAttemptCount: commandAttemptCount,
+    fallbackCommandCount: fallbackCommandCount,
+    timedOutCommandCount: timedOutCommandCount,
+    startErrorCommandCount: startErrorCommandCount,
+  );
+}
+
+LiveLlmCanaryDartTestFeedbackSignals _extractDartTestFeedbackSignals(
+  String rawLog,
+) {
+  final files = <String>{};
+  final triggers = <String>{};
+  final validationStatuses = <String>{};
+  var feedbackCount = 0;
+  var passedCount = 0;
+  var failedCount = 0;
+  var skippedCount = 0;
+  var durationMs = 0;
+  var commandAttemptCount = 0;
+  var fallbackCommandCount = 0;
+  var timedOutCommandCount = 0;
+  var startErrorCommandCount = 0;
+
+  for (final line in const LineSplitter().convert(rawLog)) {
+    for (final message in _messagesFromLogLine(line)) {
+      final prefixIndex = message.indexOf(_dartTestFeedbackSummaryPrefix);
+      if (prefixIndex == -1) {
+        continue;
+      }
+      final encoded = message
+          .substring(prefixIndex + _dartTestFeedbackSummaryPrefix.length)
+          .trim();
+      final decoded = _tryDecodeObject(encoded);
+      if (decoded.isEmpty) {
+        continue;
+      }
+      final toolName =
+          decoded['toolName'] as String? ?? decoded['tool_name'] as String?;
+      if (toolName != null && toolName != _dartTestFeedbackToolName) {
+        continue;
+      }
+
+      feedbackCount += 1;
+      final rawPassedCount = decoded['passedCount'] ?? decoded['passed_count'];
+      if (rawPassedCount is num) {
+        passedCount += rawPassedCount.toInt();
+      }
+      final rawFailedCount = decoded['failedCount'] ?? decoded['failed_count'];
+      if (rawFailedCount is num) {
+        failedCount += rawFailedCount.toInt();
+      }
+      final rawSkippedCount =
+          decoded['skippedCount'] ?? decoded['skipped_count'];
+      if (rawSkippedCount is num) {
+        skippedCount += rawSkippedCount.toInt();
+      }
+
+      final rawDurationMs = decoded['durationMs'] ?? decoded['duration_ms'];
+      if (rawDurationMs is num) {
+        durationMs += rawDurationMs.toInt();
+      }
+      final rawCommandAttemptCount =
+          decoded['commandAttemptCount'] ?? decoded['command_attempt_count'];
+      if (rawCommandAttemptCount is num) {
+        commandAttemptCount += rawCommandAttemptCount.toInt();
+      }
+      final rawFallbackCommandCount =
+          decoded['fallbackCommandCount'] ?? decoded['fallback_command_count'];
+      if (rawFallbackCommandCount is num) {
+        fallbackCommandCount += rawFallbackCommandCount.toInt();
+      }
+      final rawTimedOutCommandCount =
+          decoded['timedOutCommandCount'] ?? decoded['timed_out_command_count'];
+      if (rawTimedOutCommandCount is num) {
+        timedOutCommandCount += rawTimedOutCommandCount.toInt();
+      }
+      final rawStartErrorCommandCount =
+          decoded['startErrorCommandCount'] ??
+          decoded['start_error_command_count'];
+      if (rawStartErrorCommandCount is num) {
+        startErrorCommandCount += rawStartErrorCommandCount.toInt();
+      }
+
+      final rawFiles =
+          decoded['files'] ??
+          decoded['changedPaths'] ??
+          decoded['changed_paths'];
+      if (rawFiles is Iterable) {
+        for (final file in rawFiles) {
+          if (file is String && file.trim().isNotEmpty) {
+            files.add(file.trim());
+          }
+        }
+      }
+
+      final trigger = decoded['trigger'];
+      if (trigger is String && trigger.trim().isNotEmpty) {
+        triggers.add(trigger.trim());
+      }
+      final validationStatus =
+          decoded['validationStatus'] ?? decoded['validation_status'];
+      if (validationStatus is String && validationStatus.trim().isNotEmpty) {
+        validationStatuses.add(validationStatus.trim());
+      }
+    }
+  }
+
+  return LiveLlmCanaryDartTestFeedbackSignals(
+    feedbackCount: feedbackCount,
+    passedCount: passedCount,
+    failedCount: failedCount,
+    skippedCount: skippedCount,
+    files: files.toList(growable: false)..sort(),
+    triggers: triggers.toList(growable: false)..sort(),
+    validationStatuses: validationStatuses.toList(growable: false)..sort(),
+    durationMs: durationMs,
+    commandAttemptCount: commandAttemptCount,
+    fallbackCommandCount: fallbackCommandCount,
+    timedOutCommandCount: timedOutCommandCount,
+    startErrorCommandCount: startErrorCommandCount,
   );
 }
 

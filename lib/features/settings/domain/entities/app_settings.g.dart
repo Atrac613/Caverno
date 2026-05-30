@@ -191,6 +191,19 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   confirmFileMutations: json['confirmFileMutations'] as bool? ?? true,
   confirmLocalCommands: json['confirmLocalCommands'] as bool? ?? true,
   confirmGitWrites: json['confirmGitWrites'] as bool? ?? true,
+  enableCodingVerificationFeedback:
+      json['enableCodingVerificationFeedback'] as bool? ?? true,
+  codingVerificationTriggerPolicy:
+      $enumDecodeNullable(
+        _$CodingVerificationTriggerPolicyEnumMap,
+        json['codingVerificationTriggerPolicy'],
+        unknownValue: CodingVerificationTriggerPolicy.onCompletionClaim,
+      ) ??
+      CodingVerificationTriggerPolicy.onCompletionClaim,
+  codingVerificationTimeoutSeconds:
+      (json['codingVerificationTimeoutSeconds'] as num?)?.toInt() ?? 90,
+  codingVerificationMaxFailures:
+      (json['codingVerificationMaxFailures'] as num?)?.toInt() ?? 5,
   enableAgentsMd: json['enableAgentsMd'] as bool? ?? true,
   showMemoryUpdates: json['showMemoryUpdates'] as bool? ?? false,
   enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? false,
@@ -219,43 +232,50 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
       const <RoutineComputerUseActionAllowlistEntry>[],
 );
 
-Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
-    <String, dynamic>{
-      'baseUrl': instance.baseUrl,
-      'model': instance.model,
-      'apiKey': instance.apiKey,
-      'temperature': instance.temperature,
-      'maxTokens': instance.maxTokens,
-      'reasoningEffort':
-          _$ReasoningEffortPreferenceEnumMap[instance.reasoningEffort]!,
-      'googleChatWebhookUrl': instance.googleChatWebhookUrl,
-      'mcpUrl': instance.mcpUrl,
-      'mcpUrls': instance.mcpUrls,
-      'mcpServers': instance.mcpServers,
-      'mcpEnabled': instance.mcpEnabled,
-      'ttsEnabled': instance.ttsEnabled,
-      'autoReadEnabled': instance.autoReadEnabled,
-      'speechRate': instance.speechRate,
-      'voiceModeAutoStop': instance.voiceModeAutoStop,
-      'whisperUrl': instance.whisperUrl,
-      'voicevoxUrl': instance.voicevoxUrl,
-      'voicevoxSpeakerId': instance.voicevoxSpeakerId,
-      'language': instance.language,
-      'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
-      'codingApprovalMode':
-          _$CodingApprovalModeEnumMap[instance.codingApprovalMode]!,
-      'confirmFileMutations': instance.confirmFileMutations,
-      'confirmLocalCommands': instance.confirmLocalCommands,
-      'confirmGitWrites': instance.confirmGitWrites,
-      'enableAgentsMd': instance.enableAgentsMd,
-      'showMemoryUpdates': instance.showMemoryUpdates,
-      'enableLlmSessionLogs': instance.enableLlmSessionLogs,
-      'demoMode': instance.demoMode,
-      'disabledBuiltInTools': instance.disabledBuiltInTools,
-      'localCommandPermissionRules': instance.localCommandPermissionRules,
-      'routineComputerUseActionAllowlist':
-          instance.routineComputerUseActionAllowlist,
-    };
+Map<String, dynamic> _$AppSettingsToJson(
+  _AppSettings instance,
+) => <String, dynamic>{
+  'baseUrl': instance.baseUrl,
+  'model': instance.model,
+  'apiKey': instance.apiKey,
+  'temperature': instance.temperature,
+  'maxTokens': instance.maxTokens,
+  'reasoningEffort':
+      _$ReasoningEffortPreferenceEnumMap[instance.reasoningEffort]!,
+  'googleChatWebhookUrl': instance.googleChatWebhookUrl,
+  'mcpUrl': instance.mcpUrl,
+  'mcpUrls': instance.mcpUrls,
+  'mcpServers': instance.mcpServers,
+  'mcpEnabled': instance.mcpEnabled,
+  'ttsEnabled': instance.ttsEnabled,
+  'autoReadEnabled': instance.autoReadEnabled,
+  'speechRate': instance.speechRate,
+  'voiceModeAutoStop': instance.voiceModeAutoStop,
+  'whisperUrl': instance.whisperUrl,
+  'voicevoxUrl': instance.voicevoxUrl,
+  'voicevoxSpeakerId': instance.voicevoxSpeakerId,
+  'language': instance.language,
+  'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
+  'codingApprovalMode':
+      _$CodingApprovalModeEnumMap[instance.codingApprovalMode]!,
+  'confirmFileMutations': instance.confirmFileMutations,
+  'confirmLocalCommands': instance.confirmLocalCommands,
+  'confirmGitWrites': instance.confirmGitWrites,
+  'enableCodingVerificationFeedback': instance.enableCodingVerificationFeedback,
+  'codingVerificationTriggerPolicy':
+      _$CodingVerificationTriggerPolicyEnumMap[instance
+          .codingVerificationTriggerPolicy]!,
+  'codingVerificationTimeoutSeconds': instance.codingVerificationTimeoutSeconds,
+  'codingVerificationMaxFailures': instance.codingVerificationMaxFailures,
+  'enableAgentsMd': instance.enableAgentsMd,
+  'showMemoryUpdates': instance.showMemoryUpdates,
+  'enableLlmSessionLogs': instance.enableLlmSessionLogs,
+  'demoMode': instance.demoMode,
+  'disabledBuiltInTools': instance.disabledBuiltInTools,
+  'localCommandPermissionRules': instance.localCommandPermissionRules,
+  'routineComputerUseActionAllowlist':
+      instance.routineComputerUseActionAllowlist,
+};
 
 const _$ReasoningEffortPreferenceEnumMap = {
   ReasoningEffortPreference.automatic: 'automatic',
@@ -274,4 +294,10 @@ const _$CodingApprovalModeEnumMap = {
   CodingApprovalMode.defaultPermissions: 'defaultPermissions',
   CodingApprovalMode.autoReview: 'autoReview',
   CodingApprovalMode.fullAccess: 'fullAccess',
+};
+
+const _$CodingVerificationTriggerPolicyEnumMap = {
+  CodingVerificationTriggerPolicy.onCompletionClaim: 'onCompletionClaim',
+  CodingVerificationTriggerPolicy.onRequestOnly: 'onRequestOnly',
+  CodingVerificationTriggerPolicy.off: 'off',
 };

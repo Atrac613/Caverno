@@ -33,6 +33,7 @@ class ConversationValidationToolResultInferenceResult {
 class ConversationValidationToolResultInference {
   static const _supportedToolNames = <String>{
     'local_execute_command',
+    'run_tests',
     'git_execute_command',
     'ssh_execute_command',
     'ping',
@@ -129,6 +130,7 @@ class ConversationValidationToolResultInference {
 
     return switch (input.toolName) {
       'local_execute_command' ||
+      'run_tests' ||
       'git_execute_command' => _parseCommandToolResult(rawResult),
       'ssh_execute_command' => _parseSshToolResult(rawResult),
       'ping' => _parsePingToolResult(rawResult),
@@ -581,7 +583,10 @@ class ConversationValidationToolResultInference {
     if (value == null) {
       return null;
     }
-    final normalized = value.toString().replaceAll(_whitespaceRunPattern, ' ').trim();
+    final normalized = value
+        .toString()
+        .replaceAll(_whitespaceRunPattern, ' ')
+        .trim();
     return normalized.isEmpty ? null : normalized;
   }
 

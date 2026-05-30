@@ -10,7 +10,7 @@ settings, or feature-specific execution behavior.
 | Surface | Current canaries | Covered behavior | Main gaps | Priority |
 |---------|------------------|------------------|-----------|----------|
 | Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction | Native tool-role compatibility and broad multi-turn continuity beyond focused parser recovery | Keep the chat canary suite in every model switch baseline |
-| Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_coding_diagnostic_feedback_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, repeated-blocker auto-blocking, Dart analyzer diagnostic feedback after a broken edit, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused coding-goal and diagnostic-feedback canaries after changing goal state, coding prompts, budget handling, tool execution, diagnostic feedback, file/Git side effects, or completion/blocker inference |
+| Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_coding_diagnostic_feedback_live_canary.sh`, `tool/run_coding_verification_feedback_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, repeated-blocker auto-blocking, Dart analyzer diagnostic feedback after a broken edit, Dart test feedback after a premature completion claim with failing tests, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused coding-goal, diagnostic-feedback, and verification-feedback canaries after changing goal state, coding prompts, budget handling, tool execution, diagnostic or verification feedback, file/Git side effects, or completion/blocker inference |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
 
 ## Baseline Model Switch Flow
@@ -94,7 +94,33 @@ For each model switch, run this minimum set before comparing model quality:
    [`coding_diagnostic_feedback_release_gate.md`](coding_diagnostic_feedback_release_gate.md)
    for the full gate contract.
 
-6. Chat branch checks:
+6. Coding verification feedback release gate:
+
+   ```bash
+   CAVERNO_LIVE_LLM_DATA_EXPORT_ACK=1 \
+   CAVERNO_LLM_BASE_URL=... \
+   CAVERNO_LLM_API_KEY=... \
+   CAVERNO_LLM_MODEL=... \
+   tool/run_coding_verification_feedback_release_gate.sh
+   ```
+
+   This release gate scripts initial broken Dart writes and premature
+   completion claims in both a root package and a nested package, requires the
+   coding loop to consume the automatic `dart_test_feedback` result, repair
+   each file, and re-verify before the final completion is accepted. The
+   wrapper defaults to
+   `CAVERNO_CODING_VERIFICATION_FEEDBACK_LIVE_REPEAT_COUNT=3`, then verifies
+   the generated `canary_summary.json` with
+   `tool/coding_verification_feedback_release_gate.dart`. The gate blocks
+   unless all six root/nested repairs pass, test feedback includes both Dart
+   files, feedback and failing-test counts are non-zero, the feedback came from
+   failed completion-claim checks, and Live LLM recovery signals are zero. See
+   [`coding_verification_feedback_release_gate.md`](coding_verification_feedback_release_gate.md)
+   for the full gate contract. Set the data-export acknowledgement only after
+   confirming the configured endpoint may receive the live canary prompts,
+   temporary code-edit context, and tool results.
+
+7. Chat branch checks:
 
    ```bash
    CAVERNO_LLM_BASE_URL=... \
@@ -103,7 +129,7 @@ For each model switch, run this minimum set before comparing model quality:
    tool/run_chat_live_llm_canary.sh
    ```
 
-7. Chat tool-result budget check:
+8. Chat tool-result budget check:
 
    ```bash
    CAVERNO_LLM_BASE_URL=... \
@@ -112,7 +138,7 @@ For each model switch, run this minimum set before comparing model quality:
    tool/run_tool_result_budget_live_canary.sh
    ```
 
-8. Routine branch checks, when routines are in scope:
+9. Routine branch checks, when routines are in scope:
 
    ```bash
    CAVERNO_LLM_BASE_URL=... \

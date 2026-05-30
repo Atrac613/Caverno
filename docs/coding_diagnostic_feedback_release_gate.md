@@ -15,6 +15,8 @@ The gate requires a `coding_diagnostic_feedback_live_canary` summary that proves
   three repeats;
 - `dart_analyze_feedback` was observed with non-zero feedback and diagnostic
   counts;
+- analyzer feedback telemetry reported non-zero command latency and command
+  attempt counts, including fallback, timeout, and start-error counters;
 - analyzer feedback included both `lib/main.dart` and
   `packages/nested_app/lib/main.dart`;
 - Live LLM recovery signals were all zero, including transport disconnects,
@@ -46,6 +48,10 @@ dart run tool/coding_diagnostic_feedback_release_gate.dart \
 
 The checker exits non-zero until every gate is ready. The JSON and Markdown
 reports list `blockedGateIds` and next actions for missing or weak evidence.
+
+The feedback payload reports diagnostics introduced after the pre-edit analyzer
+baseline when one is available. Existing diagnostics that were present before
+the file mutation are counted separately and are not sent back as repair work.
 
 ## Reference Reports
 

@@ -47,7 +47,9 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/coding_approval_auto_review_service.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
+import '../../domain/services/coding_verification_feedback_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
+import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
@@ -89,6 +91,17 @@ final sessionMemoryServiceProvider = Provider<SessionMemoryService>((ref) {
 final codingDiagnosticFeedbackServiceProvider =
     Provider<CodingDiagnosticFeedbackService>((ref) {
       return CodingDiagnosticFeedbackService();
+    });
+
+final codingVerificationFeedbackServiceProvider =
+    Provider<CodingVerificationFeedbackService>((ref) {
+      final settings = ref.watch(settingsNotifierProvider);
+      return CodingVerificationFeedbackService(
+        timeout: Duration(
+          seconds: settings.effectiveCodingVerificationTimeoutSeconds,
+        ),
+        maxFailures: settings.effectiveCodingVerificationMaxFailures,
+      );
     });
 
 final chatNotifierProvider = NotifierProvider<ChatNotifier, ChatState>(
@@ -207,6 +220,7 @@ class ChatNotifier extends Notifier<ChatState> {
   late SessionMemoryService _memoryService;
   late AppSettings _settings;
   late CodingDiagnosticFeedbackService _codingDiagnosticFeedbackService;
+  late CodingVerificationFeedbackService _codingVerificationFeedbackService;
   String? conversationId;
   String _languageCode = 'en';
   String? _sessionMemoryContext;
@@ -256,6 +270,7 @@ class ChatNotifier extends Notifier<ChatState> {
     'workflow',
     'would',
   };
+  static const int _maxRepeatedCodingVerificationRepairAttempts = 2;
 
   @override
   ChatState build() {
@@ -269,6 +284,9 @@ class ChatNotifier extends Notifier<ChatState> {
     _toolResultArtifactStore = ref.read(toolResultArtifactStoreProvider);
     _codingDiagnosticFeedbackService = ref.read(
       codingDiagnosticFeedbackServiceProvider,
+    );
+    _codingVerificationFeedbackService = ref.read(
+      codingVerificationFeedbackServiceProvider,
     );
 
     // Connect MCP tool service.
@@ -289,6 +307,13 @@ class ChatNotifier extends Notifier<ChatState> {
     ref.listen<McpToolService?>(mcpToolServiceProvider, (previous, next) {
       updateMcpToolService(next);
     });
+
+    ref.listen<CodingVerificationFeedbackService>(
+      codingVerificationFeedbackServiceProvider,
+      (previous, next) {
+        _codingVerificationFeedbackService = next;
+      },
+    );
 
     // React to conversation switches.
     ref.listen<ConversationsState>(conversationsNotifierProvider, (
@@ -7917,17 +7942,18 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  Future<void> _streamToolResultAnswerWithContextRetry({
+  Future<String> _streamToolResultAnswerWithContextRetry({
     required List<ToolResultInfo> toolResults,
     required int interactionGeneration,
   }) async {
-    Future<void> streamAnswer({
+    Future<String> streamAnswer({
       required bool forceCompaction,
       required ToolResultPromptBudgetMode budgetMode,
     }) async {
-      await _runWithLlmSessionLogContextForGeneration(
+      return _runWithLlmSessionLogContextForGeneration(
         interactionGeneration,
         () async {
+          final streamedAnswer = StringBuffer();
           final messagesForLLM = _prepareMessagesForLLM(
             forceCompaction: forceCompaction,
             toolDefinitionsOverride: const <Map<String, dynamic>>[],
@@ -7949,9 +7975,9 @@ class ChatNotifier extends Notifier<ChatState> {
           var isFirstChunk = true;
           await for (final chunk in stream) {
             if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-              return;
+              return '';
             }
-            if (!ref.mounted) return;
+            if (!ref.mounted) return '';
             if (isFirstChunk) {
               isFirstChunk = false;
               _removeTrailingThinkTagForGeneration(interactionGeneration);
@@ -7972,6 +7998,7 @@ class ChatNotifier extends Notifier<ChatState> {
               chunk,
               scanForTools: false,
             );
+            streamedAnswer.write(chunk);
           }
           if (isFirstChunk) {
             _removeTrailingThinkTagForGeneration(interactionGeneration);
@@ -7982,12 +8009,15 @@ class ChatNotifier extends Notifier<ChatState> {
           _appendUnexecutedToolRequestNoticeIfNeeded(
             interactionGeneration: interactionGeneration,
           );
+          return ContentParser.stripToolArtifacts(
+            streamedAnswer.toString(),
+          ).trim();
         },
       );
     }
 
     try {
-      await streamAnswer(
+      return await streamAnswer(
         forceCompaction: false,
         budgetMode: ToolResultPromptBudgetMode.normal,
       );
@@ -8007,9 +8037,9 @@ class ChatNotifier extends Notifier<ChatState> {
         'error with ${hasCompactableHistory ? 'forced prompt compaction' : 'unchanged prompt history'} '
         'and compact tool results',
       );
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return '';
       _removeTrailingThinkTagForGeneration(interactionGeneration);
-      await streamAnswer(
+      return streamAnswer(
         forceCompaction: hasCompactableHistory,
         budgetMode: ToolResultPromptBudgetMode.compact,
       );
@@ -8191,6 +8221,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<ToolResultInfo?> _buildCodingDiagnosticFeedbackToolResult(
     List<ToolResultInfo> toolResults, {
     required int interactionGeneration,
+    CodingDiagnosticFeedbackBaseline? baseline,
   }) async {
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
       return null;
@@ -8217,12 +8248,14 @@ class ChatNotifier extends Notifier<ChatState> {
           .buildFeedbackToolResult(
             projectRoot: projectRoot,
             changedPaths: changedPaths,
+            baseline: baseline,
           );
       if (feedback != null) {
         appLog(
           '[CodingDiagnostics] Added analyzer feedback for '
           '${changedPaths.length} changed file(s)',
         );
+        _logCodingDiagnosticFeedbackSummary(feedback);
       }
       return feedback;
     } catch (error, stackTrace) {
@@ -8230,6 +8263,548 @@ class ChatNotifier extends Notifier<ChatState> {
       appLog('[CodingDiagnostics] stackTrace: $stackTrace');
       return null;
     }
+  }
+
+  Future<CodingDiagnosticFeedbackBaseline?>
+  _captureCodingDiagnosticFeedbackBaseline(
+    List<ToolCallInfo> toolCalls, {
+    required int interactionGeneration,
+  }) async {
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+      return null;
+    }
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation?.workspaceMode != WorkspaceMode.coding ||
+        (currentConversation?.isPlanningSession ?? false)) {
+      return null;
+    }
+    final projectRoot = _getActiveProjectRootPath();
+    if (projectRoot == null || projectRoot.isEmpty) {
+      return null;
+    }
+
+    final changedPaths = _changedFileMutationCallPaths(toolCalls);
+    if (changedPaths.isEmpty) {
+      return null;
+    }
+
+    try {
+      return await _codingDiagnosticFeedbackService.captureBaseline(
+        projectRoot: projectRoot,
+        changedPaths: changedPaths,
+      );
+    } catch (error, stackTrace) {
+      appLog('[CodingDiagnostics] Failed to capture analyzer baseline: $error');
+      appLog('[CodingDiagnostics] stackTrace: $stackTrace');
+      return null;
+    }
+  }
+
+  void _logCodingDiagnosticFeedbackSummary(ToolResultInfo feedback) {
+    final decoded = _tryDecodeMap(feedback.result);
+    if (decoded == null) {
+      return;
+    }
+    final telemetry = decoded['telemetry'];
+    final telemetryMap = telemetry is Map<String, dynamic> ? telemetry : null;
+    final summary = <String, Object?>{
+      'toolName': feedback.name,
+      'provider': decoded['provider'],
+      'diagnosticCount':
+          decoded['new_diagnostic_count'] ?? decoded['diagnostic_count'],
+      'currentDiagnosticCount': decoded['current_diagnostic_count'],
+      'baselineDiagnosticCount': decoded['baseline_diagnostic_count'],
+      'baselineApplied': decoded['baseline_applied'],
+      'files': decoded['changed_paths'],
+      if (telemetryMap != null) ...{
+        'durationMs': telemetryMap['duration_ms'],
+        'commandAttemptCount': telemetryMap['command_attempt_count'],
+        'fallbackCommandCount': telemetryMap['fallback_command_count'],
+        'timedOutCommandCount': telemetryMap['timed_out_command_count'],
+        'startErrorCommandCount': telemetryMap['start_error_command_count'],
+      },
+    };
+    appLog(
+      '[CodingDiagnostics] Analyzer feedback summary: ${jsonEncode(summary)}',
+    );
+  }
+
+  Future<ToolResultInfo?> _buildCodingVerificationFeedbackToolResult(
+    List<ToolResultInfo> toolResults, {
+    required int interactionGeneration,
+    required CodingVerificationTrigger trigger,
+  }) async {
+    if (!_codingVerificationEnabledFor(trigger)) {
+      return null;
+    }
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+      return null;
+    }
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation?.workspaceMode != WorkspaceMode.coding ||
+        (currentConversation?.isPlanningSession ?? false)) {
+      return null;
+    }
+    final projectRoot = _getActiveProjectRootPath();
+    if (projectRoot == null || projectRoot.isEmpty) {
+      return null;
+    }
+
+    final changedPaths = _changedFileMutationPaths(toolResults);
+    if (changedPaths.isEmpty) {
+      return null;
+    }
+
+    try {
+      final verification = await _codingVerificationFeedbackService
+          .buildFeedbackRun(
+            projectRoot: projectRoot,
+            changedPaths: changedPaths,
+            trigger: trigger,
+          );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+        return null;
+      }
+      await _recordCodingVerificationValidationProgress(verification.snapshot);
+      final feedback = verification.toolResult;
+      if (feedback != null) {
+        appLog(
+          '[CodingVerification] Added test feedback for '
+          '${changedPaths.length} changed file(s)',
+        );
+        _logCodingVerificationFeedbackSummary(feedback);
+      }
+      return verification.toolResult;
+    } catch (error, stackTrace) {
+      appLog('[CodingVerification] Failed to collect test feedback: $error');
+      appLog('[CodingVerification] stackTrace: $stackTrace');
+      return null;
+    }
+  }
+
+  Future<ChatCompletionResult?>
+  _requestCodingVerificationRepairForCompletionClaim({
+    required String candidateResponse,
+    required List<ToolResultInfo> executedToolResults,
+    required List<ToolResultInfo> batchToolResults,
+    required Set<String> attemptedMutationSignatures,
+    required Map<String, int> verificationFailureCounts,
+    required List<Map<String, dynamic>> tools,
+    required int interactionGeneration,
+  }) async {
+    if (!_codingVerificationEnabledFor(
+      CodingVerificationTrigger.completionClaim,
+    )) {
+      return null;
+    }
+    if (!_shouldVerifyCodingCompletionClaim(candidateResponse)) {
+      return null;
+    }
+    final mutationSignature = _codingVerificationMutationSignature(
+      executedToolResults,
+    );
+    if (mutationSignature == null) {
+      return null;
+    }
+    if (!attemptedMutationSignatures.add(mutationSignature)) {
+      appLog(
+        '[CodingVerification] Skipping duplicate completion verification '
+        'for unchanged file mutations',
+      );
+      return null;
+    }
+    final feedback = await _buildCodingVerificationFeedbackToolResult(
+      executedToolResults,
+      interactionGeneration: interactionGeneration,
+      trigger: CodingVerificationTrigger.completionClaim,
+    );
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+      return null;
+    }
+    if (feedback == null) {
+      return null;
+    }
+    final failureSignature = _codingVerificationFailureSignature(feedback);
+    if (failureSignature != null) {
+      final failureCount =
+          (verificationFailureCounts[failureSignature] ?? 0) + 1;
+      verificationFailureCounts[failureSignature] = failureCount;
+      if (failureCount > _maxRepeatedCodingVerificationRepairAttempts) {
+        appLog(
+          '[CodingVerification] Repeated failing test signature reached the '
+          'repair limit; surfacing blocker',
+        );
+        return ChatCompletionResult(
+          content: _codingVerificationConvergenceBlocker(feedback),
+          finishReason: 'stop',
+        );
+      }
+    }
+
+    final promptFeedback = await _toolResultArtifactStore.persistIfLarge(
+      feedback,
+      conversationId:
+          _activeResponseConversationIdForGeneration(interactionGeneration) ??
+          conversationId,
+    );
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+      return null;
+    }
+    batchToolResults.add(promptFeedback);
+    executedToolResults.add(promptFeedback);
+
+    appLog(
+      '[CodingVerification] Completion claim blocked by failing tests; '
+      'requesting repair',
+    );
+    _appendToLastMessageForGeneration(interactionGeneration, '<think>');
+    try {
+      return await _createToolResultCompletionWithContextRetry(
+        logLabel: 'coding verification feedback',
+        interactionGeneration: interactionGeneration,
+        buildMessages: (forceCompaction) => _prepareMessagesForLLM(
+          forceCompaction: forceCompaction,
+          toolDefinitionsOverride: tools,
+          interactionGeneration: interactionGeneration,
+        ),
+        toolResults: [promptFeedback],
+        assistantContent: candidateResponse,
+        tools: tools,
+      );
+    } finally {
+      if (_isCurrentInteractionGeneration(interactionGeneration)) {
+        _removeTrailingThinkTagForGeneration(interactionGeneration);
+      }
+    }
+  }
+
+  bool _codingVerificationEnabledFor(CodingVerificationTrigger trigger) {
+    if (!_settings.enableCodingVerificationFeedback) {
+      return false;
+    }
+    return switch (trigger) {
+      CodingVerificationTrigger.completionClaim =>
+        _settings.runsCodingVerificationOnCompletionClaim,
+      CodingVerificationTrigger.explicitRequest =>
+        _settings.codingVerificationTriggerPolicy !=
+            CodingVerificationTriggerPolicy.off,
+      CodingVerificationTrigger.quietPeriod =>
+        _settings.codingVerificationTriggerPolicy ==
+            CodingVerificationTriggerPolicy.onCompletionClaim,
+    };
+  }
+
+  Future<void> _recordCodingVerificationValidationProgress(
+    CodingVerificationSnapshot? snapshot,
+  ) async {
+    if (snapshot == null) {
+      return;
+    }
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null || conversation.projectedExecutionTasks.isEmpty) {
+      return;
+    }
+    final task =
+        ConversationPlanExecutionCoordinator.validationTask(conversation) ??
+        ConversationPlanExecutionCoordinator.executionFocusTask(conversation);
+    if (task == null) {
+      return;
+    }
+
+    final status = switch (snapshot.validationStatus) {
+      ConversationExecutionValidationStatus.passed =>
+        ConversationWorkflowTaskStatus.completed,
+      ConversationExecutionValidationStatus.failed =>
+        ConversationWorkflowTaskStatus.blocked,
+      ConversationExecutionValidationStatus.unknown =>
+        task.status == ConversationWorkflowTaskStatus.pending
+            ? ConversationWorkflowTaskStatus.inProgress
+            : task.status,
+    };
+    final validationSummary = _codingVerificationValidationSummary(snapshot);
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    await conversationsNotifier.updateCurrentExecutionTaskProgress(
+      taskId: task.id,
+      status: status,
+      allowStatusRegression: true,
+      validationStatus: snapshot.validationStatus,
+      lastValidationAt: DateTime.now(),
+      lastValidationCommand: _codingVerificationCommandSummary(snapshot),
+      lastValidationSummary: validationSummary,
+      summary: _codingVerificationProgressSummary(snapshot),
+      blockedReason:
+          snapshot.validationStatus ==
+              ConversationExecutionValidationStatus.failed
+          ? validationSummary
+          : '',
+      eventType: ConversationExecutionTaskEventType.validated,
+      eventSummary: validationSummary,
+    );
+
+    if (!conversation.shouldPreferPlanDocument) {
+      return;
+    }
+    await conversationsNotifier.updateCurrentWorkflow(
+      workflowStage: status == ConversationWorkflowTaskStatus.completed
+          ? ConversationWorkflowStage.review
+          : ConversationWorkflowStage.implement,
+      preserveWorkflowProjection: true,
+    );
+  }
+
+  String _codingVerificationCommandSummary(
+    CodingVerificationSnapshot snapshot,
+  ) {
+    final command = snapshot.selectedAttempt?.command;
+    if (command != null) {
+      return [command.executable, ...command.arguments].join(' ');
+    }
+    final targets = snapshot.targetBatches
+        .expand((batch) => batch.targets)
+        .toList(growable: false);
+    if (targets.isEmpty) {
+      return 'coding verification';
+    }
+    return 'coding verification ${targets.join(' ')}';
+  }
+
+  String _codingVerificationProgressSummary(
+    CodingVerificationSnapshot snapshot,
+  ) {
+    final counts = _codingVerificationCountsSummary(snapshot);
+    final suffix = counts.isEmpty ? '' : ' ($counts)';
+    return switch (snapshot.validationStatus) {
+      ConversationExecutionValidationStatus.passed =>
+        'Coding verification passed$suffix.',
+      ConversationExecutionValidationStatus.failed =>
+        'Coding verification failed$suffix.',
+      ConversationExecutionValidationStatus.unknown =>
+        'Coding verification was inconclusive${snapshot.reason == null ? '' : ': ${snapshot.reason}'}$suffix.',
+    };
+  }
+
+  String _codingVerificationValidationSummary(
+    CodingVerificationSnapshot snapshot,
+  ) {
+    if (snapshot.validationStatus ==
+            ConversationExecutionValidationStatus.failed &&
+        snapshot.failures.isNotEmpty) {
+      final failure = snapshot.failures.first;
+      final locationParts = [
+        failure.absolutePath == null
+            ? null
+            : DartProjectPath.relativePath(
+                failure.absolutePath!,
+                snapshot.projectRoot,
+              ),
+        if (failure.line != null) 'line ${failure.line}',
+      ].whereType<String>().where((part) => part.trim().isNotEmpty);
+      final location = locationParts.join(':');
+      final label = [
+        if (location.isNotEmpty) location,
+        if (failure.testName.trim().isNotEmpty) failure.testName.trim(),
+      ].join(' ');
+      final message = failure.message.trim().isEmpty
+          ? 'Test failed.'
+          : failure.message.trim();
+      return label.isEmpty ? message : '$label: $message';
+    }
+    return _codingVerificationProgressSummary(snapshot);
+  }
+
+  String _codingVerificationCountsSummary(CodingVerificationSnapshot snapshot) {
+    final parts = <String>[
+      if (snapshot.passedCount > 0) '${snapshot.passedCount} passed',
+      if (snapshot.failedCount > 0) '${snapshot.failedCount} failed',
+      if (snapshot.skippedCount > 0) '${snapshot.skippedCount} skipped',
+    ];
+    return parts.join(', ');
+  }
+
+  bool _shouldVerifyCodingCompletionClaim(String response) {
+    final candidate = response.trim();
+    if (candidate.isEmpty) {
+      return false;
+    }
+    final normalized = candidate.toLowerCase();
+    if (normalized.contains('not complete') ||
+        normalized.contains('not completed') ||
+        normalized.contains('incomplete')) {
+      return false;
+    }
+    return _hiddenAssistantEvidenceScore(candidate) >= 2 ||
+        normalized.contains('done');
+  }
+
+  String? _codingVerificationMutationSignature(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final entries = <Map<String, String>>[];
+    for (final toolResult in toolResults) {
+      if (!_isFileMutationToolName(toolResult.name)) {
+        continue;
+      }
+      if (!_isSuccessfulFileMutationToolResult(toolResult)) {
+        continue;
+      }
+      final path =
+          _toolResultPayloadPath(toolResult.result) ??
+          _toolPathFromArguments(toolResult.arguments);
+      if (path == null || !path.toLowerCase().endsWith('.dart')) {
+        continue;
+      }
+      final resolved = FilesystemTools.resolvePath(
+        path,
+        defaultRoot: _getActiveProjectRootPath(),
+      );
+      entries.add({
+        'id': toolResult.id,
+        'name': toolResult.name,
+        'path': resolved ?? path,
+      });
+    }
+    if (entries.isEmpty) {
+      return null;
+    }
+    return jsonEncode(entries);
+  }
+
+  String? _codingVerificationFailureSignature(ToolResultInfo feedback) {
+    final decoded = _tryDecodeMap(feedback.result);
+    if (decoded == null) {
+      return null;
+    }
+    final failingTests = decoded['failing_tests'];
+    if (failingTests is! List || failingTests.isEmpty) {
+      return null;
+    }
+    final entries = <Map<String, Object?>>[];
+    for (final test in failingTests) {
+      if (test is! Map) {
+        continue;
+      }
+      entries.add({
+        'relative_path': test['relative_path'] ?? test['path'],
+        'test_name': test['test_name'],
+        'line': test['line'],
+        'column': test['column'],
+        'message': test['message'],
+      });
+    }
+    if (entries.isEmpty) {
+      return null;
+    }
+    return jsonEncode({
+      'provider': decoded['provider'],
+      'validation_status': decoded['validation_status'],
+      'failures': entries,
+    });
+  }
+
+  String _codingVerificationConvergenceBlocker(ToolResultInfo feedback) {
+    final decoded = _tryDecodeMap(feedback.result);
+    final failingTests = decoded?['failing_tests'];
+    final buffer = StringBuffer(
+      'The coding task is not complete. The same failing tests persisted after '
+      '$_maxRepeatedCodingVerificationRepairAttempts repair attempts, so I am '
+      'stopping the automatic repair loop.',
+    );
+    if (failingTests is List && failingTests.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln();
+      buffer.writeln('Remaining failing tests:');
+      for (final test in failingTests.take(5)) {
+        if (test is! Map) {
+          continue;
+        }
+        final path = test['relative_path'] ?? test['path'];
+        final name = test['test_name'];
+        final line = test['line'];
+        final message = test['message'];
+        final location = [
+          if (path is String && path.isNotEmpty) path,
+          if (line != null) 'line $line',
+        ].join(':');
+        final label = [
+          if (location.isNotEmpty) location,
+          if (name is String && name.isNotEmpty) name,
+        ].join(' ');
+        buffer.write('- ');
+        if (label.isNotEmpty) {
+          buffer.write(label);
+          buffer.write(': ');
+        }
+        buffer.write(
+          message is String && message.isNotEmpty ? message : 'Test failed.',
+        );
+        buffer.writeln();
+      }
+    }
+    return buffer.toString().trimRight();
+  }
+
+  void _logCodingVerificationFeedbackSummary(ToolResultInfo feedback) {
+    final decoded = _tryDecodeMap(feedback.result);
+    if (decoded == null) {
+      return;
+    }
+    final telemetry = decoded['telemetry'];
+    final telemetryMap = telemetry is Map<String, dynamic> ? telemetry : null;
+    final counts = decoded['counts'];
+    final countsMap = counts is Map<String, dynamic> ? counts : null;
+    final summary = <String, Object?>{
+      'toolName': feedback.name,
+      'provider': decoded['provider'],
+      'trigger': decoded['trigger'],
+      'validationStatus': decoded['validation_status'],
+      'files': decoded['changed_paths'],
+      if (countsMap != null) ...{
+        'passedCount': countsMap['passed'],
+        'failedCount': countsMap['failed'],
+        'skippedCount': countsMap['skipped'],
+      },
+      if (telemetryMap != null) ...{
+        'durationMs': telemetryMap['duration_ms'],
+        'commandAttemptCount': telemetryMap['command_attempt_count'],
+        'fallbackCommandCount': telemetryMap['fallback_command_count'],
+        'timedOutCommandCount': telemetryMap['timed_out_command_count'],
+        'startErrorCommandCount': telemetryMap['start_error_command_count'],
+      },
+    };
+    appLog(
+      '[CodingVerification] Test feedback summary: ${jsonEncode(summary)}',
+    );
+  }
+
+  List<String> _changedFileMutationCallPaths(List<ToolCallInfo> toolCalls) {
+    final paths = <String>[];
+    final seen = <String>{};
+    for (final toolCall in toolCalls) {
+      if (!_isFileMutationToolName(toolCall.name)) {
+        continue;
+      }
+      final path = _toolPathFromArguments(toolCall.arguments);
+      if (path == null || !path.toLowerCase().endsWith('.dart')) {
+        continue;
+      }
+      final resolved = FilesystemTools.resolvePath(
+        path,
+        defaultRoot: _getActiveProjectRootPath(),
+      );
+      final normalized = resolved ?? path;
+      if (seen.add(normalized)) {
+        paths.add(normalized);
+      }
+    }
+    return paths;
   }
 
   List<String> _changedFileMutationPaths(List<ToolResultInfo> toolResults) {
@@ -8427,6 +9002,7 @@ class ChatNotifier extends Notifier<ChatState> {
     String? assistantContent,
     bool toolSearchEnabled = false,
     Set<String> selectedToolNames = const <String>{},
+    Map<String, int>? completionVerificationFailureCounts,
     required int interactionGeneration,
   }) async {
     var currentToolCalls = toolCalls;
@@ -8444,6 +9020,9 @@ class ChatNotifier extends Notifier<ChatState> {
     var attemptedDuplicateInspectionRecovery = false;
     var attemptedDuplicateFollowUpRecovery = false;
     var attemptedToolLoopExhaustionRecovery = false;
+    final attemptedCompletionVerificationMutationSignatures = <String>{};
+    final verificationFailureCounts =
+        completionVerificationFailureCounts ?? <String, int>{};
     var lastNonEmptyBatchToolResults = const <ToolResultInfo>[];
     final activeToolNames = <String>{...selectedToolNames};
 
@@ -8496,6 +9075,12 @@ class ChatNotifier extends Notifier<ChatState> {
         );
         pendingBatchCalls.add(toolCall);
       }
+
+      final diagnosticBaseline = await _captureCodingDiagnosticFeedbackBaseline(
+        pendingBatchCalls,
+        interactionGeneration: interactionGeneration,
+      );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
 
       final scheduledResults = await ToolExecutionScheduler.executeBatch(
         toolCalls: pendingBatchCalls,
@@ -8585,6 +9170,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final diagnosticFeedback = await _buildCodingDiagnosticFeedbackToolResult(
         batchToolResults,
         interactionGeneration: interactionGeneration,
+        baseline: diagnosticBaseline,
       );
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       if (diagnosticFeedback != null) {
@@ -9040,6 +9626,50 @@ class ChatNotifier extends Notifier<ChatState> {
         currentToolCalls = [];
         final fallbackResponse = nextResult.content.trim();
         _recordHiddenAssistantResponse(fallbackResponse);
+        final verificationRepairResult =
+            await _requestCodingVerificationRepairForCompletionClaim(
+              candidateResponse: fallbackResponse,
+              executedToolResults: executedToolResults,
+              batchToolResults: batchToolResults,
+              attemptedMutationSignatures:
+                  attemptedCompletionVerificationMutationSignatures,
+              verificationFailureCounts: verificationFailureCounts,
+              tools: tools,
+              interactionGeneration: interactionGeneration,
+            );
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+        if (!ref.mounted) return;
+        if (verificationRepairResult != null) {
+          if (verificationRepairResult.hasToolCalls) {
+            appLog(
+              '[CodingVerification] Repair follow-up requested tool calls',
+            );
+            currentToolCalls = verificationRepairResult.toolCalls!;
+            _recordHiddenAssistantResponse(verificationRepairResult.content);
+            currentAssistantContent =
+                verificationRepairResult.content.isNotEmpty
+                ? verificationRepairResult.content
+                : fallbackResponse;
+            if (iteration >= maxIterations) {
+              maxIterations += 2;
+            }
+            continue;
+          }
+
+          final verificationResponse = verificationRepairResult.content.trim();
+          currentToolCalls = [];
+          _recordHiddenAssistantResponse(verificationResponse);
+          if (verificationResponse.isNotEmpty) {
+            _appendRecoveredAssistantResponse(
+              verificationResponse,
+              interactionGeneration: interactionGeneration,
+            );
+            currentAssistantContent = verificationResponse;
+            hasTextResponse = true;
+            break;
+          }
+          break;
+        }
         if (_shouldAcceptTerminalToolRoleFinalTextResponse(fallbackResponse)) {
           appLog(
             '[Tool] Accepting terminal tool-role final text response without final answer fallback',
@@ -9134,10 +9764,67 @@ class ChatNotifier extends Notifier<ChatState> {
 
       if (!ref.mounted) return;
 
-      await _streamToolResultAnswerWithContextRetry(
+      final preStreamContent = _lastMessageContentForGeneration(
+        interactionGeneration,
+      );
+      final streamedFinalAnswer = await _streamToolResultAnswerWithContextRetry(
         toolResults: finalToolResults,
         interactionGeneration: interactionGeneration,
       );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      if (!ref.mounted) return;
+
+      final mcpToolService = _mcpToolService;
+      if (mcpToolService != null) {
+        final streamVerificationBatchToolResults = <ToolResultInfo>[];
+        final tools = selectedDefinitionsFor(mcpToolService);
+        final verificationRepairResult =
+            await _requestCodingVerificationRepairForCompletionClaim(
+              candidateResponse: streamedFinalAnswer,
+              executedToolResults: executedToolResults,
+              batchToolResults: streamVerificationBatchToolResults,
+              attemptedMutationSignatures:
+                  attemptedCompletionVerificationMutationSignatures,
+              verificationFailureCounts: verificationFailureCounts,
+              tools: tools,
+              interactionGeneration: interactionGeneration,
+            );
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+        if (!ref.mounted) return;
+        if (verificationRepairResult != null) {
+          if (preStreamContent != null) {
+            _replaceLastMessageContentForGeneration(
+              interactionGeneration,
+              preStreamContent,
+            );
+          }
+          if (verificationRepairResult.hasToolCalls) {
+            appLog(
+              '[CodingVerification] Streamed final answer repair requested '
+              'tool calls',
+            );
+            await _executeToolCalls(
+              verificationRepairResult.toolCalls!,
+              assistantContent: verificationRepairResult.content.isNotEmpty
+                  ? verificationRepairResult.content
+                  : streamedFinalAnswer,
+              toolSearchEnabled: toolSearchEnabled,
+              selectedToolNames: activeToolNames,
+              completionVerificationFailureCounts: verificationFailureCounts,
+              interactionGeneration: interactionGeneration,
+            );
+            return;
+          }
+
+          final verificationResponse = verificationRepairResult.content.trim();
+          if (verificationResponse.isNotEmpty) {
+            _appendRecoveredAssistantResponse(
+              verificationResponse,
+              interactionGeneration: interactionGeneration,
+            );
+          }
+        }
+      }
     } else if (!hasTextResponse) {
       appLog('[Tool] Tool loop reached maximum iterations (no text response)');
       if (state.messages.isNotEmpty) {
@@ -9298,6 +9985,17 @@ class ChatNotifier extends Notifier<ChatState> {
     if (scanForTools) {
       _checkForContentToolCalls(newContent, interactionGeneration: generation);
     }
+  }
+
+  String? _lastMessageContentForGeneration(int generation) {
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return null;
+      return activeMessages.last.content;
+    }
+
+    if (!ref.mounted || state.messages.isEmpty) return null;
+    return state.messages.last.content;
   }
 
   void _replaceLastMessageContentForGeneration(
@@ -9488,6 +10186,15 @@ class ChatNotifier extends Notifier<ChatState> {
       return false;
     }
     return toolCalls.every((toolCall) {
+      if (toolCall.name == 'run_tests') {
+        final testPath = _runTestsPathArgument(toolCall.arguments);
+        return previousToolResults.any(
+          (result) =>
+              result.name == toolCall.name &&
+              _runTestsPathArgument(result.arguments) == testPath &&
+              _toolResultHasSuccessfulExit(result),
+        );
+      }
       if (!_isCommandExecutionTool(toolCall.name)) {
         return false;
       }
@@ -9548,6 +10255,20 @@ class ChatNotifier extends Notifier<ChatState> {
     );
 
     return toolCalls.every((toolCall) {
+      if (toolCall.name == 'run_tests') {
+        final testPath = _runTestsPathArgument(toolCall.arguments);
+        return previousToolResults.any((result) {
+          if (result.name != toolCall.name ||
+              _runTestsPathArgument(result.arguments) != testPath ||
+              !_toolResultHasSuccessfulExit(result)) {
+            return false;
+          }
+          return _runTestsMatchesSavedValidation(
+            arguments: result.arguments,
+            normalizedValidationCommand: normalizedValidationCommand,
+          );
+        });
+      }
       if (!_isCommandExecutionTool(toolCall.name)) {
         return false;
       }
@@ -9579,6 +10300,7 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _isCommandExecutionTool(String toolName) {
     switch (toolName.trim().toLowerCase()) {
       case 'local_execute_command':
+      case 'run_tests':
       case 'git_execute_command':
       case 'ssh_execute_command':
         return true;
@@ -9622,6 +10344,12 @@ class ChatNotifier extends Notifier<ChatState> {
     return toolResults.any((result) {
       if (!_toolResultHasSuccessfulExit(result)) {
         return false;
+      }
+      if (result.name == 'run_tests') {
+        return _runTestsMatchesSavedValidation(
+          arguments: result.arguments,
+          normalizedValidationCommand: normalizedValidationCommand,
+        );
       }
       final command = _toolCommandArgument(result.arguments);
       if (command == null) {
@@ -9692,6 +10420,38 @@ class ChatNotifier extends Notifier<ChatState> {
     return LocalShellTools.normalizeCommand(
       command,
     ).replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
+  }
+
+  String? _runTestsPathArgument(Map<String, dynamic> arguments) {
+    final testPath = arguments['test_path']?.toString().trim();
+    if (testPath != null && testPath.isNotEmpty) {
+      return testPath;
+    }
+    final path = arguments['path']?.toString().trim();
+    return path == null || path.isEmpty ? null : path;
+  }
+
+  bool _runTestsMatchesSavedValidation({
+    required Map<String, dynamic> arguments,
+    required String normalizedValidationCommand,
+  }) {
+    final normalizedValidation = normalizedValidationCommand.replaceAll(
+      RegExp("[\"']"),
+      '',
+    );
+    final testPath = _runTestsPathArgument(arguments);
+    if (testPath == null) {
+      return normalizedValidation.contains('run_tests') ||
+          normalizedValidation.contains('flutter test') ||
+          normalizedValidation.contains('dart test');
+    }
+
+    final normalizedPath = _normalizeToolCommandForComparison(
+      testPath,
+    ).replaceAll(RegExp("[\"']"), '');
+    return normalizedPath.isNotEmpty &&
+        (normalizedValidation.contains(normalizedPath) ||
+            normalizedValidation.contains('run_tests'));
   }
 
   bool _isReadOnlyInspectionTool(String toolName) {
@@ -9924,6 +10684,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   bool _isRepeatableCommandTool(ToolCallInfo toolCall) {
     return toolCall.name == 'local_execute_command' ||
+        toolCall.name == 'run_tests' ||
         toolCall.name == 'git_execute_command';
   }
 
@@ -10189,6 +10950,7 @@ class ChatNotifier extends Notifier<ChatState> {
     return toolResults.any((toolResult) {
       final normalizedName = toolResult.name.trim().toLowerCase();
       if (normalizedName != 'local_execute_command' &&
+          normalizedName != 'run_tests' &&
           normalizedName != 'git_execute_command' &&
           normalizedName != 'ssh_execute_command') {
         return false;
@@ -10484,6 +11246,8 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleRollbackLastFileChange(toolCall);
       case 'local_execute_command':
         return _handleLocalExecuteCommand(toolCall);
+      case 'run_tests':
+        return _handleRunTests(toolCall);
       case 'ssh_connect':
         return _handleSshConnect(toolCall);
       case 'ssh_execute_command':
@@ -10615,6 +11379,7 @@ class ChatNotifier extends Notifier<ChatState> {
       'write_file' ||
       'edit_file' ||
       'rollback_last_file_change' ||
+      'run_tests' ||
       'http_post' ||
       'http_put' ||
       'http_patch' ||
@@ -11039,6 +11804,7 @@ class ChatNotifier extends Notifier<ChatState> {
         ?.toString()
         .toLowerCase();
     return name == 'local_execute_command' ||
+        name == 'run_tests' ||
         name == 'git_execute_command' ||
         name == 'ssh_execute_command';
   }

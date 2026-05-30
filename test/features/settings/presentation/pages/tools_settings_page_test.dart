@@ -81,4 +81,108 @@ void main() {
     expect(storedSettings.confirmLocalCommands, isFalse);
     expect(storedSettings.confirmGitWrites, isFalse);
   });
+
+  testWidgets('toggles coding verification feedback from Tools settings', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        startLocale: const Locale('en'),
+        useOnlyLangCode: true,
+        saveLocale: false,
+        assetLoader: const _TestTranslationLoader(),
+        child: Builder(
+          builder: (context) {
+            return ProviderScope(
+              overrides: [
+                sharedPreferencesProvider.overrideWithValue(preferences),
+              ],
+              child: MaterialApp(
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                home: const ToolsSettingsPage(),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verify coding completion with tests'), findsOneWidget);
+
+    await tester.tap(find.text('Verify coding completion with tests'));
+    await tester.pumpAndSettle();
+
+    final storedJson = preferences.getString('app_settings');
+    expect(storedJson, isNotNull);
+    final storedSettings = AppSettings.fromJson(
+      jsonDecode(storedJson!) as Map<String, dynamic>,
+    );
+
+    expect(storedSettings.enableCodingVerificationFeedback, isFalse);
+  });
+
+  testWidgets(
+    'updates coding verification trigger policy from Tools settings',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final preferences = await SharedPreferences.getInstance();
+
+      await tester.pumpWidget(
+        EasyLocalization(
+          supportedLocales: const [Locale('en')],
+          path: 'assets/translations',
+          fallbackLocale: const Locale('en'),
+          startLocale: const Locale('en'),
+          useOnlyLangCode: true,
+          saveLocale: false,
+          assetLoader: const _TestTranslationLoader(),
+          child: Builder(
+            builder: (context) {
+              return ProviderScope(
+                overrides: [
+                  sharedPreferencesProvider.overrideWithValue(preferences),
+                ],
+                child: MaterialApp(
+                  localizationsDelegates: context.localizationDelegates,
+                  supportedLocales: context.supportedLocales,
+                  locale: context.locale,
+                  home: const ToolsSettingsPage(),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -500));
+      await tester.pumpAndSettle();
+
+      expect(find.text('On completion claims'), findsOneWidget);
+      expect(find.text('On request only'), findsOneWidget);
+
+      await tester.tap(find.text('On request only'));
+      await tester.pumpAndSettle();
+
+      final storedJson = preferences.getString('app_settings');
+      expect(storedJson, isNotNull);
+      final storedSettings = AppSettings.fromJson(
+        jsonDecode(storedJson!) as Map<String, dynamic>,
+      );
+
+      expect(
+        storedSettings.codingVerificationTriggerPolicy,
+        CodingVerificationTriggerPolicy.onRequestOnly,
+      );
+      expect(storedSettings.runsCodingVerificationOnCompletionClaim, isFalse);
+    },
+  );
 }

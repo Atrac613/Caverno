@@ -326,6 +326,11 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_local_execute_command',
       category: categoryCoding,
     ),
+    BuiltInToolInfo(
+      name: 'run_tests',
+      descriptionKey: 'settings.tool_run_tests',
+      category: categoryCoding,
+    ),
     // SSH
     BuiltInToolInfo(
       name: 'ssh_connect',

@@ -84,6 +84,7 @@ class McpToolService {
     'find_files',
     'search_files',
     'local_execute_command',
+    'run_tests',
     'git_execute_command',
     ...OsLogTools.allToolNames,
     'ssh_connect',
@@ -520,6 +521,7 @@ class McpToolService {
 
     if (LocalShellTools.isDesktopPlatform) {
       _addIfEnabled(toolDefinitions, _localExecuteCommandTool);
+      _addIfEnabled(toolDefinitions, _runTestsTool);
     }
 
     if (OsLogTools.supportsSystemInfo || OsLogTools.supportsLogRead) {
@@ -901,6 +903,20 @@ class McpToolService {
         workingDirectory: workingDirectory,
       );
       return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'run_tests') {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({
+          'error':
+              'run_tests must be executed through the chat command approval flow.',
+          'code': 'approval_required',
+        }),
+        isSuccess: false,
+        errorMessage:
+            'run_tests must be executed through the chat command approval flow',
+      );
     }
 
     if (name == 'os_get_system_info') {
@@ -3635,6 +3651,41 @@ class McpToolService {
           },
         },
         'required': ['command'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _runTestsTool => {
+    'type': 'function',
+    'function': {
+      'name': 'run_tests',
+      'description':
+          'Run scoped Dart or Flutter tests in the selected coding project. The app builds a safe project-scoped test command and applies the same approval flow as local shell commands. Prefer this over local_execute_command for validation tests.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'test_path': {
+            'type': 'string',
+            'description':
+                'Optional test file or directory to run. Paths may be project-relative, working-directory-relative, or absolute, but must stay inside the selected project.',
+          },
+          'runner': {
+            'type': 'string',
+            'enum': ['auto', 'flutter', 'dart'],
+            'description':
+                'Test runner to use. auto uses Flutter and prefixes fvm when the project has FVM metadata.',
+          },
+          'working_directory': {
+            'type': 'string',
+            'description':
+                'Optional absolute or project-relative package directory. Defaults to the selected project root.',
+          },
+          'reason': {
+            'type': 'string',
+            'description':
+                'Short human-readable reason shown in the approval dialog when approval is required.',
+          },
+        },
       },
     },
   };

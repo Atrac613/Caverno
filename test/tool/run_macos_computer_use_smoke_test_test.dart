@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:caverno/core/services/macos_computer_use_setup.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../integration_support/dart_tool_process.dart';
+
 const _manualTccNextAction = MacosComputerUseMvpGuidance.manualTccNextAction;
 const _desktopActionNextAction =
     MacosComputerUseMvpGuidance.desktopActionCanaryNextAction;
@@ -9208,12 +9210,10 @@ void main() {
       ).firstMatch(handoff)?.group(1);
       expect(handoffCommand, isNotNull);
 
-      final artifactIndexResult = await Process.run('dart', [
-        'run',
+      final artifactIndexResult = await runDartTool(
         'tool/macos_computer_use_readiness_artifact_index.dart',
-        '--root',
-        root.path,
-      ]);
+        ['--root', root.path],
+      );
       expect(
         artifactIndexResult.exitCode,
         0,

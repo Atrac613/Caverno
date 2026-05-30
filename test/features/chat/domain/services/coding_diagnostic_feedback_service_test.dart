@@ -56,8 +56,13 @@ void main() {
 
       final payload = jsonDecode(result.result) as Map<String, dynamic>;
       expect(payload['schema'], CodingDiagnosticFeedbackService.schemaName);
+      expect(payload['provider'], 'dart_analyzer');
       expect(payload['changed_paths'], ['lib/main.dart']);
       expect(payload['diagnostic_count'], 1);
+      expect(payload['new_diagnostic_count'], 1);
+      expect(payload['current_diagnostic_count'], 1);
+      expect(payload['baseline_applied'], isFalse);
+      expect(payload['telemetry'], containsPair('command_attempt_count', 1));
       final diagnostics = payload['diagnostics'] as List<dynamic>;
       expect(
         diagnostics.single,
@@ -290,6 +295,110 @@ environment:
       final payload = jsonDecode(result!.result) as Map<String, dynamic>;
       expect(payload['diagnostic_count'], 2);
       expect(payload['truncated_diagnostic_count'], 3);
+    });
+
+    test('returns only diagnostics introduced after the baseline', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'caverno_diagnostic_feedback_baseline_',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final editedFile = await _writeFile(
+        root,
+        'lib/main.dart',
+        'void main() {}\n',
+      );
+
+      var runCount = 0;
+      final service = CodingDiagnosticFeedbackService(
+        commandRunner: (command, timeout) async {
+          runCount += 1;
+          final diagnostics = [
+            'WARNING|STATIC_WARNING|UNUSED_LOCAL_VARIABLE|${editedFile.path}|2|7|5|The value of the local variable is not used.',
+            if (runCount > 1)
+              'ERROR|COMPILE_TIME_ERROR|UNDEFINED_IDENTIFIER|${editedFile.path}|4|12|3|Undefined name newFailure.',
+          ];
+          return CodingDiagnosticCommandOutput(
+            exitCode: 3,
+            stdout: diagnostics.join('\n'),
+          );
+        },
+      );
+
+      final baseline = await service.captureBaseline(
+        projectRoot: root.path,
+        changedPaths: [editedFile.path],
+      );
+      final result = await service.buildFeedbackToolResult(
+        projectRoot: root.path,
+        changedPaths: [editedFile.path],
+        baseline: baseline,
+      );
+
+      expect(result, isNotNull);
+      final payload = jsonDecode(result!.result) as Map<String, dynamic>;
+      expect(payload['baseline_applied'], isTrue);
+      expect(payload['baseline_diagnostic_count'], 1);
+      expect(payload['current_diagnostic_count'], 2);
+      expect(payload['existing_diagnostic_count'], 1);
+      expect(payload['diagnostic_count'], 1);
+      final diagnostics = payload['diagnostics'] as List<dynamic>;
+      expect(
+        diagnostics.single,
+        containsPair('message', 'Undefined name newFailure.'),
+      );
+      expect(jsonEncode(diagnostics), isNot(contains('local variable')));
+    });
+
+    test('records command fallback telemetry in the payload', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'caverno_diagnostic_feedback_telemetry_',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final editedFile = await _writeFile(
+        root,
+        'lib/main.dart',
+        'void main() {}\n',
+      );
+
+      var runCount = 0;
+      final service = CodingDiagnosticFeedbackService(
+        commandRunner: (command, timeout) async {
+          runCount += 1;
+          if (runCount == 1) {
+            return const CodingDiagnosticCommandOutput(
+              exitCode: -1,
+              timedOut: true,
+            );
+          }
+          return CodingDiagnosticCommandOutput(
+            exitCode: 3,
+            stdout:
+                'ERROR|COMPILE_TIME_ERROR|UNDEFINED_IDENTIFIER|${editedFile.path}|4|12|3|Undefined name telemetryFailure.',
+          );
+        },
+      );
+
+      final result = await service.buildFeedbackToolResult(
+        projectRoot: root.path,
+        changedPaths: [editedFile.path],
+      );
+
+      expect(result, isNotNull);
+      final payload = jsonDecode(result!.result) as Map<String, dynamic>;
+      final telemetry = payload['telemetry'] as Map<String, dynamic>;
+      expect(telemetry['command_attempt_count'], 2);
+      expect(telemetry['fallback_command_count'], 1);
+      expect(telemetry['timed_out_command_count'], 1);
+      expect(telemetry['start_error_command_count'], 0);
+      expect(telemetry['duration_ms'], isA<int>());
+      final attempts = telemetry['attempts'] as List<dynamic>;
+      expect(attempts, hasLength(2));
+      expect(attempts.first, containsPair('timed_out', true));
+      expect(attempts.last, containsPair('diagnostic_count', 1));
+      expect(
+        payload['analyzer'],
+        containsPair('executable', attempts.last['executable']),
+      );
     });
   });
 }

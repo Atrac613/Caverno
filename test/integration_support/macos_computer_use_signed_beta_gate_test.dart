@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart_tool_process.dart';
+
 import '../../integration_test/test_support/macos_computer_use_signed_beta_gate.dart';
 
 void main() {
@@ -197,28 +199,29 @@ void main() {
       final outputJson = '${root.path}/out/m50.json';
       final outputMd = '${root.path}/out/m50.md';
 
-      final result = await Process.run('dart', <String>[
-        'run',
+      final result = await runDartTool(
         'tool/macos_computer_use_signed_beta_gate.dart',
-        '--root',
-        root.path,
-        '--signed-beta-checklist',
-        checklistPath,
-        '--release-artifact-report',
-        releaseArtifactPath,
-        '--release-packaging-report',
-        packagingPath,
-        '--m46-element-grounded-llm-eval',
-        m46Path,
-        '--m48-user-operated-action-pilot',
-        m48Path,
-        '--m49-privacy-audit-release-pack',
-        m49Path,
-        '--output-json',
-        outputJson,
-        '--output-md',
-        outputMd,
-      ]);
+        <String>[
+          '--root',
+          root.path,
+          '--signed-beta-checklist',
+          checklistPath,
+          '--release-artifact-report',
+          releaseArtifactPath,
+          '--release-packaging-report',
+          packagingPath,
+          '--m46-element-grounded-llm-eval',
+          m46Path,
+          '--m48-user-operated-action-pilot',
+          m48Path,
+          '--m49-privacy-audit-release-pack',
+          m49Path,
+          '--output-json',
+          outputJson,
+          '--output-md',
+          outputMd,
+        ],
+      );
 
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
       final summary = jsonDecode(File(outputJson).readAsStringSync()) as Map;
@@ -263,14 +266,10 @@ void main() {
         );
         final outputMd = '${root.path}/handoff/m50_handoff.md';
 
-        final result = await Process.run('dart', <String>[
-          'run',
+        final result = await runDartTool(
           'tool/macos_computer_use_signed_beta_gate.dart',
-          '--root',
-          root.path,
-          '--write-handoff',
-          outputMd,
-        ]);
+          <String>['--root', root.path, '--write-handoff', outputMd],
+        );
 
         expect(
           result.exitCode,

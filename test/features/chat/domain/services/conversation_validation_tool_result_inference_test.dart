@@ -59,6 +59,36 @@ void main() {
     expect(result.validationSummary, contains('No issues found.'));
   });
 
+  test('infers passed validation from run_tests output', () {
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-run-tests',
+        title: 'Run scoped tests',
+        status: ConversationWorkflowTaskStatus.completed,
+        validationCommand: 'flutter test test/widget_test.dart',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'run_tests',
+          rawResult:
+              '{"command":"flutter test test/widget_test.dart","exit_code":0,"stdout":"All tests passed.","stderr":""}',
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(result!.status, ConversationWorkflowTaskStatus.completed);
+    expect(
+      result.validationStatus,
+      ConversationExecutionValidationStatus.passed,
+    );
+    expect(
+      result.summary,
+      'Validation passed while running flutter test test/widget_test.dart.',
+    );
+    expect(result.validationSummary, contains('All tests passed.'));
+  });
+
   test('returns null when no validation command tools were executed', () {
     final result = ConversationValidationToolResultInference.infer(
       task: const ConversationWorkflowTask(

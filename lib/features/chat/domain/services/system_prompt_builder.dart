@@ -53,6 +53,7 @@ class SystemPromptBuilder {
       'rollback_last_file_change',
     );
     final hasLocalShellTool = uniqueToolNames.contains('local_execute_command');
+    final hasRunTestsTool = uniqueToolNames.contains('run_tests');
     final hasOsSystemInfoTool = uniqueToolNames.contains('os_get_system_info');
     final hasOsLogTool = uniqueToolNames.contains('os_log_read');
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
@@ -195,11 +196,19 @@ class SystemPromptBuilder {
           'previous file contents.',
         );
       }
+      if (hasRunTestsTool) {
+        buffer.writeln(
+          'Use run_tests for scoped Dart or Flutter validation tests. It '
+          'builds a project-scoped command and uses the local command approval '
+          'flow.',
+        );
+      }
       if (hasLocalShellTool) {
         buffer.writeln(
-          'Use local_execute_command mainly for running tests, analyzers, '
+          'Use local_execute_command mainly for analyzers, '
           'formatters, or other toolchain commands that are awkward to '
-          'express with the file tools.',
+          'express with the file tools. Use it for tests only when run_tests '
+          'is unavailable or unsuitable.',
         );
         buffer.writeln(
           'For file discovery and reading, prefer list_directory, find_files, '

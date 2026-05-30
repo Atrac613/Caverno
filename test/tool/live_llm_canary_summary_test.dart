@@ -72,9 +72,16 @@ void main() {
         jsonEncode({
           'testID': 2,
           'message':
-              '[CodingDiagnostics] Analyzer feedback summary: {"toolName":"dart_analyze_feedback","diagnosticCount":2,"files":["lib/main.dart"]}',
+              '[CodingDiagnostics] Analyzer feedback summary: {"toolName":"dart_analyze_feedback","diagnosticCount":2,"files":["lib/main.dart"],"durationMs":80,"commandAttemptCount":2,"fallbackCommandCount":1,"timedOutCommandCount":0,"startErrorCommandCount":0}',
           'type': 'print',
           'time': 34,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[CodingVerification] Test feedback summary: {"toolName":"dart_test_feedback","trigger":"completionClaim","validationStatus":"failed","files":["lib/canary_value.dart"],"passedCount":1,"failedCount":1,"skippedCount":0,"durationMs":120,"commandAttemptCount":1,"fallbackCommandCount":0,"timedOutCommandCount":0,"startErrorCommandCount":0}',
+          'type': 'print',
+          'time': 35,
         }),
         jsonEncode({
           'testID': 2,
@@ -139,6 +146,24 @@ void main() {
     expect(summary.signals.dartAnalyzeFeedback.feedbackCount, 1);
     expect(summary.signals.dartAnalyzeFeedback.diagnosticCount, 2);
     expect(summary.signals.dartAnalyzeFeedback.files, ['lib/main.dart']);
+    expect(summary.signals.dartAnalyzeFeedback.durationMs, 80);
+    expect(summary.signals.dartAnalyzeFeedback.commandAttemptCount, 2);
+    expect(summary.signals.dartAnalyzeFeedback.fallbackCommandCount, 1);
+    expect(summary.signals.dartAnalyzeFeedback.timedOutCommandCount, 0);
+    expect(summary.signals.dartAnalyzeFeedback.startErrorCommandCount, 0);
+    expect(summary.signals.dartTestFeedback.observed, isTrue);
+    expect(summary.signals.dartTestFeedback.feedbackCount, 1);
+    expect(summary.signals.dartTestFeedback.passedCount, 1);
+    expect(summary.signals.dartTestFeedback.failedCount, 1);
+    expect(summary.signals.dartTestFeedback.skippedCount, 0);
+    expect(summary.signals.dartTestFeedback.files, ['lib/canary_value.dart']);
+    expect(summary.signals.dartTestFeedback.triggers, ['completionClaim']);
+    expect(summary.signals.dartTestFeedback.validationStatuses, ['failed']);
+    expect(summary.signals.dartTestFeedback.durationMs, 120);
+    expect(summary.signals.dartTestFeedback.commandAttemptCount, 1);
+    expect(summary.signals.dartTestFeedback.fallbackCommandCount, 0);
+    expect(summary.signals.dartTestFeedback.timedOutCommandCount, 0);
+    expect(summary.signals.dartTestFeedback.startErrorCommandCount, 0);
 
     final json = summary.toJson();
     expect(json['schemaName'], 'live_llm_canary_summary');
@@ -147,6 +172,14 @@ void main() {
     expect(
       (json['signals'] as Map<String, dynamic>)['dartAnalyzeFeedback'],
       containsPair('diagnosticCount', 2),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>)['dartAnalyzeFeedback'],
+      containsPair('durationMs', 80),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>)['dartTestFeedback'],
+      containsPair('failedCount', 1),
     );
     expect(summary.toMarkdown(), contains('Live LLM Canary Summary'));
     expect(summary.toMarkdown(), contains('Recovered stream fallback count'));
@@ -160,6 +193,12 @@ void main() {
       contains('Dart analyzer feedback observed: `yes`'),
     );
     expect(summary.toMarkdown(), contains('lib/main.dart'));
+    expect(summary.toMarkdown(), contains('Dart analyzer command attempts'));
+    expect(
+      summary.toMarkdown(),
+      contains('Dart test feedback observed: `yes`'),
+    );
+    expect(summary.toMarkdown(), contains('Dart test command attempts'));
   });
 
   test('marks skipped live canaries as skipped instead of passed', () async {

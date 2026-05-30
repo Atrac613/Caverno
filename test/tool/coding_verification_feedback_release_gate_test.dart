@@ -3,49 +3,51 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/coding_diagnostic_feedback_release_gate.dart';
+import '../../tool/coding_verification_feedback_release_gate.dart';
 
 void main() {
-  test('passes complete repeat diagnostic feedback evidence', () async {
+  test('passes complete repeat verification feedback evidence', () async {
     final directory = Directory.systemTemp.createTempSync(
-      'diagnostic-feedback-gate-pass-',
+      'verification-feedback-gate-pass-',
     );
     addTearDown(() => directory.deleteSync(recursive: true));
     final summary = _writeSummary(directory, _summaryJson());
 
-    final result = await buildCodingDiagnosticFeedbackReleaseGate(
+    final result = await buildCodingVerificationFeedbackReleaseGate(
       summaryFile: summary,
       generatedAt: DateTime.utc(2026, 5, 30),
     );
 
-    expect(result.status, 'ready_for_coding_diagnostic_feedback_release');
+    expect(result.status, 'ready_for_coding_verification_feedback_release');
     expect(result.blockedGateIds, isEmpty);
     expect(result.isReady, isTrue);
     expect(
       result.toJson()['schemaName'],
-      'coding_diagnostic_feedback_release_gate',
+      'coding_verification_feedback_release_gate',
     );
     expect(
       result.toMarkdown(),
-      contains('Coding Diagnostic Feedback Release Gate'),
+      contains('Coding Verification Feedback Release Gate'),
     );
     expect(result.feedbackFiles, [
-      'lib/main.dart',
-      'packages/nested_app/lib/main.dart',
+      'lib/canary_value.dart',
+      'packages/nested_app/lib/canary_value.dart',
     ]);
+    expect(result.triggers, ['completionClaim']);
+    expect(result.validationStatuses, ['failed']);
   });
 
   test('blocks summaries that only prove one repeat', () async {
     final directory = Directory.systemTemp.createTempSync(
-      'diagnostic-feedback-gate-repeat-',
+      'verification-feedback-gate-repeat-',
     );
     addTearDown(() => directory.deleteSync(recursive: true));
     final summary = _writeSummary(
       directory,
-      _summaryJson(repeatCount: 1, feedbackCount: 2, diagnosticCount: 3),
+      _summaryJson(repeatCount: 1, feedbackCount: 2, failedCount: 2),
     );
 
-    final result = await buildCodingDiagnosticFeedbackReleaseGate(
+    final result = await buildCodingVerificationFeedbackReleaseGate(
       summaryFile: summary,
       generatedAt: DateTime.utc(2026, 5, 30),
     );
@@ -54,9 +56,9 @@ void main() {
     expect(result.blockedGateIds, contains('repeat_coverage'));
   });
 
-  test('blocks missing analyzer feedback and nested feedback files', () async {
+  test('blocks missing test feedback and nested feedback files', () async {
     final directory = Directory.systemTemp.createTempSync(
-      'diagnostic-feedback-gate-feedback-',
+      'verification-feedback-gate-feedback-',
     );
     addTearDown(() => directory.deleteSync(recursive: true));
     final summary = _writeSummary(
@@ -64,23 +66,47 @@ void main() {
       _summaryJson(
         observed: false,
         feedbackCount: 0,
-        diagnosticCount: 0,
-        feedbackFiles: const ['lib/main.dart'],
+        failedCount: 0,
+        feedbackFiles: const ['lib/canary_value.dart'],
       ),
     );
 
-    final result = await buildCodingDiagnosticFeedbackReleaseGate(
+    final result = await buildCodingVerificationFeedbackReleaseGate(
       summaryFile: summary,
       generatedAt: DateTime.utc(2026, 5, 30),
     );
 
-    expect(result.blockedGateIds, contains('analyzer_feedback_present'));
+    expect(result.blockedGateIds, contains('test_feedback_present'));
     expect(result.blockedGateIds, contains('required_feedback_files'));
   });
 
-  test('blocks missing analyzer feedback telemetry', () async {
+  test(
+    'blocks feedback that does not prove completion-claim failures',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'verification-feedback-gate-trigger-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final summary = _writeSummary(
+        directory,
+        _summaryJson(
+          triggers: const ['explicitRequest'],
+          validationStatuses: const ['passed'],
+        ),
+      );
+
+      final result = await buildCodingVerificationFeedbackReleaseGate(
+        summaryFile: summary,
+        generatedAt: DateTime.utc(2026, 5, 30),
+      );
+
+      expect(result.blockedGateIds, contains('completion_claim_feedback'));
+    },
+  );
+
+  test('blocks missing test feedback telemetry', () async {
     final directory = Directory.systemTemp.createTempSync(
-      'diagnostic-feedback-gate-telemetry-',
+      'verification-feedback-gate-telemetry-',
     );
     addTearDown(() => directory.deleteSync(recursive: true));
     final summary = _writeSummary(
@@ -88,20 +114,20 @@ void main() {
       _summaryJson(feedbackDurationMs: 0, commandAttemptCount: 0),
     );
 
-    final result = await buildCodingDiagnosticFeedbackReleaseGate(
+    final result = await buildCodingVerificationFeedbackReleaseGate(
       summaryFile: summary,
       generatedAt: DateTime.utc(2026, 5, 30),
     );
 
     expect(
       result.blockedGateIds,
-      contains('diagnostic_feedback_telemetry_present'),
+      contains('verification_feedback_telemetry_present'),
     );
   });
 
   test('blocks transport and recovery signals', () async {
     final directory = Directory.systemTemp.createTempSync(
-      'diagnostic-feedback-gate-recovery-',
+      'verification-feedback-gate-recovery-',
     );
     addTearDown(() => directory.deleteSync(recursive: true));
     final summary = _writeSummary(
@@ -114,7 +140,7 @@ void main() {
       ),
     );
 
-    final result = await buildCodingDiagnosticFeedbackReleaseGate(
+    final result = await buildCodingVerificationFeedbackReleaseGate(
       summaryFile: summary,
       generatedAt: DateTime.utc(2026, 5, 30),
     );
@@ -130,7 +156,7 @@ void main() {
 
   test('blocks malformed identity metadata', () async {
     final directory = Directory.systemTemp.createTempSync(
-      'diagnostic-feedback-gate-identity-',
+      'verification-feedback-gate-identity-',
     );
     addTearDown(() => directory.deleteSync(recursive: true));
     final summary = _writeSummary(
@@ -138,7 +164,7 @@ void main() {
       _summaryJson(canaryName: 'chat_live_llm_canary', surface: 'chat'),
     );
 
-    final result = await buildCodingDiagnosticFeedbackReleaseGate(
+    final result = await buildCodingVerificationFeedbackReleaseGate(
       summaryFile: summary,
       generatedAt: DateTime.utc(2026, 5, 30),
     );
@@ -154,21 +180,25 @@ File _writeSummary(Directory directory, Map<String, Object?> value) {
 }
 
 Map<String, Object?> _summaryJson({
-  String canaryName = 'coding_diagnostic_feedback_live_canary',
-  String surface = 'coding_diagnostic_feedback',
+  String canaryName = 'coding_verification_feedback_live_canary',
+  String surface = 'coding_verification_feedback',
   int repeatCount = 3,
   bool observed = true,
-  int feedbackCount = 11,
-  int diagnosticCount = 17,
+  int feedbackCount = 6,
+  int passedCount = 6,
+  int failedCount = 6,
+  int skippedCount = 0,
   int feedbackDurationMs = 1200,
-  int commandAttemptCount = 11,
-  int fallbackCommandCount = 1,
+  int commandAttemptCount = 6,
+  int fallbackCommandCount = 0,
   int timedOutCommandCount = 0,
   int startErrorCommandCount = 0,
   List<String> feedbackFiles = const [
-    'lib/main.dart',
-    'packages/nested_app/lib/main.dart',
+    'lib/canary_value.dart',
+    'packages/nested_app/lib/canary_value.dart',
   ],
+  List<String> triggers = const ['completionClaim'],
+  List<String> validationStatuses = const ['failed'],
   Map<String, Object?> signals = const {},
 }) {
   final testCount = repeatCount * 2;
@@ -181,7 +211,7 @@ Map<String, Object?> _summaryJson({
     'baseUrl': 'http://127.0.0.1:1234/v1',
     'model': 'qwen3.6-27b-mtp-vision',
     'command':
-        'CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_REPEAT_COUNT=$repeatCount tool/run_coding_diagnostic_feedback_live_canary.sh',
+        'CAVERNO_LIVE_LLM_DATA_EXPORT_ACK=1 CAVERNO_CODING_VERIFICATION_FEEDBACK_LIVE_REPEAT_COUNT=$repeatCount tool/run_coding_verification_feedback_live_canary.sh',
     'logPath': '${Directory.systemTemp.path}/flutter_test.jsonl',
     'result': 'passed',
     'runnerSuccess': true,
@@ -201,11 +231,15 @@ Map<String, Object?> _summaryJson({
       'assistantAuthoredToolBlockCount': 0,
       'transportDisconnectCount': 0,
       'memoryExtractionFallbackCount': 0,
-      'dartAnalyzeFeedback': {
+      'dartTestFeedback': {
         'observed': observed,
         'feedbackCount': feedbackCount,
-        'diagnosticCount': diagnosticCount,
+        'passedCount': passedCount,
+        'failedCount': failedCount,
+        'skippedCount': skippedCount,
         'files': feedbackFiles,
+        'triggers': triggers,
+        'validationStatuses': validationStatuses,
         'durationMs': feedbackDurationMs,
         'commandAttemptCount': commandAttemptCount,
         'fallbackCommandCount': fallbackCommandCount,
@@ -224,7 +258,7 @@ List<Map<String, Object?>> _tests(int repeatCount) {
       for (final scenario in const ['root package', 'nested package'])
         {
           'name':
-              '[run_${index.toString().padLeft(2, '0')}] live LLM repairs $scenario Dart after analyzer feedback',
+              '[run_${index.toString().padLeft(2, '0')}] live LLM repairs $scenario Dart after test feedback',
           'result': 'passed',
           'skipped': false,
           'hidden': false,

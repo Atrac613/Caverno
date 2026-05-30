@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart_tool_process.dart';
+
 import 'package:caverno/core/services/macos_computer_use_xpc_timing_report.dart';
 
 void main() {
@@ -160,15 +162,16 @@ void main() {
       final outputJson = File('${root.path}/summary.json');
       final outputMd = File('${root.path}/summary.md');
 
-      final result = await Process.run('dart', [
-        'run',
+      final result = await runDartTool(
         'tool/macos_computer_use_xpc_timing_report.dart',
-        input.path,
-        '--output-json',
-        outputJson.path,
-        '--output-md',
-        outputMd.path,
-      ]);
+        [
+          input.path,
+          '--output-json',
+          outputJson.path,
+          '--output-md',
+          outputMd.path,
+        ],
+      );
 
       expect(result.exitCode, 0, reason: '${result.stderr}');
       final summary = jsonDecode(outputJson.readAsStringSync()) as Map;

@@ -31,6 +31,7 @@ import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
+import 'package:caverno/features/chat/domain/services/coding_verification_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
@@ -1312,6 +1313,40 @@ class _ToolEnabledNoConfirmSettingsNotifier extends SettingsNotifier {
   }
 }
 
+class _ToolEnabledNoVerificationSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      mcpEnabled: true,
+      demoMode: false,
+      codingApprovalMode: CodingApprovalMode.fullAccess,
+      confirmFileMutations: false,
+      confirmLocalCommands: false,
+      confirmGitWrites: false,
+      enableCodingVerificationFeedback: false,
+    );
+  }
+}
+
+class _ToolEnabledRequestOnlyVerificationSettingsNotifier
+    extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      mcpEnabled: true,
+      demoMode: false,
+      codingApprovalMode: CodingApprovalMode.fullAccess,
+      confirmFileMutations: false,
+      confirmLocalCommands: false,
+      confirmGitWrites: false,
+      codingVerificationTriggerPolicy:
+          CodingVerificationTriggerPolicy.onRequestOnly,
+    );
+  }
+}
+
 class _ToolEnabledRemoteDenySettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
@@ -1558,22 +1593,147 @@ Map<String, dynamic> _tryDecodeObject(String value) {
 
 class _FakeCodingDiagnosticFeedbackService
     extends CodingDiagnosticFeedbackService {
-  _FakeCodingDiagnosticFeedbackService(this.feedback);
+  _FakeCodingDiagnosticFeedbackService(this.feedback, {this.baseline});
 
   final ToolResultInfo? feedback;
+  final CodingDiagnosticFeedbackBaseline? baseline;
   final List<String> requestedProjectRoots = [];
   final List<List<String>> requestedChangedPaths = [];
+  final List<String> baselineProjectRoots = [];
+  final List<List<String>> baselineChangedPaths = [];
+  final List<CodingDiagnosticFeedbackBaseline?> receivedBaselines = [];
+
+  @override
+  Future<CodingDiagnosticFeedbackBaseline?> captureBaseline({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+  }) async {
+    baselineProjectRoots.add(projectRoot);
+    baselineChangedPaths.add(List<String>.from(changedPaths));
+    return baseline;
+  }
 
   @override
   Future<ToolResultInfo?> buildFeedbackToolResult({
     required String projectRoot,
     required Iterable<String> changedPaths,
+    CodingDiagnosticFeedbackBaseline? baseline,
     DateTime? now,
   }) async {
     requestedProjectRoots.add(projectRoot);
     requestedChangedPaths.add(List<String>.from(changedPaths));
+    receivedBaselines.add(baseline);
     return feedback;
   }
+}
+
+class _FakeCodingVerificationFeedbackService
+    extends CodingVerificationFeedbackService {
+  _FakeCodingVerificationFeedbackService(ToolResultInfo? feedback)
+    : runs = Queue<CodingVerificationFeedbackRun>.from([
+        _runFromFeedback(feedback),
+      ]);
+
+  _FakeCodingVerificationFeedbackService.sequence(
+    List<ToolResultInfo?> feedbacks,
+  ) : runs = Queue<CodingVerificationFeedbackRun>.from(
+        feedbacks.map(_runFromFeedback),
+      );
+
+  _FakeCodingVerificationFeedbackService.runs(
+    List<CodingVerificationFeedbackRun> runs,
+  ) : runs = Queue<CodingVerificationFeedbackRun>.from(runs);
+
+  final Queue<CodingVerificationFeedbackRun> runs;
+  final List<String> requestedProjectRoots = [];
+  final List<List<String>> requestedChangedPaths = [];
+  final List<CodingVerificationTrigger> requestedTriggers = [];
+
+  @override
+  Future<CodingVerificationFeedbackRun> buildFeedbackRun({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+    required CodingVerificationTrigger trigger,
+    DateTime? now,
+  }) async {
+    requestedProjectRoots.add(projectRoot);
+    requestedChangedPaths.add(List<String>.from(changedPaths));
+    requestedTriggers.add(trigger);
+    if (runs.isEmpty) {
+      return const CodingVerificationFeedbackRun(
+        snapshot: null,
+        toolResult: null,
+      );
+    }
+    return runs.removeFirst();
+  }
+
+  @override
+  Future<ToolResultInfo?> buildFeedbackToolResult({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+    required CodingVerificationTrigger trigger,
+    DateTime? now,
+  }) async {
+    final run = await buildFeedbackRun(
+      projectRoot: projectRoot,
+      changedPaths: changedPaths,
+      trigger: trigger,
+      now: now,
+    );
+    return run.toolResult;
+  }
+
+  static CodingVerificationFeedbackRun _runFromFeedback(
+    ToolResultInfo? feedback,
+  ) {
+    return CodingVerificationFeedbackRun(snapshot: null, toolResult: feedback);
+  }
+}
+
+CodingVerificationSnapshot _codingVerificationSnapshot({
+  required String projectRoot,
+  required String changedPath,
+  required ConversationExecutionValidationStatus validationStatus,
+  required int passedCount,
+  required int failedCount,
+  required int exitCode,
+  List<CodingVerificationFailure> failures = const [],
+}) {
+  final command = CodingVerificationCommand(
+    executable: 'flutter',
+    arguments: const ['test', '--machine', 'test/main_test.dart'],
+    workingDirectory: projectRoot,
+  );
+  final attempt = CodingVerificationCommandAttempt(
+    command: command,
+    exitCode: exitCode,
+    durationMs: 25,
+    timedOut: false,
+    validationStatus: validationStatus,
+    passedCount: passedCount,
+    failedCount: failedCount,
+    skippedCount: 0,
+  );
+  return CodingVerificationSnapshot(
+    providerName: CodingVerificationFeedbackService.providerName,
+    projectRoot: projectRoot,
+    changedPaths: [changedPath],
+    trigger: CodingVerificationTrigger.completionClaim,
+    validationStatus: validationStatus,
+    targetBatches: [
+      CodingVerificationTargetBatch(
+        packageRoot: projectRoot,
+        targets: const ['test/main_test.dart'],
+      ),
+    ],
+    failures: failures,
+    telemetry: CodingVerificationTelemetry(durationMs: 25, attempts: [attempt]),
+    passedCount: passedCount,
+    failedCount: failedCount,
+    skippedCount: 0,
+    selectedAttempt: attempt,
+  );
 }
 
 class _SavedValidationToolLoopOutcome {
@@ -9747,6 +9907,186 @@ void main() {
   );
 
   test(
+    'run_tests reuses local command approval and preserves result name',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'run_tests',
+            arguments: const {
+              'test_path': 'test/widget_test.dart',
+              'runner': 'flutter',
+              'reason': 'Validate the widget change',
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"flutter test test/widget_test.dart","exit_code":0,"stdout":"All tests passed.","stderr":""}',
+        },
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        final sendFuture = toolNotifier.sendMessage(
+          'Run the scoped widget test',
+          bypassPlanMode: true,
+        );
+        for (
+          var i = 0;
+          i < 20 && toolNotifier.state.pendingLocalCommand == null;
+          i += 1
+        ) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        final pending = toolNotifier.state.pendingLocalCommand;
+        expect(pending, isNotNull);
+        expect(pending!.command, "flutter test 'test/widget_test.dart'");
+        expect(pending.workingDirectory, '/tmp/project');
+        expect(pending.reason, 'Validate the widget change');
+        expect(toolService.executedToolNames, isEmpty);
+
+        toolNotifier.resolveLocalCommand(
+          id: pending.id,
+          approval: const LocalCommandApproval(approved: true),
+        );
+        await sendFuture;
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(
+          toolService.executedToolArguments.single['command'],
+          "flutter test 'test/widget_test.dart'",
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        final result = toolDataSource.toolResultBatches.single.single;
+        expect(result.name, 'run_tests');
+        expect(result.arguments['test_path'], 'test/widget_test.dart');
+        expect(result.result, contains('"exit_code":0'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('run_tests rejects test paths outside the active project', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'run_tests',
+          arguments: const {
+            'test_path': '../outside/widget_test.dart',
+            'runner': 'dart',
+          },
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'local_execute_command': 'unexpected command'},
+    );
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/tmp/project',
+      createdAt: DateTime(2026, 5, 26),
+      updatedAt: DateTime(2026, 5, 26),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage(
+        'Run the escaped test path',
+        bypassPlanMode: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(toolNotifier.state.pendingLocalCommand, isNull);
+      expect(toolService.executedToolNames, isEmpty);
+      expect(toolDataSource.toolResultBatches, hasLength(1));
+      final result = toolDataSource.toolResultBatches.single.single;
+      expect(result.name, 'run_tests');
+      expect(result.result, contains('"code":"test_path_outside_project"'));
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test(
     'remote saved deny rules block local commands before mobile approval',
     () async {
       final conversationRepository = _FakeConversationRepository();
@@ -10121,8 +10461,24 @@ void main() {
           ],
         }),
       );
+      final baseline = CodingDiagnosticFeedbackBaseline(
+        providerName: 'dart_analyzer',
+        projectRoot: projectRoot.path,
+        changedPaths: const ['lib/main.dart'],
+        diagnostics: [
+          CodeDiagnostic(
+            absolutePath: changedPath,
+            severity: 'Warning',
+            line: 1,
+            column: 1,
+            message: 'Existing warning.',
+          ),
+        ],
+        telemetry: const CodingDiagnosticTelemetry(durationMs: 1, attempts: []),
+      );
       final diagnosticService = _FakeCodingDiagnosticFeedbackService(
         diagnosticFeedback,
+        baseline: baseline,
       );
       final appLifecycleService = _MockAppLifecycleService();
       when(() => appLifecycleService.isInBackground).thenReturn(false);
@@ -10165,7 +10521,10 @@ void main() {
         await toolNotifier.sendMessage('Update the Dart entrypoint');
 
         expect(diagnosticService.requestedProjectRoots, [projectRoot.path]);
+        expect(diagnosticService.baselineProjectRoots, [projectRoot.path]);
+        expect(diagnosticService.baselineChangedPaths.single, [changedPath]);
         expect(diagnosticService.requestedChangedPaths.single, [changedPath]);
+        expect(diagnosticService.receivedBaselines.single, same(baseline));
         expect(toolDataSource.toolResultBatches, hasLength(1));
         expect(
           toolDataSource.toolResultBatches.single.map((result) => result.name),
@@ -10276,6 +10635,995 @@ void main() {
       }
     },
     timeout: const Timeout(Duration(seconds: 45)),
+  );
+
+  test(
+    'sendMessage blocks completion claims with coding verification feedback',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_chat_verification_feedback_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final changedPath = '${projectRoot.path}/lib/main.dart';
+      final initialWrite = ToolCallInfo(
+        id: 'tool-1',
+        name: 'write_file',
+        arguments: const {
+          'path': 'lib/main.dart',
+          'content': 'int value() => 1;\n',
+        },
+      );
+      final repairWrite = ToolCallInfo(
+        id: 'tool-2',
+        name: 'write_file',
+        arguments: const {
+          'path': 'lib/main.dart',
+          'content': 'int value() => 2;\n',
+        },
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [initialWrite],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The task "Fix tests" is complete.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'I will fix the failing test now.',
+            toolCalls: [repairWrite],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The task "Fix tests" is complete. Validation passed.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'write_file': ''},
+        queuedResults: {
+          'write_file': [
+            '{"path":"$changedPath","bytes_written":18}',
+            '{"path":"$changedPath","bytes_written":18}',
+          ],
+        },
+      );
+      final verificationFeedback = ToolResultInfo(
+        id: 'verify-1',
+        name: CodingVerificationFeedbackService.toolName,
+        arguments: const {
+          'project_root': 'project',
+          'changed_paths': ['lib/main.dart'],
+          'trigger': 'completionClaim',
+        },
+        result: jsonEncode({
+          'schema': CodingVerificationFeedbackService.schemaName,
+          'provider': 'dart_test_runner',
+          'trigger': 'completionClaim',
+          'validation_status': 'failed',
+          'changed_paths': ['lib/main.dart'],
+          'counts': {'passed': 0, 'failed': 1, 'skipped': 0},
+          'failing_tests': [
+            {
+              'relative_path': 'test/main_test.dart',
+              'test_name': 'value returns two',
+              'line': 4,
+              'message': 'Expected: <2> Actual: <1>',
+            },
+          ],
+        }),
+      );
+      final verificationService =
+          _FakeCodingVerificationFeedbackService.sequence([
+            verificationFeedback,
+            null,
+          ]);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+            _FakeCodingDiagnosticFeedbackService(null),
+          ),
+          codingVerificationFeedbackServiceProvider.overrideWithValue(
+            verificationService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Fix the failing Dart test');
+
+        expect(verificationService.requestedProjectRoots, [
+          projectRoot.path,
+          projectRoot.path,
+        ]);
+        expect(verificationService.requestedChangedPaths, [
+          [changedPath],
+          [changedPath],
+        ]);
+        expect(verificationService.requestedTriggers, [
+          CodingVerificationTrigger.completionClaim,
+          CodingVerificationTrigger.completionClaim,
+        ]);
+        expect(toolService.executedToolNames, ['write_file', 'write_file']);
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        expect(
+          toolDataSource.toolResultBatches[0].map((result) => result.name),
+          ['write_file'],
+        );
+        expect(
+          toolDataSource.toolResultBatches[1].map((result) => result.name),
+          [CodingVerificationFeedbackService.toolName],
+        );
+        expect(
+          toolDataSource.toolResultBatches[2].map((result) => result.name),
+          ['write_file'],
+        );
+        final finalContent = toolContainer
+            .read(chatNotifierProvider)
+            .messages
+            .last
+            .content;
+        expect(finalContent, isNot(contains('is done')));
+        expect(finalContent, contains('Validation passed'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage skips coding verification feedback when disabled',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_chat_verification_disabled_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final changedPath = '${projectRoot.path}/lib/main.dart';
+      final writeCall = ToolCallInfo(
+        id: 'tool-1',
+        name: 'write_file',
+        arguments: const {
+          'path': 'lib/main.dart',
+          'content': 'int value() => 1;\n',
+        },
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [writeCall],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The task "Fix tests" is complete.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'write_file': ''},
+        queuedResults: {
+          'write_file': ['{"path":"$changedPath","bytes_written":18}'],
+        },
+      );
+      final verificationFeedback = ToolResultInfo(
+        id: 'verify-disabled',
+        name: CodingVerificationFeedbackService.toolName,
+        arguments: const {
+          'project_root': 'project',
+          'changed_paths': ['lib/main.dart'],
+          'trigger': 'completionClaim',
+        },
+        result: jsonEncode({
+          'schema': CodingVerificationFeedbackService.schemaName,
+          'provider': 'dart_test_runner',
+          'trigger': 'completionClaim',
+          'validation_status': 'failed',
+          'changed_paths': ['lib/main.dart'],
+          'counts': {'passed': 0, 'failed': 1, 'skipped': 0},
+          'failing_tests': [
+            {
+              'relative_path': 'test/main_test.dart',
+              'test_name': 'value returns two',
+              'line': 4,
+              'message': 'Expected: <2> Actual: <1>',
+            },
+          ],
+        }),
+      );
+      final verificationService = _FakeCodingVerificationFeedbackService(
+        verificationFeedback,
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoVerificationSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+            _FakeCodingDiagnosticFeedbackService(null),
+          ),
+          codingVerificationFeedbackServiceProvider.overrideWithValue(
+            verificationService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Fix the failing Dart test');
+
+        expect(verificationService.requestedProjectRoots, isEmpty);
+        expect(toolService.executedToolNames, ['write_file']);
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        expect(
+          toolDataSource.toolResultBatches.single.map((result) => result.name),
+          ['write_file'],
+        );
+        final finalContent = toolContainer
+            .read(chatNotifierProvider)
+            .messages
+            .last
+            .content;
+        expect(finalContent, contains('is complete'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage skips completion verification in request-only mode',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_chat_verification_request_only_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final changedPath = '${projectRoot.path}/lib/main.dart';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'write_file',
+            arguments: const {
+              'path': 'lib/main.dart',
+              'content': 'int value() => 1;\n',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The task "Fix tests" is complete.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'write_file': ''},
+        queuedResults: {
+          'write_file': ['{"path":"$changedPath","bytes_written":18}'],
+        },
+      );
+      final verificationService = _FakeCodingVerificationFeedbackService(
+        ToolResultInfo(
+          id: 'verify-request-only',
+          name: CodingVerificationFeedbackService.toolName,
+          arguments: const {
+            'project_root': 'project',
+            'changed_paths': ['lib/main.dart'],
+            'trigger': 'completionClaim',
+          },
+          result: jsonEncode({
+            'schema': CodingVerificationFeedbackService.schemaName,
+            'provider': 'dart_test_runner',
+            'trigger': 'completionClaim',
+            'validation_status': 'failed',
+            'changed_paths': ['lib/main.dart'],
+            'counts': {'passed': 0, 'failed': 1, 'skipped': 0},
+            'failing_tests': const [],
+          }),
+        ),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledRequestOnlyVerificationSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+            _FakeCodingDiagnosticFeedbackService(null),
+          ),
+          codingVerificationFeedbackServiceProvider.overrideWithValue(
+            verificationService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Fix the failing Dart test');
+
+        expect(verificationService.requestedProjectRoots, isEmpty);
+        expect(toolService.executedToolNames, ['write_file']);
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        final finalContent = toolContainer
+            .read(chatNotifierProvider)
+            .messages
+            .last
+            .content;
+        expect(finalContent, contains('is complete'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage records coding verification snapshots on execution progress',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_chat_verification_progress_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final changedPath = '${projectRoot.path}/lib/main.dart';
+      final testPath = '${projectRoot.path}/test/main_test.dart';
+      final initialWrite = ToolCallInfo(
+        id: 'tool-1',
+        name: 'write_file',
+        arguments: const {
+          'path': 'lib/main.dart',
+          'content': 'int value() => 1;\n',
+        },
+      );
+      final repairWrite = ToolCallInfo(
+        id: 'tool-2',
+        name: 'write_file',
+        arguments: const {
+          'path': 'lib/main.dart',
+          'content': 'int value() => 2;\n',
+        },
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [initialWrite],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The task "Fix tests" is complete.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'I will fix the failing test now.',
+            toolCalls: [repairWrite],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The task "Fix tests" is complete. Validation passed.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'write_file': ''},
+        queuedResults: {
+          'write_file': [
+            '{"path":"$changedPath","bytes_written":18}',
+            '{"path":"$changedPath","bytes_written":18}',
+          ],
+        },
+      );
+      final failedSnapshot = _codingVerificationSnapshot(
+        projectRoot: projectRoot.path,
+        changedPath: 'lib/main.dart',
+        validationStatus: ConversationExecutionValidationStatus.failed,
+        passedCount: 0,
+        failedCount: 1,
+        exitCode: 1,
+        failures: [
+          CodingVerificationFailure(
+            testName: 'value returns two',
+            absolutePath: testPath,
+            line: 4,
+            message: 'Expected: <2> Actual: <1>',
+          ),
+        ],
+      );
+      final passedSnapshot = _codingVerificationSnapshot(
+        projectRoot: projectRoot.path,
+        changedPath: 'lib/main.dart',
+        validationStatus: ConversationExecutionValidationStatus.passed,
+        passedCount: 1,
+        failedCount: 0,
+        exitCode: 0,
+      );
+      final verificationFeedback = ToolResultInfo(
+        id: 'verify-progress-1',
+        name: CodingVerificationFeedbackService.toolName,
+        arguments: const {
+          'project_root': 'project',
+          'changed_paths': ['lib/main.dart'],
+          'trigger': 'completionClaim',
+        },
+        result: jsonEncode({
+          'schema': CodingVerificationFeedbackService.schemaName,
+          'provider': 'dart_test_runner',
+          'trigger': 'completionClaim',
+          'validation_status': 'failed',
+          'changed_paths': ['lib/main.dart'],
+          'counts': {'passed': 0, 'failed': 1, 'skipped': 0},
+          'failing_tests': [
+            {
+              'relative_path': 'test/main_test.dart',
+              'test_name': 'value returns two',
+              'line': 4,
+              'message': 'Expected: <2> Actual: <1>',
+            },
+          ],
+        }),
+      );
+      final verificationService = _FakeCodingVerificationFeedbackService.runs([
+        CodingVerificationFeedbackRun(
+          snapshot: failedSnapshot,
+          toolResult: verificationFeedback,
+        ),
+        CodingVerificationFeedbackRun(
+          snapshot: passedSnapshot,
+          toolResult: null,
+        ),
+      ]);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+            _FakeCodingDiagnosticFeedbackService(null),
+          ),
+          codingVerificationFeedbackServiceProvider.overrideWithValue(
+            verificationService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final conversationsNotifier = toolContainer.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversationsNotifier.activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+          createIfMissing: true,
+        );
+        await conversationsNotifier.updateCurrentPlanArtifact(
+          planArtifact: const ConversationPlanArtifact(
+            approvedMarkdown:
+                '# Plan\n'
+                '\n'
+                '## Stage\n'
+                'implement\n'
+                '\n'
+                '## Goal\n'
+                'Fix a failing Dart test\n'
+                '\n'
+                '## Tasks\n'
+                '\n'
+                '1. Fix tests\n'
+                '   - Status: inProgress\n'
+                '   - Validation: flutter test\n',
+          ),
+        );
+        await conversationsNotifier
+            .refreshCurrentWorkflowProjectionFromApprovedPlan();
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Fix the failing Dart test');
+
+        final progress = toolContainer
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.executionProgress
+            .single;
+        expect(progress, isNotNull);
+        expect(progress!.status, ConversationWorkflowTaskStatus.completed);
+        expect(
+          progress.validationStatus,
+          ConversationExecutionValidationStatus.passed,
+        );
+        expect(
+          progress.lastValidationCommand,
+          'flutter test --machine test/main_test.dart',
+        );
+        expect(
+          progress.lastValidationSummary,
+          contains('Coding verification passed'),
+        );
+        final validationEvents = progress.events
+            .where(
+              (event) =>
+                  event.type == ConversationExecutionTaskEventType.validated,
+            )
+            .toList(growable: false);
+        expect(validationEvents, hasLength(2));
+        expect(
+          validationEvents.first.validationStatus,
+          ConversationExecutionValidationStatus.failed,
+        );
+        expect(
+          validationEvents.first.validationSummary,
+          contains('Actual: <1>'),
+        );
+        expect(
+          validationEvents.last.validationStatus,
+          ConversationExecutionValidationStatus.passed,
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage blocks streamed completion claims with verification feedback',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_chat_stream_verification_feedback_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final changedPath = '${projectRoot.path}/lib/main.dart';
+      final initialWrite = ToolCallInfo(
+        id: 'tool-1',
+        name: 'write_file',
+        arguments: const {
+          'path': 'lib/main.dart',
+          'content': 'int value() => 1;\n',
+        },
+      );
+      final repairWrite = ToolCallInfo(
+        id: 'tool-2',
+        name: 'write_file',
+        arguments: const {
+          'path': 'lib/main.dart',
+          'content': 'int value() => 2;\n',
+        },
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [initialWrite],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'I wrote the requested Dart file.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'I will repair the failing test before finishing.',
+            toolCalls: [repairWrite],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The task "Fix tests" is complete. Validation passed.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['The task "Fix tests" is done.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'write_file': ''},
+        queuedResults: {
+          'write_file': [
+            '{"path":"$changedPath","bytes_written":18}',
+            '{"path":"$changedPath","bytes_written":18}',
+          ],
+        },
+      );
+      final verificationFeedback = ToolResultInfo(
+        id: 'verify-stream-1',
+        name: CodingVerificationFeedbackService.toolName,
+        arguments: const {
+          'project_root': 'project',
+          'changed_paths': ['lib/main.dart'],
+          'trigger': 'completionClaim',
+        },
+        result: jsonEncode({
+          'schema': CodingVerificationFeedbackService.schemaName,
+          'provider': 'dart_test_runner',
+          'trigger': 'completionClaim',
+          'validation_status': 'failed',
+          'changed_paths': ['lib/main.dart'],
+          'counts': {'passed': 0, 'failed': 1, 'skipped': 0},
+          'failing_tests': [
+            {
+              'relative_path': 'test/main_test.dart',
+              'test_name': 'value returns two',
+              'line': 4,
+              'message': 'Expected: <2> Actual: <1>',
+            },
+          ],
+        }),
+      );
+      final verificationService =
+          _FakeCodingVerificationFeedbackService.sequence([
+            verificationFeedback,
+            null,
+          ]);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+            _FakeCodingDiagnosticFeedbackService(null),
+          ),
+          codingVerificationFeedbackServiceProvider.overrideWithValue(
+            verificationService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Fix the failing Dart test');
+
+        expect(verificationService.requestedProjectRoots, [
+          projectRoot.path,
+          projectRoot.path,
+        ]);
+        expect(verificationService.requestedChangedPaths, [
+          [changedPath],
+          [changedPath],
+        ]);
+        expect(verificationService.requestedTriggers, [
+          CodingVerificationTrigger.completionClaim,
+          CodingVerificationTrigger.completionClaim,
+        ]);
+        expect(toolService.executedToolNames, ['write_file', 'write_file']);
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        expect(
+          toolDataSource.toolResultBatches[0].map((result) => result.name),
+          ['write_file'],
+        );
+        expect(
+          toolDataSource.toolResultBatches[1].map((result) => result.name),
+          [CodingVerificationFeedbackService.toolName],
+        );
+        expect(
+          toolDataSource.toolResultBatches[2].map((result) => result.name),
+          ['write_file'],
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage stops repeated verification repair for unchanged failures',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_chat_verification_convergence_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final changedPath = '${projectRoot.path}/lib/main.dart';
+      ToolCallInfo writeCall(String id, String content) {
+        return ToolCallInfo(
+          id: id,
+          name: 'write_file',
+          arguments: {'path': 'lib/main.dart', 'content': content},
+        );
+      }
+
+      ToolResultInfo verificationFeedback(String id) {
+        return ToolResultInfo(
+          id: id,
+          name: CodingVerificationFeedbackService.toolName,
+          arguments: const {
+            'project_root': 'project',
+            'changed_paths': ['lib/main.dart'],
+            'trigger': 'completionClaim',
+          },
+          result: jsonEncode({
+            'schema': CodingVerificationFeedbackService.schemaName,
+            'provider': 'dart_test_runner',
+            'trigger': 'completionClaim',
+            'validation_status': 'failed',
+            'changed_paths': ['lib/main.dart'],
+            'counts': {'passed': 0, 'failed': 1, 'skipped': 0},
+            'failing_tests': [
+              {
+                'relative_path': 'test/main_test.dart',
+                'test_name': 'value returns two',
+                'line': 4,
+                'message': 'Expected: <2> Actual: <1>',
+              },
+            ],
+          }),
+        );
+      }
+
+      final initialWrite = writeCall('tool-1', 'int value() => 1;\n');
+      final firstRepairWrite = writeCall('tool-2', 'int value() => 2;\n');
+      final secondRepairWrite = writeCall('tool-3', 'int value() => 3;\n');
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [initialWrite],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The task "Fix tests" is complete.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'I will repair the failing test.',
+            toolCalls: [firstRepairWrite],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The task "Fix tests" is complete.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'I will try one more repair.',
+            toolCalls: [secondRepairWrite],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The task "Fix tests" is complete.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'write_file': ''},
+        queuedResults: {
+          'write_file': [
+            '{"path":"$changedPath","bytes_written":18}',
+            '{"path":"$changedPath","bytes_written":18}',
+            '{"path":"$changedPath","bytes_written":18}',
+          ],
+        },
+      );
+      final verificationService =
+          _FakeCodingVerificationFeedbackService.sequence([
+            verificationFeedback('verify-1'),
+            verificationFeedback('verify-2'),
+            verificationFeedback('verify-3'),
+          ]);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+            _FakeCodingDiagnosticFeedbackService(null),
+          ),
+          codingVerificationFeedbackServiceProvider.overrideWithValue(
+            verificationService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Fix the failing Dart test');
+
+        expect(verificationService.requestedProjectRoots, [
+          projectRoot.path,
+          projectRoot.path,
+          projectRoot.path,
+        ]);
+        expect(toolService.executedToolNames, [
+          'write_file',
+          'write_file',
+          'write_file',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(5));
+        expect(
+          toolDataSource.toolResultBatches.map(
+            (batch) => batch.map((result) => result.name).toList(),
+          ),
+          [
+            ['write_file'],
+            [CodingVerificationFeedbackService.toolName],
+            ['write_file'],
+            [CodingVerificationFeedbackService.toolName],
+            ['write_file'],
+          ],
+        );
+        final finalContent = toolContainer
+            .read(chatNotifierProvider)
+            .messages
+            .last
+            .content;
+        expect(finalContent, contains('not complete'));
+        expect(finalContent, contains('same failing tests persisted'));
+        expect(finalContent, contains('value returns two'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
   );
 
   test('auto-review denies local commands without executing them', () async {
