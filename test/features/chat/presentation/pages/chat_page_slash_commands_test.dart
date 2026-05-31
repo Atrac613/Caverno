@@ -54,6 +54,7 @@ class _SlashChatNotifier extends ChatNotifier {
   final bool initialLoading;
   int cancelCount = 0;
   int clearCount = 0;
+  final List<String> sentMessages = <String>[];
 
   @override
   ChatState build() {
@@ -70,6 +71,19 @@ class _SlashChatNotifier extends ChatNotifier {
   void clearMessages() {
     clearCount += 1;
     state = ChatState.initial();
+  }
+
+  @override
+  Future<void> sendMessage(
+    String content, {
+    String? imageBase64,
+    String? imageMimeType,
+    String languageCode = 'en',
+    bool isVoiceMode = false,
+    bool bypassPlanMode = false,
+    ChatInteractionOrigin origin = ChatInteractionOrigin.local,
+  }) async {
+    sentMessages.add(content);
   }
 }
 
@@ -298,6 +312,95 @@ void main() {
     await _submitComposerText(tester, '/cancel');
 
     expect(chatNotifier.cancelCount, 1);
+  });
+
+  testWidgets('prompt slash commands expand arguments into prompt messages', (
+    tester,
+  ) async {
+    final conversation = _chatConversation(messages: const <Message>[]);
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.chat,
+        activeProjectId: null,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+    );
+
+    const cases = [
+      (
+        command: '/review parser changes',
+        expectedLead: 'Review the following code, diff, file path',
+        expectedTarget: 'parser changes',
+      ),
+      (
+        command: '/fix failing login flow',
+        expectedLead: 'Fix or propose a fix for the following issue',
+        expectedTarget: 'failing login flow',
+      ),
+      (
+        command: '/explain provider lifecycle',
+        expectedLead: 'Explain the following code, behavior, error, or concept',
+        expectedTarget: 'provider lifecycle',
+      ),
+      (
+        command: '/test slash command parser',
+        expectedLead: 'Add or update tests for the following target',
+        expectedTarget: 'slash command parser',
+      ),
+    ];
+
+    for (final testCase in cases) {
+      await _submitComposerText(tester, testCase.command);
+    }
+
+    expect(chatNotifier.sentMessages, hasLength(cases.length));
+    for (var index = 0; index < cases.length; index += 1) {
+      expect(
+        chatNotifier.sentMessages[index],
+        contains(cases[index].expectedLead),
+      );
+      expect(
+        chatNotifier.sentMessages[index],
+        contains(cases[index].expectedTarget),
+      );
+    }
+  });
+
+  testWidgets('/review is blocked while a response is active', (tester) async {
+    final conversation = _chatConversation(messages: const <Message>[]);
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.chat,
+        activeProjectId: null,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier(initialLoading: true);
+    await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+    );
+
+    await _submitComposerText(tester, '/review parser changes');
+
+    expect(chatNotifier.sentMessages, isEmpty);
+    expect(
+      find.text('Wait for the current response to finish, or use /cancel.'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/review parser changes',
+    );
   });
 }
 

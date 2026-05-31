@@ -392,12 +392,34 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     if (definition == null &&
         allowSelectedSuggestion &&
         _slashSuggestions.isNotEmpty) {
-      definition = _slashSuggestions[_selectedSlashSuggestionIndex];
+      final selected = _slashSuggestions[_selectedSlashSuggestionIndex];
+      if (selected.requiresArguments && parsed.args.isEmpty) {
+        _applySlashSuggestion(selected);
+        _showMissingSlashArgumentsFeedback(selected);
+        return true;
+      }
+      definition = selected;
     }
     if (definition == null) {
       _showSlashCommandFeedback(
         'message.slash_unknown_command'.tr(
           namedArgs: {'command': parsed.commandName},
+        ),
+      );
+      _dismissSlashSuggestions();
+      return true;
+    }
+
+    if (definition.requiresArguments && parsed.args.isEmpty) {
+      _showMissingSlashArgumentsFeedback(definition);
+      _dismissSlashSuggestions();
+      return true;
+    }
+
+    if (!definition.acceptsArguments && parsed.args.isNotEmpty) {
+      _showSlashCommandFeedback(
+        'message.slash_unexpected_arguments'.tr(
+          namedArgs: {'command': definition.name},
         ),
       );
       _dismissSlashSuggestions();
@@ -417,6 +439,14 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     return true;
   }
 
+  void _showMissingSlashArgumentsFeedback(SlashCommandDefinition definition) {
+    _showSlashCommandFeedback(
+      'message.slash_missing_arguments'.tr(
+        namedArgs: {'command': definition.name, 'usage': definition.usage},
+      ),
+    );
+  }
+
   Future<void> _executeSlashCommand(SlashCommandInvocation invocation) async {
     final handler = widget.onSlashCommand;
     if (handler == null) return;
@@ -427,6 +457,22 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
       if (result.feedbackMessage != null) {
         _showSlashCommandFeedback(result.feedbackMessage!);
+      }
+      final promptToSend = result.promptToSend?.trim();
+      if (promptToSend != null) {
+        if (promptToSend.isEmpty) {
+          _showSlashCommandFeedback('message.slash_command_failed'.tr());
+          _dismissSlashSuggestions();
+          _focusNode.requestFocus();
+          return;
+        }
+        widget.onSend(promptToSend, null, null);
+        _pushToHistory(invocation.rawInput.trim());
+        _controller.clear();
+        _clearImage();
+        _clearFile();
+        _focusNode.requestFocus();
+        return;
       }
       if (result.clearInput) {
         _pushToHistory(invocation.rawInput.trim());
@@ -1033,10 +1079,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(
-                      width: 112,
+                      width: 148,
                       child: Text(
-                        '/${command.name}',
-                        maxLines: 1,
+                        command.usage,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelLarge?.copyWith(
                           color: selected

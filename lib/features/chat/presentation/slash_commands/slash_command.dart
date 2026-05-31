@@ -8,6 +8,19 @@ enum SlashCommandAction {
   coding,
   plan,
   cancel,
+  review,
+  fix,
+  explain,
+  test,
+}
+
+enum SlashCommandArgumentRequirement { none, optional, required }
+
+extension SlashCommandArgumentRequirementX on SlashCommandArgumentRequirement {
+  bool get acceptsArguments => this != SlashCommandArgumentRequirement.none;
+
+  bool get requiresArguments =>
+      this == SlashCommandArgumentRequirement.required;
 }
 
 class SlashCommandDefinition {
@@ -17,6 +30,7 @@ class SlashCommandDefinition {
     required this.description,
     this.aliases = const <String>[],
     this.argumentHint,
+    this.argumentRequirement = SlashCommandArgumentRequirement.none,
     this.enabledWhileLoading = false,
   });
 
@@ -25,7 +39,20 @@ class SlashCommandDefinition {
   final String description;
   final List<String> aliases;
   final String? argumentHint;
+  final SlashCommandArgumentRequirement argumentRequirement;
   final bool enabledWhileLoading;
+
+  bool get acceptsArguments => argumentRequirement.acceptsArguments;
+
+  bool get requiresArguments => argumentRequirement.requiresArguments;
+
+  String get usage {
+    final hint = argumentHint;
+    if (hint == null || hint.isEmpty) {
+      return '/$name';
+    }
+    return '/$name $hint';
+  }
 
   bool matchesName(String value) {
     final normalized = value.toLowerCase();
@@ -52,12 +79,24 @@ class SlashCommandExecutionResult {
   const SlashCommandExecutionResult({
     this.clearInput = true,
     this.feedbackMessage,
+    this.promptToSend,
   });
 
   final bool clearInput;
   final String? feedbackMessage;
+  final String? promptToSend;
 
   static const handled = SlashCommandExecutionResult();
+
+  factory SlashCommandExecutionResult.sendPrompt(
+    String prompt, {
+    String? feedbackMessage,
+  }) {
+    return SlashCommandExecutionResult(
+      feedbackMessage: feedbackMessage,
+      promptToSend: prompt,
+    );
+  }
 
   factory SlashCommandExecutionResult.keepInput({String? feedbackMessage}) {
     return SlashCommandExecutionResult(

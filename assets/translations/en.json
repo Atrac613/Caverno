@@ -25,6 +25,10 @@
     "slash_coding_desc": "Switch to coding assistant mode",
     "slash_plan_desc": "Enter plan mode for the current coding thread",
     "slash_cancel_desc": "Cancel the active response",
+    "slash_review_desc": "Expand into a focused review prompt",
+    "slash_fix_desc": "Expand into a bug-fix prompt",
+    "slash_explain_desc": "Expand into an explanation prompt",
+    "slash_test_desc": "Expand into a test-writing prompt",
     "slash_blocked_while_loading": "Wait for the current response to finish, or use /cancel.",
     "slash_new_conversation_started": "New conversation started.",
     "slash_new_thread_started": "New coding thread started.",
@@ -414,6 +418,8 @@
     "project_access_reselect_help": "Re-select the project folder to grant access again and continue coding.",
     "project_access_reselect": "Re-select Project Folder",
     "slash_unknown_command": "Unknown slash command: /{command}",
+    "slash_missing_arguments": "Add details for /{command}. Usage: {usage}",
+    "slash_unexpected_arguments": "/{command} does not take arguments.",
     "slash_command_failed": "Failed to run slash command."
   },
   "content": {

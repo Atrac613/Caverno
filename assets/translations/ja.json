@@ -25,6 +25,10 @@
     "slash_coding_desc": "コーディングアシスタントモードに切り替え",
     "slash_plan_desc": "現在のコーディングスレッドで plan mode に入る",
     "slash_cancel_desc": "実行中の応答をキャンセル",
+    "slash_review_desc": "レビュー用プロンプトに展開",
+    "slash_fix_desc": "バグ修正用プロンプトに展開",
+    "slash_explain_desc": "説明用プロンプトに展開",
+    "slash_test_desc": "テスト作成用プロンプトに展開",
     "slash_blocked_while_loading": "現在の応答が完了するまで待つか、/cancel を使ってください。",
     "slash_new_conversation_started": "新しい会話を開始しました。",
     "slash_new_thread_started": "新しいコーディングスレッドを開始しました。",
@@ -414,6 +418,8 @@
     "project_access_reselect_help": "プロジェクトフォルダを再選択して、アクセス権を付け直してから作業を続けてください。",
     "project_access_reselect": "プロジェクトを再選択",
     "slash_unknown_command": "不明なスラッシュコマンドです: /{command}",
+    "slash_missing_arguments": "/{command} の詳細を入力してください。使い方: {usage}",
+    "slash_unexpected_arguments": "/{command} に引数は指定できません。",
     "slash_command_failed": "スラッシュコマンドの実行に失敗しました。"
   },
   "content": {

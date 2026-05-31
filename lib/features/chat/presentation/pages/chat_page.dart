@@ -363,6 +363,36 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         description: 'chat.slash_cancel_desc'.tr(),
         enabledWhileLoading: true,
       ),
+      SlashCommandDefinition(
+        name: 'review',
+        action: SlashCommandAction.review,
+        description: 'chat.slash_review_desc'.tr(),
+        aliases: const ['rev'],
+        argumentHint: '<target>',
+        argumentRequirement: SlashCommandArgumentRequirement.required,
+      ),
+      SlashCommandDefinition(
+        name: 'fix',
+        action: SlashCommandAction.fix,
+        description: 'chat.slash_fix_desc'.tr(),
+        argumentHint: '<issue>',
+        argumentRequirement: SlashCommandArgumentRequirement.required,
+      ),
+      SlashCommandDefinition(
+        name: 'explain',
+        action: SlashCommandAction.explain,
+        description: 'chat.slash_explain_desc'.tr(),
+        argumentHint: '<topic>',
+        argumentRequirement: SlashCommandArgumentRequirement.required,
+      ),
+      SlashCommandDefinition(
+        name: 'test',
+        action: SlashCommandAction.test,
+        description: 'chat.slash_test_desc'.tr(),
+        aliases: const ['tests'],
+        argumentHint: '<target>',
+        argumentRequirement: SlashCommandArgumentRequirement.required,
+      ),
     ];
   }
 
@@ -474,7 +504,63 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return SlashCommandExecutionResult(
           feedbackMessage: 'chat.slash_cancelled'.tr(),
         );
+      case SlashCommandAction.review:
+      case SlashCommandAction.fix:
+      case SlashCommandAction.explain:
+      case SlashCommandAction.test:
+        return SlashCommandExecutionResult.sendPrompt(
+          _buildPromptExpansion(invocation.definition.action, invocation.args),
+        );
     }
+  }
+
+  String _buildPromptExpansion(SlashCommandAction action, String args) {
+    final target = args.trim();
+    final body = switch (action) {
+      SlashCommandAction.review =>
+        '''
+Review the following code, diff, file path, or implementation request.
+
+Focus on correctness, regressions, edge cases, security, and missing tests. Lead with the most important findings and include concrete next steps.
+
+Target:
+$target
+''',
+      SlashCommandAction.fix =>
+        '''
+Fix or propose a fix for the following issue.
+
+Identify the likely cause, describe the smallest safe change, and include verification steps. If code changes are needed, be explicit about the files and behavior involved.
+
+Issue:
+$target
+''',
+      SlashCommandAction.explain =>
+        '''
+Explain the following code, behavior, error, or concept.
+
+Use clear structure, call out assumptions, and include examples when they help.
+
+Topic:
+$target
+''',
+      SlashCommandAction.test =>
+        '''
+Add or update tests for the following target.
+
+Focus on observable behavior, important edge cases, and the verification command that should be run.
+
+Target:
+$target
+''',
+      _ => target,
+    };
+    return '''
+$body
+
+Respond in the user's current language unless they ask otherwise.
+'''
+        .trim();
   }
 
   Future<void> _showSlashCommandHelp(
@@ -506,7 +592,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.terminal),
-                title: Text('/${command.name}'),
+                title: Text(command.usage),
                 subtitle: Text(command.description),
               );
             },

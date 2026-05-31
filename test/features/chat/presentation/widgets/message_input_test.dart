@@ -136,6 +136,14 @@ const _testSlashCommands = <SlashCommandDefinition>[
     description: 'Switch to coding mode',
     aliases: ['code'],
   ),
+  SlashCommandDefinition(
+    name: 'review',
+    action: SlashCommandAction.review,
+    description: 'Expand into a focused review prompt',
+    aliases: ['rev'],
+    argumentHint: '<target>',
+    argumentRequirement: SlashCommandArgumentRequirement.required,
+  ),
 ];
 
 void main() {
@@ -245,6 +253,25 @@ void main() {
     );
   });
 
+  testWidgets('shows argument hints for prompt slash commands', (tester) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      slashCommands: _testSlashCommands,
+      onSlashCommand: (_) => SlashCommandExecutionResult.handled,
+    );
+
+    await tester.enterText(find.byType(TextField), '/rev');
+    await tester.pump();
+
+    expect(find.text('/review <target>'), findsOneWidget);
+    expect(find.text('Expand into a focused review prompt'), findsOneWidget);
+  });
+
   testWidgets('enter executes a slash command without sending a message', (
     tester,
   ) async {
@@ -279,6 +306,120 @@ void main() {
       tester.widget<TextField>(find.byType(TextField)).controller?.text,
       '',
     );
+  });
+
+  testWidgets('prompt slash commands send expanded prompts with arguments', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final sentMessages = <String>[];
+    final invocations = <SlashCommandInvocation>[];
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      onSend: (message, _, _) {
+        sentMessages.add(message);
+      },
+      slashCommands: _testSlashCommands,
+      onSlashCommand: (invocation) {
+        invocations.add(invocation);
+        return SlashCommandExecutionResult.sendPrompt(
+          'Review prompt for ${invocation.args}',
+        );
+      },
+    );
+
+    await tester.tap(find.byType(TextField));
+    await tester.enterText(find.byType(TextField), '/review parser changes');
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(invocations.single.definition.action, SlashCommandAction.review);
+    expect(invocations.single.args, 'parser changes');
+    expect(sentMessages, ['Review prompt for parser changes']);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '',
+    );
+  });
+
+  testWidgets('required slash command arguments keep the draft when missing', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final sentMessages = <String>[];
+    final invocations = <SlashCommandInvocation>[];
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      onSend: (message, _, _) {
+        sentMessages.add(message);
+      },
+      slashCommands: _testSlashCommands,
+      onSlashCommand: (invocation) {
+        invocations.add(invocation);
+        return SlashCommandExecutionResult.sendPrompt('Should not send');
+      },
+    );
+
+    await tester.enterText(find.byType(TextField), '/review');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    expect(sentMessages, isEmpty);
+    expect(invocations, isEmpty);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/review',
+    );
+    expect(
+      find.text('Add details for /review. Usage: /review <target>'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('no-argument slash commands reject extra arguments', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final sentMessages = <String>[];
+    final invocations = <SlashCommandInvocation>[];
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      onSend: (message, _, _) {
+        sentMessages.add(message);
+      },
+      slashCommands: _testSlashCommands,
+      onSlashCommand: (invocation) {
+        invocations.add(invocation);
+        return SlashCommandExecutionResult.handled;
+      },
+    );
+
+    await tester.enterText(find.byType(TextField), '/clear now');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    expect(sentMessages, isEmpty);
+    expect(invocations, isEmpty);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/clear now',
+    );
+    expect(find.text('/clear does not take arguments.'), findsOneWidget);
   });
 
   testWidgets('unknown slash commands keep the draft', (tester) async {

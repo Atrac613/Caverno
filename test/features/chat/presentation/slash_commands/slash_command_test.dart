@@ -20,6 +20,14 @@ void main() {
       description: 'Switch to coding mode',
       aliases: ['code'],
     ),
+    SlashCommandDefinition(
+      name: 'review',
+      action: SlashCommandAction.review,
+      description: 'Review a target',
+      aliases: ['rev'],
+      argumentHint: '<target>',
+      argumentRequirement: SlashCommandArgumentRequirement.required,
+    ),
   ];
 
   group('parseSlashCommandInput', () {
@@ -53,6 +61,10 @@ void main() {
         findSlashCommand('code', commands)?.action,
         SlashCommandAction.coding,
       );
+      expect(
+        findSlashCommand('rev', commands)?.action,
+        SlashCommandAction.review,
+      );
     });
 
     test('returns null for unknown command-looking names', () {
@@ -67,7 +79,7 @@ void main() {
           '/',
           commands,
         ).map((command) => command.name),
-        ['help', 'clear', 'coding'],
+        ['help', 'clear', 'coding', 'review'],
       );
     });
 
@@ -93,11 +105,33 @@ void main() {
         ).map((command) => command.name),
         ['clear'],
       );
+      expect(
+        filterSlashCommandSuggestions(
+          '/rev',
+          commands,
+        ).map((command) => command.name),
+        ['review'],
+      );
     });
 
     test('does not suggest for arguments or path-like input', () {
       expect(filterSlashCommandSuggestions('/clear now', commands), isEmpty);
+      expect(
+        filterSlashCommandSuggestions('/review lib/file.dart', commands),
+        isEmpty,
+      );
       expect(filterSlashCommandSuggestions('/tmp/file.txt', commands), isEmpty);
+    });
+  });
+
+  group('SlashCommandDefinition', () {
+    test('builds command usage with argument hints', () {
+      final review = commands.last;
+
+      expect(review.requiresArguments, isTrue);
+      expect(review.acceptsArguments, isTrue);
+      expect(review.usage, '/review <target>');
+      expect(commands.first.usage, '/help');
     });
   });
 }
