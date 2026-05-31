@@ -103,9 +103,14 @@ class RemoteCodingP1ReleaseGateResult {
 RemoteCodingP1ReleaseGateResult buildRemoteCodingP1ReleaseGate({
   required Directory repoRoot,
   File? manualChecklistFile,
+  List<File> supportPacketFiles = const <File>[],
   DateTime? generatedAt,
 }) {
-  final checklist = _readChecklist(manualChecklistFile);
+  final checklist = _readChecklistWithSupportPackets(
+    manualChecklistFile,
+    supportPacketFiles: supportPacketFiles,
+    generatedAt: generatedAt,
+  );
   final staticGates = _buildStaticGates(repoRoot);
   final manualGates = _buildManualGates(checklist);
   final blockedGateIds = [
@@ -170,9 +175,17 @@ List<RemoteCodingP1Gate> _buildStaticGates(Directory repoRoot) {
     repoRoot,
     'lib/features/remote_coding/data/remote_coding_diagnostics.dart',
   );
+  final supportPacket = _read(
+    repoRoot,
+    'lib/features/remote_coding/data/remote_coding_support_packet.dart',
+  );
   final remotePage = _read(
     repoRoot,
     'lib/features/remote_coding/presentation/remote_coding_page.dart',
+  );
+  final settingsPage = _read(
+    repoRoot,
+    'lib/features/remote_coding/presentation/remote_coding_settings_page.dart',
   );
   final clientTest = _read(
     repoRoot,
@@ -230,15 +243,18 @@ List<RemoteCodingP1Gate> _buildStaticGates(Directory repoRoot) {
           'Mobile and desktop diagnostics expose support state without token material.',
       ready:
           diagnostics.contains('remote_coding_mobile_diagnostics') &&
+          supportPacket.contains('remote_coding_p1_support_packet') &&
+          supportPacket.contains('manualChecklistPatch') &&
           diagnostics.contains('protocolVersion') &&
           diagnostics.contains('mobileDeviceTokenIncluded') &&
           diagnostics.contains('pairingSecretIncluded') &&
-          remotePage.contains('Copy Diagnostics') &&
+          remotePage.contains('Copy Support Packet') &&
+          settingsPage.contains('Copy Support Packet') &&
           diagnosticsTest.contains(
             'mobile diagnostics include reconnect state without token material',
           ) &&
           widgetTest.contains(
-            'mobile connection view copies redacted diagnostics',
+            'mobile connection view copies redacted support packet',
           ),
       evidence: const [
         'Diagnostics include protocol and reconnect metadata, while widget and unit tests prove redacted copy support.',
@@ -374,6 +390,26 @@ RemoteCodingP1Gate _manualGate({
   );
 }
 
+Map<String, dynamic>? _readChecklistWithSupportPackets(
+  File? file, {
+  required List<File> supportPacketFiles,
+  DateTime? generatedAt,
+}) {
+  final checklist = _readChecklist(file);
+  if (supportPacketFiles.isEmpty) {
+    return checklist;
+  }
+  final nextChecklist = checklist == null
+      ? Map<String, dynamic>.from(
+          remoteCodingP1ManualChecklistTemplate(generatedAt: generatedAt),
+        )
+      : Map<String, dynamic>.from(checklist);
+  for (final supportPacketFile in supportPacketFiles) {
+    _mergeSupportPacketPatch(nextChecklist, supportPacketFile);
+  }
+  return nextChecklist;
+}
+
 Map<String, dynamic>? _readChecklist(File? file) {
   if (file == null || !file.existsSync()) {
     return null;
@@ -385,6 +421,51 @@ Map<String, dynamic>? _readChecklist(File? file) {
     );
   }
   return decoded;
+}
+
+void _mergeSupportPacketPatch(
+  Map<String, dynamic> checklist,
+  File supportPacketFile,
+) {
+  if (!supportPacketFile.existsSync()) {
+    throw FormatException(
+      'Remote Coding P1 support packet does not exist: ${supportPacketFile.path}',
+    );
+  }
+  final decoded = jsonDecode(supportPacketFile.readAsStringSync());
+  if (decoded is! Map<String, dynamic> ||
+      decoded['schemaName'] != 'remote_coding_p1_support_packet') {
+    throw const FormatException(
+      'Remote Coding P1 support packet must use remote_coding_p1_support_packet.',
+    );
+  }
+  final manualChecklistPatch = decoded['manualChecklistPatch'];
+  if (manualChecklistPatch is! Map<String, dynamic>) {
+    throw const FormatException(
+      'Remote Coding P1 support packet is missing manualChecklistPatch.',
+    );
+  }
+  final supportPacketPatch = manualChecklistPatch['supportPacket'];
+  if (supportPacketPatch is! Map<String, dynamic>) {
+    throw const FormatException(
+      'Remote Coding P1 support packet is missing supportPacket checklist data.',
+    );
+  }
+  final supportPacketSection = checklist.putIfAbsent(
+    'supportPacket',
+    () => <String, dynamic>{},
+  );
+  if (supportPacketSection is! Map<String, dynamic>) {
+    throw const FormatException(
+      'Remote Coding P1 checklist supportPacket section must be an object.',
+    );
+  }
+  for (final entry in supportPacketPatch.entries) {
+    if (entry.value is bool) {
+      supportPacketSection[entry.key] =
+          supportPacketSection[entry.key] == true || entry.value == true;
+    }
+  }
 }
 
 bool? _boolAt(Map<String, dynamic> source, String dottedPath) {

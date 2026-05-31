@@ -35,6 +35,8 @@ Run the release gate:
 ```bash
 dart run tool/remote_coding_p1_release_gate.dart \
   --manual-checklist build/remote_coding_p1_manual_checklist.json \
+  --support-packet build/mobile_support_packet.json \
+  --support-packet build/desktop_support_packet.json \
   --out-json build/remote_coding_p1_release_gate.json \
   --out-md build/remote_coding_p1_release_gate.md
 ```
@@ -54,3 +56,18 @@ Keep real-device screenshots, copied diagnostics, and build logs next to the
 JSON report when preparing a release candidate. Diagnostics must be reviewed to
 confirm they do not include mobile device tokens, desktop token hashes, or
 pairing secrets.
+
+## Support Packet Flow
+
+Copy a P1 support packet from both sides of a paired session:
+
+- Desktop: Settings > Remote Coding Host > Copy Support Packet.
+- Mobile: Remote Coding connection or session screen > Copy Support Packet.
+
+Each copied packet uses `schemaName: remote_coding_p1_support_packet`, includes
+the redacted diagnostics snapshot, and carries a `manualChecklistPatch` for the
+`supportPacket` checklist section. Pass both packet JSON files to the release
+gate with repeated `--support-packet` arguments. The gate merges true checklist
+fields from the packets, but the user-operated review still owns confirming that
+the exported diagnostics contain no mobile device tokens, desktop token hashes,
+or pairing secrets.

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../data/remote_coding_diagnostics.dart';
+import '../data/remote_coding_support_packet.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_server_notifier.dart';
 
@@ -69,9 +70,9 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
                         label: const Text('Pair Mobile Device'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: () => _copyDiagnostics(context, state),
+                        onPressed: () => _copySupportPacket(context, state),
                         icon: const Icon(Icons.copy_outlined),
-                        label: const Text('Copy Diagnostics'),
+                        label: const Text('Copy Support Packet'),
                       ),
                     ],
                   ),
@@ -133,7 +134,7 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
         .cancelPairingPayload(payload.ticketId);
   }
 
-  Future<void> _copyDiagnostics(
+  Future<void> _copySupportPacket(
     BuildContext context,
     RemoteCodingServerState state,
   ) async {
@@ -146,16 +147,20 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
       pairingPayload: state.pairingPayload,
       error: state.error,
     );
+    final supportPacket = RemoteCodingSupportPacket.build(
+      side: RemoteCodingSupportPacketSide.desktop,
+      diagnostics: diagnostics,
+    );
     await Clipboard.setData(
       ClipboardData(
-        text: const JsonEncoder.withIndent('  ').convert(diagnostics),
+        text: const JsonEncoder.withIndent('  ').convert(supportPacket),
       ),
     );
     if (!context.mounted) {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Remote coding diagnostics copied.')),
+      const SnackBar(content: Text('Remote coding support packet copied.')),
     );
   }
 }

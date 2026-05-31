@@ -54,6 +54,51 @@ void main() {
     expect(template['supportPacket'], isA<Map<String, Object?>>());
     expect(template['multiDevice'], isA<Map<String, Object?>>());
   });
+
+  test('support packets can satisfy the support packet checklist section', () {
+    final root = Directory.systemTemp.createTempSync(
+      'remote_coding_p1_support_packet_gate_test_',
+    );
+    addTearDown(() {
+      root.deleteSync(recursive: true);
+    });
+    final checklist = remoteCodingP1ManualChecklistTemplate(
+      generatedAt: DateTime(2026, 5, 26, 12),
+    );
+    final readyChecklist = _markAllBooleansReady(checklist);
+    if (readyChecklist case final Map<String, Object?> readyMap) {
+      readyMap['supportPacket'] = {
+        'mobileDiagnosticsCopied': false,
+        'desktopDiagnosticsCopied': false,
+        'diagnosticsContainNoTokenMaterial': false,
+        'supportPacketIdentifiesEndpointAndProtocol': false,
+      };
+    }
+    final checklistFile = File('${root.path}/manual_checklist.json')
+      ..writeAsStringSync(const JsonEncoder().convert(readyChecklist));
+    final mobilePacket = File('${root.path}/mobile_support_packet.json')
+      ..writeAsStringSync(
+        const JsonEncoder().convert(
+          _supportPacket(side: 'mobile', mobile: true, desktop: false),
+        ),
+      );
+    final desktopPacket = File('${root.path}/desktop_support_packet.json')
+      ..writeAsStringSync(
+        const JsonEncoder().convert(
+          _supportPacket(side: 'desktop', mobile: false, desktop: true),
+        ),
+      );
+
+    final result = buildRemoteCodingP1ReleaseGate(
+      repoRoot: Directory.current,
+      manualChecklistFile: checklistFile,
+      supportPacketFiles: [mobilePacket, desktopPacket],
+      generatedAt: DateTime(2026, 5, 26, 12),
+    );
+
+    expect(result.status, 'ready_for_remote_coding_p1_release');
+    expect(result.blockedGateIds, isNot(contains('support_packet_review')));
+  });
 }
 
 Object? _markAllBooleansReady(Object? value) {
@@ -66,4 +111,26 @@ Object? _markAllBooleansReady(Object? value) {
     );
   }
   return value;
+}
+
+Map<String, Object?> _supportPacket({
+  required String side,
+  required bool mobile,
+  required bool desktop,
+}) {
+  return {
+    'schemaName': 'remote_coding_p1_support_packet',
+    'schemaVersion': 1,
+    'side': side,
+    'manualChecklistPatch': {
+      'schemaName': 'remote_coding_p1_manual_checklist_patch',
+      'schemaVersion': 1,
+      'supportPacket': {
+        'mobileDiagnosticsCopied': mobile,
+        'desktopDiagnosticsCopied': desktop,
+        'diagnosticsContainNoTokenMaterial': true,
+        'supportPacketIdentifiesEndpointAndProtocol': true,
+      },
+    },
+  };
 }
