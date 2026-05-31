@@ -536,3 +536,7 @@ lib/
 | Desktop Windowing | window_manager |
 | Built-in Tools | dart_ping, multicast_dns, dartssh2, bluetooth_low_energy, wifi_scan, network_info_plus |
 | UI | flutter_markdown_plus, url_launcher, image_picker |
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE.md](LICENSE.md).
