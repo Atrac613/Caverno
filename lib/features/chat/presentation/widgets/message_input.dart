@@ -17,6 +17,7 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
+import '../slash_commands/slash_command.dart';
 import 'voice_mode_overlay.dart';
 
 class MessageInputImageAttachment {
@@ -58,6 +59,8 @@ class MessageInput extends ConsumerStatefulWidget {
     this.onCodingGoalMarkBlocked,
     this.onCodingGoalReactivate,
     this.onCodingGoalClear,
+    this.slashCommands = const <SlashCommandDefinition>[],
+    this.onSlashCommand,
   });
 
   final void Function(
@@ -85,6 +88,8 @@ class MessageInput extends ConsumerStatefulWidget {
   final VoidCallback? onCodingGoalMarkBlocked;
   final VoidCallback? onCodingGoalReactivate;
   final VoidCallback? onCodingGoalClear;
+  final List<SlashCommandDefinition> slashCommands;
+  final SlashCommandHandler? onSlashCommand;
 
   @override
   ConsumerState<MessageInput> createState() => _MessageInputState();
@@ -103,6 +108,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   bool _isRecording = false;
   bool _hasText = false;
   int? _handledDroppedImageAttachmentId;
+  List<SlashCommandDefinition> _slashSuggestions = const [];
+  int _selectedSlashSuggestionIndex = 0;
+  String? _dismissedSlashSuggestionsForText;
 
   // Shell-like input history. `_historyIndex == -1` means not browsing;
   // otherwise it points into `_inputHistory`. `_savedDraft` preserves the
@@ -122,6 +130,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       onKeyEvent: (node, event) {
         // Only handle key-down to avoid double-firing.
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+        final slashCommandResult = _handleSlashCommandKey(event);
+        if (slashCommandResult == KeyEventResult.handled) {
+          return slashCommandResult;
+        }
 
         if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
           return _tryRecallHistory(older: true)
@@ -164,6 +177,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   void didUpdateWidget(covariant MessageInput oldWidget) {
     super.didUpdateWidget(oldWidget);
     _handleDroppedImageAttachment();
+
+    if (!identical(widget.slashCommands, oldWidget.slashCommands)) {
+      _refreshSlashSuggestions();
+    }
 
     if (widget.composerPrefillVersion == oldWidget.composerPrefillVersion) {
       return;
@@ -213,6 +230,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         _selectedImageBytes = normalized.bytes;
         _selectedImageMimeType = normalized.mimeType;
       });
+      _refreshSlashSuggestions();
       _focusNode.requestFocus();
     } catch (e) {
       debugPrint('Failed to attach dropped image: $e');
@@ -223,9 +241,225 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   /// rightmost composer button can swap between send and voice mode.
   void _handleTextChanged() {
     final hasText = _controller.text.trim().isNotEmpty;
-    if (hasText != _hasText) {
-      setState(() => _hasText = hasText);
+    final nextSuggestions = _buildSlashSuggestions();
+    final nextSelectedIndex = _clampSlashSuggestionIndex(
+      _selectedSlashSuggestionIndex,
+      nextSuggestions,
+    );
+    if (hasText != _hasText ||
+        !_sameSlashSuggestions(_slashSuggestions, nextSuggestions) ||
+        nextSelectedIndex != _selectedSlashSuggestionIndex) {
+      setState(() {
+        _hasText = hasText;
+        _slashSuggestions = nextSuggestions;
+        _selectedSlashSuggestionIndex = nextSelectedIndex;
+      });
     }
+  }
+
+  bool get _slashCommandsEnabled {
+    return widget.slashCommands.isNotEmpty && widget.onSlashCommand != null;
+  }
+
+  bool get _hasAttachment {
+    return _selectedImageBytes != null || _selectedFileContent != null;
+  }
+
+  List<SlashCommandDefinition> _buildSlashSuggestions() {
+    final text = _controller.text;
+    if (!_slashCommandsEnabled ||
+        _hasAttachment ||
+        text == _dismissedSlashSuggestionsForText) {
+      return const <SlashCommandDefinition>[];
+    }
+    return filterSlashCommandSuggestions(text, widget.slashCommands);
+  }
+
+  bool _sameSlashSuggestions(
+    List<SlashCommandDefinition> previous,
+    List<SlashCommandDefinition> next,
+  ) {
+    if (previous.length != next.length) return false;
+    for (var index = 0; index < previous.length; index += 1) {
+      if (!identical(previous[index], next[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  int _clampSlashSuggestionIndex(
+    int index,
+    List<SlashCommandDefinition> suggestions,
+  ) {
+    if (suggestions.isEmpty) return 0;
+    if (index < 0) return 0;
+    if (index >= suggestions.length) return suggestions.length - 1;
+    return index;
+  }
+
+  void _refreshSlashSuggestions() {
+    final nextSuggestions = _buildSlashSuggestions();
+    final nextSelectedIndex = _clampSlashSuggestionIndex(
+      _selectedSlashSuggestionIndex,
+      nextSuggestions,
+    );
+    if (_sameSlashSuggestions(_slashSuggestions, nextSuggestions) &&
+        nextSelectedIndex == _selectedSlashSuggestionIndex) {
+      return;
+    }
+    setState(() {
+      _slashSuggestions = nextSuggestions;
+      _selectedSlashSuggestionIndex = nextSelectedIndex;
+    });
+  }
+
+  KeyEventResult _handleSlashCommandKey(KeyDownEvent event) {
+    if (!_slashCommandsEnabled || widget.isCodingGoalSuggestionInProgress) {
+      return KeyEventResult.ignored;
+    }
+
+    final hasSuggestions = _slashSuggestions.isNotEmpty;
+    final key = event.logicalKey;
+
+    if (hasSuggestions && key == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _selectedSlashSuggestionIndex =
+            (_selectedSlashSuggestionIndex + 1) % _slashSuggestions.length;
+      });
+      return KeyEventResult.handled;
+    }
+
+    if (hasSuggestions && key == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _selectedSlashSuggestionIndex =
+            (_selectedSlashSuggestionIndex - 1 + _slashSuggestions.length) %
+            _slashSuggestions.length;
+      });
+      return KeyEventResult.handled;
+    }
+
+    if (hasSuggestions && key == LogicalKeyboardKey.tab) {
+      _applySlashSuggestion(_slashSuggestions[_selectedSlashSuggestionIndex]);
+      return KeyEventResult.handled;
+    }
+
+    if (hasSuggestions && key == LogicalKeyboardKey.escape) {
+      setState(() {
+        _dismissedSlashSuggestionsForText = _controller.text;
+        _slashSuggestions = const <SlashCommandDefinition>[];
+        _selectedSlashSuggestionIndex = 0;
+      });
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.enter) {
+      if (_controller.value.composing != TextRange.empty) {
+        return KeyEventResult.ignored;
+      }
+      if (_submitSlashCommandFromComposer(allowSelectedSuggestion: true)) {
+        return KeyEventResult.handled;
+      }
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  void _applySlashSuggestion(SlashCommandDefinition command) {
+    final text = '/${command.name} ';
+    _setComposerText(text);
+    setState(() {
+      _dismissedSlashSuggestionsForText = text;
+      _slashSuggestions = const <SlashCommandDefinition>[];
+      _selectedSlashSuggestionIndex = 0;
+    });
+  }
+
+  bool _submitSlashCommandFromComposer({
+    required bool allowSelectedSuggestion,
+  }) {
+    if (!_slashCommandsEnabled || _hasAttachment) {
+      return false;
+    }
+
+    final rawInput = _controller.text.trimRight();
+    final parsed = parseSlashCommandInput(rawInput);
+    if (parsed == null) {
+      return false;
+    }
+
+    var definition = findSlashCommand(parsed.commandName, widget.slashCommands);
+    if (definition == null &&
+        allowSelectedSuggestion &&
+        _slashSuggestions.isNotEmpty) {
+      definition = _slashSuggestions[_selectedSlashSuggestionIndex];
+    }
+    if (definition == null) {
+      _showSlashCommandFeedback(
+        'message.slash_unknown_command'.tr(
+          namedArgs: {'command': parsed.commandName},
+        ),
+      );
+      _dismissSlashSuggestions();
+      return true;
+    }
+
+    unawaited(
+      _executeSlashCommand(
+        SlashCommandInvocation(
+          definition: definition,
+          rawInput: rawInput,
+          commandName: parsed.commandName,
+          args: parsed.args,
+        ),
+      ),
+    );
+    return true;
+  }
+
+  Future<void> _executeSlashCommand(SlashCommandInvocation invocation) async {
+    final handler = widget.onSlashCommand;
+    if (handler == null) return;
+
+    try {
+      final result = await handler(invocation);
+      if (!mounted) return;
+
+      if (result.feedbackMessage != null) {
+        _showSlashCommandFeedback(result.feedbackMessage!);
+      }
+      if (result.clearInput) {
+        _pushToHistory(invocation.rawInput.trim());
+        _controller.clear();
+        _clearImage();
+        _clearFile();
+      } else {
+        _dismissSlashSuggestions();
+      }
+      _focusNode.requestFocus();
+    } catch (e) {
+      debugPrint('Failed to execute slash command: $e');
+      if (!mounted) return;
+      _showSlashCommandFeedback('message.slash_command_failed'.tr());
+      _dismissSlashSuggestions();
+      _focusNode.requestFocus();
+    }
+  }
+
+  void _dismissSlashSuggestions() {
+    if (_slashSuggestions.isEmpty && _selectedSlashSuggestionIndex == 0) {
+      return;
+    }
+    setState(() {
+      _slashSuggestions = const <SlashCommandDefinition>[];
+      _selectedSlashSuggestionIndex = 0;
+    });
+  }
+
+  void _showSlashCommandFeedback(String message) {
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Navigate the input history with Up/Down arrows.
@@ -332,6 +566,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
           _selectedImageBytes = normalized.bytes;
           _selectedImageMimeType = normalized.mimeType;
         });
+        _refreshSlashSuggestions();
       }
     } catch (e) {
       debugPrint('Failed to pick image: $e');
@@ -389,6 +624,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       _selectedImageBytes = null;
       _selectedImageMimeType = null;
     });
+    _refreshSlashSuggestions();
   }
 
   Future<void> _pickFile() async {
@@ -420,6 +656,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         _selectedFileContent = content;
         _selectedFileSize = bytes.length;
       });
+      _refreshSlashSuggestions();
     } on FormatException {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -440,6 +677,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       _selectedFileContent = null;
       _selectedFileSize = null;
     });
+    _refreshSlashSuggestions();
   }
 
   Future<void> _handlePaste() async {
@@ -500,6 +738,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                 _selectedImageBytes = normalized.bytes;
                 _selectedImageMimeType = normalized.mimeType;
               });
+              _refreshSlashSuggestions();
             }
             completer.complete(true);
           } catch (e) {
@@ -561,6 +800,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
           _selectedImageBytes = normalized.bytes;
           _selectedImageMimeType = normalized.mimeType;
         });
+        _refreshSlashSuggestions();
       }
     } catch (e) {
       debugPrint('Failed to handle inserted content: $e');
@@ -619,6 +859,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   void _handleSend() {
+    unawaited(_handleSendAsync());
+  }
+
+  Future<void> _handleSendAsync() async {
     if (widget.isCodingGoalSuggestionInProgress) {
       return;
     }
@@ -626,6 +870,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     if (text.isEmpty &&
         _selectedImageBytes == null &&
         _selectedFileContent == null) {
+      return;
+    }
+
+    if (!_hasAttachment &&
+        _submitSlashCommandFromComposer(allowSelectedSuggestion: true)) {
       return;
     }
 
@@ -732,6 +981,92 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       CodingApprovalMode.fullAccess =>
         'settings.coding_approval_full_access_desc'.tr(),
     };
+  }
+
+  Widget _buildSlashCommandSuggestions(BuildContext context, ThemeData theme) {
+    final suggestions = _slashSuggestions;
+    if (suggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      key: const ValueKey('slash-command-suggestions'),
+      margin: const EdgeInsets.only(bottom: 8),
+      constraints: const BoxConstraints(maxHeight: 240),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        shrinkWrap: true,
+        itemCount: suggestions.length,
+        itemBuilder: (context, index) {
+          final command = suggestions[index];
+          final selected = index == _selectedSlashSuggestionIndex;
+          return Material(
+            color: selected
+                ? theme.colorScheme.primaryContainer
+                : Colors.transparent,
+            child: InkWell(
+              key: ValueKey('slash-command-suggestion-${command.name}'),
+              onTap: () {
+                setState(() {
+                  _selectedSlashSuggestionIndex = index;
+                });
+                _submitSlashCommandFromComposer(allowSelectedSuggestion: true);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 112,
+                      child: Text(
+                        '/${command.name}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: selected
+                              ? theme.colorScheme.onPrimaryContainer
+                              : theme.colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        command.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: selected
+                              ? theme.colorScheme.onPrimaryContainer
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   String _goalStatusLabel(ConversationGoalStatus status) {
@@ -1066,6 +1401,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   onDeleted: _clearFile,
                 ),
               ),
+            if (_slashSuggestions.isNotEmpty)
+              _buildSlashCommandSuggestions(context, theme),
             // Composer container: full-width TextField on top,
             // action row on the bottom — both inside one rounded surface.
             Container(

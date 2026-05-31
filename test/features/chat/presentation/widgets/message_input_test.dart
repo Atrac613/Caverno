@@ -4,11 +4,13 @@ import 'dart:io';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/presentation/slash_commands/slash_command.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -47,6 +49,8 @@ Future<SharedPreferences> _pumpMessageInput(
   VoidCallback? onCodingGoalMarkBlocked,
   VoidCallback? onCodingGoalReactivate,
   VoidCallback? onCodingGoalClear,
+  List<SlashCommandDefinition> slashCommands = const <SlashCommandDefinition>[],
+  SlashCommandHandler? onSlashCommand,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     if (initialSettings != null)
@@ -97,6 +101,8 @@ Future<SharedPreferences> _pumpMessageInput(
                         onCodingGoalMarkBlocked: onCodingGoalMarkBlocked,
                         onCodingGoalReactivate: onCodingGoalReactivate,
                         onCodingGoalClear: onCodingGoalClear,
+                        slashCommands: slashCommands,
+                        onSlashCommand: onSlashCommand,
                       );
                     },
                   ),
@@ -111,6 +117,26 @@ Future<SharedPreferences> _pumpMessageInput(
   await tester.pump();
   return preferences;
 }
+
+const _testSlashCommands = <SlashCommandDefinition>[
+  SlashCommandDefinition(
+    name: 'help',
+    action: SlashCommandAction.help,
+    description: 'Show available slash commands',
+    enabledWhileLoading: true,
+  ),
+  SlashCommandDefinition(
+    name: 'clear',
+    action: SlashCommandAction.clear,
+    description: 'Clear the current conversation',
+  ),
+  SlashCommandDefinition(
+    name: 'coding',
+    action: SlashCommandAction.coding,
+    description: 'Switch to coding mode',
+    aliases: ['code'],
+  ),
+];
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -164,6 +190,184 @@ void main() {
     await tester.pump();
 
     expect(cancelCount, 1);
+  });
+
+  testWidgets('shows slash command suggestions for a bare slash', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      slashCommands: _testSlashCommands,
+      onSlashCommand: (_) => SlashCommandExecutionResult.handled,
+    );
+
+    await tester.enterText(find.byType(TextField), '/');
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('slash-command-suggestions')),
+      findsOneWidget,
+    );
+    expect(find.text('/help'), findsOneWidget);
+    expect(find.text('/clear'), findsOneWidget);
+    expect(find.text('Show available slash commands'), findsOneWidget);
+  });
+
+  testWidgets('tab completes the selected slash command', (tester) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      slashCommands: _testSlashCommands,
+      onSlashCommand: (_) => SlashCommandExecutionResult.handled,
+    );
+
+    await tester.tap(find.byType(TextField));
+    await tester.enterText(find.byType(TextField), '/cl');
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+
+    final textField = tester.widget<TextField>(find.byType(TextField));
+    expect(textField.controller?.text, '/clear ');
+    expect(
+      find.byKey(const ValueKey('slash-command-suggestions')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('enter executes a slash command without sending a message', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final sentMessages = <String>[];
+    final invocations = <SlashCommandInvocation>[];
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      onSend: (message, _, _) {
+        sentMessages.add(message);
+      },
+      slashCommands: _testSlashCommands,
+      onSlashCommand: (invocation) {
+        invocations.add(invocation);
+        return SlashCommandExecutionResult.handled;
+      },
+    );
+
+    await tester.tap(find.byType(TextField));
+    await tester.enterText(find.byType(TextField), '/help');
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(sentMessages, isEmpty);
+    expect(invocations.single.definition.action, SlashCommandAction.help);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '',
+    );
+  });
+
+  testWidgets('unknown slash commands keep the draft', (tester) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final sentMessages = <String>[];
+    final invocations = <SlashCommandInvocation>[];
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      onSend: (message, _, _) {
+        sentMessages.add(message);
+      },
+      slashCommands: _testSlashCommands,
+      onSlashCommand: (invocation) {
+        invocations.add(invocation);
+        return SlashCommandExecutionResult.handled;
+      },
+    );
+
+    await tester.enterText(find.byType(TextField), '/missing');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    expect(sentMessages, isEmpty);
+    expect(invocations, isEmpty);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/missing',
+    );
+    expect(find.text('Unknown slash command: /missing'), findsOneWidget);
+  });
+
+  testWidgets('slash-looking text with an attachment sends normally', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    String? sentMessage;
+    String? sentImageBase64;
+    var slashInvocationCount = 0;
+    final imageBytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+    );
+
+    final previousDebugPrint = debugPrint;
+    try {
+      debugPrint = (String? message, {int? wrapWidth}) {};
+      await _pumpMessageInput(
+        tester,
+        isLoading: isLoading,
+        onCancel: () {},
+        onSend: (message, imageBase64, _) {
+          sentMessage = message;
+          sentImageBase64 = imageBase64;
+        },
+        droppedImageAttachment: MessageInputImageAttachment(
+          id: 2,
+          bytes: imageBytes,
+          mimeType: 'image/png',
+          filePath: 'drop.png',
+        ),
+        slashCommands: _testSlashCommands,
+        onSlashCommand: (_) {
+          slashInvocationCount += 1;
+          return SlashCommandExecutionResult.handled;
+        },
+      );
+
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pump();
+    } finally {
+      debugPrint = previousDebugPrint;
+    }
+
+    await tester.enterText(find.byType(TextField), '/help');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    expect(slashInvocationCount, 0);
+    expect(sentMessage, '/help');
+    expect(sentImageBase64, isNotEmpty);
   });
 
   testWidgets('attaches a dropped image to the composer', (tester) async {

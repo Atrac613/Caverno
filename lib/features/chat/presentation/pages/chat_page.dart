@@ -44,6 +44,7 @@ import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/coding_environment_snapshot_provider.dart';
 import '../providers/conversations_notifier.dart';
+import '../slash_commands/slash_command.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
@@ -320,6 +321,199 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               ? AssistantMode.coding
               : currentAssistantMode,
         );
+  }
+
+  List<SlashCommandDefinition> _buildSlashCommands(BuildContext context) {
+    return [
+      SlashCommandDefinition(
+        name: 'help',
+        action: SlashCommandAction.help,
+        description: 'chat.slash_help_desc'.tr(),
+        enabledWhileLoading: true,
+      ),
+      SlashCommandDefinition(
+        name: 'new',
+        action: SlashCommandAction.newConversation,
+        description: 'chat.slash_new_desc'.tr(),
+      ),
+      SlashCommandDefinition(
+        name: 'clear',
+        action: SlashCommandAction.clear,
+        description: 'chat.slash_clear_desc'.tr(),
+      ),
+      SlashCommandDefinition(
+        name: 'general',
+        action: SlashCommandAction.general,
+        description: 'chat.slash_general_desc'.tr(),
+      ),
+      SlashCommandDefinition(
+        name: 'coding',
+        action: SlashCommandAction.coding,
+        description: 'chat.slash_coding_desc'.tr(),
+        aliases: const ['code'],
+      ),
+      SlashCommandDefinition(
+        name: 'plan',
+        action: SlashCommandAction.plan,
+        description: 'chat.slash_plan_desc'.tr(),
+      ),
+      SlashCommandDefinition(
+        name: 'cancel',
+        action: SlashCommandAction.cancel,
+        description: 'chat.slash_cancel_desc'.tr(),
+        enabledWhileLoading: true,
+      ),
+    ];
+  }
+
+  Future<void> _selectAssistantModeFromComposer(
+    AssistantMode mode, {
+    required bool isCodingWorkspace,
+    required Conversation? currentConversation,
+  }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
+    if (mode == AssistantMode.plan) {
+      if (!isCodingWorkspace || currentConversation == null) {
+        return;
+      }
+      await conversationsNotifier.enterPlanningSession();
+      return;
+    }
+
+    if (currentConversation?.isPlanningSession ?? false) {
+      await conversationsNotifier.exitPlanningSession();
+      ref.read(chatNotifierProvider.notifier).dismissPlanProposal();
+    }
+    await settingsNotifier.updateAssistantMode(mode);
+  }
+
+  Future<SlashCommandExecutionResult> _handleSlashCommand(
+    BuildContext context,
+    SlashCommandInvocation invocation, {
+    required bool isLoading,
+    required bool isCodingWorkspace,
+    required CodingProject? activeProject,
+    required Conversation? currentConversation,
+    required ConversationsState conversationsState,
+  }) async {
+    if (isLoading && !invocation.definition.enabledWhileLoading) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_blocked_while_loading'.tr(),
+      );
+    }
+
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+
+    switch (invocation.definition.action) {
+      case SlashCommandAction.help:
+        await _showSlashCommandHelp(context, _buildSlashCommands(context));
+        return SlashCommandExecutionResult.handled;
+      case SlashCommandAction.newConversation:
+        conversationsNotifier.createNewConversation(
+          workspaceMode: conversationsState.activeWorkspaceMode,
+          projectId: activeProject?.id,
+        );
+        return SlashCommandExecutionResult(
+          feedbackMessage: isCodingWorkspace
+              ? 'chat.slash_new_thread_started'.tr()
+              : 'chat.slash_new_conversation_started'.tr(),
+        );
+      case SlashCommandAction.clear:
+        chatNotifier.clearMessages();
+        await conversationsNotifier.updateCurrentConversation(
+          const <Message>[],
+        );
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_cleared'.tr(),
+        );
+      case SlashCommandAction.general:
+        await _selectAssistantModeFromComposer(
+          AssistantMode.general,
+          isCodingWorkspace: isCodingWorkspace,
+          currentConversation: currentConversation,
+        );
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_mode_changed'.tr(
+            namedArgs: {'mode': 'settings.assistant_general'.tr()},
+          ),
+        );
+      case SlashCommandAction.coding:
+        await _selectAssistantModeFromComposer(
+          AssistantMode.coding,
+          isCodingWorkspace: isCodingWorkspace,
+          currentConversation: currentConversation,
+        );
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_mode_changed'.tr(
+            namedArgs: {'mode': 'settings.assistant_coding'.tr()},
+          ),
+        );
+      case SlashCommandAction.plan:
+        if (!isCodingWorkspace || currentConversation == null) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'chat.slash_plan_unavailable'.tr(),
+          );
+        }
+        await conversationsNotifier.enterPlanningSession();
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_plan_started'.tr(),
+        );
+      case SlashCommandAction.cancel:
+        if (!isLoading) {
+          return SlashCommandExecutionResult(
+            feedbackMessage: 'chat.slash_cancel_idle'.tr(),
+          );
+        }
+        chatNotifier.cancelStreaming();
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_cancelled'.tr(),
+        );
+    }
+  }
+
+  Future<void> _showSlashCommandHelp(
+    BuildContext context,
+    List<SlashCommandDefinition> commands,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return SafeArea(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            shrinkWrap: true,
+            itemCount: commands.length + 1,
+            separatorBuilder: (context, index) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'chat.slash_commands_title'.tr(),
+                    style: theme.textTheme.titleLarge,
+                  ),
+                );
+              }
+              final command = commands[index - 1];
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.terminal),
+                title: Text('/${command.name}'),
+                subtitle: Text(command.description),
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _pickAndActivateProject(BuildContext context) async {
@@ -1129,29 +1323,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           onCancel: () => chatNotifier.cancelStreaming(),
                           isLoading: chatState.isLoading,
                           assistantMode: effectiveAssistantMode,
-                          onAssistantModeSelected: (mode) async {
-                            final settingsNotifier = ref.read(
-                              settingsNotifierProvider.notifier,
-                            );
-                            if (mode == AssistantMode.plan) {
-                              if (!isCodingWorkspace ||
-                                  currentConversation == null) {
-                                return;
-                              }
-                              await conversationsNotifier
-                                  .enterPlanningSession();
-                              return;
-                            }
-
-                            if (currentConversation?.isPlanningSession ??
-                                false) {
-                              await conversationsNotifier.exitPlanningSession();
-                              ref
-                                  .read(chatNotifierProvider.notifier)
-                                  .dismissPlanProposal();
-                            }
-                            await settingsNotifier.updateAssistantMode(mode);
-                          },
+                          onAssistantModeSelected: (mode) =>
+                              _selectAssistantModeFromComposer(
+                                mode,
+                                isCodingWorkspace: isCodingWorkspace,
+                                currentConversation: currentConversation,
+                              ),
+                          slashCommands: _buildSlashCommands(context),
+                          onSlashCommand: (invocation) => _handleSlashCommand(
+                            context,
+                            invocation,
+                            isLoading: chatState.isLoading,
+                            isCodingWorkspace: isCodingWorkspace,
+                            activeProject: activeProject,
+                            currentConversation: currentConversation,
+                            conversationsState: conversationsState,
+                          ),
                           isCodingWorkspace: isCodingWorkspace,
                           inputHintKey: isCodingWorkspace
                               ? (isPlanMode
