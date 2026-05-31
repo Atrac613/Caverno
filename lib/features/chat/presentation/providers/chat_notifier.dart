@@ -19,6 +19,7 @@ import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
+import '../../domain/services/conversation_goal_suggestion_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_planning_prompt_service.dart';
 import '../../domain/services/system_prompt_builder.dart';
@@ -6758,6 +6759,53 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowProposalError: error.toString(),
       );
     }
+  }
+
+  Future<ConversationGoalSuggestion> suggestCurrentGoal({
+    String languageCode = 'en',
+    String? pendingUserMessage,
+    String? clarificationAnswer,
+  }) async {
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null ||
+        !ConversationGoalSuggestionService.hasUsefulContext(
+          currentConversation,
+          pendingUserMessage: pendingUserMessage,
+          clarificationAnswer: clarificationAnswer,
+        )) {
+      return const ConversationGoalSuggestion.needsClarification();
+    }
+
+    try {
+      final result = await _dataSource.createChatCompletion(
+        messages: ConversationGoalSuggestionService.buildMessages(
+          conversation: currentConversation,
+          languageCode: languageCode,
+          pendingUserMessage: pendingUserMessage,
+          clarificationAnswer: clarificationAnswer,
+        ),
+        model: _settings.model,
+        temperature: 0.1,
+        maxTokens: _settings.maxTokens > 600 ? 600 : _settings.maxTokens,
+      );
+      final suggestion = ConversationGoalSuggestionService.parse(
+        result.content,
+      );
+      if (suggestion != null) {
+        appLog(
+          '[Goal] Suggested goal response: '
+          '${ConversationGoalSuggestionService.encodeForDebug(suggestion)}',
+        );
+        return suggestion;
+      }
+      appLog('[Goal] Failed to parse goal suggestion response.');
+    } catch (error) {
+      appLog('[Goal] Goal suggestion failed: $error');
+    }
+
+    return const ConversationGoalSuggestion.needsClarification();
   }
 
   Future<void> generatePlanProposal({String languageCode = 'en'}) async {

@@ -34,6 +34,7 @@ import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
+import '../../domain/services/conversation_goal_suggestion_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
@@ -110,6 +111,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _autoFollowBottom = true;
   int _droppedImageAttachmentId = 0;
   MessageInputImageAttachment? _droppedImageAttachment;
+  String? _pendingCodingGoalConversationId;
+  String? _codingGoalSuggestionConversationId;
 
   static const double _companionSidebarBreakpoint = 1180;
   static const double _companionSidebarWidth = 344;
@@ -140,6 +143,26 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _scrollController.dispose();
     _workflowPanelScrollController.dispose();
     super.dispose();
+  }
+
+  void _setPendingCodingGoalConversationId(String? conversationId) {
+    if (!mounted) {
+      _pendingCodingGoalConversationId = conversationId;
+      return;
+    }
+    setState(() {
+      _pendingCodingGoalConversationId = conversationId;
+    });
+  }
+
+  void _setCodingGoalSuggestionConversationId(String? conversationId) {
+    if (!mounted) {
+      _codingGoalSuggestionConversationId = conversationId;
+      return;
+    }
+    setState(() {
+      _codingGoalSuggestionConversationId = conversationId;
+    });
   }
 
   bool _isNearScrollBottom() {
@@ -1031,14 +1054,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           chatState: chatState,
                           isPlanMode: isPlanMode,
                         ),
-                      if (canCompose &&
-                          isCodingWorkspace &&
-                          currentConversation != null)
-                        _buildGoalFooterCard(
-                          context,
-                          currentConversation: currentConversation,
-                          chatState: chatState,
-                        ),
                       // Token usage indicator
                       if (canCompose &&
                           (chatState.totalTokens > 0 ||
@@ -1053,15 +1068,62 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       if (canCompose)
                         MessageInput(
                           onSend: (message, imageBase64, imageMimeType) {
+                            if (isCodingWorkspace &&
+                                currentConversation != null &&
+                                _isCodingGoalSuggestionInProgressFor(
+                                  currentConversation,
+                                )) {
+                              setState(() {
+                                _composerPrefillText = message;
+                                _composerPrefillVersion++;
+                              });
+                              return;
+                            }
                             setState(() {
                               _composerPrefillText = '';
                               _composerPrefillVersion++;
                             });
-                            chatNotifier.sendMessage(
-                              message,
-                              imageBase64: imageBase64,
-                              imageMimeType: imageMimeType,
-                              languageCode: context.locale.languageCode,
+                            final languageCode = context.locale.languageCode;
+                            if (isCodingWorkspace &&
+                                currentConversation != null &&
+                                _isCodingGoalSetupPendingFor(
+                                  currentConversation,
+                                ) &&
+                                message.trim().isNotEmpty) {
+                              unawaited(
+                                _sendMessageAfterPendingGoalSetup(
+                                  context,
+                                  currentConversation: currentConversation,
+                                  message: message,
+                                  imageBase64: imageBase64,
+                                  imageMimeType: imageMimeType,
+                                  languageCode: languageCode,
+                                ).then((sent) {
+                                  if (sent || !mounted) {
+                                    return;
+                                  }
+                                  final activeConversation = ref
+                                      .read(conversationsNotifierProvider)
+                                      .currentConversation;
+                                  if (activeConversation?.id !=
+                                      currentConversation.id) {
+                                    return;
+                                  }
+                                  setState(() {
+                                    _composerPrefillText = message;
+                                    _composerPrefillVersion++;
+                                  });
+                                }),
+                              );
+                              return;
+                            }
+                            unawaited(
+                              chatNotifier.sendMessage(
+                                message,
+                                imageBase64: imageBase64,
+                                imageMimeType: imageMimeType,
+                                languageCode: languageCode,
+                              ),
                             );
                           },
                           onCancel: () => chatNotifier.cancelStreaming(),
@@ -1099,6 +1161,67 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           composerPrefillText: _composerPrefillText,
                           composerPrefillVersion: _composerPrefillVersion,
                           droppedImageAttachment: _droppedImageAttachment,
+                          codingGoal: isCodingWorkspace
+                              ? currentConversation?.goal
+                              : null,
+                          isCodingGoalSetupPending:
+                              isCodingWorkspace &&
+                              _isCodingGoalSetupPendingFor(currentConversation),
+                          isCodingGoalSuggestionInProgress:
+                              isCodingWorkspace &&
+                              _isCodingGoalSuggestionInProgressFor(
+                                currentConversation,
+                              ),
+                          onCodingGoalSwitchChanged:
+                              isCodingWorkspace && currentConversation != null
+                              ? (enabled, draftText) => _handleGoalSwitch(
+                                  context,
+                                  currentConversation,
+                                  enabled,
+                                  pendingUserMessage: draftText,
+                                )
+                              : null,
+                          onCodingGoalEmptySwitchEnabled:
+                              isCodingWorkspace && currentConversation != null
+                              ? () => _deferGoalSetupUntilSend(
+                                  context,
+                                  currentConversation,
+                                )
+                              : null,
+                          onCodingGoalEdit:
+                              isCodingWorkspace && currentConversation != null
+                              ? () => _showGoalEditor(
+                                  context,
+                                  currentConversation,
+                                )
+                              : null,
+                          onCodingGoalMarkComplete:
+                              isCodingWorkspace &&
+                                  currentConversation?.goal?.hasObjective ==
+                                      true
+                              ? () => _markGoalCompleted(context)
+                              : null,
+                          onCodingGoalMarkBlocked:
+                              isCodingWorkspace &&
+                                  currentConversation?.goal?.hasObjective ==
+                                      true
+                              ? () => _markGoalBlocked(
+                                  context,
+                                  currentConversation!.goal!,
+                                )
+                              : null,
+                          onCodingGoalReactivate:
+                              isCodingWorkspace &&
+                                  currentConversation?.goal?.hasObjective ==
+                                      true
+                              ? () => _reactivateGoal(context)
+                              : null,
+                          onCodingGoalClear:
+                              isCodingWorkspace &&
+                                  currentConversation?.goal?.hasObjective ==
+                                      true
+                              ? () => _clearGoal(context)
+                              : null,
                         ),
                     ],
                   );

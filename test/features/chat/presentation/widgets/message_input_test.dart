@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -36,6 +37,16 @@ Future<SharedPreferences> _pumpMessageInput(
   MessageInputImageAttachment? droppedImageAttachment,
   AppSettings? initialSettings,
   bool isCodingWorkspace = false,
+  ConversationGoal? codingGoal,
+  bool isCodingGoalSetupPending = false,
+  bool isCodingGoalSuggestionInProgress = false,
+  CodingGoalSwitchChanged? onCodingGoalSwitchChanged,
+  VoidCallback? onCodingGoalEmptySwitchEnabled,
+  VoidCallback? onCodingGoalEdit,
+  VoidCallback? onCodingGoalMarkComplete,
+  VoidCallback? onCodingGoalMarkBlocked,
+  VoidCallback? onCodingGoalReactivate,
+  VoidCallback? onCodingGoalClear,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     if (initialSettings != null)
@@ -74,6 +85,18 @@ Future<SharedPreferences> _pumpMessageInput(
                         assistantMode: AssistantMode.general,
                         droppedImageAttachment: droppedImageAttachment,
                         isCodingWorkspace: isCodingWorkspace,
+                        codingGoal: codingGoal,
+                        isCodingGoalSetupPending: isCodingGoalSetupPending,
+                        isCodingGoalSuggestionInProgress:
+                            isCodingGoalSuggestionInProgress,
+                        onCodingGoalSwitchChanged: onCodingGoalSwitchChanged,
+                        onCodingGoalEmptySwitchEnabled:
+                            onCodingGoalEmptySwitchEnabled,
+                        onCodingGoalEdit: onCodingGoalEdit,
+                        onCodingGoalMarkComplete: onCodingGoalMarkComplete,
+                        onCodingGoalMarkBlocked: onCodingGoalMarkBlocked,
+                        onCodingGoalReactivate: onCodingGoalReactivate,
+                        onCodingGoalClear: onCodingGoalClear,
                       );
                     },
                   ),
@@ -226,6 +249,299 @@ void main() {
     );
     expect(storedSettings.reasoningEffort, ReasoningEffortPreference.high);
     expect(find.byTooltip('Reasoning effort: High'), findsOneWidget);
+  });
+
+  testWidgets('shows the empty coding goal switch inside the composer', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    bool? switchedTo;
+    var editCount = 0;
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      isCodingWorkspace: true,
+      onCodingGoalSwitchChanged: (value, draftText) {
+        switchedTo = value;
+      },
+      onCodingGoalEdit: () {
+        editCount += 1;
+      },
+    );
+
+    expect(find.text('Goal'), findsOneWidget);
+    expect(find.text('No active goal'), findsOneWidget);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+
+    await tester.tap(find.byType(Switch));
+    await tester.pump();
+
+    expect(switchedTo, isTrue);
+
+    await tester.tap(find.byTooltip('Set goal'));
+    await tester.pump();
+
+    expect(editCount, 1);
+  });
+
+  testWidgets('defers an empty coding goal switch until the next send', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    bool? switchedTo;
+    var deferredCount = 0;
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      isCodingWorkspace: true,
+      onCodingGoalSwitchChanged: (value, draftText) {
+        switchedTo = value;
+      },
+      onCodingGoalEmptySwitchEnabled: () {
+        deferredCount += 1;
+      },
+    );
+
+    await tester.tap(find.byType(Switch));
+    await tester.pump();
+
+    expect(deferredCount, 1);
+    expect(switchedTo, isNull);
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      isCodingWorkspace: true,
+      isCodingGoalSetupPending: true,
+      onCodingGoalSwitchChanged: (value, draftText) {
+        switchedTo = value;
+      },
+      onCodingGoalEmptySwitchEnabled: () {
+        deferredCount += 1;
+      },
+    );
+
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    expect(find.text('Goal setup pending'), findsOneWidget);
+  });
+
+  testWidgets('enables coding goal setup immediately when draft text exists', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    bool? switchedTo;
+    String? switchDraftText;
+    var deferredCount = 0;
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      isCodingWorkspace: true,
+      onCodingGoalSwitchChanged: (value, draftText) {
+        switchedTo = value;
+        switchDraftText = draftText;
+      },
+      onCodingGoalEmptySwitchEnabled: () {
+        deferredCount += 1;
+      },
+    );
+
+    await tester.enterText(find.byType(TextField), 'Build the goal flow');
+    await tester.pump();
+    await tester.tap(find.byType(Switch));
+    await tester.pump();
+
+    expect(switchedTo, isTrue);
+    expect(switchDraftText, 'Build the goal flow');
+    expect(deferredCount, 0);
+  });
+
+  testWidgets('disables goal controls and send while suggesting a goal', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    var switchCount = 0;
+    var editCount = 0;
+    final sentMessages = <String>[];
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      onSend: (message, _, _) {
+        sentMessages.add(message);
+      },
+      isCodingWorkspace: true,
+      onCodingGoalSwitchChanged: (_, _) {
+        switchCount += 1;
+      },
+      onCodingGoalEdit: () {
+        editCount += 1;
+      },
+    );
+
+    await tester.enterText(find.byType(TextField), 'Build the goal flow');
+    await tester.pump();
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      onSend: (message, _, _) {
+        sentMessages.add(message);
+      },
+      isCodingWorkspace: true,
+      isCodingGoalSuggestionInProgress: true,
+      onCodingGoalSwitchChanged: (_, _) {
+        switchCount += 1;
+      },
+      onCodingGoalEdit: () {
+        editCount += 1;
+      },
+    );
+    await tester.pump();
+
+    expect(find.text('Drafting a goal...'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isTrue);
+    expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
+    expect(
+      tester
+          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.send))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byType(Switch), warnIfMissed: false);
+    await tester.tap(find.byTooltip('Set goal'), warnIfMissed: false);
+    await tester.tap(
+      find.widgetWithIcon(IconButton, Icons.send),
+      warnIfMissed: false,
+    );
+    await tester.pump();
+
+    expect(switchCount, 0);
+    expect(editCount, 0);
+    expect(sentMessages, isEmpty);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      'Build the goal flow',
+    );
+  });
+
+  testWidgets('keeps coding composer controls visible at narrow widths', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(360, 640);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final overflowErrors = <FlutterErrorDetails>[];
+    final previousOnError = FlutterError.onError;
+    FlutterError.onError = (details) {
+      if (details.exceptionAsString().contains('overflowed')) {
+        overflowErrors.add(details);
+      } else {
+        previousOnError?.call(details);
+      }
+    };
+    addTearDown(() {
+      FlutterError.onError = previousOnError;
+    });
+
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final goal = ConversationGoal(
+      id: 'goal-1',
+      objective:
+          'Keep a very long coding goal objective visible without breaking the composer controls',
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    );
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      isCodingWorkspace: true,
+      codingGoal: goal,
+    );
+
+    await tester.enterText(find.byType(TextField), 'Ship the narrow composer');
+    await tester.pump();
+
+    expect(overflowErrors, isEmpty);
+    expect(find.widgetWithIcon(IconButton, Icons.send), findsOneWidget);
+    expect(find.textContaining('Keep a very long coding goal'), findsOneWidget);
+  });
+
+  testWidgets('shows active coding goal details and action callbacks', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    final goal = ConversationGoal(
+      id: 'goal-1',
+      objective: 'Fix the composer goal flow',
+      tokenBudget: 2000,
+      tokenUsage: 500,
+      turnBudget: 5,
+      turnsUsed: 2,
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    );
+    bool? switchedTo;
+    var editCount = 0;
+    var completeCount = 0;
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      isCodingWorkspace: true,
+      codingGoal: goal,
+      onCodingGoalSwitchChanged: (value, draftText) {
+        switchedTo = value;
+      },
+      onCodingGoalEdit: () {
+        editCount += 1;
+      },
+      onCodingGoalMarkComplete: () {
+        completeCount += 1;
+      },
+    );
+
+    expect(find.text('Fix the composer goal flow'), findsOneWidget);
+    expect(find.text('Active'), findsOneWidget);
+    expect(find.text('500/2.0k tokens  2/5 turns'), findsOneWidget);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+
+    await tester.tap(find.byType(Switch));
+    await tester.pump();
+
+    expect(switchedTo, isFalse);
+
+    await tester.tap(find.byTooltip('Edit'));
+    await tester.pump();
+
+    expect(editCount, 1);
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Complete'));
+    await tester.pumpAndSettle();
+
+    expect(completeCount, 1);
   });
 
   testWidgets('updates coding approval mode from the composer menu', (

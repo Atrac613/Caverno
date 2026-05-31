@@ -1,182 +1,116 @@
 part of 'chat_page.dart';
 
 extension _ChatPageGoalBuilders on _ChatPageState {
-  Widget _buildGoalFooterCard(
+  bool _isCodingGoalSetupPendingFor(Conversation? conversation) {
+    return conversation != null &&
+        _pendingCodingGoalConversationId == conversation.id &&
+        !(conversation.goal?.hasObjective ?? false);
+  }
+
+  bool _isCodingGoalSuggestionInProgressFor(Conversation? conversation) {
+    return conversation != null &&
+        _codingGoalSuggestionConversationId == conversation.id;
+  }
+
+  void _clearCodingGoalSuggestionInProgress(String conversationId) {
+    if (_codingGoalSuggestionConversationId != conversationId) {
+      return;
+    }
+    _setCodingGoalSuggestionConversationId(null);
+  }
+
+  void _clearCodingGoalSetupPending(String conversationId) {
+    if (_pendingCodingGoalConversationId != conversationId) {
+      return;
+    }
+    _setPendingCodingGoalConversationId(null);
+  }
+
+  void _deferGoalSetupUntilSend(
+    BuildContext context,
+    Conversation currentConversation,
+  ) {
+    if (!_isCodingGoalSetupPendingFor(currentConversation)) {
+      _setPendingCodingGoalConversationId(currentConversation.id);
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text('chat.goal_pending_until_send'.tr())),
+      );
+  }
+
+  Future<bool> _sendMessageAfterPendingGoalSetup(
     BuildContext context, {
     required Conversation currentConversation,
-    required ChatState chatState,
-  }) {
-    final theme = Theme.of(context);
-    final goal = currentConversation.goal;
-    final hasGoal = goal?.hasObjective ?? false;
-    final isActive = goal?.isActive ?? false;
-    final status = goal?.status ?? ConversationGoalStatus.active;
-    final statusColor = _conversationGoalStatusColor(theme, status);
-    final budgetLabel = hasGoal ? _conversationGoalBudgetLabel(goal!) : '';
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: hasGoal ? 0.45 : 0.28,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: statusColor.withValues(alpha: hasGoal ? 0.42 : 0.22),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.flag_outlined, size: 18, color: statusColor),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'chat.goal_title'.tr(),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              if (hasGoal) ...[
-                Chip(
-                  label: Text(_conversationGoalStatusLabel(status)),
-                  visualDensity: VisualDensity.compact,
-                  side: BorderSide(color: statusColor.withValues(alpha: 0.35)),
-                  backgroundColor: statusColor.withValues(alpha: 0.12),
-                ),
-                const SizedBox(width: 8),
-              ],
-              Switch(
-                value: isActive,
-                onChanged: chatState.isLoading
-                    ? null
-                    : (value) => _handleGoalSwitch(
-                        context,
-                        currentConversation,
-                        value,
-                      ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            hasGoal ? goal!.normalizedObjective! : 'chat.goal_empty'.tr(),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: hasGoal
-                  ? theme.colorScheme.onSurface
-                  : theme.colorScheme.onSurfaceVariant,
-              fontWeight: hasGoal ? FontWeight.w600 : FontWeight.w400,
-            ),
-          ),
-          if (hasGoal && budgetLabel.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              budgetLabel,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: goal!.budgetExceeded
-                    ? theme.colorScheme.error
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              OutlinedButton.icon(
-                onPressed: chatState.isLoading
-                    ? null
-                    : () => _showGoalEditor(context, currentConversation),
-                icon: Icon(hasGoal ? Icons.edit_outlined : Icons.add),
-                label: Text(
-                  hasGoal ? 'common.edit'.tr() : 'chat.goal_set'.tr(),
-                ),
-              ),
-              if (hasGoal && status == ConversationGoalStatus.active)
-                TextButton.icon(
-                  onPressed: chatState.isLoading
-                      ? null
-                      : () => _markGoalCompleted(context),
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: Text('chat.goal_mark_complete'.tr()),
-                ),
-              if (hasGoal && status == ConversationGoalStatus.active)
-                TextButton.icon(
-                  onPressed: chatState.isLoading
-                      ? null
-                      : () => _markGoalBlocked(context, goal!),
-                  icon: const Icon(Icons.block_outlined),
-                  label: Text('chat.goal_mark_blocked'.tr()),
-                ),
-              if (hasGoal && status != ConversationGoalStatus.active)
-                TextButton.icon(
-                  onPressed: chatState.isLoading
-                      ? null
-                      : () => _reactivateGoal(context),
-                  icon: const Icon(Icons.play_arrow_outlined),
-                  label: Text('chat.goal_reactivate'.tr()),
-                ),
-              if (hasGoal)
-                TextButton.icon(
-                  onPressed: chatState.isLoading
-                      ? null
-                      : () => _clearGoal(context),
-                  icon: const Icon(Icons.close),
-                  label: Text('common.clear'.tr()),
-                ),
-            ],
-          ),
-          if (hasGoal &&
-              status == ConversationGoalStatus.completed &&
-              goal!.normalizedCompletionSummary != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              goal.normalizedCompletionSummary!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-          if (hasGoal &&
-              status == ConversationGoalStatus.blocked &&
-              goal!.normalizedBlockedReason != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              goal.normalizedBlockedReason!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ],
-      ),
+    required String message,
+    required String? imageBase64,
+    required String? imageMimeType,
+    required String languageCode,
+  }) async {
+    if (_isCodingGoalSuggestionInProgressFor(currentConversation)) {
+      return false;
+    }
+    final appliedGoal = await _applySuggestedGoal(
+      context,
+      currentConversation,
+      pendingUserMessage: message,
     );
+    if (appliedGoal) {
+      _clearCodingGoalSetupPending(currentConversation.id);
+    } else {
+      return false;
+    }
+    if (!mounted) {
+      return false;
+    }
+    final activeConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (activeConversation?.id != currentConversation.id) {
+      return false;
+    }
+    await ref
+        .read(chatNotifierProvider.notifier)
+        .sendMessage(
+          message,
+          imageBase64: imageBase64,
+          imageMimeType: imageMimeType,
+          languageCode: languageCode,
+        );
+    return true;
   }
 
   Future<void> _handleGoalSwitch(
     BuildContext context,
     Conversation currentConversation,
-    bool enabled,
-  ) async {
+    bool enabled, {
+    String? pendingUserMessage,
+  }) async {
+    if (_isCodingGoalSuggestionInProgressFor(currentConversation)) {
+      return;
+    }
     final goal = currentConversation.goal;
     final notifier = ref.read(conversationsNotifierProvider.notifier);
     if (goal == null || !goal.hasObjective) {
       if (enabled) {
-        await _showGoalEditor(context, currentConversation);
+        _clearCodingGoalSetupPending(currentConversation.id);
+        final appliedGoal = await _applySuggestedGoal(
+          context,
+          currentConversation,
+          pendingUserMessage: pendingUserMessage,
+        );
+        if (!appliedGoal) {
+          _setPendingCodingGoalConversationId(currentConversation.id);
+        }
+      } else {
+        _clearCodingGoalSetupPending(currentConversation.id);
       }
       return;
     }
 
     if (!enabled) {
+      _clearCodingGoalSetupPending(currentConversation.id);
       await notifier.setCurrentGoalEnabled(false);
       return;
     }
@@ -193,19 +127,28 @@ extension _ChatPageGoalBuilders on _ChatPageState {
 
   Future<void> _showGoalEditor(
     BuildContext context,
-    Conversation currentConversation,
-  ) async {
+    Conversation currentConversation, {
+    String? initialObjective,
+    String? helperText,
+  }) async {
+    if (_isCodingGoalSuggestionInProgressFor(currentConversation)) {
+      return;
+    }
     final result = await showModalBottomSheet<_GoalEditorSubmission>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) =>
-          _GoalEditorSheet(currentConversation: currentConversation),
+      builder: (sheetContext) => _GoalEditorSheet(
+        currentConversation: currentConversation,
+        initialObjective: initialObjective,
+        helperText: helperText,
+      ),
     );
     if (result == null) {
       return;
     }
 
+    _clearCodingGoalSetupPending(currentConversation.id);
     final notifier = ref.read(conversationsNotifierProvider.notifier);
     switch (result.action) {
       case _GoalEditorAction.clear:
@@ -229,6 +172,199 @@ extension _ChatPageGoalBuilders on _ChatPageState {
           ).showSnackBar(SnackBar(content: Text('chat.goal_saved'.tr())));
         }
     }
+  }
+
+  Future<bool> _applySuggestedGoal(
+    BuildContext context,
+    Conversation currentConversation, {
+    String? pendingUserMessage,
+  }) async {
+    if (_isCodingGoalSuggestionInProgressFor(currentConversation)) {
+      return false;
+    }
+    _setCodingGoalSuggestionConversationId(currentConversation.id);
+    try {
+      final suggestion = await _requestGoalSuggestion(
+        context,
+        pendingUserMessage: pendingUserMessage,
+      );
+      if (suggestion == null || !context.mounted) {
+        return false;
+      }
+
+      return _applyGoalSuggestion(
+        context,
+        currentConversation,
+        suggestion,
+        pendingUserMessage: pendingUserMessage,
+        remainingClarificationDialogs: 2,
+      );
+    } finally {
+      _clearCodingGoalSuggestionInProgress(currentConversation.id);
+    }
+  }
+
+  Future<ConversationGoalSuggestion?> _requestGoalSuggestion(
+    BuildContext context, {
+    String? pendingUserMessage,
+    String? clarificationAnswer,
+  }) async {
+    final languageCode = context.locale.languageCode;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 30),
+        content: Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Theme.of(context).colorScheme.onInverseSurface,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text('chat.goal_suggesting'.tr())),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final suggestion = await ref
+          .read(chatNotifierProvider.notifier)
+          .suggestCurrentGoal(
+            languageCode: languageCode,
+            pendingUserMessage: pendingUserMessage,
+            clarificationAnswer: clarificationAnswer,
+          );
+      messenger?.hideCurrentSnackBar();
+      if (!context.mounted) {
+        return null;
+      }
+
+      return suggestion;
+    } catch (error) {
+      debugPrint('Goal suggestion failed: $error');
+    }
+
+    messenger?.hideCurrentSnackBar();
+    if (context.mounted) {
+      messenger?.showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text('chat.goal_suggestion_failed'.tr()),
+        ),
+      );
+    }
+    return null;
+  }
+
+  Future<bool> _applyGoalSuggestion(
+    BuildContext context,
+    Conversation currentConversation,
+    ConversationGoalSuggestion suggestion, {
+    required String? pendingUserMessage,
+    required int remainingClarificationDialogs,
+  }) async {
+    switch (suggestion.kind) {
+      case ConversationGoalSuggestionKind.suggested:
+        final objective = suggestion.objective?.trim() ?? '';
+        if (objective.isEmpty) {
+          _showGoalClarificationSnackBar(
+            context,
+            'chat.goal_suggestion_question'.tr(),
+          );
+          return false;
+        }
+        final activeConversation = ref
+            .read(conversationsNotifierProvider)
+            .currentConversation;
+        if (activeConversation?.id != currentConversation.id) {
+          return false;
+        }
+        await ref
+            .read(conversationsNotifierProvider.notifier)
+            .saveCurrentGoal(
+              objective: objective,
+              enabled: true,
+              status: ConversationGoalStatus.active,
+            );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                duration: const Duration(seconds: 6),
+                content: Text(
+                  'chat.goal_auto_set'.tr(namedArgs: {'objective': objective}),
+                ),
+              ),
+            );
+        }
+        return true;
+      case ConversationGoalSuggestionKind.needsClarification:
+        final question = suggestion.question?.trim();
+        final effectiveQuestion = question?.isNotEmpty == true
+            ? question!
+            : 'chat.goal_suggestion_question'.tr();
+        if (remainingClarificationDialogs <= 0) {
+          _showGoalClarificationSnackBar(context, effectiveQuestion);
+          return false;
+        }
+        final answer = await _showGoalClarificationDialog(
+          context,
+          effectiveQuestion,
+        );
+        if (!context.mounted) {
+          return false;
+        }
+        if (answer == null || answer.trim().isEmpty) {
+          return false;
+        }
+        final retrySuggestion = await _requestGoalSuggestion(
+          context,
+          pendingUserMessage: pendingUserMessage,
+          clarificationAnswer: answer,
+        );
+        if (retrySuggestion == null || !context.mounted) {
+          return false;
+        }
+        return _applyGoalSuggestion(
+          context,
+          currentConversation,
+          retrySuggestion,
+          pendingUserMessage: pendingUserMessage,
+          remainingClarificationDialogs: remainingClarificationDialogs - 1,
+        );
+    }
+  }
+
+  Future<String?> _showGoalClarificationDialog(
+    BuildContext context,
+    String question,
+  ) async {
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => _GoalClarificationDialog(question: question),
+    );
+  }
+
+  void _showGoalClarificationSnackBar(BuildContext context, String question) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text(
+            'chat.goal_needs_clarification'.tr(
+              namedArgs: {'question': question},
+            ),
+          ),
+        ),
+      );
   }
 
   Future<void> _markGoalCompleted(BuildContext context) async {
@@ -282,34 +418,93 @@ extension _ChatPageGoalBuilders on _ChatPageState {
       ).showSnackBar(SnackBar(content: Text('chat.goal_cleared'.tr())));
     }
   }
-
-  String _conversationGoalBudgetLabel(ConversationGoal goal) {
-    final parts = <String>[];
-    if (goal.hasTokenBudget) {
-      parts.add(
-        'chat.goal_token_budget_label'.tr(
-          namedArgs: {
-            'used': _formatTokenCount(goal.tokenUsage),
-            'total': _formatTokenCount(goal.tokenBudget),
-          },
-        ),
-      );
-    }
-    if (goal.hasTurnBudget) {
-      parts.add(
-        'chat.goal_turn_budget_label'.tr(
-          namedArgs: {
-            'used': goal.turnsUsed.toString(),
-            'total': goal.turnBudget.toString(),
-          },
-        ),
-      );
-    }
-    return parts.join('  ');
-  }
 }
 
 enum _GoalEditorAction { save, clear }
+
+class _GoalClarificationDialog extends StatefulWidget {
+  const _GoalClarificationDialog({required this.question});
+
+  final String question;
+
+  @override
+  State<_GoalClarificationDialog> createState() =>
+      _GoalClarificationDialogState();
+}
+
+class _GoalClarificationDialogState extends State<_GoalClarificationDialog> {
+  late final TextEditingController _controller;
+  bool _canSubmit = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final answer = _controller.text.trim();
+    if (answer.isEmpty) {
+      return;
+    }
+    Navigator.of(context).pop(answer);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('chat.goal_clarification_title'.tr()),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.question),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              minLines: 2,
+              maxLines: 4,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: 'chat.goal_clarification_answer'.tr(),
+                hintText: 'chat.goal_clarification_answer_hint'.tr(),
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (value) {
+                final nextCanSubmit = value.trim().isNotEmpty;
+                if (nextCanSubmit == _canSubmit) {
+                  return;
+                }
+                setState(() {
+                  _canSubmit = nextCanSubmit;
+                });
+              },
+              onSubmitted: (_) => _submit(),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('common.cancel'.tr()),
+        ),
+        FilledButton(
+          onPressed: _canSubmit ? _submit : null,
+          child: Text('chat.goal_clarification_confirm'.tr()),
+        ),
+      ],
+    );
+  }
+}
 
 class _GoalEditorSubmission {
   const _GoalEditorSubmission.save({
@@ -337,9 +532,15 @@ class _GoalEditorSubmission {
 }
 
 class _GoalEditorSheet extends StatefulWidget {
-  const _GoalEditorSheet({required this.currentConversation});
+  const _GoalEditorSheet({
+    required this.currentConversation,
+    this.initialObjective,
+    this.helperText,
+  });
 
   final Conversation currentConversation;
+  final String? initialObjective;
+  final String? helperText;
 
   @override
   State<_GoalEditorSheet> createState() => _GoalEditorSheetState();
@@ -357,7 +558,9 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
     super.initState();
     final goal = widget.currentConversation.goal;
     _objectiveController = TextEditingController(
-      text: goal?.normalizedObjective ?? '',
+      text: widget.initialObjective?.trim().isNotEmpty == true
+          ? widget.initialObjective!.trim()
+          : goal?.normalizedObjective ?? '',
     );
     _tokenBudgetController = TextEditingController(
       text: (goal?.tokenBudget ?? 0) > 0 ? goal!.tokenBudget.toString() : '',
@@ -400,6 +603,37 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                 ),
               ),
               const SizedBox(height: 16),
+              if (widget.helperText?.trim().isNotEmpty == true) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.help_outline,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          widget.helperText!.trim(),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               TextField(
                 controller: _objectiveController,
                 maxLines: 4,
@@ -530,16 +764,5 @@ String _conversationGoalStatusLabel(ConversationGoalStatus status) {
     ConversationGoalStatus.active => 'chat.goal_status_active'.tr(),
     ConversationGoalStatus.completed => 'chat.goal_status_completed'.tr(),
     ConversationGoalStatus.blocked => 'chat.goal_status_blocked'.tr(),
-  };
-}
-
-Color _conversationGoalStatusColor(
-  ThemeData theme,
-  ConversationGoalStatus status,
-) {
-  return switch (status) {
-    ConversationGoalStatus.active => theme.colorScheme.primary,
-    ConversationGoalStatus.completed => theme.colorScheme.tertiary,
-    ConversationGoalStatus.blocked => theme.colorScheme.error,
   };
 }

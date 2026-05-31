@@ -16,6 +16,7 @@ import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../domain/entities/conversation_goal.dart';
 import 'voice_mode_overlay.dart';
 
 class MessageInputImageAttachment {
@@ -32,6 +33,8 @@ class MessageInputImageAttachment {
   final String filePath;
 }
 
+typedef CodingGoalSwitchChanged = void Function(bool enabled, String draftText);
+
 class MessageInput extends ConsumerStatefulWidget {
   const MessageInput({
     super.key,
@@ -45,6 +48,16 @@ class MessageInput extends ConsumerStatefulWidget {
     this.composerPrefillText,
     this.composerPrefillVersion = 0,
     this.droppedImageAttachment,
+    this.codingGoal,
+    this.isCodingGoalSetupPending = false,
+    this.isCodingGoalSuggestionInProgress = false,
+    this.onCodingGoalSwitchChanged,
+    this.onCodingGoalEmptySwitchEnabled,
+    this.onCodingGoalEdit,
+    this.onCodingGoalMarkComplete,
+    this.onCodingGoalMarkBlocked,
+    this.onCodingGoalReactivate,
+    this.onCodingGoalClear,
   });
 
   final void Function(
@@ -62,6 +75,16 @@ class MessageInput extends ConsumerStatefulWidget {
   final String? composerPrefillText;
   final int composerPrefillVersion;
   final MessageInputImageAttachment? droppedImageAttachment;
+  final ConversationGoal? codingGoal;
+  final bool isCodingGoalSetupPending;
+  final bool isCodingGoalSuggestionInProgress;
+  final CodingGoalSwitchChanged? onCodingGoalSwitchChanged;
+  final VoidCallback? onCodingGoalEmptySwitchEnabled;
+  final VoidCallback? onCodingGoalEdit;
+  final VoidCallback? onCodingGoalMarkComplete;
+  final VoidCallback? onCodingGoalMarkBlocked;
+  final VoidCallback? onCodingGoalReactivate;
+  final VoidCallback? onCodingGoalClear;
 
   @override
   ConsumerState<MessageInput> createState() => _MessageInputState();
@@ -596,6 +619,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   void _handleSend() {
+    if (widget.isCodingGoalSuggestionInProgress) {
+      return;
+    }
     final text = _controller.text.trim();
     if (text.isEmpty &&
         _selectedImageBytes == null &&
@@ -708,6 +734,261 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     };
   }
 
+  String _goalStatusLabel(ConversationGoalStatus status) {
+    return switch (status) {
+      ConversationGoalStatus.active => 'chat.goal_status_active'.tr(),
+      ConversationGoalStatus.completed => 'chat.goal_status_completed'.tr(),
+      ConversationGoalStatus.blocked => 'chat.goal_status_blocked'.tr(),
+    };
+  }
+
+  Color _goalStatusColor(ThemeData theme, ConversationGoalStatus status) {
+    return switch (status) {
+      ConversationGoalStatus.active => theme.colorScheme.primary,
+      ConversationGoalStatus.completed => theme.colorScheme.tertiary,
+      ConversationGoalStatus.blocked => theme.colorScheme.error,
+    };
+  }
+
+  IconData _goalStatusIcon(ConversationGoalStatus status) {
+    return switch (status) {
+      ConversationGoalStatus.active => Icons.play_circle_outline,
+      ConversationGoalStatus.completed => Icons.check_circle_outline,
+      ConversationGoalStatus.blocked => Icons.block_outlined,
+    };
+  }
+
+  String _goalBudgetLabel(ConversationGoal goal) {
+    final parts = <String>[];
+    if (goal.hasTokenBudget) {
+      parts.add(
+        'chat.goal_token_budget_label'.tr(
+          namedArgs: {
+            'used': _formatGoalTokenCount(goal.tokenUsage),
+            'total': _formatGoalTokenCount(goal.tokenBudget),
+          },
+        ),
+      );
+    }
+    if (goal.hasTurnBudget) {
+      parts.add(
+        'chat.goal_turn_budget_label'.tr(
+          namedArgs: {
+            'used': goal.turnsUsed.toString(),
+            'total': goal.turnBudget.toString(),
+          },
+        ),
+      );
+    }
+    return parts.join('  ');
+  }
+
+  String _formatGoalTokenCount(int count) {
+    if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}k';
+    }
+    return count.toString();
+  }
+
+  void _handleGoalMenuAction(_GoalMenuAction action) {
+    switch (action) {
+      case _GoalMenuAction.complete:
+        widget.onCodingGoalMarkComplete?.call();
+      case _GoalMenuAction.block:
+        widget.onCodingGoalMarkBlocked?.call();
+      case _GoalMenuAction.reactivate:
+        widget.onCodingGoalReactivate?.call();
+      case _GoalMenuAction.clear:
+        widget.onCodingGoalClear?.call();
+    }
+  }
+
+  Widget _buildCodingGoalStrip(BuildContext context, ThemeData theme) {
+    final goal = widget.codingGoal;
+    final hasGoal = goal?.hasObjective ?? false;
+    final isSuggesting = widget.isCodingGoalSuggestionInProgress;
+    final isPending = !hasGoal && widget.isCodingGoalSetupPending;
+    final isActive = isSuggesting || isPending || (goal?.isActive ?? false);
+    final status = goal?.status ?? ConversationGoalStatus.active;
+    final statusColor = isSuggesting || isPending
+        ? theme.colorScheme.primary
+        : _goalStatusColor(theme, status);
+    final objective = isSuggesting
+        ? 'chat.goal_suggesting'.tr()
+        : hasGoal
+        ? goal!.normalizedObjective!
+        : isPending
+        ? 'chat.goal_pending'.tr()
+        : 'chat.goal_empty'.tr();
+    final budgetLabel = hasGoal ? _goalBudgetLabel(goal!) : '';
+    final controlsEnabled =
+        !widget.isLoading && !widget.isCodingGoalSuggestionInProgress;
+    final canChangeSwitch =
+        controlsEnabled &&
+        (widget.onCodingGoalSwitchChanged != null ||
+            widget.onCodingGoalEmptySwitchEnabled != null);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 0, 2, 6),
+      child: Row(
+        children: [
+          Switch(
+            value: isActive,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onChanged: canChangeSwitch
+                ? (enabled) {
+                    if (enabled &&
+                        !hasGoal &&
+                        _controller.text.trim().isEmpty &&
+                        widget.onCodingGoalEmptySwitchEnabled != null) {
+                      widget.onCodingGoalEmptySwitchEnabled!();
+                      return;
+                    }
+                    widget.onCodingGoalSwitchChanged?.call(
+                      enabled,
+                      _controller.text.trim(),
+                    );
+                  }
+                : null,
+          ),
+          const SizedBox(width: 4),
+          if (isSuggesting)
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: statusColor,
+              ),
+            )
+          else
+            Icon(Icons.flag_outlined, size: 18, color: statusColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      'chat.goal_title'.tr(),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (hasGoal)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _goalStatusIcon(status),
+                            size: 14,
+                            color: statusColor,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            _goalStatusLabel(status),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: statusColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  objective,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: hasGoal || isPending || isSuggesting
+                        ? theme.colorScheme.onSurface
+                        : theme.colorScheme.onSurfaceVariant,
+                    fontWeight: hasGoal || isPending || isSuggesting
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                ),
+                if (budgetLabel.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    budgetLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: goal!.budgetExceeded
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: controlsEnabled ? widget.onCodingGoalEdit : null,
+            icon: Icon(hasGoal ? Icons.edit_outlined : Icons.add),
+            tooltip: hasGoal ? 'common.edit'.tr() : 'chat.goal_set'.tr(),
+          ),
+          if (hasGoal)
+            PopupMenuButton<_GoalMenuAction>(
+              enabled: controlsEnabled,
+              tooltip: 'chat.goal_title'.tr(),
+              icon: const Icon(Icons.more_horiz),
+              onSelected: _handleGoalMenuAction,
+              itemBuilder: (context) => [
+                if (status == ConversationGoalStatus.active) ...[
+                  PopupMenuItem<_GoalMenuAction>(
+                    value: _GoalMenuAction.complete,
+                    enabled: widget.onCodingGoalMarkComplete != null,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.check_circle_outline),
+                      title: Text('chat.goal_mark_complete'.tr()),
+                    ),
+                  ),
+                  PopupMenuItem<_GoalMenuAction>(
+                    value: _GoalMenuAction.block,
+                    enabled: widget.onCodingGoalMarkBlocked != null,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.block_outlined),
+                      title: Text('chat.goal_mark_blocked'.tr()),
+                    ),
+                  ),
+                ],
+                if (status != ConversationGoalStatus.active)
+                  PopupMenuItem<_GoalMenuAction>(
+                    value: _GoalMenuAction.reactivate,
+                    enabled: widget.onCodingGoalReactivate != null,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.play_arrow_outlined),
+                      title: Text('chat.goal_reactivate'.tr()),
+                    ),
+                  ),
+                PopupMenuItem<_GoalMenuAction>(
+                  value: _GoalMenuAction.clear,
+                  enabled: widget.onCodingGoalClear != null,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.close),
+                    title: Text('common.clear'.tr()),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -796,6 +1077,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (widget.isCodingWorkspace)
+                    _buildCodingGoalStrip(context, theme),
                   // Row 1: full-width TextField
                   Padding(
                     padding: const EdgeInsets.symmetric(
@@ -820,6 +1103,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                         controller: _controller,
                         focusNode: _focusNode,
                         enabled: true,
+                        readOnly: widget.isCodingGoalSuggestionInProgress,
                         contentInsertionConfiguration:
                             ContentInsertionConfiguration(
                               onContentInserted: _handleContentInserted,
@@ -895,200 +1179,253 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   // Row 2: action bar
                   Row(
                     children: [
-                      Opacity(
-                        opacity: widget.isLoading ? 0.6 : 1.0,
-                        child: PopupMenuButton<AssistantMode>(
-                          enabled: !widget.isLoading,
-                          tooltip: 'message.mode_tooltip'.tr(),
-                          padding: EdgeInsets.zero,
-                          onSelected: widget.onAssistantModeSelected,
-                          itemBuilder: (context) => [
-                            CheckedPopupMenuItem<AssistantMode>(
-                              value: AssistantMode.general,
-                              checked: assistantMode == AssistantMode.general,
-                              child: Text(
-                                _assistantModeLabel(AssistantMode.general),
-                              ),
-                            ),
-                            CheckedPopupMenuItem<AssistantMode>(
-                              value: AssistantMode.coding,
-                              checked: assistantMode == AssistantMode.coding,
-                              child: Text(
-                                _assistantModeLabel(AssistantMode.coding),
-                              ),
-                            ),
-                            CheckedPopupMenuItem<AssistantMode>(
-                              value: AssistantMode.plan,
-                              enabled: widget.isCodingWorkspace,
-                              checked: assistantMode == AssistantMode.plan,
-                              child: Text(
-                                _assistantModeLabel(AssistantMode.plan),
-                              ),
-                            ),
-                          ],
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHigh,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: theme.colorScheme.outlineVariant,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _assistantModeLabel(assistantMode),
-                                  style: theme.textTheme.labelLarge,
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Opacity(
+                                opacity: widget.isLoading ? 0.6 : 1.0,
+                                child: PopupMenuButton<AssistantMode>(
+                                  enabled: !widget.isLoading,
+                                  tooltip: 'message.mode_tooltip'.tr(),
+                                  padding: EdgeInsets.zero,
+                                  onSelected: widget.onAssistantModeSelected,
+                                  itemBuilder: (context) => [
+                                    CheckedPopupMenuItem<AssistantMode>(
+                                      value: AssistantMode.general,
+                                      checked:
+                                          assistantMode ==
+                                          AssistantMode.general,
+                                      child: Text(
+                                        _assistantModeLabel(
+                                          AssistantMode.general,
+                                        ),
+                                      ),
+                                    ),
+                                    CheckedPopupMenuItem<AssistantMode>(
+                                      value: AssistantMode.coding,
+                                      checked:
+                                          assistantMode == AssistantMode.coding,
+                                      child: Text(
+                                        _assistantModeLabel(
+                                          AssistantMode.coding,
+                                        ),
+                                      ),
+                                    ),
+                                    CheckedPopupMenuItem<AssistantMode>(
+                                      value: AssistantMode.plan,
+                                      enabled: widget.isCodingWorkspace,
+                                      checked:
+                                          assistantMode == AssistantMode.plan,
+                                      child: Text(
+                                        _assistantModeLabel(AssistantMode.plan),
+                                      ),
+                                    ),
+                                  ],
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: theme
+                                          .colorScheme
+                                          .surfaceContainerHigh,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: theme.colorScheme.outlineVariant,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          _assistantModeLabel(assistantMode),
+                                          style: theme.textTheme.labelLarge,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        const Icon(
+                                          Icons.keyboard_arrow_down,
+                                          size: 18,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                                const SizedBox(width: 4),
-                                const Icon(Icons.keyboard_arrow_down, size: 18),
+                              ),
+                              const SizedBox(width: 8),
+                              if (widget.isCodingWorkspace) ...[
+                                Opacity(
+                                  opacity: widget.isLoading ? 0.6 : 1.0,
+                                  child: PopupMenuButton<CodingApprovalMode>(
+                                    enabled: !widget.isLoading,
+                                    tooltip: 'message.permission_mode_tooltip'
+                                        .tr(
+                                          namedArgs: {
+                                            'value': _codingApprovalModeLabel(
+                                              codingApprovalMode,
+                                            ),
+                                          },
+                                        ),
+                                    padding: EdgeInsets.zero,
+                                    onSelected: (value) {
+                                      settingsNotifier.updateCodingApprovalMode(
+                                        value,
+                                      );
+                                    },
+                                    itemBuilder: (context) => CodingApprovalMode
+                                        .values
+                                        .map(
+                                          (value) =>
+                                              CheckedPopupMenuItem<
+                                                CodingApprovalMode
+                                              >(
+                                                height: 72,
+                                                value: value,
+                                                checked:
+                                                    codingApprovalMode == value,
+                                                child: ListTile(
+                                                  contentPadding:
+                                                      EdgeInsets.zero,
+                                                  leading: const Icon(
+                                                    Icons.shield_outlined,
+                                                  ),
+                                                  title: Text(
+                                                    _codingApprovalModeLabel(
+                                                      value,
+                                                    ),
+                                                  ),
+                                                  subtitle: Text(
+                                                    _codingApprovalModeDescription(
+                                                      value,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                        )
+                                        .toList(),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHigh,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color:
+                                              theme.colorScheme.outlineVariant,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.shield_outlined,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            _codingApprovalModeLabel(
+                                              codingApprovalMode,
+                                            ),
+                                            style: theme.textTheme.labelLarge,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          const Icon(
+                                            Icons.keyboard_arrow_down,
+                                            size: 18,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
                               ],
-                            ),
+                              Opacity(
+                                opacity: widget.isLoading ? 0.6 : 1.0,
+                                child:
+                                    PopupMenuButton<ReasoningEffortPreference>(
+                                      enabled: !widget.isLoading,
+                                      tooltip:
+                                          'message.reasoning_effort_tooltip'.tr(
+                                            namedArgs: {
+                                              'value': _reasoningEffortLabel(
+                                                reasoningEffort,
+                                              ),
+                                            },
+                                          ),
+                                      icon: const Icon(
+                                        Icons.psychology_alt_outlined,
+                                      ),
+                                      onSelected: (value) {
+                                        settingsNotifier.updateReasoningEffort(
+                                          value,
+                                        );
+                                      },
+                                      itemBuilder: (context) =>
+                                          ReasoningEffortPreference.values
+                                              .map(
+                                                (value) =>
+                                                    CheckedPopupMenuItem<
+                                                      ReasoningEffortPreference
+                                                    >(
+                                                      value: value,
+                                                      checked:
+                                                          reasoningEffort ==
+                                                          value,
+                                                      child: Text(
+                                                        _reasoningEffortLabel(
+                                                          value,
+                                                        ),
+                                                      ),
+                                                    ),
+                                              )
+                                              .toList(),
+                                    ),
+                              ),
+                              const SizedBox(width: 4),
+                              // Attachments menu (image / file)
+                              PopupMenuButton<_AttachmentAction>(
+                                tooltip: 'message.attachments'.tr(),
+                                icon: const Icon(Icons.add),
+                                onSelected: (action) {
+                                  switch (action) {
+                                    case _AttachmentAction.image:
+                                      _pickImage();
+                                    case _AttachmentAction.file:
+                                      _pickFile();
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  PopupMenuItem<_AttachmentAction>(
+                                    value: _AttachmentAction.image,
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: const Icon(Icons.image),
+                                      title: Text('message.attach_image'.tr()),
+                                    ),
+                                  ),
+                                  PopupMenuItem<_AttachmentAction>(
+                                    value: _AttachmentAction.file,
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: const Icon(Icons.attach_file),
+                                      title: Text('message.attach_file'.tr()),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (widget.isCodingWorkspace) ...[
-                        Opacity(
-                          opacity: widget.isLoading ? 0.6 : 1.0,
-                          child: PopupMenuButton<CodingApprovalMode>(
-                            enabled: !widget.isLoading,
-                            tooltip: 'message.permission_mode_tooltip'.tr(
-                              namedArgs: {
-                                'value': _codingApprovalModeLabel(
-                                  codingApprovalMode,
-                                ),
-                              },
-                            ),
-                            padding: EdgeInsets.zero,
-                            onSelected: (value) {
-                              settingsNotifier.updateCodingApprovalMode(value);
-                            },
-                            itemBuilder: (context) => CodingApprovalMode.values
-                                .map(
-                                  (value) =>
-                                      CheckedPopupMenuItem<CodingApprovalMode>(
-                                        height: 72,
-                                        value: value,
-                                        checked: codingApprovalMode == value,
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: const Icon(
-                                            Icons.shield_outlined,
-                                          ),
-                                          title: Text(
-                                            _codingApprovalModeLabel(value),
-                                          ),
-                                          subtitle: Text(
-                                            _codingApprovalModeDescription(
-                                              value,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                )
-                                .toList(),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerHigh,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: theme.colorScheme.outlineVariant,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.shield_outlined, size: 18),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    _codingApprovalModeLabel(
-                                      codingApprovalMode,
-                                    ),
-                                    style: theme.textTheme.labelLarge,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(
-                                    Icons.keyboard_arrow_down,
-                                    size: 18,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      Opacity(
-                        opacity: widget.isLoading ? 0.6 : 1.0,
-                        child: PopupMenuButton<ReasoningEffortPreference>(
-                          enabled: !widget.isLoading,
-                          tooltip: 'message.reasoning_effort_tooltip'.tr(
-                            namedArgs: {
-                              'value': _reasoningEffortLabel(reasoningEffort),
-                            },
-                          ),
-                          icon: const Icon(Icons.psychology_alt_outlined),
-                          onSelected: (value) {
-                            settingsNotifier.updateReasoningEffort(value);
-                          },
-                          itemBuilder: (context) => ReasoningEffortPreference
-                              .values
-                              .map(
-                                (value) =>
-                                    CheckedPopupMenuItem<
-                                      ReasoningEffortPreference
-                                    >(
-                                      value: value,
-                                      checked: reasoningEffort == value,
-                                      child: Text(_reasoningEffortLabel(value)),
-                                    ),
-                              )
-                              .toList(),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      // Attachments menu (image / file)
-                      PopupMenuButton<_AttachmentAction>(
-                        tooltip: 'message.attachments'.tr(),
-                        icon: const Icon(Icons.add),
-                        onSelected: (action) {
-                          switch (action) {
-                            case _AttachmentAction.image:
-                              _pickImage();
-                            case _AttachmentAction.file:
-                              _pickFile();
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          PopupMenuItem<_AttachmentAction>(
-                            value: _AttachmentAction.image,
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(Icons.image),
-                              title: Text('message.attach_image'.tr()),
-                            ),
-                          ),
-                          PopupMenuItem<_AttachmentAction>(
-                            value: _AttachmentAction.file,
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(Icons.attach_file),
-                              title: Text('message.attach_file'.tr()),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
                       // Microphone (STT)
                       IconButton(
                         onPressed: widget.isLoading ? null : _toggleRecording,
@@ -1112,7 +1449,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       // - otherwise: Voice mode overlay
                       if (canSend)
                         IconButton(
-                          onPressed: _handleSend,
+                          onPressed: widget.isCodingGoalSuggestionInProgress
+                              ? null
+                              : _handleSend,
                           icon: const Icon(Icons.send),
                           tooltip: 'message.send'.tr(),
                           style: IconButton.styleFrom(
@@ -1164,3 +1503,5 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
 /// Actions available from the composer's "+" attachments menu.
 enum _AttachmentAction { image, file }
+
+enum _GoalMenuAction { complete, block, reactivate, clear }
