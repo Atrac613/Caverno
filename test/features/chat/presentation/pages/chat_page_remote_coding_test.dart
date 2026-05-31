@@ -140,7 +140,7 @@ void main() {
     expect(find.textContaining('Forget Host'), findsAtLeastNWidgets(1));
   });
 
-  testWidgets('mobile connection view copies redacted diagnostics', (
+  testWidgets('mobile connection view copies redacted support packet', (
     tester,
   ) async {
     String? clipboardText;
@@ -181,11 +181,16 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Copy Diagnostics'));
+    await tester.tap(find.text('Copy Support Packet'));
     await tester.pump();
 
+    expect(clipboardText, contains('remote_coding_p1_support_packet'));
     expect(clipboardText, contains('remote_coding_mobile_diagnostics'));
-    expect(clipboardText, contains('"mobileDeviceTokenIncluded": false'));
+    expect(clipboardText, contains('"mobileDiagnosticsCopied": true'));
+    expect(
+      clipboardText,
+      contains('"diagnosticsContainNoTokenMaterial": true'),
+    );
     expect(clipboardText, isNot(contains('token')));
   });
 }

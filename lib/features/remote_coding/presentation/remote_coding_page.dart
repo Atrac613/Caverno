@@ -8,6 +8,7 @@ import '../../chat/presentation/widgets/message_bubble.dart';
 import '../../settings/presentation/pages/qr_scanner_page.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_diagnostics.dart';
+import '../data/remote_coding_support_packet.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_client_notifier.dart';
 
@@ -64,7 +65,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
         onScanPairingCode: _scanPairingCode,
         onReconnect: notifier.connectSavedHost,
         onForget: notifier.clearSavedHost,
-        onCopyDiagnostics: () => _copyClientDiagnostics(state),
+        onCopySupportPacket: () => _copyClientSupportPacket(state),
       );
     }
 
@@ -82,7 +83,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
           if (state.error?.isNotEmpty == true)
             _RemoteStatusBanner(
               message: state.error!,
-              onCopyDiagnostics: () => _copyClientDiagnostics(state),
+              onCopySupportPacket: () => _copyClientSupportPacket(state),
             ),
           const Divider(height: 1),
           if (state.projects.isEmpty)
@@ -285,7 +286,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
         .resolveApproval(approvalId: approval.id, approved: approved ?? false);
   }
 
-  Future<void> _copyClientDiagnostics(RemoteCodingClientState state) async {
+  Future<void> _copyClientSupportPacket(RemoteCodingClientState state) async {
     final diagnostics = RemoteCodingDiagnostics.clientSnapshot(
       status: state.status,
       host: state.host,
@@ -299,16 +300,20 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
       hasPendingApproval: state.pendingApproval != null,
       error: state.error,
     );
+    final supportPacket = RemoteCodingSupportPacket.build(
+      side: RemoteCodingSupportPacketSide.mobile,
+      diagnostics: diagnostics,
+    );
     await Clipboard.setData(
       ClipboardData(
-        text: const JsonEncoder.withIndent('  ').convert(diagnostics),
+        text: const JsonEncoder.withIndent('  ').convert(supportPacket),
       ),
     );
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      const SnackBar(content: Text('Remote coding diagnostics copied.')),
+      const SnackBar(content: Text('Remote coding support packet copied.')),
     );
   }
 
@@ -327,14 +332,14 @@ class _RemoteConnectionView extends StatelessWidget {
     required this.onScanPairingCode,
     required this.onReconnect,
     required this.onForget,
-    required this.onCopyDiagnostics,
+    required this.onCopySupportPacket,
   });
 
   final RemoteCodingClientState state;
   final VoidCallback onScanPairingCode;
   final VoidCallback onReconnect;
   final VoidCallback onForget;
-  final VoidCallback onCopyDiagnostics;
+  final VoidCallback onCopySupportPacket;
 
   @override
   Widget build(BuildContext context) {
@@ -420,9 +425,9 @@ class _RemoteConnectionView extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
-                onPressed: onCopyDiagnostics,
+                onPressed: onCopySupportPacket,
                 icon: const Icon(Icons.copy_outlined),
-                label: const Text('Copy Diagnostics'),
+                label: const Text('Copy Support Packet'),
               ),
               TextButton(
                 onPressed: isBusy ? null : onForget,
@@ -439,11 +444,11 @@ class _RemoteConnectionView extends StatelessWidget {
 class _RemoteStatusBanner extends StatelessWidget {
   const _RemoteStatusBanner({
     required this.message,
-    required this.onCopyDiagnostics,
+    required this.onCopySupportPacket,
   });
 
   final String message;
-  final VoidCallback onCopyDiagnostics;
+  final VoidCallback onCopySupportPacket;
 
   @override
   Widget build(BuildContext context) {
@@ -471,8 +476,8 @@ class _RemoteStatusBanner extends StatelessWidget {
           ),
           IconButton(
             visualDensity: VisualDensity.compact,
-            tooltip: 'Copy Diagnostics',
-            onPressed: onCopyDiagnostics,
+            tooltip: 'Copy Support Packet',
+            onPressed: onCopySupportPacket,
             icon: const Icon(Icons.copy_outlined),
           ),
         ],

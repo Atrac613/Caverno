@@ -38,6 +38,7 @@ Future<void> main(List<String> args) async {
     manualChecklistFile: parsed.manualChecklistPath == null
         ? null
         : File(parsed.manualChecklistPath!),
+    supportPacketFiles: parsed.supportPacketPaths.map(File.new).toList(),
   );
 
   final jsonText = const JsonEncoder.withIndent('  ').convert(result.toJson());
@@ -73,6 +74,7 @@ class _Args {
   const _Args({
     this.rootPath,
     this.manualChecklistPath,
+    this.supportPacketPaths = const <String>[],
     this.templatePath,
     this.outJsonPath,
     this.outMarkdownPath,
@@ -81,6 +83,7 @@ class _Args {
 
   final String? rootPath;
   final String? manualChecklistPath;
+  final List<String> supportPacketPaths;
   final String? templatePath;
   final String? outJsonPath;
   final String? outMarkdownPath;
@@ -90,6 +93,7 @@ class _Args {
 _Args _parseArgs(List<String> args) {
   String? rootPath;
   String? manualChecklistPath;
+  final supportPacketPaths = <String>[];
   String? templatePath;
   String? outJsonPath;
   String? outMarkdownPath;
@@ -104,6 +108,8 @@ _Args _parseArgs(List<String> args) {
         rootPath = _readValue(args, ++index, arg);
       case '--manual-checklist':
         manualChecklistPath = _readValue(args, ++index, arg);
+      case '--support-packet':
+        supportPacketPaths.add(_readValue(args, ++index, arg));
       case '--write-template':
         templatePath = _readValue(args, ++index, arg);
       case '--out-json':
@@ -118,6 +124,7 @@ _Args _parseArgs(List<String> args) {
   return _Args(
     rootPath: rootPath,
     manualChecklistPath: manualChecklistPath,
+    supportPacketPaths: supportPacketPaths,
     templatePath: templatePath,
     outJsonPath: outJsonPath,
     outMarkdownPath: outMarkdownPath,
@@ -146,6 +153,7 @@ Usage: dart run tool/remote_coding_p1_release_gate.dart [options]
 Options:
   --root <path>              Repository root. Defaults to the current directory.
   --manual-checklist <path>  User-operated P1 checklist JSON.
+  --support-packet <path>    Merge a copied P1 support packet checklist patch. Repeatable.
   --write-template <path>    Write a checklist template JSON.
   --out-json <path>          Write the gate report as JSON.
   --out-md <path>            Write the gate report as Markdown.
