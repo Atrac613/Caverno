@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../entities/conversation_workflow.dart';
 import '../entities/tool_call_info.dart';
+import 'coding_command_output_guardrail_service.dart';
 
 class ConversationPlanExecutionDriftAssessment {
   const ConversationPlanExecutionDriftAssessment({
@@ -277,9 +278,10 @@ class ConversationPlanExecutionGuardrails {
                   targets: normalizedTargets,
                 ))) {
           final exitCode = _extractExitCode(toolResult.result);
+          final looksLikeFailure = _looksLikeFailureResult(toolResult.result);
           final succeeded = exitCode == null
-              ? !_looksLikeFailureResult(toolResult.result)
-              : exitCode == 0;
+              ? !looksLikeFailure
+              : exitCode == 0 && !looksLikeFailure;
           if (succeeded) {
             successfulValidationCommands.add(command);
           } else {
@@ -323,9 +325,10 @@ class ConversationPlanExecutionGuardrails {
             ? 'run_tests'
             : 'run_tests $testPath';
         final exitCode = _extractExitCode(toolResult.result);
+        final looksLikeFailure = _looksLikeFailureResult(toolResult.result);
         final succeeded = exitCode == null
-            ? !_looksLikeFailureResult(toolResult.result)
-            : exitCode == 0;
+            ? !looksLikeFailure
+            : exitCode == 0 && !looksLikeFailure;
         if (succeeded) {
           successfulValidationCommands.add(resultSummary);
         } else {
@@ -1245,6 +1248,12 @@ class ConversationPlanExecutionGuardrails {
     }
     final isSuccessValue = decoded == null ? null : decoded['isSuccess'];
     if (isSuccessValue == false) {
+      return true;
+    }
+    if (decoded != null &&
+        CodingCommandOutputGuardrailService.commandResultReportsOutputIssue(
+          rawResult,
+        )) {
       return true;
     }
     return normalized.startsWith('error:') ||

@@ -47,6 +47,7 @@ import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/coding_approval_auto_review_service.dart';
+import '../../domain/services/coding_command_output_guardrail_service.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
 import '../../domain/services/coding_verification_feedback_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
@@ -8382,6 +8383,63 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  Future<ToolResultInfo?> _buildCodingCommandOutputGuardrailToolResult(
+    List<ToolResultInfo> toolResults, {
+    required int interactionGeneration,
+  }) async {
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+      return null;
+    }
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation?.workspaceMode != WorkspaceMode.coding ||
+        (currentConversation?.isPlanningSession ?? false)) {
+      return null;
+    }
+
+    try {
+      final feedback = const CodingCommandOutputGuardrailService()
+          .buildFeedbackToolResult(toolResults: toolResults);
+      if (feedback != null) {
+        appLog(
+          '[CodingOutputGuardrail] Added command output feedback for '
+          '${toolResults.length} tool result(s)',
+        );
+        _logCodingCommandOutputGuardrailSummary(feedback);
+      }
+      return feedback;
+    } catch (error, stackTrace) {
+      appLog(
+        '[CodingOutputGuardrail] Failed to inspect command outputs: $error',
+      );
+      appLog('[CodingOutputGuardrail] stackTrace: $stackTrace');
+      return null;
+    }
+  }
+
+  void _logCodingCommandOutputGuardrailSummary(ToolResultInfo feedback) {
+    final decoded = _tryDecodeMap(feedback.result);
+    if (decoded == null) {
+      return;
+    }
+    final issues = decoded['issues'];
+    final issueList = issues is List ? issues : const [];
+    final summary = <String, Object?>{
+      'toolName': feedback.name,
+      'provider': decoded['provider'],
+      'validationStatus': decoded['validation_status'],
+      'issueCount': issueList.length,
+      'commands': issueList
+          .whereType<Map>()
+          .map((issue) => issue['command']?.toString())
+          .whereType<String>()
+          .where((command) => command.trim().isNotEmpty)
+          .toList(growable: false),
+    };
+    appLog('[CodingOutputGuardrail] Feedback summary: ${jsonEncode(summary)}');
+  }
+
   Future<ToolResultInfo?> _buildCodingVerificationFeedbackToolResult(
     List<ToolResultInfo> toolResults, {
     required int interactionGeneration,
@@ -9237,6 +9295,26 @@ class ChatNotifier extends Notifier<ChatState> {
         if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
         batchToolResults.add(promptDiagnosticFeedback);
         executedToolResults.add(promptDiagnosticFeedback);
+      }
+      final commandOutputFeedback =
+          await _buildCodingCommandOutputGuardrailToolResult(
+            batchToolResults,
+            interactionGeneration: interactionGeneration,
+          );
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      if (commandOutputFeedback != null) {
+        final promptCommandOutputFeedback = await _toolResultArtifactStore
+            .persistIfLarge(
+              commandOutputFeedback,
+              conversationId:
+                  _activeResponseConversationIdForGeneration(
+                    interactionGeneration,
+                  ) ??
+                  conversationId,
+            );
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+        batchToolResults.add(promptCommandOutputFeedback);
+        executedToolResults.add(promptCommandOutputFeedback);
       }
       if (batchToolResults.isEmpty) {
         if (pendingBatchCalls.isEmpty && currentToolCalls.isNotEmpty) {

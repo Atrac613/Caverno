@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
@@ -57,6 +59,38 @@ void main() {
     );
     expect(result.summary, 'Validation passed while running git diff --check.');
     expect(result.validationSummary, contains('No issues found.'));
+  });
+
+  test('infers failed validation from zero-exit artifact error output', () {
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-artifact-error',
+        title: 'Generate weather report',
+        status: ConversationWorkflowTaskStatus.completed,
+        validationCommand: 'python3 get_weather.py',
+      ),
+      toolResults: [
+        ConversationValidationToolResultInput(
+          toolName: 'local_execute_command',
+          rawResult: jsonEncode({
+            'command': 'python3 get_weather.py',
+            'exit_code': 0,
+            'stdout':
+                'Saved file\n\n# ${_cjkErrorLabel()}\n\n2026-06-02 ${_cjkDataMissing()}.\n',
+            'stderr': '',
+          }),
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(result!.status, ConversationWorkflowTaskStatus.blocked);
+    expect(
+      result.validationStatus,
+      ConversationExecutionValidationStatus.failed,
+    );
+    expect(result.summary, contains('Validation failed'));
+    expect(result.blockedReason, contains('Markdown error heading'));
   });
 
   test('infers passed validation from run_tests output', () {
@@ -304,4 +338,24 @@ void main() {
       expect(result.validationSummary, contains('Ran 3 tests'));
     },
   );
+}
+
+String _cjkErrorLabel() {
+  return String.fromCharCodes([0x30a8, 0x30e9, 0x30fc]);
+}
+
+String _cjkDataMissing() {
+  return String.fromCharCodes([
+    0x30c7,
+    0x30fc,
+    0x30bf,
+    0x304c,
+    0x898b,
+    0x3064,
+    0x304b,
+    0x308a,
+    0x307e,
+    0x305b,
+    0x3093,
+  ]);
 }

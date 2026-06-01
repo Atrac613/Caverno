@@ -30,6 +30,7 @@ import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
+import '../../domain/services/coding_command_output_guardrail_service.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
@@ -5091,6 +5092,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         final errorText = decoded['error']?.toString().trim() ?? '';
         final errorMessage = decoded['errorMessage']?.toString().trim() ?? '';
         if (errorText.isNotEmpty || errorMessage.isNotEmpty) {
+          return true;
+        }
+        if (CodingCommandOutputGuardrailService.commandResultReportsOutputIssue(
+          toolResult.result,
+        )) {
           return true;
         }
       }

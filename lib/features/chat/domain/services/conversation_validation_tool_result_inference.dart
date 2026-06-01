@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../entities/conversation_workflow.dart';
+import 'coding_command_output_guardrail_service.dart';
 
 class ConversationValidationToolResultInput {
   const ConversationValidationToolResultInput({
@@ -129,9 +130,8 @@ class ConversationValidationToolResultInference {
     }
 
     return switch (input.toolName) {
-      'local_execute_command' ||
-      'run_tests' ||
-      'git_execute_command' => _parseCommandToolResult(rawResult),
+      'local_execute_command' || 'run_tests' || 'git_execute_command' =>
+        _parseCommandToolResult(rawResult, toolName: input.toolName),
       'ssh_execute_command' => _parseSshToolResult(rawResult),
       'ping' => _parsePingToolResult(rawResult),
       'dns_lookup' => _parseDnsLookupToolResult(rawResult),
@@ -145,8 +145,9 @@ class ConversationValidationToolResultInference {
   }
 
   static _ParsedValidationToolResult? _parseCommandToolResult(
-    String rawResult,
-  ) {
+    String rawResult, {
+    required String toolName,
+  }) {
     final decoded = _tryDecodeMap(rawResult);
     if (decoded == null) {
       return _ParsedValidationToolResult(failureDetail: rawResult);
@@ -163,6 +164,20 @@ class ConversationValidationToolResultInference {
         stderr == null &&
         exitCode == null) {
       return null;
+    }
+
+    final outputIssue =
+        CodingCommandOutputGuardrailService.detectIssueFromDecodedCommandResult(
+          toolName: toolName,
+          decoded: decoded,
+          fallbackCommand: command,
+        );
+    if (outputIssue != null) {
+      return _ParsedValidationToolResult(
+        command: command,
+        failureDetail: '${outputIssue.summary}\n${outputIssue.excerpt}'.trim(),
+        exitCode: exitCode,
+      );
     }
 
     return _ParsedValidationToolResult(
