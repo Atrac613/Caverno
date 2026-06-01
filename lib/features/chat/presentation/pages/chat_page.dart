@@ -44,7 +44,9 @@ import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/coding_environment_snapshot_provider.dart';
 import '../providers/conversations_notifier.dart';
+import '../providers/custom_slash_commands_notifier.dart';
 import '../slash_commands/slash_command.dart';
+import '../slash_commands/slash_command_prompt_template.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
@@ -323,7 +325,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         );
   }
 
-  List<SlashCommandDefinition> _buildSlashCommands(BuildContext context) {
+  List<SlashCommandDefinition> _buildSlashCommands(
+    BuildContext context,
+    List<SlashCommandPromptTemplate> customPromptTemplates,
+  ) {
     return [
       SlashCommandDefinition(
         name: 'help',
@@ -363,36 +368,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         description: 'chat.slash_cancel_desc'.tr(),
         enabledWhileLoading: true,
       ),
-      SlashCommandDefinition(
-        name: 'review',
-        action: SlashCommandAction.review,
-        description: 'chat.slash_review_desc'.tr(),
-        aliases: const ['rev'],
-        argumentHint: '<target>',
-        argumentRequirement: SlashCommandArgumentRequirement.required,
-      ),
-      SlashCommandDefinition(
-        name: 'fix',
-        action: SlashCommandAction.fix,
-        description: 'chat.slash_fix_desc'.tr(),
-        argumentHint: '<issue>',
-        argumentRequirement: SlashCommandArgumentRequirement.required,
-      ),
-      SlashCommandDefinition(
-        name: 'explain',
-        action: SlashCommandAction.explain,
-        description: 'chat.slash_explain_desc'.tr(),
-        argumentHint: '<topic>',
-        argumentRequirement: SlashCommandArgumentRequirement.required,
-      ),
-      SlashCommandDefinition(
-        name: 'test',
-        action: SlashCommandAction.test,
-        description: 'chat.slash_test_desc'.tr(),
-        aliases: const ['tests'],
-        argumentHint: '<target>',
-        argumentRequirement: SlashCommandArgumentRequirement.required,
-      ),
+      for (final template in builtInSlashCommandPromptTemplates)
+        template.toDefinition(
+          descriptionOverride: 'chat.slash_${template.id}_desc'.tr(),
+        ),
+      for (final template in customPromptTemplates) template.toDefinition(),
     ];
   }
 
@@ -428,6 +408,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required CodingProject? activeProject,
     required Conversation? currentConversation,
     required ConversationsState conversationsState,
+    required List<SlashCommandPromptTemplate> customPromptTemplates,
   }) async {
     if (isLoading && !invocation.definition.enabledWhileLoading) {
       return SlashCommandExecutionResult.keepInput(
@@ -442,7 +423,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     switch (invocation.definition.action) {
       case SlashCommandAction.help:
-        await _showSlashCommandHelp(context, _buildSlashCommands(context));
+        await _showSlashCommandHelp(
+          context,
+          _buildSlashCommands(context, customPromptTemplates),
+        );
         return SlashCommandExecutionResult.handled;
       case SlashCommandAction.newConversation:
         conversationsNotifier.createNewConversation(
@@ -508,59 +492,45 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       case SlashCommandAction.fix:
       case SlashCommandAction.explain:
       case SlashCommandAction.test:
+      case SlashCommandAction.promptTemplate:
+        final template = _findPromptTemplateForInvocation(
+          invocation,
+          customPromptTemplates,
+        );
+        if (template == null) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'message.slash_command_failed'.tr(),
+          );
+        }
         return SlashCommandExecutionResult.sendPrompt(
-          _buildPromptExpansion(invocation.definition.action, invocation.args),
+          template.expand(
+            args: invocation.args,
+            commandName: invocation.commandName,
+          ),
         );
     }
   }
 
-  String _buildPromptExpansion(SlashCommandAction action, String args) {
-    final target = args.trim();
-    final body = switch (action) {
-      SlashCommandAction.review =>
-        '''
-Review the following code, diff, file path, or implementation request.
-
-Focus on correctness, regressions, edge cases, security, and missing tests. Lead with the most important findings and include concrete next steps.
-
-Target:
-$target
-''',
-      SlashCommandAction.fix =>
-        '''
-Fix or propose a fix for the following issue.
-
-Identify the likely cause, describe the smallest safe change, and include verification steps. If code changes are needed, be explicit about the files and behavior involved.
-
-Issue:
-$target
-''',
-      SlashCommandAction.explain =>
-        '''
-Explain the following code, behavior, error, or concept.
-
-Use clear structure, call out assumptions, and include examples when they help.
-
-Topic:
-$target
-''',
-      SlashCommandAction.test =>
-        '''
-Add or update tests for the following target.
-
-Focus on observable behavior, important edge cases, and the verification command that should be run.
-
-Target:
-$target
-''',
-      _ => target,
-    };
-    return '''
-$body
-
-Respond in the user's current language unless they ask otherwise.
-'''
-        .trim();
+  SlashCommandPromptTemplate? _findPromptTemplateForInvocation(
+    SlashCommandInvocation invocation,
+    List<SlashCommandPromptTemplate> customPromptTemplates,
+  ) {
+    final templateId =
+        invocation.definition.promptTemplateId ??
+        switch (invocation.definition.action) {
+          SlashCommandAction.review => 'review',
+          SlashCommandAction.fix => 'fix',
+          SlashCommandAction.explain => 'explain',
+          SlashCommandAction.test => 'test',
+          _ => null,
+        };
+    if (templateId == null) {
+      return null;
+    }
+    return findSlashCommandPromptTemplate(templateId, [
+      ...builtInSlashCommandPromptTemplates,
+      ...customPromptTemplates,
+    ]);
   }
 
   Future<void> _showSlashCommandHelp(
@@ -983,6 +953,9 @@ Respond in the user's current language unless they ask otherwise.
       conversationsNotifierProvider.notifier,
     );
     final codingProjectsState = ref.watch(codingProjectsNotifierProvider);
+    final customSlashCommandTemplates = ref.watch(
+      customSlashCommandsNotifierProvider,
+    );
 
     // Scroll when the message list changes.
     ref.listen(chatNotifierProvider, (previous, next) {
@@ -1415,7 +1388,10 @@ Respond in the user's current language unless they ask otherwise.
                                 isCodingWorkspace: isCodingWorkspace,
                                 currentConversation: currentConversation,
                               ),
-                          slashCommands: _buildSlashCommands(context),
+                          slashCommands: _buildSlashCommands(
+                            context,
+                            customSlashCommandTemplates,
+                          ),
                           onSlashCommand: (invocation) => _handleSlashCommand(
                             context,
                             invocation,
@@ -1424,6 +1400,7 @@ Respond in the user's current language unless they ask otherwise.
                             activeProject: activeProject,
                             currentConversation: currentConversation,
                             conversationsState: conversationsState,
+                            customPromptTemplates: customSlashCommandTemplates,
                           ),
                           isCodingWorkspace: isCodingWorkspace,
                           inputHintKey: isCodingWorkspace

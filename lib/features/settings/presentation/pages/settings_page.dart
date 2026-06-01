@@ -9,6 +9,7 @@ import 'advanced_settings_page.dart';
 import 'computer_use_settings_page.dart';
 import 'general_settings_page.dart';
 import 'chat_settings_page.dart';
+import 'slash_command_settings_page.dart';
 import 'voice_settings_page.dart';
 import 'tools_settings_page.dart';
 import 'qr_scanner_page.dart';
@@ -155,6 +156,22 @@ class SettingsPage extends ConsumerWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ChatSettingsPage()),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            key: const ValueKey('settings-menu-slash-commands'),
+            leading: const Icon(Icons.terminal_outlined),
+            title: Text('settings.menu_slash_commands'.tr()),
+            subtitle: Text('settings.menu_slash_commands_desc'.tr()),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SlashCommandSettingsPage(),
+                ),
               );
             },
           ),

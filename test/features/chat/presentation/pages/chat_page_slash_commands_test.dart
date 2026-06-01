@@ -12,6 +12,8 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/custom_slash_commands_notifier.dart';
+import 'package:caverno/features/chat/presentation/slash_commands/slash_command_prompt_template.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -371,6 +373,54 @@ void main() {
         contains(cases[index].expectedTarget),
       );
     }
+  });
+
+  testWidgets('custom prompt slash commands send configured templates', (
+    tester,
+  ) async {
+    final conversation = _chatConversation(messages: const <Message>[]);
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.chat,
+        activeProjectId: null,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+    );
+    await container
+        .read(customSlashCommandsNotifierProvider.notifier)
+        .upsert(
+          const SlashCommandPromptTemplate(
+            id: 'custom-summary',
+            name: 'summarize',
+            description: 'Summarize a target',
+            aliases: ['sum'],
+            argumentHint: '<target>',
+            template: '''
+Summarize this for release notes:
+{input}
+
+Command: {command}
+''',
+          ),
+        );
+    await tester.pumpAndSettle();
+
+    await _submitComposerText(tester, '/sum parser changes');
+
+    expect(chatNotifier.sentMessages, hasLength(1));
+    expect(
+      chatNotifier.sentMessages.single,
+      contains('Summarize this for release notes:'),
+    );
+    expect(chatNotifier.sentMessages.single, contains('parser changes'));
+    expect(chatNotifier.sentMessages.single, contains('Command: sum'));
   });
 
   testWidgets('/review is blocked while a response is active', (tester) async {

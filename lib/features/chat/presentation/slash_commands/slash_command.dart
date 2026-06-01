@@ -12,6 +12,7 @@ enum SlashCommandAction {
   fix,
   explain,
   test,
+  promptTemplate,
 }
 
 enum SlashCommandArgumentRequirement { none, optional, required }
@@ -32,6 +33,7 @@ class SlashCommandDefinition {
     this.argumentHint,
     this.argumentRequirement = SlashCommandArgumentRequirement.none,
     this.enabledWhileLoading = false,
+    this.promptTemplateId,
   });
 
   final String name;
@@ -41,6 +43,7 @@ class SlashCommandDefinition {
   final String? argumentHint;
   final SlashCommandArgumentRequirement argumentRequirement;
   final bool enabledWhileLoading;
+  final String? promptTemplateId;
 
   bool get acceptsArguments => argumentRequirement.acceptsArguments;
 
