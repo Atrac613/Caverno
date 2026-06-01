@@ -438,6 +438,22 @@ LiveLlmCanaryReferenceComparisonEntry _compareEntry(
     referenceValue: referenceEntry.signals.dartAnalyzeDiagnosticCount,
     candidateValue: candidateEntry.signals.dartAnalyzeDiagnosticCount,
   );
+  _compareRequiredEvidenceInt(
+    hardRegressions,
+    watchSignals,
+    improvements,
+    name: 'command output feedback',
+    referenceValue: referenceEntry.signals.codingOutputFeedbackCount,
+    candidateValue: candidateEntry.signals.codingOutputFeedbackCount,
+  );
+  _compareRequiredEvidenceInt(
+    hardRegressions,
+    watchSignals,
+    improvements,
+    name: 'command output issues',
+    referenceValue: referenceEntry.signals.codingOutputIssueCount,
+    candidateValue: candidateEntry.signals.codingOutputIssueCount,
+  );
   _compareWatchInt(
     watchSignals,
     improvements,

@@ -282,6 +282,63 @@ void main() {
       contains('analyzer diagnostics increased 1->3'),
     );
   });
+
+  test('fails when command output feedback evidence disappears', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'live-llm-reference-compare-output-feedback-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+
+    final reference = _writeReferenceReport(
+      directory: directory,
+      fileName: 'reference.json',
+      label: 'reference',
+      entries: [
+        _entry(
+          surface: 'coding_output_feedback',
+          check: 'coding_output_feedback_live_canary',
+          passed: 1,
+          total: 1,
+          signals: const LiveLlmCanaryReferenceSignals(
+            codingOutputFeedbackCount: 1,
+            codingOutputIssueCount: 1,
+          ),
+        ),
+      ],
+    );
+    final candidate = _writeReferenceReport(
+      directory: directory,
+      fileName: 'candidate.json',
+      label: 'candidate',
+      entries: [
+        _entry(
+          surface: 'coding_output_feedback',
+          check: 'coding_output_feedback_live_canary',
+          passed: 1,
+          total: 1,
+        ),
+      ],
+    );
+
+    final comparison = await buildLiveLlmCanaryReferenceComparison(
+      referenceReport: reference,
+      candidateReport: candidate,
+      generatedAt: DateTime.utc(2026, 6, 1),
+    );
+
+    expect(comparison.result, 'failed');
+    expect(comparison.hardRegressionCount, 2);
+    final outputFeedback = comparison.entries.single;
+    expect(outputFeedback.status, 'regressed');
+    expect(
+      outputFeedback.hardRegressions,
+      contains('command output feedback decreased 1->0'),
+    );
+    expect(
+      outputFeedback.hardRegressions,
+      contains('command output issues decreased 1->0'),
+    );
+  });
 }
 
 File _writeReferenceReport({

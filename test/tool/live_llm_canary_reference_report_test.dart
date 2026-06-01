@@ -98,6 +98,23 @@ void main() {
       testCount: 1,
       signals: const {},
     );
+    final codingOutputFeedbackSummary = _writeLiveSummary(
+      directory: directory,
+      fileName: 'coding_output_feedback_summary.json',
+      surface: 'coding_output_feedback',
+      canaryName: 'coding_output_feedback_live_canary',
+      passedCount: 1,
+      testCount: 1,
+      signals: const {
+        'codingOutputFeedback': {
+          'observed': true,
+          'feedbackCount': 1,
+          'issueCount': 1,
+          'commands': ['python3 get_weather.py'],
+          'validationStatuses': ['failed'],
+        },
+      },
+    );
     final codingGoalEditSummary = _writeLiveSummary(
       directory: directory,
       fileName: 'coding_goal_edit_summary.json',
@@ -184,6 +201,7 @@ void main() {
       readmeReport: readmeReport,
       codingGoalSummary: codingGoalSummary,
       codingOverwriteTransparencySummary: codingOverwriteTransparencySummary,
+      codingOutputFeedbackSummary: codingOutputFeedbackSummary,
       codingGoalEditSummary: codingGoalEditSummary,
       codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
       codingVerificationFeedbackSummary: codingVerificationFeedbackSummary,
@@ -196,10 +214,10 @@ void main() {
     expect(report.result, 'passed');
     expect(report.model, 'qwen3.6-27b-mtp-vision');
     expect(report.baseUrl, 'http://127.0.0.1:1234/v1');
-    expect(report.totalPassed, 31);
-    expect(report.totalCount, 31);
+    expect(report.totalPassed, 32);
+    expect(report.totalCount, 32);
     expect(report.validationErrors, isEmpty);
-    expect(report.entries, hasLength(11));
+    expect(report.entries, hasLength(12));
     expect(report.entries.first.riskSummary, contains('approval fallback 3'));
     expect(
       report.entries.first.riskSummary,
@@ -212,6 +230,12 @@ void main() {
           )
           .check,
       'coding_overwrite_transparency_live_canary',
+    );
+    expect(
+      report.entries
+          .singleWhere((entry) => entry.surface == 'coding_output_feedback')
+          .riskSummary,
+      contains('command output feedback 1, issues 1'),
     );
     expect(
       report.entries
@@ -543,6 +567,25 @@ void main() {
     );
     _writeJsonPath(
       directory,
+      'coding_output_feedback_live_canary_565/canary_summary.json',
+      _liveSummaryJson(
+        surface: 'coding_output_feedback',
+        canaryName: 'coding_output_feedback_live_canary',
+        testCount: 1,
+        passedCount: 1,
+        signals: const {
+          'codingOutputFeedback': {
+            'observed': true,
+            'feedbackCount': 1,
+            'issueCount': 1,
+            'commands': ['python3 get_weather.py'],
+            'validationStatuses': ['failed'],
+          },
+        },
+      ),
+    );
+    _writeJsonPath(
+      directory,
       'coding_goal_live_edit_canary_575/canary_summary.json',
       _liveSummaryJson(
         surface: 'coding_goal_edit',
@@ -635,7 +678,7 @@ void main() {
     );
 
     expect(report.result, 'passed');
-    expect(report.entries, hasLength(11));
+    expect(report.entries, hasLength(12));
     expect(report.model, 'new-model');
     expect(
       report.entries
@@ -668,6 +711,18 @@ void main() {
       endsWith(
         'coding_overwrite_transparency_live_canary_560/canary_summary.json',
       ),
+    );
+    expect(
+      report.entries
+          .singleWhere((entry) => entry.surface == 'coding_output_feedback')
+          .evidencePath,
+      endsWith('coding_output_feedback_live_canary_565/canary_summary.json'),
+    );
+    expect(
+      report.entries
+          .singleWhere((entry) => entry.surface == 'coding_output_feedback')
+          .riskSummary,
+      contains('command output feedback 1, issues 1'),
     );
     expect(
       report.entries
