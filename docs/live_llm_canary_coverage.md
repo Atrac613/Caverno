@@ -239,6 +239,33 @@ as watch signals instead of hard failures.
 
 ## Latest Full-Surface Evidence
 
+### 2026-06-01: `qwen3.6-27b-mtp-vision` Overwrite Transparency Reference Wiring
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model: `qwen3.6-27b-mtp-vision`
+- API key: `no-key`
+- Scope note: focused evidence after adding the overwrite transparency canary
+  to reference report explicit inputs and `--report-root` discovery.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding overwrite transparency | `tool/run_coding_overwrite_transparency_live_canary.sh` | Passed | 1/1 tests passed | The canary verified that a `write_file` result with `created: false` reaches the final answer as an existing-file update or overwrite. Recovery signals were all 0. |
+| Reference report | `dart run tool/live_llm_canary_reference_report.dart --report-root build/integration_test_reports` | Passed | 7/7 checks passed | The generated reference report discovered `coding_overwrite_transparency` from the real report root and also included the latest coding verification feedback release-gate evidence. |
+| Reference comparison | `dart run tool/live_llm_canary_reference_compare.dart` | Passed | 0 hard regressions | Self-comparison of the generated reference report passed with 0 hard regressions, 0 watch signals, and 0 improvements, confirming the comparison path accepts the new surface. |
+
+Artifacts:
+
+- Coding overwrite transparency summary:
+  `build/integration_test_reports/coding_overwrite_transparency_live_canary_1780317026/canary_summary.json`
+- Reference report JSON:
+  `build/integration_test_reports/live_llm_reference_overwrite_transparency_20260601/reference_report.json`
+- Reference report Markdown:
+  `build/integration_test_reports/live_llm_reference_overwrite_transparency_20260601/reference_report.md`
+- Reference comparison JSON:
+  `build/integration_test_reports/live_llm_compare_overwrite_transparency_20260601/reference_compare.json`
+- Reference comparison Markdown:
+  `build/integration_test_reports/live_llm_compare_overwrite_transparency_20260601/reference_compare.md`
+
 ### 2026-05-30: `qwen3.6-27b-mtp-vision` Diagnostic Feedback Stability
 
 - Endpoint: `http://192.168.100.241:1234/v1`
