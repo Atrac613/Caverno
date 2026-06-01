@@ -33,6 +33,7 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_projecti
 import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_verification_feedback_service.dart';
+import 'package:caverno/features/chat/domain/services/conversation_goal_suggestion_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
@@ -2157,6 +2158,80 @@ void main() {
     expect(notifier.state.messages.last.role, MessageRole.assistant);
     expect(notifier.state.messages.last.isStreaming, isTrue);
   });
+
+  test(
+    'suggestCurrentGoal validates LLM clarification against pending request',
+    () async {
+      const request =
+          '\u6771\u4eac\u306e\u660e\u65e5\u306e\u5929\u6c17\u3092\u8abf\u3079\u3066\u30de\u30fc\u30af\u30c0\u30a6\u30f3\u5f62\u5f0f\u3067\u4fdd\u5b58\u3092';
+      const expectedObjective =
+          '\u6771\u4eac\u306e\u660e\u65e5\u306e\u5929\u6c17\u3092\u8abf\u3079\u3066\u30de\u30fc\u30af\u30c0\u30a6\u30f3\u5f62\u5f0f\u3067\u4fdd\u5b58\u3059\u308b';
+      const scriptClarification =
+          '\u5929\u6c17\u60c5\u5831\u3092\u53d6\u5f97\u3057\u3066Markdown\u30d5\u30a1\u30a4\u30eb\u306b\u4fdd\u5b58\u3059\u308b\u30b9\u30af\u30ea\u30d7\u30c8\u3092\u4f5c\u6210\u3059\u308b\u306e\u3067\u3057\u3087\u3046\u304b\uff1f';
+      final dataSource = _QueuedProposalDataSource([
+        ChatCompletionResult(
+          content: jsonEncode({
+            'status': 'needs_clarification',
+            'objective': '',
+            'question': scriptClarification,
+          }),
+          finishReason: 'stop',
+        ),
+      ]);
+      final now = DateTime(2026, 6, 1, 10);
+      final conversation = Conversation(
+        id: 'coding-goal-thread',
+        title: 'Coding goal',
+        messages: const [],
+        createdAt: now,
+        updatedAt: now,
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final goalContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            () => _WorkflowTestConversationsNotifier(conversation),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final goalNotifier = goalContainer.read(chatNotifierProvider.notifier);
+
+        final suggestion = await goalNotifier.suggestCurrentGoal(
+          languageCode: 'ja',
+          pendingUserMessage: request,
+        );
+
+        expect(suggestion.kind, ConversationGoalSuggestionKind.suggested);
+        expect(suggestion.objective, expectedObjective);
+        expect(
+          suggestion.objective,
+          isNot(contains('\u30b9\u30af\u30ea\u30d7\u30c8')),
+        );
+        expect(dataSource.requests, hasLength(1));
+        expect(dataSource.requests.single.last.content, contains(request));
+      } finally {
+        goalContainer.dispose();
+      }
+    },
+  );
 
   test(
     'requestAskUserQuestion exposes pending question and resolves answer',
