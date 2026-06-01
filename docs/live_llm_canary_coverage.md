@@ -185,9 +185,10 @@ dart run tool/live_llm_canary_reference_report.dart \
 ```
 
 The `--report-root` mode discovers the latest available PM5 smoke, PM5 ping,
-README, coding goal, coding goal edit, coding diagnostic feedback, chat,
-tool-result budget, and routine artifacts. Use explicit paths when
-reconstructing an older run set or overriding one discovered artifact:
+README, coding goal, coding overwrite transparency, coding goal edit, coding
+diagnostic feedback, coding verification feedback, chat, tool-result budget,
+and routine artifacts. Use explicit paths when reconstructing an older run set
+or overriding one discovered artifact:
 
 The generated report fails if selected artifacts with non-empty model IDs or
 base URLs disagree. It also treats selected `coding_diagnostic_feedback`
@@ -205,8 +206,10 @@ dart run tool/live_llm_canary_reference_report.dart \
   --pm5-ping-summary build/integration_test_reports/<ping>/canary_summary.json \
   --readme-report build/integration_test_reports/<readme>/plan_mode_live_suite_macos_report.json \
   --coding-goal-summary build/integration_test_reports/<coding-goal>/canary_summary.json \
+  --coding-overwrite-transparency-summary build/integration_test_reports/<coding-overwrite-transparency>/canary_summary.json \
   --coding-goal-edit-summary build/integration_test_reports/<coding-goal-edit>/canary_summary.json \
   --coding-diagnostic-feedback-summary build/integration_test_reports/<coding-diagnostic-feedback>/canary_summary.json \
+  --coding-verification-feedback-summary build/integration_test_reports/<coding-verification-feedback>/canary_summary.json \
   --chat-summary build/integration_test_reports/<chat>/canary_summary.json \
   --budget-summary build/integration_test_reports/<budget>/canary_summary.json \
   --routine-summary build/integration_test_reports/<routine>/canary_summary.json

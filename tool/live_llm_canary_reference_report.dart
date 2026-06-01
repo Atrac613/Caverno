@@ -13,6 +13,7 @@ Future<void> main(List<String> args) async {
       '[--report-root PATH] '
       '[--pm5-smoke-report PATH] [--pm5-ping-summary PATH] '
       '[--readme-report PATH] [--coding-goal-summary PATH] '
+      '[--coding-overwrite-transparency-summary PATH] '
       '[--coding-goal-edit-summary PATH] '
       '[--coding-diagnostic-feedback-summary PATH] '
       '[--coding-verification-feedback-summary PATH] '
@@ -32,6 +33,9 @@ Future<void> main(List<String> args) async {
       pm5PingSummary: options.optionalFile('pm5-ping-summary'),
       readmeReport: options.optionalFile('readme-report'),
       codingGoalSummary: options.optionalFile('coding-goal-summary'),
+      codingOverwriteTransparencySummary: options.optionalFile(
+        'coding-overwrite-transparency-summary',
+      ),
       codingGoalEditSummary: options.optionalFile('coding-goal-edit-summary'),
       codingDiagnosticFeedbackSummary: options.optionalFile(
         'coding-diagnostic-feedback-summary',
@@ -83,6 +87,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
   File? pm5PingSummary,
   File? readmeReport,
   File? codingGoalSummary,
+  File? codingOverwriteTransparencySummary,
   File? codingGoalEditSummary,
   File? codingDiagnosticFeedbackSummary,
   File? codingVerificationFeedbackSummary,
@@ -97,6 +102,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
     pm5PingSummary: pm5PingSummary,
     readmeReport: readmeReport,
     codingGoalSummary: codingGoalSummary,
+    codingOverwriteTransparencySummary: codingOverwriteTransparencySummary,
     codingGoalEditSummary: codingGoalEditSummary,
     codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
     codingVerificationFeedbackSummary: codingVerificationFeedbackSummary,
@@ -110,6 +116,8 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
     pm5PingSummary: evidence.pm5PingSummary,
     readmeReport: evidence.readmeReport,
     codingGoalSummary: evidence.codingGoalSummary,
+    codingOverwriteTransparencySummary:
+        evidence.codingOverwriteTransparencySummary,
     codingGoalEditSummary: evidence.codingGoalEditSummary,
     codingDiagnosticFeedbackSummary: evidence.codingDiagnosticFeedbackSummary,
     codingVerificationFeedbackSummary:
@@ -127,6 +135,7 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
   File? pm5PingSummary,
   File? readmeReport,
   File? codingGoalSummary,
+  File? codingOverwriteTransparencySummary,
   File? codingGoalEditSummary,
   File? codingDiagnosticFeedbackSummary,
   File? codingVerificationFeedbackSummary,
@@ -166,6 +175,11 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
   }
   if (codingGoalSummary != null) {
     entries.add(await _buildLiveSummaryEntry(codingGoalSummary));
+  }
+  if (codingOverwriteTransparencySummary != null) {
+    entries.add(
+      await _buildLiveSummaryEntry(codingOverwriteTransparencySummary),
+    );
   }
   if (codingGoalEditSummary != null) {
     entries.add(await _buildLiveSummaryEntry(codingGoalEditSummary));
@@ -207,6 +221,7 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
   File? pm5PingSummary,
   File? readmeReport,
   File? codingGoalSummary,
+  File? codingOverwriteTransparencySummary,
   File? codingGoalEditSummary,
   File? codingDiagnosticFeedbackSummary,
   File? codingVerificationFeedbackSummary,
@@ -220,6 +235,7 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
       pm5PingSummary: pm5PingSummary,
       readmeReport: readmeReport,
       codingGoalSummary: codingGoalSummary,
+      codingOverwriteTransparencySummary: codingOverwriteTransparencySummary,
       codingGoalEditSummary: codingGoalEditSummary,
       codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
       codingVerificationFeedbackSummary: codingVerificationFeedbackSummary,
@@ -251,6 +267,13 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
         _findLatestReportFile(
           reportRoot: reportRoot,
           directoryPrefix: 'coding_goal_live_llm_canary_',
+          fileName: 'canary_summary.json',
+        ),
+    codingOverwriteTransparencySummary:
+        codingOverwriteTransparencySummary ??
+        _findLatestReportFile(
+          reportRoot: reportRoot,
+          directoryPrefix: 'coding_overwrite_transparency_live_canary_',
           fileName: 'canary_summary.json',
         ),
     codingGoalEditSummary:
@@ -304,6 +327,7 @@ class LiveLlmCanaryReferenceEvidenceFiles {
     required this.pm5PingSummary,
     required this.readmeReport,
     required this.codingGoalSummary,
+    required this.codingOverwriteTransparencySummary,
     required this.codingGoalEditSummary,
     required this.codingDiagnosticFeedbackSummary,
     required this.codingVerificationFeedbackSummary,
@@ -316,6 +340,7 @@ class LiveLlmCanaryReferenceEvidenceFiles {
   final File? pm5PingSummary;
   final File? readmeReport;
   final File? codingGoalSummary;
+  final File? codingOverwriteTransparencySummary;
   final File? codingGoalEditSummary;
   final File? codingDiagnosticFeedbackSummary;
   final File? codingVerificationFeedbackSummary;
