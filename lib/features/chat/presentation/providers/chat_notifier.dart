@@ -10353,7 +10353,8 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     final candidate = currentAssistantContent?.trim() ?? '';
-    if (candidate.isNotEmpty) {
+    if (candidate.isNotEmpty &&
+        !_looksLikePendingToolActionResponse(candidate)) {
       return candidate;
     }
 
@@ -10362,10 +10363,66 @@ class ChatNotifier extends Notifier<ChatState> {
         .whereType<String>()
         .toSet()
         .join(', ');
+    final previousOutput = _successfulCommandOutputForRepeatedCalls(
+      toolCalls: toolCalls,
+      previousToolResults: previousToolResults,
+    );
+    if (previousOutput != null) {
+      final commandLabel = repeatedCommands.isEmpty
+          ? 'the repeated command'
+          : repeatedCommands;
+      return 'The repeated command already succeeded ($commandLabel), so I used the previous successful result:\n\n```text\n$previousOutput\n```';
+    }
     if (repeatedCommands.isEmpty) {
       return 'The repeated command already succeeded, so I used the previous result and stopped the duplicate command loop.';
     }
     return 'The repeated command already succeeded ($repeatedCommands), so I used the previous result and stopped the duplicate command loop.';
+  }
+
+  bool _looksLikePendingToolActionResponse(String response) {
+    final normalized = response.toLowerCase();
+    return RegExp(
+      r"\b(?:now\s+)?let me\b|\bi (?:will|need to|should|am going to)\b|\bi(?:'ll| will)\b",
+    ).hasMatch(normalized);
+  }
+
+  String? _successfulCommandOutputForRepeatedCalls({
+    required List<ToolCallInfo> toolCalls,
+    required List<ToolResultInfo> previousToolResults,
+  }) {
+    for (final toolCall in toolCalls) {
+      final matchingResult = previousToolResults.reversed.where((result) {
+        if (result.name != toolCall.name ||
+            !_toolResultHasSuccessfulExit(result)) {
+          return false;
+        }
+        if (toolCall.name == 'run_tests') {
+          return _runTestsPathArgument(result.arguments) ==
+              _runTestsPathArgument(toolCall.arguments);
+        }
+        final command = _toolCommandArgument(toolCall.arguments);
+        if (command == null) {
+          return false;
+        }
+        final resultCommand = _toolCommandArgument(result.arguments);
+        return resultCommand != null &&
+            _normalizeToolCommandForComparison(resultCommand) ==
+                _normalizeToolCommandForComparison(command);
+      }).firstOrNull;
+      if (matchingResult == null) {
+        continue;
+      }
+      final output = _toolResultOutputText(matchingResult).trim();
+      if (output.isEmpty) {
+        continue;
+      }
+      const maxOutputLength = 2000;
+      if (output.length <= maxOutputLength) {
+        return output;
+      }
+      return '${output.substring(0, maxOutputLength).trimRight()}\n...[truncated]';
+    }
+    return null;
   }
 
   bool _containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(

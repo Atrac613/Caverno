@@ -7160,6 +7160,117 @@ void main() {
   });
 
   test(
+    'sendMessage summarizes previous command output for duplicate success intent',
+    () async {
+      const command = 'python3 get_weather.py';
+      final duplicateCommandCall = ToolCallInfo(
+        id: 'command-duplicate',
+        name: 'local_execute_command',
+        arguments: const {'command': command, 'working_directory': '/tmp'},
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'command-1',
+            name: 'local_execute_command',
+            arguments: const {'command': command, 'working_directory': '/tmp'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Repair the source before rerunning the command.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'write-fix',
+                name: 'write_weather_data',
+                arguments: const {'path': 'get_weather.py'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Rerun the script after the repair.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'command-2',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': command,
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Now let me run the script to confirm the output.',
+            toolCalls: [duplicateCommandCall],
+            finishReason: 'tool_calls',
+          ),
+        ],
+        finalAnswerChunks: const ['This final answer should not be requested.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command': 'unused',
+          'write_weather_data':
+              '{"path":"/tmp/get_weather.py","replacements":1}',
+        },
+        queuedResults: const {
+          'local_execute_command': [
+            '{"command":"python3 get_weather.py","exit_code":0,"stdout":"# Error\\nNo data found.\\n","stderr":""}',
+            '{"command":"python3 get_weather.py","exit_code":0,"stdout":"OUTPUT_FEEDBACK_LIVE_OK\\n","stderr":""}',
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run the weather script');
+
+        expect(toolService.executedToolNames, [
+          'local_execute_command',
+          'write_weather_data',
+          'local_execute_command',
+        ]);
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('OUTPUT_FEEDBACK_LIVE_OK'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('Now let me run')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage streams a final answer when duplicate recovery repeats a tool',
     () async {
       final duplicateDatetimeCall = ToolCallInfo(

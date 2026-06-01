@@ -254,6 +254,36 @@ as watch signals instead of hard failures.
 
 ## Latest Full-Surface Evidence
 
+### 2026-06-01: `qwen3.6-27b-mtp-vision` Output Feedback Reference Wiring
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model: `qwen3.6-27b-mtp-vision`
+- API key: `no-key`
+- Scope note: focused evidence after adding the output feedback canary to
+  reference report explicit inputs, `--report-root` discovery, and required
+  evidence comparison. The live rerun also covered duplicate successful command
+  fallback after a model repeated a command that had already produced the
+  repaired output.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding output feedback | `tool/run_coding_output_feedback_live_canary.sh` | Passed | 1/1 tests passed | The canary verified that a zero-exit command artifact error emitted `coding_output_feedback`, repaired `get_weather.py`, reran `python3 get_weather.py`, and finished with `OUTPUT_FEEDBACK_LIVE_OK`. Command output feedback count was 1 with 1 issue. |
+| Reference report | `dart run tool/live_llm_canary_reference_report.dart --report-root build/integration_test_reports` | Passed | 8/8 checks passed | The generated reference report discovered `coding_output_feedback` from the real report root and preserved its required evidence counts alongside overwrite transparency and verification feedback evidence. |
+| Reference comparison | `dart run tool/live_llm_canary_reference_compare.dart` | Passed | 0 hard regressions | Self-comparison of the generated reference report passed with 0 hard regressions, 0 watch signals, and 0 improvements, confirming the comparison path accepts and enforces the new surface. |
+
+Artifacts:
+
+- Coding output feedback summary:
+  `build/integration_test_reports/coding_output_feedback_live_canary_1780319776/canary_summary.json`
+- Reference report JSON:
+  `build/integration_test_reports/live_llm_reference_output_feedback_20260601/reference_report.json`
+- Reference report Markdown:
+  `build/integration_test_reports/live_llm_reference_output_feedback_20260601/reference_report.md`
+- Reference comparison JSON:
+  `build/integration_test_reports/live_llm_compare_output_feedback_20260601/reference_compare.json`
+- Reference comparison Markdown:
+  `build/integration_test_reports/live_llm_compare_output_feedback_20260601/reference_compare.md`
+
 ### 2026-06-01: `qwen3.6-27b-mtp-vision` Overwrite Transparency Reference Wiring
 
 - Endpoint: `http://192.168.100.241:1234/v1`
