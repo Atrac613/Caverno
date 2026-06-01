@@ -116,4 +116,102 @@ void main() {
       isNot(contains(RemoteCodingSecurity.hashToken('mobile-token'))),
     );
   });
+
+  testWidgets('desktop settings copy multi-device P1 evidence', (tester) async {
+    String? clipboardText;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          final data = Map<String, dynamic>.from(
+            call.arguments as Map<dynamic, dynamic>,
+          );
+          clipboardText = data['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    final repository = RemoteCodingRepository(preferences);
+    await repository.saveServerSettings(
+      RemoteCodingServerSettings(
+        enabled: false,
+        port: 8767,
+        pairedDevices: [
+          RemoteCodingPairedDevice(
+            id: 'device-1',
+            name: 'Phone',
+            tokenHash: RemoteCodingSecurity.hashToken('mobile-token-1'),
+            createdAt: DateTime(2026, 5, 26, 12),
+            lastSeenAt: DateTime(2026, 5, 26, 12, 30),
+          ),
+          RemoteCodingPairedDevice(
+            id: 'device-2',
+            name: 'Tablet',
+            tokenHash: RemoteCodingSecurity.hashToken('mobile-token-2'),
+            createdAt: DateTime(2026, 5, 26, 13),
+            lastSeenAt: DateTime(2026, 5, 26, 13, 30),
+          ),
+        ],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        remoteCodingRepositoryProvider.overrideWithValue(repository),
+        codingProjectsNotifierProvider.overrideWith(
+          _TestCodingProjectsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: RemoteCodingSettingsPage()),
+      ),
+    );
+
+    await tester.tap(find.text('Copy Multi-Device Evidence'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Revocation preserves another device'));
+    await tester.tap(find.text('Remote approvals stayed scoped'));
+    await tester.tap(find.text('Copy Evidence'));
+    await tester.pumpAndSettle();
+
+    final evidence = jsonDecode(clipboardText!) as Map<String, dynamic>;
+    final checklistPatch =
+        evidence['manualChecklistPatch'] as Map<String, dynamic>;
+    final multiDevice = checklistPatch['multiDevice'] as Map<String, dynamic>;
+    final encoded = jsonEncode(evidence);
+
+    expect(evidence['schemaName'], 'remote_coding_p1_multi_device_evidence');
+    expect(multiDevice['twoDevicesCanPair'], isTrue);
+    expect(multiDevice['activeSessionCountUpdates'], isFalse);
+    expect(multiDevice['revokingOneDeviceKeepsOtherDeviceUsable'], isTrue);
+    expect(multiDevice['approvalsReachOnlyRemoteOriginTurns'], isTrue);
+    expect(encoded, isNot(contains('mobile-token-1')));
+    expect(encoded, isNot(contains('mobile-token-2')));
+    expect(
+      encoded,
+      isNot(contains(RemoteCodingSecurity.hashToken('mobile-token-1'))),
+    );
+    expect(
+      encoded,
+      isNot(contains(RemoteCodingSecurity.hashToken('mobile-token-2'))),
+    );
+  });
 }

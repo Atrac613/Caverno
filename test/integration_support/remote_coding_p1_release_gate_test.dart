@@ -99,6 +99,41 @@ void main() {
     expect(result.status, 'ready_for_remote_coding_p1_release');
     expect(result.blockedGateIds, isNot(contains('support_packet_review')));
   });
+
+  test('multi-device evidence can satisfy the household checklist section', () {
+    final root = Directory.systemTemp.createTempSync(
+      'remote_coding_p1_multi_device_gate_test_',
+    );
+    addTearDown(() {
+      root.deleteSync(recursive: true);
+    });
+    final checklist = remoteCodingP1ManualChecklistTemplate(
+      generatedAt: DateTime(2026, 5, 26, 12),
+    );
+    final readyChecklist = _markAllBooleansReady(checklist);
+    if (readyChecklist case final Map<String, Object?> readyMap) {
+      readyMap['multiDevice'] = {
+        'twoDevicesCanPair': false,
+        'activeSessionCountUpdates': false,
+        'revokingOneDeviceKeepsOtherDeviceUsable': false,
+        'approvalsReachOnlyRemoteOriginTurns': false,
+      };
+    }
+    final checklistFile = File('${root.path}/manual_checklist.json')
+      ..writeAsStringSync(const JsonEncoder().convert(readyChecklist));
+    final evidenceFile = File('${root.path}/multi_device_evidence.json')
+      ..writeAsStringSync(const JsonEncoder().convert(_multiDeviceEvidence()));
+
+    final result = buildRemoteCodingP1ReleaseGate(
+      repoRoot: Directory.current,
+      manualChecklistFile: checklistFile,
+      multiDeviceEvidenceFiles: [evidenceFile],
+      generatedAt: DateTime(2026, 5, 26, 12),
+    );
+
+    expect(result.status, 'ready_for_remote_coding_p1_release');
+    expect(result.blockedGateIds, isNot(contains('multi_device_household')));
+  });
 }
 
 Object? _markAllBooleansReady(Object? value) {
@@ -130,6 +165,23 @@ Map<String, Object?> _supportPacket({
         'desktopDiagnosticsCopied': desktop,
         'diagnosticsContainNoTokenMaterial': true,
         'supportPacketIdentifiesEndpointAndProtocol': true,
+      },
+    },
+  };
+}
+
+Map<String, Object?> _multiDeviceEvidence() {
+  return {
+    'schemaName': 'remote_coding_p1_multi_device_evidence',
+    'schemaVersion': 1,
+    'manualChecklistPatch': {
+      'schemaName': 'remote_coding_p1_manual_checklist_patch',
+      'schemaVersion': 1,
+      'multiDevice': {
+        'twoDevicesCanPair': true,
+        'activeSessionCountUpdates': true,
+        'revokingOneDeviceKeepsOtherDeviceUsable': true,
+        'approvalsReachOnlyRemoteOriginTurns': true,
       },
     },
   };

@@ -37,6 +37,7 @@ dart run tool/remote_coding_p1_release_gate.dart \
   --manual-checklist build/remote_coding_p1_manual_checklist.json \
   --support-packet build/mobile_support_packet.json \
   --support-packet build/desktop_support_packet.json \
+  --multi-device-evidence build/multi_device_evidence.json \
   --out-json build/remote_coding_p1_release_gate.json \
   --out-md build/remote_coding_p1_release_gate.md
 ```
@@ -71,3 +72,19 @@ gate with repeated `--support-packet` arguments. The gate merges true checklist
 fields from the packets, but the user-operated review still owns confirming that
 the exported diagnostics contain no mobile device tokens, desktop token hashes,
 or pairing secrets.
+
+## Multi-Device Evidence Flow
+
+Copy P1 multi-device evidence from the desktop after pairing two mobile devices:
+
+- Desktop: Settings > Remote Coding Host > Copy Multi-Device Evidence.
+- Confirm the revocation and remote approval boundary checks in the dialog only
+  after testing them on real devices.
+- Save the copied JSON and pass it to the release gate with
+  `--multi-device-evidence`.
+
+Each copied file uses `schemaName: remote_coding_p1_multi_device_evidence`,
+includes redacted paired-device snapshots and active-session counts, and carries
+a `manualChecklistPatch` for the `multiDevice` checklist section. The gate
+merges true checklist fields from evidence files, while the user-operated review
+still owns confirming the real two-device household behavior.

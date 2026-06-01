@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../data/remote_coding_diagnostics.dart';
+import '../data/remote_coding_multi_device_evidence.dart';
 import '../data/remote_coding_support_packet.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_server_notifier.dart';
@@ -73,6 +74,12 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
                         onPressed: () => _copySupportPacket(context, state),
                         icon: const Icon(Icons.copy_outlined),
                         label: const Text('Copy Support Packet'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            _showMultiDeviceEvidenceDialog(context, state),
+                        icon: const Icon(Icons.devices_other),
+                        label: const Text('Copy Multi-Device Evidence'),
                       ),
                     ],
                   ),
@@ -161,6 +168,143 @@ class RemoteCodingSettingsPage extends ConsumerWidget {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Remote coding support packet copied.')),
+    );
+  }
+
+  Future<void> _showMultiDeviceEvidenceDialog(
+    BuildContext context,
+    RemoteCodingServerState state,
+  ) async {
+    final review = await showDialog<_MultiDeviceEvidenceReview>(
+      context: context,
+      builder: (_) => _MultiDeviceEvidenceDialog(
+        pairedDeviceCount: state.settings.pairedDevices.length,
+        activeConnectionCount: state.activeConnectionCount,
+      ),
+    );
+    if (review == null) {
+      return;
+    }
+
+    final evidence = RemoteCodingMultiDeviceEvidence.build(
+      settings: state.settings,
+      activeConnectionCount: state.activeConnectionCount,
+      revokingOneDeviceKeepsOtherDeviceUsable:
+          review.revokingOneDeviceKeepsOtherDeviceUsable,
+      approvalsReachOnlyRemoteOriginTurns:
+          review.approvalsReachOnlyRemoteOriginTurns,
+    );
+    await Clipboard.setData(
+      ClipboardData(text: const JsonEncoder.withIndent('  ').convert(evidence)),
+    );
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Remote coding multi-device evidence copied.'),
+      ),
+    );
+  }
+}
+
+class _MultiDeviceEvidenceReview {
+  const _MultiDeviceEvidenceReview({
+    required this.revokingOneDeviceKeepsOtherDeviceUsable,
+    required this.approvalsReachOnlyRemoteOriginTurns,
+  });
+
+  final bool revokingOneDeviceKeepsOtherDeviceUsable;
+  final bool approvalsReachOnlyRemoteOriginTurns;
+}
+
+class _MultiDeviceEvidenceDialog extends StatefulWidget {
+  const _MultiDeviceEvidenceDialog({
+    required this.pairedDeviceCount,
+    required this.activeConnectionCount,
+  });
+
+  final int pairedDeviceCount;
+  final int activeConnectionCount;
+
+  @override
+  State<_MultiDeviceEvidenceDialog> createState() =>
+      _MultiDeviceEvidenceDialogState();
+}
+
+class _MultiDeviceEvidenceDialogState
+    extends State<_MultiDeviceEvidenceDialog> {
+  bool _revocationConfirmed = false;
+  bool _approvalBoundaryConfirmed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Copy Multi-Device Evidence'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Paired devices'),
+              trailing: Text('${widget.pairedDeviceCount}'),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Active mobile sessions'),
+              trailing: Text('${widget.activeConnectionCount}'),
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _revocationConfirmed,
+              onChanged: (value) {
+                setState(() {
+                  _revocationConfirmed = value ?? false;
+                });
+              },
+              title: const Text('Revocation preserves another device'),
+              subtitle: const Text(
+                'One paired device was revoked while another stayed usable.',
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _approvalBoundaryConfirmed,
+              onChanged: (value) {
+                setState(() {
+                  _approvalBoundaryConfirmed = value ?? false;
+                });
+              },
+              title: const Text('Remote approvals stayed scoped'),
+              subtitle: const Text(
+                'Approvals appeared only on remote-origin turns.',
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.of(context).pop(
+              _MultiDeviceEvidenceReview(
+                revokingOneDeviceKeepsOtherDeviceUsable: _revocationConfirmed,
+                approvalsReachOnlyRemoteOriginTurns: _approvalBoundaryConfirmed,
+              ),
+            );
+          },
+          icon: const Icon(Icons.copy_outlined),
+          label: const Text('Copy Evidence'),
+        ),
+      ],
     );
   }
 }

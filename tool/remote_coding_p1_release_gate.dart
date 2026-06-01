@@ -39,6 +39,9 @@ Future<void> main(List<String> args) async {
         ? null
         : File(parsed.manualChecklistPath!),
     supportPacketFiles: parsed.supportPacketPaths.map(File.new).toList(),
+    multiDeviceEvidenceFiles: parsed.multiDeviceEvidencePaths
+        .map(File.new)
+        .toList(),
   );
 
   final jsonText = const JsonEncoder.withIndent('  ').convert(result.toJson());
@@ -75,6 +78,7 @@ class _Args {
     this.rootPath,
     this.manualChecklistPath,
     this.supportPacketPaths = const <String>[],
+    this.multiDeviceEvidencePaths = const <String>[],
     this.templatePath,
     this.outJsonPath,
     this.outMarkdownPath,
@@ -84,6 +88,7 @@ class _Args {
   final String? rootPath;
   final String? manualChecklistPath;
   final List<String> supportPacketPaths;
+  final List<String> multiDeviceEvidencePaths;
   final String? templatePath;
   final String? outJsonPath;
   final String? outMarkdownPath;
@@ -94,6 +99,7 @@ _Args _parseArgs(List<String> args) {
   String? rootPath;
   String? manualChecklistPath;
   final supportPacketPaths = <String>[];
+  final multiDeviceEvidencePaths = <String>[];
   String? templatePath;
   String? outJsonPath;
   String? outMarkdownPath;
@@ -110,6 +116,8 @@ _Args _parseArgs(List<String> args) {
         manualChecklistPath = _readValue(args, ++index, arg);
       case '--support-packet':
         supportPacketPaths.add(_readValue(args, ++index, arg));
+      case '--multi-device-evidence':
+        multiDeviceEvidencePaths.add(_readValue(args, ++index, arg));
       case '--write-template':
         templatePath = _readValue(args, ++index, arg);
       case '--out-json':
@@ -125,6 +133,7 @@ _Args _parseArgs(List<String> args) {
     rootPath: rootPath,
     manualChecklistPath: manualChecklistPath,
     supportPacketPaths: supportPacketPaths,
+    multiDeviceEvidencePaths: multiDeviceEvidencePaths,
     templatePath: templatePath,
     outJsonPath: outJsonPath,
     outMarkdownPath: outMarkdownPath,
@@ -154,6 +163,8 @@ Options:
   --root <path>              Repository root. Defaults to the current directory.
   --manual-checklist <path>  User-operated P1 checklist JSON.
   --support-packet <path>    Merge a copied P1 support packet checklist patch. Repeatable.
+  --multi-device-evidence <path>
+                             Merge copied P1 multi-device checklist evidence. Repeatable.
   --write-template <path>    Write a checklist template JSON.
   --out-json <path>          Write the gate report as JSON.
   --out-md <path>            Write the gate report as Markdown.

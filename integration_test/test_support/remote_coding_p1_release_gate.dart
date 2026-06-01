@@ -55,7 +55,7 @@ class RemoteCodingP1ReleaseGateResult {
     'blockedGateIds': blockedGateIds,
     'nextAction': nextAction,
     'operationBoundary':
-        'Static checks cover resilience and diagnostics. LAN soak, backgrounding, and support packet review remain user-operated.',
+        'Static checks cover resilience and diagnostics. LAN soak, backgrounding, support packet review, and multi-device household review remain user-operated.',
     'staticGates': staticGates.map((gate) => gate.toJson()).toList(),
     'manualGates': manualGates.map((gate) => gate.toJson()).toList(),
   };
@@ -104,11 +104,13 @@ RemoteCodingP1ReleaseGateResult buildRemoteCodingP1ReleaseGate({
   required Directory repoRoot,
   File? manualChecklistFile,
   List<File> supportPacketFiles = const <File>[],
+  List<File> multiDeviceEvidenceFiles = const <File>[],
   DateTime? generatedAt,
 }) {
-  final checklist = _readChecklistWithSupportPackets(
+  final checklist = _readChecklistWithEvidence(
     manualChecklistFile,
     supportPacketFiles: supportPacketFiles,
+    multiDeviceEvidenceFiles: multiDeviceEvidenceFiles,
     generatedAt: generatedAt,
   );
   final staticGates = _buildStaticGates(repoRoot);
@@ -179,6 +181,10 @@ List<RemoteCodingP1Gate> _buildStaticGates(Directory repoRoot) {
     repoRoot,
     'lib/features/remote_coding/data/remote_coding_support_packet.dart',
   );
+  final multiDeviceEvidence = _read(
+    repoRoot,
+    'lib/features/remote_coding/data/remote_coding_multi_device_evidence.dart',
+  );
   final remotePage = _read(
     repoRoot,
     'lib/features/remote_coding/presentation/remote_coding_page.dart',
@@ -198,6 +204,14 @@ List<RemoteCodingP1Gate> _buildStaticGates(Directory repoRoot) {
   final widgetTest = _read(
     repoRoot,
     'test/features/chat/presentation/pages/chat_page_remote_coding_test.dart',
+  );
+  final settingsPageTest = _read(
+    repoRoot,
+    'test/features/remote_coding/presentation/remote_coding_settings_page_test.dart',
+  );
+  final gateTest = _read(
+    repoRoot,
+    'test/integration_support/remote_coding_p1_release_gate_test.dart',
   );
   final docs = _read(repoRoot, 'docs/remote_coding_p1_release_gate.md');
 
@@ -277,6 +291,32 @@ List<RemoteCodingP1Gate> _buildStaticGates(Directory repoRoot) {
         'Host snapshots expose protocol version, safe mobile capabilities, and active session count.',
       ],
       nextAction: 'Restore support metadata in remote host snapshots.',
+    ),
+    _staticGate(
+      id: 'multi_device_evidence_flow',
+      label:
+          'Desktop exports mergeable multi-device evidence for the P1 household checklist.',
+      ready:
+          multiDeviceEvidence.contains(
+            'remote_coding_p1_multi_device_evidence',
+          ) &&
+          multiDeviceEvidence.contains('manualChecklistPatch') &&
+          multiDeviceEvidence.contains('activeSessionCountUpdates') &&
+          multiDeviceEvidence.contains(
+            'revokingOneDeviceKeepsOtherDeviceUsable',
+          ) &&
+          settingsPage.contains('Copy Multi-Device Evidence') &&
+          settingsPageTest.contains(
+            'desktop settings copy multi-device P1 evidence',
+          ) &&
+          gateTest.contains(
+            'multi-device evidence can satisfy the household checklist section',
+          ),
+      evidence: const [
+        'Desktop settings copy multi-device evidence and the release gate merges its checklist patch.',
+      ],
+      nextAction:
+          'Restore multi-device evidence export, checklist patching, and tests.',
     ),
     _staticGate(
       id: 'p1_docs_and_gate',
@@ -390,13 +430,14 @@ RemoteCodingP1Gate _manualGate({
   );
 }
 
-Map<String, dynamic>? _readChecklistWithSupportPackets(
+Map<String, dynamic>? _readChecklistWithEvidence(
   File? file, {
   required List<File> supportPacketFiles,
+  required List<File> multiDeviceEvidenceFiles,
   DateTime? generatedAt,
 }) {
   final checklist = _readChecklist(file);
-  if (supportPacketFiles.isEmpty) {
+  if (supportPacketFiles.isEmpty && multiDeviceEvidenceFiles.isEmpty) {
     return checklist;
   }
   final nextChecklist = checklist == null
@@ -406,6 +447,9 @@ Map<String, dynamic>? _readChecklistWithSupportPackets(
       : Map<String, dynamic>.from(checklist);
   for (final supportPacketFile in supportPacketFiles) {
     _mergeSupportPacketPatch(nextChecklist, supportPacketFile);
+  }
+  for (final evidenceFile in multiDeviceEvidenceFiles) {
+    _mergeMultiDeviceEvidencePatch(nextChecklist, evidenceFile);
   }
   return nextChecklist;
 }
@@ -446,24 +490,69 @@ void _mergeSupportPacketPatch(
     );
   }
   final supportPacketPatch = manualChecklistPatch['supportPacket'];
-  if (supportPacketPatch is! Map<String, dynamic>) {
-    throw const FormatException(
-      'Remote Coding P1 support packet is missing supportPacket checklist data.',
+  _mergeChecklistPatchSection(
+    checklist: checklist,
+    sectionName: 'supportPacket',
+    sectionPatch: supportPacketPatch,
+    invalidPatchMessage:
+        'Remote Coding P1 support packet is missing supportPacket checklist data.',
+  );
+}
+
+void _mergeMultiDeviceEvidencePatch(
+  Map<String, dynamic> checklist,
+  File evidenceFile,
+) {
+  if (!evidenceFile.existsSync()) {
+    throw FormatException(
+      'Remote Coding P1 multi-device evidence does not exist: ${evidenceFile.path}',
     );
   }
-  final supportPacketSection = checklist.putIfAbsent(
-    'supportPacket',
+  final decoded = jsonDecode(evidenceFile.readAsStringSync());
+  if (decoded is! Map<String, dynamic> ||
+      decoded['schemaName'] != 'remote_coding_p1_multi_device_evidence') {
+    throw const FormatException(
+      'Remote Coding P1 multi-device evidence must use remote_coding_p1_multi_device_evidence.',
+    );
+  }
+  final manualChecklistPatch = decoded['manualChecklistPatch'];
+  if (manualChecklistPatch is! Map<String, dynamic>) {
+    throw const FormatException(
+      'Remote Coding P1 multi-device evidence is missing manualChecklistPatch.',
+    );
+  }
+  final multiDevicePatch = manualChecklistPatch['multiDevice'];
+  _mergeChecklistPatchSection(
+    checklist: checklist,
+    sectionName: 'multiDevice',
+    sectionPatch: multiDevicePatch,
+    invalidPatchMessage:
+        'Remote Coding P1 multi-device evidence is missing multiDevice checklist data.',
+  );
+}
+
+void _mergeChecklistPatchSection({
+  required Map<String, dynamic> checklist,
+  required String sectionName,
+  required Object? sectionPatch,
+  required String invalidPatchMessage,
+}) {
+  if (sectionPatch is! Map<String, dynamic>) {
+    throw FormatException(invalidPatchMessage);
+  }
+  final checklistSection = checklist.putIfAbsent(
+    sectionName,
     () => <String, dynamic>{},
   );
-  if (supportPacketSection is! Map<String, dynamic>) {
+  if (checklistSection is! Map<String, dynamic>) {
     throw const FormatException(
-      'Remote Coding P1 checklist supportPacket section must be an object.',
+      'Remote Coding P1 checklist evidence section must be an object.',
     );
   }
-  for (final entry in supportPacketPatch.entries) {
+  for (final entry in sectionPatch.entries) {
     if (entry.value is bool) {
-      supportPacketSection[entry.key] =
-          supportPacketSection[entry.key] == true || entry.value == true;
+      checklistSection[entry.key] =
+          checklistSection[entry.key] == true || entry.value == true;
     }
   }
 }
