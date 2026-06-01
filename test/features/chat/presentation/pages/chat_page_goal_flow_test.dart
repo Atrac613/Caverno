@@ -127,6 +127,7 @@ class _GoalFlowChatNotifier extends ChatNotifier {
   int _suggestionIndex = 0;
   int suggestionCallCount = 0;
   String? pendingUserMessageForSuggestion;
+  String? clarificationQuestionForSuggestion;
   String? clarificationAnswerForSuggestion;
   final sentMessages = <String>[];
   String? goalObjectiveAtSend;
@@ -138,10 +139,12 @@ class _GoalFlowChatNotifier extends ChatNotifier {
   Future<ConversationGoalSuggestion> suggestCurrentGoal({
     String languageCode = 'en',
     String? pendingUserMessage,
+    String? clarificationQuestion,
     String? clarificationAnswer,
   }) async {
     suggestionCallCount += 1;
     pendingUserMessageForSuggestion = pendingUserMessage;
+    clarificationQuestionForSuggestion = clarificationQuestion;
     clarificationAnswerForSuggestion = clarificationAnswer;
     final suggestionGate = _suggestionGate;
     if (suggestionGate != null) {
@@ -575,6 +578,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(chatNotifier.pendingUserMessageForSuggestion, message);
+    expect(
+      chatNotifier.clarificationQuestionForSuggestion,
+      'Should this create a Markdown report file?',
+    );
     expect(chatNotifier.clarificationAnswerForSuggestion, clarification);
     expect(conversationsNotifier.savedObjectives, [
       'Save Tokyo weather as Markdown',
@@ -698,6 +705,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(chatNotifier.pendingUserMessageForSuggestion, message);
+      expect(
+        chatNotifier.clarificationQuestionForSuggestion,
+        'Which report format should be saved?',
+      );
       expect(
         chatNotifier.clarificationAnswerForSuggestion,
         secondClarification,

@@ -207,6 +207,7 @@ extension _ChatPageGoalBuilders on _ChatPageState {
   Future<ConversationGoalSuggestion?> _requestGoalSuggestion(
     BuildContext context, {
     String? pendingUserMessage,
+    String? clarificationQuestion,
     String? clarificationAnswer,
   }) async {
     final languageCode = context.locale.languageCode;
@@ -238,6 +239,7 @@ extension _ChatPageGoalBuilders on _ChatPageState {
           .suggestCurrentGoal(
             languageCode: languageCode,
             pendingUserMessage: pendingUserMessage,
+            clarificationQuestion: clarificationQuestion,
             clarificationAnswer: clarificationAnswer,
           );
       messenger?.hideCurrentSnackBar();
@@ -327,6 +329,7 @@ extension _ChatPageGoalBuilders on _ChatPageState {
         final retrySuggestion = await _requestGoalSuggestion(
           context,
           pendingUserMessage: pendingUserMessage,
+          clarificationQuestion: effectiveQuestion,
           clarificationAnswer: answer,
         );
         if (retrySuggestion == null || !context.mounted) {

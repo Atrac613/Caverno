@@ -45,13 +45,23 @@ class ConversationGoalSuggestionService {
       'Keep objective to one short sentence, under 140 characters, with no markdown. '
       'Use "needs_clarification" when the target outcome is ambiguous, too broad, or missing. '
       'When clarification is needed, ask exactly one concise question. '
+      'Clarification questions must stay at goal level: ask what coding outcome should stay in focus, '
+      'not which API, file name, storage path, framework, command, library, or programming language to use. '
+      'When the request plus clarification already implies a coding artifact or code change, draft the goal '
+      'and leave implementation choices for execution. '
+      'This is already a coding-goal drafting context; do not ask whether the user wants code or a script '
+      'when the request names a work product such as a saved Markdown report, parser, CLI, test, or file update. '
       'Do not invent files, acceptance criteria, budgets, or implementation details.';
 
   static bool hasUsefulContext(
     Conversation conversation, {
     String? pendingUserMessage,
+    String? clarificationQuestion,
     String? clarificationAnswer,
   }) {
+    if ((clarificationQuestion ?? '').trim().isNotEmpty) {
+      return true;
+    }
     if ((clarificationAnswer ?? '').trim().isNotEmpty) {
       return true;
     }
@@ -74,6 +84,7 @@ class ConversationGoalSuggestionService {
     required Conversation conversation,
     required String languageCode,
     String? pendingUserMessage,
+    String? clarificationQuestion,
     String? clarificationAnswer,
     DateTime? now,
     int maxRecentMessages = 12,
@@ -94,6 +105,7 @@ class ConversationGoalSuggestionService {
           conversation: conversation,
           languageCode: languageCode,
           pendingUserMessage: pendingUserMessage,
+          clarificationQuestion: clarificationQuestion,
           clarificationAnswer: clarificationAnswer,
           maxRecentMessages: maxRecentMessages,
         ),
@@ -139,6 +151,7 @@ class ConversationGoalSuggestionService {
     required Conversation conversation,
     required String languageCode,
     required String? pendingUserMessage,
+    required String? clarificationQuestion,
     required String? clarificationAnswer,
     required int maxRecentMessages,
   }) {
@@ -183,10 +196,16 @@ class ConversationGoalSuggestionService {
         '- user (pending send): ${_truncate(_cleanLine(pendingMessage), 800)}',
       );
     }
+    final question = clarificationQuestion?.trim();
     final clarification = clarificationAnswer?.trim();
+    if (question != null && question.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln('Goal clarification question asked:');
+      buffer.writeln(_truncate(_cleanLine(question), 800));
+    }
     if (clarification != null && clarification.isNotEmpty) {
       buffer.writeln();
-      buffer.writeln('User clarification for the goal:');
+      buffer.writeln('User clarification answer for the goal:');
       buffer.writeln(_truncate(_cleanLine(clarification), 800));
     }
 

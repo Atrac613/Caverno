@@ -161,6 +161,7 @@ class _LiveSmokeChatNotifier extends ChatNotifier {
   final Duration suggestionDelay;
   final sentMessages = <String>[];
   final pendingMessagesForSuggestion = <String?>[];
+  final clarificationQuestionsForSuggestion = <String?>[];
   final clarificationAnswersForSuggestion = <String?>[];
   int suggestionCallCount = 0;
   String? goalObjectiveAtSend;
@@ -169,10 +170,12 @@ class _LiveSmokeChatNotifier extends ChatNotifier {
   Future<ConversationGoalSuggestion> suggestCurrentGoal({
     String languageCode = 'en',
     String? pendingUserMessage,
+    String? clarificationQuestion,
     String? clarificationAnswer,
   }) async {
     suggestionCallCount += 1;
     pendingMessagesForSuggestion.add(pendingUserMessage);
+    clarificationQuestionsForSuggestion.add(clarificationQuestion);
     clarificationAnswersForSuggestion.add(clarificationAnswer);
     if (suggestionDelay > Duration.zero) {
       await Future<void>.delayed(suggestionDelay);
@@ -180,6 +183,7 @@ class _LiveSmokeChatNotifier extends ChatNotifier {
     return super.suggestCurrentGoal(
       languageCode: languageCode,
       pendingUserMessage: pendingUserMessage,
+      clarificationQuestion: clarificationQuestion,
       clarificationAnswer: clarificationAnswer,
     );
   }

@@ -76,6 +76,13 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      ConversationGoalSuggestionService.hasUsefulContext(
+        empty,
+        clarificationQuestion: 'Which coding outcome should stay in focus?',
+      ),
+      isTrue,
+    );
   });
 
   test('builds a compact prompt from recent thread context', () {
@@ -156,14 +163,45 @@ void main() {
       conversation: conversation,
       languageCode: 'en',
       pendingUserMessage: 'Check Tokyo weather and save Markdown.',
+      clarificationQuestion: 'Should this create a Markdown report file?',
       clarificationAnswer: 'Create a Markdown weather report file.',
       now: now,
     );
 
-    expect(messages.last.content, contains('User clarification for the goal'));
+    expect(
+      messages.last.content,
+      contains('Goal clarification question asked'),
+    );
+    expect(
+      messages.last.content,
+      contains('Should this create a Markdown report file?'),
+    );
+    expect(
+      messages.last.content,
+      contains('User clarification answer for the goal'),
+    );
     expect(
       messages.last.content,
       contains('Create a Markdown weather report file.'),
+    );
+  });
+
+  test('keeps clarification questions focused on the goal', () {
+    expect(
+      ConversationGoalSuggestionService.systemPrompt,
+      contains('Clarification questions must stay at goal level'),
+    );
+    expect(
+      ConversationGoalSuggestionService.systemPrompt,
+      contains('not which API, file name, storage path'),
+    );
+    expect(
+      ConversationGoalSuggestionService.systemPrompt,
+      contains('leave implementation choices for execution'),
+    );
+    expect(
+      ConversationGoalSuggestionService.systemPrompt,
+      contains('do not ask whether the user wants code or a script'),
     );
   });
 }

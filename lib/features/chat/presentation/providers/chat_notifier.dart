@@ -6764,6 +6764,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<ConversationGoalSuggestion> suggestCurrentGoal({
     String languageCode = 'en',
     String? pendingUserMessage,
+    String? clarificationQuestion,
     String? clarificationAnswer,
   }) async {
     final currentConversation = ref
@@ -6773,6 +6774,7 @@ class ChatNotifier extends Notifier<ChatState> {
         !ConversationGoalSuggestionService.hasUsefulContext(
           currentConversation,
           pendingUserMessage: pendingUserMessage,
+          clarificationQuestion: clarificationQuestion,
           clarificationAnswer: clarificationAnswer,
         )) {
       return const ConversationGoalSuggestion.needsClarification();
@@ -6784,6 +6786,7 @@ class ChatNotifier extends Notifier<ChatState> {
           conversation: currentConversation,
           languageCode: languageCode,
           pendingUserMessage: pendingUserMessage,
+          clarificationQuestion: clarificationQuestion,
           clarificationAnswer: clarificationAnswer,
         ),
         model: _settings.model,
