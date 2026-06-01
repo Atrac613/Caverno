@@ -85,6 +85,13 @@ void main() {
         }),
         jsonEncode({
           'testID': 2,
+          'message':
+              '[CodingOutputGuardrail] Feedback summary: {"toolName":"coding_output_feedback","provider":"command_output_guardrail","validationStatus":"failed","issueCount":1,"commands":["python3 get_weather.py"]}',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
           'result': 'success',
           'skipped': false,
           'hidden': false,
@@ -164,6 +171,13 @@ void main() {
     expect(summary.signals.dartTestFeedback.fallbackCommandCount, 0);
     expect(summary.signals.dartTestFeedback.timedOutCommandCount, 0);
     expect(summary.signals.dartTestFeedback.startErrorCommandCount, 0);
+    expect(summary.signals.codingOutputFeedback.observed, isTrue);
+    expect(summary.signals.codingOutputFeedback.feedbackCount, 1);
+    expect(summary.signals.codingOutputFeedback.issueCount, 1);
+    expect(summary.signals.codingOutputFeedback.commands, [
+      'python3 get_weather.py',
+    ]);
+    expect(summary.signals.codingOutputFeedback.validationStatuses, ['failed']);
 
     final json = summary.toJson();
     expect(json['schemaName'], 'live_llm_canary_summary');
@@ -180,6 +194,10 @@ void main() {
     expect(
       (json['signals'] as Map<String, dynamic>)['dartTestFeedback'],
       containsPair('failedCount', 1),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>)['codingOutputFeedback'],
+      containsPair('issueCount', 1),
     );
     expect(summary.toMarkdown(), contains('Live LLM Canary Summary'));
     expect(summary.toMarkdown(), contains('Recovered stream fallback count'));
@@ -199,6 +217,11 @@ void main() {
       contains('Dart test feedback observed: `yes`'),
     );
     expect(summary.toMarkdown(), contains('Dart test command attempts'));
+    expect(
+      summary.toMarkdown(),
+      contains('Command output feedback observed: `yes`'),
+    );
+    expect(summary.toMarkdown(), contains('python3 get_weather.py'));
   });
 
   test('marks skipped live canaries as skipped instead of passed', () async {

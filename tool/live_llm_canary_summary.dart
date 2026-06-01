@@ -7,6 +7,9 @@ const _dartAnalyzeFeedbackToolName = 'dart_analyze_feedback';
 const _dartTestFeedbackSummaryPrefix =
     '[CodingVerification] Test feedback summary: ';
 const _dartTestFeedbackToolName = 'dart_test_feedback';
+const _codingOutputFeedbackSummaryPrefix =
+    '[CodingOutputGuardrail] Feedback summary: ';
+const _codingOutputFeedbackToolName = 'coding_output_feedback';
 
 Future<void> main(List<String> args) async {
   final options = _LiveLlmCanarySummaryOptions.parse(args);
@@ -325,6 +328,29 @@ class LiveLlmCanarySummary {
         '`${signals.dartTestFeedback.startErrorCommandCount}`',
       )
       ..writeln()
+      ..writeln('## Coding Output Feedback')
+      ..writeln()
+      ..writeln(
+        '- Command output feedback observed: '
+        '`${signals.codingOutputFeedback.observed ? 'yes' : 'no'}`',
+      )
+      ..writeln(
+        '- Command output feedback count: '
+        '`${signals.codingOutputFeedback.feedbackCount}`',
+      )
+      ..writeln(
+        '- Command output issue count: '
+        '`${signals.codingOutputFeedback.issueCount}`',
+      )
+      ..writeln(
+        '- Command output feedback commands: '
+        '`${signals.codingOutputFeedback.commands.isEmpty ? '(none)' : signals.codingOutputFeedback.commands.join(', ')}`',
+      )
+      ..writeln(
+        '- Command output validation statuses: '
+        '`${signals.codingOutputFeedback.validationStatuses.isEmpty ? '(none)' : signals.codingOutputFeedback.validationStatuses.join(', ')}`',
+      )
+      ..writeln()
       ..writeln('## Tests')
       ..writeln()
       ..writeln('| Test | Result | Duration |')
@@ -350,6 +376,7 @@ class LiveLlmCanarySignals {
     required this.memoryExtractionFallbackCount,
     required this.dartAnalyzeFeedback,
     required this.dartTestFeedback,
+    required this.codingOutputFeedback,
   });
 
   final int recoveredStreamFallbackCount;
@@ -361,10 +388,12 @@ class LiveLlmCanarySignals {
   final int memoryExtractionFallbackCount;
   final LiveLlmCanaryDartAnalyzeFeedbackSignals dartAnalyzeFeedback;
   final LiveLlmCanaryDartTestFeedbackSignals dartTestFeedback;
+  final LiveLlmCanaryCodingOutputFeedbackSignals codingOutputFeedback;
 
   static LiveLlmCanarySignals fromLog(String rawLog) {
     final dartAnalyzeFeedback = _extractDartAnalyzeFeedbackSignals(rawLog);
     final dartTestFeedback = _extractDartTestFeedbackSignals(rawLog);
+    final codingOutputFeedback = _extractCodingOutputFeedbackSignals(rawLog);
     return LiveLlmCanarySignals(
       recoveredStreamFallbackCount: _countMatches(
         rawLog,
@@ -403,6 +432,7 @@ class LiveLlmCanarySignals {
       ),
       dartAnalyzeFeedback: dartAnalyzeFeedback,
       dartTestFeedback: dartTestFeedback,
+      codingOutputFeedback: codingOutputFeedback,
     );
   }
 
@@ -417,6 +447,7 @@ class LiveLlmCanarySignals {
       'memoryExtractionFallbackCount': memoryExtractionFallbackCount,
       'dartAnalyzeFeedback': dartAnalyzeFeedback.toJson(),
       'dartTestFeedback': dartTestFeedback.toJson(),
+      'codingOutputFeedback': codingOutputFeedback.toJson(),
     };
   }
 }
@@ -505,6 +536,32 @@ class LiveLlmCanaryDartTestFeedbackSignals {
       'fallbackCommandCount': fallbackCommandCount,
       'timedOutCommandCount': timedOutCommandCount,
       'startErrorCommandCount': startErrorCommandCount,
+    };
+  }
+}
+
+class LiveLlmCanaryCodingOutputFeedbackSignals {
+  const LiveLlmCanaryCodingOutputFeedbackSignals({
+    required this.feedbackCount,
+    required this.issueCount,
+    required this.commands,
+    required this.validationStatuses,
+  });
+
+  final int feedbackCount;
+  final int issueCount;
+  final List<String> commands;
+  final List<String> validationStatuses;
+
+  bool get observed => feedbackCount > 0;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'observed': observed,
+      'feedbackCount': feedbackCount,
+      'issueCount': issueCount,
+      'commands': commands,
+      'validationStatuses': validationStatuses,
     };
   }
 }
@@ -965,6 +1022,64 @@ LiveLlmCanaryDartTestFeedbackSignals _extractDartTestFeedbackSignals(
     fallbackCommandCount: fallbackCommandCount,
     timedOutCommandCount: timedOutCommandCount,
     startErrorCommandCount: startErrorCommandCount,
+  );
+}
+
+LiveLlmCanaryCodingOutputFeedbackSignals _extractCodingOutputFeedbackSignals(
+  String rawLog,
+) {
+  final commands = <String>{};
+  final validationStatuses = <String>{};
+  var feedbackCount = 0;
+  var issueCount = 0;
+
+  for (final line in const LineSplitter().convert(rawLog)) {
+    for (final message in _messagesFromLogLine(line)) {
+      final prefixIndex = message.indexOf(_codingOutputFeedbackSummaryPrefix);
+      if (prefixIndex == -1) {
+        continue;
+      }
+      final encoded = message
+          .substring(prefixIndex + _codingOutputFeedbackSummaryPrefix.length)
+          .trim();
+      final decoded = _tryDecodeObject(encoded);
+      if (decoded.isEmpty) {
+        continue;
+      }
+      final toolName =
+          decoded['toolName'] as String? ?? decoded['tool_name'] as String?;
+      if (toolName != null && toolName != _codingOutputFeedbackToolName) {
+        continue;
+      }
+
+      feedbackCount += 1;
+      final rawIssueCount = decoded['issueCount'] ?? decoded['issue_count'];
+      if (rawIssueCount is num) {
+        issueCount += rawIssueCount.toInt();
+      }
+
+      final rawCommands = decoded['commands'];
+      if (rawCommands is Iterable) {
+        for (final command in rawCommands) {
+          if (command is String && command.trim().isNotEmpty) {
+            commands.add(command.trim());
+          }
+        }
+      }
+
+      final validationStatus =
+          decoded['validationStatus'] ?? decoded['validation_status'];
+      if (validationStatus is String && validationStatus.trim().isNotEmpty) {
+        validationStatuses.add(validationStatus.trim());
+      }
+    }
+  }
+
+  return LiveLlmCanaryCodingOutputFeedbackSignals(
+    feedbackCount: feedbackCount,
+    issueCount: issueCount,
+    commands: commands.toList(growable: false)..sort(),
+    validationStatuses: validationStatuses.toList(growable: false)..sort(),
   );
 }
 
