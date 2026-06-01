@@ -7,10 +7,23 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/services/conversation_goal_suggestion_service.dart';
 
-final _forbiddenArtifactPattern = RegExp(
-  r'\b(script|cli|application|app|test|helper|automation)\b',
-  caseSensitive: false,
-);
+const _japaneseMarkdownWeatherRequest =
+    '\u6771\u4eac\u306e\u660e\u65e5\u306e\u5929\u6c17\u3092\u8abf\u3079\u3066\u30de\u30fc\u30af\u30c0\u30a6\u30f3\u5f62\u5f0f\u3067\u4fdd\u5b58\u3092';
+
+final _forbiddenArtifactTerms = <String>[
+  'script',
+  'cli',
+  'application',
+  'app',
+  'test',
+  'helper',
+  'automation',
+  '\u30b9\u30af\u30ea\u30d7\u30c8',
+  '\u30a2\u30d7\u30ea',
+  '\u30c6\u30b9\u30c8',
+  '\u30d8\u30eb\u30d1\u30fc',
+  '\u81ea\u52d5\u5316',
+];
 
 void main() {
   final liveEnabled =
@@ -34,56 +47,102 @@ void main() {
         workspaceMode: WorkspaceMode.coding,
       );
 
-      final result = await dataSource.createChatCompletion(
-        messages: ConversationGoalSuggestionService.buildMessages(
-          conversation: conversation,
+      final cases = [
+        const _GoalSuggestionCase(
           languageCode: 'en',
           pendingUserMessage:
               'Check tomorrow weather in Tokyo and save it as a Markdown report.',
-          now: now,
+          requiredTerms: ['markdown'],
+          acceptedOutcomeTerms: ['report', 'save', 'file'],
         ),
-        model: env.model,
-        temperature: env.temperature,
-        maxTokens: env.maxTokens,
-      );
-      final suggestion = ConversationGoalSuggestionService.parse(
-        result.content,
-      );
+        const _GoalSuggestionCase(
+          languageCode: 'ja',
+          pendingUserMessage: _japaneseMarkdownWeatherRequest,
+          requiredTerms: ['\u30de\u30fc\u30af\u30c0\u30a6\u30f3'],
+          acceptedOutcomeTerms: ['\u4fdd\u5b58', '\u30d5\u30a1\u30a4\u30eb'],
+        ),
+      ];
 
-      expect(
-        suggestion,
-        isNotNull,
-        reason: _diagnostic(result.content, suggestion),
-      );
-      expect(
-        suggestion!.kind,
-        ConversationGoalSuggestionKind.suggested,
-        reason: _diagnostic(result.content, suggestion),
-      );
+      for (final testCase in cases) {
+        final result = await dataSource.createChatCompletion(
+          messages: ConversationGoalSuggestionService.buildMessages(
+            conversation: conversation,
+            languageCode: testCase.languageCode,
+            pendingUserMessage: testCase.pendingUserMessage,
+            now: now,
+          ),
+          model: env.model,
+          temperature: env.temperature,
+          maxTokens: env.maxTokens,
+        );
+        final suggestion = ConversationGoalSuggestionService.parse(
+          result.content,
+        );
+        final validatedSuggestion = suggestion == null
+            ? null
+            : ConversationGoalSuggestionService.validateSuggestion(
+                suggestion: suggestion,
+                conversation: conversation,
+                pendingUserMessage: testCase.pendingUserMessage,
+              );
 
-      final objective = suggestion.objective ?? '';
-      final normalizedObjective = objective.toLowerCase();
-      expect(
-        normalizedObjective,
-        contains('markdown'),
-        reason: _diagnostic(result.content, suggestion),
-      );
-      expect(
-        normalizedObjective,
-        anyOf(contains('report'), contains('save'), contains('file')),
-        reason: _diagnostic(result.content, suggestion),
-      );
-      expect(
-        normalizedObjective,
-        isNot(matches(_forbiddenArtifactPattern)),
-        reason: _diagnostic(result.content, suggestion),
-      );
+        expect(
+          validatedSuggestion,
+          isNotNull,
+          reason: _diagnostic(result.content, suggestion, validatedSuggestion),
+        );
+        expect(
+          validatedSuggestion!.kind,
+          ConversationGoalSuggestionKind.suggested,
+          reason: _diagnostic(result.content, suggestion, validatedSuggestion),
+        );
+
+        final objective = validatedSuggestion.objective ?? '';
+        final normalizedObjective = objective.toLowerCase();
+        for (final term in testCase.requiredTerms) {
+          expect(
+            normalizedObjective,
+            contains(term.toLowerCase()),
+            reason: _diagnostic(
+              result.content,
+              suggestion,
+              validatedSuggestion,
+            ),
+          );
+        }
+        expect(
+          testCase.acceptedOutcomeTerms.any(
+            (term) => normalizedObjective.contains(term.toLowerCase()),
+          ),
+          isTrue,
+          reason: _diagnostic(result.content, suggestion, validatedSuggestion),
+        );
+        expect(
+          _containsForbiddenArtifact(objective),
+          isFalse,
+          reason: _diagnostic(result.content, suggestion, validatedSuggestion),
+        );
+      }
     },
     skip: liveEnabled
         ? false
         : 'Set CAVERNO_CODING_GOAL_SUGGESTION_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 2)),
   );
+}
+
+class _GoalSuggestionCase {
+  const _GoalSuggestionCase({
+    required this.languageCode,
+    required this.pendingUserMessage,
+    required this.requiredTerms,
+    required this.acceptedOutcomeTerms,
+  });
+
+  final String languageCode;
+  final String pendingUserMessage;
+  final List<String> requiredTerms;
+  final List<String> acceptedOutcomeTerms;
 }
 
 class _CodingGoalSuggestionLiveEnv {
@@ -132,9 +191,23 @@ String _requiredEnv(String name) {
   return value;
 }
 
-String _diagnostic(String rawContent, ConversationGoalSuggestion? suggestion) {
+bool _containsForbiddenArtifact(String value) {
+  final normalized = value.toLowerCase();
+  return _forbiddenArtifactTerms.any(
+    (term) => normalized.contains(term.toLowerCase()),
+  );
+}
+
+String _diagnostic(
+  String rawContent,
+  ConversationGoalSuggestion? suggestion,
+  ConversationGoalSuggestion? validatedSuggestion,
+) {
   final parsed = suggestion == null
       ? 'null'
       : ConversationGoalSuggestionService.encodeForDebug(suggestion);
-  return 'Raw response:\n$rawContent\nParsed suggestion:\n$parsed';
+  final validated = validatedSuggestion == null
+      ? 'null'
+      : ConversationGoalSuggestionService.encodeForDebug(validatedSuggestion);
+  return 'Raw response:\n$rawContent\nParsed suggestion:\n$parsed\nValidated suggestion:\n$validated';
 }

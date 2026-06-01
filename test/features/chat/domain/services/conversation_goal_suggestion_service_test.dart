@@ -5,6 +5,13 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_goal_suggestion_service.dart';
 
+const _japaneseMarkdownWeatherRequest =
+    '\u6771\u4eac\u306e\u660e\u65e5\u306e\u5929\u6c17\u3092\u8abf\u3079\u3066\u30de\u30fc\u30af\u30c0\u30a6\u30f3\u5f62\u5f0f\u3067\u4fdd\u5b58\u3092';
+const _japaneseMarkdownWeatherGoal =
+    '\u6771\u4eac\u306e\u660e\u65e5\u306e\u5929\u6c17\u3092\u8abf\u3079\u3066\u30de\u30fc\u30af\u30c0\u30a6\u30f3\u5f62\u5f0f\u3067\u4fdd\u5b58\u3059\u308b';
+const _japaneseScriptClarification =
+    '\u5929\u6c17\u60c5\u5831\u3092\u53d6\u5f97\u3057\u3066Markdown\u30d5\u30a1\u30a4\u30eb\u306b\u4fdd\u5b58\u3059\u308b\u30b9\u30af\u30ea\u30d7\u30c8\u3092\u4f5c\u6210\u3059\u308b\u306e\u3067\u3057\u3087\u3046\u304b\uff1f';
+
 void main() {
   test('parses a suggested objective from fenced JSON', () {
     final suggestion = ConversationGoalSuggestionService.parse('''
@@ -184,9 +191,171 @@ void main() {
       contains('artifact types'),
     );
     expect(
+      ConversationGoalSuggestionService.systemPrompt,
+      contains(_japaneseMarkdownWeatherRequest),
+    );
+    expect(
       messages.last.content,
       contains('Check tomorrow weather in Tokyo and save it as Markdown.'),
     );
+  });
+
+  test(
+    'validates Japanese Markdown save requests against script clarification',
+    () {
+      final now = DateTime(2026, 6, 1);
+      final conversation = Conversation(
+        id: 'thread-1',
+        title: 'New coding thread',
+        messages: const [],
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final validated = ConversationGoalSuggestionService.validateSuggestion(
+        suggestion: const ConversationGoalSuggestion.needsClarification(
+          _japaneseScriptClarification,
+        ),
+        conversation: conversation,
+        pendingUserMessage: _japaneseMarkdownWeatherRequest,
+      );
+
+      expect(validated.kind, ConversationGoalSuggestionKind.suggested);
+      expect(validated.objective, _japaneseMarkdownWeatherGoal);
+      expect(
+        validated.objective,
+        isNot(contains('\u30b9\u30af\u30ea\u30d7\u30c8')),
+      );
+    },
+  );
+
+  test('validates clear save requests against API detail clarification', () {
+    final now = DateTime(2026, 6, 1);
+    final conversation = Conversation(
+      id: 'thread-1',
+      title: 'New coding thread',
+      messages: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    final validated = ConversationGoalSuggestionService.validateSuggestion(
+      suggestion: const ConversationGoalSuggestion.needsClarification(
+        'Which weather API should be used?',
+      ),
+      conversation: conversation,
+      pendingUserMessage:
+          'Check tomorrow weather in Tokyo and save it as a Markdown report.',
+    );
+
+    expect(validated.kind, ConversationGoalSuggestionKind.suggested);
+    expect(
+      validated.objective,
+      'Check tomorrow weather in Tokyo and save it as a Markdown report',
+    );
+  });
+
+  test(
+    'validates suggested objectives that invent implementation artifacts',
+    () {
+      final now = DateTime(2026, 6, 1);
+      final conversation = Conversation(
+        id: 'thread-1',
+        title: 'New coding thread',
+        messages: const [],
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final validated = ConversationGoalSuggestionService.validateSuggestion(
+        suggestion: const ConversationGoalSuggestion.suggested(
+          'Create a Python script that saves Tokyo weather as Markdown',
+        ),
+        conversation: conversation,
+        pendingUserMessage:
+            'Check tomorrow weather in Tokyo and save it as a Markdown report.',
+      );
+
+      expect(validated.kind, ConversationGoalSuggestionKind.suggested);
+      expect(
+        validated.objective,
+        'Check tomorrow weather in Tokyo and save it as a Markdown report',
+      );
+      expect(validated.objective!.toLowerCase(), isNot(contains('script')));
+    },
+  );
+
+  test('ignores implementation artifact terms inside word fragments', () {
+    final now = DateTime(2026, 6, 1);
+    final conversation = Conversation(
+      id: 'thread-1',
+      title: 'New coding thread',
+      messages: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    final validated = ConversationGoalSuggestionService.validateSuggestion(
+      suggestion: const ConversationGoalSuggestion.suggested(
+        'Check tomorrow weather in Tokyo and save it as an appropriate Markdown report',
+      ),
+      conversation: conversation,
+      pendingUserMessage:
+          'Check tomorrow weather in Tokyo and save it as a Markdown report.',
+    );
+
+    expect(validated.kind, ConversationGoalSuggestionKind.suggested);
+    expect(
+      validated.objective,
+      'Check tomorrow weather in Tokyo and save it as an appropriate Markdown report',
+    );
+  });
+
+  test(
+    'keeps clarification when the request does not imply a clear outcome',
+    () {
+      final now = DateTime(2026, 6, 1);
+      final conversation = Conversation(
+        id: 'thread-1',
+        title: 'New coding thread',
+        messages: const [],
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final validated = ConversationGoalSuggestionService.validateSuggestion(
+        suggestion: const ConversationGoalSuggestion.needsClarification(
+          'Which coding outcome should stay in focus?',
+        ),
+        conversation: conversation,
+        pendingUserMessage: 'Please help with this.',
+      );
+
+      expect(validated.kind, ConversationGoalSuggestionKind.needsClarification);
+    },
+  );
+
+  test('keeps explicitly requested script objectives', () {
+    final now = DateTime(2026, 6, 1);
+    final conversation = Conversation(
+      id: 'thread-1',
+      title: 'New coding thread',
+      messages: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    final validated = ConversationGoalSuggestionService.validateSuggestion(
+      suggestion: const ConversationGoalSuggestion.suggested(
+        'Create a Python script that saves Tokyo weather as Markdown',
+      ),
+      conversation: conversation,
+      pendingUserMessage:
+          'Create a Python script that checks Tokyo weather and saves Markdown.',
+    );
+
+    expect(validated.kind, ConversationGoalSuggestionKind.suggested);
+    expect(validated.objective!.toLowerCase(), contains('script'));
   });
 
   test('includes user clarification in the suggestion prompt', () {

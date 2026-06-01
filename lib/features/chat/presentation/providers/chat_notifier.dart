@@ -6798,11 +6798,19 @@ class ChatNotifier extends Notifier<ChatState> {
         result.content,
       );
       if (suggestion != null) {
+        final validatedSuggestion =
+            ConversationGoalSuggestionService.validateSuggestion(
+              suggestion: suggestion,
+              conversation: currentConversation,
+              pendingUserMessage: pendingUserMessage,
+              clarificationQuestion: clarificationQuestion,
+              clarificationAnswer: clarificationAnswer,
+            );
         appLog(
           '[Goal] Suggested goal response: '
-          '${ConversationGoalSuggestionService.encodeForDebug(suggestion)}',
+          '${ConversationGoalSuggestionService.encodeForDebug(validatedSuggestion)}',
         );
-        return suggestion;
+        return validatedSuggestion;
       }
       appLog('[Goal] Failed to parse goal suggestion response.');
     } catch (error) {
