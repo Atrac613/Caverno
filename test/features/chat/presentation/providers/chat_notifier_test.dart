@@ -30,6 +30,7 @@ import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
+import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_verification_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
@@ -10530,6 +10531,117 @@ void main() {
           toolDataSource.toolResultBatches.single.map((result) => result.name),
           ['write_file', CodingDiagnosticFeedbackService.toolName],
         );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage adds command output feedback for zero-exit artifact errors',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_chat_command_output_feedback_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final command = 'python3 get_weather.py';
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'local_execute_command',
+            arguments: {
+              'command': command,
+              'working_directory': projectRoot.path,
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'command': command,
+            'working_directory': projectRoot.path,
+            'exit_code': 0,
+            'stdout':
+                'Saved report to tokyo_weather.md\n\n# Error\n\nNo data found for 2026-06-02.\n',
+            'stderr': '',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+            _FakeCodingDiagnosticFeedbackService(null),
+          ),
+          codingVerificationFeedbackServiceProvider.overrideWithValue(
+            _FakeCodingVerificationFeedbackService(null),
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Create the weather report');
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        expect(
+          toolDataSource.toolResultBatches.single.map((result) => result.name),
+          [
+            'local_execute_command',
+            CodingCommandOutputGuardrailService.toolName,
+          ],
+        );
+        final feedback = toolDataSource.toolResultBatches.single.singleWhere(
+          (result) =>
+              result.name == CodingCommandOutputGuardrailService.toolName,
+        );
+        final payload = jsonDecode(feedback.result) as Map<String, dynamic>;
+        expect(
+          payload['schema'],
+          CodingCommandOutputGuardrailService.schemaName,
+        );
+        expect(payload['success'], isFalse);
+        expect(payload['validation_status'], 'failed');
+        expect(jsonEncode(payload['issues']), contains(command));
+        expect(jsonEncode(payload['issues']), contains('Markdown error'));
       } finally {
         toolContainer.dispose();
       }
