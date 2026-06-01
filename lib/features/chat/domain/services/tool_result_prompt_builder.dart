@@ -191,6 +191,12 @@ class ToolResultPromptBuilder {
         'exist.',
       )
       ..writeln(
+        'When a write_file result includes "created": false, state that an '
+        'existing file was updated or overwritten rather than newly created. '
+        'When it includes "created": true, state that a new file was created. '
+        'Do not hide this distinction when summarizing saved files.',
+      )
+      ..writeln(
         'If local file changes are still needed and all required content is '
         'known but no successful file-operation tool result is provided, say '
         'the files were not created yet and name the exact missing action '
@@ -264,6 +270,10 @@ class ToolResultPromptBuilder {
       if (toolResult.arguments.isNotEmpty) {
         buffer.writeln('Arguments: ${jsonEncode(toolResult.arguments)}');
       }
+      final operationNote = buildToolOperationNote(toolResult);
+      if (operationNote != null) {
+        buffer.writeln('Operation note: $operationNote');
+      }
       buffer
         ..writeln('Result:')
         ..write(formatToolResultPayload(toolResult.result));
@@ -281,6 +291,34 @@ class ToolResultPromptBuilder {
     final redacted = Map<String, dynamic>.from(decoded)
       ..['imageBase64'] = '[attached as image content]';
     return jsonEncode(redacted);
+  }
+
+  static String? buildToolOperationNote(ToolResultInfo toolResult) {
+    final decoded = _tryDecodeJsonMap(toolResult.result);
+    if (decoded == null) {
+      return null;
+    }
+
+    return switch (toolResult.name) {
+      'write_file' => _writeFileOperationNote(decoded),
+      _ => null,
+    };
+  }
+
+  static String? _writeFileOperationNote(Map<String, dynamic> decoded) {
+    final created = decoded['created'];
+    if (created is! bool) {
+      return null;
+    }
+    final path = decoded['path'];
+    final pathSuffix = path is String && path.trim().isNotEmpty
+        ? ' at ${path.trim()}'
+        : '';
+    if (created) {
+      return 'write_file created a new file$pathSuffix.';
+    }
+    return 'write_file updated or overwrote an existing file$pathSuffix; '
+        'mention this existing-file update in the final answer.';
   }
 
   static Map<String, String> descriptionsByNameFromDefinitions(

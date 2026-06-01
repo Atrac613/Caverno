@@ -80,6 +80,9 @@ void main() {
       expect(prompt, contains('Only claim that a local file was created'));
       expect(prompt, contains('If the user requested local file changes'));
       expect(prompt, contains('the files were not created yet'));
+      expect(prompt, contains('When a write_file result includes'));
+      expect(prompt, contains('existing file was updated or overwritten'));
+      expect(prompt, contains('new file was created'));
       expect(prompt, contains('instead of emitting tool-call tags'));
       expect(prompt, contains('This final answer request cannot call tools'));
       expect(prompt, contains('Do not output JSON command arrays'));
@@ -98,6 +101,53 @@ void main() {
       expect(prompt, contains('unfinished tool-call tag'));
       expect(prompt, contains('concrete transport error'));
       expect(prompt, isNot(contains('<tool_use>')));
+    });
+
+    test('marks write_file created false as an existing file update', () {
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: const {'path': '/tmp/tokyo_weather_2026-06-02.md'},
+          result: jsonEncode({
+            'path': '/tmp/tokyo_weather_2026-06-02.md',
+            'bytes_written': 504,
+            'created': false,
+          }),
+        ),
+      ]);
+
+      expect(prompt, contains('[Tool: write_file]'));
+      expect(prompt, contains('Arguments:'));
+      expect(
+        prompt,
+        contains(
+          'Operation note: write_file updated or overwrote an existing file',
+        ),
+      );
+      expect(prompt, contains('/tmp/tokyo_weather_2026-06-02.md'));
+      expect(
+        prompt,
+        contains('mention this existing-file update in the final answer'),
+      );
+      expect(prompt, contains('"created":false'));
+    });
+
+    test('marks write_file created true as a new file creation', () {
+      final note = ToolResultPromptBuilder.buildToolOperationNote(
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: const {'path': '/tmp/weather.md'},
+          result: jsonEncode({
+            'path': '/tmp/weather.md',
+            'bytes_written': 128,
+            'created': true,
+          }),
+        ),
+      );
+
+      expect(note, 'write_file created a new file at /tmp/weather.md.');
     });
 
     test('marks recalled conversation results as unverified context', () {

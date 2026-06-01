@@ -10355,7 +10355,10 @@ void main() {
       ],
     );
     final toolService = _FakeMcpToolService(
-      results: const {'write_file': '{"bytes_written":15}'},
+      results: const {
+        'write_file':
+            '{"path":"/tmp/project/README.md","created":false,"bytes_written":15}',
+      },
     );
     final project = CodingProject(
       id: 'project-1',
@@ -10405,6 +10408,17 @@ void main() {
       expect(toolNotifier.state.pendingFileOperation, isNull);
       expect(toolDataSource.autoReviewRequestMessages, hasLength(1));
       expect(toolService.executedToolNames, ['write_file']);
+      expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+      expect(
+        toolDataSource.finalAnswerMessages.last.content,
+        contains(
+          'Operation note: write_file updated or overwrote an existing file',
+        ),
+      );
+      expect(
+        toolDataSource.finalAnswerMessages.last.content,
+        contains('mention this existing-file update in the final answer'),
+      );
     } finally {
       toolContainer.dispose();
     }
