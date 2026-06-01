@@ -49,9 +49,12 @@ class ConversationGoalSuggestionService {
       'not which API, file name, storage path, framework, command, library, or programming language to use. '
       'When the request plus clarification already implies a coding artifact or code change, draft the goal '
       'and leave implementation choices for execution. '
+      'Preserve the requested outcome and artifact type. Do not convert a request to save, update, inspect, '
+      'summarize, or report into creating a script, CLI, app, test, helper, or automation unless the user explicitly asks for that artifact. '
+      'For a saved Markdown report request, the goal should be to create or save the report, not to create a script that generates it. '
       'This is already a coding-goal drafting context; do not ask whether the user wants code or a script '
       'when the request names a work product such as a saved Markdown report, parser, CLI, test, or file update. '
-      'Do not invent files, acceptance criteria, budgets, or implementation details.';
+      'Do not invent files, acceptance criteria, budgets, artifact types, or implementation details.';
 
   static bool hasUsefulContext(
     Conversation conversation, {

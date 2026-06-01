@@ -149,6 +149,46 @@ void main() {
     );
   });
 
+  test('preserves saved Markdown report requests in the suggestion prompt', () {
+    final now = DateTime(2026, 6, 1);
+    final conversation = Conversation(
+      id: 'thread-1',
+      title: 'New coding thread',
+      messages: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    final messages = ConversationGoalSuggestionService.buildMessages(
+      conversation: conversation,
+      languageCode: 'ja',
+      pendingUserMessage:
+          'Check tomorrow weather in Tokyo and save it as Markdown.',
+      now: now,
+    );
+
+    expect(
+      ConversationGoalSuggestionService.systemPrompt,
+      contains('Preserve the requested outcome and artifact type'),
+    );
+    expect(
+      ConversationGoalSuggestionService.systemPrompt,
+      contains('For a saved Markdown report request'),
+    );
+    expect(
+      ConversationGoalSuggestionService.systemPrompt,
+      contains('not to create a script that generates it'),
+    );
+    expect(
+      ConversationGoalSuggestionService.systemPrompt,
+      contains('artifact types'),
+    );
+    expect(
+      messages.last.content,
+      contains('Check tomorrow weather in Tokyo and save it as Markdown.'),
+    );
+  });
+
   test('includes user clarification in the suggestion prompt', () {
     final now = DateTime(2026);
     final conversation = Conversation(
