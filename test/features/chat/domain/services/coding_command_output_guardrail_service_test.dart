@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,6 +8,40 @@ import 'package:caverno/features/chat/domain/services/coding_command_output_guar
 
 void main() {
   group('CodingCommandOutputGuardrailService', () {
+    test('builds feedback from a zero-exit artifact error replay', () {
+      final fixture = _loadReplayFixture(
+        'coding_zero_exit_artifact_error_replay.json',
+      );
+      final feedback = const CodingCommandOutputGuardrailService()
+          .buildFeedbackToolResult(
+            toolResults: fixture.toolResults,
+            now: DateTime.fromMicrosecondsSinceEpoch(42),
+          );
+
+      expect(feedback, isNotNull);
+      expect(feedback!.id, 'coding_output_feedback_42');
+      expect(feedback.name, fixture.expectedFeedbackToolName);
+
+      final payload = jsonDecode(feedback.result) as Map<String, dynamic>;
+      expect(payload['schema'], CodingCommandOutputGuardrailService.schemaName);
+      expect(payload['success'], isFalse);
+      expect(payload['validation_status'], fixture.expectedValidationStatus);
+      final issues = payload['issues'] as List<dynamic>;
+      expect(issues, hasLength(1));
+      expect(issues.single, containsPair('command', fixture.expectedCommand));
+      expect(issues.single, containsPair('source', 'stdout'));
+      expect(
+        issues.single,
+        containsPair('summary', fixture.expectedIssueSummary),
+      );
+      expect(
+        CodingCommandOutputGuardrailService.commandResultReportsOutputIssue(
+          fixture.toolResults.single.result,
+        ),
+        isTrue,
+      );
+    });
+
     test(
       'builds feedback when a successful command prints an error artifact',
       () {
@@ -95,6 +130,46 @@ void main() {
       );
     });
   });
+}
+
+_ReplayFixture _loadReplayFixture(String fixtureName) {
+  final fixture =
+      jsonDecode(File('test/fixtures/$fixtureName').readAsStringSync())
+          as Map<String, dynamic>;
+  final expected = fixture['expected'] as Map<String, dynamic>;
+  return _ReplayFixture(
+    toolResults: (fixture['toolResults'] as List<dynamic>)
+        .map((item) => item as Map<String, dynamic>)
+        .map(
+          (item) => ToolResultInfo(
+            id: item['id'] as String,
+            name: item['name'] as String,
+            arguments: item['arguments'] as Map<String, dynamic>,
+            result: item['result'] as String,
+          ),
+        )
+        .toList(growable: false),
+    expectedCommand: expected['command'] as String,
+    expectedFeedbackToolName: expected['feedbackToolName'] as String,
+    expectedValidationStatus: expected['validationStatus'] as String,
+    expectedIssueSummary: expected['issueSummary'] as String,
+  );
+}
+
+class _ReplayFixture {
+  const _ReplayFixture({
+    required this.toolResults,
+    required this.expectedCommand,
+    required this.expectedFeedbackToolName,
+    required this.expectedValidationStatus,
+    required this.expectedIssueSummary,
+  });
+
+  final List<ToolResultInfo> toolResults;
+  final String expectedCommand;
+  final String expectedFeedbackToolName;
+  final String expectedValidationStatus;
+  final String expectedIssueSummary;
 }
 
 String _cjkErrorLabel() {

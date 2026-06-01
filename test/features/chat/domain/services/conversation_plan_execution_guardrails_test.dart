@@ -81,27 +81,10 @@ void main() {
   });
 
   test('assessTaskCompletion blocks zero-exit artifact error output', () {
-    const command = 'python3 get_weather.py';
-    const task = ConversationWorkflowTask(
-      id: 'weather-task',
-      title: 'Generate weather report',
-      targetFiles: ['tokyo_weather.md'],
-      validationCommand: command,
+    final task = loadFixtureTask('coding_zero_exit_artifact_error_replay.json');
+    final toolResults = loadFixtureToolResults(
+      'coding_zero_exit_artifact_error_replay.json',
     );
-    final toolResults = [
-      ToolResultInfo(
-        id: 'call-1',
-        name: 'local_execute_command',
-        arguments: const {'command': command},
-        result: jsonEncode({
-          'command': command,
-          'exit_code': 0,
-          'stdout':
-              'Saved file\n\n# ${_cjkErrorLabel()}\n\n2026-06-02 ${_cjkDataMissing()}.\n',
-          'stderr': '',
-        }),
-      ),
-    ];
 
     final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
       task: task,
@@ -111,7 +94,10 @@ void main() {
     expect(assessment.hasFailure, isTrue);
     expect(assessment.shouldMarkCompleted, isFalse);
     expect(assessment.successfulValidationCommands, isEmpty);
-    expect(assessment.failedValidationCommands, contains(command));
+    expect(
+      assessment.failedValidationCommands,
+      contains(task.validationCommand),
+    );
   });
 
   test('assessTaskDrift uses captured changed file paths', () {
@@ -1349,24 +1335,4 @@ void main() {
       expect(assessment.hasCompletionEvidenceIgnoringFailures, isTrue);
     },
   );
-}
-
-String _cjkErrorLabel() {
-  return String.fromCharCodes([0x30a8, 0x30e9, 0x30fc]);
-}
-
-String _cjkDataMissing() {
-  return String.fromCharCodes([
-    0x30c7,
-    0x30fc,
-    0x30bf,
-    0x304c,
-    0x898b,
-    0x3064,
-    0x304b,
-    0x308a,
-    0x307e,
-    0x305b,
-    0x3093,
-  ]);
 }

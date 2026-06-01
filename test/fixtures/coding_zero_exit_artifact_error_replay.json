@@ -1,0 +1,28 @@
+{
+  "task": {
+    "id": "task-weather-report",
+    "title": "Generate a Tokyo weather report",
+    "targetFiles": [
+      "tokyo_weather.md"
+    ],
+    "validationCommand": "python3 get_weather.py",
+    "notes": "Write a Markdown weather report from the required data source."
+  },
+  "toolResults": [
+    {
+      "id": "tool-1",
+      "name": "local_execute_command",
+      "arguments": {
+        "command": "python3 get_weather.py",
+        "working_directory": "/tmp/weather-report"
+      },
+      "result": "{\"command\":\"python3 get_weather.py\",\"working_directory\":\"/tmp/weather-report\",\"exit_code\":0,\"stdout\":\"Saved report to tokyo_weather.md\\n\\n# Error\\n\\nNo data found for 2026-06-02.\\n\",\"stderr\":\"\"}"
+    }
+  ],
+  "expected": {
+    "command": "python3 get_weather.py",
+    "feedbackToolName": "coding_output_feedback",
+    "validationStatus": "failed",
+    "issueSummary": "Output contains a Markdown error heading."
+  }
+}
