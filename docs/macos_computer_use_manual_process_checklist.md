@@ -163,6 +163,10 @@ Before rerunning the M7 release artifact sign-off after a signing blocker:
 For Sparkle distribution after M7/M33 readiness, use the release driver:
 
 ```bash
+bash tool/run_macos_sparkle_s3_preflight.sh
+```
+
+```bash
 bash tool/build_macos_sparkle_release.sh \
   --notary-profile caverno-notary \
   --package zip \

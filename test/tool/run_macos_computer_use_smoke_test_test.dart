@@ -64,6 +64,7 @@ void main() {
   late String sparkleStagingRehearsalScript;
   late String sparkleStagingReleaseNotes;
   late String sparklePublishScript;
+  late String sparkleS3PreflightScript;
   late String releaseSigningPreflightWrapper;
   late String releaseSigningPreflightCli;
   late String releaseSigningPreflightSupport;
@@ -238,6 +239,9 @@ void main() {
     ).readAsStringSync();
     sparklePublishScript = File(
       'tool/publish_macos_sparkle_release.sh',
+    ).readAsStringSync();
+    sparkleS3PreflightScript = File(
+      'tool/run_macos_sparkle_s3_preflight.sh',
     ).readAsStringSync();
     releaseSigningPreflightWrapper = File(
       'tool/run_macos_computer_use_release_signing_preflight.sh',
@@ -568,6 +572,14 @@ void main() {
     expect(sparklePublishScript, contains('--download-url-prefix'));
     expect(sparklePublishScript, contains('s3 sync'));
     expect(sparklePublishScript, contains('no-cache,max-age=0'));
+    expect(sparkleS3PreflightScript, contains('s3 ls'));
+    expect(sparkleS3PreflightScript, contains('s3 cp'));
+    expect(sparkleS3PreflightScript, contains('--dryrun'));
+    expect(
+      sparkleS3PreflightScript,
+      contains('s3://caverno-macos-releases/caverno/macos'),
+    );
+    expect(sparkleS3PreflightScript, contains('get-public-access-block'));
     expect(sparkleBuildScript, contains('build macos --release'));
     expect(sparkleBuildScript, contains('CAVERNO_MACOS_CODESIGN_IDENTITY'));
     expect(sparkleBuildScript, contains('resign_sparkle_updater_components'));
@@ -642,6 +654,25 @@ void main() {
       manualProcessChecklist,
       contains('bash tool/run_macos_sparkle_staging_rehearsal.sh'),
     );
+    expect(
+      manualProcessChecklist,
+      contains('bash tool/run_macos_sparkle_s3_preflight.sh'),
+    );
+  });
+
+  test('Sparkle S3 preflight supports dry runs', () async {
+    final result = await Process.run('bash', [
+      'tool/run_macos_sparkle_s3_preflight.sh',
+      '--dry-run',
+    ]);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final stdout = '${result.stdout}';
+    expect(stdout, contains('Running macOS Sparkle S3 preflight'));
+    expect(stdout, contains('aws s3 ls'));
+    expect(stdout, contains('aws s3 cp'));
+    expect(stdout, contains('--dryrun'));
+    expect(stdout, contains('Sparkle S3 preflight completed.'));
   });
 
   test('Sparkle release driver supports safe dry runs', () async {

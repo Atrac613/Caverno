@@ -69,6 +69,33 @@ xcrun notarytool store-credentials caverno-notary \
   --password APP_SPECIFIC_PASSWORD
 ```
 
+Prepare the S3 bucket before the first real publish. A minimal direct-S3
+hosting policy for this lane is:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadCavernoMacosUpdates",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::caverno-macos-releases/caverno/macos/*"
+    }
+  ]
+}
+```
+
+Keep write access limited to the release operator or release automation role.
+Run the S3 preflight before the first upload:
+
+```bash
+bash tool/run_macos_sparkle_s3_preflight.sh
+```
+
+Use `--dry-run` to inspect the AWS commands without contacting S3.
+
 Then run the Sparkle release driver:
 
 ```bash
@@ -136,6 +163,19 @@ Useful environment overrides:
 The script uploads the updates directory first and then overwrites the appcast
 with `no-cache,max-age=0`, so clients do not see a new appcast before the
 artifact is available.
+
+Before removing `--dry-run` from the release driver, run:
+
+```bash
+bash tool/run_macos_sparkle_s3_preflight.sh
+bash tool/build_macos_sparkle_release.sh \
+  --notary-profile caverno-notary \
+  --package zip \
+  --download-url-prefix https://caverno-macos-releases.s3.amazonaws.com/caverno/macos \
+  --s3-uri s3://caverno-macos-releases/caverno/macos \
+  --release-notes docs/releases/caverno-1.3.2.md \
+  --dry-run
+```
 
 ## App-Side Verification
 

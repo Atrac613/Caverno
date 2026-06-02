@@ -128,6 +128,10 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
     root,
     'tool/publish_macos_sparkle_release.sh',
   );
+  final sparkleS3PreflightScript = _read(
+    root,
+    'tool/run_macos_sparkle_s3_preflight.sh',
+  );
   final launchAgent = _read(
     root,
     'macos/Runner/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist',
@@ -321,6 +325,24 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
           'Use tool/publish_macos_sparkle_release.sh after signing, notarization, and stapling.',
       details: <String, Object?>{
         'path': 'tool/publish_macos_sparkle_release.sh',
+      },
+    ),
+    _check(
+      id: 'sparkle_s3_preflight',
+      label: 'Sparkle S3 preflight',
+      ok:
+          sparkleS3PreflightScript?.contains(
+                's3://caverno-macos-releases/caverno/macos',
+              ) ==
+              true &&
+          sparkleS3PreflightScript?.contains('s3 ls') == true &&
+          sparkleS3PreflightScript?.contains('s3 cp') == true &&
+          sparkleS3PreflightScript?.contains('--dryrun') == true &&
+          sparkleS3PreflightScript?.contains('get-public-access-block') == true,
+      nextAction:
+          'Use tool/run_macos_sparkle_s3_preflight.sh before the first real S3 publish.',
+      details: <String, Object?>{
+        'path': 'tool/run_macos_sparkle_s3_preflight.sh',
       },
     ),
     _check(
