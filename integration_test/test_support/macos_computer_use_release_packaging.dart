@@ -114,6 +114,9 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
     'macos/ComputerUseHelper/Release.entitlements',
   );
   final runnerInfoPlist = _read(root, 'macos/Runner/Info.plist');
+  final runnerSource = _read(root, 'macos/Runner/MainFlutterWindow.swift');
+  final appDelegateSource = _read(root, 'macos/Runner/AppDelegate.swift');
+  final mainMenuXib = _read(root, 'macos/Runner/Base.lproj/MainMenu.xib');
   final helperInfoPlist = _read(root, 'macos/ComputerUseHelper/Info.plist');
   final sparkleBuildScript = _read(root, 'tool/build_macos_sparkle_release.sh');
   final sparkleStagingRehearsalScript = _read(
@@ -324,6 +327,27 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
       nextAction:
           'Keep release appcast URL and public EdDSA key injected through local signing configuration.',
       details: <String, Object?>{'path': 'macos/Runner/Info.plist'},
+    ),
+    _check(
+      id: 'sparkle_menu_update_check',
+      label: 'Sparkle menu update check',
+      ok:
+          runnerSource?.contains('final class MacosSparkleUpdateController') ==
+              true &&
+          runnerSource?.contains('MacosSparkleUpdateController.shared') ==
+              true &&
+          runnerSource?.contains('checkForUpdatesFromMenu') == true &&
+          appDelegateSource?.contains('@IBAction func checkForUpdates') ==
+              true &&
+          appDelegateSource?.contains('MacosSparkleUpdateController.shared') ==
+              true &&
+          mainMenuXib?.contains('Check for Updates…') == true &&
+          mainMenuXib?.contains('selector="checkForUpdates:"') == true,
+      nextAction:
+          'Keep the application menu wired to Sparkle manual update checks.',
+      details: <String, Object?>{
+        'path': 'macos/Runner/Base.lproj/MainMenu.xib',
+      },
     ),
     _check(
       id: 'sparkle_publish_script',

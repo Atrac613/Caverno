@@ -11,6 +11,10 @@ class AppDelegate: FlutterAppDelegate {
     super.init()
   }
 
+  @IBAction func checkForUpdates(_ sender: Any?) {
+    MacosSparkleUpdateController.shared.checkForUpdatesFromMenu(sender)
+  }
+
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return true
   }

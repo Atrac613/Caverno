@@ -46,15 +46,36 @@ class MainFlutterWindow: NSWindow {
 
 final class MacosSparkleUpdateChannel {
   private let channel: FlutterMethodChannel
-  private let updaterController: SPUStandardUpdaterController?
-  private let configuredFeedURL: String?
-  private let publicKeyConfigured: Bool
+  private let updateController = MacosSparkleUpdateController.shared
 
   init(messenger: FlutterBinaryMessenger) {
     channel = FlutterMethodChannel(
       name: "com.caverno/sparkle_updates",
       binaryMessenger: messenger
     )
+    channel.setMethodCallHandler(handle)
+  }
+
+  private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "getStatus":
+      result(updateController.statusPayload())
+    case "checkForUpdates":
+      updateController.checkForUpdates(result: result)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+}
+
+final class MacosSparkleUpdateController {
+  static let shared = MacosSparkleUpdateController()
+
+  private let updaterController: SPUStandardUpdaterController?
+  private let configuredFeedURL: String?
+  private let publicKeyConfigured: Bool
+
+  private init() {
     configuredFeedURL = Self.validConfiguredFeedURL()
     publicKeyConfigured = Self.hasConfiguredPublicKey()
     if configuredFeedURL != nil && publicKeyConfigured {
@@ -66,21 +87,9 @@ final class MacosSparkleUpdateChannel {
     } else {
       updaterController = nil
     }
-    channel.setMethodCallHandler(handle)
   }
 
-  private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    switch call.method {
-    case "getStatus":
-      result(statusPayload())
-    case "checkForUpdates":
-      checkForUpdates(result: result)
-    default:
-      result(FlutterMethodNotImplemented)
-    }
-  }
-
-  private func checkForUpdates(result: @escaping FlutterResult) {
+  func checkForUpdates(result: @escaping FlutterResult) {
     guard let updaterController = updaterController else {
       result(
         FlutterError(
@@ -98,7 +107,18 @@ final class MacosSparkleUpdateChannel {
     }
   }
 
-  private func statusPayload() -> [String: Any] {
+  func checkForUpdatesFromMenu(_ sender: Any?) {
+    guard let updaterController = updaterController else {
+      presentNotConfiguredAlert()
+      return
+    }
+
+    DispatchQueue.main.async {
+      updaterController.checkForUpdates(sender)
+    }
+  }
+
+  func statusPayload() -> [String: Any] {
     var payload: [String: Any] = [
       "available": true,
       "configured": updaterController != nil,
@@ -124,6 +144,17 @@ final class MacosSparkleUpdateChannel {
     }
 
     return payload
+  }
+
+  private func presentNotConfiguredAlert() {
+    DispatchQueue.main.async {
+      let alert = NSAlert()
+      alert.messageText = "Updates are not configured for this build."
+      alert.informativeText =
+        "Build a release with SPARKLE_FEED_URL and SPARKLE_PUBLIC_ED_KEY to enable Sparkle updates."
+      alert.alertStyle = .informational
+      alert.runModal()
+    }
   }
 
   private static func validConfiguredFeedURL() -> String? {

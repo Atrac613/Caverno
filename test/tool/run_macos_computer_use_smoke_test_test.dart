@@ -17,6 +17,8 @@ void main() {
   late String overlaySmokeSupport;
   late String helperSource;
   late String runnerSource;
+  late String appDelegateSource;
+  late String mainMenuXib;
   late String windowManagerSource;
   late String runnerInfoPlist;
   late String helperInfoPlist;
@@ -103,6 +105,12 @@ void main() {
     ).readAsStringSync();
     runnerSource = File(
       'macos/Runner/MainFlutterWindow.swift',
+    ).readAsStringSync();
+    appDelegateSource = File(
+      'macos/Runner/AppDelegate.swift',
+    ).readAsStringSync();
+    mainMenuXib = File(
+      'macos/Runner/Base.lproj/MainMenu.xib',
     ).readAsStringSync();
     windowManagerSource = File(
       'lib/core/services/window_manager_service.dart',
@@ -567,6 +575,17 @@ void main() {
       contains('com.noguwo.apps.caverno.computer-use.plist'),
     );
     expect(podfile, contains("pod 'Sparkle', '~> 2.9'"));
+    expect(runnerSource, contains('final class MacosSparkleUpdateController'));
+    expect(runnerSource, contains('MacosSparkleUpdateController.shared'));
+    expect(runnerSource, contains('checkForUpdatesFromMenu'));
+    expect(
+      runnerSource,
+      contains('Updates are not configured for this build.'),
+    );
+    expect(appDelegateSource, contains('@IBAction func checkForUpdates'));
+    expect(appDelegateSource, contains('MacosSparkleUpdateController.shared'));
+    expect(mainMenuXib, contains('Check for Updates…'));
+    expect(mainMenuXib, contains('selector="checkForUpdates:"'));
     expect(runnerInfoPlist, contains('SUFeedURL'));
     expect(runnerInfoPlist, contains('SUPublicEDKey'));
     expect(runnerInfoPlist, contains('SUScheduledCheckInterval'));
