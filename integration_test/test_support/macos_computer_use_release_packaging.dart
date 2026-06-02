@@ -342,7 +342,13 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
           appDelegateSource?.contains('MacosSparkleUpdateController.shared') ==
               true &&
           mainMenuXib?.contains('Check for Updates…') == true &&
-          mainMenuXib?.contains('selector="checkForUpdates:"') == true,
+          mainMenuXib?.contains('selector="checkForUpdates:"') == true &&
+          _appearsBefore(
+            mainMenuXib,
+            'title="Preferences…"',
+            'Check for Updates…',
+          ) &&
+          _appearsBefore(mainMenuXib, 'Check for Updates…', 'title="Services"'),
       nextAction:
           'Keep the application menu wired to Sparkle manual update checks.',
       details: <String, Object?>{

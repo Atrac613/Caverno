@@ -586,6 +586,14 @@ void main() {
     expect(appDelegateSource, contains('MacosSparkleUpdateController.shared'));
     expect(mainMenuXib, contains('Check for Updates…'));
     expect(mainMenuXib, contains('selector="checkForUpdates:"'));
+    expect(
+      mainMenuXib.indexOf('Check for Updates…'),
+      greaterThan(mainMenuXib.indexOf('title="Preferences…"')),
+    );
+    expect(
+      mainMenuXib.indexOf('Check for Updates…'),
+      lessThan(mainMenuXib.indexOf('title="Services"')),
+    );
     expect(runnerInfoPlist, contains('SUFeedURL'));
     expect(runnerInfoPlist, contains('SUPublicEDKey'));
     expect(runnerInfoPlist, contains('SUScheduledCheckInterval'));
