@@ -511,6 +511,41 @@ void main() {
         : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 6)),
   );
+
+  test(
+    'live LLM delegates a sub-task via spawn_subagent',
+    () async {
+      final env = _ChatLiveEnv.fromEnvironment();
+      final toolService = _SubagentCanaryToolService();
+      final container = _buildChatContainer(
+        env,
+        mcpEnabled: true,
+        toolService: toolService,
+      );
+
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Use the spawn_subagent tool to delegate a sub-task that computes '
+          '6 times 7 and returns only the number. After the subagent result '
+          'is available, answer with only that number and no other text.',
+        );
+        await _waitForChatIdle(container, timeout: const Duration(minutes: 5));
+
+        expect(
+          _lastAssistantContent(container),
+          contains('42'),
+          reason: _chatDiagnostic(container),
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 6)),
+  );
 }
 
 ProviderContainer _buildChatContainer(
@@ -1390,6 +1425,43 @@ class _EchoMarkerToolService extends McpToolService {
       isSuccess: marker == _embeddedMarker,
       errorMessage: marker == _embeddedMarker ? null : 'Unexpected marker',
     );
+  }
+}
+
+/// Exposes only the subagent delegation tool so the canary can verify a model
+/// invokes spawn_subagent. Execution is intercepted inside ChatNotifier, so
+/// [executeTool] is never reached for spawn_subagent — it only needs to publish
+/// the definition.
+class _SubagentCanaryToolService extends McpToolService {
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    return const <Map<String, dynamic>>[
+      {
+        'type': 'function',
+        'function': {
+          'name': 'spawn_subagent',
+          'description':
+              'Delegate a focused sub-task to a child agent that runs its own '
+              'tool loop and returns a concise summary.',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'description': {'type': 'string'},
+              'prompt': {'type': 'string'},
+              'background': {'type': 'boolean'},
+            },
+            'required': ['description', 'prompt'],
+          },
+        },
+      },
+    ];
   }
 }
 
