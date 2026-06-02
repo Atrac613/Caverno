@@ -526,9 +526,6 @@ class _CodingProjectsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeProject = projectsState.findById(
-      conversationsState.activeProjectId,
-    );
     final activeThreads = conversationsState.visibleConversations;
 
     return Column(
@@ -541,18 +538,6 @@ class _CodingProjectsSection extends StatelessWidget {
               tooltip: 'chat.add_project'.tr(),
               onPressed: onAddProject,
             ),
-            if (activeProject != null)
-              _HeaderIconButton(
-                icon: Icons.add,
-                tooltip: 'drawer.new_thread'.tr(),
-                onPressed: () {
-                  conversationsNotifier.createNewConversation(
-                    workspaceMode: WorkspaceMode.coding,
-                    projectId: activeProject.id,
-                  );
-                  closeDrawer();
-                },
-              ),
             if (activeThreads.isNotEmpty)
               _HeaderIconButton(
                 icon: Icons.delete_sweep_outlined,
@@ -586,6 +571,13 @@ class _CodingProjectsSection extends StatelessWidget {
                       isCollapsed: collapsedProjectIds.contains(project.id),
                       collapsedThreadLimit: collapsedThreadLimit,
                       onProjectSelected: () => onProjectSelected(project.id),
+                      onCreateThread: () {
+                        conversationsNotifier.createNewConversation(
+                          workspaceMode: WorkspaceMode.coding,
+                          projectId: project.id,
+                        );
+                        closeDrawer();
+                      },
                       onDeleteProject: () => onDeleteProject(project),
                       onConversationSelected: onConversationSelected,
                       onDeleteConversation: onDeleteConversation,
@@ -622,6 +614,7 @@ class _ProjectThreadGroup extends StatelessWidget {
     required this.isCollapsed,
     required this.collapsedThreadLimit,
     required this.onProjectSelected,
+    required this.onCreateThread,
     required this.onDeleteProject,
     required this.onConversationSelected,
     required this.onDeleteConversation,
@@ -637,6 +630,7 @@ class _ProjectThreadGroup extends StatelessWidget {
   final bool isCollapsed;
   final int collapsedThreadLimit;
   final VoidCallback onProjectSelected;
+  final VoidCallback onCreateThread;
   final VoidCallback onDeleteProject;
   final Future<void> Function(String conversationId) onConversationSelected;
   final ValueChanged<Conversation> onDeleteConversation;
@@ -660,6 +654,7 @@ class _ProjectThreadGroup extends StatelessWidget {
           isSelected: isSelected,
           isCollapsed: isCollapsed,
           onTap: onProjectSelected,
+          onCreateThread: onCreateThread,
           onDelete: onDeleteProject,
           onToggleCollapsed: onToggleCollapsed,
         ),
@@ -739,6 +734,7 @@ class _ProjectTile extends StatelessWidget {
     required this.isSelected,
     required this.isCollapsed,
     required this.onTap,
+    required this.onCreateThread,
     required this.onDelete,
     required this.onToggleCollapsed,
   });
@@ -747,6 +743,7 @@ class _ProjectTile extends StatelessWidget {
   final bool isSelected;
   final bool isCollapsed;
   final VoidCallback onTap;
+  final VoidCallback onCreateThread;
   final VoidCallback onDelete;
   final VoidCallback onToggleCollapsed;
 
@@ -757,6 +754,7 @@ class _ProjectTile extends StatelessWidget {
       key: ValueKey('drawer-project-${project.id}'),
       dense: true,
       visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsetsDirectional.only(start: 16, end: 6),
       selected: isSelected,
       selectedTileColor: theme.colorScheme.primaryContainer.withValues(
         alpha: 0.3,
@@ -792,12 +790,24 @@ class _ProjectTile extends StatelessWidget {
           ),
         ],
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.delete_outline, size: 18),
-        tooltip: 'drawer.delete_tooltip'.tr(),
-        visualDensity: VisualDensity.compact,
-        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-        onPressed: onDelete,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.add, size: 18),
+            tooltip: 'drawer.new_thread'.tr(),
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+            onPressed: onCreateThread,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 18),
+            tooltip: 'drawer.delete_tooltip'.tr(),
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+            onPressed: onDelete,
+          ),
+        ],
       ),
       onTap: onTap,
     );

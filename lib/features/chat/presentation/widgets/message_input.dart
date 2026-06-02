@@ -1312,11 +1312,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
               ],
             ),
           ),
-          IconButton(
-            onPressed: controlsEnabled ? widget.onCodingGoalEdit : null,
-            icon: Icon(hasGoal ? Icons.edit_outlined : Icons.add),
-            tooltip: hasGoal ? 'common.edit'.tr() : 'chat.goal_set'.tr(),
-          ),
           if (hasGoal)
             PopupMenuButton<_GoalMenuAction>(
               enabled: controlsEnabled,
@@ -1568,78 +1563,81 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Opacity(
-                                opacity: widget.isLoading ? 0.6 : 1.0,
-                                child: PopupMenuButton<AssistantMode>(
-                                  enabled: !widget.isLoading,
-                                  tooltip: 'message.mode_tooltip'.tr(),
-                                  padding: EdgeInsets.zero,
-                                  onSelected: widget.onAssistantModeSelected,
-                                  itemBuilder: (context) => [
-                                    CheckedPopupMenuItem<AssistantMode>(
-                                      value: AssistantMode.general,
-                                      checked:
-                                          assistantMode ==
-                                          AssistantMode.general,
-                                      child: Text(
-                                        _assistantModeLabel(
-                                          AssistantMode.general,
+                              if (widget.isCodingWorkspace) ...[
+                                Opacity(
+                                  opacity: widget.isLoading ? 0.6 : 1.0,
+                                  child: PopupMenuButton<AssistantMode>(
+                                    enabled: !widget.isLoading,
+                                    tooltip: 'message.mode_tooltip'.tr(),
+                                    padding: EdgeInsets.zero,
+                                    onSelected: widget.onAssistantModeSelected,
+                                    itemBuilder: (context) => [
+                                      CheckedPopupMenuItem<AssistantMode>(
+                                        value: AssistantMode.general,
+                                        checked:
+                                            assistantMode ==
+                                            AssistantMode.general,
+                                        child: Text(
+                                          _assistantModeLabel(
+                                            AssistantMode.general,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    CheckedPopupMenuItem<AssistantMode>(
-                                      value: AssistantMode.coding,
-                                      checked:
-                                          assistantMode == AssistantMode.coding,
-                                      child: Text(
-                                        _assistantModeLabel(
-                                          AssistantMode.coding,
+                                      CheckedPopupMenuItem<AssistantMode>(
+                                        value: AssistantMode.coding,
+                                        checked:
+                                            assistantMode ==
+                                            AssistantMode.coding,
+                                        child: Text(
+                                          _assistantModeLabel(
+                                            AssistantMode.coding,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    CheckedPopupMenuItem<AssistantMode>(
-                                      value: AssistantMode.plan,
-                                      enabled: widget.isCodingWorkspace,
-                                      checked:
-                                          assistantMode == AssistantMode.plan,
-                                      child: Text(
-                                        _assistantModeLabel(AssistantMode.plan),
-                                      ),
-                                    ),
-                                  ],
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: theme
-                                          .colorScheme
-                                          .surfaceContainerHigh,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: theme.colorScheme.outlineVariant,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          _assistantModeLabel(assistantMode),
-                                          style: theme.textTheme.labelLarge,
+                                      CheckedPopupMenuItem<AssistantMode>(
+                                        value: AssistantMode.plan,
+                                        checked:
+                                            assistantMode == AssistantMode.plan,
+                                        child: Text(
+                                          _assistantModeLabel(
+                                            AssistantMode.plan,
+                                          ),
                                         ),
-                                        const SizedBox(width: 4),
-                                        const Icon(
-                                          Icons.keyboard_arrow_down,
-                                          size: 18,
+                                      ),
+                                    ],
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHigh,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color:
+                                              theme.colorScheme.outlineVariant,
                                         ),
-                                      ],
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            _assistantModeLabel(assistantMode),
+                                            style: theme.textTheme.labelLarge,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          const Icon(
+                                            Icons.keyboard_arrow_down,
+                                            size: 18,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              if (widget.isCodingWorkspace) ...[
+                                const SizedBox(width: 8),
                                 Opacity(
                                   opacity: widget.isLoading ? 0.6 : 1.0,
                                   child: PopupMenuButton<CodingApprovalMode>(

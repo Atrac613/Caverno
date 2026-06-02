@@ -19,7 +19,6 @@ import '../../../routines/presentation/pages/routines_home_page.dart';
 import '../../../routines/presentation/providers/routine_scheduler.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../providers/coding_projects_notifier.dart';
-import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/git_tools.dart';
@@ -826,43 +825,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return 'image/jpeg';
   }
 
-  Future<void> _showDeleteConversationDialog(
-    BuildContext context,
-    ConversationsNotifier conversationsNotifier,
-    String conversationId,
-    String conversationTitle,
-  ) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('chat.delete_title'.tr()),
-        content: Text(
-          'chat.delete_confirm'.tr(namedArgs: {'title': conversationTitle}),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('common.cancel'.tr()),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text('common.delete'.tr()),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldDelete != true || !context.mounted) return;
-
-    await conversationsNotifier.deleteConversation(conversationId);
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('chat.deleted'.tr())));
-  }
-
   Future<void> _rewindConversationToMessage(
     BuildContext context,
     Message message,
@@ -1560,16 +1522,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               ),
               actions: _buildWorkspaceHeaderActions(
                 context,
-                isRoutinesWorkspace: isRoutinesWorkspace,
-                isCodingWorkspace: isCodingWorkspace,
-                isMobileRemoteCoding: isMobileRemoteCoding,
                 activeProject: activeProject,
-                canCompose: canCompose,
                 canShowCompanionPanel: canShowCompanionPanel,
                 isWideForCompanion: isWideForCompanion,
                 currentConversation: currentConversation,
-                conversationsState: conversationsState,
-                conversationsNotifier: conversationsNotifier,
                 chatState: chatState,
                 compact: false,
               ),
@@ -1617,16 +1573,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ),
           ..._buildWorkspaceHeaderActions(
             context,
-            isRoutinesWorkspace: isRoutinesWorkspace,
-            isCodingWorkspace: isCodingWorkspace,
-            isMobileRemoteCoding: isMobileRemoteCoding,
             activeProject: activeProject,
-            canCompose: canCompose,
             canShowCompanionPanel: canShowCompanionPanel,
             isWideForCompanion: isWideForCompanion,
             currentConversation: currentConversation,
-            conversationsState: conversationsState,
-            conversationsNotifier: conversationsNotifier,
             chatState: chatState,
             compact: true,
           ),
@@ -1708,16 +1658,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   List<Widget> _buildWorkspaceHeaderActions(
     BuildContext context, {
-    required bool isRoutinesWorkspace,
-    required bool isCodingWorkspace,
-    required bool isMobileRemoteCoding,
     required CodingProject? activeProject,
-    required bool canCompose,
     required bool canShowCompanionPanel,
     required bool isWideForCompanion,
     required Conversation? currentConversation,
-    required ConversationsState conversationsState,
-    required ConversationsNotifier conversationsNotifier,
     required ChatState chatState,
     required bool compact,
   }) {
@@ -1740,68 +1684,30 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final companionConversation = currentConversation;
     final companionProject = activeProject;
 
+    if (!canShowCompanionPanel ||
+        companionConversation == null ||
+        companionProject == null) {
+      return const [];
+    }
+
     return [
-      if (isCodingWorkspace && !isMobileRemoteCoding)
-        actionButton(
-          onPressed: () => _pickAndActivateProject(context),
-          icon: Icons.create_new_folder_outlined,
-          tooltip: 'chat.add_project'.tr(),
-        ),
-      if (!isRoutinesWorkspace && !isMobileRemoteCoding)
-        actionButton(
-          onPressed: canCompose
-              ? () => conversationsNotifier.createNewConversation(
-                  workspaceMode: conversationsState.activeWorkspaceMode,
-                  projectId: activeProject?.id,
-                )
-              : null,
-          icon: Icons.add,
-          tooltip: isCodingWorkspace
-              ? 'chat.new_thread'.tr()
-              : 'chat.new_conversation'.tr(),
-        ),
-      if (!isRoutinesWorkspace &&
-          !isMobileRemoteCoding &&
-          currentConversation != null)
-        actionButton(
-          onPressed: () => _showDeleteConversationDialog(
-            context,
-            conversationsNotifier,
-            currentConversation.id,
-            currentConversation.title,
-          ),
-          icon: Icons.delete_outline,
-          tooltip: 'chat.delete_current'.tr(),
-        ),
-      if (canShowCompanionPanel &&
-          companionConversation != null &&
-          companionProject != null)
-        actionButton(
-          onPressed: () {
-            if (isWideForCompanion) {
-              setState(() {
-                _isCompanionSidebarVisible = !_isCompanionSidebarVisible;
-              });
-              return;
-            }
-            _showCompanionPanelSheet(
-              context,
-              currentConversation: companionConversation,
-              chatState: chatState,
-              activeProject: companionProject,
-            );
-          },
-          icon: Icons.view_sidebar_outlined,
-          tooltip: 'chat.companion_panel_toggle'.tr(),
-        ),
       actionButton(
         onPressed: () {
-          Navigator.of(
+          if (isWideForCompanion) {
+            setState(() {
+              _isCompanionSidebarVisible = !_isCompanionSidebarVisible;
+            });
+            return;
+          }
+          _showCompanionPanelSheet(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const SettingsPage()));
+            currentConversation: companionConversation,
+            chatState: chatState,
+            activeProject: companionProject,
+          );
         },
-        icon: Icons.settings,
-        tooltip: 'chat.settings'.tr(),
+        icon: Icons.view_sidebar_outlined,
+        tooltip: 'chat.companion_panel_toggle'.tr(),
       ),
     ];
   }

@@ -89,16 +89,6 @@ extension _ChatPageEmptyStateBuilders on _ChatPageState {
                   icon: const Icon(Icons.play_arrow),
                   label: Text('chat.try_demo'.tr()),
                 ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SettingsPage()),
-                    );
-                  },
-                  icon: const Icon(Icons.settings),
-                  label: Text('chat.setup_button'.tr()),
-                ),
               ] else
                 Text(
                   isCodingWorkspace
