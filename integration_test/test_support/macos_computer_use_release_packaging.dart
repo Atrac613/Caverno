@@ -116,6 +116,14 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
   final runnerInfoPlist = _read(root, 'macos/Runner/Info.plist');
   final helperInfoPlist = _read(root, 'macos/ComputerUseHelper/Info.plist');
   final sparkleBuildScript = _read(root, 'tool/build_macos_sparkle_release.sh');
+  final sparkleStagingRehearsalScript = _read(
+    root,
+    'tool/run_macos_sparkle_staging_rehearsal.sh',
+  );
+  final sparkleStagingReleaseNotes = _read(
+    root,
+    'docs/releases/caverno-staging.md',
+  );
   final sparklePublishScript = _read(
     root,
     'tool/publish_macos_sparkle_release.sh',
@@ -293,6 +301,33 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
       nextAction:
           'Use tool/build_macos_sparkle_release.sh to build, notarize, package, and publish Sparkle release artifacts.',
       details: <String, Object?>{'path': 'tool/build_macos_sparkle_release.sh'},
+    ),
+    _check(
+      id: 'sparkle_staging_rehearsal',
+      label: 'Sparkle staging rehearsal',
+      ok:
+          sparkleStagingRehearsalScript?.contains(
+                'build_macos_sparkle_release.sh',
+              ) ==
+              true &&
+          sparkleStagingRehearsalScript?.contains('--dry-run') == true &&
+          sparkleStagingRehearsalScript?.contains(
+                'https://updates.example.invalid/caverno/macos/staging',
+              ) ==
+              true &&
+          sparkleStagingRehearsalScript?.contains(
+                's3://caverno-dummy-updates/macos/staging',
+              ) ==
+              true &&
+          sparkleStagingReleaseNotes?.contains(
+                'Caverno macOS Staging Release Notes',
+              ) ==
+              true,
+      nextAction:
+          'Use tool/run_macos_sparkle_staging_rehearsal.sh for no-upload Sparkle publish path rehearsals.',
+      details: <String, Object?>{
+        'path': 'tool/run_macos_sparkle_staging_rehearsal.sh',
+      },
     ),
   ];
   final ready = checks.every((check) => check.ok);

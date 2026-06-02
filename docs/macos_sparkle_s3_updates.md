@@ -94,6 +94,19 @@ bash tool/build_macos_sparkle_release.sh \
   --dry-run
 ```
 
+For a staging publish rehearsal that exercises the publish path without
+uploading to S3, use the dummy staging wrapper:
+
+```bash
+bash tool/run_macos_sparkle_staging_rehearsal.sh
+```
+
+The wrapper defaults to
+`https://updates.example.invalid/caverno/macos/staging` and
+`s3://caverno-dummy-updates/macos/staging`, keeps notarization disabled, and
+passes `--dry-run` to the release driver. A real run is blocked until both the
+download URL and S3 URI are overridden.
+
 ## S3 Publish
 
 Use the lower-level publish helper when the artifact is already signed,
@@ -116,6 +129,9 @@ Useful environment overrides:
 - `CAVERNO_SPARKLE_UPDATES_DIR`: local updates directory.
 - `CAVERNO_SPARKLE_DOWNLOAD_URL_PREFIX`: default download URL prefix.
 - `CAVERNO_SPARKLE_S3_URI`: default S3 destination.
+- `CAVERNO_SPARKLE_STAGING_DOWNLOAD_URL_PREFIX`: staging wrapper download URL.
+- `CAVERNO_SPARKLE_STAGING_S3_URI`: staging wrapper S3 destination.
+- `CAVERNO_SPARKLE_STAGING_RELEASE_NOTES_PATH`: staging wrapper notes file.
 
 The script uploads the updates directory first and then overwrites the appcast
 with `no-cache,max-age=0`, so clients do not see a new appcast before the

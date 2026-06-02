@@ -169,6 +169,12 @@ bash tool/build_macos_sparkle_release.sh \
   --s3-uri s3://example-bucket/caverno/macos
 ```
 
+For a no-upload rehearsal with dummy S3 and HTTPS coordinates:
+
+```bash
+bash tool/run_macos_sparkle_staging_rehearsal.sh
+```
+
 The artifact index reads
 `build/integration_test_reports/macos_computer_use_release_signing_preflight.json`.
 If M7 is blocked by LaunchAgent signing constraints, the next-step navigator

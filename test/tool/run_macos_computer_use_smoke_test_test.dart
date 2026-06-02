@@ -61,6 +61,8 @@ void main() {
   late String releasePackagingWrapper;
   late String releasePackagingCli;
   late String sparkleBuildScript;
+  late String sparkleStagingRehearsalScript;
+  late String sparkleStagingReleaseNotes;
   late String sparklePublishScript;
   late String releaseSigningPreflightWrapper;
   late String releaseSigningPreflightCli;
@@ -227,6 +229,12 @@ void main() {
     ).readAsStringSync();
     sparkleBuildScript = File(
       'tool/build_macos_sparkle_release.sh',
+    ).readAsStringSync();
+    sparkleStagingRehearsalScript = File(
+      'tool/run_macos_sparkle_staging_rehearsal.sh',
+    ).readAsStringSync();
+    sparkleStagingReleaseNotes = File(
+      'docs/releases/caverno-staging.md',
     ).readAsStringSync();
     sparklePublishScript = File(
       'tool/publish_macos_sparkle_release.sh',
@@ -566,6 +574,23 @@ void main() {
     expect(sparkleBuildScript, contains('publish_macos_sparkle_release.sh'));
     expect(sparkleBuildScript, contains('--skip-notarization'));
     expect(sparkleBuildScript, contains('--skip-publish'));
+    expect(
+      sparkleStagingRehearsalScript,
+      contains('build_macos_sparkle_release.sh'),
+    );
+    expect(sparkleStagingRehearsalScript, contains('--dry-run'));
+    expect(
+      sparkleStagingRehearsalScript,
+      contains('https://updates.example.invalid/caverno/macos/staging'),
+    );
+    expect(
+      sparkleStagingRehearsalScript,
+      contains('s3://caverno-dummy-updates/macos/staging'),
+    );
+    expect(
+      sparkleStagingReleaseNotes,
+      contains('Caverno macOS Staging Release Notes'),
+    );
     expect(releaseSigningPreflightSupport, contains('signing_local_gitignore'));
     expect(
       releaseSigningPreflightSupport,
@@ -597,6 +622,10 @@ void main() {
       manualProcessChecklist,
       contains('bash tool/build_macos_sparkle_release.sh'),
     );
+    expect(
+      manualProcessChecklist,
+      contains('bash tool/run_macos_sparkle_staging_rehearsal.sh'),
+    );
   });
 
   test('Sparkle release driver supports safe dry runs', () async {
@@ -615,6 +644,37 @@ void main() {
     expect(stdout, contains('codesign --verify --deep --strict'));
     expect(stdout, contains('ditto -c -k'));
     expect(stdout, contains('macOS Sparkle release artifact ready'));
+  });
+
+  test('Sparkle staging rehearsal uses dummy S3 dry run', () async {
+    final result = await Process.run('bash', [
+      'tool/run_macos_sparkle_staging_rehearsal.sh',
+    ]);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final stdout = '${result.stdout}';
+    expect(stdout, contains('Building macOS Sparkle release'));
+    expect(stdout, contains('publish_macos_sparkle_release.sh'));
+    expect(
+      stdout,
+      contains('https://updates.example.invalid/caverno/macos/staging'),
+    );
+    expect(stdout, contains('s3://caverno-dummy-updates/macos/staging'));
+    expect(stdout, contains('--dry-run'));
+    expect(stdout, contains('Dry run: yes'));
+  });
+
+  test('Sparkle staging rehearsal blocks real runs with dummy S3', () async {
+    final result = await Process.run('bash', [
+      'tool/run_macos_sparkle_staging_rehearsal.sh',
+      '--real-run',
+    ]);
+
+    expect(result.exitCode, 64);
+    expect(
+      '${result.stderr}',
+      contains('Real runs require a non-dummy --download-url-prefix.'),
+    );
   });
 
   test('release report includes M7 gate and runtime readiness fields', () {
