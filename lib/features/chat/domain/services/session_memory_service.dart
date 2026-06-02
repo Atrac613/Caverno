@@ -93,6 +93,21 @@ class SessionMemoryService {
     '\\u524d\\u56de\\u306e',
     caseSensitive: false,
   );
+  static final RegExp _explicitMemoryRequestPattern = RegExp(
+    r'\b(remember|memorize|save to memory|keep in memory)\b|'
+    '\\u899a\\u3048\\u3066|\\u8a18\\u61b6|\\u30e1\\u30e2\\u30ea',
+    caseSensitive: false,
+  );
+  static final RegExp _ephemeralArtifactMemoryPattern = RegExp(
+    r'\b(saved|wrote|created|updated|generated|exported)\b.*\b(file|path|report|markdown|\.md|\.json|\.txt|\.csv|\.dart|/users/|/tmp/)\b|'
+    r'\b(file|path|report|markdown|\.md|\.json|\.txt|\.csv|\.dart|/users/|/tmp/)\b.*\b(saved|wrote|created|updated|generated|exported)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _ephemeralLookupMemoryPattern = RegExp(
+    r'\b(retrieved|fetched|looked up|queried|searched|obtained)\b.*\b(weather|forecast|api|search result|tool result)\b|'
+    r'\b(weather|forecast)\b.*\b(temperature|precipitation|rain|drizzle|snow|wind|humidity|weathercode|weather code|km/h)\b',
+    caseSensitive: false,
+  );
 
   final ChatMemoryRepository _repository;
   final _uuid = const Uuid();
@@ -224,6 +239,7 @@ class SessionMemoryService {
         ? _buildMemoriesFromDraft(
             conversationId: conversationId,
             draft: draft,
+            messages: normalizedMessages,
             now: timestamp,
           )
         : _extractMemories(
@@ -661,6 +677,7 @@ class SessionMemoryService {
   List<MemoryEntry> _buildMemoriesFromDraft({
     required String conversationId,
     required MemoryExtractionDraft draft,
+    required List<Message> messages,
     required DateTime now,
   }) {
     final entries = <MemoryEntry>[];
@@ -669,6 +686,13 @@ class SessionMemoryService {
       if (text.isEmpty) continue;
 
       final type = _parseMemoryEntryType(entry.type);
+      if (_shouldDropEphemeralDraftMemory(
+        text: text,
+        type: type,
+        messages: messages,
+      )) {
+        continue;
+      }
       final ttlDays = entry.ttlDays;
       DateTime? expiresAt;
       if (ttlDays != null && ttlDays > 0) {
@@ -693,6 +717,30 @@ class SessionMemoryService {
       );
     }
     return entries;
+  }
+
+  bool _shouldDropEphemeralDraftMemory({
+    required String text,
+    required MemoryEntryType type,
+    required List<Message> messages,
+  }) {
+    if (type != MemoryEntryType.fact && type != MemoryEntryType.topic) {
+      return false;
+    }
+    if (_hasExplicitMemoryRequest(messages)) {
+      return false;
+    }
+
+    final normalizedText = _normalizeMemoryText(text);
+    return _ephemeralArtifactMemoryPattern.hasMatch(normalizedText) ||
+        _ephemeralLookupMemoryPattern.hasMatch(normalizedText);
+  }
+
+  bool _hasExplicitMemoryRequest(List<Message> messages) {
+    return messages.any((message) {
+      return message.role == MessageRole.user &&
+          _explicitMemoryRequestPattern.hasMatch(message.content);
+    });
   }
 
   MemoryEntryType _parseMemoryEntryType(String rawType) {

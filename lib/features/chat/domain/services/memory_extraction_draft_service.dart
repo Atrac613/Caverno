@@ -59,6 +59,9 @@ class MemoryExtractionDraftService {
       'purchases, dates, decisions, events, and other concrete data points. '
       'Use type "fact" with high importance for these. '
       'Facts should have detailed text (up to 300 chars) to preserve specifics. '
+      'Do not save one-off lookup results, fetched tool data, generated report '
+      'contents, or saved artifact paths as memories unless the user explicitly '
+      'asked to remember them; keep those details in the session summary only. '
       'Do not save prior assistant conclusions, search_past_conversations '
       'snippets, or recall_memory snippets as facts unless they are supported '
       'by direct user statements or current application-executed tool results. '
@@ -148,6 +151,9 @@ class MemoryExtractionDraftService {
       ..writeln('- memories max 8 items')
       ..writeln('- confidence/importance range: 0.0 to 1.0')
       ..writeln('- Set confidence low for uncertain items')
+      ..writeln(
+        '- Do not add memories for one-off lookup results, fetched tool data, generated report contents, or saved artifact paths unless the user explicitly asked to remember them. Put completed task evidence in summary instead.',
+      )
       ..writeln(
         '- Only include open_loops when the latest turn still needs user or assistant follow-up. Leave open_loops empty when the latest assistant response answered or completed the request, even if it suggested optional next steps.',
       )

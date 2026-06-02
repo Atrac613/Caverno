@@ -19,6 +19,14 @@ void main() {
     );
     expect(
       MemoryExtractionDraftService.systemPrompt,
+      contains('one-off lookup results'),
+    );
+    expect(
+      MemoryExtractionDraftService.systemPrompt,
+      contains('saved artifact paths'),
+    );
+    expect(
+      MemoryExtractionDraftService.systemPrompt,
       contains('uppercase identifiers'),
     );
     expect(MemoryExtractionDraftService.systemPrompt, contains('_CANARY'));
@@ -69,6 +77,8 @@ void main() {
     expect(input, contains('stream_end completions'));
     expect(input, contains('validation markers'));
     expect(input, contains('current-turn tool-use instructions'));
+    expect(input, contains('one-off lookup results'));
+    expect(input, contains('saved artifact paths'));
     expect(input, contains('uppercase identifiers ending in _OK'));
     expect(input, contains('_MARKER'));
     expect(input, contains('_CANARY'));

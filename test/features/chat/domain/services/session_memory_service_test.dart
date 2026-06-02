@@ -232,6 +232,102 @@ void main() {
     },
   );
 
+  test('drops one-off lookup and artifact facts from LLM draft memories', () async {
+    final repository = _InMemoryChatMemoryRepository();
+    final service = SessionMemoryService(repository);
+
+    final result = await service.updateFromConversation(
+      conversationId: 'conversation-weather',
+      messages: [
+        Message(
+          id: 'message-weather-user',
+          content:
+              'Create a Tokyo weather report for 2026-06-03 and save it as Markdown.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 2, 12, 9),
+        ),
+        Message(
+          id: 'message-weather-assistant',
+          content:
+              'Saved the report to /Users/example/tmp/tokyo_weather_2026-06-03.md. The forecast is Heavy Rain.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 6, 2, 12, 10),
+        ),
+      ],
+      draft: const MemoryExtractionDraft(
+        summary:
+            'Retrieved Tokyo weather and saved the Markdown report for the user.',
+        openLoops: [],
+        persona: [],
+        preferences: [],
+        doNot: [],
+        entries: [
+          MemoryDraftEntry(
+            text:
+                'Tokyo weather on 2026-06-03: Heavy Rain, Max 19.7C, Min 16.4C, Precipitation Probability 87%, Max Wind Speed 19.5 km/h.',
+            type: 'fact',
+            confidence: 1.0,
+            importance: 0.9,
+            ttlDays: 365,
+          ),
+          MemoryDraftEntry(
+            text:
+                'Weather report for Tokyo on 2026-06-03 saved to /Users/example/tmp/tokyo_weather_2026-06-03.md.',
+            type: 'fact',
+            confidence: 1.0,
+            importance: 0.8,
+            ttlDays: 365,
+          ),
+        ],
+      ),
+    );
+
+    expect(result.addedMemoryCount, 0);
+    expect(result.queuedReviewCount, 0);
+    expect(repository.memories, isEmpty);
+    expect(repository.reviewQueue, isEmpty);
+    expect(repository.summaries.single.summary, contains('Tokyo weather'));
+  });
+
+  test(
+    'keeps lookup-like facts when the user explicitly asks to remember them',
+    () async {
+      final repository = _InMemoryChatMemoryRepository();
+      final service = SessionMemoryService(repository);
+
+      final result = await service.updateFromConversation(
+        conversationId: 'conversation-remember-weather',
+        messages: [
+          Message(
+            id: 'message-remember-user',
+            content:
+                'Remember that Tokyo weather on 2026-06-03 was Heavy Rain.',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 6, 2, 12, 9),
+          ),
+        ],
+        draft: const MemoryExtractionDraft(
+          summary: 'User explicitly asked to remember a weather fact.',
+          openLoops: [],
+          persona: [],
+          preferences: [],
+          doNot: [],
+          entries: [
+            MemoryDraftEntry(
+              text: 'Tokyo weather on 2026-06-03 was Heavy Rain.',
+              type: 'fact',
+              confidence: 0.95,
+              importance: 0.9,
+            ),
+          ],
+        ),
+      );
+
+      expect(result.addedMemoryCount, 1);
+      expect(repository.memories.single.text, contains('Heavy Rain'));
+    },
+  );
+
   test('drops draft open loops covered by the latest assistant answer', () async {
     final repository = _InMemoryChatMemoryRepository();
     final service = SessionMemoryService(repository);

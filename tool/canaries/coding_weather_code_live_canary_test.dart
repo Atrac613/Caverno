@@ -143,14 +143,17 @@ void main() {
         );
         final memoryDraft = memoryProbe.draft;
         final memoryText = memoryProbe.combinedText.toLowerCase();
+        final memoryEntriesText =
+            memoryDraft?.entries.map((entry) => entry.text).join('\n') ?? '';
+        final normalizedMemoryEntriesText = memoryEntriesText.toLowerCase();
         expect(
           memoryDraft,
           isNotNull,
           reason: _diagnostic(container, toolService, fixture, memoryDraft),
         );
         expect(
-          memoryText,
-          contains('rain'),
+          memoryDraft!.entries,
+          isEmpty,
           reason: _diagnostic(container, toolService, fixture, memoryDraft),
         );
         expect(
@@ -160,6 +163,26 @@ void main() {
         );
         expect(
           memoryText,
+          isNot(contains(_marker.toLowerCase())),
+          reason: _diagnostic(container, toolService, fixture, memoryDraft),
+        );
+        expect(
+          normalizedMemoryEntriesText,
+          isNot(contains('heavy rain')),
+          reason: _diagnostic(container, toolService, fixture, memoryDraft),
+        );
+        expect(
+          normalizedMemoryEntriesText,
+          isNot(contains('rain: heavy')),
+          reason: _diagnostic(container, toolService, fixture, memoryDraft),
+        );
+        expect(
+          normalizedMemoryEntriesText,
+          isNot(contains(_fileName.toLowerCase())),
+          reason: _diagnostic(container, toolService, fixture, memoryDraft),
+        );
+        expect(
+          normalizedMemoryEntriesText,
           isNot(contains(_marker.toLowerCase())),
           reason: _diagnostic(container, toolService, fixture, memoryDraft),
         );
