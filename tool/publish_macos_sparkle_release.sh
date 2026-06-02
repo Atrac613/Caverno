@@ -187,6 +187,31 @@ if [[ "${DRY_RUN}" != "yes" && "${SKIP_UPLOAD}" != "yes" && "${SKIP_PUBLIC_VERIF
   exit 66
 fi
 
+ARTIFACT_NAME="$(basename "${ARTIFACT_PATH}")"
+
+validate_release_metadata() {
+  if [[ -n "${EXPECTED_VERSION}" && -n "${EXPECTED_BUILD}" ]]; then
+    local expected_token="${EXPECTED_VERSION}-${EXPECTED_BUILD}"
+    if [[ "${ARTIFACT_NAME}" != *"${expected_token}"* ]]; then
+      echo "Artifact name does not match the expected release metadata." >&2
+      echo "  Expected token: ${expected_token}" >&2
+      echo "  Artifact:       ${ARTIFACT_NAME}" >&2
+      exit 65
+    fi
+  fi
+
+  if [[ -n "${RELEASE_NOTES_PATH}" ]]; then
+    case "${RELEASE_NOTES_PATH}" in
+      *.md|*.html|*.htm)
+        ;;
+      *)
+        echo "Release notes must be Markdown or HTML: ${RELEASE_NOTES_PATH}" >&2
+        exit 64
+        ;;
+    esac
+  fi
+}
+
 find_generate_appcast() {
   if [[ -n "${SPARKLE_GENERATE_APPCAST}" ]]; then
     echo "${SPARKLE_GENERATE_APPCAST}"
@@ -223,6 +248,8 @@ if ! GENERATE_APPCAST_BIN="$(find_generate_appcast)"; then
   fi
 fi
 
+validate_release_metadata
+
 run() {
   echo "+ $*"
   if [[ "${DRY_RUN}" == "yes" ]]; then
@@ -252,7 +279,6 @@ run_generate_appcast() {
   rm -f "${log_file}"
 }
 
-ARTIFACT_NAME="$(basename "${ARTIFACT_PATH}")"
 STAGED_ARTIFACT="${UPDATES_DIR}/${ARTIFACT_NAME}"
 APPCAST_PATH="${UPDATES_DIR}/${APPCAST_FILENAME}"
 APPCAST_URL="${DOWNLOAD_URL_PREFIX%/}/${APPCAST_FILENAME}"

@@ -597,6 +597,8 @@ void main() {
     );
     expect(sparklePublishScript, contains('--expected-artifact-url'));
     expect(sparklePublishScript, contains('--expected-min-length'));
+    expect(sparklePublishScript, contains('validate_release_metadata'));
+    expect(sparklePublishScript, contains('Expected token'));
     expect(sparklePublishScript, contains('s3 sync'));
     expect(sparklePublishScript, contains('no-cache,max-age=0'));
     expect(sparkleS3PreflightScript, contains('s3 ls'));
@@ -812,6 +814,30 @@ void main() {
       expect(stdout, contains('--dry-run'));
     },
   );
+
+  test('Sparkle publish helper blocks mismatched release metadata', () async {
+    final result = await Process.run('bash', [
+      'tool/publish_macos_sparkle_release.sh',
+      '--artifact',
+      '/tmp/Caverno-1.3.1-12.zip',
+      '--download-url-prefix',
+      'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos',
+      '--s3-uri',
+      's3://caverno-macos-releases/caverno/macos',
+      '--expected-version',
+      '1.3.2',
+      '--expected-build',
+      '13',
+      '--dry-run',
+    ]);
+
+    expect(result.exitCode, 65);
+    expect(
+      '${result.stderr}',
+      contains('Artifact name does not match the expected release metadata.'),
+    );
+    expect('${result.stderr}', contains('Expected token: 1.3.2-13'));
+  });
 
   test('Sparkle release driver supports safe dry runs', () async {
     final result = await Process.run('bash', [

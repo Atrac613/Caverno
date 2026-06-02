@@ -342,6 +342,8 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
               true &&
           sparklePublishScript?.contains('--expected-artifact-url') == true &&
           sparklePublishScript?.contains('--expected-min-length') == true &&
+          sparklePublishScript?.contains('validate_release_metadata') == true &&
+          sparklePublishScript?.contains('Expected token') == true &&
           sparklePublishScript?.contains('aws') == true &&
           sparklePublishScript?.contains('s3 sync') == true &&
           sparklePublishScript?.contains('no-cache,max-age=0') == true,

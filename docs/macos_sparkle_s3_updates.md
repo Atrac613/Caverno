@@ -181,7 +181,9 @@ Useful environment overrides:
 The script uploads the updates directory first and then overwrites the appcast
 with `no-cache,max-age=0`, so clients do not see a new appcast before the
 artifact is available. It then runs the public verifier against the hosted
-appcast and artifact unless `--skip-public-verify` is provided.
+appcast and artifact unless `--skip-public-verify` is provided. When
+`--expected-version` and `--expected-build` are provided, the artifact filename
+must contain the `VERSION-BUILD` token before any upload starts.
 
 To repeat the public verification manually, check the appcast, linked artifact,
 release notes, Sparkle signature field, and S3 cache headers:
