@@ -69,6 +69,7 @@ import 'macos_computer_use_approval_copy.dart';
 import 'mcp_tool_provider.dart';
 import 'skills_notifier.dart';
 import 'tool_approval_cache.dart';
+import 'subagent_task_notifier.dart';
 
 part 'chat_notifier_ble_handlers.dart';
 part 'chat_notifier_computer_use_handlers.dart';
@@ -6298,7 +6299,6 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _forcePromptCompactionForNextRequest = false;
   bool _isDrainingQueuedMessages = false;
   int _interactionGeneration = 0;
-  int _subagentDepth = 0;
   String? _activeResponseConversationId;
   List<Message>? _activeResponseMessages;
   final Map<int, String> _activeResponseConversationIdsByGeneration =
@@ -11552,6 +11552,8 @@ class ChatNotifier extends Notifier<ChatState> {
           toolCall,
           interactionGeneration: interactionGeneration,
         );
+      case 'get_subagent_result':
+        return _handleGetSubagentResult(toolCall);
       default:
         return _mcpToolService!.executeTool(
           name: toolCall.name,

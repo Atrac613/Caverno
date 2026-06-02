@@ -632,6 +632,7 @@
     "tool_get_current_datetime": "Get current date, time, and relative date ranges",
     "tool_ask_user_question": "Ask the user a choice question before continuing",
     "tool_spawn_subagent": "Delegate a focused sub-task to a child subagent",
+    "tool_get_subagent_result": "Retrieve the result of a background subagent",
     "tool_load_skill": "Load full instructions for a saved user skill",
     "tool_search_past_conversations": "Search through past conversation history",
     "tool_recall_memory": "Recall saved memory entries",
@@ -945,6 +946,19 @@
     "disabled_value": "Disabled",
     "due_now_value": "Due now",
     "never_value": "Never"
+  },
+  "subagent": {
+    "banner_running": "{count} subagent(s) running",
+    "banner_done": "{count} subagent task(s)",
+    "sheet_title": "Background subagents",
+    "clear_finished": "Clear finished",
+    "cancel": "Cancel",
+    "empty": "No subagent tasks.",
+    "status_pending": "Pending",
+    "status_running": "Running",
+    "status_completed": "Completed",
+    "status_failed": "Failed",
+    "status_cancelled": "Cancelled"
   },
   "notification": {
     "response_title": "Caverno",

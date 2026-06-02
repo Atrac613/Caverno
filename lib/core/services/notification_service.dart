@@ -94,6 +94,25 @@ class NotificationService {
     );
   }
 
+  /// Show a notification for a finished background subagent task.
+  Future<void> showSubagentCompletionNotification({
+    required String taskId,
+    required String description,
+    required bool isSuccessful,
+    required String body,
+  }) async {
+    final title = isSuccessful
+        ? 'Subagent: $description'
+        : 'Subagent failed: $description';
+    await _showNotification(
+      id: 'subagent_$taskId'.hashCode & 0x7fffffff,
+      title: title,
+      body: body,
+      channelId: 'subagent_completion',
+      channelName: 'Subagent Completion',
+    );
+  }
+
   Future<void> _showNotification({
     required int id,
     required String title,

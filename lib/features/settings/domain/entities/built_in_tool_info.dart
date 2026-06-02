@@ -68,6 +68,11 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_spawn_subagent',
       category: categoryTasks,
     ),
+    BuiltInToolInfo(
+      name: 'get_subagent_result',
+      descriptionKey: 'settings.tool_get_subagent_result',
+      category: categoryTasks,
+    ),
     // Skills
     BuiltInToolInfo(
       name: 'load_skill',

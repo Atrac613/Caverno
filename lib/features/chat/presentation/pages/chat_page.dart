@@ -48,6 +48,7 @@ import '../providers/custom_slash_commands_notifier.dart';
 import '../slash_commands/slash_command.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
 import '../widgets/conversation_drawer.dart';
+import '../widgets/subagent_task_banner.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
@@ -1533,7 +1534,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       drawer: isMobileRemoteCoding || usePersistentDrawer
           ? null
           : _buildConversationDrawer(closeOnAction: true),
-      body: buildScaffoldBody(),
+      body: Column(
+        children: [
+          const SubagentTaskBanner(),
+          Expanded(child: buildScaffoldBody()),
+        ],
+      ),
     );
   }
 

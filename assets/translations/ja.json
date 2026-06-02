@@ -632,6 +632,7 @@
     "tool_get_current_datetime": "現在の日時と相対的な日付範囲を取得",
     "tool_ask_user_question": "Ask the user a choice question before continuing",
     "tool_spawn_subagent": "集中したサブタスクを子サブエージェントに委譲",
+    "tool_get_subagent_result": "バックグラウンドサブエージェントの結果を取得",
     "tool_load_skill": "Load full instructions for a saved user skill",
     "tool_search_past_conversations": "過去の会話履歴を検索",
     "tool_recall_memory": "保存されたメモリを呼び出し",
@@ -945,6 +946,19 @@
     "disabled_value": "無効",
     "due_now_value": "今すぐ実行",
     "never_value": "未実行"
+  },
+  "subagent": {
+    "banner_running": "{count}件のサブエージェントが実行中",
+    "banner_done": "{count}件のサブエージェントタスク",
+    "sheet_title": "バックグラウンドサブエージェント",
+    "clear_finished": "完了分をクリア",
+    "cancel": "キャンセル",
+    "empty": "サブエージェントタスクはありません。",
+    "status_pending": "待機中",
+    "status_running": "実行中",
+    "status_completed": "完了",
+    "status_failed": "失敗",
+    "status_cancelled": "キャンセル済み"
   },
   "notification": {
     "response_title": "Caverno",

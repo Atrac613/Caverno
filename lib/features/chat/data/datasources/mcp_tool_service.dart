@@ -475,6 +475,7 @@ class McpToolService {
     _addIfEnabled(toolDefinitions, _currentDatetimeTool);
     _addIfEnabled(toolDefinitions, _askUserQuestionTool);
     _addIfEnabled(toolDefinitions, _spawnSubagentTool);
+    _addIfEnabled(toolDefinitions, _getSubagentResultTool);
 
     // Built-in memory tools (always available).
     if (conversationRepository != null) {
@@ -1972,6 +1973,28 @@ class McpToolService {
           },
         },
         'required': ['description', 'prompt'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _getSubagentResultTool => {
+    'type': 'function',
+    'function': {
+      'name': 'get_subagent_result',
+      'description':
+          'Retrieve the status and result of a background subagent started '
+          'with spawn_subagent(background: true). Pass the task_id returned '
+          'when the subagent was started. Returns the summary once completed, '
+          'or a running status if it is still working.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'task_id': {
+            'type': 'string',
+            'description': 'The task id returned by spawn_subagent.',
+          },
+        },
+        'required': ['task_id'],
       },
     },
   };
