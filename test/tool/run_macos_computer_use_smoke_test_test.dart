@@ -590,6 +590,13 @@ void main() {
     expect(sparklePublishScript, contains('SUPublicEDKey.*does not match'));
     expect(sparklePublishScript, contains('lack of private EdDSA key'));
     expect(sparklePublishScript, contains('--download-url-prefix'));
+    expect(sparklePublishScript, contains('--skip-public-verify'));
+    expect(
+      sparklePublishScript,
+      contains('verify_macos_sparkle_public_release.sh'),
+    );
+    expect(sparklePublishScript, contains('--expected-artifact-url'));
+    expect(sparklePublishScript, contains('--expected-min-length'));
     expect(sparklePublishScript, contains('s3 sync'));
     expect(sparklePublishScript, contains('no-cache,max-age=0'));
     expect(sparkleS3PreflightScript, contains('s3 ls'));
@@ -650,6 +657,8 @@ void main() {
     expect(sparkleBuildScript, contains('stapler staple'));
     expect(sparkleBuildScript, contains('stapler validate'));
     expect(sparkleBuildScript, contains('publish_macos_sparkle_release.sh'));
+    expect(sparkleBuildScript, contains('--expected-version'));
+    expect(sparkleBuildScript, contains('--expected-build'));
     expect(sparkleBuildScript, contains('--skip-notarization'));
     expect(sparkleBuildScript, contains('--skip-publish'));
     expect(
@@ -771,6 +780,38 @@ void main() {
       contains('Sparkle public release verification dry run completed.'),
     );
   });
+
+  test(
+    'Sparkle publish helper runs public verifier after dry-run upload',
+    () async {
+      final result = await Process.run('bash', [
+        'tool/publish_macos_sparkle_release.sh',
+        '--artifact',
+        '/tmp/Caverno-1.3.2-13.zip',
+        '--download-url-prefix',
+        'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos',
+        '--s3-uri',
+        's3://caverno-macos-releases/caverno/macos',
+        '--expected-version',
+        '1.3.2',
+        '--expected-build',
+        '13',
+        '--dry-run',
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('Publishing macOS Sparkle release'));
+      expect(stdout, contains('Public verification: enabled'));
+      expect(stdout, contains('aws s3 sync'));
+      expect(stdout, contains('aws s3 cp'));
+      expect(stdout, contains('verify_macos_sparkle_public_release.sh'));
+      expect(stdout, contains('--expected-version 1.3.2'));
+      expect(stdout, contains('--expected-build 13'));
+      expect(stdout, contains('--expected-artifact-url'));
+      expect(stdout, contains('--dry-run'));
+    },
+  );
 
   test('Sparkle release driver supports safe dry runs', () async {
     final result = await Process.run('bash', [

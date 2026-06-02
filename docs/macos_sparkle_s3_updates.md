@@ -171,16 +171,20 @@ Useful environment overrides:
 - `CAVERNO_SPARKLE_UPDATES_DIR`: local updates directory.
 - `CAVERNO_SPARKLE_DOWNLOAD_URL_PREFIX`: default download URL prefix.
 - `CAVERNO_SPARKLE_S3_URI`: default S3 destination.
+- `CAVERNO_SPARKLE_PUBLIC_VERIFY_SCRIPT`: public post-publish verifier path.
+- `CAVERNO_SPARKLE_EXPECTED_VERSION`: expected public appcast short version.
+- `CAVERNO_SPARKLE_EXPECTED_BUILD`: expected public appcast build number.
 - `CAVERNO_SPARKLE_STAGING_DOWNLOAD_URL_PREFIX`: staging wrapper download URL.
 - `CAVERNO_SPARKLE_STAGING_S3_URI`: staging wrapper S3 destination.
 - `CAVERNO_SPARKLE_STAGING_RELEASE_NOTES_PATH`: staging wrapper notes file.
 
 The script uploads the updates directory first and then overwrites the appcast
 with `no-cache,max-age=0`, so clients do not see a new appcast before the
-artifact is available.
+artifact is available. It then runs the public verifier against the hosted
+appcast and artifact unless `--skip-public-verify` is provided.
 
-After each real publish, verify the public appcast, linked artifact, release
-notes, Sparkle signature field, and S3 cache headers:
+To repeat the public verification manually, check the appcast, linked artifact,
+release notes, Sparkle signature field, and S3 cache headers:
 
 ```bash
 bash tool/verify_macos_sparkle_public_release.sh \

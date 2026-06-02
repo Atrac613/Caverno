@@ -335,6 +335,13 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
               true &&
           sparklePublishScript?.contains('lack of private EdDSA key') == true &&
           sparklePublishScript?.contains('--download-url-prefix') == true &&
+          sparklePublishScript?.contains('--skip-public-verify') == true &&
+          sparklePublishScript?.contains(
+                'verify_macos_sparkle_public_release.sh',
+              ) ==
+              true &&
+          sparklePublishScript?.contains('--expected-artifact-url') == true &&
+          sparklePublishScript?.contains('--expected-min-length') == true &&
           sparklePublishScript?.contains('aws') == true &&
           sparklePublishScript?.contains('s3 sync') == true &&
           sparklePublishScript?.contains('no-cache,max-age=0') == true,
@@ -444,6 +451,8 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
           sparkleBuildScript?.contains('SUPublicEDKey') == true &&
           sparkleBuildScript?.contains('publish_macos_sparkle_release.sh') ==
               true &&
+          sparkleBuildScript?.contains('--expected-version') == true &&
+          sparkleBuildScript?.contains('--expected-build') == true &&
           sparkleBuildScript?.contains('--skip-notarization') == true &&
           sparkleBuildScript?.contains('--skip-publish') == true,
       nextAction:

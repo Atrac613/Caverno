@@ -481,7 +481,14 @@ if [[ "${SKIP_PUBLISH}" != "yes" ]]; then
   if [[ -n "${SPARKLE_CHANNEL}" ]]; then
     publish_args+=(--channel "${SPARKLE_CHANNEL}")
   fi
-  publish_args+=(--maximum-deltas "${SPARKLE_MAXIMUM_DELTAS}")
+  publish_args+=(
+    --maximum-deltas
+    "${SPARKLE_MAXIMUM_DELTAS}"
+    --expected-version
+    "${BUILD_NAME}"
+    --expected-build
+    "${BUILD_NUMBER}"
+  )
   if [[ "${DRY_RUN}" == "yes" ]]; then
     publish_args+=(--dry-run)
   fi

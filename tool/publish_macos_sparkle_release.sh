@@ -9,6 +9,9 @@ UPDATES_DIR="${CAVERNO_SPARKLE_UPDATES_DIR:-${ROOT_DIR}/build/macos_sparkle_upda
 DOWNLOAD_URL_PREFIX="${CAVERNO_SPARKLE_DOWNLOAD_URL_PREFIX:-}"
 S3_URI="${CAVERNO_SPARKLE_S3_URI:-}"
 APPCAST_FILENAME="${CAVERNO_SPARKLE_APPCAST_FILENAME:-appcast.xml}"
+PUBLIC_VERIFY_SCRIPT="${CAVERNO_SPARKLE_PUBLIC_VERIFY_SCRIPT:-${ROOT_DIR}/tool/verify_macos_sparkle_public_release.sh}"
+EXPECTED_VERSION="${CAVERNO_SPARKLE_EXPECTED_VERSION:-}"
+EXPECTED_BUILD="${CAVERNO_SPARKLE_EXPECTED_BUILD:-}"
 SPARKLE_GENERATE_APPCAST="${SPARKLE_GENERATE_APPCAST:-}"
 SPARKLE_ED_KEY_FILE="${SPARKLE_ED_KEY_FILE:-}"
 SPARKLE_CHANNEL="${SPARKLE_CHANNEL:-}"
@@ -16,6 +19,7 @@ SPARKLE_MAXIMUM_DELTAS="${SPARKLE_MAXIMUM_DELTAS:-0}"
 AWS_BIN="${AWS_BIN:-aws}"
 DRY_RUN="no"
 SKIP_UPLOAD="no"
+SKIP_PUBLIC_VERIFY="no"
 
 usage() {
   cat <<'USAGE'
@@ -28,17 +32,22 @@ Options:
   --download-url-prefix URL       HTTPS URL prefix for generated appcast enclosure URLs.
   --s3-uri URI                    Optional destination such as s3://bucket/caverno/macos.
   --appcast-filename NAME         Appcast file name, default appcast.xml.
+  --public-verify-script PATH     Public release verifier script path.
+  --expected-version VERSION      Optional expected sparkle:shortVersionString.
+  --expected-build BUILD          Optional expected sparkle:version.
   --sparkle-generate-appcast PATH Sparkle generate_appcast tool path.
   --ed-key-file PATH              Optional Sparkle EdDSA private key file.
   --channel NAME                  Optional Sparkle channel.
   --maximum-deltas COUNT          Delta update count passed to generate_appcast, default 0.
   --skip-upload                   Generate appcast locally without uploading to S3.
+  --skip-public-verify            Do not verify public appcast after S3 upload.
   --dry-run                       Print commands without copying, generating, or uploading.
   --help                          Show this help.
 
 The script expects the app artifact to already be Developer ID signed,
 notarized, and stapled. It stages the artifact, runs Sparkle generate_appcast,
-then uploads the updates directory to S3 when --s3-uri is provided.
+uploads the updates directory to S3 when --s3-uri is provided, then verifies the
+public appcast unless verification is skipped.
 USAGE
 }
 
@@ -81,6 +90,21 @@ while [[ $# -gt 0 ]]; do
       APPCAST_FILENAME="$2"
       shift 2
       ;;
+    --public-verify-script)
+      require_value "$@"
+      PUBLIC_VERIFY_SCRIPT="$2"
+      shift 2
+      ;;
+    --expected-version)
+      require_value "$@"
+      EXPECTED_VERSION="$2"
+      shift 2
+      ;;
+    --expected-build)
+      require_value "$@"
+      EXPECTED_BUILD="$2"
+      shift 2
+      ;;
     --sparkle-generate-appcast)
       require_value "$@"
       SPARKLE_GENERATE_APPCAST="$2"
@@ -103,6 +127,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-upload)
       SKIP_UPLOAD="yes"
+      shift 1
+      ;;
+    --skip-public-verify)
+      SKIP_PUBLIC_VERIFY="yes"
       shift 1
       ;;
     --dry-run)
@@ -151,6 +179,11 @@ fi
 
 if [[ "${DRY_RUN}" != "yes" && -n "${RELEASE_NOTES_PATH}" && ! -f "${RELEASE_NOTES_PATH}" ]]; then
   echo "Release notes not found: ${RELEASE_NOTES_PATH}" >&2
+  exit 66
+fi
+
+if [[ "${DRY_RUN}" != "yes" && "${SKIP_UPLOAD}" != "yes" && "${SKIP_PUBLIC_VERIFY}" != "yes" && ! -f "${PUBLIC_VERIFY_SCRIPT}" ]]; then
+  echo "Public verifier not found: ${PUBLIC_VERIFY_SCRIPT}" >&2
   exit 66
 fi
 
@@ -222,12 +255,15 @@ run_generate_appcast() {
 ARTIFACT_NAME="$(basename "${ARTIFACT_PATH}")"
 STAGED_ARTIFACT="${UPDATES_DIR}/${ARTIFACT_NAME}"
 APPCAST_PATH="${UPDATES_DIR}/${APPCAST_FILENAME}"
+APPCAST_URL="${DOWNLOAD_URL_PREFIX%/}/${APPCAST_FILENAME}"
+ARTIFACT_URL="${DOWNLOAD_URL_PREFIX%/}/${ARTIFACT_NAME}"
 
 echo "Publishing macOS Sparkle release"
 echo "  Artifact: ${ARTIFACT_PATH}"
 echo "  Updates directory: ${UPDATES_DIR}"
 echo "  Download URL prefix: ${DOWNLOAD_URL_PREFIX}"
 echo "  Appcast: ${APPCAST_PATH}"
+echo "  Public verification: $([[ "${SKIP_PUBLIC_VERIFY}" == "yes" ]] && echo skipped || echo enabled)"
 echo "  S3 URI: ${S3_URI:-<skipped>}"
 echo "  Dry run: ${DRY_RUN}"
 
@@ -273,5 +309,32 @@ run "${AWS_BIN}" s3 sync "${UPDATES_DIR}" "${S3_URI}" \
 run "${AWS_BIN}" s3 cp "${APPCAST_PATH}" "${S3_URI%/}/${APPCAST_FILENAME}" \
   --content-type "application/xml" \
   --cache-control "no-cache,max-age=0"
+
+if [[ "${SKIP_PUBLIC_VERIFY}" != "yes" ]]; then
+  artifact_length="1"
+  if [[ "${DRY_RUN}" != "yes" ]]; then
+    artifact_length="$(wc -c <"${ARTIFACT_PATH}" | tr -d '[:space:]')"
+  fi
+  verify_args=(
+    bash
+    "${PUBLIC_VERIFY_SCRIPT}"
+    --appcast-url
+    "${APPCAST_URL}"
+    --expected-artifact-url
+    "${ARTIFACT_URL}"
+    --expected-min-length
+    "${artifact_length}"
+  )
+  if [[ -n "${EXPECTED_VERSION}" ]]; then
+    verify_args+=(--expected-version "${EXPECTED_VERSION}")
+  fi
+  if [[ -n "${EXPECTED_BUILD}" ]]; then
+    verify_args+=(--expected-build "${EXPECTED_BUILD}")
+  fi
+  if [[ "${DRY_RUN}" == "yes" ]]; then
+    verify_args+=(--dry-run)
+  fi
+  run "${verify_args[@]}"
+fi
 
 echo "Sparkle release published."
