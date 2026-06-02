@@ -136,6 +136,10 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
     root,
     'tool/configure_macos_sparkle_s3_public_read.sh',
   );
+  final sparklePublicReleaseVerifierScript = _read(
+    root,
+    'tool/verify_macos_sparkle_public_release.sh',
+  );
   final launchAgent = _read(
     root,
     'macos/Runner/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist',
@@ -381,6 +385,33 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
           'Use tool/configure_macos_sparkle_s3_public_read.sh to review or apply direct-S3 public read settings.',
       details: <String, Object?>{
         'path': 'tool/configure_macos_sparkle_s3_public_read.sh',
+      },
+    ),
+    _check(
+      id: 'sparkle_public_release_verifier',
+      label: 'Sparkle public release verifier',
+      ok:
+          sparklePublicReleaseVerifierScript?.contains(
+                'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml',
+              ) ==
+              true &&
+          sparklePublicReleaseVerifierScript?.contains('curl') == true &&
+          sparklePublicReleaseVerifierScript?.contains('sparkle:edSignature') ==
+              true &&
+          sparklePublicReleaseVerifierScript?.contains(
+                'sparkle:releaseNotesLink',
+              ) ==
+              true &&
+          sparklePublicReleaseVerifierScript?.contains('Content-Length') ==
+              true &&
+          sparklePublicReleaseVerifierScript?.contains('no-cache,max-age=0') ==
+              true &&
+          sparklePublicReleaseVerifierScript?.contains('max-age=300,public') ==
+              true,
+      nextAction:
+          'Use tool/verify_macos_sparkle_public_release.sh after each real S3 publish.',
+      details: <String, Object?>{
+        'path': 'tool/verify_macos_sparkle_public_release.sh',
       },
     ),
     _check(

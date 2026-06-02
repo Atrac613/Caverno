@@ -66,6 +66,8 @@ void main() {
   late String sparklePublishScript;
   late String sparkleS3PreflightScript;
   late String sparkleS3PublicReadScript;
+  late String sparklePublicReleaseVerifierScript;
+  late String sparkleS3Runbook;
   late String releaseSigningPreflightWrapper;
   late String releaseSigningPreflightCli;
   late String releaseSigningPreflightSupport;
@@ -246,6 +248,12 @@ void main() {
     ).readAsStringSync();
     sparkleS3PublicReadScript = File(
       'tool/configure_macos_sparkle_s3_public_read.sh',
+    ).readAsStringSync();
+    sparklePublicReleaseVerifierScript = File(
+      'tool/verify_macos_sparkle_public_release.sh',
+    ).readAsStringSync();
+    sparkleS3Runbook = File(
+      'docs/macos_sparkle_s3_updates.md',
     ).readAsStringSync();
     releaseSigningPreflightWrapper = File(
       'tool/run_macos_computer_use_release_signing_preflight.sh',
@@ -601,6 +609,21 @@ void main() {
       sparkleS3PublicReadScript,
       contains('PublicReadCavernoMacosUpdates'),
     );
+    expect(sparklePublicReleaseVerifierScript, contains('curl'));
+    expect(
+      sparklePublicReleaseVerifierScript,
+      contains(
+        'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml',
+      ),
+    );
+    expect(sparklePublicReleaseVerifierScript, contains('sparkle:edSignature'));
+    expect(
+      sparklePublicReleaseVerifierScript,
+      contains('sparkle:releaseNotesLink'),
+    );
+    expect(sparklePublicReleaseVerifierScript, contains('Content-Length'));
+    expect(sparklePublicReleaseVerifierScript, contains('no-cache,max-age=0'));
+    expect(sparklePublicReleaseVerifierScript, contains('max-age=300,public'));
     expect(sparkleBuildScript, contains('build macos --release'));
     expect(sparkleBuildScript, contains('CAVERNO_MACOS_CODESIGN_IDENTITY'));
     expect(sparkleBuildScript, contains('resign_sparkle_updater_components'));
@@ -689,6 +712,11 @@ void main() {
       manualProcessChecklist,
       contains('bash tool/configure_macos_sparkle_s3_public_read.sh'),
     );
+    expect(
+      sparkleS3Runbook,
+      contains('bash tool/verify_macos_sparkle_public_release.sh'),
+    );
+    expect(sparkleS3Runbook, contains('--expected-artifact-url'));
   });
 
   test('Sparkle S3 preflight supports dry runs', () async {
@@ -719,6 +747,29 @@ void main() {
     expect(stdout, contains('aws s3api put-public-access-block'));
     expect(stdout, contains('aws s3api put-bucket-policy'));
     expect(stdout, contains('Dry run only.'));
+  });
+
+  test('Sparkle public release verifier supports dry runs', () async {
+    final result = await Process.run('bash', [
+      'tool/verify_macos_sparkle_public_release.sh',
+      '--dry-run',
+    ]);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final stdout = '${result.stdout}';
+    expect(stdout, contains('Verifying macOS Sparkle public release'));
+    expect(stdout, contains('curl -fsSI'));
+    expect(stdout, contains('curl -fsSL'));
+    expect(
+      stdout,
+      contains(
+        'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml',
+      ),
+    );
+    expect(
+      stdout,
+      contains('Sparkle public release verification dry run completed.'),
+    );
   });
 
   test('Sparkle release driver supports safe dry runs', () async {

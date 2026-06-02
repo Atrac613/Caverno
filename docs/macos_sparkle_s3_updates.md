@@ -179,6 +179,17 @@ The script uploads the updates directory first and then overwrites the appcast
 with `no-cache,max-age=0`, so clients do not see a new appcast before the
 artifact is available.
 
+After each real publish, verify the public appcast, linked artifact, release
+notes, Sparkle signature field, and S3 cache headers:
+
+```bash
+bash tool/verify_macos_sparkle_public_release.sh \
+  --expected-version 1.3.2 \
+  --expected-build 13 \
+  --expected-artifact-url https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/Caverno-1.3.2-13.zip \
+  --expected-min-length 30000000
+```
+
 Before removing `--dry-run` from the release driver, run:
 
 ```bash
