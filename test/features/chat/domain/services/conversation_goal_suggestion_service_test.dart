@@ -256,6 +256,95 @@ void main() {
   });
 
   test(
+    'validates clear work-product requests against implementation drift',
+    () {
+      final now = DateTime(2026, 6, 1);
+      final conversation = Conversation(
+        id: 'thread-1',
+        title: 'New coding thread',
+        messages: const [],
+        createdAt: now,
+        updatedAt: now,
+      );
+      const cases = [
+        (
+          request: 'Save the query results as a CSV file.',
+          question: 'Which script should generate the CSV file?',
+          objective: 'Save the query results as a CSV file',
+          forbiddenTerm: 'script',
+        ),
+        (
+          request: 'Output the diagnostic summary as JSON.',
+          question: 'Which package should serialize the JSON output?',
+          objective: 'Output the diagnostic summary as JSON',
+          forbiddenTerm: 'package',
+        ),
+        (
+          request: 'Create a release report.',
+          question: 'Should I build a helper app for the report?',
+          objective: 'Create a release report',
+          forbiddenTerm: 'helper app',
+        ),
+        (
+          request: 'Update README.md with the new setup steps.',
+          question: 'Which file path should I update?',
+          objective: 'Update README.md with the new setup steps',
+          forbiddenTerm: 'path',
+        ),
+      ];
+
+      for (final testCase in cases) {
+        final validated = ConversationGoalSuggestionService.validateSuggestion(
+          suggestion: ConversationGoalSuggestion.needsClarification(
+            testCase.question,
+          ),
+          conversation: conversation,
+          pendingUserMessage: testCase.request,
+        );
+
+        expect(
+          validated.kind,
+          ConversationGoalSuggestionKind.suggested,
+          reason: testCase.request,
+        );
+        expect(
+          validated.objective,
+          testCase.objective,
+          reason: testCase.request,
+        );
+        expect(
+          validated.objective!.toLowerCase(),
+          isNot(contains(testCase.forbiddenTerm)),
+          reason: testCase.request,
+        );
+      }
+    },
+  );
+
+  test('keeps explicit implementation artifacts in work-product requests', () {
+    final now = DateTime(2026, 6, 1);
+    final conversation = Conversation(
+      id: 'thread-1',
+      title: 'New coding thread',
+      messages: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    final validated = ConversationGoalSuggestionService.validateSuggestion(
+      suggestion: const ConversationGoalSuggestion.suggested(
+        'Create a Python script that exports query results as CSV',
+      ),
+      conversation: conversation,
+      pendingUserMessage:
+          'Create a Python script that exports query results as CSV.',
+    );
+
+    expect(validated.kind, ConversationGoalSuggestionKind.suggested);
+    expect(validated.objective!.toLowerCase(), contains('script'));
+  });
+
+  test(
     'validates suggested objectives that invent implementation artifacts',
     () {
       final now = DateTime(2026, 6, 1);

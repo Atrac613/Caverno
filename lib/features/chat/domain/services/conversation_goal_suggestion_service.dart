@@ -531,6 +531,8 @@ class _GoalRequestContract {
     'refactor',
     'generate',
     'check',
+    'output',
+    'export',
     '\u4f5c\u6210',
     '\u4f5c\u308b',
     '\u4fdd\u5b58',
