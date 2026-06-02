@@ -44,6 +44,7 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/skill.dart';
 import '../../domain/entities/turn_diff.dart';
+import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/coding_approval_auto_review_service.dart';
@@ -58,6 +59,8 @@ import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import '../../domain/services/turn_diff_service.dart';
+import '../../domain/services/subagent_execution_service.dart';
+import '../../domain/services/subagent_tool_policy.dart';
 import '../../../settings/domain/services/local_command_permission_service.dart';
 import 'chat_state.dart';
 import 'coding_projects_notifier.dart';
@@ -72,6 +75,7 @@ part 'chat_notifier_computer_use_handlers.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
+part 'chat_notifier_subagent_handlers.dart';
 
 final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
   final settings = ref.watch(settingsNotifierProvider);
@@ -6294,6 +6298,7 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _forcePromptCompactionForNextRequest = false;
   bool _isDrainingQueuedMessages = false;
   int _interactionGeneration = 0;
+  int _subagentDepth = 0;
   String? _activeResponseConversationId;
   List<Message>? _activeResponseMessages;
   final Map<int, String> _activeResponseConversationIdsByGeneration =
@@ -11539,6 +11544,11 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleBleConnect(toolCall);
       case 'ask_user_question':
         return _handleAskUserQuestion(
+          toolCall,
+          interactionGeneration: interactionGeneration,
+        );
+      case 'spawn_subagent':
+        return _handleSpawnSubagent(
           toolCall,
           interactionGeneration: interactionGeneration,
         );

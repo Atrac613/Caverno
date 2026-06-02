@@ -17,6 +17,7 @@ class BuiltInToolRegistry {
 
   static const String categoryDatetime = 'datetime';
   static const String categoryInteraction = 'interaction';
+  static const String categoryTasks = 'tasks';
   static const String categorySkills = 'skills';
   static const String categoryMemory = 'memory';
   static const String categoryNetwork = 'network';
@@ -33,6 +34,7 @@ class BuiltInToolRegistry {
   static const List<String> categories = [
     categoryDatetime,
     categoryInteraction,
+    categoryTasks,
     categorySkills,
     categoryMemory,
     categoryNetwork,
@@ -59,6 +61,12 @@ class BuiltInToolRegistry {
       name: 'ask_user_question',
       descriptionKey: 'settings.tool_ask_user_question',
       category: categoryInteraction,
+    ),
+    // Tasks
+    BuiltInToolInfo(
+      name: 'spawn_subagent',
+      descriptionKey: 'settings.tool_spawn_subagent',
+      category: categoryTasks,
     ),
     // Skills
     BuiltInToolInfo(

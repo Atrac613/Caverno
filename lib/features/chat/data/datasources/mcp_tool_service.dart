@@ -474,6 +474,7 @@ class McpToolService {
 
     _addIfEnabled(toolDefinitions, _currentDatetimeTool);
     _addIfEnabled(toolDefinitions, _askUserQuestionTool);
+    _addIfEnabled(toolDefinitions, _spawnSubagentTool);
 
     // Built-in memory tools (always available).
     if (conversationRepository != null) {
@@ -1933,6 +1934,44 @@ class McpToolService {
           },
         },
         'required': ['question'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _spawnSubagentTool => {
+    'type': 'function',
+    'function': {
+      'name': 'spawn_subagent',
+      'description':
+          'Delegate a focused, self-contained sub-task to a child agent that '
+          'runs its own tool-calling loop and returns a concise summary. Use '
+          'this to keep the main conversation focused: offload large file or '
+          'code exploration, independent research, or a parallelizable step. '
+          'The child inherits your tools except spawn_subagent itself (no '
+          'nested delegation) and cannot see the main conversation, so the '
+          'prompt must be complete on its own.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'description': {
+            'type': 'string',
+            'description':
+                'Short label for the sub-task, shown in the UI and logs.',
+          },
+          'prompt': {
+            'type': 'string',
+            'description':
+                'Full self-contained instructions for the subagent. Include '
+                'all context it needs; it cannot see the main conversation.',
+          },
+          'background': {
+            'type': 'boolean',
+            'description':
+                'Run asynchronously and return a task id immediately instead '
+                'of waiting for the result. Defaults to false.',
+          },
+        },
+        'required': ['description', 'prompt'],
       },
     },
   };
