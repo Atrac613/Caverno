@@ -261,6 +261,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('Goal setup pending'), findsOneWidget);
+    expect(
+      find.text('Goal setup will start when you send your next message.'),
+      findsNothing,
+    );
 
     const message = 'Build the implicit goal flow';
     await tester.enterText(find.byType(TextField).last, message);
@@ -277,6 +281,7 @@ void main() {
     expect(chatNotifier.goalObjectiveAtSend, 'Ship implicit composer goals');
     expect(find.text('Edit goal'), findsNothing);
     expect(find.textContaining('Ship implicit composer goals'), findsWidgets);
+    expect(find.textContaining('Goal set:'), findsNothing);
   });
 
   testWidgets('uses the current draft when enabling goal setup immediately', (
@@ -363,6 +368,7 @@ void main() {
     expect(chatNotifier.sentMessages, isEmpty);
     expect(find.text('Goal setup pending'), findsNothing);
     expect(find.textContaining('Ship implicit composer goals'), findsWidgets);
+    expect(find.textContaining('Goal set:'), findsNothing);
   });
 
   testWidgets('blocks duplicate goal setup while suggestion is in progress', (

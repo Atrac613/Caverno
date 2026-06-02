@@ -89,6 +89,19 @@ void main() {
       expect(prompt, contains('state that it remains unexecuted'));
       expect(prompt, contains('Do not restate an investigation plan'));
       expect(prompt, contains('answer from the executed tool results'));
+      expect(
+        prompt,
+        contains(
+          'When the provided tool results already satisfy the user\'s requested local action or saved coding goal',
+        ),
+      );
+      expect(prompt, contains('end after the concise completion evidence'));
+      expect(
+        prompt,
+        contains(
+          'Do not add optional follow-up questions, offers, or suggestions',
+        ),
+      );
       expect(prompt, contains('When a load_skill result contains explicit'));
       expect(prompt, contains('Do not add optional follow-up questions'));
       expect(prompt, contains('Do not convert a missing source file'));

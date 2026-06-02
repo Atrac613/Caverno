@@ -6960,6 +6960,78 @@ void main() {
   );
 
   test(
+    'sendMessage rejects terminal tool-role text with optional follow-up',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-write',
+            name: 'write_file',
+            arguments: const {
+              'path': 'weather.md',
+              'content': 'Saved weather report.',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                'The task "Save the weather report" is complete. Validation passed. Do you want another output format?',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Saved the weather report.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file':
+              '{"path":"/tmp/weather.md","created":true,"bytes_written":21}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoVerificationSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Save the weather report');
+
+        expect(toolService.executedToolNames, ['write_file']);
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Saved the weather report.'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('Do you want another output format?')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage allows longer saved-task tool loops before fallback',
     () async {
       final toolLoopResponses = <ChatCompletionResult>[
@@ -8403,6 +8475,184 @@ void main() {
           contains(
             'The task `21871b16-b3eb-4b54-8906-35eef1e742ac` is now complete.',
           ),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage accepts terminal file mutation completion without final fallback',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 6, 2),
+        updatedAt: DateTime(2026, 6, 2),
+      );
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'write_file',
+            arguments: const {
+              'path': 'tokyo_weather_2026-06-03.md',
+              'content': '# Tokyo weather',
+            },
+          ),
+        ],
+        toolRoleResponseContent:
+            'Done. Saved `/tmp/project/tokyo_weather_2026-06-03.md`.',
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+        autoReviewResponses: [
+          ChatCompletionResult(
+            content:
+                '{"outcome":"allow","riskLevel":"low","userAuthorization":"high","rationale":"The user requested this file write."}',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file':
+              '{"path":"/tmp/project/tokyo_weather_2026-06-03.md","created":false,"bytes_written":648}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledAutoReviewSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Save the Tokyo weather report');
+
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('/tmp/project/tokyo_weather_2026-06-03.md'),
+        );
+        expect(toolService.executedToolNames, ['write_file']);
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage rejects terminal file mutation completion with optional follow-up',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 6, 2),
+        updatedAt: DateTime(2026, 6, 2),
+      );
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'write_file',
+            arguments: const {
+              'path': 'tokyo_weather_2026-06-03.md',
+              'content': '# Tokyo weather',
+            },
+          ),
+        ],
+        toolRoleResponseContent:
+            'Done. Saved `/tmp/project/tokyo_weather_2026-06-03.md`. '
+            'Do you want me to check another city?',
+        finalAnswerChunks: const ['Final fallback based on the tool result.'],
+        autoReviewResponses: [
+          ChatCompletionResult(
+            content:
+                '{"outcome":"allow","riskLevel":"low","userAuthorization":"high","rationale":"The user requested this file write."}',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file':
+              '{"path":"/tmp/project/tokyo_weather_2026-06-03.md","created":false,"bytes_written":648}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledAutoReviewSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Save the Tokyo weather report');
+
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Final fallback based on the tool result.'),
         );
       } finally {
         toolContainer.dispose();
@@ -10604,6 +10854,10 @@ void main() {
       expect(
         toolDataSource.finalAnswerMessages.last.content,
         contains('mention this existing-file update in the final answer'),
+      );
+      expect(
+        toolDataSource.finalAnswerMessages.last.content,
+        contains('end after the concise completion evidence'),
       );
     } finally {
       toolContainer.dispose();

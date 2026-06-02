@@ -91,6 +91,17 @@ class ConversationGoalProgressInference {
     'validated successfully',
     'completed successfully',
     'successfully completed',
+    '\u5b8c\u4e86\u3057\u307e\u3057\u305f',
+    '\u5b8c\u4e86\u6e08\u307f',
+    '\u4fdd\u5b58\u3057\u307e\u3057\u305f',
+    '\u4fdd\u5b58\u6e08\u307f',
+    '\u66f4\u65b0\u3057\u307e\u3057\u305f',
+    '\u4f5c\u6210\u3057\u307e\u3057\u305f',
+    '\u8ffd\u52a0\u3057\u307e\u3057\u305f',
+    '\u5b9f\u88c5\u3057\u307e\u3057\u305f',
+    '\u691c\u8a3c\u304c\u901a\u308a\u307e\u3057\u305f',
+    '\u30c6\u30b9\u30c8\u304c\u901a\u308a\u307e\u3057\u305f',
+    '\u691c\u8a3c\u6210\u529f',
   ];
 
   static const _unresolvedIncompleteSignals = <String>[
@@ -111,9 +122,21 @@ class ConversationGoalProgressInference {
     'cannot proceed',
     'can\'t proceed',
     'unable to proceed',
+    '\u5b8c\u4e86\u3057\u3066\u3044\u307e\u305b\u3093',
+    '\u672a\u5b8c\u4e86',
+    '\u6b8b\u3063\u3066\u3044\u307e\u3059',
+    '\u6b8b\u308a',
+    '\u4fdd\u7559\u4e2d',
+    '\u30d6\u30ed\u30c3\u30af',
+    '\u9032\u3081\u307e\u305b\u3093',
+    '\u7d9a\u884c\u3067\u304d\u307e\u305b\u3093',
   ];
 
-  static const _recoverableFailureSignals = <String>['failed', 'failure'];
+  static const _recoverableFailureSignals = <String>[
+    'failed',
+    'failure',
+    '\u5931\u6557',
+  ];
 
   static const _resolvedFailureSignals = <String>[
     'test exited with code 0',
@@ -126,6 +149,10 @@ class ConversationGoalProgressInference {
     'now pass',
     'confirmed the fix',
     'confirming the fix',
+    '\u901a\u308a\u307e\u3057\u305f',
+    '\u6210\u529f\u3057\u307e\u3057\u305f',
+    '\u89e3\u6d88\u3057\u307e\u3057\u305f',
+    '\u4fee\u6b63\u3057\u307e\u3057\u305f',
   ];
 
   static const _blockedSignals = <String>[

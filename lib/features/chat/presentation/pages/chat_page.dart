@@ -1435,7 +1435,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           onCodingGoalEmptySwitchEnabled:
                               isCodingWorkspace && currentConversation != null
                               ? () => _deferGoalSetupUntilSend(
-                                  context,
                                   currentConversation,
                                 )
                               : null,

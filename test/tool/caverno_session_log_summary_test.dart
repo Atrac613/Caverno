@@ -181,6 +181,96 @@ void main() {
     },
   );
 
+  test('warns when memory extraction drafts one-off lookup memory', () async {
+    final logFile = _writeSessionLog([
+      _entry(
+        operation: 'createChatCompletion',
+        finishReason: 'stop',
+        requestMessages: [
+          _message(
+            'user',
+            'Conversation log:\n'
+                '- user: Create a Tokyo weather report for 2026-06-03.\n'
+                'Output rules:\n'
+                '- Do not add memories for one-off lookup results.',
+          ),
+        ],
+        content: jsonEncode({
+          'summary':
+              'Retrieved Tokyo weather for 2026-06-03 and saved the report.',
+          'open_loops': <String>[],
+          'profile': <String, Object?>{},
+          'memories': [
+            {
+              'text':
+                  'Tokyo weather on 2026-06-03: Heavy Rain, 160.6mm precipitation, max 19.2°C, min 16.7°C, max wind 19.5 km/h.',
+              'type': 'fact',
+              'confidence': 1.0,
+              'importance': 0.8,
+              'ttl_days': 365,
+            },
+          ],
+        }),
+      ),
+    ]);
+
+    final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+
+    expect(summary.memoryExtractionLineNumbers, [1]);
+    expect(summary.hasWarnings, isTrue);
+    expect(summary.hasMemoryEphemeralDraftWarning, isTrue);
+    expect(summary.warnings.single.code, 'memory_ephemeral_draft');
+    expect(summary.warnings.single.lineNumber, 1);
+    expect(summary.warnings.single.message, contains('LLM draft output'));
+    expect(summary.warnings.single.evidencePreview, contains('Tokyo weather'));
+
+    final json = summary.toJson();
+    expect(json['memoryEphemeralDraftWarning'], isTrue);
+
+    final markdown = summary.toMarkdown();
+    expect(markdown, contains('memory_ephemeral_draft'));
+  });
+
+  test(
+    'does not warn on lookup-like memory when user explicitly asks to remember',
+    () async {
+      final logFile = _writeSessionLog([
+        _entry(
+          operation: 'createChatCompletion',
+          finishReason: 'stop',
+          requestMessages: [
+            _message(
+              'user',
+              'Conversation log:\n'
+                  '- user: Remember that Tokyo weather on 2026-06-03 was Heavy Rain.',
+            ),
+          ],
+          content: jsonEncode({
+            'summary': 'User explicitly asked to remember a weather fact.',
+            'open_loops': <String>[],
+            'profile': <String, Object?>{},
+            'memories': [
+              {
+                'text':
+                    'Tokyo weather on 2026-06-03: Heavy Rain, 160.6mm precipitation, max 19.2°C, min 16.7°C, max wind 19.5 km/h.',
+                'type': 'fact',
+                'confidence': 1.0,
+                'importance': 0.8,
+                'ttl_days': 365,
+              },
+            ],
+          }),
+        ),
+      ]);
+
+      final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+
+      expect(summary.hasWarnings, isFalse);
+      expect(summary.hasMemoryEphemeralDraftWarning, isFalse);
+      expect(summary.toJson()['memoryEphemeralDraftWarning'], isFalse);
+    },
+  );
+
   test('records malformed lines and error entries without crashing', () async {
     final logFile = _writeRawSessionLog([
       'not-json',

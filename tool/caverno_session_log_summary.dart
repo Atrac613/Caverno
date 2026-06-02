@@ -48,11 +48,11 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
   final loopLimitPromptLineNumbers = <int>[];
   final memoryExtractionLineNumbers = <int>[];
   final autoReviewLineNumbers = <int>[];
+  final warnings = <SessionLogWarningEntry>[];
   var malformedLineCount = 0;
   var parsedEntryCount = 0;
   var totalToolCallCount = 0;
   SessionLogEntryDiagnostic? finalAnswer;
-  SessionLogWarningEntry? finalAnswerWarning;
 
   final lines = await logFile.readAsLines();
   for (var lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
@@ -106,6 +106,14 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     }
     if (isMemoryExtraction) {
       memoryExtractionLineNumbers.add(lineNumber);
+      warnings.addAll(
+        _buildMemoryExtractionWarnings(
+          lineNumber: lineNumber,
+          content: responseContent,
+          requestText: requestText,
+          previewLength: previewLength,
+        ),
+      );
     }
     if (isAutoReview) {
       autoReviewLineNumbers.add(lineNumber);
@@ -185,17 +193,20 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     diagnostics.add(diagnostic);
     if (isFinalAnswerCandidate) {
       finalAnswer = diagnostic;
-      finalAnswerWarning = _buildFinalAnswerWarning(
+      final finalAnswerWarning = _buildFinalAnswerWarning(
         lineNumber: lineNumber,
         content: responseContent,
         previewLength: previewLength,
       );
+      if (finalAnswerWarning != null) {
+        warnings.add(finalAnswerWarning);
+      }
     }
   }
 
   return CavernoLlmSessionLogSummary(
     schemaName: 'caverno_llm_session_log_summary',
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: generatedAt ?? DateTime.now(),
     logPath: logFile.path,
     entryCount: parsedEntryCount,
@@ -216,7 +227,7 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     toolCalls: List.unmodifiable(toolCalls),
     entries: List.unmodifiable(diagnostics),
     finalAnswer: finalAnswer,
-    warnings: [?finalAnswerWarning],
+    warnings: List.unmodifiable(warnings),
   );
 }
 
@@ -346,6 +357,49 @@ bool _isAutoReviewResponse(String content) {
       object.containsKey('rationale');
 }
 
+List<SessionLogWarningEntry> _buildMemoryExtractionWarnings({
+  required int lineNumber,
+  required String content,
+  required String requestText,
+  required int previewLength,
+}) {
+  final conversationUserText = _memoryExtractionConversationUserText(
+    requestText,
+  );
+  if (_hasExplicitMemoryRequest(conversationUserText)) {
+    return const [];
+  }
+
+  final object = _decodeJsonObject(content.trim());
+  if (object == null) {
+    return const [];
+  }
+  final memories = _asList(object['memories']);
+  for (final rawMemory in memories) {
+    final memory = _asStringMap(rawMemory);
+    if (memory == null) {
+      continue;
+    }
+    final text = _asString(memory['text']) ?? '';
+    if (!_isEphemeralDraftMemory(text)) {
+      continue;
+    }
+    return [
+      SessionLogWarningEntry(
+        code: 'memory_ephemeral_draft',
+        lineNumber: lineNumber,
+        message:
+            'The memory extractor drafted a likely one-off lookup or artifact '
+            'memory. Treat this as LLM draft output, not persisted memory; '
+            'check the memory_update counts or storage state for added, queued, '
+            'and suppressed candidates.',
+        evidencePreview: _preview(text, previewLength),
+      ),
+    ];
+  }
+  return const [];
+}
+
 SessionLogWarningEntry? _buildFinalAnswerWarning({
   required int lineNumber,
   required String content,
@@ -404,6 +458,63 @@ bool _misinterpretsStreamEnd(String content) {
 
 bool _containsAny(String text, List<String> needles) {
   return needles.any(text.contains);
+}
+
+final RegExp _explicitMemoryRequestPattern = RegExp(
+  r'\b(remember|memorize|save to memory|keep in memory)\b|'
+  '\\u899a\\u3048\\u3066|\\u8a18\\u61b6|\\u30e1\\u30e2\\u30ea',
+  caseSensitive: false,
+);
+
+final RegExp _ephemeralArtifactMemoryPattern = RegExp(
+  r'\b(saved|wrote|created|updated|generated|exported)\b.*\b(file|path|report|markdown|\.md|\.json|\.txt|\.csv|\.dart|/users/|/tmp/)\b|'
+  r'\b(file|path|report|markdown|\.md|\.json|\.txt|\.csv|\.dart|/users/|/tmp/)\b.*\b(saved|wrote|created|updated|generated|exported)\b',
+  caseSensitive: false,
+);
+
+final RegExp _ephemeralLookupMemoryPattern = RegExp(
+  r'\b(retrieved|fetched|looked up|queried|searched|obtained)\b.*\b(weather|forecast|api|search result|tool result)\b|'
+  r'\b(weather|forecast)\b.*\b(temperature|precipitation|rain|drizzle|snow|wind|humidity|weathercode|weather code|km/h)\b',
+  caseSensitive: false,
+);
+
+bool _hasExplicitMemoryRequest(String text) {
+  return _explicitMemoryRequestPattern.hasMatch(text);
+}
+
+String _memoryExtractionConversationUserText(String requestText) {
+  final buffer = StringBuffer();
+  var inConversationLog = false;
+  for (final rawLine in requestText.split(RegExp(r'\r?\n'))) {
+    final line = rawLine.trim();
+    if (line == 'Conversation log:') {
+      inConversationLog = true;
+      continue;
+    }
+    if (!inConversationLog) {
+      continue;
+    }
+    if (line == 'Application-executed tool results for the latest turn:' ||
+        line == 'Output rules:') {
+      break;
+    }
+    if (!line.startsWith('- user:')) {
+      continue;
+    }
+    buffer
+      ..write(line.substring('- user:'.length).trim())
+      ..write('\n');
+  }
+  return buffer.toString();
+}
+
+bool _isEphemeralDraftMemory(String text) {
+  final normalized = text.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+  if (normalized.isEmpty) {
+    return false;
+  }
+  return _ephemeralArtifactMemoryPattern.hasMatch(normalized) ||
+      _ephemeralLookupMemoryPattern.hasMatch(normalized);
 }
 
 String? _previewNullable(String? value, int maxLength) {
@@ -525,6 +636,9 @@ final class CavernoLlmSessionLogSummary {
   bool get hasStreamEndMisinterpretationWarning =>
       warnings.any((warning) => warning.code == 'stream_end_misinterpretation');
 
+  bool get hasMemoryEphemeralDraftWarning =>
+      warnings.any((warning) => warning.code == 'memory_ephemeral_draft');
+
   Map<String, dynamic> toJson() {
     return {
       'schemaName': schemaName,
@@ -553,6 +667,7 @@ final class CavernoLlmSessionLogSummary {
           .map((warning) => warning.toJson())
           .toList(growable: false),
       'streamEndMisinterpretationWarning': hasStreamEndMisinterpretationWarning,
+      'memoryEphemeralDraftWarning': hasMemoryEphemeralDraftWarning,
     };
   }
 

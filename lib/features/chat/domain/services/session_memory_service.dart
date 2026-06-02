@@ -108,6 +108,17 @@ class SessionMemoryService {
     r'\b(weather|forecast)\b.*\b(temperature|precipitation|rain|drizzle|snow|wind|humidity|weathercode|weather code|km/h)\b',
     caseSensitive: false,
   );
+  static final RegExp _profilePunctuationPattern = RegExp(r'[_\-/.,;:()]+');
+  static final RegExp _profileFillerWordPattern = RegExp(
+    r'\b(the user|user|the|a|an)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _profileLeadingVerbPattern = RegExp(
+    r'^(prefers(?:\s+to)?|treats|wants|uses|starts\s+with)\s+',
+    caseSensitive: false,
+  );
+  static const int _profileTokenSubsetMinTokens = 3;
+  static const double _profileTokenSubsetThreshold = 0.86;
 
   final ChatMemoryRepository _repository;
   final _uuid = const Uuid();
@@ -118,7 +129,7 @@ class SessionMemoryService {
     DateTime? now,
   }) {
     final timestamp = now ?? DateTime.now();
-    final profile = _repository.loadProfile();
+    final profile = _dedupeProfile(_repository.loadProfile());
     final includeHistoricalTaskContext = _shouldIncludeHistoricalTaskContext(
       currentUserInput,
     );
@@ -330,7 +341,7 @@ class SessionMemoryService {
   }
 
   UserMemoryProfile loadProfile() {
-    return _repository.loadProfile();
+    return _dedupeProfile(_repository.loadProfile());
   }
 
   List<MemoryEntry> loadMemories() {
@@ -772,24 +783,28 @@ class SessionMemoryService {
           entry.text,
           'Response style preference:',
         );
-        if (line.isNotEmpty && !preferences.contains(line)) {
-          preferences.add(line);
+        if (_addProfileItem(preferences, line)) {
           changed = true;
         }
       } else if (entry.type == MemoryEntryType.persona) {
         final line = _extractProfileText(entry.text, 'User attribute:');
-        if (line.isNotEmpty && !persona.contains(line)) {
-          persona.add(line);
+        if (_addProfileItem(persona, line)) {
           changed = true;
         }
       }
     }
 
-    if (!changed) return false;
+    final nextPersona = _trimList(_dedupeProfileItems(persona), 12);
+    final nextPreferences = _trimList(_dedupeProfileItems(preferences), 16);
+    if (!changed &&
+        _sameStringList(current.persona, nextPersona) &&
+        _sameStringList(current.preferences, nextPreferences)) {
+      return false;
+    }
 
     final nextProfile = current.copyWith(
-      persona: _trimList(persona, 12),
-      preferences: _trimList(preferences, 16),
+      persona: nextPersona,
+      preferences: nextPreferences,
       updatedAt: now,
     );
     await _repository.saveProfile(nextProfile);
@@ -807,30 +822,35 @@ class SessionMemoryService {
     var changed = false;
 
     for (final item in draft.persona.map(_normalizeSentence)) {
-      if (item.isNotEmpty && !persona.contains(item)) {
-        persona.add(item);
+      if (_addProfileItem(persona, item)) {
         changed = true;
       }
     }
     for (final item in draft.preferences.map(_normalizeSentence)) {
-      if (item.isNotEmpty && !preferences.contains(item)) {
-        preferences.add(item);
+      if (_addProfileItem(preferences, item)) {
         changed = true;
       }
     }
     for (final item in draft.doNot.map(_normalizeSentence)) {
-      if (item.isNotEmpty && !doNot.contains(item)) {
-        doNot.add(item);
+      if (_addProfileItem(doNot, item)) {
         changed = true;
       }
     }
 
-    if (!changed) return false;
+    final nextPersona = _trimList(_dedupeProfileItems(persona), 12);
+    final nextPreferences = _trimList(_dedupeProfileItems(preferences), 16);
+    final nextDoNot = _trimList(_dedupeProfileItems(doNot), 16);
+    if (!changed &&
+        _sameStringList(current.persona, nextPersona) &&
+        _sameStringList(current.preferences, nextPreferences) &&
+        _sameStringList(current.doNot, nextDoNot)) {
+      return false;
+    }
 
     final nextProfile = current.copyWith(
-      persona: _trimList(persona, 12),
-      preferences: _trimList(preferences, 16),
-      doNot: _trimList(doNot, 16),
+      persona: nextPersona,
+      preferences: nextPreferences,
+      doNot: nextDoNot,
       updatedAt: now,
     );
     await _repository.saveProfile(nextProfile);
@@ -892,6 +912,217 @@ class SessionMemoryService {
     return values.sublist(values.length - maxLength);
   }
 
+  bool _addProfileItem(List<String> items, String rawItem) {
+    final item = _normalizeSentence(rawItem);
+    if (item.isEmpty) {
+      return false;
+    }
+    final duplicateIndex = _findSimilarProfileItemIndex(items, item);
+    if (duplicateIndex >= 0) {
+      if (_profileSpecificityScore(item) >
+          _profileSpecificityScore(items[duplicateIndex])) {
+        items[duplicateIndex] = item;
+        return true;
+      }
+      return false;
+    }
+    items.add(item);
+    return true;
+  }
+
+  List<String> _dedupeProfileItems(List<String> values) {
+    final deduped = <String>[];
+    for (final rawValue in values) {
+      final value = _normalizeSentence(rawValue);
+      if (value.isEmpty) {
+        continue;
+      }
+      final duplicateIndex = _findSimilarProfileItemIndex(deduped, value);
+      if (duplicateIndex < 0) {
+        deduped.add(value);
+        continue;
+      }
+      if (_profileSpecificityScore(value) >
+          _profileSpecificityScore(deduped[duplicateIndex])) {
+        deduped[duplicateIndex] = value;
+      }
+    }
+    return deduped;
+  }
+
+  UserMemoryProfile _dedupeProfile(UserMemoryProfile profile) {
+    if (profile.isEmpty) {
+      return profile;
+    }
+
+    final selections = <_ProfileSelection>[];
+    void addItems(_ProfileBucket bucket, List<String> values) {
+      for (final rawValue in values) {
+        final value = _normalizeSentence(rawValue);
+        if (value.isEmpty) {
+          continue;
+        }
+        final duplicateIndex = _findSimilarProfileSelectionIndex(
+          selections,
+          value,
+        );
+        if (duplicateIndex < 0) {
+          selections.add(_ProfileSelection(bucket: bucket, value: value));
+          continue;
+        }
+        if (_profileSpecificityScore(value) >
+            _profileSpecificityScore(selections[duplicateIndex].value)) {
+          selections[duplicateIndex] = _ProfileSelection(
+            bucket: bucket,
+            value: value,
+          );
+        }
+      }
+    }
+
+    addItems(_ProfileBucket.persona, profile.persona);
+    addItems(_ProfileBucket.preference, profile.preferences);
+    addItems(_ProfileBucket.doNot, profile.doNot);
+
+    final nextPersona = _trimList(
+      selections
+          .where((selection) => selection.bucket == _ProfileBucket.persona)
+          .map((selection) => selection.value)
+          .toList(),
+      12,
+    );
+    final nextPreferences = _trimList(
+      selections
+          .where((selection) => selection.bucket == _ProfileBucket.preference)
+          .map((selection) => selection.value)
+          .toList(),
+      16,
+    );
+    final nextDoNot = _trimList(
+      selections
+          .where((selection) => selection.bucket == _ProfileBucket.doNot)
+          .map((selection) => selection.value)
+          .toList(),
+      16,
+    );
+
+    if (_sameStringList(profile.persona, nextPersona) &&
+        _sameStringList(profile.preferences, nextPreferences) &&
+        _sameStringList(profile.doNot, nextDoNot)) {
+      return profile;
+    }
+
+    return profile.copyWith(
+      persona: nextPersona,
+      preferences: nextPreferences,
+      doNot: nextDoNot,
+    );
+  }
+
+  int _findSimilarProfileSelectionIndex(
+    List<_ProfileSelection> selections,
+    String candidate,
+  ) {
+    return _findSimilarProfileItemIndex(
+      selections.map((selection) => selection.value).toList(),
+      candidate,
+    );
+  }
+
+  int _findSimilarProfileItemIndex(List<String> items, String candidate) {
+    final normalizedCandidate = _normalizeProfileItemForDedupe(candidate);
+    if (normalizedCandidate.isEmpty) {
+      return -1;
+    }
+    for (var index = 0; index < items.length; index += 1) {
+      final normalizedItem = _normalizeProfileItemForDedupe(items[index]);
+      if (normalizedItem.isEmpty) {
+        continue;
+      }
+      if (normalizedItem == normalizedCandidate ||
+          _profileItemsHaveTokenSubset(normalizedItem, normalizedCandidate) ||
+          _profileItemsContainEachOther(normalizedItem, normalizedCandidate) ||
+          _semanticSimilarity(normalizedItem, normalizedCandidate) >= 0.82) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  bool _profileItemsContainEachOther(String left, String right) {
+    if (left.length < 32 || right.length < 32) {
+      return false;
+    }
+    return left.contains(right) || right.contains(left);
+  }
+
+  bool _profileItemsHaveTokenSubset(String left, String right) {
+    final leftTokens = _profileDedupeTokenSet(left);
+    final rightTokens = _profileDedupeTokenSet(right);
+    if (leftTokens.length < _profileTokenSubsetMinTokens ||
+        rightTokens.length < _profileTokenSubsetMinTokens) {
+      return false;
+    }
+
+    final smaller = leftTokens.length <= rightTokens.length
+        ? leftTokens
+        : rightTokens;
+    final larger = leftTokens.length <= rightTokens.length
+        ? rightTokens
+        : leftTokens;
+    final coverage = smaller.intersection(larger).length / smaller.length;
+    return coverage >= _profileTokenSubsetThreshold;
+  }
+
+  Set<String> _profileDedupeTokenSet(String value) {
+    if (value.isEmpty) {
+      return const {};
+    }
+    return value.split(' ').where((token) => token.length > 1).toSet();
+  }
+
+  int _profileSpecificityScore(String value) {
+    final normalized = _normalizeProfileItemForDedupe(value);
+    final tokenCount = normalized.isEmpty ? 0 : normalized.split(' ').length;
+    return normalized.length + tokenCount;
+  }
+
+  String _normalizeProfileItemForDedupe(String value) {
+    var normalized = value.toLowerCase().trim();
+    normalized = normalized.replaceAll(_profilePunctuationPattern, ' ');
+    normalized = normalized.replaceAll(_profileFillerWordPattern, ' ');
+    normalized = normalized.replaceAll(_whitespaceRunPattern, ' ').trim();
+    normalized = normalized.replaceFirst(_profileLeadingVerbPattern, '');
+    normalized = normalized.replaceAll(_whitespaceRunPattern, ' ').trim();
+    return _collapseAdjacentWords(normalized);
+  }
+
+  String _collapseAdjacentWords(String value) {
+    final words = value.split(' ').where((word) => word.isNotEmpty).toList();
+    if (words.isEmpty) {
+      return '';
+    }
+    final collapsed = <String>[];
+    for (final word in words) {
+      if (collapsed.isEmpty || collapsed.last != word) {
+        collapsed.add(word);
+      }
+    }
+    return collapsed.join(' ');
+  }
+
+  bool _sameStringList(List<String> left, List<String> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      if (left[index] != right[index]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   String _extractProfileText(String text, String prefix) {
     if (!text.startsWith(prefix)) return '';
     return text.substring(prefix.length).trim();
@@ -912,6 +1143,15 @@ class _ScoredMemory {
 
   final MemoryEntry memory;
   final double score;
+}
+
+enum _ProfileBucket { persona, preference, doNot }
+
+class _ProfileSelection {
+  const _ProfileSelection({required this.bucket, required this.value});
+
+  final _ProfileBucket bucket;
+  final String value;
 }
 
 class MemoryUpdateResult {

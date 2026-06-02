@@ -137,6 +137,11 @@ void main() {
           ),
           reason: _diagnostic(container, toolService, fixture),
         );
+        expect(
+          _containsOptionalFollowUpOffer(finalContent),
+          isFalse,
+          reason: _diagnostic(container, toolService, fixture),
+        );
       } finally {
         container.dispose();
         fixture.dispose();
@@ -212,6 +217,15 @@ String _lastAssistantContent(ProviderContainer container) {
     }
   }
   return '';
+}
+
+bool _containsOptionalFollowUpOffer(String content) {
+  final normalized = content.toLowerCase();
+  return RegExp(
+    r'\b(other|another|different)\s+(city|date|day|format|output)\b|'
+    r'\b(would you like|do you want|want me|let me know|anything else)\b|'
+    '別の|他の|調べますか|必要な場合|お知らせください',
+  ).hasMatch(normalized);
 }
 
 String _diagnostic(

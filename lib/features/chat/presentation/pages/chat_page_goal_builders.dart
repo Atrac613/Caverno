@@ -26,18 +26,10 @@ extension _ChatPageGoalBuilders on _ChatPageState {
     _setPendingCodingGoalConversationId(null);
   }
 
-  void _deferGoalSetupUntilSend(
-    BuildContext context,
-    Conversation currentConversation,
-  ) {
+  void _deferGoalSetupUntilSend(Conversation currentConversation) {
     if (!_isCodingGoalSetupPendingFor(currentConversation)) {
       _setPendingCodingGoalConversationId(currentConversation.id);
     }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text('chat.goal_pending_until_send'.tr())),
-      );
   }
 
   Future<bool> _sendMessageAfterPendingGoalSetup(
@@ -166,11 +158,6 @@ extension _ChatPageGoalBuilders on _ChatPageState {
           tokenBudget: result.tokenBudget,
           turnBudget: result.turnBudget,
         );
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('chat.goal_saved'.tr())));
-        }
     }
   }
 
@@ -211,27 +198,6 @@ extension _ChatPageGoalBuilders on _ChatPageState {
     String? clarificationAnswer,
   }) async {
     final languageCode = context.locale.languageCode;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 30),
-        content: Row(
-          children: [
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Theme.of(context).colorScheme.onInverseSurface,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Text('chat.goal_suggesting'.tr())),
-          ],
-        ),
-      ),
-    );
 
     try {
       final suggestion = await ref
@@ -242,7 +208,6 @@ extension _ChatPageGoalBuilders on _ChatPageState {
             clarificationQuestion: clarificationQuestion,
             clarificationAnswer: clarificationAnswer,
           );
-      messenger?.hideCurrentSnackBar();
       if (!context.mounted) {
         return null;
       }
@@ -252,8 +217,8 @@ extension _ChatPageGoalBuilders on _ChatPageState {
       debugPrint('Goal suggestion failed: $error');
     }
 
-    messenger?.hideCurrentSnackBar();
     if (context.mounted) {
+      final messenger = ScaffoldMessenger.maybeOf(context);
       messenger?.showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 8),
@@ -294,18 +259,6 @@ extension _ChatPageGoalBuilders on _ChatPageState {
               enabled: true,
               status: ConversationGoalStatus.active,
             );
-        if (context.mounted) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                duration: const Duration(seconds: 6),
-                content: Text(
-                  'chat.goal_auto_set'.tr(namedArgs: {'objective': objective}),
-                ),
-              ),
-            );
-        }
         return true;
       case ConversationGoalSuggestionKind.needsClarification:
         final question = suggestion.question?.trim();

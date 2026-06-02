@@ -216,6 +216,12 @@ class ToolResultPromptBuilder {
         'unexecuted action.',
       )
       ..writeln(
+        'When the provided tool results already satisfy the user\'s requested '
+        'local action or saved coding goal, end after the concise completion '
+        'evidence. Do not add optional follow-up questions, offers, or '
+        'suggestions after that completion evidence.',
+      )
+      ..writeln(
         'When a load_skill result contains explicit output constraints, follow '
         'those constraints exactly. Do not add optional follow-up questions, '
         'permission requests, or offers to execute extra checks unless the '

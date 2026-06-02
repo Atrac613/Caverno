@@ -13,6 +13,7 @@ import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -50,10 +51,11 @@ void main() {
     () async {
       final env = _WeatherCodeLiveEnv.fromEnvironment();
       final fixture = _WeatherCodeFixture.create(env.workspaceRoot);
-      final dataSource = ChatRemoteDataSource(
+      final delegateDataSource = ChatRemoteDataSource(
         baseUrl: env.baseUrl,
         apiKey: env.apiKey,
       );
+      final dataSource = _WeatherCodeLiveDataSource(delegateDataSource);
       final toolService = _WeatherCodeToolService(fixture.root);
       final container = _buildWeatherCodeContainer(
         env: env,
@@ -134,6 +136,37 @@ void main() {
           isNot(contains('drizzle')),
           reason: _diagnostic(container, toolService, fixture, null),
         );
+        expect(
+          _containsOptionalFollowUpOffer(finalContent),
+          isFalse,
+          reason: _diagnostic(container, toolService, fixture, null),
+        );
+        final systemPrompt = dataSource.firstSystemPrompt;
+        expect(
+          systemPrompt,
+          contains('[Known User Profile]'),
+          reason: _diagnostic(container, toolService, fixture, null),
+        );
+        expect(
+          _occurrenceCount(systemPrompt, 'Prefers automatic progression'),
+          1,
+          reason: _diagnostic(container, toolService, fixture, null),
+        );
+        expect(
+          _occurrenceCount(systemPrompt, 'implementation plans'),
+          1,
+          reason: _diagnostic(container, toolService, fixture, null),
+        );
+        expect(
+          _occurrenceCount(systemPrompt, 'high-value tasks'),
+          1,
+          reason: _diagnostic(container, toolService, fixture, null),
+        );
+        expect(
+          _occurrenceCount(systemPrompt, 'file/command execution approvals'),
+          1,
+          reason: _diagnostic(container, toolService, fixture, null),
+        );
 
         final memoryProbe = await _extractMemoryDraft(
           dataSource: dataSource,
@@ -142,49 +175,86 @@ void main() {
           toolService: toolService,
         );
         final memoryDraft = memoryProbe.draft;
-        final memoryText = memoryProbe.combinedText.toLowerCase();
-        final memoryEntriesText =
-            memoryDraft?.entries.map((entry) => entry.text).join('\n') ?? '';
-        final normalizedMemoryEntriesText = memoryEntriesText.toLowerCase();
+        final memoryInput = memoryProbe.input;
         expect(
           memoryDraft,
           isNotNull,
           reason: _diagnostic(container, toolService, fixture, memoryDraft),
         );
+        final parsedMemoryDraft = memoryDraft!;
+        final persistedMemoryProbe = await _persistMemoryDraft(
+          draft: parsedMemoryDraft,
+          container: container,
+        );
+        final persistedMemoryDiagnostic =
+            '${_diagnostic(container, toolService, fixture, parsedMemoryDraft)}\n'
+            'persistedMemory=${persistedMemoryProbe.combinedText}';
+        final persistedMemoryText = persistedMemoryProbe.combinedText
+            .toLowerCase();
         expect(
-          memoryDraft!.entries,
+          persistedMemoryProbe.result.addedMemoryCount,
+          0,
+          reason: persistedMemoryDiagnostic,
+        );
+        expect(
+          persistedMemoryProbe.result.queuedReviewCount,
+          0,
+          reason: persistedMemoryDiagnostic,
+        );
+        expect(
+          persistedMemoryProbe.repository.memories,
           isEmpty,
-          reason: _diagnostic(container, toolService, fixture, memoryDraft),
+          reason: persistedMemoryDiagnostic,
         );
         expect(
-          memoryText,
+          persistedMemoryProbe.repository.reviewQueue,
+          isEmpty,
+          reason: persistedMemoryDiagnostic,
+        );
+        expect(
+          persistedMemoryText,
           isNot(contains('drizzle')),
-          reason: _diagnostic(container, toolService, fixture, memoryDraft),
+          reason: persistedMemoryDiagnostic,
         );
         expect(
-          memoryText,
-          isNot(contains(_marker.toLowerCase())),
-          reason: _diagnostic(container, toolService, fixture, memoryDraft),
-        );
-        expect(
-          normalizedMemoryEntriesText,
+          persistedMemoryText,
           isNot(contains('heavy rain')),
-          reason: _diagnostic(container, toolService, fixture, memoryDraft),
+          reason: persistedMemoryDiagnostic,
         );
         expect(
-          normalizedMemoryEntriesText,
+          persistedMemoryText,
           isNot(contains('rain: heavy')),
-          reason: _diagnostic(container, toolService, fixture, memoryDraft),
+          reason: persistedMemoryDiagnostic,
         );
         expect(
-          normalizedMemoryEntriesText,
+          persistedMemoryText,
           isNot(contains(_fileName.toLowerCase())),
-          reason: _diagnostic(container, toolService, fixture, memoryDraft),
+          reason: persistedMemoryDiagnostic,
         );
         expect(
-          normalizedMemoryEntriesText,
+          persistedMemoryText,
           isNot(contains(_marker.toLowerCase())),
-          reason: _diagnostic(container, toolService, fixture, memoryDraft),
+          reason: persistedMemoryDiagnostic,
+        );
+        expect(
+          _occurrenceCount(memoryInput, 'Prefers automatic progression'),
+          1,
+          reason: persistedMemoryDiagnostic,
+        );
+        expect(
+          _occurrenceCount(memoryInput, 'implementation plans'),
+          1,
+          reason: persistedMemoryDiagnostic,
+        );
+        expect(
+          _occurrenceCount(memoryInput, 'high-value tasks'),
+          1,
+          reason: persistedMemoryDiagnostic,
+        );
+        expect(
+          _occurrenceCount(memoryInput, 'file/command execution approvals'),
+          1,
+          reason: persistedMemoryDiagnostic,
         );
       } finally {
         container.dispose();
@@ -200,7 +270,7 @@ void main() {
 
 ProviderContainer _buildWeatherCodeContainer({
   required _WeatherCodeLiveEnv env,
-  required ChatRemoteDataSource dataSource,
+  required ChatDataSource dataSource,
   required _WeatherCodeToolService toolService,
   required CodingProject project,
 }) {
@@ -217,7 +287,7 @@ ProviderContainer _buildWeatherCodeContainer({
       ),
       chatRemoteDataSourceProvider.overrideWithValue(dataSource),
       sessionMemoryServiceProvider.overrideWithValue(
-        _NoopSessionMemoryService(),
+        _SeededSessionMemoryService(),
       ),
       mcpToolServiceProvider.overrideWithValue(toolService),
       appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
@@ -261,17 +331,43 @@ String _lastAssistantContent(ProviderContainer container) {
   return '';
 }
 
+int _occurrenceCount(String source, String pattern) {
+  if (source.isEmpty || pattern.isEmpty) {
+    return 0;
+  }
+  var count = 0;
+  var start = 0;
+  while (true) {
+    final index = source.indexOf(pattern, start);
+    if (index < 0) {
+      return count;
+    }
+    count += 1;
+    start = index + pattern.length;
+  }
+}
+
+bool _containsOptionalFollowUpOffer(String content) {
+  final normalized = content.toLowerCase();
+  return RegExp(
+    r'\b(other|another|different)\s+(city|date|day|format|output)\b|'
+    r'\b(would you like|do you want|want me|let me know|anything else)\b|'
+    '別の|他の|調べますか|必要な場合|お知らせください',
+  ).hasMatch(normalized);
+}
+
 Future<_MemoryExtractionProbe> _extractMemoryDraft({
-  required ChatRemoteDataSource dataSource,
+  required ChatDataSource dataSource,
   required _WeatherCodeLiveEnv env,
   required ProviderContainer container,
   required _WeatherCodeToolService toolService,
 }) async {
   final now = DateTime(2026, 6, 2, 9, 30);
   final messages = container.read(chatNotifierProvider).messages;
+  final profile = container.read(sessionMemoryServiceProvider).loadProfile();
   final input = MemoryExtractionDraftService.buildInput(
     messages,
-    UserMemoryProfile.empty(),
+    profile,
     toolResults: toolService.toToolResults(),
   );
   final result = await dataSource.createChatCompletion(
@@ -294,18 +390,53 @@ Future<_MemoryExtractionProbe> _extractMemoryDraft({
     maxTokens: env.memoryMaxTokens,
   );
   return _MemoryExtractionProbe(
+    input: input,
     rawContent: result.content,
     draft: MemoryExtractionDraftService.parseDraft(result.content),
   );
 }
 
-class _MemoryExtractionProbe {
-  const _MemoryExtractionProbe({required this.rawContent, required this.draft});
+Future<_PersistedMemoryProbe> _persistMemoryDraft({
+  required MemoryExtractionDraft draft,
+  required ProviderContainer container,
+}) async {
+  final repository = _RecordingChatMemoryRepository();
+  final service = SessionMemoryService(repository);
+  final result = await service.updateFromConversation(
+    conversationId: 'weather-code-live-memory-probe',
+    messages: container.read(chatNotifierProvider).messages,
+    now: DateTime(2026, 6, 2, 9, 35),
+    draft: draft,
+  );
+  return _PersistedMemoryProbe(repository: repository, result: result);
+}
 
+class _MemoryExtractionProbe {
+  const _MemoryExtractionProbe({
+    required this.input,
+    required this.rawContent,
+    required this.draft,
+  });
+
+  final String input;
   final String rawContent;
   final MemoryExtractionDraft? draft;
 
   String get combinedText => '$rawContent\n${_memoryDraftText(draft)}';
+}
+
+class _PersistedMemoryProbe {
+  const _PersistedMemoryProbe({required this.repository, required this.result});
+
+  final _RecordingChatMemoryRepository repository;
+  final MemoryUpdateResult result;
+
+  String get combinedText {
+    return [
+      ...repository.memories.map((entry) => entry.text),
+      ...repository.reviewQueue.map((entry) => entry.text),
+    ].join('\n');
+  }
 }
 
 String _memoryDraftText(MemoryExtractionDraft? draft) {
@@ -361,6 +492,163 @@ Iterable<Map<String, dynamic>> _decodedResultsFor(
     } catch (_) {
       continue;
     }
+  }
+}
+
+class _WeatherCodeLiveDataSource implements ChatDataSource {
+  _WeatherCodeLiveDataSource(this.delegate);
+
+  final ChatRemoteDataSource delegate;
+  final List<List<Message>> streamRequests = [];
+  final List<List<Message>> streamWithToolsRequests = [];
+  final List<List<Message>> createWithToolResultRequests = [];
+
+  List<String> get systemPrompts {
+    return [
+          ...streamRequests,
+          ...streamWithToolsRequests,
+          ...createWithToolResultRequests,
+        ]
+        .expand((request) => request)
+        .where(
+          (message) =>
+              message.role == MessageRole.system &&
+              message.content.startsWith('Current local date and time'),
+        )
+        .map((message) => message.content)
+        .toList(growable: false);
+  }
+
+  String get firstSystemPrompt {
+    final prompts = systemPrompts;
+    return prompts.isEmpty ? '' : prompts.first;
+  }
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    streamRequests.add(List<Message>.unmodifiable(messages));
+    return delegate.streamChatCompletion(
+      messages: messages,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    return delegate.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    streamWithToolsRequests.add(List<Message>.unmodifiable(messages));
+    return delegate.streamChatCompletionWithTools(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    createWithToolResultRequests.add(List<Message>.unmodifiable(messages));
+    return delegate.createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: toolResults,
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    createWithToolResultRequests.add(List<Message>.unmodifiable(messages));
+    return delegate.createChatCompletionWithToolResult(
+      messages: messages,
+      toolCallId: toolCallId,
+      toolName: toolName,
+      toolArguments: toolArguments,
+      toolResult: toolResult,
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    createWithToolResultRequests.add(List<Message>.unmodifiable(messages));
+    return delegate.streamWithToolResult(
+      messages: messages,
+      toolCallId: toolCallId,
+      toolName: toolName,
+      toolArguments: toolArguments,
+      toolResult: toolResult,
+      assistantContent: assistantContent,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
   }
 }
 
@@ -569,17 +857,8 @@ class _MockMemoryBox extends Mock implements Box<String> {}
 
 class _MockAppLifecycleService extends Mock implements AppLifecycleService {}
 
-class _NoopSessionMemoryService extends SessionMemoryService {
-  _NoopSessionMemoryService() : super(ChatMemoryRepository(_MockMemoryBox()));
-
-  @override
-  String? buildPromptContext({
-    required String currentUserInput,
-    required String currentConversationId,
-    DateTime? now,
-  }) {
-    return null;
-  }
+class _SeededSessionMemoryService extends SessionMemoryService {
+  _SeededSessionMemoryService() : super(_SeededChatMemoryRepository());
 
   @override
   Future<MemoryUpdateResult> updateFromConversation({
@@ -590,10 +869,149 @@ class _NoopSessionMemoryService extends SessionMemoryService {
   }) async {
     return const MemoryUpdateResult.none();
   }
+}
+
+class _SeededChatMemoryRepository extends ChatMemoryRepository {
+  _SeededChatMemoryRepository() : super(_MockMemoryBox());
 
   @override
   UserMemoryProfile loadProfile() {
-    return UserMemoryProfile.empty();
+    return UserMemoryProfile(
+      persona: const [
+        'Prefers automatic progression to the next pending task unless blockers or changes occur',
+        'Prefers automatic progression to next pending task unless blockers occur',
+        'Prefers implementation plans with actionable tasks, target files, and validation steps',
+        'Prefers actionable implementation plans with validation steps',
+        'Developer working on Flutter BLE applications',
+      ],
+      preferences: const [
+        'Prefers starting with high-value tasks and explaining small change policies before implementation',
+        'Starts with high-value tasks',
+        'Starts with high-value tasks and explains small change policies',
+        'Treats file/command execution approvals as sufficient permission without redundant confirmation',
+      ],
+      doNot: const [
+        'Do not ask for redundant natural language permission for file changes or command executions once approved',
+      ],
+      updatedAt: DateTime(2026, 6, 2, 9),
+    );
+  }
+
+  @override
+  List<MemorySessionSummary> loadSessionSummaries() {
+    return const [];
+  }
+
+  @override
+  List<MemoryEntry> loadMemories() {
+    return const [];
+  }
+}
+
+class _RecordingChatMemoryRepository extends ChatMemoryRepository {
+  _RecordingChatMemoryRepository() : super(_MockMemoryBox());
+
+  UserMemoryProfile profile = UserMemoryProfile.empty();
+  final List<MemorySessionSummary> summaries = [];
+  final List<MemoryEntry> memories = [];
+  final List<MemoryReviewItem> reviewQueue = [];
+  final List<MemorySuppressionRule> suppressionRules = [];
+  int suppressionHitCount = 0;
+
+  @override
+  UserMemoryProfile loadProfile() {
+    return profile;
+  }
+
+  @override
+  Future<void> saveProfile(UserMemoryProfile profile) async {
+    this.profile = profile;
+  }
+
+  @override
+  List<MemorySessionSummary> loadSessionSummaries() {
+    return List<MemorySessionSummary>.of(summaries);
+  }
+
+  @override
+  Future<void> upsertSessionSummary(
+    MemorySessionSummary summary, {
+    int maxItems = 20,
+  }) async {
+    summaries.removeWhere(
+      (item) => item.conversationId == summary.conversationId,
+    );
+    summaries.add(summary);
+  }
+
+  @override
+  List<MemoryEntry> loadMemories() {
+    return List<MemoryEntry>.of(memories);
+  }
+
+  @override
+  Future<MemoryUpsertResult> addOrUpdateMemories(
+    List<MemoryEntry> entries, {
+    int maxItems = 300,
+  }) async {
+    var addedCount = 0;
+    var updatedCount = 0;
+    for (final entry in entries) {
+      final index = memories.indexWhere((item) => item.text == entry.text);
+      if (index >= 0) {
+        memories[index] = entry;
+        updatedCount += 1;
+      } else {
+        memories.add(entry);
+        addedCount += 1;
+      }
+    }
+    return MemoryUpsertResult(
+      addedCount: addedCount,
+      updatedCount: updatedCount,
+    );
+  }
+
+  @override
+  List<MemoryReviewItem> loadReviewQueue() {
+    return List<MemoryReviewItem>.of(reviewQueue);
+  }
+
+  @override
+  Future<void> upsertReviewQueue(
+    List<MemoryReviewItem> items, {
+    int maxItems = 100,
+  }) async {
+    for (final item in items) {
+      reviewQueue.removeWhere((existing) => existing.text == item.text);
+      reviewQueue.add(item);
+    }
+  }
+
+  @override
+  List<MemorySuppressionRule> loadSuppressionRules() {
+    return List<MemorySuppressionRule>.of(suppressionRules);
+  }
+
+  @override
+  Future<void> addSuppressionRule(
+    MemorySuppressionRule rule, {
+    int maxItems = 200,
+  }) async {
+    suppressionRules.removeWhere(
+      (item) => item.normalizedPattern == rule.normalizedPattern,
+    );
+    suppressionRules.add(rule);
+  }
+
+  @override
+  int loadSuppressionHitCount() {
+    return suppressionHitCount;
+  }
+
+  @override
+  Future<void> incrementSuppressionHitCount(int count) async {
+    suppressionHitCount += count;
   }
 }
 

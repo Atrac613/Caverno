@@ -6908,13 +6908,85 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!mentionsTaskReference) {
       return false;
     }
-    if (normalized.contains('next task') ||
-        normalized.contains('shall i proceed') ||
-        normalized.contains('i will ') ||
-        normalized.contains('i can continue')) {
+    if (_containsOptionalFollowUpOffer(normalized)) {
       return false;
     }
     return true;
+  }
+
+  bool _shouldAcceptTerminalFileMutationFinalTextResponse(
+    String response,
+    List<ToolResultInfo> toolResults,
+  ) {
+    final candidate = response.trim();
+    if (candidate.isEmpty || candidate.length > 3000) {
+      return false;
+    }
+    if (_containsOptionalFollowUpOffer(candidate.toLowerCase()) ||
+        _looksLikeUnexecutedToolRequest(candidate) ||
+        _looksLikePlanOnlyFinalToolAnswer(candidate)) {
+      return false;
+    }
+
+    final successfulMutationResults = toolResults
+        .where((toolResult) {
+          return _isFileMutationToolName(toolResult.name) &&
+              _isSuccessfulFileMutationToolResult(toolResult);
+        })
+        .toList(growable: false);
+    if (successfulMutationResults.isEmpty) {
+      return false;
+    }
+
+    final hasCompletionMarker =
+        _containsFileMutationCompletionMarker(candidate) ||
+        successfulMutationResults.any((toolResult) {
+          final path = _toolResultPayloadPath(toolResult.result);
+          return path != null && candidate.contains(path);
+        });
+    if (!hasCompletionMarker) {
+      return false;
+    }
+
+    return successfulMutationResults.any((toolResult) {
+      final path = _toolResultPayloadPath(toolResult.result);
+      if (path == null) {
+        return true;
+      }
+      final basename = path.split(RegExp(r'[/\\]+')).last;
+      return candidate.contains(path) ||
+          (basename.isNotEmpty && candidate.contains(basename));
+    });
+  }
+
+  bool _containsFileMutationCompletionMarker(String response) {
+    final normalized = response.toLowerCase();
+    return _containsAny(normalized, const [
+      'saved',
+      'wrote',
+      'created',
+      'updated',
+      'overwrote',
+      'modified',
+      'file:',
+      'file path',
+      'bytes_written',
+    ]);
+  }
+
+  bool _containsOptionalFollowUpOffer(String normalizedResponse) {
+    return RegExp(
+      r'\b(next task|shall i proceed|should i|would you like|do you want|'
+      r'want me|let me know|anything else|need anything|i will |'
+      r'i can continue|i can also|i can help)\b|'
+      r'\b(other|another|different)\s+'
+      r'(format|output|file|task|city|date|report|check)\b|'
+      '\u4ed6\u306b|\u4ed6\u306e|\u5225\u306e|'
+      '\u8ffd\u52a0\u3057\u305f\u3044|'
+      '\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059\u304b|'
+      '\u304a\u77e5\u3089\u305b\u304f\u3060\u3055\u3044|'
+      '\u8abf\u3079\u307e\u3059\u304b',
+    ).hasMatch(normalizedResponse);
   }
 
   bool _shouldAcceptTerminalSkillToolRoleResponse(
@@ -9810,6 +9882,21 @@ class ChatNotifier extends Notifier<ChatState> {
         if (_shouldAcceptTerminalToolRoleFinalTextResponse(fallbackResponse)) {
           appLog(
             '[Tool] Accepting terminal tool-role final text response without final answer fallback',
+          );
+          _appendRecoveredAssistantResponse(
+            fallbackResponse,
+            interactionGeneration: interactionGeneration,
+          );
+          currentAssistantContent = fallbackResponse;
+          hasTextResponse = true;
+          break;
+        }
+        if (_shouldAcceptTerminalFileMutationFinalTextResponse(
+          fallbackResponse,
+          batchToolResults,
+        )) {
+          appLog(
+            '[Tool] Accepting terminal file-mutation final text response without final answer fallback',
           );
           _appendRecoveredAssistantResponse(
             fallbackResponse,

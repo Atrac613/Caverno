@@ -278,6 +278,14 @@ void main() {
             importance: 0.8,
             ttlDays: 365,
           ),
+          MemoryDraftEntry(
+            text:
+                'Tokyo weather forecast for 2026-06-03: Heavy Rain, 16.5°C-19.7°C, 210.7mm precipitation, max wind 19.9 km/h.',
+            type: 'fact',
+            confidence: 0.95,
+            importance: 0.8,
+            ttlDays: 1,
+          ),
         ],
       ),
     );
@@ -327,6 +335,221 @@ void main() {
       expect(repository.memories.single.text, contains('Heavy Rain'));
     },
   );
+
+  test('deduplicates semantically similar profile draft updates', () async {
+    final repository = _InMemoryChatMemoryRepository();
+    repository.profile = UserMemoryProfile(
+      persona: const [
+        'Prefers automatic progression to the next pending task unless blockers occur',
+        'Prefers automatic progression to next pending task unless blockers occur',
+      ],
+      preferences: const [
+        'Prefers implementation plans with actionable tasks and validation steps',
+      ],
+      doNot: const [
+        'Do not ask for redundant natural language permission for file changes',
+        'Do not ask for redundant natural language permission for file changes or command execution once approved',
+      ],
+      updatedAt: DateTime(2026, 6, 2, 10),
+    );
+    final service = SessionMemoryService(repository);
+
+    final result = await service.updateFromConversation(
+      conversationId: 'conversation-profile-dedupe',
+      messages: [
+        Message(
+          id: 'message-profile-user',
+          content: 'Update the remembered coding workflow preferences.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 2, 12),
+        ),
+      ],
+      now: DateTime(2026, 6, 2, 12, 1),
+      draft: const MemoryExtractionDraft(
+        summary: 'User continued a coding workflow preference discussion.',
+        openLoops: [],
+        persona: [
+          'Prefers automatic progression to the next pending task unless blockers or changes occur',
+        ],
+        preferences: [
+          'Prefers implementation plans with actionable tasks, target files, and validation steps',
+        ],
+        doNot: [
+          'Do not ask for redundant natural language permission for file changes or command executions once approved',
+        ],
+        entries: [],
+      ),
+    );
+
+    expect(result.profileUpdated, isTrue);
+    expect(repository.profile.persona, hasLength(1));
+    expect(
+      repository.profile.persona.single,
+      'Prefers automatic progression to the next pending task unless blockers or changes occur',
+    );
+    expect(repository.profile.preferences, hasLength(1));
+    expect(
+      repository.profile.preferences.single,
+      'Prefers implementation plans with actionable tasks, target files, and validation steps',
+    );
+    expect(repository.profile.doNot, hasLength(1));
+    expect(
+      repository.profile.doNot.single,
+      'Do not ask for redundant natural language permission for file changes or command executions once approved',
+    );
+  });
+
+  test('deduplicates token-subset profile draft updates', () async {
+    final repository = _InMemoryChatMemoryRepository();
+    repository.profile = UserMemoryProfile(
+      persona: const [
+        'Prefers implementation plans with actionable tasks, target files, and validation steps',
+        'Prefers actionable implementation plans with validation steps',
+        'Developer working on Flutter BLE applications',
+      ],
+      preferences: const [
+        'Starts with high-value tasks and explains small change policies before implementation',
+        'Starts with high-value tasks',
+      ],
+      doNot: const [],
+      updatedAt: DateTime(2026, 6, 2, 10),
+    );
+    final service = SessionMemoryService(repository);
+
+    final result = await service.updateFromConversation(
+      conversationId: 'conversation-profile-token-subset',
+      messages: [
+        Message(
+          id: 'message-profile-token-subset-user',
+          content: 'Update the remembered coding workflow preferences.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 2, 12),
+        ),
+      ],
+      draft: const MemoryExtractionDraft(
+        summary: 'User continued a coding workflow preference discussion.',
+        openLoops: [],
+        persona: [
+          'Prefers implementation plans with actionable tasks, target files, and validation steps',
+        ],
+        preferences: [
+          'Starts with high-value tasks and explains small change policies before implementation',
+        ],
+        doNot: [],
+        entries: [],
+      ),
+    );
+
+    expect(result.profileUpdated, isTrue);
+    expect(repository.profile.persona, [
+      'Prefers implementation plans with actionable tasks, target files, and validation steps',
+      'Developer working on Flutter BLE applications',
+    ]);
+    expect(repository.profile.preferences, [
+      'Starts with high-value tasks and explains small change policies before implementation',
+    ]);
+  });
+
+  test('deduplicates stored profile before prompt context injection', () {
+    final repository = _InMemoryChatMemoryRepository();
+    repository.profile = UserMemoryProfile(
+      persona: const [
+        'Prefers automatic progression to the next pending task unless blockers or changes occur',
+        'Treats file/command execution approvals as sufficient permission without needing redundant natural and language confirmation',
+        'Prefers implementation plans with actionable tasks, target files, and validation steps',
+        'Developer working on Flutter BLE applications',
+        'Prefers actionable implementation plans with validation steps',
+        'Treats file/command execution approvals as sufficient permission without redundant confirmation',
+      ],
+      preferences: const [
+        'Prefers starting with high-value tasks and explaining small change policies before implementation',
+        'Wants review of work against acceptance criteria to call/call out gaps, risks, or missing validation first',
+        "Uses specific 'saved workflow' for coding threads",
+        'Starts with high-value tasks and explains small change policies',
+        'Starts with high-value tasks',
+        'Prefers automatic progression to next pending task unless blockers occur',
+        'Prefers implementation plans with actionable tasks, target files, and validation steps',
+        'Treats file/command execution approvals as sufficient permission without redundant confirmation',
+      ],
+      doNot: const [
+        'Do not ask for redundant natural language permission for file changes or command executions once approved',
+      ],
+      updatedAt: DateTime(2026, 6, 2, 10),
+    );
+    final service = SessionMemoryService(repository);
+
+    final loadedProfile = service.loadProfile();
+    expect(loadedProfile.persona, [
+      'Prefers automatic progression to the next pending task unless blockers or changes occur',
+      'Treats file/command execution approvals as sufficient permission without needing redundant natural and language confirmation',
+      'Prefers implementation plans with actionable tasks, target files, and validation steps',
+      'Developer working on Flutter BLE applications',
+    ]);
+    expect(loadedProfile.preferences, [
+      'Prefers starting with high-value tasks and explaining small change policies before implementation',
+      'Wants review of work against acceptance criteria to call/call out gaps, risks, or missing validation first',
+      "Uses specific 'saved workflow' for coding threads",
+    ]);
+    expect(loadedProfile.doNot, [
+      'Do not ask for redundant natural language permission for file changes or command executions once approved',
+    ]);
+
+    final context = service.buildPromptContext(
+      currentUserInput: 'Continue the coding workflow from the previous task.',
+      currentConversationId: 'current-conversation',
+      now: DateTime(2026, 6, 2, 12),
+    );
+
+    expect(context, isNotNull);
+    expect(
+      RegExp('Prefers automatic progression').allMatches(context!).length,
+      1,
+    );
+    expect(RegExp('implementation plans').allMatches(context).length, 1);
+    expect(RegExp('high-value tasks').allMatches(context).length, 1);
+    expect(
+      RegExp('file/command execution approvals').allMatches(context).length,
+      1,
+    );
+    expect(repository.profile.persona, hasLength(6));
+    expect(repository.profile.preferences, hasLength(8));
+  });
+
+  test('keeps distinct profile draft preferences', () async {
+    final repository = _InMemoryChatMemoryRepository();
+    repository.profile = UserMemoryProfile(
+      persona: const [],
+      preferences: const ['Prefers concise answers'],
+      doNot: const [],
+      updatedAt: DateTime(2026, 6, 2, 10),
+    );
+    final service = SessionMemoryService(repository);
+
+    await service.updateFromConversation(
+      conversationId: 'conversation-profile-distinct',
+      messages: [
+        Message(
+          id: 'message-distinct-user',
+          content: 'Remember another response style preference.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 2, 12),
+        ),
+      ],
+      draft: const MemoryExtractionDraft(
+        summary: 'User described another response style preference.',
+        openLoops: [],
+        persona: [],
+        preferences: ['Prefers detailed implementation plans'],
+        doNot: [],
+        entries: [],
+      ),
+    );
+
+    expect(repository.profile.preferences, [
+      'Prefers concise answers',
+      'Prefers detailed implementation plans',
+    ]);
+  });
 
   test('drops draft open loops covered by the latest assistant answer', () async {
     final repository = _InMemoryChatMemoryRepository();
