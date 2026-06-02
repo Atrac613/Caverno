@@ -4,5 +4,6 @@
 
 // Example:
 // DEVELOPMENT_TEAM = YOURTEAMID
-// CODE_SIGN_IDENTITY = Apple Development
-
+// CODE_SIGN_IDENTITY = Developer ID Application
+// SPARKLE_FEED_URL = https://updates.example.com/caverno/macos/appcast.xml
+// SPARKLE_PUBLIC_ED_KEY = BASE64_PUBLIC_ED25519_KEY_FROM_SPARKLE

@@ -99,6 +99,12 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
   final root = projectRoot ?? Directory.current;
   final pbxproj = _read(root, 'macos/Runner.xcodeproj/project.pbxproj');
   final signingConfig = _read(root, 'macos/Runner/Configs/Signing.xcconfig');
+  final appInfoConfig = _read(root, 'macos/Runner/Configs/AppInfo.xcconfig');
+  final signingLocalExample = _read(
+    root,
+    'macos/Runner/Configs/Signing.local.xcconfig.example',
+  );
+  final podfile = _read(root, 'macos/Podfile');
   final runnerReleaseEntitlements = _read(
     root,
     'macos/Runner/Release.entitlements',
@@ -109,6 +115,10 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
   );
   final runnerInfoPlist = _read(root, 'macos/Runner/Info.plist');
   final helperInfoPlist = _read(root, 'macos/ComputerUseHelper/Info.plist');
+  final sparklePublishScript = _read(
+    root,
+    'tool/publish_macos_sparkle_release.sh',
+  );
   final launchAgent = _read(
     root,
     'macos/Runner/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist',
@@ -222,6 +232,48 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
           signingConfig?.contains('DEVELOPMENT_TEAM =') != true,
       nextAction:
           'Keep repository defaults identity-free and place local release signing overrides in Signing.local.xcconfig.',
+    ),
+    _check(
+      id: 'sparkle_dependency',
+      label: 'Sparkle update dependency',
+      ok: podfile?.contains("pod 'Sparkle', '~> 2.9'") == true,
+      nextAction:
+          'Keep Sparkle 2 available to the macOS Runner target through CocoaPods.',
+      details: <String, Object?>{'path': 'macos/Podfile'},
+    ),
+    _check(
+      id: 'sparkle_appcast_configuration',
+      label: 'Sparkle appcast configuration',
+      ok:
+          runnerInfoPlist?.contains('<key>SUFeedURL</key>') == true &&
+          runnerInfoPlist?.contains('<key>SUPublicEDKey</key>') == true &&
+          runnerInfoPlist?.contains('<key>SUEnableAutomaticChecks</key>') ==
+              true &&
+          runnerInfoPlist?.contains('<key>SUScheduledCheckInterval</key>') ==
+              true &&
+          runnerInfoPlist?.contains('<integer>3600</integer>') == true &&
+          appInfoConfig?.contains('SPARKLE_FEED_URL =') == true &&
+          appInfoConfig?.contains('SPARKLE_PUBLIC_ED_KEY =') == true &&
+          signingLocalExample?.contains('SPARKLE_FEED_URL') == true &&
+          signingLocalExample?.contains('SPARKLE_PUBLIC_ED_KEY') == true,
+      nextAction:
+          'Keep release appcast URL and public EdDSA key injected through local signing configuration.',
+      details: <String, Object?>{'path': 'macos/Runner/Info.plist'},
+    ),
+    _check(
+      id: 'sparkle_publish_script',
+      label: 'Sparkle S3 publish script',
+      ok:
+          sparklePublishScript?.contains('generate_appcast') == true &&
+          sparklePublishScript?.contains('--download-url-prefix') == true &&
+          sparklePublishScript?.contains('aws') == true &&
+          sparklePublishScript?.contains('s3 sync') == true &&
+          sparklePublishScript?.contains('no-cache,max-age=0') == true,
+      nextAction:
+          'Use tool/publish_macos_sparkle_release.sh after signing, notarization, and stapling.',
+      details: <String, Object?>{
+        'path': 'tool/publish_macos_sparkle_release.sh',
+      },
     ),
   ];
   final ready = checks.every((check) => check.ok);

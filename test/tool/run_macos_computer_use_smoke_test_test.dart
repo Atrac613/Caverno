@@ -60,6 +60,7 @@ void main() {
   late String m56RolloutDecisionHandoffGateScript;
   late String releasePackagingWrapper;
   late String releasePackagingCli;
+  late String sparklePublishScript;
   late String releaseSigningPreflightWrapper;
   late String releaseSigningPreflightCli;
   late String releaseSigningPreflightSupport;
@@ -74,6 +75,8 @@ void main() {
   late String polishReviewSummary;
   late String existingHelperProbe;
   late String xcodeProject;
+  late String podfile;
+  late String appInfoConfig;
   late String signingConfig;
   late String architectureDoc;
   late String manualProcessChecklist;
@@ -221,6 +224,9 @@ void main() {
     releasePackagingCli = File(
       'tool/macos_computer_use_release_packaging.dart',
     ).readAsStringSync();
+    sparklePublishScript = File(
+      'tool/publish_macos_sparkle_release.sh',
+    ).readAsStringSync();
     releaseSigningPreflightWrapper = File(
       'tool/run_macos_computer_use_release_signing_preflight.sh',
     ).readAsStringSync();
@@ -253,6 +259,10 @@ void main() {
     ).readAsStringSync();
     xcodeProject = File(
       'macos/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+    podfile = File('macos/Podfile').readAsStringSync();
+    appInfoConfig = File(
+      'macos/Runner/Configs/AppInfo.xcconfig',
     ).readAsStringSync();
     signingConfig = File(
       'macos/Runner/Configs/Signing.xcconfig',
@@ -514,10 +524,8 @@ void main() {
       releaseSigningPreflightWrapper,
       contains('Boundary: report-only signing setup check'),
     );
-    expect(
-      releaseSigningPreflightWrapper,
-      contains('It does not sign, notarize, staple, grant TCC'),
-    );
+    expect(releaseSigningPreflightWrapper, contains('It does not sign'));
+    expect(releaseSigningPreflightWrapper, contains('grant TCC'));
     expect(
       releaseSigningPreflightCli,
       contains('macos_computer_use_release_signing_preflight.json'),
@@ -530,9 +538,22 @@ void main() {
       xcodeProject,
       contains('com.noguwo.apps.caverno.computer-use.plist'),
     );
+    expect(podfile, contains("pod 'Sparkle', '~> 2.9'"));
+    expect(runnerInfoPlist, contains('SUFeedURL'));
+    expect(runnerInfoPlist, contains('SUPublicEDKey'));
+    expect(runnerInfoPlist, contains('SUScheduledCheckInterval'));
+    expect(runnerInfoPlist, contains('<integer>3600</integer>'));
+    expect(appInfoConfig, contains('SPARKLE_FEED_URL ='));
+    expect(appInfoConfig, contains('SPARKLE_PUBLIC_ED_KEY ='));
     expect(signingConfig, contains('Signing.local.xcconfig'));
     expect(signingConfig, isNot(contains('DEVELOPMENT_TEAM =')));
     expect(signingLocalTemplate, contains('DEVELOPMENT_TEAM = YOURTEAMID'));
+    expect(signingLocalTemplate, contains('SPARKLE_FEED_URL'));
+    expect(signingLocalTemplate, contains('SPARKLE_PUBLIC_ED_KEY'));
+    expect(sparklePublishScript, contains('generate_appcast'));
+    expect(sparklePublishScript, contains('--download-url-prefix'));
+    expect(sparklePublishScript, contains('s3 sync'));
+    expect(sparklePublishScript, contains('no-cache,max-age=0'));
     expect(releaseSigningPreflightSupport, contains('signing_local_gitignore'));
     expect(
       releaseSigningPreflightSupport,
@@ -558,10 +579,8 @@ void main() {
     );
     expect(manualProcessChecklist, contains('ad_hoc_signature'));
     expect(manualProcessChecklist, contains('team_identifier_missing'));
-    expect(
-      manualProcessChecklist,
-      contains('It does not sign, notarize, staple, grant TCC'),
-    );
+    expect(manualProcessChecklist, contains('It does not sign'));
+    expect(manualProcessChecklist, contains('upload appcasts'));
   });
 
   test('release report includes M7 gate and runtime readiness fields', () {

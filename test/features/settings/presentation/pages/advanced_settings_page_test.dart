@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/macos_update_service.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/advanced_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/debug_settings_page.dart';
@@ -66,6 +67,7 @@ void main() {
 
     expect(find.byType(DebugSettingsPage), findsOneWidget);
     expect(find.text('Debug'), findsAtLeastNWidgets(1));
+    expect(find.text('macOS Updates'), findsOneWidget);
     expect(find.text('Computer Use Smoke Sequence'), findsOneWidget);
     expect(find.text('Save LLM session logs'), findsOneWidget);
   });
@@ -115,7 +117,12 @@ Future<void> _pumpPage(
       child: Builder(
         builder: (context) {
           return ProviderScope(
-            overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              macosUpdateServiceProvider.overrideWithValue(
+                const _FakeMacosUpdateService(),
+              ),
+            ],
             child: MaterialApp(
               localizationsDelegates: context.localizationDelegates,
               supportedLocales: context.supportedLocales,
@@ -130,4 +137,32 @@ Future<void> _pumpPage(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _FakeMacosUpdateService extends MacosUpdateService {
+  const _FakeMacosUpdateService() : super();
+
+  @override
+  bool get isAvailable => true;
+
+  @override
+  Future<MacosUpdateStatus> getStatus() async {
+    return const MacosUpdateStatus(
+      available: true,
+      configured: true,
+      feedUrl: 'https://updates.example.com/caverno/macos/appcast.xml',
+      publicKeyConfigured: true,
+      automaticallyChecksForUpdates: true,
+      automaticallyDownloadsUpdates: false,
+      scheduledCheckIntervalSeconds: 3600,
+      updateCheckIntervalSeconds: 3600,
+      bundleVersion: '13',
+      bundleShortVersion: '1.3.2',
+    );
+  }
+
+  @override
+  Future<MacosUpdateStatus> checkForUpdates() async {
+    return getStatus();
+  }
 }

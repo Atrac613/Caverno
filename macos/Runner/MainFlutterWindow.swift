@@ -3,6 +3,7 @@ import CoreGraphics
 import Darwin
 import FlutterMacOS
 import ServiceManagement
+import Sparkle
 
 @objc(CavernoComputerUseXpcProtocol)
 protocol CavernoComputerUseXpcProtocol: NSObjectProtocol {
@@ -12,6 +13,7 @@ protocol CavernoComputerUseXpcProtocol: NSObjectProtocol {
 class MainFlutterWindow: NSWindow {
   private var securityScopedBookmarkChannel: SecurityScopedBookmarkChannel?
   private var computerUseChannel: MacosComputerUseChannel?
+  private var sparkleUpdateChannel: MacosSparkleUpdateChannel?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -34,8 +36,116 @@ class MainFlutterWindow: NSWindow {
     computerUseChannel = MacosComputerUseChannel(
       messenger: flutterViewController.engine.binaryMessenger
     )
+    sparkleUpdateChannel = MacosSparkleUpdateChannel(
+      messenger: flutterViewController.engine.binaryMessenger
+    )
 
     super.awakeFromNib()
+  }
+}
+
+final class MacosSparkleUpdateChannel {
+  private let channel: FlutterMethodChannel
+  private let updaterController: SPUStandardUpdaterController?
+  private let configuredFeedURL: String?
+  private let publicKeyConfigured: Bool
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(
+      name: "com.caverno/sparkle_updates",
+      binaryMessenger: messenger
+    )
+    configuredFeedURL = Self.validConfiguredFeedURL()
+    publicKeyConfigured = Self.hasConfiguredPublicKey()
+    if configuredFeedURL != nil && publicKeyConfigured {
+      updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+      )
+    } else {
+      updaterController = nil
+    }
+    channel.setMethodCallHandler(handle)
+  }
+
+  private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "getStatus":
+      result(statusPayload())
+    case "checkForUpdates":
+      checkForUpdates(result: result)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func checkForUpdates(result: @escaping FlutterResult) {
+    guard let updaterController = updaterController else {
+      result(
+        FlutterError(
+          code: "sparkle_not_configured",
+          message: "Sparkle updates are not configured for this build.",
+          details: statusPayload()
+        )
+      )
+      return
+    }
+
+    DispatchQueue.main.async {
+      updaterController.checkForUpdates(nil)
+      result(self.statusPayload())
+    }
+  }
+
+  private func statusPayload() -> [String: Any] {
+    var payload: [String: Any] = [
+      "available": true,
+      "configured": updaterController != nil,
+      "feedURL": configuredFeedURL ?? "",
+      "publicKeyConfigured": publicKeyConfigured,
+      "scheduledCheckIntervalSeconds": 3600,
+      "bundleVersion": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "",
+      "bundleShortVersion": Bundle.main.object(
+        forInfoDictionaryKey: "CFBundleShortVersionString"
+      ) as? String ?? "",
+    ]
+
+    if let updater = updaterController?.updater {
+      payload["automaticallyChecksForUpdates"] = updater.automaticallyChecksForUpdates
+      payload["automaticallyDownloadsUpdates"] = updater.automaticallyDownloadsUpdates
+      payload["updateCheckIntervalSeconds"] = updater.updateCheckInterval
+    } else {
+      payload["automaticallyChecksForUpdates"] = false
+      payload["automaticallyDownloadsUpdates"] = false
+      payload["updateCheckIntervalSeconds"] = 3600
+      payload["nextAction"] =
+        "Set SPARKLE_FEED_URL and SPARKLE_PUBLIC_ED_KEY for release builds."
+    }
+
+    return payload
+  }
+
+  private static func validConfiguredFeedURL() -> String? {
+    guard let raw = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String else {
+      return nil
+    }
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty && !trimmed.contains("$(") else {
+      return nil
+    }
+    guard let url = URL(string: trimmed), url.scheme?.lowercased() == "https" else {
+      return nil
+    }
+    return trimmed
+  }
+
+  private static func hasConfiguredPublicKey() -> Bool {
+    guard let raw = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String else {
+      return false
+    }
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    return !trimmed.isEmpty && !trimmed.contains("$(")
   }
 }
 

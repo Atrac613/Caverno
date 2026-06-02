@@ -140,11 +140,12 @@ Expected outputs:
 - `build/integration_test_reports/macos_computer_use_release_packaging.md`
 
 The report checks the helper embed phase, LaunchAgent BundleProgram,
-MachServices declaration, release entitlements, hardened runtime settings, and
-identity-free signing defaults. It does not sign, notarize, staple, grant TCC,
-launch System Settings, or perform desktop actions. Signing identity,
-notarization ticket, stapler validation, TCC grants, and real desktop evidence
-remain user-operated release evidence.
+MachServices declaration, release entitlements, hardened runtime settings,
+identity-free signing defaults, Sparkle update dependency, appcast
+configuration, and the S3 publish helper. It does not sign, notarize, staple,
+grant TCC, launch System Settings, upload appcasts, or perform desktop actions.
+Signing identity, notarization ticket, stapler validation, appcast publishing,
+TCC grants, and real desktop evidence remain user-operated release evidence.
 
 Before rerunning the M7 release artifact sign-off after a signing blocker:
 

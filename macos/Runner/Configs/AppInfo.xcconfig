@@ -14,3 +14,9 @@ PRODUCT_BUNDLE_IDENTIFIER = com.noguwo.apps.caverno
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.noguwo.apps. All rights reserved.
+
+// Sparkle update feed settings. Keep repository defaults blank so local debug
+// builds do not contact a production appcast. Release builders can override
+// these in Signing.local.xcconfig.
+SPARKLE_FEED_URL =
+SPARKLE_PUBLIC_ED_KEY =

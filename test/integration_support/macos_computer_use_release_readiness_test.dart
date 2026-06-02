@@ -3784,6 +3784,9 @@ void main() {
       expect(checkIds, contains('launch_agent_mach_service'));
       expect(checkIds, contains('embed_helper_phase'));
       expect(checkIds, contains('identity_free_signing_defaults'));
+      expect(checkIds, contains('sparkle_dependency'));
+      expect(checkIds, contains('sparkle_appcast_configuration'));
+      expect(checkIds, contains('sparkle_publish_script'));
       expect(json['schemaName'], 'macos_computer_use_m33_release_packaging');
       expect(json['milestone'], 'M33');
       expect(
