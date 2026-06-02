@@ -513,11 +513,15 @@ lib/
 │   │   ├── data/      # SharedPreferences repository, execution service
 │   │   ├── domain/    # Routine entity (Freezed), schedule/tool policy services
 │   │   └── presentation/  # Routine pages, providers, editor widgets
+│   ├── remote_coding/ # Paired-device remote coding (server/client)
+│   │   ├── data/      # Pairing registry, protocol, security, repository
+│   │   ├── domain/    # Remote coding models
+│   │   └── presentation/  # Remote coding pages, client/server notifiers
 │   └── settings/      # Settings feature (data → domain → presentation)
 │       ├── data/      # Repository, file service, QR service
 │       ├── domain/    # AppSettings entity (Freezed)
 │       └── presentation/  # Pages, providers, widgets (QR dialogs)
-└── shared/            # Shared widgets
+└── main.dart          # Entry point: Hive, SharedPreferences, localization, Riverpod
 ```
 
 ### Tech Stack

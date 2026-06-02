@@ -102,6 +102,7 @@ lib/
 │   └── utils/        # ContentParser, Logger, Debouncer, markdown sanitizer
 ├── features/
 │   ├── chat/         # Main chat loop: data → domain → presentation
+│   ├── remote_coding/ # Paired-device remote coding (server/client): data → domain → presentation
 │   ├── routines/     # Scheduled/recurring agent runs: data → domain → presentation
 │   └── settings/     # App configuration: data → domain → presentation
 └── main.dart         # Bootstraps Hive boxes, SharedPreferences, EasyLocalization,
@@ -112,7 +113,7 @@ There is no `lib/shared/`; shared UI lives inside the feature it serves.
 
 ### Key Architectural Decisions
 
-- **State management**: Riverpod with `StateNotifier` pattern (not BLoC)
+- **State management**: Riverpod with `Notifier` / `NotifierProvider` pattern (not BLoC)
 - **Immutable entities**: All domain entities use Freezed (`Message`, `Conversation`, `AppSettings`, `ChatState`, `McpToolEntity`, `Routine`, `SessionMemory`, plan artifacts, etc.)
 - **Storage**: Hive for conversations and chat memory (JSON-serialized strings), SharedPreferences for settings and window geometry, `flutter_secure_storage` for SSH credentials
 - **API client**: `openai_dart` package wrapping OpenAI-compatible endpoints
@@ -122,7 +123,7 @@ There is no `lib/shared/`; shared UI lives inside the feature it serves.
 ### Data Flow
 
 1. `main.dart` initializes Hive boxes (`conversations`, `chat_memory`), SharedPreferences, EasyLocalization, and (on desktop) `WindowManagerService`. All shared resources are passed via Riverpod overrides.
-2. `ChatNotifier` (StateNotifier, split across `chat_notifier*.dart` files) orchestrates the chat loop:
+2. `ChatNotifier` (Notifier, split across `chat_notifier*.dart` files) orchestrates the chat loop:
    - Builds system prompt via `SystemPromptBuilder` (temporal context, session memory, tool names, assistant mode)
    - Sends to LLM via `ChatRemoteDataSource` (streaming or non-streaming)
    - If tools enabled: runs a tool-calling loop (capped iterations), re-sends results as user-role messages for the final streaming answer
@@ -218,7 +219,7 @@ Defined in `lib/core/constants/api_constants.dart`:
 - Model: `mlx-community/GLM-4.7-Flash-4bit`
 - API Key: `no-key`
 - Temperature: 0.7, Max Tokens: 4096
-- Assistant modes (`core/types/assistant_mode.dart`): `general` (default), `coding`
+- Assistant modes (`core/types/assistant_mode.dart`): `general` (default), `coding`, `plan`
 
 # ──────────────────────────────────────────────
 # GIT & COMMIT RULES - HIGHEST PRIORITY

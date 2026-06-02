@@ -1,10 +1,10 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to Codex when working with code in this repository.
 
 ## Project Overview
 
-Caverno is a Flutter chat client for OpenAI-compatible LLM APIs with tool calling (MCP protocol), session memory, and voice I/O. It defaults to a local LLM server (`localhost:1234`) but supports any OpenAI-compatible endpoint.
+Caverno is a Flutter chat client for OpenAI-compatible LLM APIs with tool calling (MCP protocol + built-in tools), session memory, voice I/O, and a routine scheduler. It defaults to a local LLM server (`localhost:1234`) but supports any OpenAI-compatible endpoint.
 
 ## Build & Development Commands
 
@@ -60,10 +60,11 @@ Clean Architecture with feature-based modules and Riverpod state management.
 lib/
 |-- core/           # Constants, services, types, utils
 |-- features/
-|   |-- chat/       # Main chat, Plan Mode, tool execution, persistence
-|   |-- routines/   # Scheduled prompt execution and routine run history
-|   `-- settings/   # App configuration, tool settings, imports/exports
-`-- shared/         # Shared widgets
+|   |-- chat/          # Main chat, Plan Mode, tool execution, persistence
+|   |-- routines/      # Scheduled prompt execution and routine run history
+|   |-- remote_coding/ # Paired-device remote coding (server/client)
+|   `-- settings/      # App configuration, tool settings, imports/exports
+`-- main.dart       # Entry point (Hive, SharedPreferences, Riverpod bootstrap)
 ```
 
 ### Key Architectural Decisions
