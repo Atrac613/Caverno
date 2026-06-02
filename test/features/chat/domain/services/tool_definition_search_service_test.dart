@@ -61,6 +61,8 @@ void main() {
       final definitions = [
         _tool('ask_user_question', 'Ask the user a choice question.'),
         _tool('load_skill', 'Load a saved user skill.'),
+        _tool('spawn_subagent', 'Delegate a sub-task to a child agent.'),
+        _tool('get_subagent_result', 'Get a background subagent result.'),
         for (var i = 0; i < 30; i++)
           _tool('remote_tool_$i', 'Remote MCP capability number $i.'),
       ];
@@ -75,6 +77,8 @@ void main() {
       expect(selection.toolSearchEnabled, isTrue);
       expect(names, contains('ask_user_question'));
       expect(names, contains('load_skill'));
+      expect(names, contains('spawn_subagent'));
+      expect(names, contains('get_subagent_result'));
       expect(names, contains(ToolDefinitionSearchService.toolName));
       expect(names, isNot(contains('remote_tool_29')));
     });

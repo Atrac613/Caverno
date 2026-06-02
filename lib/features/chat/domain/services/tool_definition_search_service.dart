@@ -34,6 +34,8 @@ class ToolDefinitionSearchService {
     'search_past_conversations',
     'recall_memory',
     'ask_user_question',
+    'spawn_subagent',
+    'get_subagent_result',
     'load_skill',
     'searxng_web_search',
     'web_search',
