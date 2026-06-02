@@ -594,6 +594,16 @@ void main() {
       mainMenuXib.indexOf('Check for Updates…'),
       lessThan(mainMenuXib.indexOf('title="Services"')),
     );
+    // Application menu "Settings…" wired to the in-app settings modal.
+    expect(mainMenuXib, contains('selector="showSettings:"'));
+    expect(appDelegateSource, contains('@IBAction func showSettings'));
+    expect(runnerSource, contains('final class MacosAppMenuChannel'));
+    expect(runnerSource, contains('com.caverno/app_menu'));
+    expect(runnerSource, contains('func requestOpenSettings'));
+    expect(
+      mainMenuXib.indexOf('selector="showSettings:"'),
+      lessThan(mainMenuXib.indexOf('Check for Updates…')),
+    );
     expect(runnerInfoPlist, contains('SUFeedURL'));
     expect(runnerInfoPlist, contains('SUPublicEDKey'));
     expect(runnerInfoPlist, contains('SUScheduledCheckInterval'));

@@ -14,6 +14,13 @@ class MainFlutterWindow: NSWindow {
   private var securityScopedBookmarkChannel: SecurityScopedBookmarkChannel?
   private var computerUseChannel: MacosComputerUseChannel?
   private var sparkleUpdateChannel: MacosSparkleUpdateChannel?
+  private var appMenuChannel: MacosAppMenuChannel?
+
+  /// Asks the Flutter side to present the in-app settings modal. Invoked from the
+  /// native application menu (Caverno > Settings…) via the AppDelegate.
+  func requestOpenSettings() {
+    appMenuChannel?.requestOpenSettings()
+  }
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -39,8 +46,29 @@ class MainFlutterWindow: NSWindow {
     sparkleUpdateChannel = MacosSparkleUpdateChannel(
       messenger: flutterViewController.engine.binaryMessenger
     )
+    appMenuChannel = MacosAppMenuChannel(
+      messenger: flutterViewController.engine.binaryMessenger
+    )
 
     super.awakeFromNib()
+  }
+}
+
+/// Sends one-way application-menu commands from native macOS to Flutter. Unlike the
+/// other channels here it only invokes Dart methods (native is the caller), so it does
+/// not register a method-call handler.
+final class MacosAppMenuChannel {
+  private let channel: FlutterMethodChannel
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(
+      name: "com.caverno/app_menu",
+      binaryMessenger: messenger
+    )
+  }
+
+  func requestOpenSettings() {
+    channel.invokeMethod("openSettings", arguments: nil)
   }
 }
 

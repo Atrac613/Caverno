@@ -8,8 +8,9 @@ import 'package:caverno/features/chat/presentation/providers/coding_projects_not
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/widgets/conversation_drawer.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
-import 'package:caverno/features/settings/presentation/pages/settings_page.dart';
+import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:caverno/features/settings/presentation/widgets/settings_modal.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -238,7 +239,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('drawer-settings')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SettingsPage), findsOneWidget);
+    // On desktop (the test host is macOS) the drawer opens the settings modal.
+    expect(find.byType(SettingsModal), findsOneWidget);
   });
 
   testWidgets('workspace entries switch the active workspace', (tester) async {
@@ -457,6 +459,12 @@ Future<ProviderContainer> _pumpDrawerApp(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(preferences),
       settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+      // The desktop drawer opens the settings modal, whose default General page
+      // watches the model list; stub it so the modal settles offline.
+      modelListProvider((
+        baseUrl: AppSettings.defaults().baseUrl,
+        apiKey: AppSettings.defaults().apiKey,
+      )).overrideWith((ref) async => <String>[]),
       conversationsNotifierProvider.overrideWith(
         () => _DrawerConversationsNotifier(conversationsState),
       ),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../../settings/presentation/widgets/settings_modal.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../providers/coding_projects_notifier.dart';
@@ -172,6 +174,12 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     final navigator = Navigator.of(context);
     if (widget.closeOnAction) {
       navigator.pop();
+    }
+    // Desktop opens the same sidebar modal the macOS app menu uses; mobile keeps
+    // the full-screen pushed page.
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      showSettingsModal(navigator.context);
+      return;
     }
     navigator.push(MaterialPageRoute(builder: (_) => const SettingsPage()));
   }

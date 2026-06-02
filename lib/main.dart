@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/services/macos_app_menu_service.dart';
 import 'core/services/window_manager_service.dart';
 import 'core/services/window_settings_service.dart';
 import 'core/utils/logger.dart';
@@ -18,6 +19,7 @@ import 'features/chat/presentation/pages/chat_page.dart';
 import 'features/settings/data/settings_repository.dart';
 import 'features/settings/domain/services/app_language_resolver.dart';
 import 'features/settings/presentation/providers/settings_notifier.dart';
+import 'features/settings/presentation/widgets/settings_modal.dart';
 import 'features/remote_coding/presentation/remote_coding_server_notifier.dart';
 
 void main() async {
@@ -86,17 +88,42 @@ class MyApp extends ConsumerStatefulWidget {
 
 class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   bool _localeSyncScheduled = false;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  late final MacosAppMenuService _appMenuService;
+  bool _settingsModalOpen = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _appMenuService = ref.read(macosAppMenuServiceProvider);
+    _appMenuService.setOnOpenSettings(_handleOpenSettings);
   }
 
   @override
   void dispose() {
+    _appMenuService.clear();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Presents the settings modal in response to the native macOS application
+  /// menu (Caverno > Settings…). Guards against stacking duplicate modals when
+  /// the menu item is triggered repeatedly.
+  Future<void> _handleOpenSettings() async {
+    if (_settingsModalOpen) {
+      return;
+    }
+    final navigatorContext = _navigatorKey.currentContext;
+    if (navigatorContext == null) {
+      return;
+    }
+    _settingsModalOpen = true;
+    try {
+      await showSettingsModal(navigatorContext);
+    } finally {
+      _settingsModalOpen = false;
+    }
   }
 
   @override
@@ -155,6 +182,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
 
     return MaterialApp(
       title: 'Caverno',
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
