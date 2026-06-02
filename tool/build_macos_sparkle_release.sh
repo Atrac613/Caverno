@@ -339,6 +339,45 @@ resign_sparkle_updater_components() {
   run "${app_sign_args[@]}" "${APP_PATH}"
 }
 
+verify_sparkle_release_configuration() {
+  if [[ "${DRY_RUN}" == "yes" || -z "${DOWNLOAD_URL_PREFIX}" ]]; then
+    return 0
+  fi
+
+  local info_plist="${APP_PATH}/Contents/Info.plist"
+  if [[ ! -f "${info_plist}" ]]; then
+    echo "Info.plist not found for Sparkle verification: ${info_plist}" >&2
+    exit 66
+  fi
+
+  local expected_feed_url="${DOWNLOAD_URL_PREFIX%/}/appcast.xml"
+  local actual_feed_url=""
+  local public_key=""
+  actual_feed_url="$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "${info_plist}" 2>/dev/null || true)"
+  public_key="$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "${info_plist}" 2>/dev/null || true)"
+
+  if [[ -z "${actual_feed_url}" || "${actual_feed_url}" == *'$('* ]]; then
+    echo "Release app is missing a resolved SUFeedURL." >&2
+    echo "Set SPARKLE_FEED_URL in Signing.local.xcconfig before publishing." >&2
+    exit 65
+  fi
+  if [[ "${actual_feed_url}" != "${expected_feed_url}" ]]; then
+    echo "Release app SUFeedURL does not match the publish URL." >&2
+    echo "  Expected: ${expected_feed_url}" >&2
+    echo "  Actual:   ${actual_feed_url}" >&2
+    exit 65
+  fi
+  if [[ -z "${public_key}" || "${public_key}" == *'$('* ]]; then
+    echo "Release app is missing a resolved SUPublicEDKey." >&2
+    echo "Set SPARKLE_PUBLIC_ED_KEY in Signing.local.xcconfig before publishing." >&2
+    exit 65
+  fi
+
+  echo "Verified Sparkle release configuration"
+  echo "  SUFeedURL: ${actual_feed_url}"
+  echo "  SUPublicEDKey: configured"
+}
+
 echo "Building macOS Sparkle release"
 echo "  Product: ${PRODUCT_NAME}"
 echo "  Build: ${BUILD_NAME}+${BUILD_NUMBER}"
@@ -374,6 +413,7 @@ fi
 
 resign_sparkle_updater_components
 run /usr/bin/codesign --verify --deep --strict --verbose=4 "${APP_PATH}"
+verify_sparkle_release_configuration
 
 if [[ "${SKIP_NOTARIZATION}" != "yes" ]]; then
   run mkdir -p "${ARTIFACT_DIR}"

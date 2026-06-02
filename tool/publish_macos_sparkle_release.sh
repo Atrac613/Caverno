@@ -198,6 +198,27 @@ run() {
   "$@"
 }
 
+run_generate_appcast() {
+  echo "+ $*"
+  if [[ "${DRY_RUN}" == "yes" ]]; then
+    return 0
+  fi
+
+  local log_file
+  log_file="$(mktemp "${TMPDIR:-/tmp}/caverno-generate-appcast.XXXXXX")"
+  if ! "$@" 2>&1 | tee "${log_file}"; then
+    rm -f "${log_file}"
+    exit 1
+  fi
+  if grep -E 'SUPublicEDKey.*does not match|lack of private EdDSA key|Private key.*not found' "${log_file}" >/dev/null; then
+    echo "Sparkle appcast generation reported signing key problems." >&2
+    echo "Verify SUPublicEDKey in the app and the private EdDSA key in the Keychain." >&2
+    rm -f "${log_file}"
+    exit 65
+  fi
+  rm -f "${log_file}"
+}
+
 ARTIFACT_NAME="$(basename "${ARTIFACT_PATH}")"
 STAGED_ARTIFACT="${UPDATES_DIR}/${ARTIFACT_NAME}"
 APPCAST_PATH="${UPDATES_DIR}/${APPCAST_FILENAME}"
@@ -234,7 +255,7 @@ if [[ -n "${SPARKLE_CHANNEL}" ]]; then
 fi
 generate_args+=("${UPDATES_DIR}")
 
-run "${generate_args[@]}"
+run_generate_appcast "${generate_args[@]}"
 
 if [[ "${SKIP_UPLOAD}" == "yes" ]]; then
   echo "S3 upload skipped."

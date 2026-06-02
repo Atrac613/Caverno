@@ -578,6 +578,9 @@ void main() {
     expect(signingLocalTemplate, contains(r'https:/$()/'));
     expect(signingLocalTemplate, contains('SPARKLE_PUBLIC_ED_KEY'));
     expect(sparklePublishScript, contains('generate_appcast'));
+    expect(sparklePublishScript, contains('run_generate_appcast'));
+    expect(sparklePublishScript, contains('SUPublicEDKey.*does not match'));
+    expect(sparklePublishScript, contains('lack of private EdDSA key'));
     expect(sparklePublishScript, contains('--download-url-prefix'));
     expect(sparklePublishScript, contains('s3 sync'));
     expect(sparklePublishScript, contains('no-cache,max-age=0'));
@@ -614,6 +617,12 @@ void main() {
       contains('--preserve-metadata=identifier,entitlements,requirements'),
     );
     expect(sparkleBuildScript, contains('codesign --verify --deep --strict'));
+    expect(
+      sparkleBuildScript,
+      contains('verify_sparkle_release_configuration'),
+    );
+    expect(sparkleBuildScript, contains('SUFeedURL does not match'));
+    expect(sparkleBuildScript, contains('SUPublicEDKey'));
     expect(sparkleBuildScript, contains('notarytool submit'));
     expect(sparkleBuildScript, contains('stapler staple'));
     expect(sparkleBuildScript, contains('stapler validate'));

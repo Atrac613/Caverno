@@ -326,6 +326,10 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
       label: 'Sparkle S3 publish script',
       ok:
           sparklePublishScript?.contains('generate_appcast') == true &&
+          sparklePublishScript?.contains('run_generate_appcast') == true &&
+          sparklePublishScript?.contains('SUPublicEDKey.*does not match') ==
+              true &&
+          sparklePublishScript?.contains('lack of private EdDSA key') == true &&
           sparklePublishScript?.contains('--download-url-prefix') == true &&
           sparklePublishScript?.contains('aws') == true &&
           sparklePublishScript?.contains('s3 sync') == true &&
@@ -401,6 +405,12 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
           sparkleBuildScript?.contains('stapler validate') == true &&
           sparkleBuildScript?.contains('codesign --verify --deep --strict') ==
               true &&
+          sparkleBuildScript?.contains(
+                'verify_sparkle_release_configuration',
+              ) ==
+              true &&
+          sparkleBuildScript?.contains('SUFeedURL does not match') == true &&
+          sparkleBuildScript?.contains('SUPublicEDKey') == true &&
           sparkleBuildScript?.contains('publish_macos_sparkle_release.sh') ==
               true &&
           sparkleBuildScript?.contains('--skip-notarization') == true &&
