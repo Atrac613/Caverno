@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-DEFAULT_DOWNLOAD_URL_PREFIX="https://caverno-macos-releases.s3.amazonaws.com/caverno/macos"
+DEFAULT_DOWNLOAD_URL_PREFIX="https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos"
 DEFAULT_S3_URI="s3://caverno-macos-releases/caverno/macos"
 
 DOWNLOAD_URL_PREFIX="${CAVERNO_SPARKLE_DOWNLOAD_URL_PREFIX:-${DEFAULT_DOWNLOAD_URL_PREFIX}}"
@@ -11,6 +11,7 @@ AWS_BIN="${AWS_BIN:-aws}"
 APPCAST_FILENAME="${CAVERNO_SPARKLE_APPCAST_FILENAME:-appcast.xml}"
 CHECK_STS="yes"
 CHECK_BUCKET_POLICY="yes"
+ALLOW_PRIVATE_BUCKET="no"
 DRY_RUN="no"
 
 usage() {
@@ -24,6 +25,7 @@ Options:
   --aws-bin PATH             AWS CLI executable, default aws.
   --skip-sts                 Skip aws sts get-caller-identity.
   --skip-bucket-policy       Skip optional bucket public-access policy probes.
+  --allow-private-bucket     Do not fail when direct S3 public read is blocked.
   --dry-run                  Print commands without executing AWS CLI calls.
   --help                     Show this help.
 
@@ -69,6 +71,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-bucket-policy)
       CHECK_BUCKET_POLICY="no"
+      shift 1
+      ;;
+    --allow-private-bucket)
+      ALLOW_PRIVATE_BUCKET="yes"
       shift 1
       ;;
     --dry-run)
@@ -159,11 +165,31 @@ run "${AWS_BIN}" --version
 if [[ "${CHECK_STS}" == "yes" ]]; then
   run "${AWS_BIN}" sts get-caller-identity
 fi
-run "${AWS_BIN}" s3 ls "${S3_URI_NORMALIZED}/"
+run "${AWS_BIN}" s3api head-bucket --bucket "${S3_BUCKET}"
+run_optional "${AWS_BIN}" s3 ls "${S3_URI_NORMALIZED}/"
 
 if [[ "${CHECK_BUCKET_POLICY}" == "yes" ]]; then
   run_optional "${AWS_BIN}" s3api get-public-access-block --bucket "${S3_BUCKET}"
   run_optional "${AWS_BIN}" s3api get-bucket-policy-status --bucket "${S3_BUCKET}"
+fi
+
+if [[ "${DRY_RUN}" != "yes" &&
+      "${CHECK_BUCKET_POLICY}" == "yes" &&
+      "${ALLOW_PRIVATE_BUCKET}" != "yes" ]]; then
+  PUBLIC_BLOCK_FLAGS="$("${AWS_BIN}" s3api get-public-access-block \
+    --bucket "${S3_BUCKET}" \
+    --query 'PublicAccessBlockConfiguration.[BlockPublicPolicy,RestrictPublicBuckets]' \
+    --output text 2>/dev/null || true)"
+  if [[ "${PUBLIC_BLOCK_FLAGS}" == *True* || "${PUBLIC_BLOCK_FLAGS}" == *true* ]]; then
+    echo "Direct S3 hosting requires BlockPublicPolicy=false and RestrictPublicBuckets=false." >&2
+    echo "Run tool/configure_macos_sparkle_s3_public_read.sh to review the required policy update." >&2
+    exit 65
+  fi
+  if ! "${AWS_BIN}" s3api get-bucket-policy-status --bucket "${S3_BUCKET}" >/dev/null 2>&1; then
+    echo "Direct S3 hosting requires a bucket policy that allows public read for the update prefix." >&2
+    echo "Run tool/configure_macos_sparkle_s3_public_read.sh to review the required policy update." >&2
+    exit 65
+  fi
 fi
 
 PROBE_FILE=""

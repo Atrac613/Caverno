@@ -15,7 +15,7 @@ Release builders must provide these local values in the ignored
 ```xcconfig
 DEVELOPMENT_TEAM = YOURTEAMID
 CODE_SIGN_IDENTITY = Developer ID Application
-SPARKLE_FEED_URL = https://caverno-macos-releases.s3.amazonaws.com/caverno/macos/appcast.xml
+SPARKLE_FEED_URL = https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml
 SPARKLE_PUBLIC_ED_KEY = BASE64_PUBLIC_ED25519_KEY_FROM_SPARKLE
 ```
 
@@ -88,6 +88,18 @@ hosting policy for this lane is:
 ```
 
 Keep write access limited to the release operator or release automation role.
+Review the direct-S3 public read update before applying it:
+
+```bash
+bash tool/configure_macos_sparkle_s3_public_read.sh
+```
+
+Apply it only after confirming the bucket and prefix:
+
+```bash
+bash tool/configure_macos_sparkle_s3_public_read.sh --apply
+```
+
 Run the S3 preflight before the first upload:
 
 ```bash
@@ -102,7 +114,7 @@ Then run the Sparkle release driver:
 bash tool/build_macos_sparkle_release.sh \
   --notary-profile caverno-notary \
   --package zip \
-  --download-url-prefix https://caverno-macos-releases.s3.amazonaws.com/caverno/macos \
+  --download-url-prefix https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos \
   --s3-uri s3://caverno-macos-releases/caverno/macos \
   --release-notes docs/releases/caverno-1.3.2.md
 ```
@@ -143,7 +155,7 @@ notarized, and stapled:
 bash tool/publish_macos_sparkle_release.sh \
   --artifact build/release/Caverno-1.3.2.dmg \
   --release-notes docs/releases/caverno-1.3.2.md \
-  --download-url-prefix https://caverno-macos-releases.s3.amazonaws.com/caverno/macos \
+  --download-url-prefix https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos \
   --s3-uri s3://caverno-macos-releases/caverno/macos
 ```
 
@@ -171,7 +183,7 @@ bash tool/run_macos_sparkle_s3_preflight.sh
 bash tool/build_macos_sparkle_release.sh \
   --notary-profile caverno-notary \
   --package zip \
-  --download-url-prefix https://caverno-macos-releases.s3.amazonaws.com/caverno/macos \
+  --download-url-prefix https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos \
   --s3-uri s3://caverno-macos-releases/caverno/macos \
   --release-notes docs/releases/caverno-1.3.2.md \
   --dry-run

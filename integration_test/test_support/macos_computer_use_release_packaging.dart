@@ -132,6 +132,10 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
     root,
     'tool/run_macos_sparkle_s3_preflight.sh',
   );
+  final sparkleS3PublicReadScript = _read(
+    root,
+    'tool/configure_macos_sparkle_s3_public_read.sh',
+  );
   final launchAgent = _read(
     root,
     'macos/Runner/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist',
@@ -336,13 +340,38 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
               ) ==
               true &&
           sparkleS3PreflightScript?.contains('s3 ls') == true &&
+          sparkleS3PreflightScript?.contains('head-bucket') == true &&
           sparkleS3PreflightScript?.contains('s3 cp') == true &&
           sparkleS3PreflightScript?.contains('--dryrun') == true &&
+          sparkleS3PreflightScript?.contains('BlockPublicPolicy=false') ==
+              true &&
           sparkleS3PreflightScript?.contains('get-public-access-block') == true,
       nextAction:
           'Use tool/run_macos_sparkle_s3_preflight.sh before the first real S3 publish.',
       details: <String, Object?>{
         'path': 'tool/run_macos_sparkle_s3_preflight.sh',
+      },
+    ),
+    _check(
+      id: 'sparkle_s3_public_read_config',
+      label: 'Sparkle S3 public read config',
+      ok:
+          sparkleS3PublicReadScript?.contains(
+                's3://caverno-macos-releases/caverno/macos',
+              ) ==
+              true &&
+          sparkleS3PublicReadScript?.contains('--apply') == true &&
+          sparkleS3PublicReadScript?.contains('put-public-access-block') ==
+              true &&
+          sparkleS3PublicReadScript?.contains('put-bucket-policy') == true &&
+          sparkleS3PublicReadScript?.contains(
+                'PublicReadCavernoMacosUpdates',
+              ) ==
+              true,
+      nextAction:
+          'Use tool/configure_macos_sparkle_s3_public_read.sh to review or apply direct-S3 public read settings.',
+      details: <String, Object?>{
+        'path': 'tool/configure_macos_sparkle_s3_public_read.sh',
       },
     ),
     _check(

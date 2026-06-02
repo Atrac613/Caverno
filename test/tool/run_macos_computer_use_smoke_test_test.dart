@@ -65,6 +65,7 @@ void main() {
   late String sparkleStagingReleaseNotes;
   late String sparklePublishScript;
   late String sparkleS3PreflightScript;
+  late String sparkleS3PublicReadScript;
   late String releaseSigningPreflightWrapper;
   late String releaseSigningPreflightCli;
   late String releaseSigningPreflightSupport;
@@ -242,6 +243,9 @@ void main() {
     ).readAsStringSync();
     sparkleS3PreflightScript = File(
       'tool/run_macos_sparkle_s3_preflight.sh',
+    ).readAsStringSync();
+    sparkleS3PublicReadScript = File(
+      'tool/configure_macos_sparkle_s3_public_read.sh',
     ).readAsStringSync();
     releaseSigningPreflightWrapper = File(
       'tool/run_macos_computer_use_release_signing_preflight.sh',
@@ -573,13 +577,22 @@ void main() {
     expect(sparklePublishScript, contains('s3 sync'));
     expect(sparklePublishScript, contains('no-cache,max-age=0'));
     expect(sparkleS3PreflightScript, contains('s3 ls'));
+    expect(sparkleS3PreflightScript, contains('head-bucket'));
     expect(sparkleS3PreflightScript, contains('s3 cp'));
     expect(sparkleS3PreflightScript, contains('--dryrun'));
+    expect(sparkleS3PreflightScript, contains('BlockPublicPolicy=false'));
     expect(
       sparkleS3PreflightScript,
       contains('s3://caverno-macos-releases/caverno/macos'),
     );
     expect(sparkleS3PreflightScript, contains('get-public-access-block'));
+    expect(sparkleS3PublicReadScript, contains('--apply'));
+    expect(sparkleS3PublicReadScript, contains('put-public-access-block'));
+    expect(sparkleS3PublicReadScript, contains('put-bucket-policy'));
+    expect(
+      sparkleS3PublicReadScript,
+      contains('PublicReadCavernoMacosUpdates'),
+    );
     expect(sparkleBuildScript, contains('build macos --release'));
     expect(sparkleBuildScript, contains('CAVERNO_MACOS_CODESIGN_IDENTITY'));
     expect(sparkleBuildScript, contains('resign_sparkle_updater_components'));
@@ -658,6 +671,10 @@ void main() {
       manualProcessChecklist,
       contains('bash tool/run_macos_sparkle_s3_preflight.sh'),
     );
+    expect(
+      manualProcessChecklist,
+      contains('bash tool/configure_macos_sparkle_s3_public_read.sh'),
+    );
   });
 
   test('Sparkle S3 preflight supports dry runs', () async {
@@ -669,10 +686,25 @@ void main() {
     expect(result.exitCode, 0, reason: '${result.stderr}');
     final stdout = '${result.stdout}';
     expect(stdout, contains('Running macOS Sparkle S3 preflight'));
+    expect(stdout, contains('aws s3api head-bucket'));
     expect(stdout, contains('aws s3 ls'));
     expect(stdout, contains('aws s3 cp'));
     expect(stdout, contains('--dryrun'));
     expect(stdout, contains('Sparkle S3 preflight completed.'));
+  });
+
+  test('Sparkle S3 public read config supports dry runs', () async {
+    final result = await Process.run('bash', [
+      'tool/configure_macos_sparkle_s3_public_read.sh',
+    ]);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final stdout = '${result.stdout}';
+    expect(stdout, contains('Configuring macOS Sparkle S3 public read'));
+    expect(stdout, contains('PublicReadCavernoMacosUpdates'));
+    expect(stdout, contains('aws s3api put-public-access-block'));
+    expect(stdout, contains('aws s3api put-bucket-policy'));
+    expect(stdout, contains('Dry run only.'));
   });
 
   test('Sparkle release driver supports safe dry runs', () async {

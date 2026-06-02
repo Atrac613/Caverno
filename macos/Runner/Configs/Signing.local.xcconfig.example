@@ -7,5 +7,5 @@
 // CODE_SIGN_STYLE = Manual
 // CODE_SIGN_IDENTITY = Developer ID Application
 // OTHER_CODE_SIGN_FLAGS = $(inherited) --timestamp
-// SPARKLE_FEED_URL = https://caverno-macos-releases.s3.amazonaws.com/caverno/macos/appcast.xml
+// SPARKLE_FEED_URL = https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml
 // SPARKLE_PUBLIC_ED_KEY = BASE64_PUBLIC_ED25519_KEY_FROM_SPARKLE
