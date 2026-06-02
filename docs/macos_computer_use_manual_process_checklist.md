@@ -142,10 +142,11 @@ Expected outputs:
 The report checks the helper embed phase, LaunchAgent BundleProgram,
 MachServices declaration, release entitlements, hardened runtime settings,
 identity-free signing defaults, Sparkle update dependency, appcast
-configuration, and the S3 publish helper. It does not sign, notarize, staple,
-grant TCC, launch System Settings, upload appcasts, or perform desktop actions.
-Signing identity, notarization ticket, stapler validation, appcast publishing,
-TCC grants, and real desktop evidence remain user-operated release evidence.
+configuration, the notarized Sparkle release driver, and the S3 publish helper.
+It does not sign, notarize, staple, grant TCC, launch System Settings, upload
+appcasts, or perform desktop actions. Signing identity, notarization ticket,
+stapler validation, appcast publishing, TCC grants, and real desktop evidence
+remain user-operated release evidence.
 
 Before rerunning the M7 release artifact sign-off after a signing blocker:
 
@@ -157,6 +158,16 @@ Before rerunning the M7 release artifact sign-off after a signing blocker:
 4. Include `DEVELOPMENT_TEAM` and a non-ad-hoc `CODE_SIGN_IDENTITY`.
 5. Rebuild the release app, then rerun
    `bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff`.
+
+For Sparkle distribution after M7/M33 readiness, use the release driver:
+
+```bash
+bash tool/build_macos_sparkle_release.sh \
+  --notary-profile caverno-notary \
+  --package zip \
+  --download-url-prefix https://updates.example.com/caverno/macos \
+  --s3-uri s3://example-bucket/caverno/macos
+```
 
 The artifact index reads
 `build/integration_test_reports/macos_computer_use_release_signing_preflight.json`.

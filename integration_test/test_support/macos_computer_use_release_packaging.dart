@@ -115,6 +115,7 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
   );
   final runnerInfoPlist = _read(root, 'macos/Runner/Info.plist');
   final helperInfoPlist = _read(root, 'macos/ComputerUseHelper/Info.plist');
+  final sparkleBuildScript = _read(root, 'tool/build_macos_sparkle_release.sh');
   final sparklePublishScript = _read(
     root,
     'tool/publish_macos_sparkle_release.sh',
@@ -274,6 +275,24 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
       details: <String, Object?>{
         'path': 'tool/publish_macos_sparkle_release.sh',
       },
+    ),
+    _check(
+      id: 'sparkle_release_driver',
+      label: 'Sparkle release driver',
+      ok:
+          sparkleBuildScript?.contains('build macos --release') == true &&
+          sparkleBuildScript?.contains('notarytool submit') == true &&
+          sparkleBuildScript?.contains('stapler staple') == true &&
+          sparkleBuildScript?.contains('stapler validate') == true &&
+          sparkleBuildScript?.contains('codesign --verify --deep --strict') ==
+              true &&
+          sparkleBuildScript?.contains('publish_macos_sparkle_release.sh') ==
+              true &&
+          sparkleBuildScript?.contains('--skip-notarization') == true &&
+          sparkleBuildScript?.contains('--skip-publish') == true,
+      nextAction:
+          'Use tool/build_macos_sparkle_release.sh to build, notarize, package, and publish Sparkle release artifacts.',
+      details: <String, Object?>{'path': 'tool/build_macos_sparkle_release.sh'},
     ),
   ];
   final ready = checks.every((check) => check.ok);

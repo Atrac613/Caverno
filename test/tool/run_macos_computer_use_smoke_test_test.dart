@@ -60,6 +60,7 @@ void main() {
   late String m56RolloutDecisionHandoffGateScript;
   late String releasePackagingWrapper;
   late String releasePackagingCli;
+  late String sparkleBuildScript;
   late String sparklePublishScript;
   late String releaseSigningPreflightWrapper;
   late String releaseSigningPreflightCli;
@@ -223,6 +224,9 @@ void main() {
     ).readAsStringSync();
     releasePackagingCli = File(
       'tool/macos_computer_use_release_packaging.dart',
+    ).readAsStringSync();
+    sparkleBuildScript = File(
+      'tool/build_macos_sparkle_release.sh',
     ).readAsStringSync();
     sparklePublishScript = File(
       'tool/publish_macos_sparkle_release.sh',
@@ -554,6 +558,14 @@ void main() {
     expect(sparklePublishScript, contains('--download-url-prefix'));
     expect(sparklePublishScript, contains('s3 sync'));
     expect(sparklePublishScript, contains('no-cache,max-age=0'));
+    expect(sparkleBuildScript, contains('build macos --release'));
+    expect(sparkleBuildScript, contains('codesign --verify --deep --strict'));
+    expect(sparkleBuildScript, contains('notarytool submit'));
+    expect(sparkleBuildScript, contains('stapler staple'));
+    expect(sparkleBuildScript, contains('stapler validate'));
+    expect(sparkleBuildScript, contains('publish_macos_sparkle_release.sh'));
+    expect(sparkleBuildScript, contains('--skip-notarization'));
+    expect(sparkleBuildScript, contains('--skip-publish'));
     expect(releaseSigningPreflightSupport, contains('signing_local_gitignore'));
     expect(
       releaseSigningPreflightSupport,
@@ -580,7 +592,29 @@ void main() {
     expect(manualProcessChecklist, contains('ad_hoc_signature'));
     expect(manualProcessChecklist, contains('team_identifier_missing'));
     expect(manualProcessChecklist, contains('It does not sign'));
-    expect(manualProcessChecklist, contains('upload appcasts'));
+    expect(manualProcessChecklist, contains('appcast publishing'));
+    expect(
+      manualProcessChecklist,
+      contains('bash tool/build_macos_sparkle_release.sh'),
+    );
+  });
+
+  test('Sparkle release driver supports safe dry runs', () async {
+    final result = await Process.run('bash', [
+      'tool/build_macos_sparkle_release.sh',
+      '--skip-preflight',
+      '--skip-notarization',
+      '--skip-publish',
+      '--dry-run',
+    ]);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    final stdout = '${result.stdout}';
+    expect(stdout, contains('Building macOS Sparkle release'));
+    expect(stdout, contains('build macos --release'));
+    expect(stdout, contains('codesign --verify --deep --strict'));
+    expect(stdout, contains('ditto -c -k'));
+    expect(stdout, contains('macOS Sparkle release artifact ready'));
   });
 
   test('release report includes M7 gate and runtime readiness fields', () {

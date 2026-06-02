@@ -57,9 +57,47 @@ Run the existing static release packaging report before publishing:
 bash tool/run_macos_computer_use_release_packaging.sh
 ```
 
+## Build, Notarize, Package, and Publish
+
+Create a notarytool keychain profile on the release Mac before the first real
+release:
+
+```bash
+xcrun notarytool store-credentials caverno-notary \
+  --apple-id APPLE_ID@example.com \
+  --team-id YOURTEAMID \
+  --password APP_SPECIFIC_PASSWORD
+```
+
+Then run the Sparkle release driver:
+
+```bash
+bash tool/build_macos_sparkle_release.sh \
+  --notary-profile caverno-notary \
+  --package zip \
+  --download-url-prefix https://updates.example.com/caverno/macos \
+  --s3-uri s3://example-bucket/caverno/macos \
+  --release-notes docs/releases/caverno-1.3.2.md
+```
+
+The driver runs release signing preflight, the static packaging report,
+`fvm flutter build macos --release`, deep codesign verification, notarytool
+submission, stapler validation, Sparkle packaging, and the S3 appcast publish
+helper. Use `--dry-run` to inspect commands without running them.
+
+For a local packaging rehearsal without Apple notarization or S3 upload:
+
+```bash
+bash tool/build_macos_sparkle_release.sh \
+  --skip-notarization \
+  --skip-publish \
+  --dry-run
+```
+
 ## S3 Publish
 
-Use the publish helper after the artifact is signed, notarized, and stapled:
+Use the lower-level publish helper when the artifact is already signed,
+notarized, and stapled:
 
 ```bash
 bash tool/publish_macos_sparkle_release.sh \

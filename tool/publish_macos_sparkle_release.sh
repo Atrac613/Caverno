@@ -22,7 +22,7 @@ usage() {
 Usage: bash tool/publish_macos_sparkle_release.sh [options]
 
 Options:
-  --artifact PATH                 Notarized and stapled .dmg, .zip, .tar.xz, or .aar.
+  --artifact PATH                 Notarized and stapled .dmg, .zip, or .tar.xz.
   --release-notes PATH            Optional .md or .html notes copied next to the artifact.
   --updates-dir PATH              Local Sparkle updates directory.
   --download-url-prefix URL       HTTPS URL prefix for generated appcast enclosure URLs.

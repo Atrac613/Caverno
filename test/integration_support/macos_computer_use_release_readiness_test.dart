@@ -3787,6 +3787,7 @@ void main() {
       expect(checkIds, contains('sparkle_dependency'));
       expect(checkIds, contains('sparkle_appcast_configuration'));
       expect(checkIds, contains('sparkle_publish_script'));
+      expect(checkIds, contains('sparkle_release_driver'));
       expect(json['schemaName'], 'macos_computer_use_m33_release_packaging');
       expect(json['milestone'], 'M33');
       expect(
