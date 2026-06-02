@@ -15,7 +15,7 @@ Release builders must provide these local values in the ignored
 ```xcconfig
 DEVELOPMENT_TEAM = YOURTEAMID
 CODE_SIGN_IDENTITY = Developer ID Application
-SPARKLE_FEED_URL = https://updates.example.com/caverno/macos/appcast.xml
+SPARKLE_FEED_URL = https://caverno-macos-releases.s3.amazonaws.com/caverno/macos/appcast.xml
 SPARKLE_PUBLIC_ED_KEY = BASE64_PUBLIC_ED25519_KEY_FROM_SPARKLE
 ```
 
@@ -75,8 +75,8 @@ Then run the Sparkle release driver:
 bash tool/build_macos_sparkle_release.sh \
   --notary-profile caverno-notary \
   --package zip \
-  --download-url-prefix https://updates.example.com/caverno/macos \
-  --s3-uri s3://example-bucket/caverno/macos \
+  --download-url-prefix https://caverno-macos-releases.s3.amazonaws.com/caverno/macos \
+  --s3-uri s3://caverno-macos-releases/caverno/macos \
   --release-notes docs/releases/caverno-1.3.2.md
 ```
 
@@ -103,9 +103,9 @@ bash tool/run_macos_sparkle_staging_rehearsal.sh
 
 The wrapper defaults to
 `https://updates.example.invalid/caverno/macos/staging` and
-`s3://caverno-dummy-updates/macos/staging`, keeps notarization disabled, and
-passes `--dry-run` to the release driver. A real run is blocked until both the
-download URL and S3 URI are overridden.
+`s3://caverno-macos-releases/caverno/macos/staging`, keeps notarization disabled, and
+passes `--dry-run` to the release driver. A real run is blocked until the
+download URL is overridden.
 
 ## S3 Publish
 
@@ -116,8 +116,8 @@ notarized, and stapled:
 bash tool/publish_macos_sparkle_release.sh \
   --artifact build/release/Caverno-1.3.2.dmg \
   --release-notes docs/releases/caverno-1.3.2.md \
-  --download-url-prefix https://updates.example.com/caverno/macos \
-  --s3-uri s3://example-bucket/caverno/macos
+  --download-url-prefix https://caverno-macos-releases.s3.amazonaws.com/caverno/macos \
+  --s3-uri s3://caverno-macos-releases/caverno/macos
 ```
 
 Useful environment overrides:

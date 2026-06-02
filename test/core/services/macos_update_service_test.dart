@@ -11,7 +11,8 @@ void main() {
     final status = MacosUpdateStatus.fromMap(const <String, Object?>{
       'available': true,
       'configured': true,
-      'feedURL': 'https://updates.example.com/caverno/macos/appcast.xml',
+      'feedURL':
+          'https://caverno-macos-releases.s3.amazonaws.com/caverno/macos/appcast.xml',
       'publicKeyConfigured': true,
       'automaticallyChecksForUpdates': 'true',
       'automaticallyDownloadsUpdates': false,
@@ -43,7 +44,8 @@ void main() {
           return <String, Object?>{
             'available': true,
             'configured': true,
-            'feedURL': 'https://updates.example.com/caverno/macos/appcast.xml',
+            'feedURL':
+                'https://caverno-macos-releases.s3.amazonaws.com/caverno/macos/appcast.xml',
             'publicKeyConfigured': true,
             'automaticallyChecksForUpdates': true,
             'automaticallyDownloadsUpdates': false,
@@ -79,7 +81,8 @@ void main() {
           return <String, Object?>{
             'available': true,
             'configured': true,
-            'feedURL': 'https://updates.example.com/caverno/macos/appcast.xml',
+            'feedURL':
+                'https://caverno-macos-releases.s3.amazonaws.com/caverno/macos/appcast.xml',
             'publicKeyConfigured': true,
             'automaticallyChecksForUpdates': true,
             'automaticallyDownloadsUpdates': false,

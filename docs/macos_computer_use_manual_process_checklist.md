@@ -166,8 +166,8 @@ For Sparkle distribution after M7/M33 readiness, use the release driver:
 bash tool/build_macos_sparkle_release.sh \
   --notary-profile caverno-notary \
   --package zip \
-  --download-url-prefix https://updates.example.com/caverno/macos \
-  --s3-uri s3://example-bucket/caverno/macos
+  --download-url-prefix https://caverno-macos-releases.s3.amazonaws.com/caverno/macos \
+  --s3-uri s3://caverno-macos-releases/caverno/macos
 ```
 
 The release driver re-signs Sparkle's bundled updater app, XPC services, and

@@ -150,7 +150,8 @@ class _FakeMacosUpdateService extends MacosUpdateService {
     return const MacosUpdateStatus(
       available: true,
       configured: true,
-      feedUrl: 'https://updates.example.com/caverno/macos/appcast.xml',
+      feedUrl:
+          'https://caverno-macos-releases.s3.amazonaws.com/caverno/macos/appcast.xml',
       publicKeyConfigured: true,
       automaticallyChecksForUpdates: true,
       automaticallyDownloadsUpdates: false,

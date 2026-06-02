@@ -367,7 +367,7 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
               ) ==
               true &&
           sparkleStagingRehearsalScript?.contains(
-                's3://caverno-dummy-updates/macos/staging',
+                's3://caverno-macos-releases/caverno/macos/staging',
               ) ==
               true &&
           sparkleStagingReleaseNotes?.contains(

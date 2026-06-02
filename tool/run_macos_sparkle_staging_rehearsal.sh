@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DEFAULT_DOWNLOAD_URL_PREFIX="https://updates.example.invalid/caverno/macos/staging"
-DEFAULT_S3_URI="s3://caverno-dummy-updates/macos/staging"
+DEFAULT_S3_URI="s3://caverno-macos-releases/caverno/macos/staging"
 
 DOWNLOAD_URL_PREFIX="${CAVERNO_SPARKLE_STAGING_DOWNLOAD_URL_PREFIX:-${DEFAULT_DOWNLOAD_URL_PREFIX}}"
 S3_URI="${CAVERNO_SPARKLE_STAGING_S3_URI:-${DEFAULT_S3_URI}}"
@@ -31,9 +31,10 @@ Options:
   --real-run                 Execute commands instead of printing them.
   --help                     Show this help.
 
-By default this is a no-upload staging rehearsal. It passes dummy S3 and HTTPS
-coordinates to the Sparkle release driver, keeps notarization disabled, and
-forces dry-run mode so the publish path is visible without mutating S3.
+By default this is a no-upload staging rehearsal. It passes dummy HTTPS and
+staging S3 coordinates to the Sparkle release driver, keeps notarization
+disabled, and forces dry-run mode so the publish path is visible without
+mutating S3.
 USAGE
 }
 
@@ -111,10 +112,6 @@ esac
 if [[ "${DRY_RUN}" != "yes" ]]; then
   if [[ "${DOWNLOAD_URL_PREFIX}" == "${DEFAULT_DOWNLOAD_URL_PREFIX}" ]]; then
     echo "Real runs require a non-dummy --download-url-prefix." >&2
-    exit 64
-  fi
-  if [[ "${S3_URI}" == "${DEFAULT_S3_URI}" ]]; then
-    echo "Real runs require a non-dummy --s3-uri." >&2
     exit 64
   fi
 fi
