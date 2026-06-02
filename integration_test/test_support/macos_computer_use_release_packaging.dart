@@ -99,6 +99,12 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
   final root = projectRoot ?? Directory.current;
   final pbxproj = _read(root, 'macos/Runner.xcodeproj/project.pbxproj');
   final signingConfig = _read(root, 'macos/Runner/Configs/Signing.xcconfig');
+  final appInfoConfig = _read(root, 'macos/Runner/Configs/AppInfo.xcconfig');
+  final signingLocalExample = _read(
+    root,
+    'macos/Runner/Configs/Signing.local.xcconfig.example',
+  );
+  final podfile = _read(root, 'macos/Podfile');
   final runnerReleaseEntitlements = _read(
     root,
     'macos/Runner/Release.entitlements',
@@ -109,6 +115,31 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
   );
   final runnerInfoPlist = _read(root, 'macos/Runner/Info.plist');
   final helperInfoPlist = _read(root, 'macos/ComputerUseHelper/Info.plist');
+  final sparkleBuildScript = _read(root, 'tool/build_macos_sparkle_release.sh');
+  final sparkleStagingRehearsalScript = _read(
+    root,
+    'tool/run_macos_sparkle_staging_rehearsal.sh',
+  );
+  final sparkleStagingReleaseNotes = _read(
+    root,
+    'docs/releases/caverno-staging.md',
+  );
+  final sparklePublishScript = _read(
+    root,
+    'tool/publish_macos_sparkle_release.sh',
+  );
+  final sparkleS3PreflightScript = _read(
+    root,
+    'tool/run_macos_sparkle_s3_preflight.sh',
+  );
+  final sparkleS3PublicReadScript = _read(
+    root,
+    'tool/configure_macos_sparkle_s3_public_read.sh',
+  );
+  final sparklePublicReleaseVerifierScript = _read(
+    root,
+    'tool/verify_macos_sparkle_public_release.sh',
+  );
   final launchAgent = _read(
     root,
     'macos/Runner/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist',
@@ -218,10 +249,244 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
       label: 'Identity-free signing defaults',
       ok:
           signingConfig?.contains('CODE_SIGN_STYLE = Automatic') == true &&
+          signingConfig?.contains('CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO') ==
+              true &&
           signingConfig?.contains('Signing.local.xcconfig') == true &&
           signingConfig?.contains('DEVELOPMENT_TEAM =') != true,
       nextAction:
           'Keep repository defaults identity-free and place local release signing overrides in Signing.local.xcconfig.',
+    ),
+    _check(
+      id: 'release_signing_delegates_to_local_config',
+      label: 'Release signing delegates to local config',
+      ok:
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Release',
+            'CODE_SIGN_IDENTITY = "Apple Development";',
+          ) &&
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Profile',
+            'CODE_SIGN_IDENTITY = "Apple Development";',
+          ) &&
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Release',
+            'DEVELOPMENT_TEAM = 89UG59TBNX;',
+          ) &&
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Profile',
+            'DEVELOPMENT_TEAM = 89UG59TBNX;',
+          ) &&
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Release',
+            'CODE_SIGN_STYLE = Automatic;',
+          ) &&
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Profile',
+            'CODE_SIGN_STYLE = Automatic;',
+          ),
+      nextAction:
+          'Keep Release and Profile signing identity, style, and team values out of the Xcode project so Signing.local.xcconfig controls Developer ID release signing.',
+    ),
+    _check(
+      id: 'sparkle_dependency',
+      label: 'Sparkle update dependency',
+      ok: podfile?.contains("pod 'Sparkle', '~> 2.9'") == true,
+      nextAction:
+          'Keep Sparkle 2 available to the macOS Runner target through CocoaPods.',
+      details: <String, Object?>{'path': 'macos/Podfile'},
+    ),
+    _check(
+      id: 'sparkle_appcast_configuration',
+      label: 'Sparkle appcast configuration',
+      ok:
+          runnerInfoPlist?.contains('<key>SUFeedURL</key>') == true &&
+          runnerInfoPlist?.contains('<key>SUPublicEDKey</key>') == true &&
+          runnerInfoPlist?.contains('<key>SUEnableAutomaticChecks</key>') ==
+              true &&
+          runnerInfoPlist?.contains('<key>SUScheduledCheckInterval</key>') ==
+              true &&
+          runnerInfoPlist?.contains('<integer>3600</integer>') == true &&
+          appInfoConfig?.contains('SPARKLE_FEED_URL =') == true &&
+          appInfoConfig?.contains('SPARKLE_PUBLIC_ED_KEY =') == true &&
+          _appearsBefore(
+            appInfoConfig,
+            'SPARKLE_PUBLIC_ED_KEY =',
+            '#include "Signing.xcconfig"',
+          ) &&
+          signingLocalExample?.contains('SPARKLE_FEED_URL') == true &&
+          signingLocalExample?.contains('SPARKLE_PUBLIC_ED_KEY') == true,
+      nextAction:
+          'Keep release appcast URL and public EdDSA key injected through local signing configuration.',
+      details: <String, Object?>{'path': 'macos/Runner/Info.plist'},
+    ),
+    _check(
+      id: 'sparkle_publish_script',
+      label: 'Sparkle S3 publish script',
+      ok:
+          sparklePublishScript?.contains('generate_appcast') == true &&
+          sparklePublishScript?.contains('run_generate_appcast') == true &&
+          sparklePublishScript?.contains('SUPublicEDKey.*does not match') ==
+              true &&
+          sparklePublishScript?.contains('lack of private EdDSA key') == true &&
+          sparklePublishScript?.contains('--download-url-prefix') == true &&
+          sparklePublishScript?.contains('--skip-public-verify') == true &&
+          sparklePublishScript?.contains(
+                'verify_macos_sparkle_public_release.sh',
+              ) ==
+              true &&
+          sparklePublishScript?.contains('--expected-artifact-url') == true &&
+          sparklePublishScript?.contains('--expected-min-length') == true &&
+          sparklePublishScript?.contains('validate_release_metadata') == true &&
+          sparklePublishScript?.contains('Expected token') == true &&
+          sparklePublishScript?.contains('aws') == true &&
+          sparklePublishScript?.contains('s3 sync') == true &&
+          sparklePublishScript?.contains('no-cache,max-age=0') == true,
+      nextAction:
+          'Use tool/publish_macos_sparkle_release.sh after signing, notarization, and stapling.',
+      details: <String, Object?>{
+        'path': 'tool/publish_macos_sparkle_release.sh',
+      },
+    ),
+    _check(
+      id: 'sparkle_s3_preflight',
+      label: 'Sparkle S3 preflight',
+      ok:
+          sparkleS3PreflightScript?.contains(
+                's3://caverno-macos-releases/caverno/macos',
+              ) ==
+              true &&
+          sparkleS3PreflightScript?.contains('s3 ls') == true &&
+          sparkleS3PreflightScript?.contains('head-bucket') == true &&
+          sparkleS3PreflightScript?.contains('s3 cp') == true &&
+          sparkleS3PreflightScript?.contains('--dryrun') == true &&
+          sparkleS3PreflightScript?.contains('BlockPublicPolicy=false') ==
+              true &&
+          sparkleS3PreflightScript?.contains('get-public-access-block') == true,
+      nextAction:
+          'Use tool/run_macos_sparkle_s3_preflight.sh before the first real S3 publish.',
+      details: <String, Object?>{
+        'path': 'tool/run_macos_sparkle_s3_preflight.sh',
+      },
+    ),
+    _check(
+      id: 'sparkle_s3_public_read_config',
+      label: 'Sparkle S3 public read config',
+      ok:
+          sparkleS3PublicReadScript?.contains(
+                's3://caverno-macos-releases/caverno/macos',
+              ) ==
+              true &&
+          sparkleS3PublicReadScript?.contains('--apply') == true &&
+          sparkleS3PublicReadScript?.contains('put-public-access-block') ==
+              true &&
+          sparkleS3PublicReadScript?.contains('put-bucket-policy') == true &&
+          sparkleS3PublicReadScript?.contains(
+                'PublicReadCavernoMacosUpdates',
+              ) ==
+              true,
+      nextAction:
+          'Use tool/configure_macos_sparkle_s3_public_read.sh to review or apply direct-S3 public read settings.',
+      details: <String, Object?>{
+        'path': 'tool/configure_macos_sparkle_s3_public_read.sh',
+      },
+    ),
+    _check(
+      id: 'sparkle_public_release_verifier',
+      label: 'Sparkle public release verifier',
+      ok:
+          sparklePublicReleaseVerifierScript?.contains(
+                'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml',
+              ) ==
+              true &&
+          sparklePublicReleaseVerifierScript?.contains('curl') == true &&
+          sparklePublicReleaseVerifierScript?.contains('sparkle:edSignature') ==
+              true &&
+          sparklePublicReleaseVerifierScript?.contains(
+                'sparkle:releaseNotesLink',
+              ) ==
+              true &&
+          sparklePublicReleaseVerifierScript?.contains('Content-Length') ==
+              true &&
+          sparklePublicReleaseVerifierScript?.contains('no-cache,max-age=0') ==
+              true &&
+          sparklePublicReleaseVerifierScript?.contains('max-age=300,public') ==
+              true,
+      nextAction:
+          'Use tool/verify_macos_sparkle_public_release.sh after each real S3 publish.',
+      details: <String, Object?>{
+        'path': 'tool/verify_macos_sparkle_public_release.sh',
+      },
+    ),
+    _check(
+      id: 'sparkle_release_driver',
+      label: 'Sparkle release driver',
+      ok:
+          sparkleBuildScript?.contains('build macos --release') == true &&
+          sparkleBuildScript?.contains('resign_sparkle_updater_components') ==
+              true &&
+          sparkleBuildScript?.contains('XPCServices/Downloader.xpc') == true &&
+          sparkleBuildScript?.contains('XPCServices/Installer.xpc') == true &&
+          sparkleBuildScript?.contains('Updater.app') == true &&
+          sparkleBuildScript?.contains('Autoupdate') == true &&
+          sparkleBuildScript?.contains(
+                'Contents/Helpers/Caverno Computer Use.app',
+              ) ==
+              true &&
+          sparkleBuildScript?.contains('CAVERNO_MACOS_CODESIGN_IDENTITY') ==
+              true &&
+          sparkleBuildScript?.contains('notarytool submit') == true &&
+          sparkleBuildScript?.contains('stapler staple') == true &&
+          sparkleBuildScript?.contains('stapler validate') == true &&
+          sparkleBuildScript?.contains('codesign --verify --deep --strict') ==
+              true &&
+          sparkleBuildScript?.contains(
+                'verify_sparkle_release_configuration',
+              ) ==
+              true &&
+          sparkleBuildScript?.contains('SUFeedURL does not match') == true &&
+          sparkleBuildScript?.contains('SUPublicEDKey') == true &&
+          sparkleBuildScript?.contains('publish_macos_sparkle_release.sh') ==
+              true &&
+          sparkleBuildScript?.contains('--expected-version') == true &&
+          sparkleBuildScript?.contains('--expected-build') == true &&
+          sparkleBuildScript?.contains('--skip-notarization') == true &&
+          sparkleBuildScript?.contains('--skip-publish') == true,
+      nextAction:
+          'Use tool/build_macos_sparkle_release.sh to build, notarize, package, and publish Sparkle release artifacts.',
+      details: <String, Object?>{'path': 'tool/build_macos_sparkle_release.sh'},
+    ),
+    _check(
+      id: 'sparkle_staging_rehearsal',
+      label: 'Sparkle staging rehearsal',
+      ok:
+          sparkleStagingRehearsalScript?.contains(
+                'build_macos_sparkle_release.sh',
+              ) ==
+              true &&
+          sparkleStagingRehearsalScript?.contains('--dry-run') == true &&
+          sparkleStagingRehearsalScript?.contains(
+                'https://updates.example.invalid/caverno/macos/staging',
+              ) ==
+              true &&
+          sparkleStagingRehearsalScript?.contains(
+                's3://caverno-macos-releases/caverno/macos/staging',
+              ) ==
+              true &&
+          sparkleStagingReleaseNotes?.contains(
+                'Caverno macOS Staging Release Notes',
+              ) ==
+              true,
+      nextAction:
+          'Use tool/run_macos_sparkle_staging_rehearsal.sh for no-upload Sparkle publish path rehearsals.',
+      details: <String, Object?>{
+        'path': 'tool/run_macos_sparkle_staging_rehearsal.sh',
+      },
     ),
   ];
   final ready = checks.every((check) => check.ok);
@@ -277,6 +542,81 @@ int _count(String? text, String pattern) {
     count += 1;
     start = index + pattern.length;
   }
+}
+
+bool _appearsBefore(String? text, String first, String second) {
+  if (text == null) {
+    return false;
+  }
+  final firstIndex = text.indexOf(first);
+  final secondIndex = text.indexOf(second);
+  return firstIndex >= 0 && secondIndex >= 0 && firstIndex < secondIndex;
+}
+
+bool _namedBuildConfigsContain(
+  String? text,
+  String configurationName,
+  String pattern,
+) {
+  if (text == null || pattern.isEmpty) {
+    return false;
+  }
+  return _nativeTargetBuildConfigBodies(
+    text,
+    configurationName,
+  ).any((body) => body.contains(pattern));
+}
+
+Iterable<String> _nativeTargetBuildConfigBodies(
+  String text,
+  String configurationName,
+) sync* {
+  final configurationIds = _nativeTargetBuildConfigurationIds(
+    text,
+    configurationName,
+  );
+  for (final id in configurationIds) {
+    final header = RegExp(
+      RegExp.escape(id) +
+          r' /\* ' +
+          RegExp.escape(configurationName) +
+          r' \*/ = \{',
+    ).firstMatch(text);
+    if (header == null) {
+      continue;
+    }
+    final namePattern = RegExp(
+      r'\n\s*name = ' + RegExp.escape(configurationName) + r';\n\s*\};',
+    );
+    final start = header.end;
+    final endMatch = namePattern.firstMatch(text.substring(start));
+    if (endMatch == null) {
+      continue;
+    }
+    yield text.substring(start, start + endMatch.start);
+  }
+}
+
+Set<String> _nativeTargetBuildConfigurationIds(
+  String text,
+  String configurationName,
+) {
+  const nativeTargets = <String>{'Runner', 'Caverno Computer Use'};
+  final targetPattern = RegExp(
+    r'/\* Build configuration list for PBXNativeTarget "([^"]+)" \*/ = \{'
+    r'[\s\S]*?buildConfigurations = \(\n([\s\S]*?)\n\s*\);',
+  );
+  final entryPattern = RegExp(
+    r'^\s*([A-F0-9]+) /\* ' + RegExp.escape(configurationName) + r' \*/,',
+    multiLine: true,
+  );
+  return targetPattern
+      .allMatches(text)
+      .where((match) => nativeTargets.contains(match.group(1)))
+      .expand((match) => entryPattern.allMatches(match.group(2) ?? ''))
+      .map((match) => match.group(1))
+      .whereType<String>()
+      .toSet();
 }
 
 String encodeReleasePackagingJson(

@@ -1604,7 +1604,9 @@ LaunchAgent smoke against a developer-signed build, create the ignored
 
 ```xcconfig
 DEVELOPMENT_TEAM = YOURTEAMID
-CODE_SIGN_IDENTITY = Apple Development
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = Developer ID Application
+OTHER_CODE_SIGN_FLAGS = $(inherited) --timestamp
 ```
 
 Use `macos/Runner/Configs/Signing.local.xcconfig.example` as the checked-in

@@ -116,8 +116,12 @@ buildMacosComputerUseReleaseSigningPreflight({
     signingLocalContent,
     'CODE_SIGN_IDENTITY',
   );
+  final codeSignStyle = _xcconfigValue(signingLocalContent, 'CODE_SIGN_STYLE');
   final developmentTeamReady = _validDevelopmentTeam(developmentTeam);
   final codeSignIdentityReady = _validCodeSignIdentity(codeSignIdentity);
+  final developerIdSigning = _isDeveloperIdIdentity(codeSignIdentity);
+  final codeSignStyleReady =
+      !developerIdSigning || _validDeveloperIdCodeSignStyle(codeSignStyle);
   final xcodeDevelopmentTeams = _xcodeProjectDevelopmentTeams(xcodeProject);
   final validIdentities = codeSigningIdentities
       .where((line) => line.trim().isNotEmpty && !line.contains('0 valid'))
@@ -181,6 +185,18 @@ buildMacosComputerUseReleaseSigningPreflight({
       details: <String, Object?>{
         'configured': codeSignIdentity != null,
         'valueStatus': _codeSignIdentityStatus(codeSignIdentity),
+      },
+    ),
+    _check(
+      id: 'developer_id_manual_signing_style',
+      label: 'Developer ID manual signing style',
+      ok: codeSignStyleReady,
+      nextAction:
+          'Set CODE_SIGN_STYLE = Manual in macos/Runner/Configs/Signing.local.xcconfig when using a Developer ID identity.',
+      details: <String, Object?>{
+        'required': developerIdSigning,
+        'configured': codeSignStyle != null,
+        'valueStatus': _codeSignStyleStatus(codeSignStyle),
       },
     ),
     _check(
@@ -268,6 +284,11 @@ bool _validCodeSignIdentity(String? value) {
   return _codeSignIdentityStatus(value) == 'valid';
 }
 
+bool _isDeveloperIdIdentity(String? value) {
+  return _codeSignIdentityStatus(value) == 'valid' &&
+      value!.toLowerCase().contains('developer id');
+}
+
 String _codeSignIdentityStatus(String? value) {
   if (value == null) {
     return 'missing';
@@ -282,6 +303,24 @@ String _codeSignIdentityStatus(String? value) {
     return 'ad_hoc';
   }
   return 'valid';
+}
+
+bool _validDeveloperIdCodeSignStyle(String? value) {
+  return _codeSignStyleStatus(value) == 'manual';
+}
+
+String _codeSignStyleStatus(String? value) {
+  if (value == null) {
+    return 'missing';
+  }
+  final normalized = value.trim();
+  if (normalized.isEmpty) {
+    return 'empty';
+  }
+  if (normalized == 'Manual') {
+    return 'manual';
+  }
+  return 'not_manual';
 }
 
 int _matchingIdentityCount(String configuredIdentity, List<String> identities) {

@@ -3784,6 +3784,12 @@ void main() {
       expect(checkIds, contains('launch_agent_mach_service'));
       expect(checkIds, contains('embed_helper_phase'));
       expect(checkIds, contains('identity_free_signing_defaults'));
+      expect(checkIds, contains('release_signing_delegates_to_local_config'));
+      expect(checkIds, contains('sparkle_dependency'));
+      expect(checkIds, contains('sparkle_appcast_configuration'));
+      expect(checkIds, contains('sparkle_publish_script'));
+      expect(checkIds, contains('sparkle_release_driver'));
+      expect(checkIds, contains('sparkle_staging_rehearsal'));
       expect(json['schemaName'], 'macos_computer_use_m33_release_packaging');
       expect(json['milestone'], 'M33');
       expect(
@@ -3994,6 +4000,50 @@ CODE_SIGN_IDENTITY = -
       expect(
         report.failedChecks.map((check) => check.id),
         contains('code_sign_identity'),
+      );
+    });
+
+    test('release signing preflight requires manual style for Developer ID', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_release_signing_preflight_developer_id_style_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+      final signingDir = Directory('${root.path}/macos/Runner/Configs')
+        ..createSync(recursive: true);
+      File(
+        '${root.path}/.gitignore',
+      ).writeAsStringSync('/macos/Runner/Configs/Signing.local.xcconfig\n');
+      File(
+        '${signingDir.path}/Signing.local.xcconfig.example',
+      ).writeAsStringSync('''
+// Copy this file to Signing.local.xcconfig for local release signing.
+''');
+      File('${signingDir.path}/Signing.local.xcconfig').writeAsStringSync('''
+DEVELOPMENT_TEAM = ABCDE12345
+CODE_SIGN_IDENTITY = Developer ID Application
+''');
+
+      final report = buildMacosComputerUseReleaseSigningPreflight(
+        projectRoot: root,
+        codeSigningIdentities: const <String>[
+          '1) 0000000000000000000000000000000000000000 "Developer ID Application: Example"',
+        ],
+      );
+      final checksById = <String, MacosComputerUseReleaseSigningPreflightCheck>{
+        for (final check in report.checks) check.id: check,
+      };
+
+      expect(report.ready, isFalse);
+      expect(report.status, 'blocked');
+      expect(
+        checksById['developer_id_manual_signing_style']?.details['valueStatus'],
+        'missing',
+      );
+      expect(
+        report.failedChecks.map((check) => check.id),
+        contains('developer_id_manual_signing_style'),
       );
     });
 
@@ -6217,6 +6267,12 @@ Map<String, dynamic> _releaseSigningPreflight({required bool ready}) {
         'nextAction': ready
             ? 'No action required.'
             : 'Add a non-ad-hoc CODE_SIGN_IDENTITY to macos/Runner/Configs/Signing.local.xcconfig.',
+      },
+      <String, Object?>{
+        'id': 'developer_id_manual_signing_style',
+        'label': 'Developer ID manual signing style',
+        'ok': true,
+        'nextAction': 'No action required.',
       },
       <String, Object?>{
         'id': 'keychain_code_signing_identity',

@@ -140,10 +140,12 @@ Expected outputs:
 - `build/integration_test_reports/macos_computer_use_release_packaging.md`
 
 The report checks the helper embed phase, LaunchAgent BundleProgram,
-MachServices declaration, release entitlements, hardened runtime settings, and
-identity-free signing defaults. It does not sign, notarize, staple, grant TCC,
-launch System Settings, or perform desktop actions. Signing identity,
-notarization ticket, stapler validation, TCC grants, and real desktop evidence
+MachServices declaration, release entitlements, hardened runtime settings,
+identity-free signing defaults, Sparkle update dependency, appcast
+configuration, the notarized Sparkle release driver, and the S3 publish helper.
+It does not sign, notarize, staple, grant TCC, launch System Settings, upload
+appcasts, or perform desktop actions. Signing identity, notarization ticket,
+stapler validation, appcast publishing, TCC grants, and real desktop evidence
 remain user-operated release evidence.
 
 Before rerunning the M7 release artifact sign-off after a signing blocker:
@@ -153,9 +155,39 @@ Before rerunning the M7 release artifact sign-off after a signing blocker:
    signing identity.
 3. Copy `macos/Runner/Configs/Signing.local.xcconfig.example` to the ignored
    `macos/Runner/Configs/Signing.local.xcconfig`.
-4. Include `DEVELOPMENT_TEAM` and a non-ad-hoc `CODE_SIGN_IDENTITY`.
+4. Include `DEVELOPMENT_TEAM`, `CODE_SIGN_STYLE = Manual`, and a non-ad-hoc
+   `CODE_SIGN_IDENTITY`.
 5. Rebuild the release app, then rerun
    `bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff`.
+
+For Sparkle distribution after M7/M33 readiness, use the release driver:
+
+```bash
+bash tool/configure_macos_sparkle_s3_public_read.sh
+```
+
+```bash
+bash tool/run_macos_sparkle_s3_preflight.sh
+```
+
+```bash
+bash tool/build_macos_sparkle_release.sh \
+  --notary-profile caverno-notary \
+  --package zip \
+  --download-url-prefix https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos \
+  --s3-uri s3://caverno-macos-releases/caverno/macos
+```
+
+The release driver re-signs Sparkle's bundled updater app, XPC services, and
+Autoupdate helper with the selected Developer ID identity before notarization.
+Override the resolved identity with `CAVERNO_MACOS_CODESIGN_IDENTITY` only when
+multiple Developer ID certificates are available in the keychain.
+
+For a no-upload rehearsal with dummy S3 and HTTPS coordinates:
+
+```bash
+bash tool/run_macos_sparkle_staging_rehearsal.sh
+```
 
 The artifact index reads
 `build/integration_test_reports/macos_computer_use_release_signing_preflight.json`.
