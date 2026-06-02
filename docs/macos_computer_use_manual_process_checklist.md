@@ -155,7 +155,8 @@ Before rerunning the M7 release artifact sign-off after a signing blocker:
    signing identity.
 3. Copy `macos/Runner/Configs/Signing.local.xcconfig.example` to the ignored
    `macos/Runner/Configs/Signing.local.xcconfig`.
-4. Include `DEVELOPMENT_TEAM` and a non-ad-hoc `CODE_SIGN_IDENTITY`.
+4. Include `DEVELOPMENT_TEAM`, `CODE_SIGN_STYLE = Manual`, and a non-ad-hoc
+   `CODE_SIGN_IDENTITY`.
 5. Rebuild the release app, then rerun
    `bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff`.
 
@@ -168,6 +169,11 @@ bash tool/build_macos_sparkle_release.sh \
   --download-url-prefix https://updates.example.com/caverno/macos \
   --s3-uri s3://example-bucket/caverno/macos
 ```
+
+The release driver re-signs Sparkle's bundled updater app, XPC services, and
+Autoupdate helper with the selected Developer ID identity before notarization.
+Override the resolved identity with `CAVERNO_MACOS_CODESIGN_IDENTITY` only when
+multiple Developer ID certificates are available in the keychain.
 
 For a no-upload rehearsal with dummy S3 and HTTPS coordinates:
 

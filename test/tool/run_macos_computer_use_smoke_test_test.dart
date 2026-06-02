@@ -558,8 +558,10 @@ void main() {
     expect(appInfoConfig, contains('SPARKLE_FEED_URL ='));
     expect(appInfoConfig, contains('SPARKLE_PUBLIC_ED_KEY ='));
     expect(signingConfig, contains('Signing.local.xcconfig'));
+    expect(signingConfig, contains('CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO'));
     expect(signingConfig, isNot(contains('DEVELOPMENT_TEAM =')));
     expect(signingLocalTemplate, contains('DEVELOPMENT_TEAM = YOURTEAMID'));
+    expect(signingLocalTemplate, contains('CODE_SIGN_STYLE = Manual'));
     expect(signingLocalTemplate, contains('SPARKLE_FEED_URL'));
     expect(signingLocalTemplate, contains('SPARKLE_PUBLIC_ED_KEY'));
     expect(sparklePublishScript, contains('generate_appcast'));
@@ -567,6 +569,20 @@ void main() {
     expect(sparklePublishScript, contains('s3 sync'));
     expect(sparklePublishScript, contains('no-cache,max-age=0'));
     expect(sparkleBuildScript, contains('build macos --release'));
+    expect(sparkleBuildScript, contains('CAVERNO_MACOS_CODESIGN_IDENTITY'));
+    expect(sparkleBuildScript, contains('resign_sparkle_updater_components'));
+    expect(sparkleBuildScript, contains('XPCServices/Downloader.xpc'));
+    expect(sparkleBuildScript, contains('XPCServices/Installer.xpc'));
+    expect(sparkleBuildScript, contains('Updater.app'));
+    expect(sparkleBuildScript, contains('Autoupdate'));
+    expect(
+      sparkleBuildScript,
+      contains('Contents/Helpers/Caverno Computer Use.app'),
+    );
+    expect(
+      sparkleBuildScript,
+      contains('--preserve-metadata=identifier,entitlements,requirements'),
+    );
     expect(sparkleBuildScript, contains('codesign --verify --deep --strict'));
     expect(sparkleBuildScript, contains('notarytool submit'));
     expect(sparkleBuildScript, contains('stapler staple'));

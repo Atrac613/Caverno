@@ -14,6 +14,7 @@ NOTARY_PROFILE="${CAVERNO_NOTARYTOOL_PROFILE:-}"
 DOWNLOAD_URL_PREFIX="${CAVERNO_SPARKLE_DOWNLOAD_URL_PREFIX:-}"
 S3_URI="${CAVERNO_SPARKLE_S3_URI:-}"
 RELEASE_NOTES_PATH="${CAVERNO_SPARKLE_RELEASE_NOTES_PATH:-}"
+CODESIGN_IDENTITY="${CAVERNO_MACOS_CODESIGN_IDENTITY:-}"
 SPARKLE_GENERATE_APPCAST="${SPARKLE_GENERATE_APPCAST:-}"
 SPARKLE_ED_KEY_FILE="${SPARKLE_ED_KEY_FILE:-}"
 SPARKLE_CHANNEL="${SPARKLE_CHANNEL:-}"
@@ -265,6 +266,79 @@ run() {
   "$@"
 }
 
+resolve_codesign_identity() {
+  if [[ -n "${CODESIGN_IDENTITY}" ]]; then
+    printf '%s\n' "${CODESIGN_IDENTITY}"
+    return 0
+  fi
+  if [[ "${DRY_RUN}" == "yes" ]]; then
+    printf '%s\n' "Developer ID Application"
+    return 0
+  fi
+  /usr/bin/codesign -dv --verbose=4 "${APP_PATH}" 2>&1 |
+    awk -F= '/^Authority=Developer ID Application:/ && identity == "" { identity = $2 } END { if (identity != "") print identity }'
+}
+
+resign_sparkle_updater_components() {
+  local sparkle_framework="${APP_PATH}/Contents/Frameworks/Sparkle.framework"
+  if [[ "${DRY_RUN}" != "yes" && ! -d "${sparkle_framework}" ]]; then
+    return 0
+  fi
+
+  local identity
+  identity="$(resolve_codesign_identity)"
+  if [[ -z "${identity}" ]]; then
+    echo "Could not resolve a Developer ID signing identity from ${APP_PATH}." >&2
+    echo "Set CAVERNO_MACOS_CODESIGN_IDENTITY to the exact Developer ID identity." >&2
+    exit 65
+  fi
+
+  local sparkle_version_dir="${sparkle_framework}/Versions/B"
+  if [[ "${DRY_RUN}" != "yes" && ! -d "${sparkle_version_dir}" ]]; then
+    sparkle_version_dir="${sparkle_framework}/Versions/Current"
+  fi
+
+  local sign_args=(
+    /usr/bin/codesign
+    --force
+    --sign
+    "${identity}"
+    --timestamp
+    --options
+    runtime
+    --preserve-metadata=identifier,entitlements,requirements
+  )
+  local app_sign_args=(
+    /usr/bin/codesign
+    --force
+    --sign
+    "${identity}"
+    --timestamp
+    --options
+    runtime
+    --preserve-metadata=identifier,requirements
+  )
+  local sparkle_items=(
+    "${sparkle_version_dir}/XPCServices/Downloader.xpc"
+    "${sparkle_version_dir}/XPCServices/Installer.xpc"
+    "${sparkle_version_dir}/Updater.app"
+    "${sparkle_version_dir}/Autoupdate"
+  )
+  local computer_use_helper="${APP_PATH}/Contents/Helpers/Caverno Computer Use.app"
+
+  echo "Re-signing Sparkle updater components with Developer ID"
+  for item in "${sparkle_items[@]}"; do
+    if [[ "${DRY_RUN}" == "yes" || -e "${item}" ]]; then
+      run "${sign_args[@]}" "${item}"
+    fi
+  done
+  run "${sign_args[@]}" "${sparkle_framework}"
+  if [[ "${DRY_RUN}" == "yes" || -d "${computer_use_helper}" ]]; then
+    run "${app_sign_args[@]}" "${computer_use_helper}"
+  fi
+  run "${app_sign_args[@]}" "${APP_PATH}"
+}
+
 echo "Building macOS Sparkle release"
 echo "  Product: ${PRODUCT_NAME}"
 echo "  Build: ${BUILD_NAME}+${BUILD_NUMBER}"
@@ -298,6 +372,7 @@ if [[ "${DRY_RUN}" != "yes" && ! -d "${APP_PATH}" ]]; then
   exit 66
 fi
 
+resign_sparkle_updater_components
 run /usr/bin/codesign --verify --deep --strict --verbose=4 "${APP_PATH}"
 
 if [[ "${SKIP_NOTARIZATION}" != "yes" ]]; then

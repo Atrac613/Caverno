@@ -237,10 +237,49 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
       label: 'Identity-free signing defaults',
       ok:
           signingConfig?.contains('CODE_SIGN_STYLE = Automatic') == true &&
+          signingConfig?.contains('CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO') ==
+              true &&
           signingConfig?.contains('Signing.local.xcconfig') == true &&
           signingConfig?.contains('DEVELOPMENT_TEAM =') != true,
       nextAction:
           'Keep repository defaults identity-free and place local release signing overrides in Signing.local.xcconfig.',
+    ),
+    _check(
+      id: 'release_signing_delegates_to_local_config',
+      label: 'Release signing delegates to local config',
+      ok:
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Release',
+            'CODE_SIGN_IDENTITY = "Apple Development";',
+          ) &&
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Profile',
+            'CODE_SIGN_IDENTITY = "Apple Development";',
+          ) &&
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Release',
+            'DEVELOPMENT_TEAM = 89UG59TBNX;',
+          ) &&
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Profile',
+            'DEVELOPMENT_TEAM = 89UG59TBNX;',
+          ) &&
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Release',
+            'CODE_SIGN_STYLE = Automatic;',
+          ) &&
+          !_namedBuildConfigsContain(
+            pbxproj,
+            'Profile',
+            'CODE_SIGN_STYLE = Automatic;',
+          ),
+      nextAction:
+          'Keep Release and Profile signing identity, style, and team values out of the Xcode project so Signing.local.xcconfig controls Developer ID release signing.',
     ),
     _check(
       id: 'sparkle_dependency',
@@ -289,6 +328,18 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
       label: 'Sparkle release driver',
       ok:
           sparkleBuildScript?.contains('build macos --release') == true &&
+          sparkleBuildScript?.contains('resign_sparkle_updater_components') ==
+              true &&
+          sparkleBuildScript?.contains('XPCServices/Downloader.xpc') == true &&
+          sparkleBuildScript?.contains('XPCServices/Installer.xpc') == true &&
+          sparkleBuildScript?.contains('Updater.app') == true &&
+          sparkleBuildScript?.contains('Autoupdate') == true &&
+          sparkleBuildScript?.contains(
+                'Contents/Helpers/Caverno Computer Use.app',
+              ) ==
+              true &&
+          sparkleBuildScript?.contains('CAVERNO_MACOS_CODESIGN_IDENTITY') ==
+              true &&
           sparkleBuildScript?.contains('notarytool submit') == true &&
           sparkleBuildScript?.contains('stapler staple') == true &&
           sparkleBuildScript?.contains('stapler validate') == true &&
@@ -383,6 +434,72 @@ int _count(String? text, String pattern) {
     count += 1;
     start = index + pattern.length;
   }
+}
+
+bool _namedBuildConfigsContain(
+  String? text,
+  String configurationName,
+  String pattern,
+) {
+  if (text == null || pattern.isEmpty) {
+    return false;
+  }
+  return _nativeTargetBuildConfigBodies(
+    text,
+    configurationName,
+  ).any((body) => body.contains(pattern));
+}
+
+Iterable<String> _nativeTargetBuildConfigBodies(
+  String text,
+  String configurationName,
+) sync* {
+  final configurationIds = _nativeTargetBuildConfigurationIds(
+    text,
+    configurationName,
+  );
+  for (final id in configurationIds) {
+    final header = RegExp(
+      RegExp.escape(id) +
+          r' /\* ' +
+          RegExp.escape(configurationName) +
+          r' \*/ = \{',
+    ).firstMatch(text);
+    if (header == null) {
+      continue;
+    }
+    final namePattern = RegExp(
+      r'\n\s*name = ' + RegExp.escape(configurationName) + r';\n\s*\};',
+    );
+    final start = header.end;
+    final endMatch = namePattern.firstMatch(text.substring(start));
+    if (endMatch == null) {
+      continue;
+    }
+    yield text.substring(start, start + endMatch.start);
+  }
+}
+
+Set<String> _nativeTargetBuildConfigurationIds(
+  String text,
+  String configurationName,
+) {
+  const nativeTargets = <String>{'Runner', 'Caverno Computer Use'};
+  final targetPattern = RegExp(
+    r'/\* Build configuration list for PBXNativeTarget "([^"]+)" \*/ = \{'
+    r'[\s\S]*?buildConfigurations = \(\n([\s\S]*?)\n\s*\);',
+  );
+  final entryPattern = RegExp(
+    r'^\s*([A-F0-9]+) /\* ' + RegExp.escape(configurationName) + r' \*/,',
+    multiLine: true,
+  );
+  return targetPattern
+      .allMatches(text)
+      .where((match) => nativeTargets.contains(match.group(1)))
+      .expand((match) => entryPattern.allMatches(match.group(2) ?? ''))
+      .map((match) => match.group(1))
+      .whereType<String>()
+      .toSet();
 }
 
 String encodeReleasePackagingJson(
