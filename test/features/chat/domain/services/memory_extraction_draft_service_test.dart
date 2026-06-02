@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/message.dart';
@@ -6,6 +8,22 @@ import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
 
 void main() {
+  test('systemPrompt rejects one-off validation markers', () {
+    expect(
+      MemoryExtractionDraftService.systemPrompt,
+      contains('one-off task requirements'),
+    );
+    expect(
+      MemoryExtractionDraftService.systemPrompt,
+      contains('validation markers'),
+    );
+    expect(
+      MemoryExtractionDraftService.systemPrompt,
+      contains('uppercase identifiers'),
+    );
+    expect(MemoryExtractionDraftService.systemPrompt, contains('_CANARY'));
+  });
+
   test('buildInput includes current profile and clipped conversation tail', () {
     final input = MemoryExtractionDraftService.buildInput(
       [
@@ -49,6 +67,11 @@ void main() {
     expect(input, contains('missing files'));
     expect(input, contains('unverified causes of interruptions'));
     expect(input, contains('stream_end completions'));
+    expect(input, contains('validation markers'));
+    expect(input, contains('current-turn tool-use instructions'));
+    expect(input, contains('uppercase identifiers ending in _OK'));
+    expect(input, contains('_MARKER'));
+    expect(input, contains('_CANARY'));
     expect(input, contains('Output rules:'));
   });
 
@@ -117,6 +140,57 @@ void main() {
     expect(input, isNot(contains('lib/file_5.dart')));
     expect(input, contains('unsupported prior assistant conclusions'));
     expect(input, contains('root-cause fact'));
+  });
+
+  test('buildInput includes Open-Meteo weather code interpretation', () {
+    final input = MemoryExtractionDraftService.buildInput(
+      [
+        Message(
+          id: 'user-1',
+          content: 'Create a Tokyo weather report for 2026-06-03.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 2, 9),
+        ),
+      ],
+      UserMemoryProfile(
+        persona: const [],
+        preferences: const [],
+        doNot: const [],
+        updatedAt: DateTime(2026, 6, 2, 9),
+      ),
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'http_get',
+          arguments: const {'url': 'https://api.open-meteo.com/v1/forecast'},
+          result: jsonEncode({
+            'url': 'https://api.open-meteo.com/v1/forecast',
+            'status_code': 200,
+            'body': jsonEncode({
+              'daily_units': {'weathercode': 'wmo code'},
+              'daily': {
+                'time': ['2026-06-03'],
+                'weathercode': [65],
+              },
+            }),
+          }),
+        ),
+      ],
+    );
+
+    expect(input, contains('interpretation='));
+    expect(
+      input,
+      contains(
+        'Open-Meteo daily 2026-06-03 weather code 65 = Rain: Heavy intensity.',
+      ),
+    );
+    expect(
+      input,
+      contains(
+        'drizzle codes are 51, 53, and 55, while rain codes are 61, 63, and 65',
+      ),
+    );
   });
 
   test('parseDraft returns normalized memory extraction draft', () {

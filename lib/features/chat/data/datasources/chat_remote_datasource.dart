@@ -10,6 +10,7 @@ import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
+import '../../domain/services/tool_result_prompt_builder.dart';
 import 'chat_datasource.dart';
 
 export '../../domain/entities/tool_call_info.dart'
@@ -1053,6 +1054,9 @@ class ChatRemoteDataSource implements ChatDataSource {
           );
         }
     }
+    interpretationLines.addAll(
+      ToolResultPromptBuilder.buildToolDataInterpretationLines(toolResult),
+    );
 
     if (interpretationLines.isEmpty) {
       return toolResult.result;

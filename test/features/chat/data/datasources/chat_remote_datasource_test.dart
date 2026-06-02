@@ -78,6 +78,42 @@ void main() {
     expect(content, contains('Raw result:'));
   });
 
+  test('annotates Open-Meteo weather codes for LLM retries', () {
+    final content = dataSource.formatToolResultContentForLlm(
+      ToolResultInfo(
+        id: 'tool-1',
+        name: 'http_get',
+        arguments: const {'url': 'https://api.open-meteo.com/v1/forecast'},
+        result: jsonEncode({
+          'url': 'https://api.open-meteo.com/v1/forecast',
+          'status_code': 200,
+          'content_type': 'application/json; charset=utf-8',
+          'body': jsonEncode({
+            'daily_units': {'weathercode': 'wmo code'},
+            'daily': {
+              'time': ['2026-06-03'],
+              'weathercode': [65],
+            },
+          }),
+        }),
+      ),
+    );
+
+    expect(
+      content,
+      contains(
+        'Open-Meteo daily 2026-06-03 weather code 65 = Rain: Heavy intensity.',
+      ),
+    );
+    expect(
+      content,
+      contains(
+        'drizzle codes are 51, 53, and 55, while rain codes are 61, 63, and 65',
+      ),
+    );
+    expect(content, contains('Raw result:'));
+  });
+
   test('redacts screenshot base64 from text tool result content', () {
     final content = dataSource.formatToolResultContentForLlm(
       ToolResultInfo(

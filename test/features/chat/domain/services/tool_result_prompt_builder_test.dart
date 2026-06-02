@@ -150,6 +150,42 @@ void main() {
       expect(note, 'write_file created a new file at /tmp/weather.md.');
     });
 
+    test('adds Open-Meteo WMO weather code interpretation notes', () {
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'http_get',
+          arguments: const {'url': 'https://api.open-meteo.com/v1/forecast'},
+          result: jsonEncode({
+            'url': 'https://api.open-meteo.com/v1/forecast',
+            'status_code': 200,
+            'content_type': 'application/json; charset=utf-8',
+            'body': jsonEncode({
+              'daily_units': {'weathercode': 'wmo code'},
+              'daily': {
+                'time': ['2026-06-03'],
+                'weathercode': [65],
+              },
+            }),
+          }),
+        ),
+      ]);
+
+      expect(prompt, contains('Interpretation note:'));
+      expect(
+        prompt,
+        contains(
+          'Open-Meteo daily 2026-06-03 weather code 65 = Rain: Heavy intensity.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'drizzle codes are 51, 53, and 55, while rain codes are 61, 63, and 65',
+        ),
+      );
+    });
+
     test('marks recalled conversation results as unverified context', () {
       final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
         ToolResultInfo(

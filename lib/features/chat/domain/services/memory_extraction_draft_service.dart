@@ -3,6 +3,7 @@ import '../entities/session_memory.dart';
 import '../entities/tool_call_info.dart';
 import 'memory_extraction_json_parser.dart';
 import 'session_memory_service.dart';
+import 'tool_result_prompt_builder.dart';
 
 class MemoryExtractionDraftService {
   MemoryExtractionDraftService._();
@@ -66,7 +67,13 @@ class MemoryExtractionDraftService {
       'Do not store likely, possible, suspected, inferred, or otherwise '
       'unverified causes of interruptions, failures, stream_end completions, '
       'timeouts, missing files, or root causes as facts. '
-      'Do not include temporary assistant instructions.';
+      'Do not include temporary assistant instructions. '
+      'Do not save one-off task requirements, validation markers, output '
+      'format instructions, or current-turn tool-use instructions as user '
+      'preferences. '
+      'Never include validation marker strings such as uppercase identifiers '
+      'ending in _OK, _MARKER, or _CANARY in summaries, open loops, profile '
+      'updates, or memory entries.';
 
   static String buildInput(
     List<Message> messages,
@@ -119,8 +126,16 @@ class MemoryExtractionDraftService {
         final scopeText = evidenceScope == null
             ? ''
             : '; evidence_scope=$evidenceScope';
+        final interpretationLines =
+            ToolResultPromptBuilder.buildToolDataInterpretationLines(
+              toolResult,
+            );
+        final interpretationText = interpretationLines.isEmpty
+            ? ''
+            : '; interpretation=${interpretationLines.join(' ')}';
         buffer.writeln(
-          '- ${toolResult.name}: arguments=${toolResult.arguments}$scopeText; result=$clipped',
+          '- ${toolResult.name}: arguments=${toolResult.arguments}'
+          '$scopeText$interpretationText; result=$clipped',
         );
       }
     }
@@ -147,6 +162,12 @@ class MemoryExtractionDraftService {
       )
       ..writeln(
         '- Do not store likely, possible, suspected, inferred, or otherwise unverified causes of interruptions, failures, stream_end completions, timeouts, missing files, or root causes as facts; use a low-confidence topic or leave them out.',
+      )
+      ..writeln(
+        '- Do not save one-off task requirements, validation markers, output format instructions, or current-turn tool-use instructions as user preferences.',
+      )
+      ..writeln(
+        '- Never include validation marker strings such as uppercase identifiers ending in _OK, _MARKER, or _CANARY in summaries, open loops, profile updates, or memory entries.',
       )
       ..writeln(
         '- If an assistant claimed an action happened but no supporting tool result is present, treat it as unverified and use open_loops only when follow-up is still needed.',
