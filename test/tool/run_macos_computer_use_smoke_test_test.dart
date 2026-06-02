@@ -565,12 +565,17 @@ void main() {
     expect(runnerInfoPlist, contains('<integer>3600</integer>'));
     expect(appInfoConfig, contains('SPARKLE_FEED_URL ='));
     expect(appInfoConfig, contains('SPARKLE_PUBLIC_ED_KEY ='));
+    expect(
+      appInfoConfig.indexOf('SPARKLE_PUBLIC_ED_KEY ='),
+      lessThan(appInfoConfig.indexOf('#include "Signing.xcconfig"')),
+    );
     expect(signingConfig, contains('Signing.local.xcconfig'));
     expect(signingConfig, contains('CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO'));
     expect(signingConfig, isNot(contains('DEVELOPMENT_TEAM =')));
     expect(signingLocalTemplate, contains('DEVELOPMENT_TEAM = YOURTEAMID'));
     expect(signingLocalTemplate, contains('CODE_SIGN_STYLE = Manual'));
     expect(signingLocalTemplate, contains('SPARKLE_FEED_URL'));
+    expect(signingLocalTemplate, contains(r'https:/$()/'));
     expect(signingLocalTemplate, contains('SPARKLE_PUBLIC_ED_KEY'));
     expect(sparklePublishScript, contains('generate_appcast'));
     expect(sparklePublishScript, contains('--download-url-prefix'));

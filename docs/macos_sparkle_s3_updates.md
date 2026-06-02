@@ -15,9 +15,12 @@ Release builders must provide these local values in the ignored
 ```xcconfig
 DEVELOPMENT_TEAM = YOURTEAMID
 CODE_SIGN_IDENTITY = Developer ID Application
-SPARKLE_FEED_URL = https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml
+SPARKLE_FEED_URL = https:/$()/caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml
 SPARKLE_PUBLIC_ED_KEY = BASE64_PUBLIC_ED25519_KEY_FROM_SPARKLE
 ```
+
+The `https:/$()/` form is intentional in `.xcconfig` files. It expands to
+`https://` while avoiding `//` comment parsing.
 
 Repository defaults keep `SPARKLE_FEED_URL` and `SPARKLE_PUBLIC_ED_KEY` blank
 so debug builds do not contact the production appcast.

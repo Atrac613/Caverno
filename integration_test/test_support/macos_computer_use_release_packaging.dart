@@ -310,6 +310,11 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
           runnerInfoPlist?.contains('<integer>3600</integer>') == true &&
           appInfoConfig?.contains('SPARKLE_FEED_URL =') == true &&
           appInfoConfig?.contains('SPARKLE_PUBLIC_ED_KEY =') == true &&
+          _appearsBefore(
+            appInfoConfig,
+            'SPARKLE_PUBLIC_ED_KEY =',
+            '#include "Signing.xcconfig"',
+          ) &&
           signingLocalExample?.contains('SPARKLE_FEED_URL') == true &&
           signingLocalExample?.contains('SPARKLE_PUBLIC_ED_KEY') == true,
       nextAction:
@@ -485,6 +490,15 @@ int _count(String? text, String pattern) {
     count += 1;
     start = index + pattern.length;
   }
+}
+
+bool _appearsBefore(String? text, String first, String second) {
+  if (text == null) {
+    return false;
+  }
+  final firstIndex = text.indexOf(first);
+  final secondIndex = text.indexOf(second);
+  return firstIndex >= 0 && secondIndex >= 0 && firstIndex < secondIndex;
 }
 
 bool _namedBuildConfigsContain(
