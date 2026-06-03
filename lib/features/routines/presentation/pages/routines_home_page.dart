@@ -5,9 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/routine.dart';
 import '../../domain/services/routine_schedule_service.dart';
 import '../models/routine_home_snapshot.dart';
-import 'routine_detail_page.dart';
 import '../providers/routines_notifier.dart';
-import '../widgets/routine_editor_sheet.dart';
 
 class RoutinesHomePage extends ConsumerWidget {
   const RoutinesHomePage({super.key});
@@ -29,11 +27,6 @@ class RoutinesHomePage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'routines.title'.tr(),
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
                 Text(
                   'routines.subtitle'.tr(),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -63,14 +56,8 @@ class RoutinesHomePage extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () => _openEditor(context, ref),
-                  icon: const Icon(Icons.add),
-                  label: Text('routines.create_cta'.tr()),
-                ),
                 if (snapshot.dueCount > 0) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   OutlinedButton.icon(
                     onPressed: () => _runDueRoutines(context, ref),
                     icon: const Icon(Icons.playlist_play),
@@ -83,7 +70,7 @@ class RoutinesHomePage extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         if (state.routines.isEmpty)
-          _EmptyRoutineCard(onCreate: () => _openEditor(context, ref))
+          const _EmptyRoutineCard()
         else
           for (var index = 0; index < snapshot.sections.length; index++) ...[
             _RoutineSectionHeader(section: snapshot.sections[index]),
@@ -94,17 +81,12 @@ class RoutinesHomePage extends ConsumerWidget {
                 child: _RoutineCard(
                   routine: routine,
                   isRunning: state.isRunning(routine.id),
-                  onToggleEnabled: (enabled) async {
-                    await ref
-                        .read(routinesNotifierProvider.notifier)
-                        .toggleRoutine(routine.id, enabled);
-                  },
                   onRunNow: () => _runRoutine(context, ref, routine),
                   onAcknowledgeFailure: () =>
                       _acknowledgeLatestFailure(context, ref, routine),
-                  onOpenDetails: () => _openDetails(context, routine),
-                  onEdit: () => _openEditor(context, ref, routine: routine),
-                  onDelete: () => _confirmDelete(context, ref, routine),
+                  onOpenDetails: () => ref
+                      .read(routinesNotifierProvider.notifier)
+                      .selectRoutine(routine.id),
                 ),
               ),
             ),
@@ -113,58 +95,6 @@ class RoutinesHomePage extends ConsumerWidget {
           ],
       ],
     );
-  }
-
-  Future<void> _openEditor(
-    BuildContext context,
-    WidgetRef ref, {
-    Routine? routine,
-  }) async {
-    final result = await showModalBottomSheet<RoutineEditorResult>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => RoutineEditorSheet(initialRoutine: routine),
-    );
-
-    if (result == null) {
-      return;
-    }
-
-    final notifier = ref.read(routinesNotifierProvider.notifier);
-    if (routine == null) {
-      await notifier.createRoutine(
-        name: result.name,
-        prompt: result.prompt,
-        intervalValue: result.intervalValue,
-        intervalUnit: result.intervalUnit,
-        scheduleMode: result.scheduleMode,
-        timeOfDayMinutes: result.timeOfDayMinutes,
-        enabled: result.enabled,
-        notifyOnCompletion: result.notifyOnCompletion,
-        toolsEnabled: result.toolsEnabled,
-        completionAction: result.completionAction,
-        googleChatRule: result.googleChatRule,
-        workspaceDirectory: result.workspaceDirectory,
-        allowWorkspaceWrites: result.allowWorkspaceWrites,
-      );
-    } else {
-      await notifier.updateRoutine(
-        routineId: routine.id,
-        name: result.name,
-        prompt: result.prompt,
-        intervalValue: result.intervalValue,
-        intervalUnit: result.intervalUnit,
-        scheduleMode: result.scheduleMode,
-        timeOfDayMinutes: result.timeOfDayMinutes,
-        enabled: result.enabled,
-        notifyOnCompletion: result.notifyOnCompletion,
-        toolsEnabled: result.toolsEnabled,
-        completionAction: result.completionAction,
-        googleChatRule: result.googleChatRule,
-        workspaceDirectory: result.workspaceDirectory,
-        allowWorkspaceWrites: result.allowWorkspaceWrites,
-      );
-    }
   }
 
   Future<void> _runRoutine(
@@ -224,49 +154,6 @@ class RoutinesHomePage extends ConsumerWidget {
       SnackBar(content: Text('routines.acknowledge_failure_done'.tr())),
     );
   }
-
-  void _openDetails(BuildContext context, Routine routine) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RoutineDetailPage(routineId: routine.id),
-      ),
-    );
-  }
-
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    Routine routine,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('routines.delete_title'.tr()),
-        content: Text(
-          'routines.delete_confirm'.tr(
-            namedArgs: {'name': routine.trimmedName},
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('common.cancel'.tr()),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text('common.delete'.tr()),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    await ref.read(routinesNotifierProvider.notifier).deleteRoutine(routine.id);
-  }
 }
 
 class _SummaryChip extends StatelessWidget {
@@ -285,9 +172,7 @@ class _SummaryChip extends StatelessWidget {
 }
 
 class _EmptyRoutineCard extends StatelessWidget {
-  const _EmptyRoutineCard({required this.onCreate});
-
-  final VoidCallback onCreate;
+  const _EmptyRoutineCard();
 
   @override
   Widget build(BuildContext context) {
@@ -314,12 +199,6 @@ class _EmptyRoutineCard extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: onCreate,
-              icon: const Icon(Icons.add),
-              label: Text('routines.create_cta'.tr()),
             ),
           ],
         ),
@@ -417,22 +296,16 @@ class _RoutineCard extends StatelessWidget {
   const _RoutineCard({
     required this.routine,
     required this.isRunning,
-    required this.onToggleEnabled,
     required this.onRunNow,
     required this.onAcknowledgeFailure,
     required this.onOpenDetails,
-    required this.onEdit,
-    required this.onDelete,
   });
 
   final Routine routine;
   final bool isRunning;
-  final ValueChanged<bool> onToggleEnabled;
   final VoidCallback onRunNow;
   final VoidCallback onAcknowledgeFailure;
   final VoidCallback onOpenDetails;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -531,10 +404,6 @@ class _RoutineCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
-                Switch(
-                  value: routine.enabled,
-                  onChanged: isRunning ? null : onToggleEnabled,
                 ),
               ],
             ),
@@ -661,16 +530,6 @@ class _RoutineCard extends StatelessWidget {
                   onPressed: onOpenDetails,
                   icon: const Icon(Icons.open_in_new),
                   label: Text('routines.details'.tr()),
-                ),
-                OutlinedButton.icon(
-                  onPressed: isRunning ? null : onEdit,
-                  icon: const Icon(Icons.edit_outlined),
-                  label: Text('routines.edit'.tr()),
-                ),
-                OutlinedButton.icon(
-                  onPressed: isRunning ? null : onDelete,
-                  icon: const Icon(Icons.delete_outline),
-                  label: Text('common.delete'.tr()),
                 ),
               ],
             ),

@@ -15,8 +15,10 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
+import '../../../routines/presentation/pages/routine_detail_view.dart';
 import '../../../routines/presentation/pages/routines_home_page.dart';
 import '../../../routines/presentation/providers/routine_scheduler.dart';
+import '../../../routines/presentation/providers/routines_notifier.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -278,6 +280,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         workspaceMode: WorkspaceMode.routines,
         createIfMissing: false,
       );
+      // Always land on the routines home view when entering the workspace.
+      ref.read(routinesNotifierProvider.notifier).selectRoutine(null);
       return;
     }
 
@@ -1094,6 +1098,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         conversationsState.activeWorkspaceMode == WorkspaceMode.routines;
     final isCodingWorkspace =
         conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
+    final routinesState = ref.watch(routinesNotifierProvider);
+    final selectedRoutine =
+        isRoutinesWorkspace && routinesState.selectedRoutineId != null
+        ? ref
+              .read(routinesNotifierProvider.notifier)
+              .findRoutine(routinesState.selectedRoutineId!)
+        : null;
     final isMobileRemoteCoding =
         isCodingWorkspace && isRemoteCodingMobilePlatform();
     final activeProject = codingProjectsState.findById(
@@ -1298,7 +1309,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     Widget buildWorkspaceBody() {
       return isRoutinesWorkspace
-          ? const RoutinesHomePage()
+          ? (selectedRoutine != null
+                ? RoutineDetailView(
+                    key: ValueKey('routine-detail-${selectedRoutine.id}'),
+                    routineId: selectedRoutine.id,
+                    onClose: () => ref
+                        .read(routinesNotifierProvider.notifier)
+                        .selectRoutine(null),
+                  )
+                : const RoutinesHomePage())
           : isMobileRemoteCoding
           ? const RemoteCodingPage()
           : _buildImageDropTarget(
@@ -1509,6 +1528,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   conversationsState: conversationsState,
                   conversationsNotifier: conversationsNotifier,
                   chatState: chatState,
+                  routineTitle: selectedRoutine?.trimmedName,
                 ),
                 Expanded(child: workspaceBody),
               ],
@@ -1530,6 +1550,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 currentTitle: currentTitle,
                 settings: settings,
                 prominent: false,
+                routineTitle: selectedRoutine?.trimmedName,
               ),
               actions: _buildWorkspaceHeaderActions(
                 context,
@@ -1568,6 +1589,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required ConversationsState conversationsState,
     required ConversationsNotifier conversationsNotifier,
     required ChatState chatState,
+    String? routineTitle,
   }) {
     return Container(
       key: const ValueKey('persistent-workspace-header'),
@@ -1585,6 +1607,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               currentTitle: currentTitle,
               settings: settings,
               prominent: true,
+              routineTitle: routineTitle,
             ),
           ),
           ..._buildWorkspaceHeaderActions(
@@ -1609,6 +1632,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required String currentTitle,
     required AppSettings settings,
     required bool prominent,
+    String? routineTitle,
   }) {
     final theme = Theme.of(context);
     final titleStyle = prominent
@@ -1617,7 +1641,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final title = isRoutinesWorkspace
         ? Text(
-            'chat.workspace_routines'.tr(),
+            routineTitle ?? 'chat.workspace_routines'.tr(),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: titleStyle,

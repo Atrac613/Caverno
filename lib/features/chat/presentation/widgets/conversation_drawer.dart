@@ -6,6 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
+import '../../../routines/domain/entities/routine.dart';
+import '../../../routines/domain/services/routine_schedule_service.dart';
+import '../../../routines/presentation/providers/routines_notifier.dart';
+import '../../../routines/presentation/widgets/routine_editor_launcher.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../../settings/presentation/widgets/settings_modal.dart';
@@ -141,7 +145,9 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                   },
                   closeDrawer: () => _closeDrawerIfNeeded(context),
                 ),
-                WorkspaceMode.routines => const SizedBox.expand(),
+                WorkspaceMode.routines => _RoutinesSection(
+                  closeDrawer: () => _closeDrawerIfNeeded(context),
+                ),
               },
             ),
             const Divider(height: 1),
@@ -680,6 +686,177 @@ class _ProjectThreadGroup extends StatelessWidget {
             onTap: onToggleExpanded,
           ),
       ],
+    );
+  }
+}
+
+class _RoutinesSection extends ConsumerWidget {
+  const _RoutinesSection({required this.closeDrawer});
+
+  final VoidCallback closeDrawer;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final routinesState = ref.watch(routinesNotifierProvider);
+    final routines = routinesState.routines;
+    final selectedId = routinesState.selectedRoutineId;
+
+    return Column(
+      children: [
+        _DrawerSectionHeader(
+          title: 'routines.title'.tr(),
+          actions: [
+            _HeaderIconButton(
+              icon: Icons.add,
+              tooltip: 'routines.create_cta'.tr(),
+              onPressed: () => _createRoutine(context, ref),
+            ),
+          ],
+        ),
+        _RoutineHomeTile(
+          isSelected: selectedId == null,
+          onTap: () {
+            ref.read(routinesNotifierProvider.notifier).selectRoutine(null);
+            closeDrawer();
+          },
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: routines.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'routines.empty_title'.tr(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  itemCount: routines.length,
+                  itemBuilder: (context, index) {
+                    final routine = routines[index];
+                    return _RoutineDrawerTile(
+                      routine: routine,
+                      isSelected: routine.id == selectedId,
+                      isRunning: routinesState.isRunning(routine.id),
+                      onTap: () {
+                        ref
+                            .read(routinesNotifierProvider.notifier)
+                            .selectRoutine(routine.id);
+                        closeDrawer();
+                      },
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _createRoutine(BuildContext context, WidgetRef ref) async {
+    final createdId = await showRoutineEditor(context, ref);
+    if (createdId == null) {
+      return;
+    }
+    ref.read(routinesNotifierProvider.notifier).selectRoutine(createdId);
+    closeDrawer();
+  }
+}
+
+class _RoutineHomeTile extends StatelessWidget {
+  const _RoutineHomeTile({required this.isSelected, required this.onTap});
+
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      key: const ValueKey('drawer-routines-home'),
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      selected: isSelected,
+      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
+        alpha: 0.3,
+      ),
+      leading: Icon(
+        Icons.home_outlined,
+        size: 20,
+        color: isSelected ? theme.colorScheme.primary : null,
+      ),
+      title: Text(
+        'routines.home'.tr(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _RoutineDrawerTile extends StatelessWidget {
+  const _RoutineDrawerTile({
+    required this.routine,
+    required this.isSelected,
+    required this.isRunning,
+    required this.onTap,
+  });
+
+  final Routine routine;
+  final bool isSelected;
+  final bool isRunning;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDue = RoutineScheduleService.isDue(routine);
+    final statusLabel = isRunning
+        ? 'routines.running_badge'.tr()
+        : !routine.enabled
+        ? 'routines.disabled_badge'.tr()
+        : isDue
+        ? 'routines.due_badge'.tr()
+        : 'routines.enabled_badge'.tr();
+
+    return ListTile(
+      key: ValueKey('drawer-routine-${routine.id}'),
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      selected: isSelected,
+      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
+        alpha: 0.3,
+      ),
+      leading: Icon(
+        routine.enabled ? Icons.schedule_outlined : Icons.pause_circle_outline,
+        size: 20,
+        color: isSelected ? theme.colorScheme.primary : null,
+      ),
+      title: Text(
+        routine.trimmedName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      subtitle: Text(
+        statusLabel,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 12,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      onTap: onTap,
     );
   }
 }

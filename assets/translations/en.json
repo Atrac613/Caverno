@@ -11,7 +11,8 @@
     "none": "None",
     "unknown_error": "Unknown error",
     "unknown": "Unknown",
-    "close": "Close"
+    "close": "Close",
+    "back": "Back"
   },
   "chat": {
     "empty_state": "Send a message to start chatting",
@@ -850,6 +851,7 @@
   },
   "routines": {
     "title": "Routines",
+    "home": "Home",
     "subtitle": "Manage repeatable prompts that run on a schedule while the app is open or when it resumes.",
     "summary_enabled": "Enabled",
     "summary_due": "Due",

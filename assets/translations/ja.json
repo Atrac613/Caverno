@@ -11,7 +11,8 @@
     "none": "なし",
     "unknown_error": "不明なエラー",
     "unknown": "不明",
-    "close": "閉じる"
+    "close": "閉じる",
+    "back": "戻る"
   },
   "chat": {
     "empty_state": "メッセージを送信してチャットを開始",
@@ -850,6 +851,7 @@
   },
   "routines": {
     "title": "Routines",
+    "home": "ホーム",
     "subtitle": "アプリ起動中や復帰時に、定期実行するプロンプトをここで管理できます。",
     "summary_enabled": "有効",
     "summary_due": "期限到来",

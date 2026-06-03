@@ -10,27 +10,39 @@ import '../../domain/entities/routine.dart';
 import '../../domain/services/routine_completion_action_service.dart';
 import '../../domain/services/routine_schedule_service.dart';
 
+/// Sentinel used so [RoutinesState.copyWith] can distinguish "leave unchanged"
+/// from an explicit `null` (needed to clear the selected routine).
+const Object _unsetSelectedRoutine = Object();
+
 class RoutinesState {
   const RoutinesState({
     required this.routines,
     this.runningRoutineIds = const <String>{},
     this.generatingPlanRoutineIds = const <String>{},
+    this.selectedRoutineId,
   });
 
   final List<Routine> routines;
   final Set<String> runningRoutineIds;
   final Set<String> generatingPlanRoutineIds;
 
+  /// Routine shown in the workspace detail pane, or `null` for the home view.
+  final String? selectedRoutineId;
+
   RoutinesState copyWith({
     List<Routine>? routines,
     Set<String>? runningRoutineIds,
     Set<String>? generatingPlanRoutineIds,
+    Object? selectedRoutineId = _unsetSelectedRoutine,
   }) {
     return RoutinesState(
       routines: routines ?? this.routines,
       runningRoutineIds: runningRoutineIds ?? this.runningRoutineIds,
       generatingPlanRoutineIds:
           generatingPlanRoutineIds ?? this.generatingPlanRoutineIds,
+      selectedRoutineId: identical(selectedRoutineId, _unsetSelectedRoutine)
+          ? this.selectedRoutineId
+          : selectedRoutineId as String?,
     );
   }
 
@@ -159,6 +171,15 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     await _persistRoutine(updated);
   }
 
+  /// Selects the routine shown in the workspace detail pane. Pass `null` to
+  /// return to the routines home view.
+  void selectRoutine(String? routineId) {
+    if (state.selectedRoutineId == routineId) {
+      return;
+    }
+    state = state.copyWith(selectedRoutineId: routineId);
+  }
+
   Future<void> deleteRoutine(String routineId) async {
     final updated = state.routines
         .where((routine) => routine.id != routineId)
@@ -169,6 +190,9 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
         ...state.runningRoutineIds.where((id) => id != routineId),
       },
     );
+    if (state.selectedRoutineId == routineId) {
+      state = state.copyWith(selectedRoutineId: null);
+    }
   }
 
   Future<Routine?> duplicateRoutine({

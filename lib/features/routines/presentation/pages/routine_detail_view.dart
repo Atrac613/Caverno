@@ -6,14 +6,22 @@ import '../../../chat/presentation/widgets/parsed_content_view.dart';
 import '../../domain/entities/routine.dart';
 import '../../domain/services/routine_schedule_service.dart';
 import '../providers/routines_notifier.dart';
-import '../widgets/routine_editor_sheet.dart';
+import '../widgets/routine_editor_launcher.dart';
 
 enum _RoutineDetailAction { duplicate, clearHistory, delete }
 
-class RoutineDetailPage extends ConsumerWidget {
-  const RoutineDetailPage({super.key, required this.routineId});
+/// Detail view for a single routine, embedded in the routines workspace's
+/// right pane (master-detail layout matching chat & coding). Renders its own
+/// compact action bar (back + overflow menu) so it works in both the desktop
+/// persistent-pane layout and the mobile drawer-driven layout.
+class RoutineDetailView extends ConsumerWidget {
+  const RoutineDetailView({super.key, required this.routineId, this.onClose});
 
   final String routineId;
+
+  /// Invoked to return to the routines home view. Shown as a back button when
+  /// provided.
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,288 +36,283 @@ class RoutineDetailPage extends ConsumerWidget {
         latestRun?.requiresAttention ?? false;
 
     if (routine == null) {
-      return Scaffold(
-        appBar: AppBar(title: Text('routines.title'.tr())),
-        body: Center(
-          child: Text(
-            'routines.not_found'.tr(),
-            style: Theme.of(context).textTheme.bodyLarge,
+      return Column(
+        children: [
+          _DetailActionBar(onClose: onClose),
+          Expanded(
+            child: Center(
+              child: Text(
+                'routines.not_found'.tr(),
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
           ),
-        ),
+        ],
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          routine.trimmedName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+    return Column(
+      children: [
+        _DetailActionBar(
+          onClose: onClose,
+          onSelectedAction: (action) {
+            switch (action) {
+              case _RoutineDetailAction.duplicate:
+                _duplicateRoutine(context, ref, routine);
+                break;
+              case _RoutineDetailAction.clearHistory:
+                _confirmClearHistory(context, ref, routine);
+                break;
+              case _RoutineDetailAction.delete:
+                _confirmDelete(context, ref, routine);
+                break;
+            }
+          },
         ),
-        actions: [
-          PopupMenuButton<_RoutineDetailAction>(
-            onSelected: (action) {
-              switch (action) {
-                case _RoutineDetailAction.duplicate:
-                  _duplicateRoutine(context, ref, routine);
-                  break;
-                case _RoutineDetailAction.clearHistory:
-                  _confirmClearHistory(context, ref, routine);
-                  break;
-                case _RoutineDetailAction.delete:
-                  _confirmDelete(context, ref, routine);
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: _RoutineDetailAction.duplicate,
-                child: Text('routines.duplicate'.tr()),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: routine.enabled,
+                        onChanged: isRunning
+                            ? null
+                            : (value) => ref
+                                  .read(routinesNotifierProvider.notifier)
+                                  .toggleRoutine(routine.id, value),
+                        title: Text('routines.enabled_label'.tr()),
+                        subtitle: Text('routines.enabled_hint'.tr()),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (RoutineScheduleService.isDue(routine) &&
+                              !isRunning)
+                            _StatusChip(
+                              label: 'routines.due_badge'.tr(),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.tertiaryContainer,
+                            ),
+                          if (isRunning)
+                            _StatusChip(
+                              label: 'routines.running_badge'.tr(),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.secondaryContainer,
+                            ),
+                          if (routine.toolsEnabled)
+                            _StatusChip(
+                              label: routine.hasWorkspaceWriteAccess
+                                  ? 'routines.tools_workspace_write_badge'.tr()
+                                  : 'routines.tools_read_only_badge'.tr(),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.secondaryContainer,
+                            ),
+                          if (routine.postsToGoogleChat)
+                            _StatusChip(
+                              label: 'routines.google_chat_badge'.tr(),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.tertiaryContainer,
+                            ),
+                          if (routine.hasPendingPlanEdits)
+                            _StatusChip(
+                              label: 'routines.plan_draft_badge'.tr(),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.secondaryContainer,
+                            )
+                          else if (routine.hasStaleApprovedPlan)
+                            _StatusChip(
+                              label: 'routines.plan_stale_badge'.tr(),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.errorContainer,
+                            )
+                          else if (routine.isApprovedPlanFresh)
+                            _StatusChip(
+                              label: 'routines.plan_approved_badge'.tr(),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primaryContainer,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'routines.prompt_label'.tr(),
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      const SizedBox(height: 6),
+                      SelectableText(
+                        routine.trimmedPrompt,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 8,
+                        children: [
+                          _MetaLine(
+                            label: 'routines.schedule_label'.tr(),
+                            value: _formatSchedule(routine),
+                          ),
+                          _MetaLine(
+                            label: 'routines.next_run_label'.tr(),
+                            value: _formatNextRun(context, routine),
+                          ),
+                          _MetaLine(
+                            label: 'routines.last_run_label'.tr(),
+                            value: _formatLastRun(context, routine),
+                          ),
+                          if (routine.consecutiveFailureCount > 0)
+                            _MetaLine(
+                              label: 'routines.consecutive_failures_label'.tr(),
+                              value: routine.consecutiveFailureCount.toString(),
+                            ),
+                          _MetaLine(
+                            label: 'routines.notifications_label'.tr(),
+                            value: routine.notifyOnCompletion
+                                ? 'routines.notifications_on'.tr()
+                                : 'routines.notifications_off'.tr(),
+                          ),
+                          _MetaLine(
+                            label: 'routines.tools_label'.tr(),
+                            value: routine.toolsEnabled
+                                ? (routine.hasWorkspaceWriteAccess
+                                      ? 'routines.tools_mode_workspace_writes'
+                                            .tr()
+                                      : 'routines.tools_mode_read_only'.tr())
+                                : 'routines.tools_mode_off'.tr(),
+                          ),
+                          if (routine.toolsEnabled &&
+                              routine.hasWorkspaceDirectory)
+                            _MetaLine(
+                              label: 'routines.workspace_directory_label'.tr(),
+                              value: routine.trimmedWorkspaceDirectory,
+                            ),
+                          _MetaLine(
+                            label: 'routines.completion_action_label'.tr(),
+                            value: _formatCompletionAction(context, routine),
+                          ),
+                          if (routine.effectivePlanArtifact.hasContent)
+                            _MetaLine(
+                              label: 'routines.plan_status_label'.tr(),
+                              value: _formatPlanStatus(routine),
+                            ),
+                          if (routine.postsToGoogleChat)
+                            _MetaLine(
+                              label: 'routines.google_chat_rule_label'.tr(),
+                              value: _formatGoogleChatRule(context, routine),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.tonalIcon(
+                            onPressed: isRunning
+                                ? null
+                                : () => _runRoutine(context, ref, routine),
+                            icon: const Icon(Icons.play_arrow),
+                            label: Text('routines.run_now'.tr()),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: isRunning
+                                ? null
+                                : () => _openEditor(context, ref, routine),
+                            icon: const Icon(Icons.edit_outlined),
+                            label: Text('routines.edit'.tr()),
+                          ),
+                          if (requiresFailureAcknowledgement)
+                            OutlinedButton.icon(
+                              onPressed: isRunning
+                                  ? null
+                                  : () => _acknowledgeLatestFailure(
+                                      context,
+                                      ref,
+                                      routine,
+                                    ),
+                              icon: const Icon(Icons.check_circle_outline),
+                              label: Text('routines.acknowledge_failure'.tr()),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              PopupMenuItem(
-                value: _RoutineDetailAction.clearHistory,
-                child: Text('routines.clear_history'.tr()),
+              const SizedBox(height: 16),
+              _RoutinePlanCard(
+                routine: routine,
+                isGenerating: isGeneratingPlan,
+                onGenerateDraft: isRunning || isGeneratingPlan
+                    ? null
+                    : () => _generatePlanDraft(context, ref, routine),
+                onEditDraft: isGeneratingPlan
+                    ? null
+                    : () => _showPlanEditor(context, ref, routine),
+                onApproveDraft: isRunning || isGeneratingPlan
+                    ? null
+                    : () => _approveRoutinePlan(context, ref, routine),
               ),
-              PopupMenuItem(
-                value: _RoutineDetailAction.delete,
-                child: Text('common.delete'.tr()),
+              const SizedBox(height: 16),
+              Text(
+                'routines.history_title'.tr(),
+                style: Theme.of(context).textTheme.titleMedium,
               ),
+              const SizedBox(height: 12),
+              if (routine.runs.isEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'routines.history_empty'.tr(),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                )
+              else
+                ...routine.runs.map(
+                  (run) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _RunRecordCard(
+                      run: run,
+                      onViewTranscript:
+                          run.output.trim().isEmpty && run.toolCalls.isEmpty
+                          ? null
+                          : () => _showRunTranscriptViewer(
+                              context,
+                              routine: routine,
+                              run: run,
+                            ),
+                      onViewError: run.error.trim().isEmpty
+                          ? null
+                          : () => _showTextViewer(
+                              context,
+                              title: 'routines.error_title'.tr(),
+                              content: run.error,
+                            ),
+                    ),
+                  ),
+                ),
             ],
           ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _StatusChip(
-                        label: routine.enabled
-                            ? 'routines.enabled_badge'.tr()
-                            : 'routines.disabled_badge'.tr(),
-                        color: routine.enabled
-                            ? Theme.of(context).colorScheme.primaryContainer
-                            : Theme.of(
-                                context,
-                              ).colorScheme.surfaceContainerHighest,
-                      ),
-                      if (RoutineScheduleService.isDue(routine) && !isRunning)
-                        _StatusChip(
-                          label: 'routines.due_badge'.tr(),
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.tertiaryContainer,
-                        ),
-                      if (isRunning)
-                        _StatusChip(
-                          label: 'routines.running_badge'.tr(),
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.secondaryContainer,
-                        ),
-                      if (routine.toolsEnabled)
-                        _StatusChip(
-                          label: routine.hasWorkspaceWriteAccess
-                              ? 'routines.tools_workspace_write_badge'.tr()
-                              : 'routines.tools_read_only_badge'.tr(),
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.secondaryContainer,
-                        ),
-                      if (routine.postsToGoogleChat)
-                        _StatusChip(
-                          label: 'routines.google_chat_badge'.tr(),
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.tertiaryContainer,
-                        ),
-                      if (routine.hasPendingPlanEdits)
-                        _StatusChip(
-                          label: 'routines.plan_draft_badge'.tr(),
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.secondaryContainer,
-                        )
-                      else if (routine.hasStaleApprovedPlan)
-                        _StatusChip(
-                          label: 'routines.plan_stale_badge'.tr(),
-                          color: Theme.of(context).colorScheme.errorContainer,
-                        )
-                      else if (routine.isApprovedPlanFresh)
-                        _StatusChip(
-                          label: 'routines.plan_approved_badge'.tr(),
-                          color: Theme.of(context).colorScheme.primaryContainer,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'routines.prompt_label'.tr(),
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 6),
-                  SelectableText(
-                    routine.trimmedPrompt,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 8,
-                    children: [
-                      _MetaLine(
-                        label: 'routines.schedule_label'.tr(),
-                        value: _formatSchedule(routine),
-                      ),
-                      _MetaLine(
-                        label: 'routines.next_run_label'.tr(),
-                        value: _formatNextRun(context, routine),
-                      ),
-                      _MetaLine(
-                        label: 'routines.last_run_label'.tr(),
-                        value: _formatLastRun(context, routine),
-                      ),
-                      if (routine.consecutiveFailureCount > 0)
-                        _MetaLine(
-                          label: 'routines.consecutive_failures_label'.tr(),
-                          value: routine.consecutiveFailureCount.toString(),
-                        ),
-                      _MetaLine(
-                        label: 'routines.notifications_label'.tr(),
-                        value: routine.notifyOnCompletion
-                            ? 'routines.notifications_on'.tr()
-                            : 'routines.notifications_off'.tr(),
-                      ),
-                      _MetaLine(
-                        label: 'routines.tools_label'.tr(),
-                        value: routine.toolsEnabled
-                            ? (routine.hasWorkspaceWriteAccess
-                                  ? 'routines.tools_mode_workspace_writes'.tr()
-                                  : 'routines.tools_mode_read_only'.tr())
-                            : 'routines.tools_mode_off'.tr(),
-                      ),
-                      if (routine.toolsEnabled && routine.hasWorkspaceDirectory)
-                        _MetaLine(
-                          label: 'routines.workspace_directory_label'.tr(),
-                          value: routine.trimmedWorkspaceDirectory,
-                        ),
-                      _MetaLine(
-                        label: 'routines.completion_action_label'.tr(),
-                        value: _formatCompletionAction(context, routine),
-                      ),
-                      if (routine.effectivePlanArtifact.hasContent)
-                        _MetaLine(
-                          label: 'routines.plan_status_label'.tr(),
-                          value: _formatPlanStatus(routine),
-                        ),
-                      if (routine.postsToGoogleChat)
-                        _MetaLine(
-                          label: 'routines.google_chat_rule_label'.tr(),
-                          value: _formatGoogleChatRule(context, routine),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      FilledButton.tonalIcon(
-                        onPressed: isRunning
-                            ? null
-                            : () => _runRoutine(context, ref, routine),
-                        icon: const Icon(Icons.play_arrow),
-                        label: Text('routines.run_now'.tr()),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: isRunning
-                            ? null
-                            : () => _openEditor(context, ref, routine),
-                        icon: const Icon(Icons.edit_outlined),
-                        label: Text('routines.edit'.tr()),
-                      ),
-                      if (requiresFailureAcknowledgement)
-                        OutlinedButton.icon(
-                          onPressed: isRunning
-                              ? null
-                              : () => _acknowledgeLatestFailure(
-                                  context,
-                                  ref,
-                                  routine,
-                                ),
-                          icon: const Icon(Icons.check_circle_outline),
-                          label: Text('routines.acknowledge_failure'.tr()),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _RoutinePlanCard(
-            routine: routine,
-            isGenerating: isGeneratingPlan,
-            onGenerateDraft: isRunning || isGeneratingPlan
-                ? null
-                : () => _generatePlanDraft(context, ref, routine),
-            onEditDraft: isGeneratingPlan
-                ? null
-                : () => _showPlanEditor(context, ref, routine),
-            onApproveDraft: isRunning || isGeneratingPlan
-                ? null
-                : () => _approveRoutinePlan(context, ref, routine),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'routines.history_title'.tr(),
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          if (routine.runs.isEmpty)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'routines.history_empty'.tr(),
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-            )
-          else
-            ...routine.runs.map(
-              (run) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _RunRecordCard(
-                  run: run,
-                  onViewTranscript:
-                      run.output.trim().isEmpty && run.toolCalls.isEmpty
-                      ? null
-                      : () => _showRunTranscriptViewer(
-                          context,
-                          routine: routine,
-                          run: run,
-                        ),
-                  onViewError: run.error.trim().isEmpty
-                      ? null
-                      : () => _showTextViewer(
-                          context,
-                          title: 'routines.error_title'.tr(),
-                          content: run.error,
-                        ),
-                ),
-              ),
-            ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -406,34 +409,7 @@ class RoutineDetailPage extends ConsumerWidget {
     WidgetRef ref,
     Routine routine,
   ) async {
-    final result = await showModalBottomSheet<RoutineEditorResult>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => RoutineEditorSheet(initialRoutine: routine),
-    );
-
-    if (result == null) {
-      return;
-    }
-
-    await ref
-        .read(routinesNotifierProvider.notifier)
-        .updateRoutine(
-          routineId: routine.id,
-          name: result.name,
-          prompt: result.prompt,
-          intervalValue: result.intervalValue,
-          intervalUnit: result.intervalUnit,
-          scheduleMode: result.scheduleMode,
-          timeOfDayMinutes: result.timeOfDayMinutes,
-          enabled: result.enabled,
-          notifyOnCompletion: result.notifyOnCompletion,
-          toolsEnabled: result.toolsEnabled,
-          completionAction: result.completionAction,
-          googleChatRule: result.googleChatRule,
-          workspaceDirectory: result.workspaceDirectory,
-          allowWorkspaceWrites: result.allowWorkspaceWrites,
-        );
+    await showRoutineEditor(context, ref, routine: routine);
   }
 
   Future<void> _generatePlanDraft(
@@ -673,7 +649,6 @@ class RoutineDetailPage extends ConsumerWidget {
     if (!context.mounted) {
       return;
     }
-    Navigator.of(context).pop();
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('routines.delete_done'.tr())));
@@ -803,6 +778,49 @@ class RoutineDetailPage extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _DetailActionBar extends StatelessWidget {
+  const _DetailActionBar({this.onClose, this.onSelectedAction});
+
+  final VoidCallback? onClose;
+  final ValueChanged<_RoutineDetailAction>? onSelectedAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+      child: Row(
+        children: [
+          if (onClose != null)
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'common.back'.tr(),
+              onPressed: onClose,
+            ),
+          const Spacer(),
+          if (onSelectedAction != null)
+            PopupMenuButton<_RoutineDetailAction>(
+              onSelected: onSelectedAction,
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: _RoutineDetailAction.duplicate,
+                  child: Text('routines.duplicate'.tr()),
+                ),
+                PopupMenuItem(
+                  value: _RoutineDetailAction.clearHistory,
+                  child: Text('routines.clear_history'.tr()),
+                ),
+                PopupMenuItem(
+                  value: _RoutineDetailAction.delete,
+                  child: Text('common.delete'.tr()),
+                ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }
