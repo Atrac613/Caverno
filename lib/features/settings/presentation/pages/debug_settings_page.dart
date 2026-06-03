@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/services/macos_update_service.dart';
 import '../providers/settings_notifier.dart';
 import 'computer_use_debug_page.dart';
+import 'live_llm_diagnostic_page.dart';
 
 class DebugSettingsPage extends ConsumerWidget {
   const DebugSettingsPage({super.key});
@@ -43,6 +44,21 @@ class DebugSettingsPage extends ConsumerWidget {
                 ),
                 const Divider(height: 1),
                 _MacosUpdateTile(service: updateService),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.monitor_heart_outlined),
+                  title: Text('settings.live_llm_diagnostics'.tr()),
+                  subtitle: Text('settings.live_llm_diagnostics_desc'.tr()),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const LiveLlmDiagnosticPage(),
+                      ),
+                    );
+                  },
+                ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.desktop_mac_outlined),

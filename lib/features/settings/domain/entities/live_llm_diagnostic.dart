@@ -1,0 +1,290 @@
+enum LiveLlmDiagnosticStatus {
+  pending,
+  running,
+  passed,
+  warning,
+  failed,
+  skipped,
+}
+
+extension LiveLlmDiagnosticStatusX on LiveLlmDiagnosticStatus {
+  bool get isTerminal => switch (this) {
+    LiveLlmDiagnosticStatus.pending || LiveLlmDiagnosticStatus.running => false,
+    LiveLlmDiagnosticStatus.passed ||
+    LiveLlmDiagnosticStatus.warning ||
+    LiveLlmDiagnosticStatus.failed ||
+    LiveLlmDiagnosticStatus.skipped => true,
+  };
+
+  String get label => switch (this) {
+    LiveLlmDiagnosticStatus.pending => 'Pending',
+    LiveLlmDiagnosticStatus.running => 'Running',
+    LiveLlmDiagnosticStatus.passed => 'Passed',
+    LiveLlmDiagnosticStatus.warning => 'Warning',
+    LiveLlmDiagnosticStatus.failed => 'Failed',
+    LiveLlmDiagnosticStatus.skipped => 'Skipped',
+  };
+}
+
+class LiveLlmDiagnosticProbeDefinition {
+  const LiveLlmDiagnosticProbeDefinition({
+    required this.id,
+    required this.titleKey,
+    required this.descriptionKey,
+  });
+
+  final String id;
+  final String titleKey;
+  final String descriptionKey;
+}
+
+class LiveLlmDiagnosticTokenUsage {
+  const LiveLlmDiagnosticTokenUsage({
+    this.promptTokens = 0,
+    this.completionTokens = 0,
+    this.totalTokens = 0,
+  });
+
+  final int promptTokens;
+  final int completionTokens;
+  final int totalTokens;
+
+  static const zero = LiveLlmDiagnosticTokenUsage();
+
+  Map<String, dynamic> toJson() => {
+    'promptTokens': promptTokens,
+    'completionTokens': completionTokens,
+    'totalTokens': totalTokens,
+  };
+}
+
+class LiveLlmDiagnosticProbeResult {
+  const LiveLlmDiagnosticProbeResult({
+    required this.id,
+    required this.status,
+    required this.summary,
+    this.details = '',
+    this.modelContent = '',
+    this.toolCalls = const <String>[],
+    this.elapsed = Duration.zero,
+    this.usage = LiveLlmDiagnosticTokenUsage.zero,
+  });
+
+  final String id;
+  final LiveLlmDiagnosticStatus status;
+  final String summary;
+  final String details;
+  final String modelContent;
+  final List<String> toolCalls;
+  final Duration elapsed;
+  final LiveLlmDiagnosticTokenUsage usage;
+
+  LiveLlmDiagnosticProbeResult copyWith({
+    LiveLlmDiagnosticStatus? status,
+    String? summary,
+    String? details,
+    String? modelContent,
+    List<String>? toolCalls,
+    Duration? elapsed,
+    LiveLlmDiagnosticTokenUsage? usage,
+  }) {
+    return LiveLlmDiagnosticProbeResult(
+      id: id,
+      status: status ?? this.status,
+      summary: summary ?? this.summary,
+      details: details ?? this.details,
+      modelContent: modelContent ?? this.modelContent,
+      toolCalls: toolCalls ?? this.toolCalls,
+      elapsed: elapsed ?? this.elapsed,
+      usage: usage ?? this.usage,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'status': status.label,
+    'summary': summary,
+    if (details.isNotEmpty) 'details': details,
+    if (modelContent.isNotEmpty) 'modelContent': modelContent,
+    if (toolCalls.isNotEmpty) 'toolCalls': toolCalls,
+    'elapsedMs': elapsed.inMilliseconds,
+    'usage': usage.toJson(),
+  };
+}
+
+class LiveLlmDiagnosticToolCatalog {
+  const LiveLlmDiagnosticToolCatalog({
+    this.totalToolCount = 0,
+    this.initialToolCount = 0,
+    this.remoteToolCount = 0,
+    this.remoteServerCount = 0,
+    this.toolSearchEnabled = false,
+    this.toolNames = const <String>[],
+    this.initialToolNames = const <String>[],
+    this.remoteToolNames = const <String>[],
+    this.mcpConnectionSummary = '',
+  });
+
+  final int totalToolCount;
+  final int initialToolCount;
+  final int remoteToolCount;
+  final int remoteServerCount;
+  final bool toolSearchEnabled;
+  final List<String> toolNames;
+  final List<String> initialToolNames;
+  final List<String> remoteToolNames;
+  final String mcpConnectionSummary;
+
+  static const empty = LiveLlmDiagnosticToolCatalog();
+
+  bool get hasTools => totalToolCount > 0;
+
+  Map<String, dynamic> toJson() => {
+    'totalToolCount': totalToolCount,
+    'initialToolCount': initialToolCount,
+    'remoteToolCount': remoteToolCount,
+    'remoteServerCount': remoteServerCount,
+    'toolSearchEnabled': toolSearchEnabled,
+    'toolNames': toolNames,
+    'initialToolNames': initialToolNames,
+    'remoteToolNames': remoteToolNames,
+    if (mcpConnectionSummary.isNotEmpty)
+      'mcpConnectionSummary': mcpConnectionSummary,
+  };
+}
+
+class LiveLlmDiagnosticReport {
+  const LiveLlmDiagnosticReport({
+    required this.startedAt,
+    this.finishedAt,
+    required this.baseUrl,
+    required this.model,
+    required this.demoMode,
+    required this.mcpEnabled,
+    this.toolCatalog = LiveLlmDiagnosticToolCatalog.empty,
+    this.results = const <LiveLlmDiagnosticProbeResult>[],
+  });
+
+  final DateTime startedAt;
+  final DateTime? finishedAt;
+  final String baseUrl;
+  final String model;
+  final bool demoMode;
+  final bool mcpEnabled;
+  final LiveLlmDiagnosticToolCatalog toolCatalog;
+  final List<LiveLlmDiagnosticProbeResult> results;
+
+  LiveLlmDiagnosticReport copyWith({
+    DateTime? finishedAt,
+    LiveLlmDiagnosticToolCatalog? toolCatalog,
+    List<LiveLlmDiagnosticProbeResult>? results,
+  }) {
+    return LiveLlmDiagnosticReport(
+      startedAt: startedAt,
+      finishedAt: finishedAt ?? this.finishedAt,
+      baseUrl: baseUrl,
+      model: model,
+      demoMode: demoMode,
+      mcpEnabled: mcpEnabled,
+      toolCatalog: toolCatalog ?? this.toolCatalog,
+      results: results ?? this.results,
+    );
+  }
+
+  LiveLlmDiagnosticReport withProbeResult(LiveLlmDiagnosticProbeResult result) {
+    final index = results.indexWhere((item) => item.id == result.id);
+    if (index == -1) {
+      return copyWith(results: [...results, result]);
+    }
+    final updated = [...results];
+    updated[index] = result;
+    return copyWith(results: updated);
+  }
+
+  Duration get elapsed => (finishedAt ?? DateTime.now()).difference(startedAt);
+
+  int get completedProbeCount =>
+      results.where((result) => result.status.isTerminal).length;
+
+  int get scoredProbeCount => results
+      .where((result) => result.status != LiveLlmDiagnosticStatus.skipped)
+      .where((result) => result.status.isTerminal)
+      .length;
+
+  int get passedProbeCount => results
+      .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
+      .length;
+
+  double get score {
+    final scored = scoredProbeCount;
+    if (scored == 0) {
+      return 0;
+    }
+    return passedProbeCount / scored;
+  }
+
+  LiveLlmDiagnosticStatus get overallStatus {
+    if (results.any(
+      (result) => result.status == LiveLlmDiagnosticStatus.running,
+    )) {
+      return LiveLlmDiagnosticStatus.running;
+    }
+    if (results.any(
+      (result) => result.status == LiveLlmDiagnosticStatus.failed,
+    )) {
+      return LiveLlmDiagnosticStatus.failed;
+    }
+    if (results.any(
+      (result) => result.status == LiveLlmDiagnosticStatus.warning,
+    )) {
+      return LiveLlmDiagnosticStatus.warning;
+    }
+    if (results.any(
+      (result) => result.status == LiveLlmDiagnosticStatus.passed,
+    )) {
+      return LiveLlmDiagnosticStatus.passed;
+    }
+    return LiveLlmDiagnosticStatus.pending;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'startedAt': startedAt.toIso8601String(),
+    if (finishedAt != null) 'finishedAt': finishedAt!.toIso8601String(),
+    'elapsedMs': elapsed.inMilliseconds,
+    'baseUrl': baseUrl,
+    'model': model,
+    'demoMode': demoMode,
+    'mcpEnabled': mcpEnabled,
+    'overallStatus': overallStatus.label,
+    'score': score,
+    'toolCatalog': toolCatalog.toJson(),
+    'results': results.map((result) => result.toJson()).toList(),
+  };
+}
+
+class LiveLlmDiagnosticState {
+  const LiveLlmDiagnosticState({
+    this.isRunning = false,
+    this.report,
+    this.error,
+  });
+
+  final bool isRunning;
+  final LiveLlmDiagnosticReport? report;
+  final String? error;
+
+  static const initial = LiveLlmDiagnosticState();
+
+  LiveLlmDiagnosticState copyWith({
+    bool? isRunning,
+    LiveLlmDiagnosticReport? report,
+    String? error,
+    bool clearError = false,
+  }) {
+    return LiveLlmDiagnosticState(
+      isRunning: isRunning ?? this.isRunning,
+      report: report ?? this.report,
+      error: clearError ? null : error ?? this.error,
+    );
+  }
+}

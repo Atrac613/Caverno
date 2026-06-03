@@ -68,6 +68,7 @@ void main() {
     expect(find.byType(DebugSettingsPage), findsOneWidget);
     expect(find.text('Debug'), findsAtLeastNWidgets(1));
     expect(find.text('macOS Updates'), findsOneWidget);
+    expect(find.text('Live LLM Diagnostics'), findsOneWidget);
     expect(find.text('Computer Use Smoke Sequence'), findsOneWidget);
     expect(find.text('Save LLM session logs'), findsOneWidget);
   });
