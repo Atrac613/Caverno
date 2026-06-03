@@ -35,5 +35,27 @@ void main() {
       expect(SubagentToolPolicy.toolName(tool('ping')), 'ping');
       expect(SubagentToolPolicy.toolName(const {}), '');
     });
+
+    test('keeps get_subagent_result; only spawn_subagent is stripped', () {
+      final filtered = SubagentToolPolicy.filterInheritedToolDefinitions([
+        tool('get_subagent_result'),
+        tool('spawn_subagent'),
+        tool('read_file'),
+      ]);
+
+      final names = filtered.map(SubagentToolPolicy.toolName).toList();
+      expect(names, contains('get_subagent_result'));
+      expect(names, contains('read_file'));
+      expect(names, isNot(contains('spawn_subagent')));
+    });
+
+    test('handles an empty inherited tool list', () {
+      expect(
+        SubagentToolPolicy.filterInheritedToolDefinitions(
+          const <Map<String, dynamic>>[],
+        ),
+        isEmpty,
+      );
+    });
   });
 }

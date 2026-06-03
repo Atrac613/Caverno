@@ -88,5 +88,20 @@ void main() {
 
       expect(notifier().byId('a')!.notified, isTrue);
     });
+
+    test('remove drops a task by id', () {
+      notifier().register(runningTask('a'));
+      notifier().register(runningTask('b'));
+
+      notifier().remove('a');
+
+      expect(tasks().map((task) => task.id), ['b']);
+    });
+
+    test('byId returns null for an unknown id', () {
+      notifier().register(runningTask('a'));
+
+      expect(notifier().byId('missing'), isNull);
+    });
   });
 }
