@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/services/login_shell_environment.dart';
 import 'core/services/macos_app_menu_service.dart';
 import 'core/services/window_manager_service.dart';
 import 'core/services/window_settings_service.dart';
@@ -36,6 +37,11 @@ void main() async {
   final initialSettings = SettingsRepository(prefs).load();
   final systemLocale = WidgetsBinding.instance.platformDispatcher.locale;
   unawaited(_deleteExpiredToolResultArtifacts());
+
+  // Warm up the login-shell PATH so stdio MCP servers and shell/git tools can
+  // resolve user-installed binaries (dart, npx, uvx, ...) even when launched
+  // from Finder/Dock with launchd's minimal PATH.
+  unawaited(LoginShellEnvironment.instance.ensureResolved());
 
   // Restore window size and position on desktop platforms
   if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {

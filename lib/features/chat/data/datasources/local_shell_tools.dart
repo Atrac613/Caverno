@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../../core/services/login_shell_environment.dart';
 import 'filesystem_tools.dart';
 import 'git_tools.dart';
 
@@ -91,6 +92,8 @@ class LocalShellTools {
         shellExecutable,
         shellArgs,
         workingDirectory: workingDirectory,
+        // Inject the login-shell PATH so user commands resolve their binaries.
+        environment: await LoginShellEnvironment.instance.environment(),
       ).timeout(_timeout);
 
       final stdout = result.stdout as String;

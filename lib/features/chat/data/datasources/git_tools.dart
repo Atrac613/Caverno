@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../../core/services/login_shell_environment.dart';
+
 /// Local Git command execution utilities for built-in MCP tools.
 ///
 /// Desktop only (macOS, Linux, Windows). Uses [Process.run] to invoke
@@ -267,10 +269,12 @@ class GitTools {
     // exists. All other subcommands keep the repository preflight.
     if (args.first != 'init') {
       try {
-        final check = await Process.run('git', [
-          'rev-parse',
-          '--git-dir',
-        ], workingDirectory: workingDirectory);
+        final check = await Process.run(
+          'git',
+          ['rev-parse', '--git-dir'],
+          workingDirectory: workingDirectory,
+          environment: await LoginShellEnvironment.instance.environment(),
+        );
         if (check.exitCode != 0) {
           return jsonEncode({
             'error': 'Not a git repository: $workingDirectory',
@@ -286,6 +290,7 @@ class GitTools {
         'git',
         args,
         workingDirectory: workingDirectory,
+        environment: await LoginShellEnvironment.instance.environment(),
       ).timeout(_kTimeout);
 
       final stdout = result.stdout as String;

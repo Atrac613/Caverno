@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../../core/services/login_shell_environment.dart';
 import '../../../../core/utils/logger.dart';
 import 'mcp_client.dart';
 
@@ -41,7 +42,11 @@ class McpStdioClient implements McpClientBase {
 
     appLog('[McpStdioClient] Starting process: $identifier');
 
-    final mergedEnv = {...Platform.environment, ...?env};
+    // Merge the user's login-shell PATH so commands like `dart`, `npx`, and
+    // `uvx` resolve by name even when the app was launched from Finder/Dock
+    // with launchd's minimal PATH.
+    final mergedEnv =
+        await LoginShellEnvironment.instance.environment(extra: env);
     try {
       _process = await Process.start(
         command,
