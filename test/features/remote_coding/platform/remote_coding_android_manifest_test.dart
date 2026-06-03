@@ -30,4 +30,22 @@ void main() {
     expect(content, contains('com.apple.security.network.client'));
     expect(content, contains('com.apple.security.network.server'));
   });
+
+  test('macOS app entitlements allow user-selected settings imports', () {
+    final debugProfileEntitlements = File(
+      'macos/Runner/DebugProfile.entitlements',
+    );
+    final releaseEntitlements = File('macos/Runner/Release.entitlements');
+
+    expect(debugProfileEntitlements.existsSync(), isTrue);
+    expect(releaseEntitlements.existsSync(), isTrue);
+    expect(
+      debugProfileEntitlements.readAsStringSync(),
+      contains('com.apple.security.files.user-selected.read-only'),
+    );
+    expect(
+      releaseEntitlements.readAsStringSync(),
+      contains('com.apple.security.files.user-selected.read-only'),
+    );
+  });
 }
