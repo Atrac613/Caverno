@@ -57,4 +57,23 @@ void main() {
       );
     }
   });
+
+  test('macOS app entitlements allow user-selected settings imports', () {
+    final entitlementsFiles = [
+      File('macos/Runner/DebugProfile.entitlements'),
+      File('macos/Runner/Release.entitlements'),
+    ];
+
+    for (final entitlements in entitlementsFiles) {
+      expect(entitlements.existsSync(), isTrue);
+      final content = entitlements.readAsStringSync();
+      expect(
+        content.contains('com.apple.security.files.user-selected.read-only') ||
+            content.contains(
+              'com.apple.security.files.user-selected.read-write',
+            ),
+        isTrue,
+      );
+    }
+  });
 }

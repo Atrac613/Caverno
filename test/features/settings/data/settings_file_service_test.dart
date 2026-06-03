@@ -157,17 +157,11 @@ void main() {
       );
     });
 
-    test('rejects empty apiKey', () {
+    test('accepts empty apiKey for local OpenAI-compatible endpoints', () {
       final settings = validSettings.copyWith(apiKey: '');
       expect(
         () => SettingsFileService.validateSettings(settings),
-        throwsA(
-          isA<FormatException>().having(
-            (e) => e.message,
-            'message',
-            contains('apiKey'),
-          ),
-        ),
+        returnsNormally,
       );
     });
 

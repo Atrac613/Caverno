@@ -208,6 +208,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   showMemoryUpdates: json['showMemoryUpdates'] as bool? ?? false,
   enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? false,
   demoMode: json['demoMode'] as bool? ?? false,
+  onboardingCompleted: json['onboardingCompleted'] as bool? ?? false,
   disabledBuiltInTools:
       (json['disabledBuiltInTools'] as List<dynamic>?)
           ?.map((e) => e as String)
@@ -271,6 +272,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'showMemoryUpdates': instance.showMemoryUpdates,
   'enableLlmSessionLogs': instance.enableLlmSessionLogs,
   'demoMode': instance.demoMode,
+  'onboardingCompleted': instance.onboardingCompleted,
   'disabledBuiltInTools': instance.disabledBuiltInTools,
   'localCommandPermissionRules': instance.localCommandPermissionRules,
   'routineComputerUseActionAllowlist':

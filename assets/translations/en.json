@@ -441,6 +441,18 @@
     "code_copy": "Copy",
     "code_copied": "Copied!"
   },
+  "onboarding": {
+    "title": "Welcome to Caverno",
+    "message": "Start with the local defaults, or restore a saved setup before your first chat.",
+    "connect_title": "Connect your model",
+    "connect_body": "Use any OpenAI-compatible endpoint from General settings.",
+    "chat_title": "Start chatting",
+    "chat_body": "Use chat, coding threads, routines, voice, and tools from the main screen.",
+    "restore_title": "Restoring from a backup?",
+    "restore_body": "Import a Caverno settings JSON now to bring back your endpoint, model, tools, and preferences.",
+    "start_fresh": "Start Fresh",
+    "import_settings": "Import Settings"
+  },
   "settings": {
     "title": "Settings",
     "menu_general": "General",
@@ -482,8 +494,8 @@
     "reset_to_default": "Reset to defaults",
     "saved": "Settings saved",
     "reset_title": "Reset Settings",
-    "reset_confirm": "Reset all settings to default values?",
-    "reset_done": "Settings have been reset",
+    "reset_confirm": "Reset all settings to default values? Caverno will quit after the reset.",
+    "reset_done": "Settings have been reset. Caverno will quit.",
     "demo_mode": "Demo Mode",
     "demo_mode_desc": "Simulate AI responses without a server connection",
     "server_section": "Server Settings",

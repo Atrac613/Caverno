@@ -107,6 +107,18 @@ void main() {
     expect(decoded.enableLlmSessionLogs, isTrue);
   });
 
+  test('defaults onboarding to incomplete and persists completion', () {
+    expect(AppSettings.defaults().onboardingCompleted, isFalse);
+
+    final settings = AppSettings.defaults().copyWith(onboardingCompleted: true);
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.onboardingCompleted, isTrue);
+  });
+
   test(
     'defaults coding verification feedback to enabled and persists opt out',
     () {

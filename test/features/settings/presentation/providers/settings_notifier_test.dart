@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:caverno/features/settings/data/settings_repository.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
@@ -86,4 +87,31 @@ void main() {
     );
     expect(settings.enabledMcpServers, isEmpty);
   });
+
+  test(
+    'completeOnboarding persists the first-launch completion flag',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      expect(
+        container.read(settingsNotifierProvider).onboardingCompleted,
+        isFalse,
+      );
+
+      await notifier.completeOnboarding();
+
+      final settings = container.read(settingsNotifierProvider);
+      expect(settings.onboardingCompleted, isTrue);
+
+      final reloaded = SettingsRepository(prefs).load();
+      expect(reloaded.onboardingCompleted, isTrue);
+    },
+  );
 }
