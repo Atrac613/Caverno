@@ -22,9 +22,11 @@ class MacosAppMenuService {
 
   bool get isAvailable => Platform.isMacOS;
 
-  /// Registers the handler for native menu commands. Only the `openSettings`
-  /// command is wired today. No-op off macOS.
-  void setOnOpenSettings(Future<void> Function() onOpenSettings) {
+  /// Registers handlers for native menu commands. No-op off macOS.
+  void setHandlers({
+    required Future<void> Function() onOpenSettings,
+    Future<void> Function()? onQuit,
+  }) {
     if (!isAvailable) {
       return;
     }
@@ -33,12 +35,20 @@ class MacosAppMenuService {
         case 'openSettings':
           await onOpenSettings();
           return null;
+        case 'quit':
+          await onQuit?.call();
+          return null;
         default:
           throw MissingPluginException(
             'Unknown app menu command: ${call.method}',
           );
       }
     });
+  }
+
+  /// Registers the settings handler for callers that only need that command.
+  void setOnOpenSettings(Future<void> Function() onOpenSettings) {
+    setHandlers(onOpenSettings: onOpenSettings);
   }
 
   /// Removes the registered handler. Call from `dispose`.

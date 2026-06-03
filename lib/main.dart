@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -44,8 +45,9 @@ void main() async {
   unawaited(LoginShellEnvironment.instance.ensureResolved());
 
   // Restore window size and position on desktop platforms
+  WindowManagerService? windowService;
   if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-    final windowService = WindowManagerService(WindowSettingsService(prefs));
+    windowService = WindowManagerService(WindowSettingsService(prefs));
     await windowService.initialize();
   }
 
@@ -67,7 +69,7 @@ void main() async {
           chatMemoryBoxProvider.overrideWithValue(memoryBox),
           skillBoxProvider.overrideWithValue(skillBox),
         ],
-        child: const MyApp(),
+        child: MyApp(windowManagerService: windowService),
       ),
     ),
   );
@@ -86,7 +88,9 @@ Future<void> _deleteExpiredToolResultArtifacts() async {
 }
 
 class MyApp extends ConsumerStatefulWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.windowManagerService});
+
+  final WindowManagerService? windowManagerService;
 
   @override
   ConsumerState<MyApp> createState() => _MyAppState();
@@ -97,18 +101,23 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   late final MacosAppMenuService _appMenuService;
   bool _settingsModalOpen = false;
+  bool _quitDialogOpen = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _appMenuService = ref.read(macosAppMenuServiceProvider);
-    _appMenuService.setOnOpenSettings(_handleOpenSettings);
+    _appMenuService.setHandlers(
+      onOpenSettings: _handleOpenSettings,
+      onQuit: _handleQuitShortcut,
+    );
   }
 
   @override
   void dispose() {
     _appMenuService.clear();
+    widget.windowManagerService?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -129,6 +138,56 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
       await showSettingsModal(navigatorContext);
     } finally {
       _settingsModalOpen = false;
+    }
+  }
+
+  Future<void> _handleQuitShortcut() async {
+    if (_quitDialogOpen) {
+      return;
+    }
+
+    final navigatorContext = _navigatorKey.currentContext;
+    if (navigatorContext == null) {
+      return;
+    }
+
+    _quitDialogOpen = true;
+    try {
+      final shouldQuit = await showDialog<bool>(
+        context: navigatorContext,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Quit Caverno?'),
+            content: const Text(
+              'Caverno will stop background routines and active tasks.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Quit'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldQuit != true) {
+        return;
+      }
+
+      final windowManagerService = widget.windowManagerService;
+      if (windowManagerService != null) {
+        await windowManagerService.quitApplication();
+        return;
+      }
+
+      await SystemNavigator.pop();
+    } finally {
+      _quitDialogOpen = false;
     }
   }
 
@@ -186,29 +245,51 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
       _scheduleLocaleSync();
     }
 
-    return MaterialApp(
-      title: 'Caverno',
-      navigatorKey: _navigatorKey,
-      debugShowCheckedModeBanner: false,
-      localizationsDelegates: context.localizationDelegates,
-      supportedLocales: context.supportedLocales,
-      locale: context.locale,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.light,
+    return Shortcuts(
+      shortcuts: const <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.keyQ, control: true):
+            QuitApplicationIntent(),
+        SingleActivator(LogicalKeyboardKey.keyQ, meta: true):
+            QuitApplicationIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          QuitApplicationIntent: CallbackAction<QuitApplicationIntent>(
+            onInvoke: (_) {
+              unawaited(_handleQuitShortcut());
+              return null;
+            },
+          ),
+        },
+        child: MaterialApp(
+          title: 'Caverno',
+          navigatorKey: _navigatorKey,
+          debugShowCheckedModeBanner: false,
+          localizationsDelegates: context.localizationDelegates,
+          supportedLocales: context.supportedLocales,
+          locale: context.locale,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.blue,
+              brightness: Brightness.light,
+            ),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.blue,
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
+          ),
+          themeMode: ThemeMode.dark,
+          home: const ChatPage(),
         ),
-        useMaterial3: true,
       ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
-      themeMode: ThemeMode.dark,
-      home: const ChatPage(),
     );
   }
+}
+
+class QuitApplicationIntent extends Intent {
+  const QuitApplicationIntent();
 }

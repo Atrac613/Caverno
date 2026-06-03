@@ -70,7 +70,7 @@
                             <menuItem isSeparatorItem="YES" id="kCx-OE-vgT"/>
                             <menuItem title="Quit APP_NAME" keyEquivalent="q" id="4sb-4s-VLi">
                                 <connections>
-                                    <action selector="terminate:" target="-1" id="Te7-pn-YzF"/>
+                                    <action selector="requestQuit:" target="Voe-Tx-rLC" id="Te7-pn-YzF"/>
                                 </connections>
                             </menuItem>
                         </items>

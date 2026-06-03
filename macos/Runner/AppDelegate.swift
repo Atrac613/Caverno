@@ -26,7 +26,22 @@ class AppDelegate: FlutterAppDelegate {
     (mainFlutterWindow as? MainFlutterWindow)?.requestOpenSettings()
   }
 
+  @IBAction func requestQuit(_ sender: Any?) {
+    (mainFlutterWindow as? MainFlutterWindow)?.requestQuit()
+  }
+
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    return false
+  }
+
+  override func applicationShouldHandleReopen(
+    _ sender: NSApplication,
+    hasVisibleWindows flag: Bool
+  ) -> Bool {
+    if !flag {
+      sender.unhide(nil)
+      mainFlutterWindow?.makeKeyAndOrderFront(nil)
+    }
     return true
   }
 

@@ -22,6 +22,12 @@ class MainFlutterWindow: NSWindow {
     appMenuChannel?.requestOpenSettings()
   }
 
+  /// Asks Flutter to confirm and run the in-app quit flow. Invoked from the
+  /// native application menu so Cmd+Q does not bypass the confirmation dialog.
+  func requestQuit() {
+    appMenuChannel?.requestQuit()
+  }
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     self.contentViewController = flutterViewController
@@ -69,6 +75,10 @@ final class MacosAppMenuChannel {
 
   func requestOpenSettings() {
     channel.invokeMethod("openSettings", arguments: nil)
+  }
+
+  func requestQuit() {
+    channel.invokeMethod("quit", arguments: nil)
   }
 }
 

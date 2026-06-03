@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:window_manager/window_manager.dart';
@@ -13,9 +14,11 @@ class WindowManagerService with WindowListener {
   final Debouncer _saveDebouncer = Debouncer(
     duration: const Duration(seconds: 1),
   );
+  bool _isQuitting = false;
 
   Future<void> initialize() async {
     await windowManager.ensureInitialized();
+    await windowManager.setPreventClose(true);
 
     final geometry = _settingsService.load();
 
@@ -62,19 +65,49 @@ class WindowManagerService with WindowListener {
     _saveCurrentGeometry();
   }
 
+  @override
+  void onWindowClose() {
+    if (_isQuitting) {
+      return;
+    }
+
+    unawaited(_moveToBackground());
+  }
+
+  Future<void> _moveToBackground() async {
+    await _saveCurrentGeometryNow();
+    if (Platform.isWindows || Platform.isLinux) {
+      await windowManager.minimize();
+      return;
+    }
+
+    await windowManager.hide();
+  }
+
+  Future<void> quitApplication() async {
+    _isQuitting = true;
+    await _saveCurrentGeometryNow();
+    await windowManager.setPreventClose(false);
+    await windowManager.destroy();
+  }
+
   void _saveCurrentGeometry() {
     _saveDebouncer.run(() async {
-      final size = await windowManager.getSize();
-      final position = await windowManager.getPosition();
-      await _settingsService.save(
-        WindowGeometry(
-          width: size.width,
-          height: size.height,
-          x: position.dx,
-          y: position.dy,
-        ),
-      );
+      await _saveCurrentGeometryNow();
     });
+  }
+
+  Future<void> _saveCurrentGeometryNow() async {
+    final size = await windowManager.getSize();
+    final position = await windowManager.getPosition();
+    await _settingsService.save(
+      WindowGeometry(
+        width: size.width,
+        height: size.height,
+        x: position.dx,
+        y: position.dy,
+      ),
+    );
   }
 
   /// Rejects saved positions that are clearly off-screen
