@@ -5,12 +5,48 @@
 #include "flutter_window.h"
 #include "utils.h"
 
+namespace {
+
+constexpr const wchar_t kSingleInstanceMutexName[] =
+    L"Local\\com.noguwo.apps.caverno.single_instance";
+constexpr const wchar_t kCavernoWindowClassName[] =
+    L"FLUTTER_RUNNER_WIN32_WINDOW";
+constexpr const wchar_t kCavernoWindowTitle[] = L"caverno";
+
+void ActivateExistingInstance() {
+  HWND existing_window =
+      ::FindWindowW(kCavernoWindowClassName, kCavernoWindowTitle);
+  if (!existing_window) {
+    return;
+  }
+
+  if (::IsIconic(existing_window)) {
+    ::ShowWindow(existing_window, SW_RESTORE);
+  } else {
+    ::ShowWindow(existing_window, SW_SHOWNORMAL);
+  }
+  ::SetForegroundWindow(existing_window);
+}
+
+}  // namespace
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
     CreateAndAttachConsole();
+  }
+
+  HANDLE single_instance_mutex =
+      ::CreateMutexW(nullptr, TRUE, kSingleInstanceMutexName);
+  if (single_instance_mutex == nullptr) {
+    return EXIT_FAILURE;
+  }
+  if (::GetLastError() == ERROR_ALREADY_EXISTS) {
+    ActivateExistingInstance();
+    ::CloseHandle(single_instance_mutex);
+    return EXIT_SUCCESS;
   }
 
   // Initialize COM, so that it is available for use in the library and/or
@@ -28,6 +64,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
   if (!window.Create(L"caverno", origin, size)) {
+    ::CoUninitialize();
+    ::CloseHandle(single_instance_mutex);
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
@@ -39,5 +77,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   ::CoUninitialize();
+  ::CloseHandle(single_instance_mutex);
   return EXIT_SUCCESS;
 }

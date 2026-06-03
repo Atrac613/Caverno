@@ -9,6 +9,7 @@
 
 struct _MyApplication {
   GtkApplication parent_instance;
+  GtkWindow* window;
   char** dart_entrypoint_arguments;
 };
 
@@ -19,11 +20,22 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+static void window_destroy_cb(GtkWidget* /*widget*/, MyApplication* self) {
+  self->window = nullptr;
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
+  if (self->window != nullptr) {
+    gtk_window_present(self->window);
+    return;
+  }
+
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
+  self->window = window;
+  g_signal_connect(window, "destroy", G_CALLBACK(window_destroy_cb), self);
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
@@ -143,6 +155,6 @@ MyApplication* my_application_new() {
   g_set_prgname(APPLICATION_ID);
 
   return MY_APPLICATION(g_object_new(my_application_get_type(),
-                                     "application-id", APPLICATION_ID, "flags",
-                                     G_APPLICATION_NON_UNIQUE, nullptr));
+                                     "application-id", APPLICATION_ID,
+                                     nullptr));
 }

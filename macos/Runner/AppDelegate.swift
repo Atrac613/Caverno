@@ -11,6 +11,13 @@ class AppDelegate: FlutterAppDelegate {
     super.init()
   }
 
+  override func applicationWillFinishLaunching(_ notification: Notification) {
+    if Self.activateExistingInstanceIfNeeded() {
+      Darwin.exit(0)
+    }
+    super.applicationWillFinishLaunching(notification)
+  }
+
   @IBAction func checkForUpdates(_ sender: Any?) {
     MacosSparkleUpdateController.shared.checkForUpdatesFromMenu(sender)
   }
@@ -24,6 +31,28 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+    return true
+  }
+
+  private static func activateExistingInstanceIfNeeded() -> Bool {
+    guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
+      return false
+    }
+
+    let currentProcessIdentifier = ProcessInfo.processInfo.processIdentifier
+    let existingApplication = NSRunningApplication.runningApplications(
+      withBundleIdentifier: bundleIdentifier
+    ).first { application in
+      !application.isTerminated &&
+        application.processIdentifier != currentProcessIdentifier
+    }
+    guard let existingApplication = existingApplication else {
+      return false
+    }
+
+    _ = existingApplication.activate(
+      options: [.activateAllWindows, .activateIgnoringOtherApps]
+    )
     return true
   }
 }
