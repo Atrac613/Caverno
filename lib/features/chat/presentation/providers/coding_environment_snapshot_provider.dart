@@ -45,6 +45,19 @@ final codingWorktreeDiffProvider = FutureProvider.autoDispose
       );
     });
 
+final codingGitBranchListProvider = FutureProvider.autoDispose
+    .family<CodingGitBranchList, String>((ref, rootPath) async {
+      final normalizedRootPath = rootPath.trim();
+      if (normalizedRootPath.isEmpty || !_isDesktopPlatform) {
+        return const CodingGitBranchList.empty();
+      }
+      final runProcess = ref.watch(codingEnvironmentProcessRunnerProvider);
+      return CodingGitBranchList.load(
+        rootPath: normalizedRootPath,
+        runProcess: runProcess,
+      );
+    });
+
 Future<ProcessResult> _defaultProcessRunner(
   String executable,
   List<String> arguments, {
@@ -255,6 +268,190 @@ class _GitShortStat {
     }
     return int.tryParse(match.group(1) ?? '') ?? 0;
   }
+}
+
+class CodingGitBranchList {
+  const CodingGitBranchList({required this.branches, this.errorMessage});
+
+  const CodingGitBranchList.empty() : branches = const [], errorMessage = null;
+
+  final List<String> branches;
+  final String? errorMessage;
+
+  bool get hasBranches => branches.isNotEmpty;
+
+  static Future<CodingGitBranchList> load({
+    required String rootPath,
+    required CodingEnvironmentProcessRunner runProcess,
+  }) async {
+    if (!Directory(rootPath).existsSync()) {
+      return const CodingGitBranchList(
+        branches: [],
+        errorMessage: 'Project folder is unavailable.',
+      );
+    }
+
+    try {
+      final repositoryResult = await runProcess('git', const [
+        'rev-parse',
+        '--show-toplevel',
+      ], workingDirectory: rootPath);
+      if (repositoryResult.exitCode != 0) {
+        return const CodingGitBranchList(
+          branches: [],
+          errorMessage: 'Project is not a git repository.',
+        );
+      }
+
+      final branchResult = await runProcess('git', const [
+        'for-each-ref',
+        '--format=%(refname:short)',
+        'refs/heads',
+      ], workingDirectory: rootPath);
+      if (branchResult.exitCode != 0) {
+        return CodingGitBranchList(
+          branches: const [],
+          errorMessage: _processErrorText(
+            branchResult,
+            fallback: 'Could not read git branches.',
+          ),
+        );
+      }
+
+      final branches =
+          _stdoutText(branchResult)
+              .split(RegExp(r'\r?\n'))
+              .map((branch) => branch.trim())
+              .where((branch) => branch.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort();
+
+      return CodingGitBranchList(branches: List.unmodifiable(branches));
+    } on TimeoutException {
+      return const CodingGitBranchList(
+        branches: [],
+        errorMessage: 'Timed out while reading git branches.',
+      );
+    } catch (error) {
+      return CodingGitBranchList(
+        branches: const [],
+        errorMessage: 'Could not read git branches: $error',
+      );
+    }
+  }
+
+  static String _stdoutText(ProcessResult result) => result.stdout.toString();
+}
+
+class CodingGitBranchCheckoutResult {
+  const CodingGitBranchCheckoutResult({
+    required this.branchName,
+    required this.success,
+    this.errorMessage,
+  });
+
+  final String branchName;
+  final bool success;
+  final String? errorMessage;
+
+  static CodingGitBranchCheckoutResult succeeded(String branchName) {
+    return CodingGitBranchCheckoutResult(branchName: branchName, success: true);
+  }
+
+  static CodingGitBranchCheckoutResult failed(
+    String branchName,
+    String errorMessage,
+  ) {
+    return CodingGitBranchCheckoutResult(
+      branchName: branchName,
+      success: false,
+      errorMessage: errorMessage,
+    );
+  }
+}
+
+class CodingGitBranchCheckout {
+  CodingGitBranchCheckout._();
+
+  static Future<CodingGitBranchCheckoutResult> checkout({
+    required String rootPath,
+    required String branchName,
+    required CodingEnvironmentProcessRunner runProcess,
+  }) async {
+    final normalizedBranchName = branchName.trim();
+    if (!_isValidBranchNameForCheckout(normalizedBranchName)) {
+      return CodingGitBranchCheckoutResult.failed(
+        normalizedBranchName,
+        'Branch name is invalid.',
+      );
+    }
+    if (!Directory(rootPath).existsSync()) {
+      return CodingGitBranchCheckoutResult.failed(
+        normalizedBranchName,
+        'Project folder is unavailable.',
+      );
+    }
+
+    final branchList = await CodingGitBranchList.load(
+      rootPath: rootPath,
+      runProcess: runProcess,
+    );
+    if (!branchList.branches.contains(normalizedBranchName)) {
+      return CodingGitBranchCheckoutResult.failed(
+        normalizedBranchName,
+        branchList.errorMessage ?? 'Branch does not exist locally.',
+      );
+    }
+
+    try {
+      final checkoutResult = await runProcess('git', [
+        'checkout',
+        normalizedBranchName,
+      ], workingDirectory: rootPath);
+      if (checkoutResult.exitCode != 0) {
+        return CodingGitBranchCheckoutResult.failed(
+          normalizedBranchName,
+          _processErrorText(
+            checkoutResult,
+            fallback: 'Could not switch git branches.',
+          ),
+        );
+      }
+
+      return CodingGitBranchCheckoutResult.succeeded(normalizedBranchName);
+    } on TimeoutException {
+      return CodingGitBranchCheckoutResult.failed(
+        normalizedBranchName,
+        'Timed out while switching git branches.',
+      );
+    } catch (error) {
+      return CodingGitBranchCheckoutResult.failed(
+        normalizedBranchName,
+        'Could not switch git branches: $error',
+      );
+    }
+  }
+
+  static bool _isValidBranchNameForCheckout(String branchName) {
+    return branchName.isNotEmpty &&
+        !branchName.startsWith('-') &&
+        !branchName.contains('\u0000') &&
+        !branchName.contains('\n') &&
+        !branchName.contains('\r');
+  }
+}
+
+String _processErrorText(ProcessResult result, {required String fallback}) {
+  final stderr = result.stderr.toString().trim();
+  if (stderr.isNotEmpty) {
+    return stderr;
+  }
+  final stdout = result.stdout.toString().trim();
+  if (stdout.isNotEmpty) {
+    return stdout;
+  }
+  return fallback;
 }
 
 class CodingWorktreeDiffLoader {

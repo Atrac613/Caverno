@@ -140,6 +140,8 @@ void main() {
 
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final preferences = await SharedPreferences.getInstance();
+    var currentBranch = 'feature/companion-panel';
+    final gitCommands = <String>[];
     final container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(preferences),
@@ -157,6 +159,7 @@ void main() {
           arguments, {
           workingDirectory,
         }) async {
+          gitCommands.add(arguments.join(' '));
           return switch (arguments.join(' ')) {
             'rev-parse --show-toplevel' => ProcessResult(
               1,
@@ -167,9 +170,16 @@ void main() {
             'branch --show-current' => ProcessResult(
               1,
               0,
-              'feature/companion-panel\n',
+              '$currentBranch\n',
               '',
             ),
+            'for-each-ref --format=%(refname:short) refs/heads' =>
+              ProcessResult(
+                1,
+                0,
+                'main\nfeature/companion-panel\nfeature/other-panel\n',
+                '',
+              ),
             'status --short' => ProcessResult(
               1,
               0,
@@ -211,6 +221,15 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
               '',
               '',
             ),
+            'checkout feature/other-panel' => () {
+              currentBranch = 'feature/other-panel';
+              return ProcessResult(
+                1,
+                0,
+                'Switched to branch feature/other-panel\n',
+                '',
+              );
+            }(),
             _ => ProcessResult(1, 1, '', 'unexpected git command'),
           };
         }),
@@ -261,6 +280,15 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     expect(find.text('Inspect current parser state'), findsOneWidget);
     expect(find.text('Add parser regression coverage'), findsOneWidget);
     expect(find.text('feature/companion-panel'), findsOneWidget);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('feature/other-panel').last);
+    await tester.pumpAndSettle();
+
+    expect(currentBranch, 'feature/other-panel');
+    expect(gitCommands, contains('checkout feature/other-panel'));
+    expect(find.text('Switched to feature/other-panel.'), findsOneWidget);
+    expect(find.text('feature/other-panel'), findsOneWidget);
     expect(find.text('Uncommitted changes'), findsOneWidget);
     final changesValueFinder = find.byWidgetPredicate((widget) {
       return widget is Text &&
