@@ -573,14 +573,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Future<void> _pickAndActivateProject(BuildContext context) async {
+  Future<void> _pickAndActivateProject() async {
     final selectedDirectory = await FilePicker.getDirectoryPath();
-    if (selectedDirectory == null || !context.mounted) return;
+    if (selectedDirectory == null || !mounted) return;
 
     final project = await ref
         .read(codingProjectsNotifierProvider.notifier)
         .addProject(selectedDirectory);
-    if (project == null || !context.mounted) return;
+    if (project == null || !mounted) return;
 
     await _activateCodingProject(project.id, createFreshOnFirstOpen: true);
   }
@@ -1223,9 +1223,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                           chatState: chatState,
                                         ),
                                         onReselectProject: isCodingWorkspace
-                                            ? () => _pickAndActivateProject(
-                                                context,
-                                              )
+                                            ? _pickAndActivateProject
                                             : null,
                                       );
                                     }
@@ -1256,8 +1254,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                             )
                                           : null,
                                       onReselectProject: isCodingWorkspace
-                                          ? () =>
-                                                _pickAndActivateProject(context)
+                                          ? _pickAndActivateProject
                                           : null,
                                     );
                                   },

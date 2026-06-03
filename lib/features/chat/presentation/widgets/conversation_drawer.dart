@@ -32,7 +32,7 @@ class ConversationDrawer extends ConsumerStatefulWidget {
   onWorkspaceModeSelected;
   final Future<void> Function(String projectId) onCodingProjectSelected;
   final Future<void> Function(String conversationId) onConversationSelected;
-  final Future<void> Function(BuildContext context) onAddCodingProject;
+  final Future<void> Function() onAddCodingProject;
   final bool closeOnAction;
   final double? width;
 
@@ -98,7 +98,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                   expandedProjectIds: _expandedProjectIds,
                   collapsedProjectIds: _collapsedProjectIds,
                   collapsedThreadLimit: _collapsedProjectThreadLimit,
-                  onAddProject: () => widget.onAddCodingProject(context),
+                  onAddProject: widget.onAddCodingProject,
                   onProjectSelected: (projectId) async {
                     setState(() {
                       _collapsedProjectIds.remove(projectId);

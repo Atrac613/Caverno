@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/domain/entities/coding_project.dart';
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -45,6 +47,11 @@ class _TestSettingsNotifier extends SettingsNotifier {
       mcpEnabled: false,
     );
   }
+
+  @override
+  Future<void> updateAssistantMode(AssistantMode assistantMode) async {
+    state = state.copyWith(assistantMode: assistantMode);
+  }
 }
 
 class _CodingWorkspaceConversationsNotifier extends ConversationsNotifier {
@@ -54,11 +61,95 @@ class _CodingWorkspaceConversationsNotifier extends ConversationsNotifier {
       activeWorkspaceMode: WorkspaceMode.coding,
     );
   }
+
+  @override
+  void activateWorkspace({
+    required WorkspaceMode workspaceMode,
+    String? projectId,
+    bool createIfMissing = true,
+    bool createFreshOnFirstOpen = false,
+  }) {
+    final normalizedProjectId = _normalizeProjectId(workspaceMode, projectId);
+    var conversations = state.conversations;
+    String? currentConversationId;
+
+    final visibleConversations = conversations
+        .where(
+          (conversation) =>
+              conversation.workspaceMode == workspaceMode &&
+              (!workspaceMode.usesProjects ||
+                  conversation.normalizedProjectId == normalizedProjectId),
+        )
+        .toList(growable: false);
+    currentConversationId = visibleConversations.firstOrNull?.id;
+
+    if (currentConversationId == null &&
+        createIfMissing &&
+        workspaceMode.usesConversations &&
+        (!workspaceMode.usesProjects || normalizedProjectId != null)) {
+      final conversation = Conversation(
+        id: 'thread-${conversations.length + 1}',
+        title: defaultConversationTitle,
+        messages: const [],
+        createdAt: DateTime(2026, 6, 3, 12),
+        updatedAt: DateTime(2026, 6, 3, 12),
+        workspaceMode: workspaceMode,
+        projectId: normalizedProjectId ?? '',
+      );
+      conversations = [conversation, ...conversations];
+      currentConversationId = conversation.id;
+    }
+
+    state = ConversationsState(
+      conversations: conversations,
+      currentConversationId: currentConversationId,
+      activeWorkspaceMode: workspaceMode,
+      activeProjectId: normalizedProjectId,
+    );
+  }
+
+  String? _normalizeProjectId(WorkspaceMode workspaceMode, String? projectId) {
+    if (!workspaceMode.usesProjects) {
+      return null;
+    }
+    final trimmed = projectId?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
+  }
 }
 
 class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
   @override
   CodingProjectsState build() => CodingProjectsState.initial();
+
+  @override
+  void selectProject(String? id) {
+    state = state.copyWith(
+      selectedProjectId: id,
+      clearSelectedProject: id == null,
+    );
+  }
+
+  @override
+  Future<CodingProject?> addProject(String rootPath) async {
+    final normalizedPath = rootPath.trim();
+    if (normalizedPath.isEmpty) return null;
+
+    final project = CodingProject(
+      id: 'project-${state.projects.length + 1}',
+      name: normalizedPath
+          .split(RegExp(r'[\\\/]+'))
+          .where((segment) => segment.isNotEmpty)
+          .last,
+      rootPath: normalizedPath,
+      createdAt: DateTime(2026, 6, 3, 12),
+      updatedAt: DateTime(2026, 6, 3, 12),
+    );
+    state = CodingProjectsState(
+      projects: [project, ...state.projects],
+      selectedProjectId: project.id,
+    );
+    return project;
+  }
 }
 
 class _TestChatNotifier extends ChatNotifier {
@@ -107,6 +198,60 @@ void main() {
 
     expect(find.byType(RemoteCodingPage), findsNothing);
     expect(find.byTooltip('Add Project'), findsOneWidget);
+  });
+
+  testWidgets('desktop coding left pane adds and activates a project', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final projectRoot = Directory.systemTemp.createTempSync(
+      'chat_page_left_pane_project_',
+    );
+    addTearDown(() {
+      if (projectRoot.existsSync()) {
+        projectRoot.deleteSync(recursive: true);
+      }
+    });
+    var directoryPickerCalls = 0;
+    const filePickerChannel = MethodChannel(
+      'miguelruivo.flutter.plugins.filepicker',
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      filePickerChannel,
+      (call) async {
+        expect(call.method, 'dir');
+        directoryPickerCalls += 1;
+        return projectRoot.path;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        filePickerChannel,
+        null,
+      );
+    });
+
+    final container = await _pumpCodingWorkspace(tester);
+
+    await tester.tap(find.byTooltip('Add Project'));
+    await tester.pumpAndSettle();
+    expect(directoryPickerCalls, 1);
+
+    final projectsState = container.read(codingProjectsNotifierProvider);
+    expect(projectsState.projects.single.rootPath, projectRoot.path);
+    expect(projectsState.selectedProjectId, 'project-1');
+
+    final conversationsState = container.read(conversationsNotifierProvider);
+    expect(conversationsState.activeWorkspaceMode, WorkspaceMode.coding);
+    expect(conversationsState.activeProjectId, 'project-1');
+    expect(
+      conversationsState.currentConversation?.normalizedProjectId,
+      'project-1',
+    );
+    expect(
+      find.text(projectRoot.path.split(Platform.pathSeparator).last),
+      findsWidgets,
+    );
   });
 
   testWidgets('mobile connection errors show recovery guidance', (
@@ -195,7 +340,12 @@ void main() {
   });
 }
 
-Future<void> _pumpCodingWorkspace(WidgetTester tester) async {
+Future<ProviderContainer> _pumpCodingWorkspace(WidgetTester tester) async {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1200, 900);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
+
   SharedPreferences.setMockInitialValues(<String, Object>{});
   final preferences = await SharedPreferences.getInstance();
   final container = ProviderContainer(
@@ -239,6 +389,7 @@ Future<void> _pumpCodingWorkspace(WidgetTester tester) async {
     ),
   );
   await tester.pumpAndSettle();
+  return container;
 }
 
 class _RemoteCodingHostWithoutTokenRepository extends RemoteCodingRepository {
