@@ -27,61 +27,73 @@ class McpServerApprovalSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Review MCP server trust',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Review MCP server trust',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Approve this server before Caverno exposes its tools to the model.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Source: ${server.trustSourceLabel}'),
+                    const SizedBox(height: 4),
+                    Text('Transport: ${server.type.name}'),
+                    const SizedBox(height: 4),
+                    Text('Endpoint: ${server.displayLabel}'),
+                    if (server.trustedAt != null) ...[
+                      const SizedBox(height: 4),
+                      Text('Previously trusted at: ${server.trustedAt}'),
+                    ],
+                    const SizedBox(height: 16),
+                    if (connectionError != null) ...[
+                      Text(
+                        'Connection error: $connectionError',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ] else if (toolNames.isEmpty) ...[
+                      const Text(
+                        'No remote MCP tools were reported by this server.',
+                      ),
+                    ] else ...[
+                      Text(
+                        'Reported tools',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'These tool names will be exposed to the model after trust is granted.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...toolNames.map(
+                        (toolName) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text('• $toolName'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Approve this server before Caverno exposes its tools to the model.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Source: ${server.trustSourceLabel}'),
-            const SizedBox(height: 4),
-            Text('Transport: ${server.type.name}'),
-            const SizedBox(height: 4),
-            Text('Endpoint: ${server.displayLabel}'),
-            if (server.trustedAt != null) ...[
-              const SizedBox(height: 4),
-              Text('Previously trusted at: ${server.trustedAt}'),
-            ],
-            const SizedBox(height: 16),
-            if (connectionError != null) ...[
-              Text(
-                'Connection error: $connectionError',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              ),
-            ] else if (toolNames.isEmpty) ...[
-              const Text('No remote MCP tools were reported by this server.'),
-            ] else ...[
-              Text(
-                'Reported tools',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'These tool names will be exposed to the model after trust is granted.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...toolNames.map(
-                (toolName) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text('• $toolName'),
-                ),
-              ),
-            ],
             const SizedBox(height: 20),
             Row(
               children: [
