@@ -32,7 +32,7 @@ extension _ChatPageEmptyStateBuilders on _ChatPageState {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () => _pickAndActivateProject(context),
+              onPressed: _pickAndActivateProject,
               icon: const Icon(Icons.create_new_folder_outlined),
               label: Text('chat.add_project'.tr()),
             ),

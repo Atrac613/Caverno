@@ -535,7 +535,7 @@ Future<ProviderContainer> _pumpDrawerApp(
                         .read(conversationsNotifierProvider.notifier)
                         .selectConversation(conversationId);
                   },
-                  onAddCodingProject: (_) async {},
+                  onAddCodingProject: () async {},
                 ),
                 body: Builder(
                   builder: (context) {
