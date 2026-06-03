@@ -448,6 +448,14 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> completeOnboarding() async {
+    if (state.onboardingCompleted) {
+      return;
+    }
+    state = state.copyWith(onboardingCompleted: true);
+    await _repository.save(state);
+  }
+
   Future<void> updateSettings(AppSettings settings) async {
     state = settings;
     await _repository.save(state);

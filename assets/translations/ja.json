@@ -436,6 +436,18 @@
     "code_copy": "コピー",
     "code_copied": "コピー済み"
   },
+  "onboarding": {
+    "title": "Cavernoへようこそ",
+    "message": "ローカルの初期設定で始めるか、最初のチャット前に保存済み設定を復元できます。",
+    "connect_title": "モデルに接続",
+    "connect_body": "一般設定から OpenAI 互換エンドポイントを指定できます。",
+    "chat_title": "チャットを開始",
+    "chat_body": "メイン画面からチャット、コーディングスレッド、ルーティン、音声、ツールを使えます。",
+    "restore_title": "バックアップから復元しますか？",
+    "restore_body": "Caverno の設定 JSON をインポートすると、エンドポイント、モデル、ツール、好みの設定を復元できます。",
+    "start_fresh": "新しく始める",
+    "import_settings": "設定をインポート"
+  },
   "settings": {
     "title": "接続設定",
     "menu_general": "一般",

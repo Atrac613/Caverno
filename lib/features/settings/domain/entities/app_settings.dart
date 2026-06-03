@@ -209,6 +209,7 @@ abstract class AppSettings with _$AppSettings {
     @Default(false) bool showMemoryUpdates,
     @Default(false) bool enableLlmSessionLogs,
     @Default(false) bool demoMode,
+    @Default(false) bool onboardingCompleted,
     @Default(<String>[]) List<String> disabledBuiltInTools,
     @Default(<LocalCommandPermissionRule>[])
     List<LocalCommandPermissionRule> localCommandPermissionRules,

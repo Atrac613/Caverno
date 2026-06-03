@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/utils/logger.dart';
 import '../domain/entities/app_settings.dart';
 
 final settingsFileServiceProvider = Provider<SettingsFileService>((ref) {
@@ -15,30 +16,44 @@ class SettingsFileService {
   static final _urlPattern = RegExp(r'^https?://.+');
 
   Future<AppSettings?> importSettings() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-    );
+    try {
+      appLog('[SettingsImport] Opening settings JSON picker');
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
 
-    if (result == null || result.files.isEmpty) {
-      return null;
+      if (result == null || result.files.isEmpty) {
+        appLog('[SettingsImport] Import cancelled');
+        return null;
+      }
+
+      final file = result.files.first;
+      appLog(
+        '[SettingsImport] Selected ${file.name} '
+        '(${file.bytes?.length ?? file.size} bytes)',
+      );
+      String content;
+
+      if (file.bytes != null) {
+        content = utf8.decode(file.bytes!);
+      } else if (file.path != null) {
+        content = await File.fromUri(Uri.file(file.path!)).readAsString();
+      } else {
+        appLog('[SettingsImport] Selected file has no bytes or readable path');
+        return null;
+      }
+
+      final json = jsonDecode(content) as Map<String, dynamic>;
+      final settings = AppSettings.fromJson(json);
+      validateSettings(settings);
+      appLog('[SettingsImport] Settings JSON validated successfully');
+      return settings;
+    } catch (error, stackTrace) {
+      appLog('[SettingsImport] Failed to import settings: $error');
+      appLog('[SettingsImport] $stackTrace');
+      rethrow;
     }
-
-    final file = result.files.first;
-    String content;
-
-    if (file.bytes != null) {
-      content = utf8.decode(file.bytes!);
-    } else if (file.path != null) {
-      content = await File.fromUri(Uri.file(file.path!)).readAsString();
-    } else {
-      return null;
-    }
-
-    final json = jsonDecode(content) as Map<String, dynamic>;
-    final settings = AppSettings.fromJson(json);
-    validateSettings(settings);
-    return settings;
   }
 
   Future<String?> exportSettings(AppSettings settings) async {
@@ -64,9 +79,6 @@ class SettingsFileService {
     }
     if (settings.model.isEmpty) {
       throw const FormatException('model must not be empty');
-    }
-    if (settings.apiKey.isEmpty) {
-      throw const FormatException('apiKey must not be empty');
     }
     if (settings.temperature < 0.0 || settings.temperature > 2.0) {
       throw const FormatException('temperature must be between 0.0 and 2.0');

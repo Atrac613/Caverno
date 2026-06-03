@@ -20,6 +20,7 @@ import 'features/chat/presentation/pages/chat_page.dart';
 import 'features/settings/data/settings_repository.dart';
 import 'features/settings/domain/services/app_language_resolver.dart';
 import 'features/settings/presentation/providers/settings_notifier.dart';
+import 'features/settings/presentation/widgets/onboarding_dialog.dart';
 import 'features/settings/presentation/widgets/settings_modal.dart';
 import 'features/remote_coding/presentation/remote_coding_server_notifier.dart';
 
@@ -94,6 +95,8 @@ class MyApp extends ConsumerStatefulWidget {
 
 class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   bool _localeSyncScheduled = false;
+  bool _onboardingCheckScheduled = false;
+  bool _onboardingChecked = false;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   late final MacosAppMenuService _appMenuService;
   bool _settingsModalOpen = false;
@@ -169,6 +172,34 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     });
   }
 
+  void _scheduleFirstLaunchOnboarding() {
+    if (_onboardingChecked || _onboardingCheckScheduled) {
+      return;
+    }
+
+    _onboardingCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _onboardingCheckScheduled = false;
+      if (!mounted || _onboardingChecked) {
+        return;
+      }
+
+      _onboardingChecked = true;
+      if (ref.read(settingsNotifierProvider).onboardingCompleted) {
+        return;
+      }
+
+      final navigatorContext = _navigatorKey.currentContext;
+      if (navigatorContext == null) {
+        _onboardingChecked = false;
+        _scheduleFirstLaunchOnboarding();
+        return;
+      }
+
+      await showOnboardingDialog(navigatorContext);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
@@ -184,6 +215,14 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     );
     if (context.locale != targetLocale) {
       _scheduleLocaleSync();
+    }
+    final onboardingCompleted = ref.watch(
+      settingsNotifierProvider.select(
+        (settings) => settings.onboardingCompleted,
+      ),
+    );
+    if (!onboardingCompleted) {
+      _scheduleFirstLaunchOnboarding();
     }
 
     return MaterialApp(

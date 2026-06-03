@@ -436,6 +436,18 @@
     "code_copy": "Copy",
     "code_copied": "Copied!"
   },
+  "onboarding": {
+    "title": "Welcome to Caverno",
+    "message": "Start with the local defaults, or restore a saved setup before your first chat.",
+    "connect_title": "Connect your model",
+    "connect_body": "Use any OpenAI-compatible endpoint from General settings.",
+    "chat_title": "Start chatting",
+    "chat_body": "Use chat, coding threads, routines, voice, and tools from the main screen.",
+    "restore_title": "Restoring from a backup?",
+    "restore_body": "Import a Caverno settings JSON now to bring back your endpoint, model, tools, and preferences.",
+    "start_fresh": "Start Fresh",
+    "import_settings": "Import Settings"
+  },
   "settings": {
     "title": "Settings",
     "menu_general": "General",
