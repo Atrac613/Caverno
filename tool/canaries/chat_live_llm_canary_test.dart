@@ -21,6 +21,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
+import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
@@ -29,6 +30,7 @@ import 'package:caverno/features/chat/presentation/providers/coding_projects_not
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/subagent_task_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
@@ -535,6 +537,98 @@ void main() {
         expect(
           _lastAssistantContent(container),
           contains('42'),
+          reason: _chatDiagnostic(container),
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 6)),
+  );
+
+  test(
+    'live LLM subagent uses a tool and reports its result',
+    () async {
+      final env = _ChatLiveEnv.fromEnvironment();
+      final toolService = _SubagentToolUserCanaryToolService();
+      final container = _buildChatContainer(
+        env,
+        mcpEnabled: true,
+        toolService: toolService,
+      );
+
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Use the spawn_subagent tool to delegate this sub-task: the subagent '
+          'must call get_current_datetime and report the current year. Then '
+          'answer with only the year.',
+        );
+        await _waitForChatIdle(container, timeout: const Duration(minutes: 5));
+
+        expect(
+          toolService.executedToolNames,
+          contains('get_current_datetime'),
+          reason: _chatDiagnostic(container),
+        );
+        expect(
+          _lastAssistantContent(container),
+          isNotEmpty,
+          reason: _chatDiagnostic(container),
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 6)),
+  );
+
+  test(
+    'live LLM recovers a background subagent result',
+    () async {
+      final env = _ChatLiveEnv.fromEnvironment();
+      final toolService = _SubagentToolUserCanaryToolService();
+      final container = _buildChatContainer(
+        env,
+        mcpEnabled: true,
+        toolService: toolService,
+      );
+
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Use spawn_subagent with the background argument set to true to '
+          'compute 8 times 9 and return only the number. Tell me the task_id '
+          'immediately.',
+        );
+        await _waitForChatIdle(container, timeout: const Duration(minutes: 5));
+
+        // Wait for the fire-and-forget background run to settle.
+        final deadline = DateTime.now().add(const Duration(minutes: 4));
+        while (DateTime.now().isBefore(deadline)) {
+          final tasks = container.read(subagentTaskNotifierProvider);
+          if (tasks.isNotEmpty && tasks.first.isTerminal) {
+            break;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+        }
+
+        final tasks = container.read(subagentTaskNotifierProvider);
+        expect(tasks, isNotEmpty, reason: _chatDiagnostic(container));
+        expect(
+          tasks.first.status,
+          SubagentTaskStatus.completed,
+          reason: _chatDiagnostic(container),
+        );
+        expect(
+          tasks.first.resultSummary,
+          contains('72'),
           reason: _chatDiagnostic(container),
         );
       } finally {
@@ -1462,6 +1556,82 @@ class _SubagentCanaryToolService extends McpToolService {
         },
       },
     ];
+  }
+}
+
+/// Exposes the delegation tools plus a project-free child tool
+/// (get_current_datetime), so the canary can verify a subagent that actually
+/// uses a tool, and background result recovery.
+class _SubagentToolUserCanaryToolService extends McpToolService {
+  final List<String> executedToolNames = [];
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    Map<String, dynamic> fn(
+      String name,
+      String description,
+      Map<String, dynamic> properties,
+      List<String> required,
+    ) => {
+      'type': 'function',
+      'function': {
+        'name': name,
+        'description': description,
+        'parameters': {
+          'type': 'object',
+          'properties': properties,
+          'required': required,
+        },
+      },
+    };
+
+    return [
+      fn('spawn_subagent', 'Delegate a sub-task to a child agent that runs its '
+          'own tool loop and returns a summary.', {
+        'description': {'type': 'string'},
+        'prompt': {'type': 'string'},
+        'background': {'type': 'boolean'},
+      }, ['description', 'prompt']),
+      fn('get_subagent_result', 'Fetch the status/result of a background '
+          'subagent.', {
+        'task_id': {'type': 'string'},
+      }, ['task_id']),
+      fn(
+        'get_current_datetime',
+        'Return the current date and time.',
+        const <String, dynamic>{},
+        const <String>[],
+      ),
+    ];
+  }
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    if (name == 'get_current_datetime') {
+      final now = DateTime.now();
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({'iso': now.toIso8601String(), 'year': now.year}),
+        isSuccess: true,
+      );
+    }
+    return McpToolResult(
+      toolName: name,
+      result: jsonEncode({'error': 'unsupported'}),
+      isSuccess: false,
+      errorMessage: 'unsupported tool $name',
+    );
   }
 }
 
