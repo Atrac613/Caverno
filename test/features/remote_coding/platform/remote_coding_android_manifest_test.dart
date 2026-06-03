@@ -30,4 +30,31 @@ void main() {
     expect(content, contains('com.apple.security.network.client'));
     expect(content, contains('com.apple.security.network.server'));
   });
+
+  test('macOS app entitlements allow user-selected project directories', () {
+    final project = File('macos/Runner.xcodeproj/project.pbxproj');
+    final entitlementsFiles = [
+      File('macos/Runner/DebugProfile.entitlements'),
+      File('macos/Runner/Release.entitlements'),
+    ];
+
+    expect(project.existsSync(), isTrue);
+    final projectContent = project.readAsStringSync();
+    expect(
+      projectContent,
+      contains('CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements;'),
+    );
+    expect(
+      projectContent,
+      contains('CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;'),
+    );
+
+    for (final entitlements in entitlementsFiles) {
+      expect(entitlements.existsSync(), isTrue);
+      expect(
+        entitlements.readAsStringSync(),
+        contains('com.apple.security.files.user-selected.read-write'),
+      );
+    }
+  });
 }
