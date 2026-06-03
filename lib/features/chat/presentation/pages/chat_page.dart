@@ -114,6 +114,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _scheduledScrollShouldAnimate = false;
   bool _autoFollowBottom = true;
   int _droppedImageAttachmentId = 0;
+  String? _switchingCompanionBranchName;
   MessageInputImageAttachment? _droppedImageAttachment;
   String? _pendingCodingGoalConversationId;
   String? _codingGoalSuggestionConversationId;

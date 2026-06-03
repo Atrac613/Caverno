@@ -44,6 +44,9 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
     final worktreeDiffAsync = ref.watch(
       codingWorktreeDiffProvider(activeProject.normalizedRootPath),
     );
+    final branchListAsync = ref.watch(
+      codingGitBranchListProvider(activeProject.normalizedRootPath),
+    );
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -100,11 +103,18 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
                 context,
                 title: 'chat.companion_environment'.tr(),
                 trailing: IconButton(
-                  onPressed: () => ref.invalidate(
-                    codingEnvironmentSnapshotProvider(
-                      activeProject.normalizedRootPath,
-                    ),
-                  ),
+                  onPressed: () {
+                    ref.invalidate(
+                      codingEnvironmentSnapshotProvider(
+                        activeProject.normalizedRootPath,
+                      ),
+                    );
+                    ref.invalidate(
+                      codingGitBranchListProvider(
+                        activeProject.normalizedRootPath,
+                      ),
+                    );
+                  },
                   icon: const Icon(Icons.refresh, size: 18),
                   tooltip: 'chat.companion_refresh_environment'.tr(),
                 ),
@@ -112,6 +122,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
                   _buildCompanionEnvironment(
                     context,
                     snapshotAsync: snapshotAsync,
+                    branchListAsync: branchListAsync,
                     activeProject: activeProject,
                     inSheet: inSheet,
                   ),
@@ -298,6 +309,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
   Widget _buildCompanionEnvironment(
     BuildContext context, {
     required AsyncValue<CodingEnvironmentSnapshot> snapshotAsync,
+    required AsyncValue<CodingGitBranchList> branchListAsync,
     required CodingProject activeProject,
     required bool inSheet,
   }) {
@@ -324,11 +336,11 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
             ),
             const SizedBox(height: 10),
             if (snapshot.isGitRepository) ...[
-              _buildCompanionInfoRow(
+              _buildCompanionBranchSelector(
                 context,
-                icon: Icons.account_tree_outlined,
-                label: 'chat.companion_branch'.tr(),
-                value: snapshot.displayBranchName,
+                snapshot: snapshot,
+                branchListAsync: branchListAsync,
+                activeProject: activeProject,
               ),
             ] else
               _buildCompanionInfoRow(
@@ -362,6 +374,191 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
         );
       },
     );
+  }
+
+  Widget _buildCompanionBranchSelector(
+    BuildContext context, {
+    required CodingEnvironmentSnapshot snapshot,
+    required AsyncValue<CodingGitBranchList> branchListAsync,
+    required CodingProject activeProject,
+  }) {
+    final theme = Theme.of(context);
+    final branchList = branchListAsync.when<CodingGitBranchList?>(
+      data: (branchList) => branchList,
+      loading: () => null,
+      error: (error, stackTrace) => null,
+    );
+    final branches = <String>[
+      ...?branchList?.branches,
+      if (snapshot.branchName.trim().isNotEmpty &&
+          !(branchList?.branches.contains(snapshot.branchName.trim()) ?? false))
+        snapshot.branchName.trim(),
+    ]..sort();
+    final selectedBranch = branches.contains(snapshot.branchName.trim())
+        ? snapshot.branchName.trim()
+        : branches.firstOrNull;
+    final isSwitching = _switchingCompanionBranchName != null;
+    final canSwitchBranches =
+        branchList != null && !isSwitching && branches.length > 1;
+    final supportingText = branchListAsync.when<String?>(
+      loading: () => 'chat.companion_branch_loading'.tr(),
+      error: (error, stackTrace) => error.toString(),
+      data: (branchList) => branchList.errorMessage,
+    );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 22,
+          height: 22,
+          child: Icon(
+            Icons.account_tree_outlined,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'chat.companion_branch'.tr(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              DropdownButtonFormField<String>(
+                key: ValueKey(
+                  'companion-branch-dropdown-'
+                  '${activeProject.id}-${branches.join('|')}-$selectedBranch',
+                ),
+                initialValue: selectedBranch,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                ),
+                items: branches
+                    .map(
+                      (branch) => DropdownMenuItem<String>(
+                        value: branch,
+                        child: Text(
+                          branch,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                hint: Text(snapshot.displayBranchName),
+                onChanged: canSwitchBranches
+                    ? (branchName) {
+                        if (branchName == null ||
+                            branchName == snapshot.branchName.trim()) {
+                          return;
+                        }
+                        unawaited(
+                          _checkoutCompanionBranch(
+                            context,
+                            activeProject: activeProject,
+                            branchName: branchName,
+                          ),
+                        );
+                      }
+                    : null,
+              ),
+              if (supportingText != null && supportingText.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    supportingText.trim(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _checkoutCompanionBranch(
+    BuildContext context, {
+    required CodingProject activeProject,
+    required String branchName,
+  }) async {
+    final normalizedRootPath = activeProject.normalizedRootPath;
+    final normalizedBranchName = branchName.trim();
+    if (normalizedRootPath.isEmpty || normalizedBranchName.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _switchingCompanionBranchName = normalizedBranchName;
+    });
+
+    final result = await CodingGitBranchCheckout.checkout(
+      rootPath: normalizedRootPath,
+      branchName: normalizedBranchName,
+      runProcess: ref.read(codingEnvironmentProcessRunnerProvider),
+    );
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      if (_switchingCompanionBranchName == normalizedBranchName) {
+        _switchingCompanionBranchName = null;
+      }
+    });
+
+    ref.invalidate(codingEnvironmentSnapshotProvider(normalizedRootPath));
+    ref.invalidate(codingWorktreeDiffProvider(normalizedRootPath));
+    ref.invalidate(codingGitBranchListProvider(normalizedRootPath));
+
+    if (!context.mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (result.success) {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'chat.companion_branch_switched'.tr(
+              namedArgs: {'branch': normalizedBranchName},
+            ),
+          ),
+        ),
+      );
+    } else {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'chat.companion_branch_switch_failed'.tr(
+              namedArgs: {
+                'branch': normalizedBranchName,
+                'error':
+                    result.errorMessage ??
+                    'chat.companion_branch_unknown_error'.tr(),
+              },
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   List<Widget> _buildCompanionChangesChildren(
