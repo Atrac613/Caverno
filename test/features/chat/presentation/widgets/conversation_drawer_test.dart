@@ -56,6 +56,7 @@ class _DrawerConversationsNotifier extends ConversationsNotifier {
     String? projectId,
     bool createIfMissing = true,
     bool createFreshOnFirstOpen = false,
+    bool deferFreshConversationCreation = false,
   }) {
     final normalizedProjectId = _normalizeProjectId(workspaceMode, projectId);
     final visibleConversations = state.conversations

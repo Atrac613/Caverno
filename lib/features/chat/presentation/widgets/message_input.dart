@@ -61,6 +61,7 @@ class MessageInput extends ConsumerStatefulWidget {
     this.onCodingGoalClear,
     this.slashCommands = const <SlashCommandDefinition>[],
     this.onSlashCommand,
+    this.isFloating = false,
   });
 
   final void Function(
@@ -90,6 +91,7 @@ class MessageInput extends ConsumerStatefulWidget {
   final VoidCallback? onCodingGoalClear;
   final List<SlashCommandDefinition> slashCommands;
   final SlashCommandHandler? onSlashCommand;
+  final bool isFloating;
 
   @override
   ConsumerState<MessageInput> createState() => _MessageInputState();
@@ -1383,10 +1385,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          top: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
+        color: widget.isFloating
+            ? Colors.transparent
+            : theme.colorScheme.surface,
+        border: widget.isFloating
+            ? null
+            : Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
       ),
       child: SafeArea(
         child: Column(

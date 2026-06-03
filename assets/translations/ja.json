@@ -75,6 +75,7 @@
     "companion_sources_empty": "ソースはまだありません",
     "companion_source_from_tasks": "保存済みタスクの対象",
     "coding_empty_state": "このプロジェクトのコーディングスレッドを始めましょう",
+    "coding_draft_prompt": "{project} で何を作りましょうか？",
     "coding_no_project_title": "コーディングを始めるにはプロジェクトを追加してください",
     "coding_no_project_message": "ローカルのプロジェクトを登録すると、プロジェクトごとにスレッドを作成して作業できます。",
     "coding_no_project_short": "プロジェクトを選択",

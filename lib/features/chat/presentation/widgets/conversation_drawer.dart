@@ -580,7 +580,7 @@ class _CodingProjectsSection extends StatelessWidget {
                       collapsedThreadLimit: collapsedThreadLimit,
                       onProjectSelected: () => onProjectSelected(project.id),
                       onCreateThread: () {
-                        conversationsNotifier.createNewConversation(
+                        conversationsNotifier.startDraftConversation(
                           workspaceMode: WorkspaceMode.coding,
                           projectId: project.id,
                         );

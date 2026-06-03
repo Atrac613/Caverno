@@ -60,6 +60,78 @@ class _TestSettingsNotifier extends SettingsNotifier {
 class _TestConversationsNotifier extends ConversationsNotifier {
   @override
   ConversationsState build() => ConversationsState.initial();
+
+  @override
+  Conversation? ensureCurrentConversation({
+    WorkspaceMode? workspaceMode,
+    String? projectId,
+  }) {
+    final resolvedWorkspaceMode = workspaceMode ?? state.activeWorkspaceMode;
+    if (!resolvedWorkspaceMode.usesConversations) {
+      return null;
+    }
+    final resolvedProjectId = resolvedWorkspaceMode.usesProjects
+        ? (projectId ?? state.activeProjectId)
+        : null;
+    if (resolvedWorkspaceMode.usesProjects &&
+        (resolvedProjectId == null || resolvedProjectId.trim().isEmpty)) {
+      return null;
+    }
+    final currentConversation = state.currentConversation;
+    if (currentConversation != null) {
+      return currentConversation;
+    }
+    final now = DateTime(2026, 5, 25, 10);
+    final conversation = Conversation(
+      id: 'test-conversation-${state.conversations.length + 1}',
+      title: defaultConversationTitle,
+      messages: const <Message>[],
+      createdAt: now,
+      updatedAt: now,
+      workspaceMode: resolvedWorkspaceMode,
+      projectId: resolvedProjectId ?? '',
+    );
+    state = state.copyWith(
+      conversations: [conversation, ...state.conversations],
+      currentConversationId: conversation.id,
+      activeWorkspaceMode: resolvedWorkspaceMode,
+      activeProjectId: resolvedProjectId,
+      clearActiveProject:
+          !resolvedWorkspaceMode.usesProjects || resolvedProjectId == null,
+    );
+    return conversation;
+  }
+
+  @override
+  Future<void> updateCurrentConversation(List<Message> messages) async {
+    final currentConversationId = state.currentConversationId;
+    if (currentConversationId == null) {
+      return;
+    }
+    await updateConversationMessages(currentConversationId, messages);
+  }
+
+  @override
+  Future<void> updateConversationMessages(
+    String conversationId,
+    List<Message> messages,
+  ) async {
+    final conversation = state.conversations
+        .where((item) => item.id == conversationId)
+        .firstOrNull;
+    if (conversation == null) {
+      return;
+    }
+    final updated = conversation.copyWith(messages: messages);
+    state = state.copyWith(
+      conversations: state.conversations
+          .map((item) => item.id == conversationId ? updated : item)
+          .toList(growable: false),
+    );
+  }
+
+  @override
+  Future<void> ensureCurrentPlanArtifactBackfilled() async {}
 }
 
 class _DivergingSaveConversationsNotifier extends ConversationsNotifier {
@@ -2881,11 +2953,11 @@ void main() {
   test(
     'syncConversation ignores stale updates for the active conversation while loading',
     () async {
+      await notifier.sendMessage('Inspect the workspace');
+
       final activeConversationId = container
           .read(conversationsNotifierProvider)
           .currentConversationId;
-
-      await notifier.sendMessage('Inspect the workspace');
 
       final messagesBeforeSync = List<Message>.from(notifier.state.messages);
       notifier.syncConversation(
@@ -9332,6 +9404,93 @@ void main() {
       }
     },
   );
+
+  test('sendMessage materializes a deferred coding draft thread', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final dataSource = _QueuedStreamingChatDataSource(const [
+      ['Draft thread created.'],
+    ]);
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'caverno',
+      rootPath: '/tmp/caverno',
+      createdAt: DateTime(2026, 6, 3, 17),
+      updatedAt: DateTime(2026, 6, 3, 17),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final threadContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      threadContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+            createFreshOnFirstOpen: true,
+            deferFreshConversationCreation: true,
+          );
+      expect(
+        threadContainer.read(conversationsNotifierProvider).currentConversation,
+        isNull,
+      );
+      expect(
+        conversationRepository.getAll().where(
+          (conversation) => conversation.workspaceMode == WorkspaceMode.coding,
+        ),
+        isEmpty,
+      );
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('Build the draft composer flow');
+
+      final currentConversation = threadContainer
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      expect(currentConversation, isNotNull);
+      expect(currentConversation!.workspaceMode, WorkspaceMode.coding);
+      expect(currentConversation.normalizedProjectId, project.id);
+      expect(
+        currentConversation.messages.first.content,
+        'Build the draft composer flow',
+      );
+      expect(
+        conversationRepository.getAll().where(
+          (conversation) => conversation.workspaceMode == WorkspaceMode.coding,
+        ),
+        hasLength(1),
+      );
+      expect(
+        dataSource.requests.single
+            .where((message) => message.role == MessageRole.user)
+            .single
+            .content,
+        'Build the draft composer flow',
+      );
+    } finally {
+      threadContainer.dispose();
+    }
+  });
 
   test(
     'sendMessage auto-enters planning for a new coding thread when configured',

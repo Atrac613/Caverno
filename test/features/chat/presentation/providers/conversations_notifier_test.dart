@@ -275,71 +275,66 @@ void main() {
     expect(File(artifactPath).existsSync(), isFalse);
   });
 
-  test('first coding workspace open creates a fresh project thread', () async {
-    final savedThread = Conversation(
-      id: 'saved-coding-thread',
-      title: 'Saved coding thread',
-      messages: [
-        Message(
-          id: 'saved-coding-message',
-          content: 'Continue the prior implementation',
-          role: MessageRole.user,
-          timestamp: DateTime(2026, 4, 20, 11),
-        ),
-      ],
-      createdAt: DateTime(2026, 4, 20, 11),
-      updatedAt: DateTime(2026, 4, 20, 11),
-      workspaceMode: WorkspaceMode.coding,
-      projectId: 'project-1',
-    );
-    await repository.save(savedThread);
+  test(
+    'first coding workspace open can defer fresh project thread creation',
+    () async {
+      final savedThread = Conversation(
+        id: 'saved-coding-thread',
+        title: 'Saved coding thread',
+        messages: [
+          Message(
+            id: 'saved-coding-message',
+            content: 'Continue the prior implementation',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 4, 20, 11),
+          ),
+        ],
+        createdAt: DateTime(2026, 4, 20, 11),
+        updatedAt: DateTime(2026, 4, 20, 11),
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await repository.save(savedThread);
 
-    final notifier = container.read(conversationsNotifierProvider.notifier);
-    notifier.activateWorkspace(
-      workspaceMode: WorkspaceMode.coding,
-      projectId: 'project-1',
-      createIfMissing: true,
-      createFreshOnFirstOpen: true,
-    );
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+        createFreshOnFirstOpen: true,
+        deferFreshConversationCreation: true,
+      );
 
-    var state = container.read(conversationsNotifierProvider);
-    final freshThread = state.currentConversation;
-    expect(freshThread, isNotNull);
-    expect(freshThread!.id, isNot(savedThread.id));
-    expect(freshThread.title, defaultConversationTitle);
-    expect(freshThread.messages, isEmpty);
-    expect(freshThread.workspaceMode, WorkspaceMode.coding);
-    expect(freshThread.normalizedProjectId, 'project-1');
-    final freshThreadId = freshThread.id;
+      final state = container.read(conversationsNotifierProvider);
+      expect(state.currentConversation, isNull);
+      expect(state.activeWorkspaceMode, WorkspaceMode.coding);
+      expect(state.activeProjectId, 'project-1');
+      expect(repository.getAll(), hasLength(2));
 
-    notifier.activateWorkspace(
-      workspaceMode: WorkspaceMode.chat,
-      createIfMissing: true,
-      createFreshOnFirstOpen: true,
-    );
-    notifier.activateWorkspace(
-      workspaceMode: WorkspaceMode.coding,
-      projectId: 'project-1',
-      createIfMissing: true,
-      createFreshOnFirstOpen: true,
-    );
-
-    state = container.read(conversationsNotifierProvider);
-    expect(state.currentConversation?.id, freshThreadId);
-    expect(
-      state.conversations
-          .where(
-            (conversation) =>
-                conversation.workspaceMode == WorkspaceMode.coding &&
-                conversation.normalizedProjectId == 'project-1',
-          )
-          .length,
-      2,
-    );
-  });
+      final materializedThread = notifier.ensureCurrentConversation();
+      expect(materializedThread, isNotNull);
+      expect(materializedThread!.id, isNot(savedThread.id));
+      expect(materializedThread.title, defaultConversationTitle);
+      expect(materializedThread.messages, isEmpty);
+      expect(materializedThread.workspaceMode, WorkspaceMode.coding);
+      expect(materializedThread.normalizedProjectId, 'project-1');
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .conversations
+            .where(
+              (conversation) =>
+                  conversation.workspaceMode == WorkspaceMode.coding &&
+                  conversation.normalizedProjectId == 'project-1',
+            )
+            .length,
+        2,
+      );
+    },
+  );
 
   test(
-    'first coding workspace open reuses the latest empty project thread',
+    'deferred coding thread creation reuses the latest empty project thread',
     () async {
       final savedThread = Conversation(
         id: 'empty-coding-thread',
@@ -358,14 +353,18 @@ void main() {
         projectId: 'project-1',
         createIfMissing: true,
         createFreshOnFirstOpen: true,
+        deferFreshConversationCreation: true,
       );
 
-      final state = container.read(conversationsNotifierProvider);
-      final currentThread = state.currentConversation;
+      var state = container.read(conversationsNotifierProvider);
+      expect(state.currentConversation, isNull);
 
+      final currentThread = notifier.ensureCurrentConversation();
+      state = container.read(conversationsNotifierProvider);
       expect(currentThread, isNotNull);
       expect(currentThread!.id, savedThread.id);
       expect(currentThread.messages, isEmpty);
+      expect(state.currentConversation?.id, savedThread.id);
       expect(
         state.conversations
             .where(
