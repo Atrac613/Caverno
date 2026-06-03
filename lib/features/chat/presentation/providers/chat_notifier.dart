@@ -6461,6 +6461,25 @@ class ChatNotifier extends Notifier<ChatState> {
     final languageCode = queuedMessage.languageCode;
     final isVoiceMode = queuedMessage.isVoiceMode;
     final bypassPlanMode = queuedMessage.bypassPlanMode;
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    var conversationsState = ref.read(conversationsNotifierProvider);
+    var currentConversation = conversationsState.currentConversation;
+    if (currentConversation == null) {
+      final draftMessages = state.messages
+          .where((message) => !message.isStreaming)
+          .toList(growable: false);
+      currentConversation = conversationsNotifier.ensureCurrentConversation();
+      if (currentConversation != null && draftMessages.isNotEmpty) {
+        await conversationsNotifier.updateConversationMessages(
+          currentConversation.id,
+          draftMessages,
+        );
+      }
+      conversationsState = ref.read(conversationsNotifierProvider);
+    }
+
     _activeInteractionOrigin = queuedMessage.origin;
     final interactionGeneration = _beginInteractionGeneration();
 
@@ -6482,12 +6501,7 @@ class ChatNotifier extends Notifier<ChatState> {
       userInput: content,
     );
     final shouldUseTemporalTool = _temporalReferenceContext != null;
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
-    );
-    var currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
+    currentConversation = conversationsState.currentConversation;
     conversationId = currentConversation?.id;
     final shouldAutoEnterPlanning =
         !bypassPlanMode && _shouldAutoEnterPlanningSession(currentConversation);

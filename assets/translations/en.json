@@ -79,6 +79,7 @@
     "companion_sources_empty": "No sources yet",
     "companion_source_from_tasks": "Saved task target",
     "coding_empty_state": "Start a coding thread for this project",
+    "coding_draft_prompt": "What should we build in {project}?",
     "coding_no_project_title": "Add a project to start coding",
     "coding_no_project_message": "Register a local project and create coding threads for it.",
     "coding_no_project_short": "Select a project",

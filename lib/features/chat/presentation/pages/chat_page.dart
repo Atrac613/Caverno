@@ -311,8 +311,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         .activateWorkspace(
           workspaceMode: WorkspaceMode.coding,
           projectId: projectId,
-          createIfMissing: true,
+          createIfMissing: createFreshOnFirstOpen,
           createFreshOnFirstOpen: createFreshOnFirstOpen,
+          deferFreshConversationCreation: createFreshOnFirstOpen,
         );
 
     final currentAssistantMode = ref
@@ -431,10 +432,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         );
         return SlashCommandExecutionResult.handled;
       case SlashCommandAction.newConversation:
-        conversationsNotifier.createNewConversation(
-          workspaceMode: conversationsState.activeWorkspaceMode,
-          projectId: activeProject?.id,
-        );
+        if (isCodingWorkspace && activeProject != null) {
+          conversationsNotifier.startDraftConversation(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: activeProject.id,
+          );
+        } else {
+          conversationsNotifier.createNewConversation(
+            workspaceMode: conversationsState.activeWorkspaceMode,
+            projectId: activeProject?.id,
+          );
+        }
         return SlashCommandExecutionResult(
           feedbackMessage: isCodingWorkspace
               ? 'chat.slash_new_thread_started'.tr()
@@ -1100,7 +1108,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               isCodingWorkspace ? AssistantMode.coding : AssistantMode.general,
             final mode => mode,
           };
-    final rawTitle = currentConversation?.title ?? 'Caverno';
+    final rawTitle =
+        currentConversation?.title ??
+        (isCodingWorkspace && activeProject != null
+            ? defaultConversationTitle
+            : 'Caverno');
     final currentTitle = rawTitle == defaultConversationTitle
         ? (isCodingWorkspace
               ? 'chat.new_thread'.tr()
@@ -1130,6 +1142,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         isCodingWorkspace &&
         activeProject != null &&
         currentConversation != null;
+    final shouldShowCodingDraftComposer =
+        isCodingWorkspace &&
+        activeProject != null &&
+        currentConversation == null &&
+        chatState.messages.isEmpty;
     final isWideForCompanion =
         MediaQuery.sizeOf(context).width >= _companionSidebarBreakpoint;
     _maybePresentPlanReviewSheet(
@@ -1142,6 +1159,142 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final usePersistentDrawer =
         !isMobileRemoteCoding &&
         MediaQuery.sizeOf(context).width >= _persistentDrawerBreakpoint;
+
+    void handleComposerSend(
+      String message,
+      String? imageBase64,
+      String? imageMimeType,
+    ) {
+      if (isCodingWorkspace &&
+          currentConversation != null &&
+          _isCodingGoalSuggestionInProgressFor(currentConversation)) {
+        setState(() {
+          _composerPrefillText = message;
+          _composerPrefillVersion++;
+        });
+        return;
+      }
+      setState(() {
+        _composerPrefillText = '';
+        _composerPrefillVersion++;
+      });
+      final languageCode = context.locale.languageCode;
+      if (isCodingWorkspace &&
+          currentConversation != null &&
+          _isCodingGoalSetupPendingFor(currentConversation) &&
+          message.trim().isNotEmpty) {
+        unawaited(
+          _sendMessageAfterPendingGoalSetup(
+            context,
+            currentConversation: currentConversation,
+            message: message,
+            imageBase64: imageBase64,
+            imageMimeType: imageMimeType,
+            languageCode: languageCode,
+          ).then((sent) {
+            if (sent || !mounted) {
+              return;
+            }
+            final activeConversation = ref
+                .read(conversationsNotifierProvider)
+                .currentConversation;
+            if (activeConversation?.id != currentConversation.id) {
+              return;
+            }
+            setState(() {
+              _composerPrefillText = message;
+              _composerPrefillVersion++;
+            });
+          }),
+        );
+        return;
+      }
+      unawaited(
+        chatNotifier.sendMessage(
+          message,
+          imageBase64: imageBase64,
+          imageMimeType: imageMimeType,
+          languageCode: languageCode,
+        ),
+      );
+    }
+
+    Widget buildMessageInput({bool floating = false}) {
+      return MessageInput(
+        onSend: handleComposerSend,
+        onCancel: () => chatNotifier.cancelStreaming(),
+        isLoading: chatState.isLoading,
+        assistantMode: effectiveAssistantMode,
+        onAssistantModeSelected: (mode) => _selectAssistantModeFromComposer(
+          mode,
+          isCodingWorkspace: isCodingWorkspace,
+          currentConversation: currentConversation,
+        ),
+        slashCommands: _buildSlashCommands(
+          context,
+          customSlashCommandTemplates,
+        ),
+        onSlashCommand: (invocation) => _handleSlashCommand(
+          context,
+          invocation,
+          isLoading: chatState.isLoading,
+          isCodingWorkspace: isCodingWorkspace,
+          activeProject: activeProject,
+          currentConversation: currentConversation,
+          conversationsState: conversationsState,
+          customPromptTemplates: customSlashCommandTemplates,
+        ),
+        isCodingWorkspace: isCodingWorkspace,
+        inputHintKey: isCodingWorkspace
+            ? (isPlanMode
+                  ? 'message.input_hint_plan'
+                  : 'message.input_hint_coding')
+            : 'message.input_hint',
+        composerPrefillText: _composerPrefillText,
+        composerPrefillVersion: _composerPrefillVersion,
+        droppedImageAttachment: _droppedImageAttachment,
+        codingGoal: isCodingWorkspace ? currentConversation?.goal : null,
+        isCodingGoalSetupPending:
+            isCodingWorkspace &&
+            _isCodingGoalSetupPendingFor(currentConversation),
+        isCodingGoalSuggestionInProgress:
+            isCodingWorkspace &&
+            _isCodingGoalSuggestionInProgressFor(currentConversation),
+        onCodingGoalSwitchChanged:
+            isCodingWorkspace && currentConversation != null
+            ? (enabled, draftText) => _handleGoalSwitch(
+                context,
+                currentConversation,
+                enabled,
+                pendingUserMessage: draftText,
+              )
+            : null,
+        onCodingGoalEmptySwitchEnabled:
+            isCodingWorkspace && currentConversation != null
+            ? () => _deferGoalSetupUntilSend(currentConversation)
+            : null,
+        onCodingGoalEdit: isCodingWorkspace && currentConversation != null
+            ? () => _showGoalEditor(context, currentConversation)
+            : null,
+        onCodingGoalMarkComplete:
+            isCodingWorkspace && currentConversation?.goal?.hasObjective == true
+            ? () => _markGoalCompleted(context)
+            : null,
+        onCodingGoalMarkBlocked:
+            isCodingWorkspace && currentConversation?.goal?.hasObjective == true
+            ? () => _markGoalBlocked(context, currentConversation!.goal!)
+            : null,
+        onCodingGoalReactivate:
+            isCodingWorkspace && currentConversation?.goal?.hasObjective == true
+            ? () => _reactivateGoal(context)
+            : null,
+        onCodingGoalClear:
+            isCodingWorkspace && currentConversation?.goal?.hasObjective == true
+            ? () => _clearGoal(context)
+            : null,
+        isFloating: floating,
+      );
+    }
 
     Widget buildWorkspaceBody() {
       return isRoutinesWorkspace
@@ -1195,7 +1348,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ),
                       // Message list
                       Expanded(
-                        child: !canCompose
+                        child: shouldShowCodingDraftComposer
+                            ? _buildCodingDraftComposer(
+                                context,
+                                activeProject,
+                                buildMessageInput(floating: true),
+                              )
+                            : !canCompose
                             ? _buildCodingProjectEmptyState(context)
                             : chatState.messages.isEmpty
                             ? _buildEmptyState(
@@ -1262,7 +1421,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 ),
                               ),
                       ),
-                      if (canCompose && shouldShowPlanFooterCard)
+                      if (!shouldShowCodingDraftComposer &&
+                          canCompose &&
+                          shouldShowPlanFooterCard)
                         _buildFooterPlanCard(
                           context,
                           currentConversation: currentConversation,
@@ -1270,170 +1431,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           isPlanMode: isPlanMode,
                         ),
                       // Token usage indicator
-                      if (canCompose &&
+                      if (!shouldShowCodingDraftComposer &&
+                          canCompose &&
                           (chatState.totalTokens > 0 ||
                               chatState.estimatedPromptTokens > 0))
                         _buildTokenUsageBar(context, chatState, settings.model),
-                      if (canCompose && chatState.queuedMessages.isNotEmpty)
+                      if (!shouldShowCodingDraftComposer &&
+                          canCompose &&
+                          chatState.queuedMessages.isNotEmpty)
                         QueuedMessagesStrip(
                           messages: chatState.queuedMessages,
                           onRemove: chatNotifier.removeQueuedMessage,
                         ),
                       // Input area
-                      if (canCompose)
-                        MessageInput(
-                          onSend: (message, imageBase64, imageMimeType) {
-                            if (isCodingWorkspace &&
-                                currentConversation != null &&
-                                _isCodingGoalSuggestionInProgressFor(
-                                  currentConversation,
-                                )) {
-                              setState(() {
-                                _composerPrefillText = message;
-                                _composerPrefillVersion++;
-                              });
-                              return;
-                            }
-                            setState(() {
-                              _composerPrefillText = '';
-                              _composerPrefillVersion++;
-                            });
-                            final languageCode = context.locale.languageCode;
-                            if (isCodingWorkspace &&
-                                currentConversation != null &&
-                                _isCodingGoalSetupPendingFor(
-                                  currentConversation,
-                                ) &&
-                                message.trim().isNotEmpty) {
-                              unawaited(
-                                _sendMessageAfterPendingGoalSetup(
-                                  context,
-                                  currentConversation: currentConversation,
-                                  message: message,
-                                  imageBase64: imageBase64,
-                                  imageMimeType: imageMimeType,
-                                  languageCode: languageCode,
-                                ).then((sent) {
-                                  if (sent || !mounted) {
-                                    return;
-                                  }
-                                  final activeConversation = ref
-                                      .read(conversationsNotifierProvider)
-                                      .currentConversation;
-                                  if (activeConversation?.id !=
-                                      currentConversation.id) {
-                                    return;
-                                  }
-                                  setState(() {
-                                    _composerPrefillText = message;
-                                    _composerPrefillVersion++;
-                                  });
-                                }),
-                              );
-                              return;
-                            }
-                            unawaited(
-                              chatNotifier.sendMessage(
-                                message,
-                                imageBase64: imageBase64,
-                                imageMimeType: imageMimeType,
-                                languageCode: languageCode,
-                              ),
-                            );
-                          },
-                          onCancel: () => chatNotifier.cancelStreaming(),
-                          isLoading: chatState.isLoading,
-                          assistantMode: effectiveAssistantMode,
-                          onAssistantModeSelected: (mode) =>
-                              _selectAssistantModeFromComposer(
-                                mode,
-                                isCodingWorkspace: isCodingWorkspace,
-                                currentConversation: currentConversation,
-                              ),
-                          slashCommands: _buildSlashCommands(
-                            context,
-                            customSlashCommandTemplates,
-                          ),
-                          onSlashCommand: (invocation) => _handleSlashCommand(
-                            context,
-                            invocation,
-                            isLoading: chatState.isLoading,
-                            isCodingWorkspace: isCodingWorkspace,
-                            activeProject: activeProject,
-                            currentConversation: currentConversation,
-                            conversationsState: conversationsState,
-                            customPromptTemplates: customSlashCommandTemplates,
-                          ),
-                          isCodingWorkspace: isCodingWorkspace,
-                          inputHintKey: isCodingWorkspace
-                              ? (isPlanMode
-                                    ? 'message.input_hint_plan'
-                                    : 'message.input_hint_coding')
-                              : 'message.input_hint',
-                          composerPrefillText: _composerPrefillText,
-                          composerPrefillVersion: _composerPrefillVersion,
-                          droppedImageAttachment: _droppedImageAttachment,
-                          codingGoal: isCodingWorkspace
-                              ? currentConversation?.goal
-                              : null,
-                          isCodingGoalSetupPending:
-                              isCodingWorkspace &&
-                              _isCodingGoalSetupPendingFor(currentConversation),
-                          isCodingGoalSuggestionInProgress:
-                              isCodingWorkspace &&
-                              _isCodingGoalSuggestionInProgressFor(
-                                currentConversation,
-                              ),
-                          onCodingGoalSwitchChanged:
-                              isCodingWorkspace && currentConversation != null
-                              ? (enabled, draftText) => _handleGoalSwitch(
-                                  context,
-                                  currentConversation,
-                                  enabled,
-                                  pendingUserMessage: draftText,
-                                )
-                              : null,
-                          onCodingGoalEmptySwitchEnabled:
-                              isCodingWorkspace && currentConversation != null
-                              ? () => _deferGoalSetupUntilSend(
-                                  currentConversation,
-                                )
-                              : null,
-                          onCodingGoalEdit:
-                              isCodingWorkspace && currentConversation != null
-                              ? () => _showGoalEditor(
-                                  context,
-                                  currentConversation,
-                                )
-                              : null,
-                          onCodingGoalMarkComplete:
-                              isCodingWorkspace &&
-                                  currentConversation?.goal?.hasObjective ==
-                                      true
-                              ? () => _markGoalCompleted(context)
-                              : null,
-                          onCodingGoalMarkBlocked:
-                              isCodingWorkspace &&
-                                  currentConversation?.goal?.hasObjective ==
-                                      true
-                              ? () => _markGoalBlocked(
-                                  context,
-                                  currentConversation!.goal!,
-                                )
-                              : null,
-                          onCodingGoalReactivate:
-                              isCodingWorkspace &&
-                                  currentConversation?.goal?.hasObjective ==
-                                      true
-                              ? () => _reactivateGoal(context)
-                              : null,
-                          onCodingGoalClear:
-                              isCodingWorkspace &&
-                                  currentConversation?.goal?.hasObjective ==
-                                      true
-                              ? () => _clearGoal(context)
-                              : null,
-                        ),
+                      if (canCompose && !shouldShowCodingDraftComposer)
+                        buildMessageInput(),
                     ],
                   );
                   if (!showCompanionSidebar) {

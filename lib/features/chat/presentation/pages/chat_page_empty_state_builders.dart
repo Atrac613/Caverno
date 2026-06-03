@@ -6,6 +6,40 @@
 part of 'chat_page.dart';
 
 extension _ChatPageEmptyStateBuilders on _ChatPageState {
+  Widget _buildCodingDraftComposer(
+    BuildContext context,
+    CodingProject activeProject,
+    Widget composer,
+  ) {
+    final theme = Theme.of(context);
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'chat.coding_draft_prompt'.tr(
+                  namedArgs: {'project': activeProject.name},
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 22),
+              composer,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCodingProjectEmptyState(BuildContext context) {
     return Center(
       child: Padding(
