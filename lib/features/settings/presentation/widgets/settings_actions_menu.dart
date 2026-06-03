@@ -1,6 +1,9 @@
+import 'dart:io' show Platform, exit;
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../pages/qr_scanner_page.dart';
 import '../providers/settings_notifier.dart';
@@ -8,11 +11,15 @@ import 'qr_export_dialog.dart';
 
 enum _SettingsAction { reset, import, export, importQr, exportQr }
 
+typedef AppExitCallback = Future<void> Function();
+
 /// Overflow menu with the settings-wide actions (import / export / reset / QR).
 /// Shared by the full-screen [SettingsPage] app bar and the desktop settings
 /// modal header so the logic lives in one place.
 class SettingsActionsMenu extends ConsumerWidget {
-  const SettingsActionsMenu({super.key});
+  const SettingsActionsMenu({super.key, this.onResetExit});
+
+  final AppExitCallback? onResetExit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,7 +50,12 @@ class SettingsActionsMenu extends ConsumerWidget {
             children: [
               const Icon(Icons.upload_file_outlined),
               const SizedBox(width: 12),
-              Text('settings.import_settings'.tr()),
+              Expanded(
+                child: Text(
+                  'settings.import_settings'.tr(),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -53,7 +65,12 @@ class SettingsActionsMenu extends ConsumerWidget {
             children: [
               const Icon(Icons.file_download_outlined),
               const SizedBox(width: 12),
-              Text('settings.export_settings'.tr()),
+              Expanded(
+                child: Text(
+                  'settings.export_settings'.tr(),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -64,7 +81,12 @@ class SettingsActionsMenu extends ConsumerWidget {
             children: [
               const Icon(Icons.qr_code_scanner),
               const SizedBox(width: 12),
-              Text('settings.import_qr'.tr()),
+              Expanded(
+                child: Text(
+                  'settings.import_qr'.tr(),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -74,7 +96,12 @@ class SettingsActionsMenu extends ConsumerWidget {
             children: [
               const Icon(Icons.qr_code),
               const SizedBox(width: 12),
-              Text('settings.export_qr'.tr()),
+              Expanded(
+                child: Text(
+                  'settings.export_qr'.tr(),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
@@ -85,9 +112,12 @@ class SettingsActionsMenu extends ConsumerWidget {
             children: [
               const Icon(Icons.restore, color: Colors.red),
               const SizedBox(width: 12),
-              Text(
-                'settings.reset_to_default'.tr(),
-                style: const TextStyle(color: Colors.red),
+              Expanded(
+                child: Text(
+                  'settings.reset_to_default'.tr(),
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.red),
+                ),
               ),
             ],
           ),
@@ -122,6 +152,7 @@ class SettingsActionsMenu extends ConsumerWidget {
           context,
         ).showSnackBar(SnackBar(content: Text('settings.reset_done'.tr())));
       }
+      await (onResetExit ?? _exitApplication)();
     }
   }
 
@@ -239,5 +270,12 @@ class SettingsActionsMenu extends ConsumerWidget {
       context: context,
       builder: (context) => QrExportDialog(data: data),
     );
+  }
+
+  Future<void> _exitApplication() async {
+    await SystemNavigator.pop();
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      exit(0);
+    }
   }
 }
