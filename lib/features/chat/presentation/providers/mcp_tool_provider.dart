@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/ble_service.dart';
+import '../../../../core/services/browser_session_service.dart';
 import '../../../../core/services/lan_scan_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/ssh_service.dart';
@@ -83,7 +84,16 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final wifiService = ref.watch(wifiServiceProvider);
   final lanScanService = ref.watch(lanScanServiceProvider);
   final computerUseService = ref.watch(macosComputerUseServiceProvider);
+  final browserService = ref.watch(browserSessionServiceProvider);
   final settings = ref.watch(settingsNotifierProvider);
+  // Keep the browser session's availability in sync with settings without
+  // recreating the singleton (it owns the live webview controller). The
+  // listener fires outside the build phase, avoiding notify-during-build.
+  ref.listen<bool>(
+    settingsNotifierProvider.select((s) => s.browserToolsEnabled),
+    (previous, next) => browserService.updateEnabled(next),
+    fireImmediately: true,
+  );
   // Always provide the service so built-in local tools remain available.
   return McpToolService(
     mcpClients: mcpClients,
@@ -96,6 +106,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     wifiService: wifiService,
     lanScanService: lanScanService,
     computerUseService: computerUseService,
+    browserService: browserService,
     disabledBuiltInTools: settings.disabledBuiltInToolsSet,
   );
 });

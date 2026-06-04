@@ -201,6 +201,41 @@ class PendingComputerUseAction {
   final Completer<ComputerUseActionApprovalDecision> completer;
 }
 
+/// Pending sensitive browser action (fill / click / submit / eval / save)
+/// awaiting user approval. Mirrors [PendingComputerUseAction] but carries only
+/// the lighter context the browser approval sheet needs.
+class PendingBrowserAction {
+  PendingBrowserAction({
+    required this.id,
+    required this.toolName,
+    required this.title,
+    required this.riskLabel,
+    required this.warningMessage,
+    required this.approveLabel,
+    required this.summary,
+    required this.details,
+    required this.targetSummary,
+    required this.sensitiveValuePreview,
+    required this.reason,
+    required this.completer,
+  });
+
+  final String id;
+  final String toolName;
+  final String title;
+  final String riskLabel;
+  final String warningMessage;
+  final String approveLabel;
+  final String summary;
+  final List<String> details;
+  final String? targetSummary;
+
+  /// Redacted preview for credential-like values (never the raw secret).
+  final String? sensitiveValuePreview;
+  final String? reason;
+  final Completer<bool> completer;
+}
+
 /// Pending local file operation awaiting user approval.
 class PendingFileOperation {
   PendingFileOperation({
@@ -466,6 +501,8 @@ abstract class ChatState with _$ChatState {
     PendingLocalCommand? pendingLocalCommand,
     // macOS computer-use tool UI flow.
     PendingComputerUseAction? pendingComputerUseAction,
+    // Built-in browser sensitive-action UI flow.
+    PendingBrowserAction? pendingBrowserAction,
     // File mutation tool UI flow.
     PendingFileOperation? pendingFileOperation,
     // BLE tool UI flow — same Completer-based pattern as SSH.

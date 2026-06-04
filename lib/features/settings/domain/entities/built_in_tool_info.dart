@@ -30,6 +30,7 @@ class BuiltInToolRegistry {
   static const String categoryComputerUse = 'computer_use';
   static const String categoryWifi = 'wifi';
   static const String categoryLanScan = 'lan_scan';
+  static const String categoryBrowser = 'browser';
 
   static const List<String> categories = [
     categoryDatetime,
@@ -47,6 +48,7 @@ class BuiltInToolRegistry {
     categoryComputerUse,
     categoryWifi,
     categoryLanScan,
+    categoryBrowser,
   ];
 
   static const List<BuiltInToolInfo> tools = [
@@ -480,6 +482,67 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_lan_get_scan_results',
       category: categoryLanScan,
     ),
+    // Built-in browser
+    BuiltInToolInfo(
+      name: 'browser_open',
+      descriptionKey: 'settings.tool_browser_open',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_snapshot',
+      descriptionKey: 'settings.tool_browser_snapshot',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_get_content',
+      descriptionKey: 'settings.tool_browser_get_content',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_screenshot',
+      descriptionKey: 'settings.tool_browser_screenshot',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_wait',
+      descriptionKey: 'settings.tool_browser_wait',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_navigate_history',
+      descriptionKey: 'settings.tool_browser_navigate_history',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_close',
+      descriptionKey: 'settings.tool_browser_close',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_fill',
+      descriptionKey: 'settings.tool_browser_fill',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_click',
+      descriptionKey: 'settings.tool_browser_click',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_submit',
+      descriptionKey: 'settings.tool_browser_submit',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_eval',
+      descriptionKey: 'settings.tool_browser_eval',
+      category: categoryBrowser,
+    ),
+    BuiltInToolInfo(
+      name: 'browser_save_data',
+      descriptionKey: 'settings.tool_browser_save_data',
+      category: categoryBrowser,
+    ),
   ];
 
   static Map<String, List<BuiltInToolInfo>> get toolsByCategory {
@@ -513,6 +576,7 @@ class BuiltInToolRegistry {
       categoryComputerUse => Icons.ads_click,
       categoryWifi => Icons.wifi,
       categoryLanScan => Icons.device_hub,
+      categoryBrowser => Icons.travel_explore,
       _ => Icons.extension,
     };
   }

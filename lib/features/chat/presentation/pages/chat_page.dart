@@ -8,10 +8,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/services/browser_session_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
@@ -66,6 +68,7 @@ import '../widgets/plan/plan_review_sheet.dart';
 import '../widgets/plan/plan_revision_history_sheet.dart';
 
 part 'chat_page_empty_state_builders.dart';
+part 'chat_page_browser_builders.dart';
 part 'chat_page_companion_builders.dart';
 part 'chat_page_goal_builders.dart';
 part 'chat_page_header_builders.dart';
@@ -125,6 +128,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   static const double _companionSidebarWidth = 344;
   static const double _persistentDrawerBreakpoint = 900;
   static const double _persistentDrawerWidth = 320;
+  static const double _browserPanelBreakpoint = 1280;
+  static const double _browserPanelWidth = 480;
+
+  /// The built-in browser webview is built once and reused so toggling the
+  /// pane (or moving between pane/full-screen) preserves the live page.
+  final GlobalKey _browserWebViewKey = GlobalKey();
+  Widget? _browserWebView;
 
   static const Set<String> _imageDropExtensions = {
     '.png',
@@ -1042,6 +1052,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       },
     );
 
+    ref.listen<PendingBrowserAction?>(
+      chatNotifierProvider.select((s) => s.pendingBrowserAction),
+      (prev, next) {
+        if (next != null && prev?.id != next.id) {
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showBrowserActionDialog(context, next),
+          );
+        }
+      },
+    );
+
     ref.listen<PendingFileOperation?>(
       chatNotifierProvider.select((s) => s.pendingFileOperation),
       (prev, next) {
@@ -1467,23 +1489,27 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         buildMessageInput(),
                     ],
                   );
-                  if (!showCompanionSidebar) {
-                    return chatContent;
-                  }
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(child: chatContent),
-                      SizedBox(
-                        width: _companionSidebarWidth,
-                        child: _buildCompanionPanel(
-                          context,
-                          currentConversation: currentConversation,
-                          chatState: chatState,
-                          activeProject: activeProject,
-                        ),
-                      ),
-                    ],
+                  final coreBody = showCompanionSidebar
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: chatContent),
+                            SizedBox(
+                              width: _companionSidebarWidth,
+                              child: _buildCompanionPanel(
+                                context,
+                                currentConversation: currentConversation,
+                                chatState: chatState,
+                                activeProject: activeProject,
+                              ),
+                            ),
+                          ],
+                        )
+                      : chatContent;
+                  return _wrapWithBrowserPane(
+                    context,
+                    coreBody,
+                    availableWidth: MediaQuery.sizeOf(context).width,
                   );
                 },
               ),

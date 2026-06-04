@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/browser_session_service.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/built_in_tool_info.dart';
 import '../providers/settings_notifier.dart';
@@ -31,6 +32,14 @@ class ToolsSettingsPage extends ConsumerWidget {
             value: settings.mcpEnabled,
             onChanged: notifier.updateMcpEnabled,
           ),
+          if (BrowserSessionService.isPlatformSupported)
+            SwitchListTile(
+              secondary: const Icon(Icons.travel_explore),
+              title: Text('settings.browser_tools_title'.tr()),
+              subtitle: Text('settings.browser_tools_desc'.tr()),
+              value: settings.browserToolsEnabled,
+              onChanged: notifier.updateBrowserToolsEnabled,
+            ),
           const SizedBox(height: 8),
           Text(
             'settings.coding_approval_section'.tr(),

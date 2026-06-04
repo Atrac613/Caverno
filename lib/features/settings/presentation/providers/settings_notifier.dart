@@ -342,6 +342,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateBrowserToolsEnabled(bool value) async {
+    state = state.copyWith(browserToolsEnabled: value);
+    await _repository.save(state);
+  }
+
   Future<void> updateCodingApprovalMode(
     CodingApprovalMode codingApprovalMode,
   ) async {

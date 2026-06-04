@@ -6,6 +6,10 @@
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
+		<!-- Allow cleartext http inside the built-in browser (WKWebView) only,
+		     without weakening ATS for the app's own API connections. -->
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Caverno connects to your local LLM server for AI chat responses.</string>

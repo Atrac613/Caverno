@@ -7,6 +7,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/services/agents_md_loader.dart';
 import '../../../../core/services/ble_service.dart';
+import '../../../../core/services/browser_session_service.dart';
+import '../../../../core/services/browser_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/notification_providers.dart';
@@ -72,6 +74,7 @@ import 'tool_approval_cache.dart';
 import 'subagent_task_notifier.dart';
 
 part 'chat_notifier_ble_handlers.dart';
+part 'chat_notifier_browser_handlers.dart';
 part 'chat_notifier_computer_use_handlers.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
@@ -11530,6 +11533,13 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     if (MacosComputerUseToolPolicy.isComputerUseTool(toolCall.name)) {
       return _handleComputerUseActionWithoutApproval(toolCall);
+    }
+
+    if (BrowserToolPolicy.requiresUserApproval(toolCall.name)) {
+      return _handleBrowserAction(toolCall);
+    }
+    if (BrowserToolPolicy.isBrowserTool(toolCall.name)) {
+      return _handleBrowserActionWithoutApproval(toolCall);
     }
 
     switch (toolCall.name) {
