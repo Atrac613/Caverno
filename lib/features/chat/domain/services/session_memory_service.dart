@@ -103,6 +103,14 @@ class SessionMemoryService {
     r'\b(file|path|report|markdown|\.md|\.json|\.txt|\.csv|\.dart|/users/|/tmp/)\b.*\b(saved|wrote|created|updated|generated|exported)\b',
     caseSensitive: false,
   );
+  static final RegExp _localPathPattern = RegExp(
+    r'(?:[A-Za-z]:\\[^\s`"<>]+|/(?:Users|tmp|var|private|Volumes|home)/[^\s`"<>]+)',
+    caseSensitive: false,
+  );
+  static final RegExp _relativeDownloadPathPattern = RegExp(
+    r'\b(?:Downloads|downloads|browser-saves)/[^\s`"<>]+',
+    caseSensitive: false,
+  );
   static final RegExp _ephemeralLookupMemoryPattern = RegExp(
     r'\b(retrieved|fetched|looked up|queried|searched|obtained)\b.*\b(weather|forecast|api|search result|tool result)\b|'
     r'\b(weather|forecast)\b.*\b(temperature|precipitation|rain|drizzle|snow|wind|humidity|weathercode|weather code|km/h)\b',
@@ -232,7 +240,7 @@ class SessionMemoryService {
           )
         : MemorySessionSummary(
             conversationId: conversationId,
-            summary: _truncate(_normalizeSentence(draft.summary), 160),
+            summary: _sanitizeStoredSessionText(draft.summary, maxLength: 160),
             openLoops: _filterDraftOpenLoops(
               draft.openLoops,
               normalizedMessages,
@@ -511,7 +519,7 @@ class SessionMemoryService {
     List<Message> messages,
   ) {
     final normalizedOpenLoops = rawOpenLoops
-        .map(_normalizeSentence)
+        .map((loop) => _sanitizeStoredSessionText(loop, maxLength: 80))
         .where((loop) => loop.isNotEmpty)
         .toList();
     if (normalizedOpenLoops.isEmpty) return const [];
@@ -519,7 +527,6 @@ class SessionMemoryService {
     return normalizedOpenLoops
         .where((loop) => !_isCoveredByLatestAssistantTurn(loop, messages))
         .take(3)
-        .map((loop) => _truncate(loop, 80))
         .toList();
   }
 
@@ -1130,6 +1137,13 @@ class SessionMemoryService {
 
   String _normalizeSentence(String text) {
     return text.replaceAll(_whitespaceRunPattern, ' ').trim();
+  }
+
+  String _sanitizeStoredSessionText(String text, {required int maxLength}) {
+    final normalized = _normalizeSentence(text)
+        .replaceAll(_localPathPattern, '[local path]')
+        .replaceAll(_relativeDownloadPathPattern, '[local path]');
+    return _truncate(normalized, maxLength);
   }
 
   String _truncate(String text, int maxLength) {

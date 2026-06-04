@@ -14,6 +14,7 @@ part of 'chat_notifier.dart';
 extension ChatNotifierBrowserHandlers on ChatNotifier {
   Future<McpToolResult> _handleBrowserAction(ToolCallInfo toolCall) async {
     final policy = BrowserToolPolicy.decision(toolCall.name);
+    final details = await _browserActionDetails(toolCall);
     final approved = await requestBrowserAction(
       toolName: toolCall.name,
       title: policy.title,
@@ -21,7 +22,7 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
       warningMessage: policy.warningMessage,
       approveLabel: policy.approveLabel,
       summary: _describeBrowserAction(toolCall),
-      details: _browserActionDetails(toolCall),
+      details: details,
       targetSummary: _browserActionTargetSummary(toolCall),
       sensitiveValuePreview: _browserSensitiveValuePreview(toolCall),
       reason: toolCall.arguments['reason'] as String?,
@@ -102,9 +103,10 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
       'browser_fill' =>
         'Fill ${_browserTargetLabel(args)} with ${_browserSensitiveValuePreview(toolCall) ?? 'a value'}',
       'browser_click' => 'Click ${_browserTargetLabel(args)}',
-      'browser_submit' => (args['selector'] as String?)?.isNotEmpty ?? false
-          ? 'Submit the form containing ${args['selector']}'
-          : 'Submit the current form',
+      'browser_submit' =>
+        (args['selector'] as String?)?.isNotEmpty ?? false
+            ? 'Submit the form containing ${args['selector']}'
+            : 'Submit the current form',
       'browser_eval' =>
         'Run JavaScript in the page (${((args['script'] as String?) ?? '').length} chars)',
       'browser_save_data' => 'Save data to ${args['filename'] ?? 'a file'}',
@@ -119,7 +121,7 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
     return 'the target element';
   }
 
-  List<String> _browserActionDetails(ToolCallInfo toolCall) {
+  Future<List<String>> _browserActionDetails(ToolCallInfo toolCall) async {
     final args = toolCall.arguments;
     final details = <String>['Tool: ${toolCall.name}'];
     switch (toolCall.name) {
@@ -134,7 +136,21 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
           details.add('Form selector: ${args['selector']}');
         }
       case 'browser_save_data':
-        details.add('File: ${args['filename']}');
+        final target = await ref
+            .read(browserSessionServiceProvider)
+            .resolveSaveTarget(
+              filename: (args['filename'] as String?) ?? 'browser_data',
+              format: (args['format'] as String?) ?? 'json',
+              destination: args['destination'] as String?,
+            );
+        details.add('Destination: ${target.destination.label}');
+        if (target.destinationChanged) {
+          details.add('Requested destination: ${target.requestedDestination}');
+        }
+        details.add('Requested file: ${target.requestedFilename}');
+        details.add('Final file: ${target.filename}');
+        details.add('Save location: ${target.directory.path}');
+        details.add('Full path: ${target.path}');
         details.add(
           'Size: ${((args['data'] as String?) ?? '').length} characters',
         );
@@ -158,8 +174,7 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
 
   String? _browserActionTargetSummary(ToolCallInfo toolCall) {
     return switch (toolCall.name) {
-      'browser_fill' ||
-      'browser_click' =>
+      'browser_fill' || 'browser_click' =>
         'Review the target ${_browserTargetLabel(toolCall.arguments)} before approving.',
       'browser_save_data' => 'A file will be written to your device.',
       'browser_eval' => 'Arbitrary JavaScript will run in the current page.',

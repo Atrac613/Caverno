@@ -851,6 +851,339 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  ToolCallInfo? _buildSkippedBrowserActionRecoveryToolCall({
+    required ChatCompletionResult result,
+    required List<Map<String, dynamic>> allTools,
+    required int interactionGeneration,
+  }) {
+    if (result.hasToolCalls ||
+        _settings.disabledBuiltInToolsSet.contains('browser_snapshot')) {
+      return null;
+    }
+
+    final availableToolNames =
+        ToolDefinitionSearchService.toolNamesFromDefinitions(allTools).toSet();
+    if (!availableToolNames.contains('browser_snapshot')) {
+      return null;
+    }
+
+    final latestUserContent = _latestUserContentForGeneration(
+      interactionGeneration,
+    );
+    if (!_looksLikeBrowserActionRequest(latestUserContent)) {
+      return null;
+    }
+
+    return ToolCallInfo(
+      id: 'recovered_browser_snapshot_${DateTime.now().microsecondsSinceEpoch}',
+      name: 'browser_snapshot',
+      arguments: const {'max_elements': 80},
+    );
+  }
+
+  Future<ChatCompletionResult?>
+  _requestSkippedBrowserActionRepairAfterSnapshot({
+    required String candidateResponse,
+    required List<ToolResultInfo> batchToolResults,
+    required List<Map<String, dynamic>> tools,
+    required int interactionGeneration,
+  }) async {
+    if (!_shouldRepairSkippedBrowserActionAfterSnapshot(
+      candidateResponse: candidateResponse,
+      batchToolResults: batchToolResults,
+      interactionGeneration: interactionGeneration,
+    )) {
+      return null;
+    }
+
+    appLog('[Tool] Requesting browser action repair after recovered snapshot');
+    List<Message> buildRepairMessages(bool forceCompaction) {
+      final messages = _prepareMessagesForLLM(
+        forceCompaction: forceCompaction,
+        toolDefinitionsOverride: tools,
+        interactionGeneration: interactionGeneration,
+      );
+      messages.add(
+        Message(
+          id: 'browser_action_repair_${DateTime.now().millisecondsSinceEpoch}',
+          role: MessageRole.user,
+          content: _buildSkippedBrowserActionRepairPrompt(
+            interactionGeneration,
+          ),
+          timestamp: DateTime.now(),
+        ),
+      );
+      return messages;
+    }
+
+    return _createToolResultCompletionWithContextRetry(
+      logLabel: 'browser-action repair',
+      interactionGeneration: interactionGeneration,
+      buildMessages: buildRepairMessages,
+      toolResults: batchToolResults,
+      assistantContent: candidateResponse.isNotEmpty ? candidateResponse : null,
+      tools: tools,
+    );
+  }
+
+  bool _shouldRepairSkippedBrowserActionAfterSnapshot({
+    required String candidateResponse,
+    required List<ToolResultInfo> batchToolResults,
+    required int interactionGeneration,
+  }) {
+    if (candidateResponse.trim().isEmpty) {
+      return false;
+    }
+    if (!_hasRecoveredBrowserSnapshot(batchToolResults)) {
+      return false;
+    }
+    final latestUserContent = _latestUserContentForGeneration(
+      interactionGeneration,
+    );
+    return _looksLikeBrowserActionRequest(latestUserContent);
+  }
+
+  bool _hasRecoveredBrowserSnapshot(List<ToolResultInfo> toolResults) {
+    return toolResults.any(
+      (toolResult) =>
+          toolResult.name == 'browser_snapshot' &&
+          toolResult.id.startsWith('recovered_browser_snapshot_'),
+    );
+  }
+
+  String _buildSkippedBrowserActionRepairPrompt(int interactionGeneration) {
+    final latestUserContent = _latestUserContentForGeneration(
+      interactionGeneration,
+    );
+    final missingToolName = _browserActionToolNameForText(latestUserContent);
+    return [
+      'The latest user request still requires a browser action.',
+      'The application only executed a recovered browser_snapshot so far.',
+      'Do not claim the browser action is complete in prose.',
+      'If the snapshot contains a safe target, call $missingToolName now using the latest snapshot ref or selector.',
+      'If no safe target exists, answer briefly that $missingToolName remains unexecuted.',
+    ].join('\n');
+  }
+
+  ToolResultInfo? _buildUnexecutedSkippedBrowserActionToolResult({
+    required String candidateResponse,
+    required List<ToolResultInfo> batchToolResults,
+    required int interactionGeneration,
+  }) {
+    if (!_hasRecoveredBrowserSnapshot(batchToolResults)) {
+      return null;
+    }
+    final latestUserContent = _latestUserContentForGeneration(
+      interactionGeneration,
+    );
+    if (!_looksLikeBrowserActionRequest(latestUserContent)) {
+      return null;
+    }
+    final missingToolName = _browserActionToolNameForText(latestUserContent);
+    return ToolResultInfo(
+      id: 'unexecuted_browser_action_${DateTime.now().microsecondsSinceEpoch}',
+      name: missingToolName,
+      arguments: {
+        'reason':
+            'The model returned prose after a recovered browser_snapshot instead of issuing the required browser action tool call.',
+      },
+      result: jsonEncode({
+        'ok': false,
+        'code': 'unexecuted_browser_action',
+        'error':
+            'The requested browser action was not executed. A recovered browser_snapshot ran, but no follow-up browser action tool call was issued.',
+        'claimedResponse': _clipForDiagnostic(candidateResponse),
+      }),
+    );
+  }
+
+  ToolResultInfo? _buildUnexecutedFileSideEffectToolResult({
+    required String candidateResponse,
+    required List<ToolResultInfo> toolResults,
+    required int interactionGeneration,
+  }) {
+    final latestUserContent = _latestUserContentForGeneration(
+      interactionGeneration,
+    );
+    if (!_looksLikeFileSideEffectRequest(latestUserContent) ||
+        _hasSuccessfulFileSideEffectResult(toolResults)) {
+      return null;
+    }
+
+    final missingToolName = _fileSideEffectToolNameForResults(toolResults);
+    return ToolResultInfo(
+      id: 'unexecuted_file_save_${DateTime.now().microsecondsSinceEpoch}',
+      name: missingToolName,
+      arguments: {
+        'reason':
+            'The latest user request required a file save or file mutation, but no successful file-operation tool result is available.',
+      },
+      result: jsonEncode({
+        'ok': false,
+        'code': 'unexecuted_file_save',
+        'error':
+            'The requested file save or file mutation was not executed. No successful browser_save_data, write_file, edit_file, rollback_last_file_change, or explicit file-operation tool result is available.',
+        'missing_tool': missingToolName,
+        'claimedResponse': _clipForDiagnostic(candidateResponse),
+      }),
+    );
+  }
+
+  bool _looksLikeFileSideEffectRequest(String text) {
+    final normalized = text.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    if (_containsAny(normalized, const [
+      'save',
+      'save as',
+      'download',
+      'export',
+      'write file',
+      'write a file',
+      'write to file',
+      'create file',
+      'create a file',
+      'make file',
+      'make a file',
+      'as markdown',
+      'markdown file',
+      'to markdown',
+      'file name',
+      'filename',
+      'local file',
+    ])) {
+      return true;
+    }
+    return _containsAnyCodeUnitSequence(text, const [
+      [0x4fdd, 0x5b58],
+      [0x4f5c, 0x6210],
+      [0x66f8, 0x304d, 0x8fbc],
+      [0x30c0, 0x30a6, 0x30f3, 0x30ed, 0x30fc, 0x30c9],
+    ]);
+  }
+
+  bool _hasSuccessfulFileSideEffectResult(List<ToolResultInfo> toolResults) {
+    return toolResults.any((toolResult) {
+      final normalizedName = toolResult.name.trim().toLowerCase();
+      if (normalizedName == 'browser_save_data') {
+        return _toolResultLooksSuccessfulForFinalAnswer(toolResult.result);
+      }
+      return _isFileMutationToolName(normalizedName) &&
+          _isSuccessfulFileMutationToolResult(toolResult);
+    });
+  }
+
+  String _fileSideEffectToolNameForResults(List<ToolResultInfo> toolResults) {
+    final sawBrowserContext = toolResults.any(
+      (toolResult) =>
+          toolResult.name.trim().toLowerCase().startsWith('browser_'),
+    );
+    return sawBrowserContext ? 'browser_save_data' : 'write_file';
+  }
+
+  String _clipForDiagnostic(String value, {int maxLength = 240}) {
+    final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    return '${normalized.substring(0, maxLength)}...';
+  }
+
+  Set<String> _browserToolNamesFromDefinitions(
+    List<Map<String, dynamic>> toolDefinitions,
+  ) {
+    return ToolDefinitionSearchService.toolNamesFromDefinitions(
+      toolDefinitions,
+    ).where((toolName) => toolName.startsWith('browser_')).toSet();
+  }
+
+  bool _looksLikeBrowserActionRequest(String text) {
+    final normalized = text.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    if (_containsAny(normalized, const [
+      'click',
+      'press',
+      'tap',
+      'open',
+      'navigate',
+      'go to',
+      'follow',
+      'type',
+      'fill',
+      'input',
+      'enter',
+      'submit',
+      'search',
+    ])) {
+      return true;
+    }
+    return _containsBrowserActionCodeUnitMarker(text);
+  }
+
+  bool _containsBrowserActionCodeUnitMarker(String text) {
+    const markers = [
+      [0x30af, 0x30ea, 0x30c3, 0x30af],
+      [0x30bf, 0x30c3, 0x30d7],
+      [0x62bc],
+      [0x958b, 0x304f],
+      [0x958b, 0x3044, 0x3066],
+      [0x958b, 0x3051],
+      [0x958b, 0x304d],
+      [0x9077, 0x79fb],
+      [0x79fb, 0x52d5],
+      [0x5165, 0x529b],
+      [0x9001, 0x4fe1],
+      [0x691c, 0x7d22],
+    ];
+    return markers.any((marker) => _containsCodeUnitSequence(text, marker));
+  }
+
+  String _browserActionToolNameForText(String text) {
+    final normalized = text.trim().toLowerCase();
+    if (_containsAny(normalized, const ['click', 'press', 'tap', 'follow']) ||
+        _containsAnyCodeUnitSequence(text, const [
+          [0x30af, 0x30ea, 0x30c3, 0x30af],
+          [0x30bf, 0x30c3, 0x30d7],
+          [0x62bc],
+        ])) {
+      return 'browser_click';
+    }
+    if (_containsAny(normalized, const ['type', 'fill', 'input', 'enter']) ||
+        _containsAnyCodeUnitSequence(text, const [
+          [0x5165, 0x529b],
+        ])) {
+      return 'browser_fill';
+    }
+    if (_containsAny(normalized, const ['submit', 'search']) ||
+        _containsAnyCodeUnitSequence(text, const [
+          [0x9001, 0x4fe1],
+          [0x691c, 0x7d22],
+        ])) {
+      return 'browser_submit';
+    }
+    if (_containsAny(normalized, const ['open', 'navigate', 'go to']) ||
+        _containsAnyCodeUnitSequence(text, const [
+          [0x958b, 0x304f],
+          [0x958b, 0x3044, 0x3066],
+          [0x958b, 0x3051],
+          [0x958b, 0x304d],
+          [0x9077, 0x79fb],
+          [0x79fb, 0x52d5],
+        ])) {
+      return 'browser_open';
+    }
+    return 'browser_click';
+  }
+
+  bool _containsAnyCodeUnitSequence(String text, List<List<int>> sequences) {
+    return sequences.any(
+      (sequence) => _containsCodeUnitSequence(text, sequence),
+    );
+  }
+
   String _latestUserContentForGeneration(int generation) {
     final messages =
         _activeResponseMessagesForGeneration(generation) ?? state.messages;
@@ -6983,6 +7316,44 @@ class ChatNotifier extends Notifier<ChatState> {
     });
   }
 
+  bool _shouldAcceptTerminalBrowserSaveDataResponse(
+    String response,
+    List<ToolResultInfo> toolResults,
+  ) {
+    final candidate = response.trim();
+    if (candidate.isEmpty || candidate.length > 3000) {
+      return false;
+    }
+    if (_looksLikeUnexecutedToolRequest(candidate) ||
+        _looksLikePlanOnlyFinalToolAnswer(candidate)) {
+      return false;
+    }
+
+    final savedPaths = _successfulBrowserSaveDataPaths(toolResults);
+    if (savedPaths.isEmpty) {
+      return false;
+    }
+    return savedPaths.any(candidate.contains);
+  }
+
+  String _normalizeTerminalBrowserSaveDataResponse(String response) {
+    return _stripTrailingOptionalFollowUpOffer(response.trim()).trim();
+  }
+
+  List<String> _successfulBrowserSaveDataPaths(
+    List<ToolResultInfo> toolResults,
+  ) {
+    return toolResults
+        .where((toolResult) {
+          return toolResult.name.trim().toLowerCase() == 'browser_save_data' &&
+              _toolResultLooksSuccessfulForFinalAnswer(toolResult.result);
+        })
+        .map((toolResult) => _toolResultPayloadPath(toolResult.result))
+        .whereType<String>()
+        .where((path) => path.trim().isNotEmpty)
+        .toList(growable: false);
+  }
+
   bool _containsFileMutationCompletionMarker(String response) {
     final normalized = response.toLowerCase();
     return _containsAny(normalized, const [
@@ -7011,6 +7382,22 @@ class ChatNotifier extends Notifier<ChatState> {
       '\u304a\u77e5\u3089\u305b\u304f\u3060\u3055\u3044|'
       '\u8abf\u3079\u307e\u3059\u304b',
     ).hasMatch(normalizedResponse);
+  }
+
+  String _stripTrailingOptionalFollowUpOffer(String content) {
+    final paragraphs = content.split(RegExp(r'\n\s*\n'));
+    if (paragraphs.length < 2) {
+      return content;
+    }
+    final trailing = paragraphs.last.trim();
+    if (trailing.isEmpty) {
+      return content;
+    }
+    if (!_containsOptionalFollowUpOffer(trailing.toLowerCase())) {
+      return content;
+    }
+    final prefix = content.substring(0, content.lastIndexOf(paragraphs.last));
+    return prefix.trimRight();
   }
 
   bool _shouldAcceptTerminalSkillToolRoleResponse(
@@ -8165,6 +8552,10 @@ class ChatNotifier extends Notifier<ChatState> {
           _appendUnexecutedToolRequestNoticeIfNeeded(
             interactionGeneration: interactionGeneration,
           );
+          _appendUnexecutedFileSideEffectNoticeIfNeeded(
+            toolResults: toolResults,
+            interactionGeneration: interactionGeneration,
+          );
           return ContentParser.stripToolArtifacts(
             streamedAnswer.toString(),
           ).trim();
@@ -8306,6 +8697,32 @@ class ChatNotifier extends Notifier<ChatState> {
             selectedToolNames: {
               ...initialToolSelection.selectedToolNames,
               'load_skill',
+            },
+            interactionGeneration: generation,
+          );
+          return;
+        }
+        final recoveredBrowserToolCall =
+            _buildSkippedBrowserActionRecoveryToolCall(
+              result: result,
+              allTools: allTools,
+              interactionGeneration: generation,
+            );
+        if (recoveredBrowserToolCall != null) {
+          appLog(
+            '[Tool] Recovering skipped browser action with browser_snapshot',
+          );
+          _removeAssistantStreamDeltaForGeneration(
+            generation: generation,
+            messageIndex: streamedMessageIndex,
+            startingLength: streamedContentStart,
+          );
+          await _executeToolCalls(
+            [recoveredBrowserToolCall],
+            toolSearchEnabled: initialToolSelection.toolSearchEnabled,
+            selectedToolNames: {
+              ...initialToolSelection.selectedToolNames,
+              ..._browserToolNamesFromDefinitions(allTools),
             },
             interactionGeneration: generation,
           );
@@ -9859,6 +10276,42 @@ class ChatNotifier extends Notifier<ChatState> {
         currentToolCalls = [];
         final fallbackResponse = nextResult.content.trim();
         _recordHiddenAssistantResponse(fallbackResponse);
+        final browserActionRepairResult =
+            await _requestSkippedBrowserActionRepairAfterSnapshot(
+              candidateResponse: fallbackResponse,
+              batchToolResults: batchToolResults,
+              tools: tools,
+              interactionGeneration: interactionGeneration,
+            );
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+        if (!ref.mounted) return;
+        if (browserActionRepairResult != null) {
+          if (browserActionRepairResult.hasToolCalls) {
+            appLog(
+              '[Tool] Browser action repair requested follow-up tool calls',
+            );
+            currentToolCalls = browserActionRepairResult.toolCalls!;
+            _recordHiddenAssistantResponse(browserActionRepairResult.content);
+            currentAssistantContent =
+                browserActionRepairResult.content.isNotEmpty
+                ? browserActionRepairResult.content
+                : fallbackResponse;
+            continue;
+          }
+
+          final unexecutedBrowserAction =
+              _buildUnexecutedSkippedBrowserActionToolResult(
+                candidateResponse: browserActionRepairResult.content.isNotEmpty
+                    ? browserActionRepairResult.content
+                    : fallbackResponse,
+                batchToolResults: batchToolResults,
+                interactionGeneration: interactionGeneration,
+              );
+          if (unexecutedBrowserAction != null) {
+            executedToolResults.add(unexecutedBrowserAction);
+            _recordHiddenAssistantResponse(browserActionRepairResult.content);
+          }
+        }
         final verificationRepairResult =
             await _requestCodingVerificationRepairForCompletionClaim(
               candidateResponse: fallbackResponse,
@@ -9912,6 +10365,23 @@ class ChatNotifier extends Notifier<ChatState> {
             interactionGeneration: interactionGeneration,
           );
           currentAssistantContent = fallbackResponse;
+          hasTextResponse = true;
+          break;
+        }
+        if (_shouldAcceptTerminalBrowserSaveDataResponse(
+          fallbackResponse,
+          batchToolResults,
+        )) {
+          appLog(
+            '[Tool] Accepting terminal browser save response without final answer fallback',
+          );
+          final normalizedBrowserSaveResponse =
+              _normalizeTerminalBrowserSaveDataResponse(fallbackResponse);
+          _appendRecoveredAssistantResponse(
+            normalizedBrowserSaveResponse,
+            interactionGeneration: interactionGeneration,
+          );
+          currentAssistantContent = normalizedBrowserSaveResponse;
           hasTextResponse = true;
           break;
         }
@@ -10000,9 +10470,15 @@ class ChatNotifier extends Notifier<ChatState> {
       executedToolCallKeys: executedToolCallKeys,
       commandRetryGeneration: commandRetryGeneration,
     );
+    final unexecutedFileSideEffect = _buildUnexecutedFileSideEffectToolResult(
+      candidateResponse: currentAssistantContent ?? '',
+      toolResults: [...executedToolResults, ...unexecutedPendingToolResults],
+      interactionGeneration: interactionGeneration,
+    );
     final finalToolResults = <ToolResultInfo>[
       ...executedToolResults,
       ...unexecutedPendingToolResults,
+      ?unexecutedFileSideEffect,
     ];
 
     // If tool results exist and no text response has been shown yet,
@@ -10987,6 +11463,31 @@ class ChatNotifier extends Notifier<ChatState> {
     return content.substring(startingLength).trim();
   }
 
+  void _removeAssistantStreamDeltaForGeneration({
+    required int generation,
+    required int messageIndex,
+    required int startingLength,
+  }) {
+    final activeMessages =
+        _activeResponseMessagesForGeneration(generation) ?? state.messages;
+    if (messageIndex < 0 || messageIndex >= activeMessages.length) {
+      return;
+    }
+    if (messageIndex != activeMessages.length - 1) {
+      return;
+    }
+
+    final content = activeMessages[messageIndex].content;
+    final clampedStart = startingLength.clamp(0, content.length).toInt();
+    if (clampedStart >= content.length) {
+      return;
+    }
+    _replaceLastMessageContentForGeneration(
+      generation,
+      content.substring(0, clampedStart).trimRight(),
+    );
+  }
+
   bool _isRepeatableCommandTool(ToolCallInfo toolCall) {
     return toolCall.name == 'local_execute_command' ||
         toolCall.name == 'run_tests' ||
@@ -11942,6 +12443,121 @@ class ChatNotifier extends Notifier<ChatState> {
     );
     state = state.copyWith(messages: updatedMessages);
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+  }
+
+  void _appendUnexecutedFileSideEffectNoticeIfNeeded({
+    required List<ToolResultInfo> toolResults,
+    int? interactionGeneration,
+  }) {
+    final generation = interactionGeneration ?? _interactionGeneration;
+    const notice =
+        'The requested file save was not executed because no successful file-operation tool result is available. '
+        'Treat any save, create, or download claim above as unverified.';
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+
+      final updatedMessages = [...activeMessages];
+      final lastIndex = updatedMessages.length - 1;
+      final lastMessage = updatedMessages[lastIndex];
+      if (lastMessage.role != MessageRole.assistant) {
+        return;
+      }
+
+      final content = lastMessage.content;
+      if (content.contains(notice) ||
+          !_looksLikeUnsupportedFileSideEffectClaim(
+            content,
+            toolResults: toolResults,
+          )) {
+        return;
+      }
+
+      updatedMessages[lastIndex] = lastMessage.copyWith(
+        content: '${content.trimRight()}\n\n$notice',
+      );
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+      return;
+    }
+
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    if (lastMessage.role != MessageRole.assistant) {
+      return;
+    }
+
+    final content = lastMessage.content;
+    if (content.contains(notice) ||
+        !_looksLikeUnsupportedFileSideEffectClaim(
+          content,
+          toolResults: toolResults,
+        )) {
+      return;
+    }
+
+    updatedMessages[lastIndex] = lastMessage.copyWith(
+      content: '${content.trimRight()}\n\n$notice',
+    );
+    state = state.copyWith(messages: updatedMessages);
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+  }
+
+  bool _looksLikeUnsupportedFileSideEffectClaim(
+    String content, {
+    required List<ToolResultInfo> toolResults,
+  }) {
+    if (!_hasUnexecutedFileSideEffectResult(toolResults) ||
+        _hasSuccessfulFileSideEffectResult(toolResults)) {
+      return false;
+    }
+
+    final normalized = content.trim().toLowerCase();
+    if (normalized.isEmpty ||
+        _containsAny(normalized, const [
+          'not saved',
+          'not created',
+          'not downloaded',
+          'not executed',
+          'not yet',
+          'unexecuted',
+          'was not',
+          'were not',
+          'could not save',
+          'could not create',
+          'could not download',
+          'no file',
+          'no successful file-operation',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x3067, 0x304d, 0x307e, 0x305b, 0x3093],
+          [0x672a, 0x5b9f, 0x884c],
+        ])) {
+      return false;
+    }
+
+    return _containsFileMutationCompletionMarker(normalized) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x4fdd, 0x5b58],
+          [0x4f5c, 0x6210],
+          [0x5b8c, 0x4e86],
+        ]);
+  }
+
+  bool _hasUnexecutedFileSideEffectResult(List<ToolResultInfo> toolResults) {
+    return toolResults.any((toolResult) {
+      try {
+        final decoded = jsonDecode(toolResult.result);
+        if (decoded is Map<String, dynamic>) {
+          return decoded['code'] == 'unexecuted_file_save';
+        }
+      } catch (_) {
+        return false;
+      }
+      return false;
+    });
   }
 
   bool _looksLikeUnexecutedToolRequest(String content) {

@@ -278,6 +278,7 @@ class ToolDefinitionSearchService {
   static bool _shouldLoadInitially(String toolName) {
     final normalized = toolName.trim().toLowerCase();
     return _alwaysLoadedToolNames.contains(normalized) ||
+        normalized.startsWith('browser_') ||
         normalized.startsWith('wifi_') ||
         normalized.startsWith('get_wifi_') ||
         normalized.startsWith('wan_') ||

@@ -78,6 +78,7 @@ void main() {
       ]);
 
       expect(prompt, contains('Only claim that a local file was created'));
+      expect(prompt, contains('code=unexecuted_file_save'));
       expect(prompt, contains('If the user requested local file changes'));
       expect(prompt, contains('the files were not created yet'));
       expect(prompt, contains('When a write_file result includes'));
@@ -87,6 +88,25 @@ void main() {
       expect(prompt, contains('This final answer request cannot call tools'));
       expect(prompt, contains('Do not output JSON command arrays'));
       expect(prompt, contains('state that it remains unexecuted'));
+      expect(prompt, contains('When browser_snapshot returns page elements'));
+      expect(
+        prompt,
+        contains('refs are valid only for the current page snapshot'),
+      );
+      expect(prompt, contains('Do not invent or renumber browser refs'));
+      expect(prompt, contains('element_not_found or a stale target'));
+      expect(prompt, contains('fresh browser_snapshot before retrying'));
+      expect(prompt, contains('Only say a browser action'));
+      expect(prompt, contains('corresponding browser tool result succeeded'));
+      expect(prompt, contains('code=unexecuted_browser_action'));
+      expect(prompt, contains('For browser_click results'));
+      expect(prompt, contains('target label, name'));
+      expect(prompt, contains('navigated fields'));
+      expect(prompt, contains('what was actually clicked'));
+      expect(prompt, contains('browser_submit retry'));
+      expect(prompt, contains('When browser_save_data succeeds'));
+      expect(prompt, contains('tool result path field exactly'));
+      expect(prompt, contains('trust the result path'));
       expect(prompt, contains('Do not restate an investigation plan'));
       expect(prompt, contains('answer from the executed tool results'));
       expect(

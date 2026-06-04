@@ -61,8 +61,8 @@ class SystemPromptBuilder {
     final hasComputerUseTools = uniqueToolNames.any(
       (name) => name.startsWith('computer_'),
     );
-    final hasSerialTools = uniqueToolNames.any(
-      (name) => name.startsWith('serial_'),
+    final hasBrowserTools = uniqueToolNames.any(
+      (name) => name.startsWith('browser_'),
     );
 
     final date = _formatDate(now);
@@ -445,21 +445,28 @@ class SystemPromptBuilder {
           'using it so you can follow the full saved instructions.',
         );
       }
-      if (hasSerialTools) {
+      if (hasBrowserTools) {
         buffer.writeln(
-          'For serial port devices, use the serial_* tools (serial_list_ports, '
-          'serial_open, serial_read, serial_decode, serial_write, '
-          'serial_close). For binary data, read with encoding "hexdump" or '
-          '"hex" and decode fields with serial_decode instead of computing '
-          'byte offsets yourself.',
+          'When the user asks you to click, open, navigate, type, search, '
+          'submit, or otherwise act in the built-in browser, call the '
+          'relevant browser tool. Do not claim the browser action is complete '
+          'from prose, inferred URLs, or memory; report completion only from '
+          'a successful browser tool result.',
         );
-        if (hasLocalShellTool) {
-          buffer.writeln(
-            'Do not use local_execute_command with cat, stty, screen, or xxd '
-            'on serial devices such as /dev/tty.*, /dev/cu.*, or COM ports — '
-            'those block on serial I/O and are platform-fragile.',
-          );
-        }
+        buffer.writeln(
+          'For built-in browser tasks, call browser_snapshot before using '
+          'browser_fill, browser_click, or browser_submit unless the current '
+          'message context already includes a fresh browser_snapshot result '
+          'with refs. Use only refs from the latest browser_snapshot result; '
+          'do not guess refs from labels, summaries, or prior turns.',
+        );
+        buffer.writeln(
+          'For form submission after filling an input, prefer browser_submit '
+          'with a selector or the filled field ref instead of guessing a submit '
+          'button ref. If browser_fill, browser_click, or browser_submit reports '
+          'element_not_found, stale target, or no matching element, call '
+          'browser_snapshot once to refresh refs before retrying.',
+        );
       }
       if (hasComputerUseTools) {
         final spaceSwitchAction =

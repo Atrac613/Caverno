@@ -46,6 +46,11 @@ class MemoryExtractionDraftService {
     r'\b(cause|causes|caused|causing|root cause|trigger|triggered|triggering|terminate|terminated|terminating|termination|interruption|failure|failed|stopped|disconnect|disconnection|timeout|stream_end|structural anomaly|structural anomalies)\b',
     caseSensitive: false,
   );
+  static final RegExp _savedArtifactPathMemoryPattern = RegExp(
+    r'\b(saved|wrote|created|updated|generated|exported)\b.*\b(/users/|/tmp/|browser-saves|tool-results|application support|\.md|\.json|\.txt|\.csv|\.dart)\b|'
+    r'\b(/users/|/tmp/|browser-saves|tool-results|application support|\.md|\.json|\.txt|\.csv|\.dart)\b.*\b(saved|wrote|created|updated|generated|exported)\b',
+    caseSensitive: false,
+  );
 
   static const systemPrompt =
       'You extract reusable user memory from a conversation. '
@@ -61,7 +66,8 @@ class MemoryExtractionDraftService {
       'Facts should have detailed text (up to 300 chars) to preserve specifics. '
       'Do not save one-off lookup results, fetched tool data, generated report '
       'contents, or saved artifact paths as memories unless the user explicitly '
-      'asked to remember them; keep those details in the session summary only. '
+      'asked to remember them. Summaries may mention completed artifact work '
+      'generically, but must not include exact local paths or filenames. '
       'Do not save prior assistant conclusions, search_past_conversations '
       'snippets, or recall_memory snippets as facts unless they are supported '
       'by direct user statements or current application-executed tool results. '
@@ -152,13 +158,16 @@ class MemoryExtractionDraftService {
       ..writeln('- confidence/importance range: 0.0 to 1.0')
       ..writeln('- Set confidence low for uncertain items')
       ..writeln(
-        '- Do not add memories for one-off lookup results, fetched tool data, generated report contents, or saved artifact paths unless the user explicitly asked to remember them. Put completed task evidence in summary instead.',
+        '- Do not add memories for one-off lookup results, fetched tool data, generated report contents, or saved artifact paths unless the user explicitly asked to remember them. Put completed task evidence in summary generically without exact local paths or filenames.',
       )
       ..writeln(
         '- Only include open_loops when the latest turn still needs user or assistant follow-up. Leave open_loops empty when the latest assistant response answered or completed the request, even if it suggested optional next steps.',
       )
       ..writeln(
-        '- Do not save assistant claims about local file, git, command, or external state changes as facts unless they are supported by the application-executed tool results above or directly stated by the user.',
+        '- Do not save assistant claims about local file, git, command, or external state changes as facts unless they are supported by the application-executed tool results above or directly stated by the user. If a file-operation result reports code=unexecuted_file_save, treat the requested save or file mutation as unexecuted.',
+      )
+      ..writeln(
+        '- Do not summarize browser actions such as open, click, fill, submit, or navigation as completed unless the corresponding browser tool result above succeeded. If only browser_snapshot is present, or a browser result reports code=unexecuted_browser_action, treat the browser action as unexecuted.',
       )
       ..writeln(
         '- Treat search_past_conversations and recall_memory results as historical context, not verified evidence. Do not turn unsupported prior assistant conclusions from them into facts.',
@@ -199,6 +208,9 @@ class MemoryExtractionDraftService {
     if (toolName == 'search_past_conversations' ||
         toolName == 'recall_memory') {
       return 'historical context; verify against direct user statements and current application-executed tool results before saving as fact';
+    }
+    if (toolName == 'browser_snapshot') {
+      return 'browser page inspection only; this is not evidence that a click, fill, submit, open, or navigation action completed';
     }
     return null;
   }
@@ -270,7 +282,7 @@ class MemoryExtractionDraftService {
         }
         final item = Map<String, dynamic>.from(raw);
         final text = (item['text'] as String?)?.trim() ?? '';
-        if (text.isEmpty) {
+        if (text.isEmpty || _isSavedArtifactPathMemory(text)) {
           continue;
         }
         final type = (item['type'] as String?)?.trim() ?? 'topic';
@@ -403,7 +415,9 @@ class MemoryExtractionDraftService {
       final normalizedLine = _normalizeStructuredLine(line);
       final textMatch = _memoryTextPattern.firstMatch(normalizedLine);
       final text = _cleanStructuredValue(textMatch?.group(1) ?? '');
-      if (text.isEmpty || !seenTexts.add(text.toLowerCase())) {
+      if (text.isEmpty ||
+          _isSavedArtifactPathMemory(text) ||
+          !seenTexts.add(text.toLowerCase())) {
         continue;
       }
       final type = _memoryTypePattern.firstMatch(normalizedLine)?.group(1);
@@ -505,6 +519,10 @@ class MemoryExtractionDraftService {
   static bool _isUnverifiedCausalDiagnostic(String text) {
     return _uncertaintyQualifierPattern.hasMatch(text) &&
         _causalDiagnosticPattern.hasMatch(text);
+  }
+
+  static bool _isSavedArtifactPathMemory(String text) {
+    return _savedArtifactPathMemoryPattern.hasMatch(text);
   }
 
   static List<String> _stringList(Object? raw, {required int maxLength}) {

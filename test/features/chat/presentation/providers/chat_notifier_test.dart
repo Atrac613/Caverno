@@ -10,6 +10,7 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/background_task_service.dart';
+import 'package:caverno/core/services/browser_session_service.dart';
 import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
@@ -1006,6 +1007,7 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   _ToolBatchChatDataSource({
     required this.initialToolCalls,
     this.initialCompletionContent = '',
+    this.initialFinishReason = 'tool_calls',
     this.initialStreamChunks = const [],
     this.followUpToolCalls = const [],
     this.intermediateToolRoleResponseContent = '',
@@ -1020,6 +1022,7 @@ class _ToolBatchChatDataSource implements ChatDataSource {
 
   final List<ToolCallInfo> initialToolCalls;
   final String initialCompletionContent;
+  final String initialFinishReason;
   final List<String> initialStreamChunks;
   final List<ToolCallInfo> followUpToolCalls;
   final String intermediateToolRoleResponseContent;
@@ -1094,7 +1097,7 @@ class _ToolBatchChatDataSource implements ChatDataSource {
         ChatCompletionResult(
           content: initialCompletionContent,
           toolCalls: initialToolCalls,
-          finishReason: 'tool_calls',
+          finishReason: initialFinishReason,
         ),
       ),
     );
@@ -1369,6 +1372,19 @@ class _ToolEnabledSettingsNotifier extends SettingsNotifier {
       mcpEnabled: true,
       demoMode: false,
     );
+  }
+}
+
+Future<void> _waitForCondition(
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 5),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      throw TimeoutException('Condition was not met before timeout.', timeout);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 10));
   }
 }
 
@@ -2544,6 +2560,398 @@ void main() {
       expect(
         chatNotifier.state.messages.last.content,
         contains('SKILL_LIVE_OK'),
+      );
+    },
+  );
+
+  test(
+    'sendMessage recovers when a browser action is promised without a tool',
+    () async {
+      const skippedBrowserClaim = 'Wikipedia has been opened.';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: skippedBrowserClaim,
+        initialStreamChunks: const [skippedBrowserClaim],
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'tool-click-wikipedia',
+            name: 'browser_click',
+            arguments: const {
+              'ref': 7,
+              'reason': 'Open the Wikipedia search result.',
+            },
+          ),
+        ],
+        toolRoleResponseContent: '',
+        finalAnswerChunks: const [
+          'Opened Wikipedia from browser tool results.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'browser_snapshot': 'Capture browser elements.',
+          'browser_click': 'Click a browser element.',
+        },
+        results: {
+          'browser_snapshot': jsonEncode({
+            'ok': true,
+            'url': 'https://www.google.com/search?q=hydrangea',
+            'elements': [
+              {'ref': 7, 'role': 'link', 'label': 'Hydrangea - Wikipedia'},
+            ],
+          }),
+          'browser_click': jsonEncode({
+            'ok': true,
+            'url': 'https://en.wikipedia.org/wiki/Hydrangea',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      final request =
+          'Wikipedia${String.fromCharCodes(const [0x3092, 0x30af, 0x30ea, 0x30c3, 0x30af])}';
+      final sendFuture = chatNotifier.sendMessage(request);
+      await _waitForCondition(
+        () => chatNotifier.state.pendingBrowserAction != null,
+      );
+      final pendingBrowserAction = chatNotifier.state.pendingBrowserAction!;
+      expect(pendingBrowserAction.toolName, 'browser_click');
+
+      chatNotifier.resolveBrowserAction(
+        id: pendingBrowserAction.id,
+        approved: true,
+      );
+      await sendFuture;
+
+      expect(toolService.executedToolNames, [
+        'browser_snapshot',
+        'browser_click',
+      ]);
+      expect(toolService.executedToolArguments.first, {'max_elements': 80});
+      expect(dataSource.toolResultBatches, hasLength(2));
+      expect(
+        dataSource.toolResultBatches.first.single.name,
+        'browser_snapshot',
+      );
+      expect(dataSource.toolResultBatches.last.single.name, 'browser_click');
+      expect(
+        dataSource.followUpToolDefinitionBatches.first
+            .map((definition) => (definition['function'] as Map)['name'])
+            .toList(),
+        contains('browser_click'),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains(skippedBrowserClaim)),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('Opened Wikipedia from browser tool results.'),
+      );
+    },
+  );
+
+  test(
+    'sendMessage reports unexecuted browser action after failed recovery',
+    () async {
+      const skippedBrowserClaim = 'Wikipedia のリンク（ref 11）をクリックしました。';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: skippedBrowserClaim,
+        initialStreamChunks: const [skippedBrowserClaim],
+        toolRoleResponseContent: skippedBrowserClaim,
+        finalAnswerChunks: const [
+          'browser_click was not executed after refreshing the page snapshot.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'browser_snapshot': 'Capture browser elements.',
+          'browser_click': 'Click a browser element.',
+        },
+        results: {
+          'browser_snapshot': jsonEncode({
+            'ok': true,
+            'url': 'https://www.google.com/search?q=hydrangea',
+            'elements': [
+              {'ref': 11, 'role': 'link', 'label': 'Hydrangea - Wikipedia'},
+            ],
+          }),
+          'browser_click': jsonEncode({
+            'ok': true,
+            'url': 'https://en.wikipedia.org/wiki/Hydrangea',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+
+      await chatNotifier.sendMessage('Click the Wikipedia result');
+
+      expect(toolService.executedToolNames, ['browser_snapshot']);
+      expect(dataSource.toolResultBatches, hasLength(2));
+      expect(
+        dataSource.toolResultBatches.first.single.name,
+        'browser_snapshot',
+      );
+      expect(dataSource.toolResultBatches.last.single.name, 'browser_snapshot');
+      final finalPrompt = dataSource.finalAnswerMessages
+          .map((message) => message.content)
+          .join('\n');
+      expect(finalPrompt, contains('browser_click'));
+      expect(finalPrompt, contains('unexecuted_browser_action'));
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('browser_click was not executed'),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains(skippedBrowserClaim)),
+      );
+    },
+  );
+
+  test(
+    'sendMessage shows resolved browser save target before approval',
+    () async {
+      final saveDirectory = Directory.systemTemp.createTempSync(
+        'browser_save_approval_',
+      );
+      addTearDown(() => saveDirectory.deleteSync(recursive: true));
+      final savedPath =
+          '${saveDirectory.path}${Platform.pathSeparator}アジサイ_概要.md';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-save-data',
+            name: 'browser_save_data',
+            arguments: const {
+              'filename': 'アジサイ_概要.md',
+              'data': '# Hydrangea',
+              'format': 'md',
+              'reason': 'Save extracted page data.',
+            },
+          ),
+        ],
+        toolRoleResponseContent:
+            'Saved to $savedPath.\n\nIf you want another format, let me know.',
+        finalAnswerChunks: const ['WRONG_FINAL_アジサイ_概要.md'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'browser_save_data': 'Save browser data to a file.',
+        },
+        results: {
+          'browser_save_data': jsonEncode({
+            'ok': true,
+            'path': savedPath,
+            'directory': saveDirectory.path,
+            'filename': 'アジサイ_概要.md',
+            'requestedFilename': 'アジサイ_概要.md',
+            'filenameChanged': false,
+            'bytes': 11,
+            'format': 'md',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final browserSessionService = BrowserSessionService(
+        saveDirectoryOverride: saveDirectory,
+      );
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          browserSessionServiceProvider.overrideWithValue(
+            browserSessionService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      final sendFuture = chatNotifier.sendMessage(
+        'Save the overview as Markdown.',
+      );
+      await _waitForCondition(
+        () => chatNotifier.state.pendingBrowserAction != null,
+      );
+      final pendingBrowserAction = chatNotifier.state.pendingBrowserAction!;
+      expect(pendingBrowserAction.toolName, 'browser_save_data');
+      expect(
+        pendingBrowserAction.details,
+        contains('Destination: Caverno application storage'),
+      );
+      expect(pendingBrowserAction.details, contains('Final file: アジサイ_概要.md'));
+      expect(
+        pendingBrowserAction.details,
+        contains('Save location: ${saveDirectory.path}'),
+      );
+      expect(pendingBrowserAction.details, contains('Full path: $savedPath'));
+
+      chatNotifier.resolveBrowserAction(
+        id: pendingBrowserAction.id,
+        approved: true,
+      );
+      await sendFuture;
+
+      expect(dataSource.finalAnswerRequestMessages, isEmpty);
+      expect(chatNotifier.state.messages.last.content, contains(savedPath));
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('WRONG_FINAL_アジサイ_概要.md')),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('let me know')),
+      );
+    },
+  );
+
+  test(
+    'sendMessage marks browser save claims unexecuted without save tool result',
+    () async {
+      const unsupportedSaveClaim = 'Saved as azusa_overview.md.';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-get-content',
+            name: 'browser_get_content',
+            arguments: const {'format': 'html', 'max_chars': 50000},
+          ),
+        ],
+        toolRoleResponseContent: unsupportedSaveClaim,
+        finalAnswerChunks: const [unsupportedSaveClaim],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'browser_get_content': 'Extract browser page content.',
+          'browser_save_data': 'Save browser data to a file.',
+        },
+        results: {
+          'browser_get_content': jsonEncode({
+            'ok': true,
+            'url': 'https://example.com/article',
+            'content': 'Overview content',
+          }),
+          'browser_save_data': jsonEncode({
+            'ok': true,
+            'path': '/tmp/azusa_overview.md',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      final saveMarker = String.fromCharCodes(const [0x4fdd, 0x5b58]);
+      await chatNotifier.sendMessage(
+        'Extract the overview and $saveMarker it as Markdown.',
+      );
+
+      expect(toolService.executedToolNames, ['browser_get_content']);
+      expect(dataSource.toolResultBatches, hasLength(1));
+      expect(dataSource.finalAnswerMessages, isNotEmpty);
+      final finalPrompt = dataSource.finalAnswerMessages
+          .map((message) => message.content)
+          .join('\n');
+      expect(finalPrompt, contains('unexecuted_file_save'));
+      expect(finalPrompt, contains('browser_save_data'));
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('The requested file save was not executed'),
       );
     },
   );

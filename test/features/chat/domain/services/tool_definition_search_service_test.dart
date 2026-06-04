@@ -57,6 +57,32 @@ void main() {
       expect(names, isNot(contains('remote_tool_29')));
     });
 
+    test('keeps browser tools available in large catalogs', () {
+      final definitions = [
+        _tool('browser_open', 'Open a URL in the built-in browser pane.'),
+        _tool('browser_snapshot', 'List visible browser page elements.'),
+        _tool('browser_click', 'Click an element in the browser page.'),
+        _tool('http_get', 'Fetch a URL as an HTTP GET request.'),
+        for (var i = 0; i < 30; i++)
+          _tool('remote_tool_$i', 'Remote MCP capability number $i.'),
+      ];
+
+      final selection = ToolDefinitionSearchService.buildInitialSelection(
+        ToolDefinitionSearchService.appendSearchToolIfUseful(definitions),
+      );
+      final names = ToolDefinitionSearchService.toolNamesFromDefinitions(
+        selection.toolDefinitions,
+      );
+
+      expect(selection.toolSearchEnabled, isTrue);
+      expect(names, contains(ToolDefinitionSearchService.toolName));
+      expect(names, contains('browser_open'));
+      expect(names, contains('browser_snapshot'));
+      expect(names, contains('browser_click'));
+      expect(names, contains('http_get'));
+      expect(names, isNot(contains('remote_tool_29')));
+    });
+
     test('keeps interactive and skill tools available in large catalogs', () {
       final definitions = [
         _tool('ask_user_question', 'Ask the user a choice question.'),

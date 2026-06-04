@@ -1935,6 +1935,7 @@ class McpToolService {
         filename: (arguments['filename'] as String?) ?? 'browser_data',
         data: (arguments['data'] as String?) ?? '',
         format: (arguments['format'] as String?) ?? 'json',
+        destination: arguments['destination'] as String?,
       ),
       _ => Future.value(
         jsonEncode({
@@ -1982,7 +1983,8 @@ class McpToolService {
           'properties': {
             'max_elements': {
               'type': 'integer',
-              'description': 'Maximum number of elements to return (default 80).',
+              'description':
+                  'Maximum number of elements to return (default 80).',
             },
           },
         },
@@ -2102,7 +2104,7 @@ class McpToolService {
       'function': {
         'name': 'browser_click',
         'description':
-            'Click an element identified by "ref" (from browser_snapshot) or a CSS "selector". May navigate or change page state. Requires user approval.',
+            'Click an element identified by "ref" (from browser_snapshot) or a CSS "selector". May navigate or change page state. Requires user approval. Use only refs from the latest browser_snapshot; if you need to submit a form after filling a field, prefer browser_submit instead of guessing a submit button ref.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -2127,7 +2129,7 @@ class McpToolService {
       'function': {
         'name': 'browser_submit',
         'description':
-            'Submit a form. Optionally provide a CSS "selector" for a field/button inside the target form; otherwise the first form is submitted. Requires user approval.',
+            'Submit a form. Optionally provide a CSS "selector" for a field/button inside the target form; otherwise the first form is submitted. Requires user approval. Prefer this after browser_fill for searches and forms instead of guessing a submit button ref.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -2171,7 +2173,7 @@ class McpToolService {
       'function': {
         'name': 'browser_save_data',
         'description':
-            'Save extracted data to a file in the device Downloads/Documents folder. Use after scraping to persist results as JSON. Requires user approval.',
+            'Save extracted data to a file. Defaults to Caverno application storage; set destination to downloads or documents only when the user explicitly requested that location. Requires user approval.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -2187,10 +2189,13 @@ class McpToolService {
               'type': 'string',
               'description': 'File extension to enforce (default "json").',
             },
-            'reason': {
+            'destination': {
               'type': 'string',
-              'description': 'What is being saved.',
+              'enum': ['app', 'downloads', 'documents'],
+              'description':
+                  'Optional save location. Use "app" by default. Use "downloads" or "documents" only when the user explicitly asks for that folder.',
             },
+            'reason': {'type': 'string', 'description': 'What is being saved.'},
           },
           'required': ['filename', 'data'],
         },

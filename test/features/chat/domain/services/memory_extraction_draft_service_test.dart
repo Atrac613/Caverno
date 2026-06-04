@@ -27,6 +27,10 @@ void main() {
     );
     expect(
       MemoryExtractionDraftService.systemPrompt,
+      contains('exact local paths or filenames'),
+    );
+    expect(
+      MemoryExtractionDraftService.systemPrompt,
       contains('uppercase identifiers'),
     );
     expect(MemoryExtractionDraftService.systemPrompt, contains('_CANARY'));
@@ -71,6 +75,9 @@ void main() {
     expect(input, contains('git_execute_command'));
     expect(input, contains('Only include open_loops when the latest turn'));
     expect(input, contains('Do not save assistant claims about local file'));
+    expect(input, contains('code=unexecuted_file_save'));
+    expect(input, contains('Do not summarize browser actions'));
+    expect(input, contains('code=unexecuted_browser_action'));
     expect(input, contains('Treat search_past_conversations'));
     expect(input, contains('missing files'));
     expect(input, contains('unverified causes of interruptions'));
@@ -79,6 +86,7 @@ void main() {
     expect(input, contains('current-turn tool-use instructions'));
     expect(input, contains('one-off lookup results'));
     expect(input, contains('saved artifact paths'));
+    expect(input, contains('without exact local paths or filenames'));
     expect(input, contains('uppercase identifiers ending in _OK'));
     expect(input, contains('_MARKER'));
     expect(input, contains('_CANARY'));
@@ -272,6 +280,43 @@ void main() {
     expect(draft.entries.last.text, contains('likely causing Caverno'));
   });
 
+  test('parseDraft drops saved artifact path memories from JSON', () {
+    const raw = '''
+{
+  "summary":"Saved a generated Markdown browser summary.",
+  "open_loops":[],
+  "profile":{
+    "persona":[],
+    "preferences":[],
+    "do_not":[]
+  },
+  "memories":[
+    {
+      "text":"Saved Hydrangea Wikipedia summary to /Users/example/Library/Application Support/com.noguwo.apps.caverno/browser-saves/hydrangea_summary.md (5719 bytes, MD format).",
+      "type":"fact",
+      "confidence":1.0,
+      "importance":0.8,
+      "ttl_days":30
+    },
+    {
+      "text":"The user prefers concise coding explanations.",
+      "type":"preference",
+      "confidence":0.9,
+      "importance":0.8,
+      "ttl_days":null
+    }
+  ]
+}
+''';
+
+    final draft = MemoryExtractionDraftService.parseDraft(raw);
+
+    expect(draft, isNotNull);
+    expect(draft!.entries, hasLength(1));
+    expect(draft.entries.single.text, contains('concise coding explanations'));
+    expect(draft.entries.single.text, isNot(contains('browser-saves')));
+  });
+
   test('parseDraft recovers JSON from reasoning text with other objects', () {
     const raw = '''
 <think>
@@ -336,5 +381,27 @@ Final JSON Structure Check:
       repairMessages,
       contains('Recovered memory extraction from structured reasoning text'),
     );
+  });
+
+  test('parseDraft drops saved artifact path memories from reasoning', () {
+    const raw = '''
+<think>
+*   Summary: Saved a generated Markdown browser summary.
+*   Open Loops: None.
+*   Profile:
+    *   Persona: []
+    *   Preferences: ["concise English summaries"]
+    *   Do Not: []
+*   Memories:
+    1. Text: "Saved Hydrangea Wikipedia summary to /Users/example/Library/Application Support/com.noguwo.apps.caverno/browser-saves/hydrangea_summary.md." | Type: "fact" | Confidence: 1.0 | Importance: 0.8 | TTL: 30
+    2. Text: "Prefers concise English summaries." | Type: "preference" | Confidence: 0.9 | Importance: 0.8 | TTL: null
+</think>
+''';
+
+    final draft = MemoryExtractionDraftService.parseDraft(raw);
+
+    expect(draft, isNotNull);
+    expect(draft!.entries, hasLength(1));
+    expect(draft.entries.single.text, 'Prefers concise English summaries');
   });
 }

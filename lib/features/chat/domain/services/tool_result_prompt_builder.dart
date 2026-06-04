@@ -187,8 +187,8 @@ class ToolResultPromptBuilder {
         'result for that side effect, such as write_file, edit_file, '
         'rollback_last_file_change, or an explicit file-operation tool. If the '
         'user requested local file changes but no such successful result is '
-        'provided, say the files were not created yet instead of implying they '
-        'exist.',
+        'provided, or a tool result reports code=unexecuted_file_save, say the '
+        'files were not created yet instead of implying they exist.',
       )
       ..writeln(
         'When a write_file result includes "created": false, state that an '
@@ -201,6 +201,38 @@ class ToolResultPromptBuilder {
         'known but no successful file-operation tool result is provided, say '
         'the files were not created yet and name the exact missing action '
         'instead of emitting tool-call tags.',
+      )
+      ..writeln(
+        'When browser_snapshot returns page elements, include the relevant '
+        'element refs, labels, and roles needed for likely follow-up browser '
+        'actions. State that refs are valid only for the current page snapshot. '
+        'Do not invent or renumber browser refs.',
+      )
+      ..writeln(
+        'When a browser_fill, browser_click, or browser_submit result reports '
+        'element_not_found or a stale target, say the browser needs a fresh '
+        'browser_snapshot before retrying rather than guessing another ref.',
+      )
+      ..writeln(
+        'Only say a browser action such as open, click, fill, submit, or '
+        'navigation completed when the corresponding browser tool result '
+        'succeeded. If the latest result only lists a browser_snapshot or '
+        'reports code=unexecuted_browser_action, state that the requested '
+        'browser action remains unexecuted.',
+      )
+      ..writeln(
+        'For browser_click results, verify the returned target label, name, '
+        'role, href, url, title, and navigated fields before claiming the '
+        'requested click, search, or navigation completed. If the clicked '
+        'target or resulting page does not match the user request, say what '
+        'was actually clicked and that the requested browser action still '
+        'needs a fresh browser_snapshot or browser_submit retry.',
+      )
+      ..writeln(
+        'When browser_save_data succeeds, report the saved file path from the '
+        'tool result path field exactly. If the requested filename in the tool '
+        'arguments differs from the returned filename or path, trust the result '
+        'path and mention the returned filename only.',
       )
       ..writeln(
         'This final answer request cannot call tools. Do not output JSON '

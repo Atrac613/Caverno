@@ -129,6 +129,31 @@ void main() {
     expect(prompt, contains('After tool_search returns a match'));
   });
 
+  test('instructs browser tools to refresh refs before actions', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      toolNames: const [
+        'browser_snapshot',
+        'browser_fill',
+        'browser_click',
+        'browser_submit',
+      ],
+    );
+
+    expect(
+      prompt,
+      contains('Do not claim the browser action is complete from prose'),
+    );
+    expect(prompt, contains('call browser_snapshot before using browser_fill'));
+    expect(prompt, contains('Use only refs from the latest browser_snapshot'));
+    expect(prompt, contains('do not guess refs'));
+    expect(prompt, contains('prefer browser_submit'));
+    expect(prompt, contains('element_not_found'));
+    expect(prompt, contains('refresh refs before retrying'));
+  });
+
   test('marks injected session context as historical evidence', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 5, 28, 13, 50),

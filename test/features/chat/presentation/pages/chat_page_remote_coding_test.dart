@@ -68,6 +68,7 @@ class _CodingWorkspaceConversationsNotifier extends ConversationsNotifier {
     String? projectId,
     bool createIfMissing = true,
     bool createFreshOnFirstOpen = false,
+    bool deferFreshConversationCreation = false,
   }) {
     final normalizedProjectId = _normalizeProjectId(workspaceMode, projectId);
     var conversations = state.conversations;

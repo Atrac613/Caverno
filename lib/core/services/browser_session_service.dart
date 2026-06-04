@@ -36,10 +36,86 @@ class BrowserNotReadyException implements Exception {
   const BrowserNotReadyException();
 }
 
+class BrowserSaveTarget {
+  const BrowserSaveTarget({
+    required this.directory,
+    required this.requestedFilename,
+    required this.filename,
+    required this.format,
+    required this.requestedDestination,
+    required this.destination,
+  });
+
+  final Directory directory;
+  final String requestedFilename;
+  final String filename;
+  final String format;
+  final String requestedDestination;
+  final BrowserSaveDestination destination;
+
+  String get path => '${directory.path}${Platform.pathSeparator}$filename';
+
+  bool get filenameChanged => requestedFilename.trim() != filename;
+
+  bool get destinationChanged {
+    final requested = requestedDestination.trim();
+    return requested.isNotEmpty && requested != destination.toolValue;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'directory': directory.path,
+    'destination': destination.toolValue,
+    'requestedDestination': requestedDestination,
+    'destinationChanged': destinationChanged,
+    'requestedFilename': requestedFilename,
+    'filename': filename,
+    'filenameChanged': filenameChanged,
+    'path': path,
+    'format': format,
+  };
+}
+
+enum BrowserSaveDestination {
+  app('app', 'Caverno application storage'),
+  downloads('downloads', 'Downloads folder'),
+  documents('documents', 'Documents folder');
+
+  const BrowserSaveDestination(this.toolValue, this.label);
+
+  final String toolValue;
+  final String label;
+
+  static BrowserSaveDestination fromToolArgument(String? value) {
+    final normalized = (value ?? '').trim().toLowerCase().replaceAll(
+      RegExp(r'[-_\s]+'),
+      '',
+    );
+    return switch (normalized) {
+      'download' || 'downloads' => BrowserSaveDestination.downloads,
+      'document' || 'documents' => BrowserSaveDestination.documents,
+      _ => BrowserSaveDestination.app,
+    };
+  }
+}
+
+class _ResolvedBrowserSaveDirectory {
+  const _ResolvedBrowserSaveDirectory({
+    required this.directory,
+    required this.destination,
+  });
+
+  final Directory directory;
+  final BrowserSaveDestination destination;
+}
+
 class BrowserSessionService extends ChangeNotifier {
+  BrowserSessionService({Directory? saveDirectoryOverride})
+    : _saveDirectoryOverride = saveDirectoryOverride;
+
   InAppWebViewController? _controller;
   Completer<InAppWebViewController>? _controllerReady;
   Completer<void>? _loadCompleter;
+  final Directory? _saveDirectoryOverride;
 
   bool _enabled = false;
   bool _isPanelOpen = false;
@@ -245,12 +321,37 @@ class BrowserSessionService extends ChangeNotifier {
       return _error('missing_target', 'Provide either ref or selector');
     }
     return _guard('browser_click', () async {
+      final controller = await _ensureReady();
       final expr = _resolveExpr(ref: ref, selector: selector);
+      final beforeUrl = (await controller.getUrl())?.toString() ?? _currentUrl;
+      final beforeTitle = await controller.getTitle();
       _loadCompleter = Completer<void>();
       final raw = await _runJs(_clickScript(expr));
       // A click may trigger navigation; give it a short window to settle.
       await _waitForLoad(timeout: const Duration(seconds: 8));
-      return _jsonOrError(raw);
+      final afterUrl = (await controller.getUrl())?.toString() ?? _currentUrl;
+      final afterTitle = await controller.getTitle();
+      final decoded = _decodeJsResult(raw);
+      if (decoded is Map) {
+        final result = Map<String, dynamic>.from(decoded);
+        result['beforeUrl'] = beforeUrl;
+        result['beforeTitle'] = beforeTitle ?? '';
+        result['url'] = afterUrl;
+        result['title'] = afterTitle ?? _pageTitle ?? '';
+        result['navigated'] =
+            beforeUrl != null && afterUrl != null && beforeUrl != afterUrl;
+        return jsonEncode(result);
+      }
+      return jsonEncode({
+        'ok': true,
+        'result': decoded,
+        'beforeUrl': beforeUrl,
+        'beforeTitle': beforeTitle ?? '',
+        'url': afterUrl,
+        'title': afterTitle ?? _pageTitle ?? '',
+        'navigated':
+            beforeUrl != null && afterUrl != null && beforeUrl != afterUrl,
+      });
     });
   }
 
@@ -351,7 +452,11 @@ class BrowserSessionService extends ChangeNotifier {
           );
       }
       await _waitForLoad();
-      return jsonEncode({'ok': true, 'direction': direction, 'url': _currentUrl});
+      return jsonEncode({
+        'ok': true,
+        'direction': direction,
+        'url': _currentUrl,
+      });
     });
   }
 
@@ -359,19 +464,55 @@ class BrowserSessionService extends ChangeNotifier {
     required String filename,
     required String data,
     String format = 'json',
+    String? destination,
   }) async {
     return _guard('browser_save_data', () async {
-      final dir = await _saveDirectory();
-      final safeName = _safeFileName(filename, format);
-      final file = File('${dir.path}${Platform.pathSeparator}$safeName');
+      final target = await resolveSaveTarget(
+        filename: filename,
+        format: format,
+        destination: destination,
+      );
+      await target.directory.create(recursive: true);
+      final file = File(target.path);
       await file.writeAsString(data);
       return jsonEncode({
         'ok': true,
         'path': file.absolute.path,
+        'directory': target.directory.path,
+        'destination': target.destination.toolValue,
+        'requestedDestination': target.requestedDestination,
+        'destinationChanged': target.destinationChanged,
+        'filename': target.filename,
+        'requestedFilename': target.requestedFilename,
+        'filenameChanged': target.filenameChanged,
         'bytes': utf8.encode(data).length,
-        'format': format,
+        'format': target.format,
       });
     });
+  }
+
+  Future<BrowserSaveTarget> resolveSaveTarget({
+    required String filename,
+    String format = 'json',
+    String? destination,
+  }) async {
+    final destinationArgument = destination?.trim();
+    final requestedDestination = BrowserSaveDestination.fromToolArgument(
+      destinationArgument,
+    );
+    final resolvedDirectory = await _saveDirectory(requestedDestination);
+    final safeFormat = _safeFormat(format);
+    return BrowserSaveTarget(
+      directory: resolvedDirectory.directory,
+      requestedFilename: filename,
+      filename: _safeFileName(filename, safeFormat),
+      format: safeFormat,
+      requestedDestination:
+          destinationArgument != null && destinationArgument.isNotEmpty
+          ? destinationArgument
+          : requestedDestination.toolValue,
+      destination: resolvedDirectory.destination,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -490,22 +631,94 @@ class BrowserSessionService extends ChangeNotifier {
     return 'https://$trimmed';
   }
 
-  Future<Directory> _saveDirectory() async {
+  Future<_ResolvedBrowserSaveDirectory> _saveDirectory(
+    BrowserSaveDestination destination,
+  ) async {
+    final override = _saveDirectoryOverride;
+    if (override != null) {
+      return _ResolvedBrowserSaveDirectory(
+        directory: override,
+        destination: destination,
+      );
+    }
+    return switch (destination) {
+      BrowserSaveDestination.app => _appManagedSaveDirectory(),
+      BrowserSaveDestination.documents => _documentsSaveDirectory(),
+      BrowserSaveDestination.downloads => _downloadsSaveDirectory(),
+    };
+  }
+
+  Future<_ResolvedBrowserSaveDirectory> _appManagedSaveDirectory() async {
+    final support = await getApplicationSupportDirectory();
+    return _ResolvedBrowserSaveDirectory(
+      directory: Directory(
+        '${support.path}${Platform.pathSeparator}browser-saves',
+      ),
+      destination: BrowserSaveDestination.app,
+    );
+  }
+
+  Future<_ResolvedBrowserSaveDirectory> _documentsSaveDirectory() async {
+    return _ResolvedBrowserSaveDirectory(
+      directory: await getApplicationDocumentsDirectory(),
+      destination: BrowserSaveDestination.documents,
+    );
+  }
+
+  Future<_ResolvedBrowserSaveDirectory> _downloadsSaveDirectory() async {
     if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
       final downloads = await getDownloadsDirectory();
-      if (downloads != null) return downloads;
+      if (downloads != null) {
+        return _ResolvedBrowserSaveDirectory(
+          directory: downloads,
+          destination: BrowserSaveDestination.downloads,
+        );
+      }
     }
-    return getApplicationDocumentsDirectory();
+    return _appManagedSaveDirectory();
   }
 
   String _safeFileName(String filename, String format) {
     var name = filename.trim().isEmpty ? 'browser_data' : filename.trim();
-    name = name.replaceAll(RegExp(r'[^A-Za-z0-9_.-]+'), '_');
-    final ext = '.$format';
-    if (!name.toLowerCase().endsWith(ext.toLowerCase())) {
-      name = '$name$ext';
+    name = name.replaceAll(RegExp(r'[\x00-\x1F\x7F/\\:*?"<>|]+'), '_');
+    name = name.replaceAll(RegExp(r'_+'), '_');
+    name = name.trim();
+    name = name.replaceAll(RegExp(r'^[._]+'), '');
+    name = name.replaceAll(RegExp(r'[.\s]+$'), '');
+    if (name.isEmpty) {
+      name = 'browser_data';
+    }
+    if (!_hasCompatibleExtension(name, format)) {
+      name = '$name.${_fileExtensionForFormat(format)}';
     }
     return name;
+  }
+
+  bool _hasCompatibleExtension(String filename, String format) {
+    final lowerName = filename.toLowerCase();
+    final extensions = switch (format) {
+      'md' || 'markdown' => const ['.md', '.markdown'],
+      'txt' || 'text' => const ['.txt', '.text'],
+      _ => ['.${_fileExtensionForFormat(format)}'],
+    };
+    return extensions.any(lowerName.endsWith);
+  }
+
+  String _fileExtensionForFormat(String format) {
+    return switch (format) {
+      'markdown' => 'md',
+      'text' => 'txt',
+      _ => format,
+    };
+  }
+
+  String _safeFormat(String format) {
+    final cleaned = format
+        .trim()
+        .replaceFirst(RegExp(r'^[.]+'), '')
+        .replaceAll(RegExp(r'[^A-Za-z0-9]+'), '')
+        .toLowerCase();
+    return cleaned.isEmpty ? 'json' : cleaned;
   }
 
   // ---- Injected JavaScript ----
@@ -567,14 +780,34 @@ class BrowserSessionService extends ChangeNotifier {
 (function(){
   var el = $expr;
   if(!el) return JSON.stringify({ok:false,code:'element_not_found',error:'No element matched'});
+  var tag = el.tagName.toLowerCase();
+  var type = (el.getAttribute('type') || '').toLowerCase();
+  var isFillable = tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+  if(!isFillable){
+    return JSON.stringify({
+      ok:false,
+      code:'element_not_fillable',
+      error:'Matched element is not a fillable field',
+      tag:tag,
+      text:((el.innerText||'')+'').trim().slice(0,80)
+    });
+  }
   el.focus();
-  var proto = el.tagName==='TEXTAREA'?window.HTMLTextAreaElement.prototype:window.HTMLInputElement.prototype;
-  var desc = Object.getOwnPropertyDescriptor(proto,'value');
-  if(desc && desc.set){ desc.set.call(el, $enc); } else { el.value = $enc; }
+  if(el.isContentEditable){
+    el.textContent = $enc;
+  } else {
+    var proto = tag==='textarea'
+      ? window.HTMLTextAreaElement.prototype
+      : tag==='select'
+        ? window.HTMLSelectElement.prototype
+        : window.HTMLInputElement.prototype;
+    var desc = Object.getOwnPropertyDescriptor(proto,'value');
+    if(desc && desc.set){ desc.set.call(el, $enc); } else { el.value = $enc; }
+  }
   el.dispatchEvent(new Event('input',{bubbles:true}));
   el.dispatchEvent(new Event('change',{bubbles:true}));
-  var redacted = (el.getAttribute('type')||'').toLowerCase()==='password';
-  return JSON.stringify({ok:true, tag:el.tagName.toLowerCase(), name:el.getAttribute('name')||null, valueRedacted:redacted});
+  var redacted = type==='password';
+  return JSON.stringify({ok:true, tag:tag, type:type||null, name:el.getAttribute('name')||null, valueRedacted:redacted});
 })()
 ''';
   }
@@ -582,14 +815,38 @@ class BrowserSessionService extends ChangeNotifier {
   String _clickScript(String expr) {
     return '''
 (function(){
+  function labelFor(el){
+    var l = el.getAttribute('aria-label');
+    if(l) return l.trim();
+    if(el.id){ try { var lab = document.querySelector('label[for="'+CSS.escape(el.id)+'"]'); if(lab) return lab.innerText.trim(); } catch(e){} }
+    var wrap = el.closest ? el.closest('label') : null; if(wrap) return wrap.innerText.trim();
+    if(el.placeholder) return el.placeholder.trim();
+    if(el.name) return el.name.trim();
+    return ((el.innerText||el.value||'')+'').trim().slice(0,120);
+  }
   var el = $expr;
   if(!el) return JSON.stringify({ok:false,code:'element_not_found',error:'No element matched'});
   if(el.scrollIntoView) el.scrollIntoView({block:'center'});
+  var tag = el.tagName.toLowerCase();
+  var type = (el.getAttribute('type') || '').toLowerCase();
+  var target = {
+    tag: tag,
+    type: type || null,
+    name: el.getAttribute('name') || null,
+    id: el.id || null,
+    role: el.getAttribute('role') || null,
+    label: labelFor(el),
+    href: tag === 'a' ? el.getAttribute('href') : null,
+    text: ((el.innerText||'')+'').trim().slice(0,80)
+  };
   el.click();
-  return JSON.stringify({ok:true, tag:el.tagName.toLowerCase(), text:((el.innerText||'')+'').trim().slice(0,80)});
+  return JSON.stringify(Object.assign({ok:true}, target));
 })()
 ''';
   }
+
+  @visibleForTesting
+  String buildClickScriptForTest(String expression) => _clickScript(expression);
 
   String _submitScript(String expr) {
     return '''

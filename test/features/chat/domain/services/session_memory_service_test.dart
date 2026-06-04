@@ -297,6 +297,63 @@ void main() {
     expect(repository.summaries.single.summary, contains('Tokyo weather'));
   });
 
+  test('drops saved browser artifact path draft memories', () async {
+    final repository = _InMemoryChatMemoryRepository();
+    final service = SessionMemoryService(repository);
+
+    final result = await service.updateFromConversation(
+      conversationId: 'conversation-artifact',
+      messages: [
+        Message(
+          id: 'message-artifact',
+          content: 'Save the browser summary as Markdown.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 4, 15, 48),
+        ),
+      ],
+      draft: const MemoryExtractionDraft(
+        summary:
+            'Saved a generated Markdown browser summary to /Users/example/Library/Application Support/com.noguwo.apps.caverno/browser-saves/hydrangea_summary.md.',
+        openLoops: [
+          'Confirm the saved file at /Users/example/Library/Application Support/com.noguwo.apps.caverno/browser-saves/hydrangea_summary.md.',
+        ],
+        persona: [],
+        preferences: [],
+        doNot: [],
+        entries: [
+          MemoryDraftEntry(
+            text:
+                'Saved Hydrangea Wikipedia summary to /Users/example/Library/Application Support/com.noguwo.apps.caverno/browser-saves/hydrangea_summary.md (5719 bytes, MD format).',
+            type: 'fact',
+            confidence: 1.0,
+            importance: 0.8,
+            ttlDays: 30,
+          ),
+        ],
+      ),
+    );
+
+    expect(result.addedMemoryCount, 0);
+    expect(result.queuedReviewCount, 0);
+    expect(repository.memories, isEmpty);
+    expect(repository.reviewQueue, isEmpty);
+    expect(repository.summaries.single.summary, contains('Markdown'));
+    expect(repository.summaries.single.summary, contains('[local path]'));
+    expect(repository.summaries.single.summary, isNot(contains('/Users/')));
+    expect(
+      repository.summaries.single.summary,
+      isNot(contains('browser-saves')),
+    );
+    expect(
+      repository.summaries.single.openLoops.single,
+      contains('[local path]'),
+    );
+    expect(
+      repository.summaries.single.openLoops.single,
+      isNot(contains('/Users/')),
+    );
+  });
+
   test(
     'keeps lookup-like facts when the user explicitly asks to remember them',
     () async {
