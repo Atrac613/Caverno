@@ -10,6 +10,7 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/chat/presentation/widgets/conversation_drawer.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_page.dart';
@@ -188,6 +189,28 @@ void main() {
     expect(find.text('Remote Coding'), findsOneWidget);
     expect(find.byIcon(Icons.create_new_folder_outlined), findsNothing);
     expect(find.byIcon(Icons.add), findsNothing);
+  });
+
+  testWidgets('mobile remote coding keeps the navigation drawer accessible', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+
+    await _pumpCodingWorkspace(tester);
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ConversationDrawer), findsOneWidget);
+    expect(find.byKey(const ValueKey('drawer-workspace-chat')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('drawer-workspace-coding')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('drawer-workspace-routines')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('desktop coding tab keeps local project controls', (

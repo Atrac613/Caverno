@@ -1600,7 +1600,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 compact: false,
               ),
             ),
-      drawer: isMobileRemoteCoding || usePersistentDrawer
+      drawer: usePersistentDrawer
           ? null
           : _buildConversationDrawer(closeOnAction: true),
       body: Column(
