@@ -7,6 +7,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   bluetooth_low_energy_linux
   desktop_drop
   file_selector_linux
+  flutter_libserialport
   flutter_secure_storage_linux
   irondash_engine_context
   record_linux

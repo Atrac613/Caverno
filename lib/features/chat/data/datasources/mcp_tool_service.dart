@@ -10,6 +10,7 @@ import '../../../../core/services/browser_tool_policy.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/lan_scan_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
+import '../../../../core/services/serial_port_service.dart';
 import '../../../../core/services/wifi_service.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
@@ -31,6 +32,7 @@ import 'mcp_stdio_client.dart';
 import 'network_tools.dart';
 import 'os_log_tools.dart';
 import 'searxng_client.dart';
+import 'serial_port_tools.dart';
 import 'wifi_tools.dart';
 
 class FileRollbackPreview {
@@ -95,6 +97,7 @@ class McpToolService {
     ...BleTools.allToolNames,
     ...WifiTools.allToolNames,
     ...LanScanTools.allToolNames,
+    ...SerialPortTools.allToolNames,
     'computer_get_permissions',
     'computer_request_permissions',
     'computer_open_system_settings',
@@ -134,6 +137,7 @@ class McpToolService {
     this.bleService,
     this.wifiService,
     this.lanScanService,
+    this.serialPortService,
     this.computerUseService,
     this.browserService,
     this.osLogProcessRunner,
@@ -149,6 +153,7 @@ class McpToolService {
   final BleService? bleService;
   final WifiService? wifiService;
   final LanScanService? lanScanService;
+  final SerialPortService? serialPortService;
   final MacosComputerUseService? computerUseService;
   final BrowserSessionService? browserService;
   final OsLogProcessRunner? osLogProcessRunner;
@@ -568,6 +573,13 @@ class McpToolService {
     // LAN scan tools (subnet discovery + port scanning).
     if (lanScanService != null) {
       for (final tool in LanScanTools.allTools) {
+        _addIfEnabled(toolDefinitions, tool);
+      }
+    }
+
+    // Serial port tools (desktop only — macOS/Windows/Linux).
+    if (serialPortService != null && SerialPortService.isSupported) {
+      for (final tool in SerialPortTools.allTools) {
         _addIfEnabled(toolDefinitions, tool);
       }
     }
@@ -1702,6 +1714,13 @@ class McpToolService {
     // Built-in LAN scan tools.
     if (LanScanTools.allToolNames.contains(name) && lanScanService != null) {
       return _executeLanScanToolCall(name, arguments);
+    }
+
+    // Built-in serial port tools (serial_open is handled in ChatNotifier for
+    // user approval; the rest are dispatched here).
+    if (SerialPortTools.allToolNames.contains(name) &&
+        serialPortService != null) {
+      return _executeSerialPortToolCall(name, arguments);
     }
 
     // 1. Execute through the matching MCP server when connected.
@@ -4043,7 +4062,7 @@ class McpToolService {
     'function': {
       'name': 'local_execute_command',
       'description':
-          'Execute a local shell command inside the current project. Read-only commands may run immediately; commands that can modify files or state require user approval. Prefer file tools for file discovery and reading; prefer absolute paths or working_directory over shell-only features such as pipes, redirection, environment variables, or command substitution.',
+          'Execute a local shell command inside the current project. Read-only commands may run immediately; commands that can modify files or state require user approval. Prefer file tools for file discovery and reading; prefer absolute paths or working_directory over shell-only features such as pipes, redirection, environment variables, or command substitution. Do not use shell commands (cat, stty, screen, xxd, etc.) on serial port devices such as /dev/tty.*, /dev/cu.*, or COM ports — they block on serial I/O and are platform-fragile; use the dedicated serial_* tools (serial_list_ports, serial_open, serial_read, serial_decode, serial_write, serial_close) instead.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -4563,6 +4582,94 @@ class McpToolService {
       }
     } catch (e) {
       appLog('[McpToolService] LAN scan tool error ($name): $e');
+      return McpToolResult(
+        toolName: name,
+        result: '',
+        isSuccess: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Serial port tool execution
+  //
+  // serial_open is handled in ChatNotifier (it requires user approval), so it
+  // is intentionally not executed here.
+  // ---------------------------------------------------------------------------
+
+  Future<McpToolResult> _executeSerialPortToolCall(
+    String name,
+    Map<String, dynamic> arguments,
+  ) async {
+    final serial = serialPortService!;
+    try {
+      switch (name) {
+        case 'serial_list_ports':
+          final result = serial.listPorts();
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
+
+        case 'serial_read':
+          final port = (arguments['port'] as String?)?.trim() ?? '';
+          final encoding = (arguments['encoding'] as String?) ?? 'utf8';
+          final maxBytes = (arguments['max_bytes'] as num?)?.toInt();
+          final clear = (arguments['clear'] as bool?) ?? true;
+          final frameDelimiter = arguments['frame_delimiter'] as String?;
+          final frameLength = (arguments['frame_length'] as num?)?.toInt();
+          final maxFrames = (arguments['max_frames'] as num?)?.toInt() ?? 200;
+          final includeStats = (arguments['include_stats'] as bool?) ?? false;
+          final result = serial.read(
+            port,
+            encoding: encoding,
+            maxBytes: maxBytes,
+            clear: clear,
+            frameDelimiterHex: frameDelimiter,
+            frameLength: frameLength,
+            maxFrames: maxFrames,
+            includeStats: includeStats,
+          );
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
+
+        case 'serial_decode':
+          final dataHex = arguments['data'] as String?;
+          final port = (arguments['port'] as String?)?.trim();
+          final format = arguments['format'] as String? ?? '';
+          final fields = (arguments['fields'] as List?)
+              ?.map((e) => e.toString())
+              .toList();
+          final consume = (arguments['consume'] as bool?) ?? false;
+          final result = serial.decode(
+            dataHex: dataHex,
+            port: port,
+            format: format,
+            fields: fields,
+            consume: consume,
+          );
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
+
+        case 'serial_write':
+          final port = (arguments['port'] as String?)?.trim() ?? '';
+          final data = arguments['data'] as String? ?? '';
+          final encoding = (arguments['encoding'] as String?) ?? 'utf8';
+          final result = await serial.write(port, data, encoding: encoding);
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
+
+        case 'serial_close':
+          final port = (arguments['port'] as String?)?.trim() ?? '';
+          final result = await serial.close(port);
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
+
+        default:
+          return McpToolResult(
+            toolName: name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'Serial tool $name must be invoked with user '
+                'approval and cannot be executed directly.',
+          );
+      }
+    } catch (e) {
+      appLog('[McpToolService] Serial tool error ($name): $e');
       return McpToolResult(
         toolName: name,
         result: '',

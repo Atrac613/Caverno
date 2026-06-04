@@ -272,6 +272,20 @@ class PendingBleConnect {
   final Completer<bool> completer;
 }
 
+class PendingSerialOpen {
+  PendingSerialOpen({
+    required this.id,
+    required this.portName,
+    required this.baudRate,
+    required this.completer,
+  });
+
+  final String id;
+  final String portName;
+  final int baudRate;
+  final Completer<bool> completer;
+}
+
 class AskUserQuestionOption {
   const AskUserQuestionOption({
     required this.id,
@@ -507,6 +521,8 @@ abstract class ChatState with _$ChatState {
     PendingFileOperation? pendingFileOperation,
     // BLE tool UI flow — same Completer-based pattern as SSH.
     PendingBleConnect? pendingBleConnect,
+    // Serial port open UI flow — same Completer-based approval as BLE.
+    PendingSerialOpen? pendingSerialOpen,
     // Generic model-initiated question UI flow.
     PendingAskUserQuestion? pendingAskUserQuestion,
     // Workflow planning choice UI flow.

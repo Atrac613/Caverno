@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/services/agents_md_loader.dart';
 import '../../../../core/services/ble_service.dart';
+import '../../../../core/services/serial_port_service.dart';
 import '../../../../core/services/browser_session_service.dart';
 import '../../../../core/services/browser_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
@@ -78,6 +79,7 @@ part 'chat_notifier_browser_handlers.dart';
 part 'chat_notifier_computer_use_handlers.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
+part 'chat_notifier_serial_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
 
@@ -11566,6 +11568,8 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleGitExecuteCommand(toolCall);
       case 'ble_connect':
         return _handleBleConnect(toolCall);
+      case 'serial_open':
+        return _handleSerialOpen(toolCall);
       case 'ask_user_question':
         return _handleAskUserQuestion(
           toolCall,

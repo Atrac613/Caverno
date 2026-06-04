@@ -61,6 +61,9 @@ class SystemPromptBuilder {
     final hasComputerUseTools = uniqueToolNames.any(
       (name) => name.startsWith('computer_'),
     );
+    final hasSerialTools = uniqueToolNames.any(
+      (name) => name.startsWith('serial_'),
+    );
 
     final date = _formatDate(now);
     final time = _formatTime(now);
@@ -441,6 +444,22 @@ class SystemPromptBuilder {
           'When a listed user skill is relevant, call load_skill before '
           'using it so you can follow the full saved instructions.',
         );
+      }
+      if (hasSerialTools) {
+        buffer.writeln(
+          'For serial port devices, use the serial_* tools (serial_list_ports, '
+          'serial_open, serial_read, serial_decode, serial_write, '
+          'serial_close). For binary data, read with encoding "hexdump" or '
+          '"hex" and decode fields with serial_decode instead of computing '
+          'byte offsets yourself.',
+        );
+        if (hasLocalShellTool) {
+          buffer.writeln(
+            'Do not use local_execute_command with cat, stty, screen, or xxd '
+            'on serial devices such as /dev/tty.*, /dev/cu.*, or COM ports — '
+            'those block on serial I/O and are platform-fragile.',
+          );
+        }
       }
       if (hasComputerUseTools) {
         final spaceSwitchAction =

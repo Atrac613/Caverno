@@ -4,6 +4,7 @@ import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/browser_session_service.dart';
 import '../../../../core/services/lan_scan_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
+import '../../../../core/services/serial_port_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/wifi_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
@@ -83,6 +84,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final bleService = ref.watch(bleServiceProvider);
   final wifiService = ref.watch(wifiServiceProvider);
   final lanScanService = ref.watch(lanScanServiceProvider);
+  final serialPortService = ref.watch(serialPortServiceProvider);
   final computerUseService = ref.watch(macosComputerUseServiceProvider);
   final browserService = ref.watch(browserSessionServiceProvider);
   final settings = ref.watch(settingsNotifierProvider);
@@ -105,6 +107,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     bleService: bleService,
     wifiService: wifiService,
     lanScanService: lanScanService,
+    serialPortService: serialPortService,
     computerUseService: computerUseService,
     browserService: browserService,
     disabledBuiltInTools: settings.disabledBuiltInToolsSet,

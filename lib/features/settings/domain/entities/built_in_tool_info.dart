@@ -30,6 +30,7 @@ class BuiltInToolRegistry {
   static const String categoryComputerUse = 'computer_use';
   static const String categoryWifi = 'wifi';
   static const String categoryLanScan = 'lan_scan';
+  static const String categorySerial = 'serial';
   static const String categoryBrowser = 'browser';
 
   static const List<String> categories = [
@@ -48,6 +49,7 @@ class BuiltInToolRegistry {
     categoryComputerUse,
     categoryWifi,
     categoryLanScan,
+    categorySerial,
     categoryBrowser,
   ];
 
@@ -482,6 +484,37 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_lan_get_scan_results',
       category: categoryLanScan,
     ),
+    // Serial port (desktop only)
+    BuiltInToolInfo(
+      name: 'serial_list_ports',
+      descriptionKey: 'settings.tool_serial_list_ports',
+      category: categorySerial,
+    ),
+    BuiltInToolInfo(
+      name: 'serial_open',
+      descriptionKey: 'settings.tool_serial_open',
+      category: categorySerial,
+    ),
+    BuiltInToolInfo(
+      name: 'serial_read',
+      descriptionKey: 'settings.tool_serial_read',
+      category: categorySerial,
+    ),
+    BuiltInToolInfo(
+      name: 'serial_decode',
+      descriptionKey: 'settings.tool_serial_decode',
+      category: categorySerial,
+    ),
+    BuiltInToolInfo(
+      name: 'serial_write',
+      descriptionKey: 'settings.tool_serial_write',
+      category: categorySerial,
+    ),
+    BuiltInToolInfo(
+      name: 'serial_close',
+      descriptionKey: 'settings.tool_serial_close',
+      category: categorySerial,
+    ),
     // Built-in browser
     BuiltInToolInfo(
       name: 'browser_open',
@@ -576,6 +609,7 @@ class BuiltInToolRegistry {
       categoryComputerUse => Icons.ads_click,
       categoryWifi => Icons.wifi,
       categoryLanScan => Icons.device_hub,
+      categorySerial => Icons.cable,
       categoryBrowser => Icons.travel_explore,
       _ => Icons.extension,
     };

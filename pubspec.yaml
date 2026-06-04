@@ -101,6 +101,9 @@ dependencies:
   network_info_plus: ^7.0.0
   desktop_drop: ^0.7.1
 
+  # Serial port tool (desktop only: macOS/Windows/Linux)
+  flutter_libserialport: ^0.4.0
+
   # Built-in agent-controlled browser tool (iOS/Android/macOS/Windows)
   flutter_inappwebview: ^6.1.5
 
