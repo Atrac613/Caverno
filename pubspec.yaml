@@ -102,7 +102,7 @@ dependencies:
   desktop_drop: ^0.7.1
 
   # Serial port tool (desktop only: macOS/Windows/Linux)
-  flutter_libserialport: ^0.4.0
+  flutter_libserialport: ^0.6.0
 
   # Built-in agent-controlled browser tool (iOS/Android/macOS/Windows)
   flutter_inappwebview: ^6.1.5
