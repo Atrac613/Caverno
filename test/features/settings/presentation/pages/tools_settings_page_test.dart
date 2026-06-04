@@ -116,6 +116,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.text('Verify coding completion with tests'),
+      120,
+    );
+
     expect(find.text('Verify coding completion with tests'), findsOneWidget);
 
     await tester.tap(find.text('Verify coding completion with tests'));

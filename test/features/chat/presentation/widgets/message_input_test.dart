@@ -876,7 +876,7 @@ void main() {
 
     expect(switchedTo, isFalse);
 
-    await tester.tap(find.byTooltip('Edit'));
+    await tester.tap(find.byTooltip('Edit goal'));
     await tester.pump();
 
     expect(editCount, 1);

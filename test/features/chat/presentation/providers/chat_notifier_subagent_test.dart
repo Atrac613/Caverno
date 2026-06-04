@@ -15,6 +15,7 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
@@ -50,17 +51,14 @@ class _ToolEnabledSettingsNotifier extends SettingsNotifier {
   }
 }
 
-class _TestConversationsNotifier extends ConversationsNotifier {
-  @override
-  ConversationsState build() => ConversationsState.initial();
-}
-
 class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
   @override
   CodingProjectsState build() => CodingProjectsState.initial();
 }
 
 class _MockMemoryBox extends Mock implements Box<String> {}
+
+class _MockConversationBox extends Mock implements Box<String> {}
 
 class _TestSessionMemoryService extends SessionMemoryService {
   _TestSessionMemoryService() : super(ChatMemoryRepository(_MockMemoryBox()));
@@ -262,17 +260,32 @@ class _SubagentTestToolService extends McpToolService {
     };
 
     return [
-      fn('spawn_subagent', 'Delegate a sub-task to a child agent.', {
-        'description': {'type': 'string'},
-        'prompt': {'type': 'string'},
-        'background': {'type': 'boolean'},
-      }, ['description', 'prompt']),
-      fn('get_subagent_result', 'Fetch a background subagent result.', {
-        'task_id': {'type': 'string'},
-      }, ['task_id']),
-      fn('lookup_fact', 'Look up a fact by key.', {
-        'key': {'type': 'string'},
-      }, ['key']),
+      fn(
+        'spawn_subagent',
+        'Delegate a sub-task to a child agent.',
+        {
+          'description': {'type': 'string'},
+          'prompt': {'type': 'string'},
+          'background': {'type': 'boolean'},
+        },
+        ['description', 'prompt'],
+      ),
+      fn(
+        'get_subagent_result',
+        'Fetch a background subagent result.',
+        {
+          'task_id': {'type': 'string'},
+        },
+        ['task_id'],
+      ),
+      fn(
+        'lookup_fact',
+        'Look up a fact by key.',
+        {
+          'key': {'type': 'string'},
+        },
+        ['key'],
+      ),
     ];
   }
 
@@ -302,6 +315,26 @@ ProviderContainer _buildContainer({
   required ChatDataSource dataSource,
   required McpToolService toolService,
 }) {
+  final conversationStorage = <String, String>{};
+  final conversationBox = _MockConversationBox();
+  when(() => conversationBox.keys).thenAnswer((_) => conversationStorage.keys);
+  when(() => conversationBox.get(any())).thenAnswer(
+    (invocation) => conversationStorage[invocation.positionalArguments[0]],
+  );
+  when(() => conversationBox.put(any(), any())).thenAnswer((invocation) async {
+    final key = invocation.positionalArguments[0] as String;
+    final value = invocation.positionalArguments[1] as String;
+    conversationStorage[key] = value;
+  });
+  when(() => conversationBox.delete(any())).thenAnswer((invocation) async {
+    conversationStorage.remove(invocation.positionalArguments[0]);
+  });
+  when(() => conversationBox.clear()).thenAnswer((_) async {
+    final deleted = conversationStorage.length;
+    conversationStorage.clear();
+    return deleted;
+  });
+
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
   final notification = _MockNotificationService();
@@ -316,9 +349,8 @@ ProviderContainer _buildContainer({
   return ProviderContainer(
     overrides: [
       settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
-      conversationsNotifierProvider.overrideWith(
-        _TestConversationsNotifier.new,
-      ),
+      conversationBoxProvider.overrideWithValue(conversationBox),
+      conversationsNotifierProvider.overrideWith(ConversationsNotifier.new),
       codingProjectsNotifierProvider.overrideWith(
         _TestCodingProjectsNotifier.new,
       ),
@@ -363,194 +395,204 @@ ToolCallInfo _spawnSubagentCall({
 );
 
 void main() {
-  test('child subagent uses a tool and its summary reaches the parent', () async {
-    final dataSource = _SubagentScriptedDataSource(
-      parentInitialToolCalls: [
-        _spawnSubagentCall(
-          description: 'look up the fact',
-          prompt: 'Use lookup_fact with key "answer" and report the value.',
-        ),
-      ],
-      childCompletions: [
-        // Child first turn: call lookup_fact.
-        ChatCompletionResult(
-          content: '',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'child-lookup-1',
-              name: 'lookup_fact',
-              arguments: const {'key': 'answer'},
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
-        // Child final turn: summarize.
-        ChatCompletionResult(
-          content: 'The fact is ${_SubagentTestToolService.lookupFactResult}.',
+  test(
+    'child subagent uses a tool and its summary reaches the parent',
+    () async {
+      final dataSource = _SubagentScriptedDataSource(
+        parentInitialToolCalls: [
+          _spawnSubagentCall(
+            description: 'look up the fact',
+            prompt: 'Use lookup_fact with key "answer" and report the value.',
+          ),
+        ],
+        childCompletions: [
+          // Child first turn: call lookup_fact.
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'child-lookup-1',
+                name: 'lookup_fact',
+                arguments: const {'key': 'answer'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          // Child final turn: summarize.
+          ChatCompletionResult(
+            content:
+                'The fact is ${_SubagentTestToolService.lookupFactResult}.',
+            finishReason: 'stop',
+          ),
+        ],
+        parentFinalChunks: const ['Parent reports the delegated result.'],
+      );
+      final toolService = _SubagentTestToolService();
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+      );
+
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage('Delegate the fact lookup to a subagent.');
+
+        // The child actually invoked the tool.
+        expect(toolService.executedToolNames, contains('lookup_fact'));
+
+        // The subagent summary (carrying the tool result) was handed back to the
+        // parent as a tool result.
+        final parentToolResultText = dataSource.parentToolResultBatches
+            .expand((batch) => batch)
+            .map((result) => result.result)
+            .join('\n');
+        expect(
+          parentToolResultText,
+          contains(_SubagentTestToolService.lookupFactResult),
+        );
+
+        // The parent produced its final answer.
+        expect(notifier.state.messages.last.role, MessageRole.assistant);
+        expect(
+          notifier.state.messages.last.content,
+          contains('Parent reports the delegated result'),
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+  );
+
+  test(
+    'background subagent returns a task id and the result is recoverable',
+    () async {
+      final dataSource = _SubagentScriptedDataSource(
+        parentInitialToolCalls: [
+          _spawnSubagentCall(
+            description: 'background compute',
+            prompt: 'Compute the answer and report it.',
+            background: true,
+          ),
+        ],
+        childCompletions: [
+          ChatCompletionResult(
+            content:
+                'Background result: ${_SubagentTestToolService.lookupFactResult}',
+            finishReason: 'stop',
+          ),
+        ],
+        parentFinalChunks: const ['Started the background task.'],
+      );
+      final toolService = _SubagentTestToolService();
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+      );
+
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage('Run the computation in the background.');
+
+        // A background task was registered immediately.
+        final tasks = container.read(subagentTaskNotifierProvider);
+        expect(tasks, isNotEmpty);
+        final taskId = tasks.first.id;
+        expect(tasks.first.isBackground, isTrue);
+
+        // Wait for the fire-and-forget run to settle.
+        final taskNotifier = container.read(
+          subagentTaskNotifierProvider.notifier,
+        );
+        await _pumpUntil(() => taskNotifier.byId(taskId)?.isTerminal ?? false);
+
+        final settled = taskNotifier.byId(taskId);
+        expect(settled, isNotNull);
+        expect(settled!.status, SubagentTaskStatus.completed);
+        expect(
+          settled.resultSummary,
+          contains(_SubagentTestToolService.lookupFactResult),
+          reason: 'get_subagent_result reads this notifier-backed summary',
+        );
+      } finally {
+        container.dispose();
+      }
+    },
+  );
+
+  test(
+    'a child cannot spawn another subagent (delegation depth stays 1)',
+    () async {
+      final dataSource = _SubagentScriptedDataSource(
+        parentInitialToolCalls: [
+          _spawnSubagentCall(
+            description: 'tries to nest',
+            prompt: 'Attempt to spawn another subagent, then summarize.',
+          ),
+        ],
+        childCompletions: [
+          // Child attempts a nested spawn_subagent.
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'child-nest-1',
+                name: 'spawn_subagent',
+                arguments: const {
+                  'description': 'nested',
+                  'prompt': 'do more work',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          // After the rejection, the child finishes directly.
+          ChatCompletionResult(
+            content: 'Could not nest; finished the task directly.',
+            finishReason: 'stop',
+          ),
+        ],
+        childToolResultFollowUp: ChatCompletionResult(
+          content: 'Acknowledged the rejection.',
           finishReason: 'stop',
         ),
-      ],
-      parentFinalChunks: const ['Parent reports the delegated result.'],
-    );
-    final toolService = _SubagentTestToolService();
-    final container = _buildContainer(
-      dataSource: dataSource,
-      toolService: toolService,
-    );
-
-    try {
-      final notifier = container.read(chatNotifierProvider.notifier);
-      await notifier.sendMessage('Delegate the fact lookup to a subagent.');
-
-      // The child actually invoked the tool.
-      expect(toolService.executedToolNames, contains('lookup_fact'));
-
-      // The subagent summary (carrying the tool result) was handed back to the
-      // parent as a tool result.
-      final parentToolResultText = dataSource.parentToolResultBatches
-          .expand((batch) => batch)
-          .map((result) => result.result)
-          .join('\n');
-      expect(
-        parentToolResultText,
-        contains(_SubagentTestToolService.lookupFactResult),
+        parentFinalChunks: const ['Parent done.'],
+      );
+      final toolService = _SubagentTestToolService();
+      final container = _buildContainer(
+        dataSource: dataSource,
+        toolService: toolService,
       );
 
-      // The parent produced its final answer.
-      expect(
-        notifier.state.messages.last.role,
-        MessageRole.assistant,
-      );
-      expect(
-        notifier.state.messages.last.content,
-        contains('Parent reports the delegated result'),
-      );
-    } finally {
-      container.dispose();
-    }
-  });
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage('Delegate something that tries to nest.');
+        await _pumpUntil(
+          () => false,
+          timeout: const Duration(milliseconds: 50),
+        );
 
-  test('background subagent returns a task id and the result is recoverable', () async {
-    final dataSource = _SubagentScriptedDataSource(
-      parentInitialToolCalls: [
-        _spawnSubagentCall(
-          description: 'background compute',
-          prompt: 'Compute the answer and report it.',
-          background: true,
-        ),
-      ],
-      childCompletions: [
-        ChatCompletionResult(
-          content:
-              'Background result: ${_SubagentTestToolService.lookupFactResult}',
-          finishReason: 'stop',
-        ),
-      ],
-      parentFinalChunks: const ['Started the background task.'],
-    );
-    final toolService = _SubagentTestToolService();
-    final container = _buildContainer(
-      dataSource: dataSource,
-      toolService: toolService,
-    );
+        // The nested spawn_subagent was rejected before reaching the handler:
+        // no nested background task was registered and executeTool never saw it.
+        expect(
+          container.read(subagentTaskNotifierProvider),
+          isEmpty,
+          reason: 'a nested subagent must not be created',
+        );
+        expect(
+          toolService.executedToolNames,
+          isNot(contains('spawn_subagent')),
+        );
 
-    try {
-      final notifier = container.read(chatNotifierProvider.notifier);
-      await notifier.sendMessage('Run the computation in the background.');
-
-      // A background task was registered immediately.
-      final tasks = container.read(subagentTaskNotifierProvider);
-      expect(tasks, isNotEmpty);
-      final taskId = tasks.first.id;
-      expect(tasks.first.isBackground, isTrue);
-
-      // Wait for the fire-and-forget run to settle.
-      final taskNotifier = container.read(
-        subagentTaskNotifierProvider.notifier,
-      );
-      await _pumpUntil(() => taskNotifier.byId(taskId)?.isTerminal ?? false);
-
-      final settled = taskNotifier.byId(taskId);
-      expect(settled, isNotNull);
-      expect(settled!.status, SubagentTaskStatus.completed);
-      expect(
-        settled.resultSummary,
-        contains(_SubagentTestToolService.lookupFactResult),
-        reason: 'get_subagent_result reads this notifier-backed summary',
-      );
-    } finally {
-      container.dispose();
-    }
-  });
-
-  test('a child cannot spawn another subagent (delegation depth stays 1)', () async {
-    final dataSource = _SubagentScriptedDataSource(
-      parentInitialToolCalls: [
-        _spawnSubagentCall(
-          description: 'tries to nest',
-          prompt: 'Attempt to spawn another subagent, then summarize.',
-        ),
-      ],
-      childCompletions: [
-        // Child attempts a nested spawn_subagent.
-        ChatCompletionResult(
-          content: '',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'child-nest-1',
-              name: 'spawn_subagent',
-              arguments: const {
-                'description': 'nested',
-                'prompt': 'do more work',
-              },
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
-        // After the rejection, the child finishes directly.
-        ChatCompletionResult(
-          content: 'Could not nest; finished the task directly.',
-          finishReason: 'stop',
-        ),
-      ],
-      childToolResultFollowUp: ChatCompletionResult(
-        content: 'Acknowledged the rejection.',
-        finishReason: 'stop',
-      ),
-      parentFinalChunks: const ['Parent done.'],
-    );
-    final toolService = _SubagentTestToolService();
-    final container = _buildContainer(
-      dataSource: dataSource,
-      toolService: toolService,
-    );
-
-    try {
-      final notifier = container.read(chatNotifierProvider.notifier);
-      await notifier.sendMessage('Delegate something that tries to nest.');
-      await _pumpUntil(() => false, timeout: const Duration(milliseconds: 50));
-
-      // The nested spawn_subagent was rejected before reaching the handler:
-      // no nested background task was registered and executeTool never saw it.
-      expect(
-        container.read(subagentTaskNotifierProvider),
-        isEmpty,
-        reason: 'a nested subagent must not be created',
-      );
-      expect(
-        toolService.executedToolNames,
-        isNot(contains('spawn_subagent')),
-      );
-
-      // The child still completed and the parent produced its final answer.
-      final parentToolResultText = dataSource.parentToolResultBatches
-          .expand((batch) => batch)
-          .map((result) => result.result)
-          .join('\n');
-      expect(parentToolResultText, contains('finished the task directly'));
-      expect(notifier.state.messages.last.role, MessageRole.assistant);
-    } finally {
-      container.dispose();
-    }
-  });
+        // The child still completed and the parent produced its final answer.
+        final parentToolResultText = dataSource.parentToolResultBatches
+            .expand((batch) => batch)
+            .map((result) => result.result)
+            .join('\n');
+        expect(parentToolResultText, contains('finished the task directly'));
+        expect(notifier.state.messages.last.role, MessageRole.assistant);
+      } finally {
+        container.dispose();
+      }
+    },
+  );
 }

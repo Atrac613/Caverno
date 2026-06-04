@@ -1314,6 +1314,20 @@ class _MessageInputState extends ConsumerState<MessageInput> {
               ],
             ),
           ),
+          if (!hasGoal && widget.onCodingGoalEdit != null)
+            IconButton(
+              key: const ValueKey('coding-goal-set-button'),
+              tooltip: 'chat.goal_set'.tr(),
+              icon: const Icon(Icons.add_task_outlined),
+              onPressed: controlsEnabled ? widget.onCodingGoalEdit : null,
+            ),
+          if (hasGoal && widget.onCodingGoalEdit != null)
+            IconButton(
+              key: const ValueKey('coding-goal-edit-button'),
+              tooltip: 'chat.goal_edit'.tr(),
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: controlsEnabled ? widget.onCodingGoalEdit : null,
+            ),
           if (hasGoal)
             PopupMenuButton<_GoalMenuAction>(
               enabled: controlsEnabled,
