@@ -21,6 +21,7 @@ import '../../../routines/presentation/pages/routine_detail_view.dart';
 import '../../../routines/presentation/pages/routines_home_page.dart';
 import '../../../routines/presentation/providers/routine_scheduler.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
+import '../../../routines/presentation/widgets/routine_editor_launcher.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/providers/model_list_provider.dart';
@@ -1621,6 +1622,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       drawer: usePersistentDrawer
           ? null
           : _buildConversationDrawer(closeOnAction: true),
+      // The persistent drawer exposes a create button in its routines list, but
+      // the temporary drawer closes after switching workspaces and leaves the
+      // read-only home dashboard without one. Surface a create FAB so mobile can
+      // still add routines from the home view.
+      floatingActionButton:
+          isRoutinesWorkspace && !usePersistentDrawer && selectedRoutine == null
+          ? FloatingActionButton(
+              onPressed: () => _createRoutineFromHome(context),
+              tooltip: 'routines.create_cta'.tr(),
+              child: const Icon(Icons.add),
+            )
+          : null,
       body: Column(
         children: [
           const SubagentTaskBanner(),
@@ -1628,6 +1641,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _createRoutineFromHome(BuildContext context) async {
+    final createdId = await showRoutineEditor(context, ref);
+    if (createdId == null || !mounted) {
+      return;
+    }
+    ref.read(routinesNotifierProvider.notifier).selectRoutine(createdId);
   }
 
   Widget _buildPersistentWorkspaceHeader(
