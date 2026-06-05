@@ -389,7 +389,7 @@ class _OverwriteTransparencySettingsNotifier extends SettingsNotifier {
       temperature: env.temperature,
       maxTokens: env.maxTokens,
       mcpEnabled: true,
-      codingApprovalMode: CodingApprovalMode.fullAccess,
+      codingApprovalMode: ToolApprovalMode.fullAccess,
       confirmFileMutations: false,
       confirmLocalCommands: false,
       demoMode: false,

@@ -1236,7 +1236,7 @@ class _LiveSettingsNotifier extends SettingsNotifier {
       temperature: env.temperature,
       maxTokens: env.maxTokens,
       mcpEnabled: true,
-      codingApprovalMode: CodingApprovalMode.fullAccess,
+      codingApprovalMode: ToolApprovalMode.fullAccess,
       confirmFileMutations: false,
       confirmLocalCommands: false,
       confirmGitWrites: false,
