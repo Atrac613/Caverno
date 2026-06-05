@@ -162,6 +162,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                 const SizedBox(height: 16),
                 DropdownButtonFormField<RoutineScheduleMode>(
                   initialValue: _scheduleMode,
+                  isExpanded: true,
                   decoration: InputDecoration(
                     labelText: 'routines.schedule_mode_label'.tr(),
                     border: const OutlineInputBorder(),
@@ -211,6 +212,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                       Expanded(
                         child: DropdownButtonFormField<RoutineIntervalUnit>(
                           initialValue: _intervalUnit,
+                          isExpanded: true,
                           decoration: InputDecoration(
                             labelText: 'routines.interval_unit_label'.tr(),
                             border: const OutlineInputBorder(),
@@ -322,6 +324,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<RoutineCompletionAction>(
                   initialValue: _completionAction,
+                  isExpanded: true,
                   decoration: InputDecoration(
                     labelText: 'routines.completion_action_label'.tr(),
                     border: const OutlineInputBorder(),
@@ -349,6 +352,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                   const SizedBox(height: 16),
                   DropdownButtonFormField<RoutineGoogleChatRule>(
                     initialValue: _googleChatRule,
+                    isExpanded: true,
                     decoration: InputDecoration(
                       labelText: 'routines.google_chat_rule_label'.tr(),
                       border: const OutlineInputBorder(),
