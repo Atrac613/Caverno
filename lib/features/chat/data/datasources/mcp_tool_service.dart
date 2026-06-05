@@ -1993,7 +1993,7 @@ class McpToolService {
       'function': {
         'name': 'browser_open',
         'description':
-            'Open a URL in the built-in browser pane (it launches to the right of the workspace). Use this first, then browser_snapshot to inspect the page. Returns the final URL and title.',
+            'Open a URL in the built-in browser pane. On wide layouts it opens to the right of the workspace; on narrow layouts it opens above the chat input. Use this first, then browser_snapshot to inspect the page. Returns the final URL and title.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -4754,7 +4754,8 @@ class McpToolService {
             toolName: name,
             result: '',
             isSuccess: false,
-            errorMessage: 'Serial tool $name must be invoked with user '
+            errorMessage:
+                'Serial tool $name must be invoked with user '
                 'approval and cannot be executed directly.',
           );
       }

@@ -10,11 +10,12 @@ part of 'chat_page.dart';
 extension _ChatPageBrowserBuilders on _ChatPageState {
   /// Wraps the chat workspace with the browser pane when the session is open.
   /// On wide layouts it sits as the right-most pane; on narrow layouts it
-  /// overlays the chat full-screen so the single webview instance is reused.
+  /// stays above the chat so the composer remains reachable.
   Widget _wrapWithBrowserPane(
     BuildContext context,
     Widget coreBody, {
     required double availableWidth,
+    required double availableHeight,
   }) {
     final service = ref.watch(browserSessionServiceProvider);
     return ListenableBuilder(
@@ -35,12 +36,30 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
             ],
           );
         }
-        return Stack(
+        final compactHeight = availableHeight.isFinite
+            ? availableHeight
+            : MediaQuery.sizeOf(context).height;
+        final maxBrowserHeight =
+            compactHeight - _ChatPageState._compactBrowserChatReserveHeight;
+        final browserHeight = maxBrowserHeight <= 0
+            ? 0.0
+            : (compactHeight *
+                      _ChatPageState._compactBrowserPanelHeightFraction)
+                  .clamp(0.0, maxBrowserHeight)
+                  .toDouble();
+        return Column(
           children: [
-            coreBody,
-            Positioned.fill(
-              child: _buildBrowserPanel(context, service, fullScreen: true),
+            SizedBox(
+              height: browserHeight,
+              child: _buildBrowserPanel(
+                context,
+                service,
+                fullScreen: true,
+                bottomBorder: true,
+                bottomSafeArea: false,
+              ),
             ),
+            Expanded(child: coreBody),
           ],
         );
       },
@@ -51,12 +70,16 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
     BuildContext context,
     BrowserSessionService service, {
     bool fullScreen = false,
+    bool bottomBorder = false,
+    bool bottomSafeArea = true,
   }) {
     final theme = Theme.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        border: fullScreen
+        border: bottomBorder
+            ? Border(bottom: BorderSide(color: theme.dividerColor))
+            : fullScreen
             ? null
             : Border(left: BorderSide(color: theme.dividerColor)),
       ),
@@ -64,6 +87,7 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
         top: false,
         left: false,
         right: false,
+        bottom: bottomSafeArea,
         child: Column(
           children: [
             _buildBrowserToolbar(context, service),
@@ -193,7 +217,10 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(pending.title, style: theme.textTheme.titleMedium),
+                          Text(
+                            pending.title,
+                            style: theme.textTheme.titleMedium,
+                          ),
                           Text(
                             pending.riskLabel,
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -207,7 +234,11 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
                 ),
                 const SizedBox(height: 12),
                 Text(pending.warningMessage, style: theme.textTheme.bodyMedium),
-                _browserApprovalRow(theme, Icons.bolt_outlined, pending.summary),
+                _browserApprovalRow(
+                  theme,
+                  Icons.bolt_outlined,
+                  pending.summary,
+                ),
                 if (pending.targetSummary != null)
                   _browserApprovalRow(
                     theme,
@@ -232,7 +263,10 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
                   ...pending.details.map(
                     (detail) => Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: Text('• $detail', style: theme.textTheme.bodySmall),
+                      child: Text(
+                        '• $detail',
+                        style: theme.textTheme.bodySmall,
+                      ),
                     ),
                   ),
                 ],

@@ -714,7 +714,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
       if (size <= _inlineFileMaxBytes) {
         // Small text file: keep the existing inline behavior.
-        final bytes = picked.bytes ??
+        final bytes =
+            picked.bytes ??
             (sourcePath != null ? await File(sourcePath).readAsBytes() : null);
         if (bytes == null) {
           _showFileError();
@@ -1092,8 +1093,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       ToolApprovalMode.defaultPermissions =>
         'settings.chat_approval_default'.tr(),
       ToolApprovalMode.autoReview => 'settings.chat_approval_auto_review'.tr(),
-      ToolApprovalMode.fullAccess =>
-        'settings.chat_approval_full_access'.tr(),
+      ToolApprovalMode.fullAccess => 'settings.chat_approval_full_access'.tr(),
     };
   }
 
@@ -1467,7 +1467,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final reasoningEffort = settings.reasoningEffort;
     final codingApprovalMode = settings.codingApprovalMode;
     final chatApprovalMode = settings.chatApprovalMode;
-    final canSend = _hasText ||
+    final canSend =
+        _hasText ||
         _selectedImageBytes != null ||
         _selectedFileContent != null ||
         _selectedFileDurablePath != null;
@@ -1660,6 +1661,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                         maxLines: 6,
                         keyboardType: TextInputType.multiline,
                         textInputAction: TextInputAction.newline,
+                        onTapOutside: (_) => _focusNode.unfocus(),
                       ),
                     ),
                   ),

@@ -142,9 +142,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   static const double _persistentDrawerWidth = 320;
   static const double _browserPanelBreakpoint = 1280;
   static const double _browserPanelWidth = 480;
+  static const double _compactBrowserPanelHeightFraction = 0.55;
+  static const double _compactBrowserChatReserveHeight = 220;
 
   /// The built-in browser webview is built once and reused so toggling the
-  /// pane (or moving between pane/full-screen) preserves the live page.
+  /// pane (or moving between wide and compact layouts) preserves the live page.
   final GlobalKey _browserWebViewKey = GlobalKey();
   Widget? _browserWebView;
 
@@ -1378,7 +1380,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               context,
               enabled: canCompose,
               child: LayoutBuilder(
-                builder: (context, _) {
+                builder: (context, constraints) {
                   final showCompanionSidebar =
                       canShowCompanionPanel &&
                       _isCompanionSidebarVisible &&
@@ -1541,6 +1543,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     context,
                     coreBody,
                     availableWidth: MediaQuery.sizeOf(context).width,
+                    availableHeight: constraints.maxHeight,
                   );
                 },
               ),
@@ -1595,7 +1598,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       );
     }
 
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: usePersistentDrawer
           ? null
           : AppBar(
@@ -1641,6 +1644,41 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ],
       ),
     );
+    return _wrapWithMobileKeyboardDismiss(scaffold);
+  }
+
+  Widget _wrapWithMobileKeyboardDismiss(Widget child) {
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
+      return child;
+    }
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        _dismissKeyboardIfTapIsOutsideFocusedRegion(event.position);
+      },
+      child: child,
+    );
+  }
+
+  void _dismissKeyboardIfTapIsOutsideFocusedRegion(Offset position) {
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus == null || !primaryFocus.hasFocus) {
+      return;
+    }
+
+    final focusContext = primaryFocus.context;
+    final renderObject = focusContext?.findRenderObject();
+    if (renderObject is RenderBox && renderObject.attached) {
+      final focusedRect = MatrixUtils.transformRect(
+        renderObject.getTransformTo(null),
+        Offset.zero & renderObject.size,
+      );
+      if (focusedRect.contains(position)) {
+        return;
+      }
+    }
+
+    primaryFocus.unfocus();
   }
 
   Future<void> _createRoutineFromHome(BuildContext context) async {
