@@ -213,6 +213,24 @@ void main() {
     );
   });
 
+  testWidgets('mobile coding shows the navigation menu button at phone size', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+
+    // iPhone 12 Pro logical resolution: the regression hid the hamburger button
+    // entirely on coding because the drawer was null, so assert it is present at
+    // a real phone width rather than only on the wide default canvas.
+    await _pumpCodingWorkspace(tester, size: const Size(390, 844));
+
+    expect(find.byTooltip('Open navigation menu'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ConversationDrawer), findsOneWidget);
+  });
+
   testWidgets('desktop coding tab keeps local project controls', (
     tester,
   ) async {
@@ -364,9 +382,12 @@ void main() {
   });
 }
 
-Future<ProviderContainer> _pumpCodingWorkspace(WidgetTester tester) async {
+Future<ProviderContainer> _pumpCodingWorkspace(
+  WidgetTester tester, {
+  Size size = const Size(1200, 900),
+}) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(1200, 900);
+  tester.view.physicalSize = size;
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 
