@@ -755,6 +755,7 @@
     "tool_search_files": "ローカルプロジェクトのファイル内容を横断検索",
     "tool_local_execute_command": "プロジェクト内でローカルシェルコマンドを実行",
     "tool_run_tests": "プロジェクト内で範囲指定の Dart / Flutter テストを実行",
+    "tool_run_python_script": "Python スクリプトを生成・実行して端末上で処理（例: 添付画像のメタデータ解析）",
     "confirm_file_mutations": "ファイル編集を確認する",
     "confirm_file_mutations_desc": "write_file と edit_file の変更前に確認します。",
     "confirm_local_commands": "ローカル書き込みコマンドを確認する",

@@ -7,6 +7,7 @@ import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/serial_port_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/wifi_service.dart';
+import '../../../../core/services/script_runtime/script_runtime_provider.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/mcp_client.dart';
@@ -87,6 +88,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final serialPortService = ref.watch(serialPortServiceProvider);
   final computerUseService = ref.watch(macosComputerUseServiceProvider);
   final browserService = ref.watch(browserSessionServiceProvider);
+  final scriptRuntimeRegistry = ref.watch(scriptRuntimeRegistryProvider);
   final settings = ref.watch(settingsNotifierProvider);
   // Keep the browser session's availability in sync with settings without
   // recreating the singleton (it owns the live webview controller). The
@@ -110,6 +112,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     serialPortService: serialPortService,
     computerUseService: computerUseService,
     browserService: browserService,
+    scriptRuntimeRegistry: scriptRuntimeRegistry,
     disabledBuiltInTools: settings.disabledBuiltInToolsSet,
   );
 });

@@ -18,6 +18,14 @@ flutter pub get
 # Code generation (freezed + json_serializable) — run after modifying entity classes
 dart run build_runner build --delete-conflicting-outputs
 
+# Regenerate the embedded Python worker asset (run_python_script tool) after
+# editing lib/core/services/script_runtime/worker/ — stdlib-only MVP bundle:
+zip -X -j assets/python/app.zip lib/core/services/script_runtime/worker/main.py
+# To bundle pure-Python pip packages instead (mobile supports pure-Python
+# wheels only), use the serious_python packager (downloads CPython + runs pip):
+#   dart run serious_python:main package lib/core/services/script_runtime/worker \
+#     -a assets/python/app.zip -p iOS -r piexif
+
 # Lint
 flutter analyze
 

@@ -12,6 +12,7 @@ import '../../../../core/services/lan_scan_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/serial_port_service.dart';
 import '../../../../core/services/wifi_service.dart';
+import '../../../../core/services/script_runtime/script_runtime.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
@@ -31,6 +32,7 @@ import 'mcp_client.dart';
 import 'mcp_stdio_client.dart';
 import 'network_tools.dart';
 import 'os_log_tools.dart';
+import 'python_script_tools.dart';
 import 'searxng_client.dart';
 import 'serial_port_tools.dart';
 import 'wifi_tools.dart';
@@ -89,6 +91,7 @@ class McpToolService {
     'find_files',
     'search_files',
     'local_execute_command',
+    'run_python_script',
     'run_tests',
     'git_execute_command',
     ...OsLogTools.allToolNames,
@@ -142,6 +145,7 @@ class McpToolService {
     this.computerUseService,
     this.browserService,
     this.osLogProcessRunner,
+    this.scriptRuntimeRegistry,
     this.disabledBuiltInTools = const {},
   });
 
@@ -158,6 +162,7 @@ class McpToolService {
   final MacosComputerUseService? computerUseService;
   final BrowserSessionService? browserService;
   final OsLogProcessRunner? osLogProcessRunner;
+  final ScriptRuntimeRegistry? scriptRuntimeRegistry;
   final Set<String> disabledBuiltInTools;
 
   List<McpToolEntity> _cachedTools = [];
@@ -542,6 +547,12 @@ class McpToolService {
     if (LocalShellTools.isDesktopPlatform) {
       _addIfEnabled(toolDefinitions, _localExecuteCommandTool);
       _addIfEnabled(toolDefinitions, _runTestsTool);
+    }
+
+    // Embedded Python script execution is available on every platform
+    // (serious_python ships a native interpreter for iOS/Android/desktop).
+    if (scriptRuntimeRegistry != null) {
+      _addIfEnabled(toolDefinitions, PythonScriptTools.toolDefinition);
     }
 
     if (OsLogTools.supportsSystemInfo || OsLogTools.supportsLogRead) {
@@ -988,6 +999,25 @@ class McpToolService {
       final result = await LocalShellTools.execute(
         command: command,
         workingDirectory: workingDirectory,
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'run_python_script') {
+      final runtime = scriptRuntimeRegistry?.forLanguage(
+        ScriptRuntimeRegistry.defaultLanguage,
+      );
+      if (runtime == null) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'Python runtime is not available',
+        );
+      }
+      final result = await PythonScriptTools.execute(
+        runtime: runtime,
+        arguments: arguments,
       );
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }

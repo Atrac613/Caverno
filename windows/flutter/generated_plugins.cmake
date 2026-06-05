@@ -14,6 +14,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   irondash_engine_context
   record_windows
   screen_retriever_windows
+  serious_python_windows
   speech_to_text_windows
   super_native_extensions
   url_launcher_windows

@@ -38,6 +38,7 @@ import '../../data/datasources/filesystem_tools.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/local_shell_tools.dart';
 import '../../data/datasources/mcp_tool_service.dart';
+import '../../data/datasources/python_input_staging.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/session_logging_chat_datasource.dart';
 import '../../domain/entities/coding_project.dart';
@@ -84,6 +85,7 @@ part 'chat_notifier_local_file_handlers.dart';
 part 'chat_notifier_serial_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
+part 'chat_notifier_python_handlers.dart';
 
 final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
   final settings = ref.watch(settingsNotifierProvider);
@@ -12186,6 +12188,8 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleRollbackLastFileChange(toolCall);
       case 'local_execute_command':
         return _handleLocalExecuteCommand(toolCall);
+      case 'run_python_script':
+        return _handlePythonScript(toolCall);
       case 'run_tests':
         return _handleRunTests(toolCall);
       case 'ssh_connect':

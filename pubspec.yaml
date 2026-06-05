@@ -107,6 +107,11 @@ dependencies:
   # Built-in agent-controlled browser tool (iOS/Android/macOS/Windows)
   flutter_inappwebview: ^6.1.5
 
+  # Embedded Python runtime for on-device LLM script execution
+  # (iOS/Android/macOS/Windows/Linux). Runs a long-lived worker that the Dart
+  # side drives over a loopback channel; see core/services/script_runtime.
+  serious_python: ^1.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -155,6 +160,9 @@ flutter:
 
   assets:
     - assets/translations/
+    # Bundled Python worker for the run_python_script tool. Regenerate after
+    # editing lib/core/services/script_runtime/worker/ — see CLAUDE.md.
+    - assets/python/app.zip
 
   # To add assets to your application, add an assets section, like this:
   # assets:

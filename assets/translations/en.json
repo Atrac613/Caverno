@@ -755,6 +755,7 @@
     "tool_search_files": "Search text across local project files",
     "tool_local_execute_command": "Execute a local shell command in the project",
     "tool_run_tests": "Run scoped Dart or Flutter tests in the project",
+    "tool_run_python_script": "Write and run a Python script on-device to compute answers (e.g. analyze an attached image's metadata)",
     "confirm_file_mutations": "Confirm file edits",
     "confirm_file_mutations_desc": "Ask before write_file or edit_file changes are applied.",
     "confirm_local_commands": "Confirm local write commands",

@@ -41,7 +41,8 @@ android {
 
     defaultConfig {
         applicationId = "com.noguwo.apps.caverno"
-        minSdk = flutter.minSdkVersion
+        // serious_python (embedded Python) requires Android 7.0+ (API 24).
+        minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

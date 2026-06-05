@@ -12,6 +12,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   irondash_engine_context
   record_linux
   screen_retriever_linux
+  serious_python_linux
   super_native_extensions
   url_launcher_linux
   window_manager

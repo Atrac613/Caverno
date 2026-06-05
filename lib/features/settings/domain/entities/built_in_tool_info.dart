@@ -348,6 +348,11 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_run_tests',
       category: categoryCoding,
     ),
+    BuiltInToolInfo(
+      name: 'run_python_script',
+      descriptionKey: 'settings.tool_run_python_script',
+      category: categoryCoding,
+    ),
     // SSH
     BuiltInToolInfo(
       name: 'ssh_connect',
