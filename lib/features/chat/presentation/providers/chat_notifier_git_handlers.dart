@@ -50,62 +50,58 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    if (_hasFullCodingApprovalAccess) {
-      return _mcpToolService!.executeTool(
-        name: toolCall.name,
-        arguments: gitArguments,
-      );
-    }
-
     final reason = toolCall.arguments['reason'] as String?;
-    final autoReviewDecision = await _reviewCodingApproval(
+    final gate = await _resolveToolApprovalGate(
       toolCall: toolCall,
       actionKind: 'git_execute_command',
-      arguments: gitArguments,
-      workingDirectory: workingDirectory,
-      reason: reason,
-    );
-    if (autoReviewDecision?.isAllowed == true) {
-      final result = await _mcpToolService!.executeTool(
-        name: toolCall.name,
+      mode: _settings.codingApprovalMode,
+      reviewDomain: ToolApprovalAutoReviewDomain.coding,
+      fullAccessEligible: true,
+      buildReviewRequest: () async => _buildAutoReviewRequest(
+        toolCall: toolCall,
+        actionKind: 'git_execute_command',
         arguments: gitArguments,
-      );
-      return _rememberToolApprovalResult(toolCall.name, gitArguments, result);
-    }
-    if (autoReviewDecision != null) {
+        workingDirectory: workingDirectory,
+        reason: reason,
+      ),
+    );
+    if (gate.isDenied) {
       return _rememberToolApprovalResult(
         toolCall.name,
         gitArguments,
         _autoReviewDeniedResult(
           toolName: toolCall.name,
-          decision: autoReviewDecision,
+          rationale: gate.deniedRationale!,
         ),
       );
     }
-
-    // Write commands require user approval.
-    final approved = await requestGitCommand(
-      command: command,
-      workingDirectory: workingDirectory,
-      reason: reason,
-    );
-    if (!approved) {
-      return _rememberToolApprovalResult(
-        toolCall.name,
-        gitArguments,
-        McpToolResult(
-          toolName: toolCall.name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'User denied git command execution',
-        ),
+    if (gate.needsManual) {
+      // Write commands require user approval.
+      final approved = await requestGitCommand(
+        command: command,
+        workingDirectory: workingDirectory,
+        reason: reason,
       );
+      if (!approved) {
+        return _rememberToolApprovalResult(
+          toolCall.name,
+          gitArguments,
+          McpToolResult(
+            toolName: toolCall.name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'User denied git command execution',
+          ),
+        );
+      }
     }
     final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: gitArguments,
     );
-    return _rememberToolApprovalResult(toolCall.name, gitArguments, result);
+    return gate.bypassedApproval
+        ? result
+        : _rememberToolApprovalResult(toolCall.name, gitArguments, result);
   }
 
   /// Puts a pending git command into state and returns a future that

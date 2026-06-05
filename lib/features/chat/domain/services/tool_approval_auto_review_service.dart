@@ -2,26 +2,31 @@ import 'dart:convert';
 
 import '../entities/message.dart';
 
-enum CodingApprovalAutoReviewOutcome { allow, deny }
+enum ToolApprovalAutoReviewOutcome { allow, deny }
 
-class CodingApprovalAutoReviewDecision {
-  const CodingApprovalAutoReviewDecision({
+/// Which permission boundary the auto-reviewer is judging. Swaps the system
+/// prompt so the same JSON contract serves coding writes, browser actions, and
+/// device/remote connections.
+enum ToolApprovalAutoReviewDomain { coding, browser, connection }
+
+class ToolApprovalAutoReviewDecision {
+  const ToolApprovalAutoReviewDecision({
     required this.outcome,
     required this.riskLevel,
     required this.userAuthorization,
     required this.rationale,
   });
 
-  final CodingApprovalAutoReviewOutcome outcome;
+  final ToolApprovalAutoReviewOutcome outcome;
   final String riskLevel;
   final String userAuthorization;
   final String rationale;
 
-  bool get isAllowed => outcome == CodingApprovalAutoReviewOutcome.allow;
+  bool get isAllowed => outcome == ToolApprovalAutoReviewOutcome.allow;
 }
 
-class CodingApprovalConversationEntry {
-  const CodingApprovalConversationEntry({
+class ToolApprovalConversationEntry {
+  const ToolApprovalConversationEntry({
     required this.role,
     required this.content,
   });
@@ -32,8 +37,8 @@ class CodingApprovalConversationEntry {
   Map<String, dynamic> toJson() => {'role': role, 'content': content};
 }
 
-class CodingApprovalAutoReviewRequest {
-  const CodingApprovalAutoReviewRequest({
+class ToolApprovalAutoReviewRequest {
+  const ToolApprovalAutoReviewRequest({
     required this.actionKind,
     required this.toolName,
     required this.arguments,
@@ -49,7 +54,7 @@ class CodingApprovalAutoReviewRequest {
   final String actionKind;
   final String toolName;
   final Map<String, dynamic> arguments;
-  final List<CodingApprovalConversationEntry> conversationTail;
+  final List<ToolApprovalConversationEntry> conversationTail;
   final String? path;
   final String? workingDirectory;
   final String? reason;
@@ -58,14 +63,14 @@ class CodingApprovalAutoReviewRequest {
   final String? preview;
 }
 
-class CodingApprovalAutoReviewService {
-  CodingApprovalAutoReviewService._();
+class ToolApprovalAutoReviewService {
+  ToolApprovalAutoReviewService._();
 
   static const int _maxConversationEntries = 8;
   static const int _maxConversationContentChars = 900;
   static const int _maxPreviewChars = 12000;
 
-  static List<CodingApprovalConversationEntry> buildConversationTail(
+  static List<ToolApprovalConversationEntry> buildConversationTail(
     List<Message> messages,
   ) {
     return messages
@@ -76,7 +81,7 @@ class CodingApprovalAutoReviewService {
         )
         .takeLast(_maxConversationEntries)
         .map(
-          (message) => CodingApprovalConversationEntry(
+          (message) => ToolApprovalConversationEntry(
             role: message.role.name,
             content: _truncate(message.content, _maxConversationContentChars),
           ),
@@ -84,18 +89,34 @@ class CodingApprovalAutoReviewService {
         .toList(growable: false);
   }
 
-  static List<Message> buildMessages(CodingApprovalAutoReviewRequest request) {
+  static List<Message> buildMessages(
+    ToolApprovalAutoReviewRequest request, {
+    ToolApprovalAutoReviewDomain domain =
+        ToolApprovalAutoReviewDomain.coding,
+  }) {
     final now = DateTime.now();
     return [
       Message(
         id: 'auto_review_policy',
         role: MessageRole.system,
         timestamp: now,
-        content:
+        content: switch (domain) {
+          ToolApprovalAutoReviewDomain.coding =>
             'You are Caverno approval auto-review. Review whether the requested coding action may cross the local permission boundary. '
-            'Do not execute tools. Do not propose alternatives. Return only strict JSON with keys outcome, riskLevel, userAuthorization, and rationale. '
-            'Use outcome "allow" only when the action is clearly requested by the user, scoped to the selected project, and not destructive beyond that intent. '
-            'Use outcome "deny" for destructive, credential, exfiltration, network side-effect, privilege escalation, or unrelated actions.',
+                'Do not execute tools. Do not propose alternatives. Return only strict JSON with keys outcome, riskLevel, userAuthorization, and rationale. '
+                'Use outcome "allow" only when the action is clearly requested by the user, scoped to the selected project, and not destructive beyond that intent. '
+                'Use outcome "deny" for destructive, credential, exfiltration, network side-effect, privilege escalation, or unrelated actions.',
+          ToolApprovalAutoReviewDomain.browser =>
+            'You are Caverno approval auto-review for the built-in browser. Review whether the requested browser action may cross a safety boundary. '
+                'Do not execute tools. Do not propose alternatives. Return only strict JSON with keys outcome, riskLevel, userAuthorization, and rationale. '
+                'Use outcome "allow" only when the action clearly advances the user request and does not submit credentials, make a purchase, send a message, post publicly, or otherwise cause an irreversible side effect. '
+                'Use outcome "deny" for credential entry, payments, destructive or irreversible submissions, data exfiltration, or actions unrelated to the user request.',
+          ToolApprovalAutoReviewDomain.connection =>
+            'You are Caverno approval auto-review for device and remote connections (SSH, Bluetooth LE, serial). Review whether the requested action may cross a safety boundary. '
+                'Do not execute tools. Do not propose alternatives. Return only strict JSON with keys outcome, riskLevel, userAuthorization, and rationale. '
+                'Use outcome "allow" only when the action clearly advances the user request and targets a host/device the user asked to use, and is not a destructive, irreversible, or system-altering command. '
+                'Use outcome "deny" for destructive or irreversible commands, privilege escalation, credential exposure, or actions on hosts/devices unrelated to the user request.',
+        },
       ),
       Message(
         id: 'auto_review_request',
@@ -106,7 +127,7 @@ class CodingApprovalAutoReviewService {
     ];
   }
 
-  static CodingApprovalAutoReviewDecision? parseDecision(String content) {
+  static ToolApprovalAutoReviewDecision? parseDecision(String content) {
     final jsonText = _extractJsonObject(content);
     if (jsonText == null) return null;
 
@@ -120,8 +141,8 @@ class CodingApprovalAutoReviewService {
 
     final outcomeText = '${decoded['outcome'] ?? ''}'.trim().toLowerCase();
     final outcome = switch (outcomeText) {
-      'allow' => CodingApprovalAutoReviewOutcome.allow,
-      'deny' => CodingApprovalAutoReviewOutcome.deny,
+      'allow' => ToolApprovalAutoReviewOutcome.allow,
+      'deny' => ToolApprovalAutoReviewOutcome.deny,
       _ => null,
     };
     if (outcome == null) return null;
@@ -129,7 +150,7 @@ class CodingApprovalAutoReviewService {
     final rationale = '${decoded['rationale'] ?? ''}'.trim();
     if (rationale.isEmpty) return null;
 
-    return CodingApprovalAutoReviewDecision(
+    return ToolApprovalAutoReviewDecision(
       outcome: outcome,
       riskLevel: '${decoded['riskLevel'] ?? 'unknown'}'.trim(),
       userAuthorization: '${decoded['userAuthorization'] ?? 'unknown'}'.trim(),
@@ -138,7 +159,7 @@ class CodingApprovalAutoReviewService {
   }
 
   static Map<String, dynamic> _packetForRequest(
-    CodingApprovalAutoReviewRequest request,
+    ToolApprovalAutoReviewRequest request,
   ) {
     return {
       'schemaName': 'caverno_coding_approval_auto_review_request',

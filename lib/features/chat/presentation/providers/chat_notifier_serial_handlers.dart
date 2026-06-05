@@ -39,21 +39,46 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    final approved = await requestSerialOpen(
-      portName: port,
-      baudRate: baudRate,
+    final gate = await _resolveToolApprovalGate(
+      toolCall: toolCall,
+      actionKind: 'serial_open',
+      mode: _settings.chatApprovalMode,
+      reviewDomain: ToolApprovalAutoReviewDomain.connection,
+      fullAccessEligible: true,
+      buildReviewRequest: () async => _buildAutoReviewRequest(
+        toolCall: toolCall,
+        actionKind: 'serial_open',
+        arguments: cacheArguments,
+        reason: toolCall.arguments['reason'] as String?,
+      ),
     );
-    if (!approved) {
+    if (gate.isDenied) {
       return _rememberToolApprovalResult(
         toolCall.name,
         cacheArguments,
-        McpToolResult(
+        _autoReviewDeniedResult(
           toolName: toolCall.name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'User cancelled opening serial port $port',
+          rationale: gate.deniedRationale!,
         ),
       );
+    }
+    if (gate.needsManual) {
+      final approved = await requestSerialOpen(
+        portName: port,
+        baudRate: baudRate,
+      );
+      if (!approved) {
+        return _rememberToolApprovalResult(
+          toolCall.name,
+          cacheArguments,
+          McpToolResult(
+            toolName: toolCall.name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'User cancelled opening serial port $port',
+          ),
+        );
+      }
     }
 
     try {
@@ -73,8 +98,9 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
       );
       // Cache only successful opens so a transient failure (e.g. the port is
       // momentarily busy) can be retried — re-prompting the user — rather than
-      // returning a stale failure.
-      return succeeded
+      // returning a stale failure. Full access never caches, so re-opening stays
+      // possible without a stale result.
+      return (succeeded && !gate.bypassedApproval)
           ? _rememberToolApprovalResult(toolCall.name, cacheArguments, result)
           : result;
     } catch (e) {

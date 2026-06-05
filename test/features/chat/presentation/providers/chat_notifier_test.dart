@@ -13,6 +13,9 @@ import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/browser_session_service.dart';
 import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/notification_providers.dart';
+import 'package:caverno/core/services/ssh_credentials_manager.dart';
+import 'package:caverno/core/services/ssh_service.dart';
+import 'package:caverno/core/services/tool_approval_audit_log.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
@@ -308,6 +311,11 @@ class _TestSessionMemoryService extends SessionMemoryService {
 }
 
 class _MockAppLifecycleService extends Mock implements AppLifecycleService {}
+
+class _MockSshService extends Mock implements SshService {}
+
+class _MockSshCredentialsManager extends Mock
+    implements SshCredentialsManager {}
 
 class _TestBackgroundTaskService extends BackgroundTaskService {
   @override
@@ -1395,7 +1403,7 @@ class _ToolEnabledNoConfirmSettingsNotifier extends SettingsNotifier {
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
-      codingApprovalMode: CodingApprovalMode.fullAccess,
+      codingApprovalMode: ToolApprovalMode.fullAccess,
       confirmFileMutations: false,
       confirmLocalCommands: false,
       confirmGitWrites: false,
@@ -1410,7 +1418,7 @@ class _ToolEnabledNoVerificationSettingsNotifier extends SettingsNotifier {
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
-      codingApprovalMode: CodingApprovalMode.fullAccess,
+      codingApprovalMode: ToolApprovalMode.fullAccess,
       confirmFileMutations: false,
       confirmLocalCommands: false,
       confirmGitWrites: false,
@@ -1427,7 +1435,7 @@ class _ToolEnabledRequestOnlyVerificationSettingsNotifier
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
-      codingApprovalMode: CodingApprovalMode.fullAccess,
+      codingApprovalMode: ToolApprovalMode.fullAccess,
       confirmFileMutations: false,
       confirmLocalCommands: false,
       confirmGitWrites: false,
@@ -1444,7 +1452,7 @@ class _ToolEnabledRemoteDenySettingsNotifier extends SettingsNotifier {
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
-      codingApprovalMode: CodingApprovalMode.fullAccess,
+      codingApprovalMode: ToolApprovalMode.fullAccess,
       confirmFileMutations: false,
       confirmLocalCommands: false,
       confirmGitWrites: false,
@@ -1468,7 +1476,33 @@ class _ToolEnabledAutoReviewSettingsNotifier extends SettingsNotifier {
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
-      codingApprovalMode: CodingApprovalMode.autoReview,
+      codingApprovalMode: ToolApprovalMode.autoReview,
+    );
+  }
+}
+
+class _ToolEnabledChatFullAccessSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      mcpEnabled: true,
+      demoMode: false,
+      browserToolsEnabled: true,
+      chatApprovalMode: ToolApprovalMode.fullAccess,
+    );
+  }
+}
+
+class _ToolEnabledChatAutoReviewSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      mcpEnabled: true,
+      demoMode: false,
+      browserToolsEnabled: true,
+      chatApprovalMode: ToolApprovalMode.autoReview,
     );
   }
 }
@@ -2876,6 +2910,395 @@ void main() {
       );
     },
   );
+
+  test(
+    'full chat approval access runs sensitive browser actions without prompting',
+    () async {
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-click',
+            name: 'browser_click',
+            arguments: const {
+              'ref': 7,
+              'reason': 'Open the Wikipedia search result.',
+            },
+          ),
+        ],
+        toolRoleResponseContent: 'Clicked the link.',
+        finalAnswerChunks: const ['Opened the Wikipedia article.'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'browser_click': 'Click a browser element.'},
+        results: {
+          'browser_click': jsonEncode({
+            'ok': true,
+            'url': 'https://en.wikipedia.org/wiki/Hydrangea',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledChatFullAccessSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      // No approval is resolved: full access must let the action run on its own.
+      await chatNotifier.sendMessage('Open the Wikipedia article');
+
+      expect(chatNotifier.state.pendingBrowserAction, isNull);
+      expect(toolService.executedToolNames, ['browser_click']);
+      expect(dataSource.autoReviewRequestMessages, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('Opened the Wikipedia article.'),
+      );
+    },
+  );
+
+  test(
+    'auto-review chat approval consults the reviewer before a browser action',
+    () async {
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-click',
+            name: 'browser_click',
+            arguments: const {
+              'ref': 7,
+              'reason': 'Open the Wikipedia search result.',
+            },
+          ),
+        ],
+        toolRoleResponseContent: 'Clicked the link.',
+        finalAnswerChunks: const ['Opened the Wikipedia article.'],
+        autoReviewResponses: [
+          ChatCompletionResult(
+            content:
+                '{"outcome":"allow","riskLevel":"low","userAuthorization":"high","rationale":"User asked to open the link."}',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'browser_click': 'Click a browser element.'},
+        results: {
+          'browser_click': jsonEncode({'ok': true}),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledChatAutoReviewSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('Open the Wikipedia article');
+
+      // The reviewer is consulted and, on "allow", the action runs without a
+      // manual approval prompt.
+      expect(chatNotifier.state.pendingBrowserAction, isNull);
+      expect(dataSource.autoReviewRequestMessages, hasLength(1));
+      expect(
+        dataSource.autoReviewRequestMessages.first.first.content,
+        contains('built-in browser'),
+      );
+      expect(toolService.executedToolNames, ['browser_click']);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('Opened the Wikipedia article.'),
+      );
+    },
+  );
+
+  test('full chat approval auto-connects SSH when a password is saved', () async {
+    final dataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-ssh',
+          name: 'ssh_connect',
+          arguments: const {'host': 'example.com', 'port': 22, 'username': 'me'},
+        ),
+      ],
+      toolRoleResponseContent: 'Connected.',
+      finalAnswerChunks: const ['SSH session is ready.'],
+    );
+    final toolService = _FakeMcpToolService(
+      descriptions: const {'ssh_connect': 'Open an SSH session.'},
+      results: const {'ssh_connect': '{"ok":true}'},
+    );
+    final sshService = _MockSshService();
+    when(
+      () => sshService.connect(
+        host: any(named: 'host'),
+        port: any(named: 'port'),
+        username: any(named: 'username'),
+        password: any(named: 'password'),
+      ),
+    ).thenAnswer((_) async {});
+    final creds = _MockSshCredentialsManager();
+    when(
+      () => creds.loadPassword(
+        host: any(named: 'host'),
+        port: any(named: 'port'),
+        username: any(named: 'username'),
+      ),
+    ).thenAnswer((_) async => 'secret');
+    when(
+      () => creds.savePassword(
+        host: any(named: 'host'),
+        port: any(named: 'port'),
+        username: any(named: 'username'),
+        password: any(named: 'password'),
+      ),
+    ).thenAnswer((_) async {});
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final threadContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledChatFullAccessSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+        sshServiceProvider.overrideWithValue(sshService),
+        sshCredentialsManagerProvider.overrideWithValue(creds),
+      ],
+    );
+    addTearDown(threadContainer.dispose);
+
+    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage('Connect to my server');
+
+    // Full access + a stored credential connects without raising the dialog.
+    expect(chatNotifier.state.pendingSshConnect, isNull);
+    verify(
+      () => sshService.connect(
+        host: 'example.com',
+        port: 22,
+        username: 'me',
+        password: 'secret',
+      ),
+    ).called(1);
+    expect(dataSource.autoReviewRequestMessages, isEmpty);
+  });
+
+  test(
+    'full chat approval falls back to the SSH dialog without a saved password',
+    () async {
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-ssh',
+            name: 'ssh_connect',
+            arguments: const {
+              'host': 'example.com',
+              'port': 22,
+              'username': 'me',
+            },
+          ),
+        ],
+        toolRoleResponseContent: 'Cancelled.',
+        finalAnswerChunks: const ['No session was opened.'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'ssh_connect': 'Open an SSH session.'},
+        results: const {'ssh_connect': '{"ok":true}'},
+      );
+      final sshService = _MockSshService();
+      final creds = _MockSshCredentialsManager();
+      when(
+        () => creds.loadPassword(
+          host: any(named: 'host'),
+          port: any(named: 'port'),
+          username: any(named: 'username'),
+        ),
+      ).thenAnswer((_) async => null);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledChatFullAccessSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+          sshServiceProvider.overrideWithValue(sshService),
+          sshCredentialsManagerProvider.overrideWithValue(creds),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      final sendFuture = chatNotifier.sendMessage('Connect to my server');
+
+      // No stored credential: full access still needs the interactive dialog.
+      await _waitForCondition(
+        () => chatNotifier.state.pendingSshConnect != null,
+      );
+      expect(chatNotifier.state.pendingSshConnect!.host, 'example.com');
+
+      // Cancel so sendMessage can finish.
+      chatNotifier.resolveSshConnect(
+        id: chatNotifier.state.pendingSshConnect!.id,
+        approval: null,
+      );
+      await sendFuture;
+
+      verifyNever(
+        () => sshService.connect(
+          host: any(named: 'host'),
+          port: any(named: 'port'),
+          username: any(named: 'username'),
+          password: any(named: 'password'),
+        ),
+      );
+    },
+  );
+
+  test('auto-review verdicts are written to the approval audit log', () async {
+    final auditDir = Directory.systemTemp.createTempSync('chat_audit_');
+    addTearDown(() => auditDir.deleteSync(recursive: true));
+    final auditLog = ToolApprovalAuditLog(
+      rootDirectoryProvider: () async => auditDir,
+    );
+
+    final dataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-click',
+          name: 'browser_click',
+          arguments: const {'ref': 7, 'reason': 'Open the link.'},
+        ),
+      ],
+      toolRoleResponseContent: 'Reviewed.',
+      finalAnswerChunks: const ['Stopped before clicking.'],
+      autoReviewResponses: [
+        ChatCompletionResult(
+          content:
+              '{"outcome":"deny","riskLevel":"high","userAuthorization":"low","rationale":"Looks like a credential submit."}',
+          finishReason: 'stop',
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      descriptions: const {'browser_click': 'Click a browser element.'},
+      results: const {'browser_click': '{"ok":true}'},
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final threadContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledChatAutoReviewSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+        toolApprovalAuditLogProvider.overrideWithValue(auditLog),
+      ],
+    );
+    addTearDown(threadContainer.dispose);
+
+    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage('Open the link');
+
+    final auditFiles = Directory('${auditDir.path}/approval_audit')
+        .listSync()
+        .whereType<File>()
+        .toList();
+    expect(auditFiles, isNotEmpty);
+    final entries = auditFiles
+        .expand((file) => file.readAsLinesSync())
+        .where((line) => line.trim().isNotEmpty)
+        .map((line) => jsonDecode(line) as Map<String, dynamic>)
+        .toList();
+    final clickEntry = entries.firstWhere((e) => e['tool'] == 'browser_click');
+    expect(clickEntry['outcome'], 'denied');
+    expect(clickEntry['decisionSource'], 'auto_review');
+    expect(clickEntry['mode'], 'autoReview');
+    expect(clickEntry['domain'], 'browser');
+    expect(clickEntry['rationale'], contains('credential'));
+  });
 
   test(
     'sendMessage marks browser save claims unexecuted without save tool result',

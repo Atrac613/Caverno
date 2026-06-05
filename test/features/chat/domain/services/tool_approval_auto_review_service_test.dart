@@ -1,11 +1,11 @@
 import 'package:caverno/features/chat/domain/entities/message.dart';
-import 'package:caverno/features/chat/domain/services/coding_approval_auto_review_service.dart';
+import 'package:caverno/features/chat/domain/services/tool_approval_auto_review_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('CodingApprovalAutoReviewService', () {
+  group('ToolApprovalAutoReviewService', () {
     test('parses allow decisions', () {
-      final decision = CodingApprovalAutoReviewService.parseDecision(
+      final decision = ToolApprovalAutoReviewService.parseDecision(
         '{"outcome":"allow","riskLevel":"low","userAuthorization":"high","rationale":"The user requested this scoped edit."}',
       );
 
@@ -16,7 +16,7 @@ void main() {
     });
 
     test('parses fenced deny decisions', () {
-      final decision = CodingApprovalAutoReviewService.parseDecision(
+      final decision = ToolApprovalAutoReviewService.parseDecision(
         '```json\n{"outcome":"deny","riskLevel":"critical","userAuthorization":"unknown","rationale":"The command deletes unrelated files."}\n```',
       );
 
@@ -27,11 +27,11 @@ void main() {
 
     test('returns null for malformed decisions', () {
       expect(
-        CodingApprovalAutoReviewService.parseDecision('allow this action'),
+        ToolApprovalAutoReviewService.parseDecision('allow this action'),
         isNull,
       );
       expect(
-        CodingApprovalAutoReviewService.parseDecision(
+        ToolApprovalAutoReviewService.parseDecision(
           '{"outcome":"maybe","rationale":"unclear"}',
         ),
         isNull,
@@ -40,7 +40,7 @@ void main() {
 
     test('builds visible conversation tail without system messages', () {
       final now = DateTime(2026, 5, 26);
-      final tail = CodingApprovalAutoReviewService.buildConversationTail([
+      final tail = ToolApprovalAutoReviewService.buildConversationTail([
         Message(
           id: 'system',
           role: MessageRole.system,

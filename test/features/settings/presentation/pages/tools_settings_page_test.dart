@@ -63,11 +63,26 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Default permissions'), findsOneWidget);
-    expect(find.text('Auto-review'), findsOneWidget);
-    expect(find.text('Full access'), findsOneWidget);
+    // The page now shows two approval selectors (coding + chat tools) that share
+    // the "Auto-review"/"Full access" labels, so scope to the coding card —
+    // identified by its unique "Default permissions" option.
+    final codingCard = find.ancestor(
+      of: find.text('Default permissions'),
+      matching: find.byType(Card),
+    );
+    expect(codingCard, findsOneWidget);
+    expect(
+      find.descendant(of: codingCard, matching: find.text('Auto-review')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: codingCard, matching: find.text('Full access')),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.text('Full access'));
+    await tester.tap(
+      find.descendant(of: codingCard, matching: find.text('Full access')),
+    );
     await tester.pumpAndSettle();
 
     final storedJson = preferences.getString('app_settings');
@@ -76,7 +91,7 @@ void main() {
       jsonDecode(storedJson!) as Map<String, dynamic>,
     );
 
-    expect(storedSettings.codingApprovalMode, CodingApprovalMode.fullAccess);
+    expect(storedSettings.codingApprovalMode, ToolApprovalMode.fullAccess);
     expect(storedSettings.confirmFileMutations, isFalse);
     expect(storedSettings.confirmLocalCommands, isFalse);
     expect(storedSettings.confirmGitWrites, isFalse);

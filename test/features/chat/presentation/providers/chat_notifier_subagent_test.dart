@@ -42,7 +42,7 @@ class _ToolEnabledSettingsNotifier extends SettingsNotifier {
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
-      codingApprovalMode: CodingApprovalMode.fullAccess,
+      codingApprovalMode: ToolApprovalMode.fullAccess,
       confirmFileMutations: false,
       confirmLocalCommands: false,
       confirmGitWrites: false,

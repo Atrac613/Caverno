@@ -32,22 +32,76 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    final approval = await requestSshConnect(
-      host: host,
-      port: port,
-      username: username,
+    // Full access can auto-connect only when a password is already stored for
+    // this host/user; without one an interactive prompt is unavoidable. Load it
+    // up front so it doubles as the full-access eligibility signal.
+    String? savedPassword;
+    if (username.isNotEmpty) {
+      try {
+        savedPassword = await ref
+            .read(sshCredentialsManagerProvider)
+            .loadPassword(host: host, port: port, username: username);
+      } catch (e) {
+        appLog('[SSH] Failed to load saved password: $e');
+      }
+    }
+    final hasSavedPassword = savedPassword != null && savedPassword.isNotEmpty;
+
+    final gate = await _resolveToolApprovalGate(
+      toolCall: toolCall,
+      actionKind: 'ssh_connect',
+      mode: _settings.chatApprovalMode,
+      reviewDomain: ToolApprovalAutoReviewDomain.connection,
+      fullAccessEligible: hasSavedPassword,
+      buildReviewRequest: () async => _buildAutoReviewRequest(
+        toolCall: toolCall,
+        actionKind: 'ssh_connect',
+        arguments: cacheArguments,
+        reason: toolCall.arguments['reason'] as String?,
+      ),
     );
-    if (approval == null) {
+    if (gate.isDenied) {
       return _rememberToolApprovalResult(
         toolCall.name,
         cacheArguments,
-        McpToolResult(
+        _autoReviewDeniedResult(
           toolName: toolCall.name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'User cancelled SSH connection',
+          rationale: gate.deniedRationale!,
         ),
       );
+    }
+
+    final SshConnectApproval approval;
+    if (gate.runsDirectly && hasSavedPassword) {
+      // Connect non-interactively with the stored credential.
+      approval = SshConnectApproval(
+        host: host,
+        port: port,
+        username: username,
+        password: savedPassword,
+        savePassword: true,
+      );
+    } else {
+      // Default mode, or auto-review allowed but no stored credential exists to
+      // connect with: fall back to the interactive password dialog.
+      final manualApproval = await requestSshConnect(
+        host: host,
+        port: port,
+        username: username,
+      );
+      if (manualApproval == null) {
+        return _rememberToolApprovalResult(
+          toolCall.name,
+          cacheArguments,
+          McpToolResult(
+            toolName: toolCall.name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'User cancelled SSH connection',
+          ),
+        );
+      }
+      approval = manualApproval;
     }
 
     try {
@@ -79,16 +133,19 @@ extension ChatNotifierSshHandlers on ChatNotifier {
               username: approval.username,
             );
       }
-      return _rememberToolApprovalResult(
-        toolCall.name,
-        cacheArguments,
-        McpToolResult(
-          toolName: toolCall.name,
-          result:
-              'Connected to ${approval.username}@${approval.host}:${approval.port}',
-          isSuccess: true,
-        ),
+      final connectedResult = McpToolResult(
+        toolName: toolCall.name,
+        result:
+            'Connected to ${approval.username}@${approval.host}:${approval.port}',
+        isSuccess: true,
       );
+      return gate.bypassedApproval
+          ? connectedResult
+          : _rememberToolApprovalResult(
+              toolCall.name,
+              cacheArguments,
+              connectedResult,
+            );
     } catch (e) {
       appLog('[Tool] SSH connect failed: $e');
       return _rememberToolApprovalResult(
@@ -132,18 +189,43 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       return cachedResult;
     }
     final reason = toolCall.arguments['reason'] as String?;
-    final approved = await requestSshCommand(command: command, reason: reason);
-    if (!approved) {
+    final gate = await _resolveToolApprovalGate(
+      toolCall: toolCall,
+      actionKind: 'ssh_execute_command',
+      mode: _settings.chatApprovalMode,
+      reviewDomain: ToolApprovalAutoReviewDomain.connection,
+      fullAccessEligible: true,
+      buildReviewRequest: () async => _buildAutoReviewRequest(
+        toolCall: toolCall,
+        actionKind: 'ssh_execute_command',
+        arguments: cacheArguments,
+        reason: reason,
+      ),
+    );
+    if (gate.isDenied) {
       return _rememberToolApprovalResult(
         toolCall.name,
         cacheArguments,
-        McpToolResult(
+        _autoReviewDeniedResult(
           toolName: toolCall.name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'User denied SSH command execution',
+          rationale: gate.deniedRationale!,
         ),
       );
+    }
+    if (gate.needsManual) {
+      final approved = await requestSshCommand(command: command, reason: reason);
+      if (!approved) {
+        return _rememberToolApprovalResult(
+          toolCall.name,
+          cacheArguments,
+          McpToolResult(
+            toolName: toolCall.name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'User denied SSH command execution',
+          ),
+        );
+      }
     }
     // Approved — delegate to the tool service, which runs the command on
     // the same SSH session.
@@ -151,7 +233,9 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       name: toolCall.name,
       arguments: toolCall.arguments,
     );
-    return _rememberToolApprovalResult(toolCall.name, cacheArguments, result);
+    return gate.bypassedApproval
+        ? result
+        : _rememberToolApprovalResult(toolCall.name, cacheArguments, result);
   }
 
   /// Puts a pending SSH connect request into state and returns a future

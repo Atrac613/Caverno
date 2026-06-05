@@ -83,14 +83,44 @@ void main() {
 
   test('persists coding approval mode', () {
     final settings = AppSettings.defaults().copyWith(
-      codingApprovalMode: CodingApprovalMode.autoReview,
+      codingApprovalMode: ToolApprovalMode.autoReview,
     );
 
     final decoded = AppSettings.fromJson(
       jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
     );
 
-    expect(decoded.codingApprovalMode, CodingApprovalMode.autoReview);
+    expect(decoded.codingApprovalMode, ToolApprovalMode.autoReview);
+  });
+
+  test('defaults chat approval mode and persists changes independently', () {
+    expect(
+      AppSettings.defaults().chatApprovalMode,
+      ToolApprovalMode.defaultPermissions,
+    );
+
+    final settings = AppSettings.defaults().copyWith(
+      chatApprovalMode: ToolApprovalMode.fullAccess,
+    );
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.chatApprovalMode, ToolApprovalMode.fullAccess);
+    // Chat approval mode must not leak into the coding approval policy.
+    expect(decoded.codingApprovalMode, ToolApprovalMode.defaultPermissions);
+  });
+
+  test('legacy settings without chatApprovalMode fall back to default', () {
+    final legacyJson =
+        jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
+            as Map<String, dynamic>
+          ..remove('chatApprovalMode');
+
+    final decoded = AppSettings.fromJson(legacyJson);
+
+    expect(decoded.chatApprovalMode, ToolApprovalMode.defaultPermissions);
   });
 
   test('defaults LLM session logs to disabled and persists opt in', () {
@@ -195,7 +225,7 @@ void main() {
 
     final decoded = AppSettings.fromJson(legacyJson);
 
-    expect(decoded.codingApprovalMode, CodingApprovalMode.fullAccess);
+    expect(decoded.codingApprovalMode, ToolApprovalMode.fullAccess);
   });
 
   test(
@@ -211,7 +241,7 @@ void main() {
 
       final decoded = AppSettings.fromJson(legacyJson);
 
-      expect(decoded.codingApprovalMode, CodingApprovalMode.defaultPermissions);
+      expect(decoded.codingApprovalMode, ToolApprovalMode.defaultPermissions);
     },
   );
 

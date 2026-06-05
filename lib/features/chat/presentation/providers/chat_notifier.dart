@@ -15,6 +15,7 @@ import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/notification_providers.dart';
 import '../../../../core/services/ssh_credentials_manager.dart';
 import '../../../../core/services/ssh_service.dart';
+import '../../../../core/services/tool_approval_audit_log.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
@@ -50,7 +51,8 @@ import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
-import '../../domain/services/coding_approval_auto_review_service.dart';
+import '../../domain/services/tool_approval_auto_review_service.dart';
+import '../../domain/services/tool_approval_gate.dart';
 import '../../domain/services/coding_command_output_guardrail_service.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
 import '../../domain/services/coding_verification_feedback_service.dart';
@@ -11807,13 +11809,116 @@ class ChatNotifier extends Notifier<ChatState> {
     return _toolApprovalCache.remember(toolName, arguments, result);
   }
 
-  bool get _hasFullCodingApprovalAccess =>
-      _settings.codingApprovalMode == CodingApprovalMode.fullAccess;
+  /// Shared 3-mode approval gate for every high-risk tool (coding writes,
+  /// browser actions, device/remote connections). Collapses [mode] into a
+  /// single [ToolApprovalGateDecision] the caller switches on; the caller still
+  /// owns execution, caching, and result formatting.
+  ///
+  /// - full access (when [fullAccessEligible]) runs directly;
+  /// - auto-review consults the LLM ([reviewDomain] selects the prompt) and
+  ///   allows / denies, or falls back to manual approval if the reviewer is
+  ///   unavailable;
+  /// - default always requires manual approval.
+  Future<ToolApprovalGateDecision> _resolveToolApprovalGate({
+    required ToolCallInfo toolCall,
+    required String actionKind,
+    required ToolApprovalMode mode,
+    required ToolApprovalAutoReviewDomain reviewDomain,
+    required bool fullAccessEligible,
+    required Future<ToolApprovalAutoReviewRequest> Function() buildReviewRequest,
+  }) async {
+    if (mode == ToolApprovalMode.fullAccess) {
+      if (fullAccessEligible) {
+        await _recordApprovalAudit(
+          toolCall: toolCall,
+          actionKind: actionKind,
+          domain: reviewDomain,
+          mode: mode,
+          outcome: 'allowed',
+          decisionSource: 'full_access',
+        );
+        return ToolApprovalGateDecision.fullAccess;
+      }
+      // Full access requested but the tool is not eligible (e.g. ssh_connect
+      // without a stored password): record why it still prompts, then fall back.
+      await _recordApprovalAudit(
+        toolCall: toolCall,
+        actionKind: actionKind,
+        domain: reviewDomain,
+        mode: mode,
+        outcome: 'manual_fallback',
+        decisionSource: 'full_access_ineligible',
+      );
+      return ToolApprovalGateDecision.needsManualApproval;
+    }
+    if (mode == ToolApprovalMode.autoReview) {
+      final decision = await _runApprovalAutoReview(
+        await buildReviewRequest(),
+        domain: reviewDomain,
+      );
+      if (decision == null) {
+        await _recordApprovalAudit(
+          toolCall: toolCall,
+          actionKind: actionKind,
+          domain: reviewDomain,
+          mode: mode,
+          outcome: 'review_unavailable',
+          decisionSource: 'auto_review',
+        );
+        return ToolApprovalGateDecision.needsManualApproval;
+      }
+      await _recordApprovalAudit(
+        toolCall: toolCall,
+        actionKind: actionKind,
+        domain: reviewDomain,
+        mode: mode,
+        outcome: decision.isAllowed ? 'allowed' : 'denied',
+        decisionSource: 'auto_review',
+        rationale: decision.rationale,
+        riskLevel: decision.riskLevel,
+      );
+      return decision.isAllowed
+          ? ToolApprovalGateDecision.autoReviewAllowed
+          : ToolApprovalGateDecision.denied(decision.rationale);
+    }
+    // Default mode is a user-driven manual decision; not recorded here.
+    return ToolApprovalGateDecision.needsManualApproval;
+  }
 
-  bool get _usesCodingApprovalAutoReview =>
-      _settings.codingApprovalMode == CodingApprovalMode.autoReview;
+  /// Appends one automated approval decision to the local audit trail. Best
+  /// effort: failures never block tool execution.
+  Future<void> _recordApprovalAudit({
+    required ToolCallInfo toolCall,
+    required String actionKind,
+    required ToolApprovalAutoReviewDomain domain,
+    required ToolApprovalMode mode,
+    required String outcome,
+    required String decisionSource,
+    String? rationale,
+    String? riskLevel,
+  }) {
+    final context = LlmSessionLogContext.current;
+    return ref
+        .read(toolApprovalAuditLogProvider)
+        .record(
+          tool: toolCall.name,
+          actionKind: actionKind,
+          domain: domain.name,
+          mode: mode.name,
+          outcome: outcome,
+          decisionSource: decisionSource,
+          rationale: rationale,
+          riskLevel: riskLevel,
+          arguments: toolCall.arguments,
+          workspaceMode: context?.workspaceMode.name,
+          sessionId: context?.sessionId,
+          conversationId: context?.conversationId,
+        );
+  }
 
-  Future<CodingApprovalAutoReviewDecision?> _reviewCodingApproval({
+  /// Assembles an auto-review request, attaching the recent conversation tail.
+  /// Shared by every gated tool's `buildReviewRequest` callback.
+  ToolApprovalAutoReviewRequest _buildAutoReviewRequest({
     required ToolCallInfo toolCall,
     required String actionKind,
     required Map<String, dynamic> arguments,
@@ -11823,12 +11928,8 @@ class ChatNotifier extends Notifier<ChatState> {
     String? warningTitle,
     String? warningMessage,
     String? preview,
-  }) async {
-    if (!_usesCodingApprovalAutoReview) {
-      return null;
-    }
-
-    final request = CodingApprovalAutoReviewRequest(
+  }) {
+    return ToolApprovalAutoReviewRequest(
       actionKind: actionKind,
       toolName: toolCall.name,
       arguments: arguments,
@@ -11838,19 +11939,32 @@ class ChatNotifier extends Notifier<ChatState> {
       warningTitle: warningTitle,
       warningMessage: warningMessage,
       preview: preview,
-      conversationTail: CodingApprovalAutoReviewService.buildConversationTail(
+      conversationTail: ToolApprovalAutoReviewService.buildConversationTail(
         state.messages,
       ),
     );
+  }
 
+  /// Sends an approval request to the configured LLM endpoint and parses its
+  /// verdict. Shared by coding-write and browser-action auto-review; [domain]
+  /// selects the system prompt. Returns null when auto-review is unavailable
+  /// (network/parse failure), letting callers fall back to manual approval.
+  Future<ToolApprovalAutoReviewDecision?> _runApprovalAutoReview(
+    ToolApprovalAutoReviewRequest request, {
+    ToolApprovalAutoReviewDomain domain =
+        ToolApprovalAutoReviewDomain.coding,
+  }) async {
     try {
       final response = await _dataSource.createChatCompletion(
-        messages: CodingApprovalAutoReviewService.buildMessages(request),
+        messages: ToolApprovalAutoReviewService.buildMessages(
+          request,
+          domain: domain,
+        ),
         model: _settings.model,
         temperature: 0,
         maxTokens: 512,
       );
-      final decision = CodingApprovalAutoReviewService.parseDecision(
+      final decision = ToolApprovalAutoReviewService.parseDecision(
         response.content,
       );
       if (decision == null) {
@@ -11858,7 +11972,7 @@ class ChatNotifier extends Notifier<ChatState> {
         return null;
       }
       appLog(
-        '[AutoReview] ${decision.outcome.name} ${toolCall.name}: '
+        '[AutoReview] ${decision.outcome.name} ${request.toolName}: '
         '${decision.rationale}',
       );
       return decision;
@@ -11870,14 +11984,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
   McpToolResult _autoReviewDeniedResult({
     required String toolName,
-    required CodingApprovalAutoReviewDecision decision,
+    required String rationale,
   }) {
     return McpToolResult(
       toolName: toolName,
-      result:
-          'Auto-review denied this action. Rationale: ${decision.rationale}',
+      result: 'Auto-review denied this action. Rationale: $rationale',
       isSuccess: false,
-      errorMessage: 'Auto-review denied: ${decision.rationale}',
+      errorMessage: 'Auto-review denied: $rationale',
     );
   }
 

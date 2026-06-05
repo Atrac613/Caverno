@@ -348,15 +348,22 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateCodingApprovalMode(
-    CodingApprovalMode codingApprovalMode,
+    ToolApprovalMode codingApprovalMode,
   ) async {
-    final confirms = codingApprovalMode != CodingApprovalMode.fullAccess;
+    final confirms = codingApprovalMode != ToolApprovalMode.fullAccess;
     state = state.copyWith(
       codingApprovalMode: codingApprovalMode,
       confirmFileMutations: confirms,
       confirmLocalCommands: confirms,
       confirmGitWrites: confirms,
     );
+    await _repository.save(state);
+  }
+
+  Future<void> updateChatApprovalMode(
+    ToolApprovalMode chatApprovalMode,
+  ) async {
+    state = state.copyWith(chatApprovalMode: chatApprovalMode);
     await _repository.save(state);
   }
 
@@ -517,13 +524,13 @@ class SettingsNotifier extends Notifier<AppSettings> {
     return normalized;
   }
 
-  CodingApprovalMode _legacyCodingApprovalModeFor({
+  ToolApprovalMode _legacyCodingApprovalModeFor({
     required bool confirmFileMutations,
     required bool confirmLocalCommands,
     required bool confirmGitWrites,
   }) {
     return !confirmFileMutations && !confirmLocalCommands && !confirmGitWrites
-        ? CodingApprovalMode.fullAccess
-        : CodingApprovalMode.defaultPermissions;
+        ? ToolApprovalMode.fullAccess
+        : ToolApprovalMode.defaultPermissions;
   }
 }

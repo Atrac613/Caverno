@@ -47,7 +47,7 @@ class ToolsSettingsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Card(
-            child: RadioGroup<CodingApprovalMode>(
+            child: RadioGroup<ToolApprovalMode>(
               groupValue: settings.codingApprovalMode,
               onChanged: (value) {
                 if (value == null) return;
@@ -55,13 +55,13 @@ class ToolsSettingsPage extends ConsumerWidget {
               },
               child: Column(
                 children: [
-                  for (final mode in CodingApprovalMode.values) ...[
-                    RadioListTile<CodingApprovalMode>(
+                  for (final mode in ToolApprovalMode.values) ...[
+                    RadioListTile<ToolApprovalMode>(
                       title: Text(_codingApprovalModeLabel(mode)),
                       subtitle: Text(_codingApprovalModeDescription(mode)),
                       value: mode,
                     ),
-                    if (mode != CodingApprovalMode.values.last)
+                    if (mode != ToolApprovalMode.values.last)
                       const Divider(height: 1),
                   ],
                 ],
@@ -83,6 +83,8 @@ class ToolsSettingsPage extends ConsumerWidget {
           ),
           if (settings.enableCodingVerificationFeedback)
             _buildCodingVerificationPolicyCard(settings, notifier),
+          if (settings.exposesGatedChatTools)
+            _buildChatApprovalModeCard(context, settings, notifier),
           const Divider(),
           _buildSkillsTile(context),
           _buildBuiltInToolsTile(context, settings),
@@ -307,24 +309,89 @@ class ToolsSettingsPage extends ConsumerWidget {
     };
   }
 
-  String _codingApprovalModeLabel(CodingApprovalMode mode) {
+  Widget _buildChatApprovalModeCard(
+    BuildContext context,
+    AppSettings settings,
+    SettingsNotifier notifier,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'settings.chat_approval_section'.tr(),
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          Card(
+            margin: EdgeInsets.zero,
+            child: RadioGroup<ToolApprovalMode>(
+              groupValue: settings.chatApprovalMode,
+              onChanged: (value) {
+                if (value == null) return;
+                notifier.updateChatApprovalMode(value);
+              },
+              child: Column(
+                children: [
+                  for (final mode in ToolApprovalMode.values) ...[
+                    RadioListTile<ToolApprovalMode>(
+                      secondary: const Icon(Icons.shield_outlined),
+                      title: Text(_chatApprovalModeLabel(mode)),
+                      subtitle: Text(_chatApprovalModeDescription(mode)),
+                      value: mode,
+                    ),
+                    if (mode != ToolApprovalMode.values.last)
+                      const Divider(height: 1),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _chatApprovalModeLabel(ToolApprovalMode mode) {
     return switch (mode) {
-      CodingApprovalMode.defaultPermissions =>
+      ToolApprovalMode.defaultPermissions =>
+        'settings.chat_approval_default'.tr(),
+      ToolApprovalMode.autoReview => 'settings.chat_approval_auto_review'.tr(),
+      ToolApprovalMode.fullAccess =>
+        'settings.chat_approval_full_access'.tr(),
+    };
+  }
+
+  String _chatApprovalModeDescription(ToolApprovalMode mode) {
+    return switch (mode) {
+      ToolApprovalMode.defaultPermissions =>
+        'settings.chat_approval_default_desc'.tr(),
+      ToolApprovalMode.autoReview =>
+        'settings.chat_approval_auto_review_desc'.tr(),
+      ToolApprovalMode.fullAccess =>
+        'settings.chat_approval_full_access_desc'.tr(),
+    };
+  }
+
+  String _codingApprovalModeLabel(ToolApprovalMode mode) {
+    return switch (mode) {
+      ToolApprovalMode.defaultPermissions =>
         'settings.coding_approval_default'.tr(),
-      CodingApprovalMode.autoReview =>
+      ToolApprovalMode.autoReview =>
         'settings.coding_approval_auto_review'.tr(),
-      CodingApprovalMode.fullAccess =>
+      ToolApprovalMode.fullAccess =>
         'settings.coding_approval_full_access'.tr(),
     };
   }
 
-  String _codingApprovalModeDescription(CodingApprovalMode mode) {
+  String _codingApprovalModeDescription(ToolApprovalMode mode) {
     return switch (mode) {
-      CodingApprovalMode.defaultPermissions =>
+      ToolApprovalMode.defaultPermissions =>
         'settings.coding_approval_default_desc'.tr(),
-      CodingApprovalMode.autoReview =>
+      ToolApprovalMode.autoReview =>
         'settings.coding_approval_auto_review_desc'.tr(),
-      CodingApprovalMode.fullAccess =>
+      ToolApprovalMode.fullAccess =>
         'settings.coding_approval_full_access_desc'.tr(),
     };
   }

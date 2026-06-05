@@ -183,11 +183,18 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
       AssistantMode.general,
   codingApprovalMode:
       $enumDecodeNullable(
-        _$CodingApprovalModeEnumMap,
+        _$ToolApprovalModeEnumMap,
         json['codingApprovalMode'],
-        unknownValue: CodingApprovalMode.defaultPermissions,
+        unknownValue: ToolApprovalMode.defaultPermissions,
       ) ??
-      CodingApprovalMode.defaultPermissions,
+      ToolApprovalMode.defaultPermissions,
+  chatApprovalMode:
+      $enumDecodeNullable(
+        _$ToolApprovalModeEnumMap,
+        json['chatApprovalMode'],
+        unknownValue: ToolApprovalMode.defaultPermissions,
+      ) ??
+      ToolApprovalMode.defaultPermissions,
   confirmFileMutations: json['confirmFileMutations'] as bool? ?? true,
   confirmLocalCommands: json['confirmLocalCommands'] as bool? ?? true,
   confirmGitWrites: json['confirmGitWrites'] as bool? ?? true,
@@ -258,8 +265,8 @@ Map<String, dynamic> _$AppSettingsToJson(
   'voicevoxSpeakerId': instance.voicevoxSpeakerId,
   'language': instance.language,
   'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
-  'codingApprovalMode':
-      _$CodingApprovalModeEnumMap[instance.codingApprovalMode]!,
+  'codingApprovalMode': _$ToolApprovalModeEnumMap[instance.codingApprovalMode]!,
+  'chatApprovalMode': _$ToolApprovalModeEnumMap[instance.chatApprovalMode]!,
   'confirmFileMutations': instance.confirmFileMutations,
   'confirmLocalCommands': instance.confirmLocalCommands,
   'confirmGitWrites': instance.confirmGitWrites,
@@ -294,10 +301,10 @@ const _$AssistantModeEnumMap = {
   AssistantMode.plan: 'plan',
 };
 
-const _$CodingApprovalModeEnumMap = {
-  CodingApprovalMode.defaultPermissions: 'defaultPermissions',
-  CodingApprovalMode.autoReview: 'autoReview',
-  CodingApprovalMode.fullAccess: 'fullAccess',
+const _$ToolApprovalModeEnumMap = {
+  ToolApprovalMode.defaultPermissions: 'defaultPermissions',
+  ToolApprovalMode.autoReview: 'autoReview',
+  ToolApprovalMode.fullAccess: 'fullAccess',
 };
 
 const _$CodingVerificationTriggerPolicyEnumMap = {

@@ -32,34 +32,62 @@ extension ChatNotifierBleHandlers on ChatNotifier {
     );
     final deviceName = device.isNotEmpty ? device.first.name : null;
 
-    final approved = await requestBleConnect(
-      deviceId: deviceId,
-      deviceName: deviceName,
+    final gate = await _resolveToolApprovalGate(
+      toolCall: toolCall,
+      actionKind: 'ble_connect',
+      mode: _settings.chatApprovalMode,
+      reviewDomain: ToolApprovalAutoReviewDomain.connection,
+      fullAccessEligible: true,
+      buildReviewRequest: () async => _buildAutoReviewRequest(
+        toolCall: toolCall,
+        actionKind: 'ble_connect',
+        arguments: cacheArguments,
+        reason: toolCall.arguments['reason'] as String?,
+      ),
     );
-    if (!approved) {
+    if (gate.isDenied) {
       return _rememberToolApprovalResult(
         toolCall.name,
         cacheArguments,
-        McpToolResult(
+        _autoReviewDeniedResult(
           toolName: toolCall.name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'User cancelled BLE connection',
+          rationale: gate.deniedRationale!,
         ),
       );
+    }
+    if (gate.needsManual) {
+      final approved = await requestBleConnect(
+        deviceId: deviceId,
+        deviceName: deviceName,
+      );
+      if (!approved) {
+        return _rememberToolApprovalResult(
+          toolCall.name,
+          cacheArguments,
+          McpToolResult(
+            toolName: toolCall.name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'User cancelled BLE connection',
+          ),
+        );
+      }
     }
 
     try {
       await bleService.connect(deviceId);
-      return _rememberToolApprovalResult(
-        toolCall.name,
-        cacheArguments,
-        McpToolResult(
-          toolName: toolCall.name,
-          result: 'Connected to ${deviceName ?? deviceId}',
-          isSuccess: true,
-        ),
+      final connectedResult = McpToolResult(
+        toolName: toolCall.name,
+        result: 'Connected to ${deviceName ?? deviceId}',
+        isSuccess: true,
       );
+      return gate.bypassedApproval
+          ? connectedResult
+          : _rememberToolApprovalResult(
+              toolCall.name,
+              cacheArguments,
+              connectedResult,
+            );
     } catch (e) {
       appLog('[Tool] BLE connect failed: $e');
       return _rememberToolApprovalResult(

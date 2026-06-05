@@ -47,6 +47,7 @@ class MessageInput extends ConsumerStatefulWidget {
     this.onAssistantModeSelected,
     this.inputHintKey = 'message.input_hint',
     this.isCodingWorkspace = false,
+    this.showChatApprovalMode = false,
     this.composerPrefillText,
     this.composerPrefillVersion = 0,
     this.droppedImageAttachment,
@@ -77,6 +78,11 @@ class MessageInput extends ConsumerStatefulWidget {
   final ValueChanged<AssistantMode>? onAssistantModeSelected;
   final String inputHintKey;
   final bool isCodingWorkspace;
+
+  /// Whether to show the chat-mode permission selector (built-in browser
+  /// automation). Independent from [isCodingWorkspace], which shows the coding
+  /// approval selector instead.
+  final bool showChatApprovalMode;
   final String? composerPrefillText;
   final int composerPrefillVersion;
   final MessageInputImageAttachment? droppedImageAttachment;
@@ -1059,25 +1065,46 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     };
   }
 
-  String _codingApprovalModeLabel(CodingApprovalMode mode) {
+  String _codingApprovalModeLabel(ToolApprovalMode mode) {
     return switch (mode) {
-      CodingApprovalMode.defaultPermissions =>
+      ToolApprovalMode.defaultPermissions =>
         'settings.coding_approval_default'.tr(),
-      CodingApprovalMode.autoReview =>
+      ToolApprovalMode.autoReview =>
         'settings.coding_approval_auto_review'.tr(),
-      CodingApprovalMode.fullAccess =>
+      ToolApprovalMode.fullAccess =>
         'settings.coding_approval_full_access'.tr(),
     };
   }
 
-  String _codingApprovalModeDescription(CodingApprovalMode mode) {
+  String _codingApprovalModeDescription(ToolApprovalMode mode) {
     return switch (mode) {
-      CodingApprovalMode.defaultPermissions =>
+      ToolApprovalMode.defaultPermissions =>
         'settings.coding_approval_default_desc'.tr(),
-      CodingApprovalMode.autoReview =>
+      ToolApprovalMode.autoReview =>
         'settings.coding_approval_auto_review_desc'.tr(),
-      CodingApprovalMode.fullAccess =>
+      ToolApprovalMode.fullAccess =>
         'settings.coding_approval_full_access_desc'.tr(),
+    };
+  }
+
+  String _chatApprovalModeLabel(ToolApprovalMode mode) {
+    return switch (mode) {
+      ToolApprovalMode.defaultPermissions =>
+        'settings.chat_approval_default'.tr(),
+      ToolApprovalMode.autoReview => 'settings.chat_approval_auto_review'.tr(),
+      ToolApprovalMode.fullAccess =>
+        'settings.chat_approval_full_access'.tr(),
+    };
+  }
+
+  String _chatApprovalModeDescription(ToolApprovalMode mode) {
+    return switch (mode) {
+      ToolApprovalMode.defaultPermissions =>
+        'settings.chat_approval_default_desc'.tr(),
+      ToolApprovalMode.autoReview =>
+        'settings.chat_approval_auto_review_desc'.tr(),
+      ToolApprovalMode.fullAccess =>
+        'settings.chat_approval_full_access_desc'.tr(),
     };
   }
 
@@ -1439,6 +1466,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final assistantMode = widget.assistantMode;
     final reasoningEffort = settings.reasoningEffort;
     final codingApprovalMode = settings.codingApprovalMode;
+    final chatApprovalMode = settings.chatApprovalMode;
     final canSend = _hasText ||
         _selectedImageBytes != null ||
         _selectedFileContent != null ||
@@ -1721,7 +1749,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                 const SizedBox(width: 8),
                                 Opacity(
                                   opacity: widget.isLoading ? 0.6 : 1.0,
-                                  child: PopupMenuButton<CodingApprovalMode>(
+                                  child: PopupMenuButton<ToolApprovalMode>(
                                     enabled: !widget.isLoading,
                                     tooltip: 'message.permission_mode_tooltip'
                                         .tr(
@@ -1737,12 +1765,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                         value,
                                       );
                                     },
-                                    itemBuilder: (context) => CodingApprovalMode
+                                    itemBuilder: (context) => ToolApprovalMode
                                         .values
                                         .map(
                                           (value) =>
                                               CheckedPopupMenuItem<
-                                                CodingApprovalMode
+                                                ToolApprovalMode
                                               >(
                                                 height: 72,
                                                 value: value,
@@ -1794,6 +1822,97 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                           Text(
                                             _codingApprovalModeLabel(
                                               codingApprovalMode,
+                                            ),
+                                            style: theme.textTheme.labelLarge,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          const Icon(
+                                            Icons.keyboard_arrow_down,
+                                            size: 18,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              if (widget.showChatApprovalMode) ...[
+                                Opacity(
+                                  opacity: widget.isLoading ? 0.6 : 1.0,
+                                  child: PopupMenuButton<ToolApprovalMode>(
+                                    enabled: !widget.isLoading,
+                                    tooltip: 'message.permission_mode_tooltip'
+                                        .tr(
+                                          namedArgs: {
+                                            'value': _chatApprovalModeLabel(
+                                              chatApprovalMode,
+                                            ),
+                                          },
+                                        ),
+                                    padding: EdgeInsets.zero,
+                                    onSelected: (value) {
+                                      settingsNotifier.updateChatApprovalMode(
+                                        value,
+                                      );
+                                    },
+                                    itemBuilder: (context) => ToolApprovalMode
+                                        .values
+                                        .map(
+                                          (value) =>
+                                              CheckedPopupMenuItem<
+                                                ToolApprovalMode
+                                              >(
+                                                height: 72,
+                                                value: value,
+                                                checked:
+                                                    chatApprovalMode == value,
+                                                child: ListTile(
+                                                  contentPadding:
+                                                      EdgeInsets.zero,
+                                                  leading: const Icon(
+                                                    Icons.shield_outlined,
+                                                  ),
+                                                  title: Text(
+                                                    _chatApprovalModeLabel(
+                                                      value,
+                                                    ),
+                                                  ),
+                                                  subtitle: Text(
+                                                    _chatApprovalModeDescription(
+                                                      value,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                        )
+                                        .toList(),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHigh,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color:
+                                              theme.colorScheme.outlineVariant,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.shield_outlined,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            _chatApprovalModeLabel(
+                                              chatApprovalMode,
                                             ),
                                             style: theme.textTheme.labelLarge,
                                           ),

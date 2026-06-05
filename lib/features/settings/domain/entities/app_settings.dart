@@ -17,7 +17,14 @@ enum LocalCommandPermissionAction { allow, deny, ask }
 
 enum LocalCommandPermissionMatch { exact, prefix }
 
-enum CodingApprovalMode { defaultPermissions, autoReview, fullAccess }
+/// Approval policy levels shared by the coding agent
+/// ([AppSettings.codingApprovalMode]) and chat-mode built-in browser
+/// automation ([AppSettings.chatApprovalMode]).
+///
+/// - [defaultPermissions]: prompt the user before each high-risk action.
+/// - [autoReview]: let the configured LLM endpoint allow/deny each action.
+/// - [fullAccess]: run high-risk actions without an approval prompt.
+enum ToolApprovalMode { defaultPermissions, autoReview, fullAccess }
 
 enum CodingVerificationTriggerPolicy { onCompletionClaim, onRequestOnly, off }
 
@@ -191,9 +198,14 @@ abstract class AppSettings with _$AppSettings {
     @JsonKey(unknownEnumValue: AssistantMode.general)
     @Default(AssistantMode.general)
     AssistantMode assistantMode,
-    @JsonKey(unknownEnumValue: CodingApprovalMode.defaultPermissions)
-    @Default(CodingApprovalMode.defaultPermissions)
-    CodingApprovalMode codingApprovalMode,
+    @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)
+    @Default(ToolApprovalMode.defaultPermissions)
+    ToolApprovalMode codingApprovalMode,
+    // Approval policy for chat-mode built-in browser automation. Reuses the
+    // shared [ToolApprovalMode] levels but is independent from coding writes.
+    @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)
+    @Default(ToolApprovalMode.defaultPermissions)
+    ToolApprovalMode chatApprovalMode,
     @Default(true) bool confirmFileMutations,
     @Default(true) bool confirmLocalCommands,
     @Default(true) bool confirmGitWrites,
@@ -287,6 +299,17 @@ abstract class AppSettings with _$AppSettings {
 
   Set<String> get disabledBuiltInToolsSet =>
       Set<String>.from(disabledBuiltInTools);
+
+  /// Whether any chat-mode high-risk tool governed by the shared approval gate
+  /// is currently exposed. Drives whether the chat permission-mode selector is
+  /// shown. Browser tools have their own enable flag; SSH / BLE / serial are on
+  /// unless explicitly disabled.
+  bool get exposesGatedChatTools {
+    if (browserToolsEnabled) return true;
+    const connectionTools = {'ssh_connect', 'ble_connect', 'serial_open'};
+    final disabled = disabledBuiltInToolsSet;
+    return connectionTools.any((tool) => !disabled.contains(tool));
+  }
 
   List<LocalCommandPermissionRule> get enabledLocalCommandPermissionRules =>
       localCommandPermissionRules

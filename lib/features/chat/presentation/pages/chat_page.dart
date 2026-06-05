@@ -1132,6 +1132,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         conversationsState.activeWorkspaceMode == WorkspaceMode.routines;
     final isCodingWorkspace =
         conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
+    // Chat-mode permission selector gates the shared approval for high-risk
+    // chat tools (browser, SSH, BLE, serial). Only shown when at least one of
+    // them is exposed.
+    final showChatApprovalMode =
+        !isCodingWorkspace &&
+        !isRoutinesWorkspace &&
+        settings.exposesGatedChatTools;
     final routinesState = ref.watch(routinesNotifierProvider);
     final selectedRoutine =
         isRoutinesWorkspace && routinesState.selectedRoutineId != null
@@ -1290,6 +1297,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           customPromptTemplates: customSlashCommandTemplates,
         ),
         isCodingWorkspace: isCodingWorkspace,
+        showChatApprovalMode: showChatApprovalMode,
         inputHintKey: isCodingWorkspace
             ? (isPlanMode
                   ? 'message.input_hint_plan'

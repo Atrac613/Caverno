@@ -5,8 +5,15 @@
 part of 'chat_notifier.dart';
 
 /// Handlers for the built-in browser tools. Sensitive actions (fill, click,
-/// submit, eval, save) route through [_handleBrowserAction], which prompts the
-/// user for one-tap approval; read/observe actions run without approval.
+/// submit, eval, save) route through [_handleBrowserAction]; read/observe
+/// actions run without approval.
+///
+/// The chat-mode permission setting ([AppSettings.chatApprovalMode]) decides
+/// how sensitive actions are gated:
+/// - default: prompt the user for one-tap approval (the original behavior);
+/// - auto-review: the configured LLM endpoint allows/denies each action;
+/// - full access: actions run automatically without a prompt. This powers
+///   hands-off browser automation (e.g. clicking through a multi-step flow).
 ///
 /// Unlike the macOS computer-use handler, this deliberately does NOT cache
 /// results by (name, arguments): repeated identical browser actions (e.g.
@@ -14,32 +21,54 @@ part of 'chat_notifier.dart';
 extension ChatNotifierBrowserHandlers on ChatNotifier {
   Future<McpToolResult> _handleBrowserAction(ToolCallInfo toolCall) async {
     final policy = BrowserToolPolicy.decision(toolCall.name);
-    final details = await _browserActionDetails(toolCall);
-    final approved = await requestBrowserAction(
-      toolName: toolCall.name,
-      title: policy.title,
-      riskLabel: policy.riskLabel,
-      warningMessage: policy.warningMessage,
-      approveLabel: policy.approveLabel,
-      summary: _describeBrowserAction(toolCall),
-      details: details,
-      targetSummary: _browserActionTargetSummary(toolCall),
-      sensitiveValuePreview: _browserSensitiveValuePreview(toolCall),
-      reason: toolCall.arguments['reason'] as String?,
+    final gate = await _resolveToolApprovalGate(
+      toolCall: toolCall,
+      actionKind: toolCall.name,
+      mode: _settings.chatApprovalMode,
+      reviewDomain: ToolApprovalAutoReviewDomain.browser,
+      fullAccessEligible: true,
+      buildReviewRequest: () async => _buildAutoReviewRequest(
+        toolCall: toolCall,
+        actionKind: toolCall.name,
+        // Sanitized args: raw secret-bearing fields are dropped; a masked
+        // preview rides along in `preview` instead (see _browserReviewArguments).
+        arguments: _browserReviewArguments(toolCall),
+        reason: toolCall.arguments['reason'] as String?,
+        warningMessage: policy.warningMessage,
+        preview: _browserSensitiveValuePreview(toolCall),
+      ),
     );
-    if (!approved) {
-      return McpToolResult(
+    if (gate.isDenied) {
+      return _browserAutoReviewDeniedResult(toolCall, gate.deniedRationale!);
+    }
+    if (gate.needsManual) {
+      final details = await _browserActionDetails(toolCall);
+      final approved = await requestBrowserAction(
         toolName: toolCall.name,
-        result: jsonEncode({
-          'ok': false,
-          'code': 'approval_denied',
-          'error': 'User denied the browser action.',
-          'nextAction':
-              'Ask the user for explicit approval before retrying this browser action.',
-        }),
-        isSuccess: false,
-        errorMessage: 'User denied browser action.',
+        title: policy.title,
+        riskLabel: policy.riskLabel,
+        warningMessage: policy.warningMessage,
+        approveLabel: policy.approveLabel,
+        summary: _describeBrowserAction(toolCall),
+        details: details,
+        targetSummary: _browserActionTargetSummary(toolCall),
+        sensitiveValuePreview: _browserSensitiveValuePreview(toolCall),
+        reason: toolCall.arguments['reason'] as String?,
       );
+      if (!approved) {
+        return McpToolResult(
+          toolName: toolCall.name,
+          result: jsonEncode({
+            'ok': false,
+            'code': 'approval_denied',
+            'error': 'User denied the browser action.',
+            'nextAction':
+                'Ask the user for explicit approval before retrying this browser action.',
+          }),
+          isSuccess: false,
+          errorMessage: 'User denied browser action.',
+        );
+      }
     }
     return _mcpToolService!.executeTool(
       name: toolCall.name,
@@ -53,6 +82,43 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
     return _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: toolCall.arguments,
+    );
+  }
+
+  /// Builds the argument map sent to the auto-reviewer. Raw secret-bearing
+  /// fields (`value`, `script`, `data`) are dropped so credentials are never
+  /// forwarded to the review endpoint; a masked/truncated preview is carried in
+  /// the request's `preview` field instead. The page host (never the full URL,
+  /// which may carry credentials) is added for context.
+  Map<String, dynamic> _browserReviewArguments(ToolCallInfo toolCall) {
+    const omittedKeys = {'value', 'script', 'data'};
+    final sanitized = <String, dynamic>{
+      for (final entry in toolCall.arguments.entries)
+        if (!omittedKeys.contains(entry.key)) entry.key: entry.value,
+    };
+    final url = ref.read(browserSessionServiceProvider).currentUrl;
+    final host = url == null ? null : Uri.tryParse(url)?.host;
+    if (host != null && host.isNotEmpty) {
+      sanitized['pageHost'] = host;
+    }
+    return sanitized;
+  }
+
+  McpToolResult _browserAutoReviewDeniedResult(
+    ToolCallInfo toolCall,
+    String rationale,
+  ) {
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: jsonEncode({
+        'ok': false,
+        'code': 'auto_review_denied',
+        'error': 'Auto-review denied this browser action. $rationale',
+        'nextAction':
+            'Ask the user for explicit approval before retrying this browser action.',
+      }),
+      isSuccess: false,
+      errorMessage: 'Auto-review denied: $rationale',
     );
   }
 

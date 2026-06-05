@@ -913,7 +913,7 @@ void main() {
 
     await tester.tap(
       find.widgetWithText(
-        CheckedPopupMenuItem<CodingApprovalMode>,
+        CheckedPopupMenuItem<ToolApprovalMode>,
         'Auto-review',
       ),
     );
@@ -925,7 +925,7 @@ void main() {
     final storedSettings = AppSettings.fromJson(
       jsonDecode(storedJson!) as Map<String, dynamic>,
     );
-    expect(storedSettings.codingApprovalMode, CodingApprovalMode.autoReview);
+    expect(storedSettings.codingApprovalMode, ToolApprovalMode.autoReview);
     expect(find.byTooltip('Permission mode: Auto-review'), findsOneWidget);
   });
 }
