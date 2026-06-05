@@ -419,6 +419,7 @@
     "attach_file": "Attach file",
     "file_too_large": "File is too large (max 100 KB)",
     "file_read_error": "Failed to read file",
+    "attached_as_path": "Large file — referenced by path and analyzed on disk",
     "project_access_permission_denied": "Project folder access was denied.",
     "project_access_restore_failed": "Saved project folder access could not be restored.",
     "project_access_reselect_help": "Re-select the project folder to grant access again and continue coding.",

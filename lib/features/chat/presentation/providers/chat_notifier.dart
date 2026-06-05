@@ -6415,7 +6415,7 @@ class ChatNotifier extends Notifier<ChatState> {
         }
         return resolvedArguments;
       }(),
-      'read_file' || 'write_file' || 'edit_file' => () {
+      'read_file' || 'inspect_file' || 'write_file' || 'edit_file' => () {
         final resolvedPath = resolvePathArg('path');
         final resolvedArguments = toolName == 'write_file'
             ? _normalizeWriteFileArgumentAliases(arguments)
@@ -11239,6 +11239,7 @@ class ChatNotifier extends Notifier<ChatState> {
     switch (toolName.trim().toLowerCase()) {
       case 'list_directory':
       case 'read_file':
+      case 'inspect_file':
       case 'find_files':
       case 'search_files':
         return true;
@@ -11542,6 +11543,7 @@ class ChatNotifier extends Notifier<ChatState> {
     switch (toolName.trim().toLowerCase()) {
       case 'list_directory':
       case 'read_file':
+      case 'inspect_file':
       case 'find_files':
       case 'search_files':
       case 'write_file':
@@ -12048,6 +12050,7 @@ class ChatNotifier extends Notifier<ChatState> {
     switch (toolCall.name) {
       case 'list_directory':
       case 'read_file':
+      case 'inspect_file':
       case 'find_files':
       case 'search_files':
         return _handleProjectScopedTool(toolCall);
@@ -12125,6 +12128,7 @@ class ChatNotifier extends Notifier<ChatState> {
     switch (toolCall.name) {
       case 'list_directory':
       case 'read_file':
+      case 'inspect_file':
       case 'find_files':
       case 'search_files':
       case ToolDefinitionSearchService.toolName:

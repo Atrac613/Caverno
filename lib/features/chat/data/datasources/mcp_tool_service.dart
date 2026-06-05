@@ -82,6 +82,7 @@ class McpToolService {
     'mdns_browse',
     'list_directory',
     'read_file',
+    'inspect_file',
     'write_file',
     'edit_file',
     'rollback_last_file_change',
@@ -521,14 +522,21 @@ class McpToolService {
     _addIfEnabled(toolDefinitions, _pathMtuTool);
     _addIfEnabled(toolDefinitions, _mdnsBrowseTool);
 
+    // Read-only file inspection is safe on every platform, including the
+    // iOS/Android sandbox, so the model can analyze attached or referenced
+    // files (e.g. large logs) on mobile too.
+    _addIfEnabled(toolDefinitions, _listDirectoryTool);
+    _addIfEnabled(toolDefinitions, _readFileTool);
+    _addIfEnabled(toolDefinitions, _inspectFileTool);
+    _addIfEnabled(toolDefinitions, _findFilesTool);
+    _addIfEnabled(toolDefinitions, _searchFilesTool);
+
+    // Mutating file tools stay desktop-only: writing arbitrary paths on a
+    // sandboxed mobile OS is both risky and largely unusable.
     if (FilesystemTools.isDesktopPlatform) {
-      _addIfEnabled(toolDefinitions, _listDirectoryTool);
-      _addIfEnabled(toolDefinitions, _readFileTool);
       _addIfEnabled(toolDefinitions, _writeFileTool);
       _addIfEnabled(toolDefinitions, _editFileTool);
       _addIfEnabled(toolDefinitions, _rollbackLastFileChangeTool);
-      _addIfEnabled(toolDefinitions, _findFilesTool);
-      _addIfEnabled(toolDefinitions, _searchFilesTool);
     }
 
     if (LocalShellTools.isDesktopPlatform) {
@@ -799,6 +807,30 @@ class McpToolService {
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
+    if (name == 'inspect_file') {
+      final path = (arguments['path'] as String?)?.trim() ?? '';
+      if (path.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'path is required',
+        );
+      }
+      final headLines = ((arguments['head_lines'] as num?)?.toInt() ?? 50)
+          .clamp(1, 100)
+          .toInt();
+      final tailLines = ((arguments['tail_lines'] as num?)?.toInt() ?? 20)
+          .clamp(0, 50)
+          .toInt();
+      final result = await FilesystemTools.inspectFile(
+        path: path,
+        headLines: headLines,
+        tailLines: tailLines,
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
     if (name == 'write_file') {
       final path = (arguments['path'] as String?)?.trim() ?? '';
       final content = arguments['content'] as String? ?? '';
@@ -921,6 +953,11 @@ class McpToolService {
       final offset = ((arguments['offset'] as num?)?.toInt() ?? 0)
           .clamp(0, 1000000)
           .toInt();
+      final maxLineLength =
+          ((arguments['max_line_length'] as num?)?.toInt() ?? 500)
+              .clamp(40, 1000)
+              .toInt();
+      final maxBytesScanned = (arguments['max_bytes_scanned'] as num?)?.toInt();
       final result = await FilesystemTools.searchFiles(
         path: path,
         query: query,
@@ -928,6 +965,8 @@ class McpToolService {
         caseSensitive: caseSensitive,
         maxResults: maxResults,
         offset: offset,
+        maxLineLength: maxLineLength,
+        maxBytesScanned: maxBytesScanned,
       );
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
@@ -3879,7 +3918,10 @@ class McpToolService {
     'function': {
       'name': 'read_file',
       'description':
-          'Read a UTF-8 text file from the local project. Use offset and limit to inspect a specific line range in large files.',
+          'Read a UTF-8 text file from the local project. Use offset and limit '
+          'to inspect a specific line range in large files. For very large '
+          'files (logs, exports), call inspect_file first, then read only the '
+          'ranges you need — never try to read the whole file at once.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -3898,6 +3940,37 @@ class McpToolService {
           'limit': {
             'type': 'integer',
             'description': 'Maximum number of lines to return.',
+          },
+        },
+        'required': ['path'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _inspectFileTool => {
+    'type': 'function',
+    'function': {
+      'name': 'inspect_file',
+      'description':
+          'Inspect a local text file WITHOUT loading it fully into memory. '
+          'Returns byte size, total line count, head and tail samples, detected '
+          'encoding, and a format hint. Call this FIRST on large or unknown '
+          'files (logs, JSONL/CSV exports, multi-MB text) before searching or '
+          'range-reading them.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'path': {
+            'type': 'string',
+            'description': 'Absolute or project-relative file path.',
+          },
+          'head_lines': {
+            'type': 'integer',
+            'description': 'Number of leading lines to sample (1-100).',
+          },
+          'tail_lines': {
+            'type': 'integer',
+            'description': 'Number of trailing lines to sample (0-50).',
           },
         },
         'required': ['path'],
@@ -4029,7 +4102,9 @@ class McpToolService {
     'function': {
       'name': 'search_files',
       'description':
-          'Search text across local project files and return matching lines with file paths and line numbers.',
+          'Search text across local project files (streamed line by line, so '
+          'large logs are supported) and return matching lines with file paths '
+          'and line numbers.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -4055,6 +4130,16 @@ class McpToolService {
             'type': 'integer',
             'description':
                 'Number of matching lines to skip before returning results.',
+          },
+          'max_line_length': {
+            'type': 'integer',
+            'description':
+                'Truncate each matched line to this many characters (40-1000).',
+          },
+          'max_bytes_scanned': {
+            'type': 'integer',
+            'description':
+                'Optional ceiling on total bytes scanned across all files.',
           },
         },
         'required': ['query'],

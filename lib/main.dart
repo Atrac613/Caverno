@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/services/attachment_storage_service.dart';
 import 'core/services/login_shell_environment.dart';
 import 'core/services/macos_app_menu_service.dart';
 import 'core/services/window_manager_service.dart';
@@ -39,6 +40,7 @@ void main() async {
   final initialSettings = SettingsRepository(prefs).load();
   final systemLocale = WidgetsBinding.instance.platformDispatcher.locale;
   unawaited(_deleteExpiredToolResultArtifacts());
+  unawaited(AttachmentStorageService.sweepOldAttachments());
 
   // Warm up the login-shell PATH so stdio MCP servers and shell/git tools can
   // resolve user-installed binaries (dart, npx, uvx, ...) even when launched

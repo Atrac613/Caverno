@@ -1,6 +1,6 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 
 class TextFileSnapshot {
   const TextFileSnapshot({
@@ -23,6 +23,9 @@ class _LineRangeSelection {
     required this.lineCount,
     required this.totalLines,
     required this.truncatedByLimit,
+    this.truncatedByChars = false,
+    this.scanCeilingHit = false,
+    this.totalLinesIsEstimate = false,
   });
 
   final String content;
@@ -30,15 +33,41 @@ class _LineRangeSelection {
   final int lineCount;
   final int totalLines;
   final bool truncatedByLimit;
+  final bool truncatedByChars;
+  final bool scanCeilingHit;
+  final bool totalLinesIsEstimate;
 }
 
 class FilesystemTools {
   FilesystemTools._();
 
   static const int _maxReadChars = 120000;
+
+  /// Upper bound on bytes scanned for any single-file streaming operation
+  /// (read_file, inspect_file, search_files). Keeps memory and latency bounded
+  /// on huge files; tighter on mobile where RAM is scarce.
+  static int get _maxScanBytes => (Platform.isIOS || Platform.isAndroid)
+      ? 64 * 1024 * 1024
+      : 256 * 1024 * 1024;
+
+  /// Number of leading bytes sampled to detect binary / non-UTF-8 files
+  /// without reading the whole file into memory.
+  static const int _binarySniffBytes = 8192;
+
+  /// Per-line character cap for inspect_file head/tail and search_files
+  /// matches, so a single pathologically long line cannot blow the output
+  /// (or the scan's memory) on minified or single-line files.
+  static const int _maxOverviewLineChars = 1000;
+
+  /// Hard cap on how many characters a single streamed line may buffer before
+  /// it is truncated. Bounds memory on pathological single-giant-line files
+  /// (e.g. minified JSON) where a newline never arrives. All callers truncate
+  /// further (read_file by max_chars, inspect_file / search_files by their line
+  /// clamps), so this is invisible for normal line-oriented files.
+  static const int _maxStreamLineChars = 1024 * 1024;
+
   static const int _maxEntries = 300;
   static const int _maxSearchResults = 200;
-  static const int _maxFileBytesForSearch = 1024 * 1024;
   static const int _maxDiffPreviewLines = 400;
   static const int _maxDiffPreviewChars = 12000;
   static const int _maxLcsCells = 60000;
@@ -191,38 +220,40 @@ class FilesystemTools {
     }
 
     try {
-      final rawBytes = await file.readAsBytes();
-      final content = utf8.decode(rawBytes, allowMalformed: false);
-      final lineRangeRequested = offset > 1 || limit != null;
-      final totalLines = content.isEmpty
-          ? 0
-          : const LineSplitter().convert(content).length;
-      final selectedContent = lineRangeRequested
-          ? _selectLineRange(content: content, offset: offset, limit: limit)
-          : _LineRangeSelection(
-              content: content,
-              startLine: content.isEmpty ? 0 : 1,
-              lineCount: totalLines,
-              totalLines: totalLines,
-              truncatedByLimit: false,
-            );
-      final truncatedByChars = selectedContent.content.length > maxChars;
-      final returnedContent = truncatedByChars
-          ? selectedContent.content.substring(0, maxChars)
-          : selectedContent.content;
+      if (await _looksBinary(file)) {
+        return jsonEncode({
+          'error':
+              'File is not valid UTF-8 text. Binary files are not supported.',
+          'path': absolutePath,
+        });
+      }
+
+      final sizeBytes = await file.length();
+      final selection = await _streamLineRange(
+        file: file,
+        offset: offset,
+        limit: limit,
+        maxChars: maxChars,
+        maxScanBytes: _maxScanBytes,
+      );
+
       final response = <String, dynamic>{
-        'path': file.absolute.path,
-        'content': returnedContent,
-        'size_bytes': rawBytes.length,
-        'start_line': selectedContent.startLine,
-        'line_count': selectedContent.lineCount,
-        'total_lines': selectedContent.totalLines,
+        'path': absolutePath,
+        'content': selection.content,
+        'size_bytes': sizeBytes,
+        'start_line': selection.startLine,
+        'line_count': selection.lineCount,
+        'total_lines': selection.totalLines,
         if (offset > 1) 'offset': offset,
         'limit': limit,
-        if (truncatedByChars || selectedContent.truncatedByLimit)
+        if (selection.truncatedByChars ||
+            selection.truncatedByLimit ||
+            selection.scanCeilingHit)
           'truncated': true,
-        if (truncatedByChars) 'truncated_by_chars': true,
-        if (selectedContent.truncatedByLimit) 'truncated_by_limit': true,
+        if (selection.truncatedByChars) 'truncated_by_chars': true,
+        if (selection.truncatedByLimit) 'truncated_by_limit': true,
+        if (selection.scanCeilingHit) 'scan_ceiling_hit': true,
+        if (selection.totalLinesIsEstimate) 'total_lines_is_estimate': true,
       };
       response.removeWhere((_, value) => value == null);
       return jsonEncode(response);
@@ -230,56 +261,325 @@ class FilesystemTools {
       return jsonEncode({
         'error':
             'File is not valid UTF-8 text. Binary files are not supported.',
-        'path': file.absolute.path,
+        'path': absolutePath,
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(
-        path: file.absolute.path,
+        path: absolutePath,
         operation: 'read_file',
         error: error,
       );
     }
   }
 
-  static _LineRangeSelection _selectLineRange({
-    required String content,
+  /// Cheap overview of a (potentially huge) text file without reading it all.
+  ///
+  /// Returns byte size, total line count, head/tail samples, detected encoding
+  /// and a format hint — the entry point the model should call first on a
+  /// large or unknown file before searching or range-reading it. Memory stays
+  /// bounded: only [headLines] + [tailLines] clipped lines are retained.
+  static Future<String> inspectFile({
+    required String path,
+    int headLines = 50,
+    int tailLines = 20,
+  }) async {
+    final file = File(path);
+    if (!file.existsSync()) {
+      return jsonEncode({'error': 'File does not exist: $path'});
+    }
+    final absolutePath = file.absolute.path;
+    if (_isBlockedReadPath(absolutePath)) {
+      return jsonEncode({
+        'error': 'Special device files are not supported by inspect_file.',
+        'path': absolutePath,
+      });
+    }
+
+    final headLimit = headLines.clamp(0, 100);
+    final tailLimit = tailLines.clamp(0, 50);
+
+    try {
+      final sizeBytes = await file.length();
+      if (await _looksBinary(file)) {
+        return jsonEncode({
+          'path': absolutePath,
+          'size_bytes': sizeBytes,
+          'size_human': _formatBytes(sizeBytes),
+          'is_binary': true,
+          'encoding': 'binary',
+        });
+      }
+
+      final head = <String>[];
+      final tail = ListQueue<String>();
+      final result = await _forEachLine(
+        file,
+        maxScanBytes: _maxScanBytes,
+        onLine: (lineNo, line) {
+          final clipped = _clipLine(line);
+          if (head.length < headLimit) head.add(clipped);
+          if (tailLimit > 0) {
+            tail.addLast(clipped);
+            if (tail.length > tailLimit) tail.removeFirst();
+          }
+          return true;
+        },
+      );
+
+      final firstNonEmpty = head.firstWhere(
+        (line) => line.trim().isNotEmpty,
+        orElse: () => '',
+      );
+
+      final response = <String, dynamic>{
+        'path': absolutePath,
+        'size_bytes': sizeBytes,
+        'size_human': _formatBytes(sizeBytes),
+        'total_lines': result.lineCount,
+        'encoding': 'utf-8',
+        'is_binary': false,
+        'format_hint': _detectFormatHint(absolutePath, firstNonEmpty),
+        'head': head,
+        if (tailLimit > 0) 'tail': tail.toList(),
+        if (result.scanCeilingHit) 'line_count_capped': true,
+        if (result.scanCeilingHit) 'total_lines_is_estimate': true,
+      };
+      return jsonEncode(response);
+    } on FormatException {
+      return jsonEncode({
+        'error':
+            'File is not valid UTF-8 text. Binary files are not supported.',
+        'path': absolutePath,
+      });
+    } on FileSystemException catch (error) {
+      return _buildFilesystemError(
+        path: absolutePath,
+        operation: 'inspect_file',
+        error: error,
+      );
+    }
+  }
+
+  static String _clipLine(String line) => line.length > _maxOverviewLineChars
+      ? '${line.substring(0, _maxOverviewLineChars)}…'
+      : line;
+
+  static final RegExp _logLinePrefix = RegExp(
+    r'^\[?\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}' // 2026-06-05 12:34:56
+    r'|^\[?\d{2}:\d{2}:\d{2}' // 12:34:56
+    r'|^\[?(ERROR|WARN|WARNING|INFO|DEBUG|TRACE|FATAL)\b', // level prefix
+    caseSensitive: false,
+  );
+
+  /// Best-effort, cheap format classification from the file extension first,
+  /// then the first non-empty line. Used only as a hint for the model.
+  static String _detectFormatHint(String path, String firstNonEmptyLine) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.jsonl') || lower.endsWith('.ndjson')) return 'jsonl';
+    if (lower.endsWith('.json')) return 'json';
+    if (lower.endsWith('.csv')) return 'csv';
+    if (lower.endsWith('.tsv')) return 'tsv';
+    if (lower.endsWith('.log')) return 'log';
+    if (lower.endsWith('.xml')) return 'xml';
+    if (lower.endsWith('.yaml') || lower.endsWith('.yml')) return 'yaml';
+    if (lower.endsWith('.md')) return 'markdown';
+
+    final trimmed = firstNonEmptyLine.trimLeft();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) return 'json';
+    if (_logLinePrefix.hasMatch(trimmed)) return 'log';
+    if (trimmed.contains(',') && firstNonEmptyLine.split(',').length >= 3) {
+      return 'csv';
+    }
+    return 'text';
+  }
+
+  /// Sniffs the first [_binarySniffBytes] of [file] to decide whether it is a
+  /// binary / non-UTF-8 file, without loading the whole file into memory.
+  ///
+  /// Treats a NUL byte as a definitive binary marker. For UTF-8 validation it
+  /// tolerates a multi-byte rune that happens to be split at the sniff
+  /// boundary (UTF-8 runes are at most 4 bytes) before declaring the file
+  /// binary.
+  static Future<bool> _looksBinary(File file) async {
+    try {
+      final prefix = <int>[];
+      await for (final chunk in file.openRead(0, _binarySniffBytes)) {
+        prefix.addAll(chunk);
+        if (prefix.length >= _binarySniffBytes) break;
+      }
+      if (prefix.isEmpty) return false;
+      final sample = prefix.length > _binarySniffBytes
+          ? prefix.sublist(0, _binarySniffBytes)
+          : prefix;
+      if (sample.contains(0)) return true;
+      for (var drop = 0; drop <= 3 && sample.length - drop > 0; drop++) {
+        try {
+          utf8.decode(sample.sublist(0, sample.length - drop),
+              allowMalformed: false);
+          return false;
+        } on FormatException {
+          // A trailing rune may be split at the boundary; retry with fewer
+          // bytes. If every attempt fails the content is genuinely binary.
+        }
+      }
+      return true;
+    } on FileSystemException {
+      // Let the caller's own open attempt surface the I/O error instead.
+      return false;
+    }
+  }
+
+  /// Streams UTF-8 text lines from [file], invoking [onLine] for each line.
+  ///
+  /// Iteration stops when [onLine] returns false, or when more than
+  /// [maxScanBytes] raw bytes have been read (a safety ceiling that keeps
+  /// latency and memory bounded on huge files). Memory stays bounded with
+  /// respect to file size: lines are not retained, and a single line that never
+  /// terminates is truncated at [_maxStreamLineChars] rather than buffered in
+  /// full. The byte ceiling is checked per chunk — so even a giant
+  /// newline-less line is cut off — and bytes are counted on the raw byte
+  /// stream (before decoding) for an encoding-independent measure.
+  ///
+  /// Splits on `\n` and `\r\n`; lone `\r` (classic Mac) line endings are not
+  /// treated as separators, which is acceptable for modern logs/text.
+  static Future<({int lineCount, bool scanCeilingHit})> _forEachLine(
+    File file, {
+    required int maxScanBytes,
+    required bool Function(int lineNo, String line) onLine,
+  }) async {
+    var lineNo = 0;
+    var bytesScanned = 0;
+    var scanCeilingHit = false;
+    var stopped = false;
+
+    final carry = StringBuffer();
+    var carryTruncated = false;
+
+    void appendCarry(String text) {
+      if (carryTruncated || text.isEmpty) return;
+      final room = _maxStreamLineChars - carry.length;
+      if (text.length <= room) {
+        carry.write(text);
+      } else {
+        if (room > 0) carry.write(text.substring(0, room));
+        carryTruncated = true;
+      }
+    }
+
+    String takeLine(String tail) {
+      appendCarry(tail);
+      var line = carry.toString();
+      if (line.endsWith('\r')) {
+        line = line.substring(0, line.length - 1);
+      }
+      carry.clear();
+      carryTruncated = false;
+      return line;
+    }
+
+    final textStream = file
+        .openRead()
+        .map<List<int>>((chunk) {
+          bytesScanned += chunk.length;
+          return chunk;
+        })
+        .transform(utf8.decoder);
+
+    await for (final text in textStream) {
+      var start = 0;
+      while (true) {
+        final newlineIndex = text.indexOf('\n', start);
+        if (newlineIndex < 0) {
+          appendCarry(text.substring(start));
+          break;
+        }
+        final line = takeLine(text.substring(start, newlineIndex));
+        lineNo += 1;
+        if (!onLine(lineNo, line)) {
+          stopped = true;
+          break;
+        }
+        start = newlineIndex + 1;
+      }
+      if (stopped) break;
+      if (bytesScanned > maxScanBytes) {
+        scanCeilingHit = true;
+        break;
+      }
+    }
+
+    // Emit the final line when the file does not end in a newline. Skipped when
+    // we stopped early or hit the byte ceiling mid-line (that line is partial).
+    if (!stopped && !scanCeilingHit && (carry.isNotEmpty || carryTruncated)) {
+      final line = takeLine('');
+      lineNo += 1;
+      onLine(lineNo, line);
+    }
+
+    return (lineCount: lineNo, scanCeilingHit: scanCeilingHit);
+  }
+
+  /// Streaming replacement for the previous whole-file line selection. Collects
+  /// the line window `[offset, offset + limit)` (clamped to [maxChars]) while
+  /// counting total lines, all in a single pass with bounded memory.
+  static Future<_LineRangeSelection> _streamLineRange({
+    required File file,
     required int offset,
     required int? limit,
-  }) {
-    if (content.isEmpty) {
-      return const _LineRangeSelection(
-        content: '',
-        startLine: 0,
-        lineCount: 0,
-        totalLines: 0,
-        truncatedByLimit: false,
-      );
-    }
+    required int maxChars,
+    required int maxScanBytes,
+  }) async {
+    final buffer = StringBuffer();
+    var selectedLineCount = 0;
+    var charsCollected = 0;
+    var truncatedByChars = false;
+    final endLineExclusive = limit == null ? null : offset + limit;
 
-    final lines = const LineSplitter().convert(content);
-    final totalLines = lines.length;
-    if (offset > totalLines) {
-      return _LineRangeSelection(
-        content: '',
-        startLine: offset,
-        lineCount: 0,
-        totalLines: totalLines,
-        truncatedByLimit: false,
-      );
-    }
+    final result = await _forEachLine(
+      file,
+      maxScanBytes: maxScanBytes,
+      onLine: (lineNo, line) {
+        final inWindow = lineNo >= offset &&
+            (endLineExclusive == null || lineNo < endLineExclusive);
+        if (inWindow) {
+          if (!truncatedByChars) {
+            final separator = selectedLineCount == 0 ? 0 : 1;
+            final projected = charsCollected + separator + line.length;
+            if (projected > maxChars) {
+              final remaining = maxChars - charsCollected - separator;
+              if (remaining > 0) {
+                if (selectedLineCount > 0) buffer.write('\n');
+                buffer.write(line.substring(0, remaining));
+                charsCollected += separator + remaining;
+              }
+              truncatedByChars = true;
+            } else {
+              if (selectedLineCount > 0) buffer.write('\n');
+              buffer.write(line);
+              charsCollected = projected;
+            }
+          }
+          selectedLineCount += 1;
+        }
+        // Always keep going so total_lines reflects the whole file (until the
+        // byte ceiling enforced by _forEachLine).
+        return true;
+      },
+    );
 
-    final startIndex = offset - 1;
-    final endIndex = limit == null
-        ? totalLines
-        : math.min(totalLines, startIndex + limit);
-    final selectedLines = lines.sublist(startIndex, endIndex);
+    final totalLines = result.lineCount;
+    final truncatedByLimit =
+        limit != null && totalLines > (offset - 1) + limit;
 
     return _LineRangeSelection(
-      content: selectedLines.join('\n'),
-      startLine: offset,
-      lineCount: selectedLines.length,
+      content: buffer.toString(),
+      startLine: totalLines == 0 ? 0 : offset,
+      lineCount: selectedLineCount,
       totalLines: totalLines,
-      truncatedByLimit: endIndex < totalLines,
+      truncatedByLimit: truncatedByLimit,
+      truncatedByChars: truncatedByChars,
+      scanCeilingHit: result.scanCeilingHit,
+      totalLinesIsEstimate: result.scanCeilingHit,
     );
   }
 
@@ -417,6 +717,8 @@ class FilesystemTools {
     bool caseSensitive = false,
     int maxResults = _maxSearchResults,
     int offset = 0,
+    int maxLineLength = 500,
+    int? maxBytesScanned,
   }) async {
     final directory = Directory(path);
     if (!directory.existsSync()) {
@@ -429,6 +731,10 @@ class FilesystemTools {
       return jsonEncode({'error': 'offset must be greater than or equal to 0'});
     }
 
+    final lineClamp = maxLineLength.clamp(40, _maxOverviewLineChars);
+    var remainingBudget =
+        (maxBytesScanned ?? _maxScanBytes).clamp(1, _maxScanBytes);
+
     try {
       final normalizedQuery = caseSensitive ? query : query.toLowerCase();
       final fileMatcher = filePattern == null || filePattern.trim().isEmpty
@@ -438,6 +744,9 @@ class FilesystemTools {
       final matches = <String>[];
       var scannedFiles = 0;
       var matchedLinesSeen = 0;
+      var bytesScanned = 0;
+      var scanCeilingHit = false;
+      var resultLimitHit = false;
 
       await for (final entity in directory.list(
         recursive: true,
@@ -451,44 +760,63 @@ class FilesystemTools {
           continue;
         }
 
-        final length = await entity.length();
-        if (length > _maxFileBytesForSearch) continue;
+        if (remainingBudget <= 0) {
+          scanCeilingHit = true;
+          break;
+        }
 
-        String content;
+        // Skip binary files cheaply (sampled prefix) instead of reading them
+        // fully like the previous implementation did.
         try {
-          content = await entity.readAsString();
+          if (await _looksBinary(entity)) continue;
         } on FileSystemException {
           continue;
+        }
+
+        final fileLength = await entity.length();
+        scannedFiles += 1;
+
+        try {
+          final fileResult = await _forEachLine(
+            entity,
+            maxScanBytes: remainingBudget,
+            onLine: (lineNo, line) {
+              final haystack = caseSensitive ? line : line.toLowerCase();
+              if (haystack.contains(normalizedQuery)) {
+                if (matchedLinesSeen < offset) {
+                  matchedLinesSeen += 1;
+                  return true;
+                }
+                final clipped = line.length > lineClamp
+                    ? '${line.substring(0, lineClamp)}…'
+                    : line;
+                matches.add('$relativePath:$lineNo: $clipped');
+                matchedLinesSeen += 1;
+                if (matches.length >= maxResults) {
+                  resultLimitHit = true;
+                  return false;
+                }
+              }
+              return true;
+            },
+          );
+
+          if (fileResult.scanCeilingHit) {
+            bytesScanned += remainingBudget;
+            remainingBudget = 0;
+            scanCeilingHit = true;
+            break;
+          }
+          bytesScanned += fileLength;
+          remainingBudget -= fileLength;
         } on FormatException {
+          // Not valid UTF-8 after the prefix; skip.
+          continue;
+        } on FileSystemException {
           continue;
         }
 
-        scannedFiles += 1;
-        final lines = const LineSplitter().convert(content);
-        for (var index = 0; index < lines.length; index++) {
-          final line = lines[index];
-          final haystack = caseSensitive ? line : line.toLowerCase();
-          if (haystack.contains(normalizedQuery)) {
-            if (matchedLinesSeen < offset) {
-              matchedLinesSeen += 1;
-              continue;
-            }
-            matches.add('$relativePath:${index + 1}: $line');
-            matchedLinesSeen += 1;
-            if (matches.length >= maxResults) {
-              return jsonEncode({
-                'path': directory.absolute.path,
-                'query': query,
-                'matches': matches,
-                'match_count': matches.length,
-                'scanned_files': scannedFiles,
-                if (offset > 0) 'offset': offset,
-                'matches_seen': matchedLinesSeen,
-                'truncated': true,
-              });
-            }
-          }
-        }
+        if (resultLimitHit) break;
       }
 
       return jsonEncode({
@@ -497,8 +825,11 @@ class FilesystemTools {
         'matches': matches,
         'match_count': matches.length,
         'scanned_files': scannedFiles,
+        'bytes_scanned': bytesScanned,
         if (offset > 0) 'offset': offset,
         'matches_seen': matchedLinesSeen,
+        if (resultLimitHit) 'truncated': true,
+        if (scanCeilingHit) 'scan_ceiling_hit': true,
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(

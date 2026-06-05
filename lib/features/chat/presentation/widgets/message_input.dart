@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 import 'dart:ui' as ui;
 
 import 'package:easy_localization/easy_localization.dart';
@@ -11,6 +11,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 
+import '../../../../core/services/attachment_storage_service.dart';
 import '../../../../core/services/macos_main_app_permissions_service.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
@@ -107,6 +108,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   String? _selectedFileName;
   String? _selectedFileContent;
   int? _selectedFileSize;
+  // Set instead of [_selectedFileContent] for large attachments: the file is
+  // copied to a durable path and referenced by path rather than inlined.
+  String? _selectedFileDurablePath;
   bool _isRecording = false;
   bool _hasText = false;
   int? _handledDroppedImageAttachmentId;
@@ -264,7 +268,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   bool get _hasAttachment {
-    return _selectedImageBytes != null || _selectedFileContent != null;
+    return _selectedImageBytes != null ||
+        _selectedFileContent != null ||
+        _selectedFileDurablePath != null;
   }
 
   List<SlashCommandDefinition> _buildSlashSuggestions() {
@@ -675,48 +681,82 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     _refreshSlashSuggestions();
   }
 
+  /// Files at or below this size are inlined into the message text (the
+  /// original behavior). Larger files are copied to a durable path and
+  /// referenced by path so the model can analyze them with the file tools
+  /// without bloating the message or the context window.
+  static const int _inlineFileMaxBytes = 256 * 1024;
+
   Future<void> _pickFile() async {
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['csv', 'txt', 'json', 'md'],
-        withData: true,
+        allowedExtensions: const [
+          'csv', 'txt', 'json', 'md', //
+          'log', 'jsonl', 'ndjson', 'tsv', 'xml', 'yaml', 'yml',
+        ],
+        // Fetch the path (available on mobile too) instead of loading the whole
+        // file into memory — large files must never be read fully here.
+        withData: false,
       );
 
       if (result == null || result.files.isEmpty) return;
 
-      final file = result.files.first;
-      final bytes = file.bytes;
-      if (bytes == null) return;
+      final picked = result.files.first;
+      final size = picked.size;
+      final sourcePath = picked.path;
 
-      if (bytes.length > 102400) {
+      if (size <= _inlineFileMaxBytes) {
+        // Small text file: keep the existing inline behavior.
+        final bytes = picked.bytes ??
+            (sourcePath != null ? await File(sourcePath).readAsBytes() : null);
+        if (bytes == null) {
+          _showFileError();
+          return;
+        }
+        final content = utf8.decode(bytes, allowMalformed: false);
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('message.file_too_large'.tr())));
+        setState(() {
+          _selectedFileName = picked.name;
+          _selectedFileContent = content;
+          _selectedFileDurablePath = null;
+          _selectedFileSize = bytes.length;
+        });
+        _refreshSlashSuggestions();
         return;
       }
 
-      final content = utf8.decode(bytes, allowMalformed: false);
-
+      // Large file: copy to a durable location and reference it by path. The
+      // model analyzes it on disk via inspect_file / search_files / read_file.
+      if (sourcePath == null) {
+        _showFileError();
+        return;
+      }
+      final durablePath = await AttachmentStorageService.persist(
+        sourcePath: sourcePath,
+        originalName: picked.name,
+      );
+      if (!mounted) return;
       setState(() {
-        _selectedFileName = file.name;
-        _selectedFileContent = content;
-        _selectedFileSize = bytes.length;
+        _selectedFileName = picked.name;
+        _selectedFileContent = null;
+        _selectedFileDurablePath = durablePath;
+        _selectedFileSize = size;
       });
       _refreshSlashSuggestions();
     } on FormatException {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('message.file_read_error'.tr())));
+      _showFileError();
     } catch (e) {
       debugPrint('Failed to pick file: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('message.file_read_error'.tr())));
+      _showFileError();
     }
+  }
+
+  void _showFileError() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('message.file_read_error'.tr())));
   }
 
   void _clearFile() {
@@ -724,6 +764,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       _selectedFileName = null;
       _selectedFileContent = null;
       _selectedFileSize = null;
+      _selectedFileDurablePath = null;
     });
     _refreshSlashSuggestions();
   }
@@ -917,7 +958,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final text = _controller.text.trim();
     if (text.isEmpty &&
         _selectedImageBytes == null &&
-        _selectedFileContent == null) {
+        _selectedFileContent == null &&
+        _selectedFileDurablePath == null) {
       return;
     }
 
@@ -931,11 +973,19 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       imageBase64 = base64Encode(_selectedImageBytes!);
     }
 
-    // Embed file content into the message text
+    // Embed small file content inline; reference large files by durable path.
     String finalText = text;
     if (_selectedFileContent != null) {
       final fileBlock = '[File: $_selectedFileName]\n$_selectedFileContent';
       finalText = text.isEmpty ? fileBlock : '$fileBlock\n\n$text';
+    } else if (_selectedFileDurablePath != null) {
+      final human = _formattedFileSize(_selectedFileSize ?? 0);
+      final ref =
+          '[Attached file: $_selectedFileDurablePath ($human)]\n'
+          'This file is large and is available on disk at the path above. '
+          'Use inspect_file first, then search_files / read_file with offset '
+          'and limit. Do not try to read it all at once.';
+      finalText = text.isEmpty ? ref : '$ref\n\n$text';
     }
 
     widget.onSend(finalText, imageBase64, _selectedImageMimeType);
@@ -1389,8 +1439,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final assistantMode = widget.assistantMode;
     final reasoningEffort = settings.reasoningEffort;
     final codingApprovalMode = settings.codingApprovalMode;
-    final canSend =
-        _hasText || _selectedImageBytes != null || _selectedFileContent != null;
+    final canSend = _hasText ||
+        _selectedImageBytes != null ||
+        _selectedFileContent != null ||
+        _selectedFileDurablePath != null;
 
     final composerColor = _isRecording
         ? theme.colorScheme.errorContainer.withValues(alpha: 0.3)
@@ -1450,14 +1502,25 @@ class _MessageInputState extends ConsumerState<MessageInput> {
             if (_selectedFileName != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                child: Chip(
-                  avatar: const Icon(Icons.description, size: 18),
-                  label: Text(
-                    '$_selectedFileName (${_formattedFileSize(_selectedFileSize!)})',
-                    overflow: TextOverflow.ellipsis,
+                child: Tooltip(
+                  message: _selectedFileDurablePath != null
+                      ? 'message.attached_as_path'.tr()
+                      : '',
+                  child: Chip(
+                    avatar: Icon(
+                      _selectedFileDurablePath != null
+                          ? Icons.link
+                          : Icons.description,
+                      size: 18,
+                    ),
+                    label: Text(
+                      '$_selectedFileName '
+                      '(${_formattedFileSize(_selectedFileSize ?? 0)})',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    deleteIcon: const Icon(Icons.close, size: 18),
+                    onDeleted: _clearFile,
                   ),
-                  deleteIcon: const Icon(Icons.close, size: 18),
-                  onDeleted: _clearFile,
                 ),
               ),
             if (_slashSuggestions.isNotEmpty)

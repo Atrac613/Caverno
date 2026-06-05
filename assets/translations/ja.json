@@ -419,6 +419,7 @@
     "attach_file": "ファイルを添付",
     "file_too_large": "ファイルが大きすぎます（最大100 KB）",
     "file_read_error": "ファイルの読み取りに失敗しました",
+    "attached_as_path": "大きなファイル — パス参照でディスク上で解析します",
     "project_access_permission_denied": "プロジェクトフォルダへのアクセスが拒否されました。",
     "project_access_restore_failed": "保存済みのプロジェクトフォルダ権限を復元できませんでした。",
     "project_access_reselect_help": "プロジェクトフォルダを再選択して、アクセス権を付け直してから作業を続けてください。",

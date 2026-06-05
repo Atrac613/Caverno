@@ -64,6 +64,57 @@ void main() {
       }
     });
 
+    test('registers read-only file tools (incl. inspect_file) everywhere', () {
+      final service = McpToolService();
+
+      final functionNames = service
+          .getOpenAiToolDefinitions()
+          .map(
+            (tool) =>
+                (tool['function']! as Map<String, dynamic>)['name']! as String,
+          )
+          .toList();
+
+      // Read-only file inspection must be available on every platform (no
+      // desktop gate) so attached or referenced large files can be analyzed on
+      // mobile too.
+      expect(functionNames, contains('list_directory'));
+      expect(functionNames, contains('read_file'));
+      expect(functionNames, contains('inspect_file'));
+      expect(functionNames, contains('find_files'));
+      expect(functionNames, contains('search_files'));
+    });
+
+    test('inspect_file returns an overview and clamps head/tail', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'mcp_tool_service_inspect_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+      final filePath = '${tempDir.path}/sample.log';
+      final sink = File(filePath).openWrite();
+      for (var i = 1; i <= 300; i++) {
+        sink.writeln('2026-06-05 12:00:00 INFO line $i');
+      }
+      await sink.close();
+
+      final service = McpToolService();
+      final result = await service.executeTool(
+        name: 'inspect_file',
+        arguments: {'path': filePath, 'head_lines': 999, 'tail_lines': 5},
+      );
+
+      expect(result.isSuccess, isTrue);
+      final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+      expect(decoded['total_lines'], 300);
+      expect(decoded['format_hint'], 'log');
+      expect((decoded['head'] as List).length, 100); // clamped from 999
+      expect((decoded['tail'] as List).length, 5);
+    });
+
     test('requires chat approval flow for run_tests execution', () async {
       final service = McpToolService();
 

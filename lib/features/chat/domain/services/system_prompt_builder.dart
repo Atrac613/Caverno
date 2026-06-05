@@ -44,6 +44,7 @@ class SystemPromptBuilder {
     final hasProjectReadTools =
         uniqueToolNames.contains('list_directory') ||
         uniqueToolNames.contains('read_file') ||
+        uniqueToolNames.contains('inspect_file') ||
         uniqueToolNames.contains('find_files') ||
         uniqueToolNames.contains('search_files');
     final hasProjectWriteTools =
@@ -172,6 +173,14 @@ class SystemPromptBuilder {
         buffer.writeln(
           'For codebase exploration, prefer list_directory, find_files, '
           'search_files, and read_file before using local shell commands.',
+        );
+        buffer.writeln(
+          'For very large files (logs, JSONL/CSV exports, multi-MB text), do '
+          'not read the whole file. First call inspect_file to get size, total '
+          'lines, and head/tail; then use search_files to locate relevant '
+          'lines and read_file with offset and limit to read only the ranges '
+          'you need. If a message contains an "Attached file:" path, treat it '
+          'as a large on-disk file and explore it with these tools.',
         );
         buffer.writeln(
           'When analyzing Caverno LLM session logs, treat each JSONL line as '
