@@ -29,6 +29,8 @@ class ConversationCompactionService {
   static const int maxSummaryBullets = 12;
   static const int maxPlanBullets = 4;
   static const int maxBulletLength = 180;
+  static const int imageAttachmentTokenFloor = 256;
+  static const int imageAttachmentTokenCeiling = 4096;
   static const double tokenWarningRatio = 0.8;
 
   static final RegExp _thinkBlockPattern = RegExp(
@@ -151,7 +153,11 @@ class ConversationCompactionService {
     final characterCount = messages.fold<int>(0, (count, message) {
       return count + _normalizeMessageContent(message).length;
     });
-    return (characterCount / 4).ceil();
+    final textTokens = (characterCount / 4).ceil();
+    final imageTokens = messages.fold<int>(0, (count, message) {
+      return count + _estimateImageAttachmentTokens(message);
+    });
+    return textTokens + imageTokens;
   }
 
   static bool _needsCompaction(List<Message> messages) {
@@ -220,6 +226,30 @@ class ConversationCompactionService {
       return 'Image attachment shared in the conversation.';
     }
     return '';
+  }
+
+  static int _estimateImageAttachmentTokens(Message message) {
+    final imageBase64 = message.imageBase64;
+    if (imageBase64 == null || imageBase64.isEmpty) {
+      return 0;
+    }
+
+    final base64Payload = imageBase64.contains(',')
+        ? imageBase64.split(',').last
+        : imageBase64;
+    final normalizedLength = base64Payload
+        .replaceAll(_whitespaceRunPattern, '')
+        .length;
+    if (normalizedLength <= 0) {
+      return imageAttachmentTokenFloor;
+    }
+
+    // Vision tokenization varies by provider, so cap the byte-size heuristic.
+    final estimatedBytes = (normalizedLength * 3 / 4).ceil();
+    final estimatedTokens = (estimatedBytes / 512).ceil();
+    return estimatedTokens
+        .clamp(imageAttachmentTokenFloor, imageAttachmentTokenCeiling)
+        .toInt();
   }
 
   static List<String> _extractPlanBullets(String? planDocument) {

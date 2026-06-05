@@ -548,7 +548,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     final apiKey = _apiKeyController.text.trim().isEmpty
         ? ApiConstants.defaultApiKey
         : _apiKeyController.text.trim();
-    final modelListConfig = (baseUrl: baseUrl, apiKey: apiKey);
+    final modelListConfig = ModelListConfig(baseUrl: baseUrl, apiKey: apiKey);
     final asyncModels = ref.watch(modelListProvider(modelListConfig));
 
     return Scaffold(

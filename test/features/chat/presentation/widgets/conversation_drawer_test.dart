@@ -462,10 +462,12 @@ Future<ProviderContainer> _pumpDrawerApp(
       settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
       // The desktop drawer opens the settings modal, whose default General page
       // watches the model list; stub it so the modal settles offline.
-      modelListProvider((
-        baseUrl: AppSettings.defaults().baseUrl,
-        apiKey: AppSettings.defaults().apiKey,
-      )).overrideWith((ref) async => <String>[]),
+      modelListProvider(
+        ModelListConfig(
+          baseUrl: AppSettings.defaults().baseUrl,
+          apiKey: AppSettings.defaults().apiKey,
+        ),
+      ).overrideWith((ref) async => <String>[]),
       conversationsNotifierProvider.overrideWith(
         () => _DrawerConversationsNotifier(conversationsState),
       ),

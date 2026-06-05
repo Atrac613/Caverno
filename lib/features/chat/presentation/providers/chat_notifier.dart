@@ -639,6 +639,7 @@ class ChatNotifier extends Notifier<ChatState> {
       error: null,
       pendingAskUserQuestion: restoredPendingQuestion,
     );
+    _refreshContextTokenPressureFromState();
     if (!preservingActiveResponse) {
       _accumulatedTokenUsage = TokenUsage.zero;
     }
@@ -6624,6 +6625,15 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  void _refreshContextTokenPressureFromState() {
+    _updateContextTokenPressureState(
+      pressure: ConversationCompactionService.assessTokenPressure(
+        messages: state.messages,
+      ),
+      compactionActive: state.promptCompactionActive,
+    );
+  }
+
   final _uuid = const Uuid();
   StreamSubscription<String>? _streamSubscription;
 
@@ -6882,6 +6892,7 @@ class ChatNotifier extends Notifier<ChatState> {
       isLoading: true,
       error: null,
     );
+    _refreshContextTokenPressureFromState();
     _llmSessionLogContextsByGeneration[interactionGeneration] =
         _buildLlmSessionLogContext(targetConversationId: conversationId);
     _registerActiveResponse(

@@ -23,6 +23,7 @@ import '../../../routines/presentation/providers/routine_scheduler.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
 import '../providers/coding_projects_notifier.dart';
+import '../../../settings/presentation/providers/model_list_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/git_tools.dart';
@@ -90,6 +91,16 @@ bool isRemoteCodingMobilePlatform() {
 @visibleForTesting
 bool shouldPresentDesktopApproval(ChatInteractionOrigin origin) {
   return origin == ChatInteractionOrigin.local;
+}
+
+@visibleForTesting
+bool shouldShowContextStatusWidget(ChatState chatState) {
+  return chatState.messages.isNotEmpty ||
+      chatState.queuedMessages.isNotEmpty ||
+      chatState.promptTokens > 0 ||
+      chatState.completionTokens > 0 ||
+      chatState.totalTokens > 0 ||
+      chatState.estimatedPromptTokens > 0;
 }
 
 class ChatPage extends ConsumerStatefulWidget {
@@ -1494,9 +1505,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       // Token usage indicator
                       if (!shouldShowCodingDraftComposer &&
                           canCompose &&
-                          (chatState.totalTokens > 0 ||
-                              chatState.estimatedPromptTokens > 0))
-                        _buildTokenUsageBar(context, chatState, settings.model),
+                          shouldShowContextStatusWidget(chatState))
+                        _buildTokenUsageBar(context, chatState, settings),
                       if (!shouldShowCodingDraftComposer &&
                           canCompose &&
                           chatState.queuedMessages.isNotEmpty)
@@ -1799,6 +1809,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   String _formatTokenCount(int count) {
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M';
+    }
     if (count >= 1000) {
       return '${(count / 1000).toStringAsFixed(1)}k';
     }

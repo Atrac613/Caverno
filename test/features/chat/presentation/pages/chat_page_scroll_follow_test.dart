@@ -11,6 +11,8 @@ import 'package:caverno/features/chat/presentation/providers/coding_projects_not
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/domain/entities/model_catalog_entry.dart';
+import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -29,9 +31,13 @@ class _TestTranslationLoader extends AssetLoader {
 }
 
 class _ChatSettingsNotifier extends SettingsNotifier {
+  _ChatSettingsNotifier(this._settings);
+
+  final AppSettings _settings;
+
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(demoMode: false, mcpEnabled: false);
+    return _settings;
   }
 }
 
@@ -108,6 +114,15 @@ void main() {
         updatedAt: now,
         workspaceMode: WorkspaceMode.chat,
       );
+      final settings = AppSettings.defaults().copyWith(
+        demoMode: false,
+        mcpEnabled: false,
+      );
+      final modelCatalogConfig = ModelListConfig(
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+        selectedModelId: settings.model,
+      );
 
       // Start with a short, non-scrollable list. `ref.listen` does not fire on
       // the first build, so the auto-scroll behavior is exercised by emitting
@@ -124,7 +139,12 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(preferences),
-          settingsNotifierProvider.overrideWith(_ChatSettingsNotifier.new),
+          settingsNotifierProvider.overrideWith(
+            () => _ChatSettingsNotifier(settings),
+          ),
+          modelCatalogProvider(
+            modelCatalogConfig,
+          ).overrideWith((ref) async => const <ModelCatalogEntry>[]),
           conversationsNotifierProvider.overrideWith(
             () => _ChatConversationsNotifier(conversation),
           ),

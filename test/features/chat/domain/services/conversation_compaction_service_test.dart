@@ -101,6 +101,26 @@ void main() {
     expect(critical.level, ConversationTokenPressureLevel.critical);
   });
 
+  test('estimatePromptTokens includes image attachment cost', () {
+    final estimatedTokens = ConversationCompactionService.estimatePromptTokens([
+      Message(
+        id: 'image',
+        content: '',
+        role: MessageRole.user,
+        timestamp: DateTime(2026, 6, 5),
+        imageBase64: 'A' * 4096,
+        imageMimeType: 'image/png',
+      ),
+    ]);
+
+    expect(
+      estimatedTokens,
+      greaterThanOrEqualTo(
+        ConversationCompactionService.imageAttachmentTokenFloor,
+      ),
+    );
+  });
+
   test('isContextLengthError detects prompt-too-long failures', () {
     expect(
       ConversationCompactionService.isContextLengthError(

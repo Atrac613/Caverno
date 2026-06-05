@@ -62,7 +62,10 @@ Future<void> _pumpModal(WidgetTester tester) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   final prefs = await SharedPreferences.getInstance();
   final settings = SettingsRepository(prefs).load();
-  final modelConfig = (baseUrl: settings.baseUrl, apiKey: settings.apiKey);
+  final modelConfig = ModelListConfig(
+    baseUrl: settings.baseUrl,
+    apiKey: settings.apiKey,
+  );
 
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(1400, 1800);

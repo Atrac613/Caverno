@@ -8,9 +8,32 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
   Widget _buildTokenUsageBar(
     BuildContext context,
     ChatState chatState,
-    String model,
+    AppSettings settings,
   ) {
     final theme = Theme.of(context);
+    final modelConfig = ModelListConfig(
+      baseUrl: settings.baseUrl.trim().isEmpty
+          ? ApiConstants.defaultBaseUrl
+          : settings.baseUrl.trim(),
+      apiKey: settings.apiKey.trim().isEmpty
+          ? ApiConstants.defaultApiKey
+          : settings.apiKey.trim(),
+      selectedModelId: settings.model.trim(),
+    );
+    final contextWindowTokens = ref
+        .watch(modelCatalogProvider(modelConfig))
+        .whenOrNull(
+          data: (catalog) {
+            final selectedModel = settings.model.trim();
+            for (final model in catalog) {
+              if (model.id == selectedModel) {
+                return model.contextWindowTokens;
+              }
+            }
+            return null;
+          },
+        );
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
@@ -22,7 +45,8 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
         alignment: Alignment.centerRight,
         child: TokenUsageIndicator(
           chatState: chatState,
-          model: model,
+          model: settings.model,
+          contextWindowTokens: contextWindowTokens,
           formatTokenCount: _formatTokenCount,
         ),
       ),

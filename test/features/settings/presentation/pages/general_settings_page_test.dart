@@ -161,7 +161,10 @@ Future<void> _pumpGeneralSettingsPage(
     'app_settings': jsonEncode(settings.toJson()),
   });
   final prefs = await SharedPreferences.getInstance();
-  final modelConfig = (baseUrl: settings.baseUrl, apiKey: settings.apiKey);
+  final modelConfig = ModelListConfig(
+    baseUrl: settings.baseUrl,
+    apiKey: settings.apiKey,
+  );
 
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(1200, 1800);
