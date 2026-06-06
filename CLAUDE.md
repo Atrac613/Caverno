@@ -28,6 +28,13 @@ python3 tool/pack_python_worker.py
 #     --target lib/core/services/script_runtime/worker/__pypackages__ <package>
 #   python3 tool/pack_python_worker.py
 
+# iOS/macOS only: serious_python's Apple build phase needs its native-framework
+# directory staged once per machine, after `flutter pub get` and before the
+# first iOS build (otherwise the build fails on a missing
+# dist_ios/site-xcframeworks). Pure-Python deps ride in the worker bundle; this
+# only stages the interpreter's stdlib native modules (_ssl, _socket, ...):
+tool/prepare_serious_python_apple.sh
+
 # Lint
 flutter analyze
 
@@ -36,6 +43,13 @@ flutter test
 
 # Run a single test file
 flutter test test/widget_test.dart
+
+# Run the embedded-Python integration test on a device/simulator (real
+# serious_python interpreter; proves the run_python_script native path):
+flutter test integration_test/python_runtime_test.dart -d <device-id>
+
+# Run the Python worker regression suite (system python3, no Flutter):
+python3 test/python/worker_test.py
 
 # Run app
 flutter run
