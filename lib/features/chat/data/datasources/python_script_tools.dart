@@ -28,11 +28,14 @@ class PythonScriptTools {
           'Write a complete script that prints its findings. Files the user '
           'attached to the current message are exposed through an injected '
           '`caverno` helper: `caverno.inputs` is a list whose items have '
-          '`.name`, `.path`, `.read_bytes()` and `.read_text()`. Return a '
+          '`.name`, `.path`, `.read_bytes()` and `.read_text()`. '
+          'For image metadata, prefer `path = caverno.inputs[0].path` and '
+          '`piexif.load(path)`; `piexif.TAGS[ifd][tag]` entries are maps, so '
+          'read the tag name with `.get(\'name\', str(tag))`. Return a '
           'structured value with `caverno.set_output(value)`. Only the Python '
-          'standard library is guaranteed available; any extra package must be '
-          'pure-Python and bundled. The script may read files and use the '
-          'network.',
+          'standard library and bundled piexif are guaranteed available; any '
+          'other extra package must be pure-Python and bundled. The script may '
+          'read files and use the network.',
       'parameters': {
         'type': 'object',
         'properties': {

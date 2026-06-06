@@ -23,6 +23,9 @@ void main() {
       hasPythonInputAttachment: true,
     );
     expect(prompt, contains('caverno.inputs[0]'));
+    expect(prompt, contains('caverno.inputs[0].path'));
+    expect(prompt, contains('piexif.load(path)'));
+    expect(prompt, contains("piexif.TAGS[ifd][tag].get('name'"));
   });
 
   test('no attachment signal when nothing is attached', () {

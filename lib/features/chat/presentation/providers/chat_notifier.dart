@@ -1093,6 +1093,8 @@ class ChatNotifier extends Notifier<ChatState> {
       'Do not answer in prose that analysis will happen, and do not claim the attachment is missing.',
       'Call run_python_script now with a complete Python script in the code argument.',
       'The script should read caverno.inputs[0], print concise metadata findings, and use only the standard library plus piexif when useful.',
+      'For image metadata, start with `path = caverno.inputs[0].path` and `piexif.load(path)`.',
+      'When naming EXIF tags, use `piexif.TAGS[ifd][tag].get(\'name\', str(tag))`; TAGS entries are maps.',
     ].join('\n');
   }
 
@@ -1190,6 +1192,8 @@ class ChatNotifier extends Notifier<ChatState> {
       'Do not ask the user to reattach the file or provide a path.',
       'Call run_python_script again with a complete Python script that reads caverno.inputs[0].path or caverno.inputs[0].read_bytes().',
       'Do not open literal paths such as test.jpg, attachment_0.jpg, or any guessed relative path.',
+      'For image metadata, prefer `path = caverno.inputs[0].path` followed by `piexif.load(path)`.',
+      'When naming EXIF tags, use `piexif.TAGS[ifd][tag].get(\'name\', str(tag))`; TAGS entries are maps.',
       'Print concise metadata findings from the staged attachment.',
     ].join('\n');
   }
@@ -6507,6 +6511,16 @@ class ChatNotifier extends Notifier<ChatState> {
       toolCalls,
       previousToolResults: previousToolResults,
     );
+  }
+
+  @visibleForTesting
+  String buildSkippedPythonAttachmentAnalysisRepairPromptForTest() {
+    return _buildSkippedPythonAttachmentAnalysisRepairPrompt();
+  }
+
+  @visibleForTesting
+  String buildPythonAttachmentPathFailureRepairPromptForTest() {
+    return _buildPythonAttachmentPathFailureRepairPrompt();
   }
 
   @visibleForTesting

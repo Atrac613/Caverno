@@ -6353,6 +6353,19 @@ with open(path, "rb") as file:
     },
   );
 
+  test('python attachment repair prompts guide image metadata scripts', () {
+    final prompts = [
+      notifier.buildSkippedPythonAttachmentAnalysisRepairPromptForTest(),
+      notifier.buildPythonAttachmentPathFailureRepairPromptForTest(),
+    ];
+
+    for (final prompt in prompts) {
+      expect(prompt, contains('caverno.inputs[0].path'));
+      expect(prompt, contains('piexif.load(path)'));
+      expect(prompt, contains("piexif.TAGS[ifd][tag].get('name'"));
+    }
+  });
+
   test(
     'sendMessage retries tool-result follow-up with forced prompt compaction',
     () async {

@@ -40,6 +40,10 @@ void main() {
     expect(definition['type'], 'function');
     final function = definition['function'] as Map<String, dynamic>;
     expect(function['name'], 'run_python_script');
+    final description = function['description'] as String;
+    expect(description, contains('caverno.inputs[0].path'));
+    expect(description, contains('piexif.load(path)'));
+    expect(description, contains(".get('name'"));
     final params = function['parameters'] as Map<String, dynamic>;
     expect(params['required'] as List, contains('code'));
   });

@@ -474,6 +474,12 @@ class SystemPromptBuilder {
             '(.path, .read_bytes(), .read_text()). Reach the attachment '
             'through caverno.inputs instead of asking for or guessing a path.',
           );
+          buffer.writeln(
+            'For image metadata, prefer `path = caverno.inputs[0].path` and '
+            '`piexif.load(path)`. When naming EXIF tags, use '
+            '`piexif.TAGS[ifd][tag].get(\'name\', str(tag))`; TAGS entries '
+            'are maps.',
+          );
         }
       }
       if (hasBrowserTools) {
