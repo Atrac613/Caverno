@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/presentation/pages/built_in_tools_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/tools_settings_page.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -63,6 +64,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Code & local execution approvals'), findsOneWidget);
+    expect(
+      find.text(
+        'Ask before file edits, Python scripts, local write commands, and git writes.',
+      ),
+      findsOneWidget,
+    );
+
     // The page now shows two approval selectors (coding + chat tools) that share
     // the "Auto-review"/"Full access" labels, so scope to the coding card —
     // identified by its unique "Default permissions" option.
@@ -95,6 +104,51 @@ void main() {
     expect(storedSettings.confirmFileMutations, isFalse);
     expect(storedSettings.confirmLocalCommands, isFalse);
     expect(storedSettings.confirmGitWrites, isFalse);
+  });
+
+  testWidgets('built-in tools groups code and script execution together', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        startLocale: const Locale('en'),
+        useOnlyLangCode: true,
+        saveLocale: false,
+        assetLoader: const _TestTranslationLoader(),
+        child: Builder(
+          builder: (context) {
+            return ProviderScope(
+              overrides: [
+                sharedPreferencesProvider.overrideWithValue(preferences),
+              ],
+              child: MaterialApp(
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                home: const BuiltInToolsSettingsPage(),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('Code & Scripts'), 400);
+    await tester.pumpAndSettle();
+    expect(find.text('Code & Scripts'), findsOneWidget);
+
+    await tester.tap(find.text('Code & Scripts'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('run_python_script'), findsOneWidget);
+    expect(find.textContaining('analyze an attached image'), findsOneWidget);
   });
 
   testWidgets('toggles coding verification feedback from Tools settings', (
