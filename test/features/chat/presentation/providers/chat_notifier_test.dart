@@ -431,6 +431,216 @@ class _StreamingChatDataSource implements ChatDataSource {
   }
 }
 
+class _ToolAwareStreamingChatDataSource implements ChatDataSource {
+  _ToolAwareStreamingChatDataSource(this.controller);
+
+  final StreamController<String> controller;
+  int toolAwareRequestCount = 0;
+  List<String> requestedToolNames = const [];
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    return controller.stream;
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    toolAwareRequestCount += 1;
+    requestedToolNames = tools
+        .map((tool) => (tool['function'] as Map?)?['name'])
+        .whereType<String>()
+        .toList(growable: false);
+    final chunks = <String>[];
+    final completion = Completer<ChatCompletionResult>();
+    final stream = controller.stream.transform<String>(
+      StreamTransformer.fromHandlers(
+        handleData: (chunk, sink) {
+          chunks.add(chunk);
+          sink.add(chunk);
+        },
+        handleError: (error, stackTrace, sink) {
+          if (!completion.isCompleted) {
+            completion.completeError(error, stackTrace);
+          }
+          sink.addError(error, stackTrace);
+        },
+        handleDone: (sink) {
+          if (!completion.isCompleted) {
+            completion.complete(
+              ChatCompletionResult(
+                content: chunks.join(),
+                finishReason: 'stop',
+              ),
+            );
+          }
+          sink.close();
+        },
+      ),
+    );
+    return StreamWithToolsResult(stream: stream, completion: completion.future);
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+class _FoundationModelsContextFallbackDataSource implements ChatDataSource {
+  int toolAwareRequestCount = 0;
+  int normalRequestCount = 0;
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    normalRequestCount += 1;
+    return Stream<String>.fromIterable(const ['fallback response']);
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    toolAwareRequestCount += 1;
+    return StreamWithToolsResult(
+      stream: Stream<String>.error(
+        Exception(
+          'Exceeded model context window size: '
+          'exceededContextWindowSize(Content contains 6575 tokens, '
+          'which exceeds the maximum allowed context size of 4096.)',
+        ),
+      ),
+      completion: Future<ChatCompletionResult>.value(
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ),
+    );
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
 class _ControllableQueueChatDataSource implements ChatDataSource {
   _ControllableQueueChatDataSource(this.controllers);
 
@@ -1383,6 +1593,18 @@ class _ToolEnabledSettingsNotifier extends SettingsNotifier {
   }
 }
 
+class _AppleToolEnabledSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      llmProvider: LlmProvider.appleFoundationModels,
+      assistantMode: AssistantMode.general,
+      mcpEnabled: true,
+      demoMode: false,
+    );
+  }
+}
+
 Future<void> _waitForCondition(
   bool Function() condition, {
   Duration timeout = const Duration(seconds: 5),
@@ -1511,6 +1733,20 @@ class _ContentToolSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
     return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      mcpEnabled: false,
+      demoMode: false,
+      confirmFileMutations: true,
+      confirmLocalCommands: true,
+    );
+  }
+}
+
+class _AppleContentToolSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      llmProvider: LlmProvider.appleFoundationModels,
       assistantMode: AssistantMode.general,
       mcpEnabled: false,
       demoMode: false,
@@ -2280,6 +2516,102 @@ void main() {
     expect(notifier.state.messages.last.role, MessageRole.assistant);
     expect(notifier.state.messages.last.isStreaming, isTrue);
   });
+
+  test(
+    'sendMessage uses tool-aware streaming for Apple Foundation Models with tools enabled',
+    () async {
+      final appleController = StreamController<String>();
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolService = _FakeMcpToolService(results: {'diagnose': 'ok'});
+      final dataSource = _ToolAwareStreamingChatDataSource(appleController);
+      final appleContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _AppleToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        appleContainer.dispose();
+        if (!appleController.isClosed) {
+          await appleController.close();
+        }
+      });
+
+      final appleNotifier = appleContainer.read(chatNotifierProvider.notifier);
+
+      final sendFuture = appleNotifier.sendMessage('Run live LLM diagnostics');
+      await _waitForCondition(() => dataSource.toolAwareRequestCount == 1);
+      appleController.add('diagnostic response');
+      await appleController.close();
+      await sendFuture;
+      await _waitForCondition(() => !appleNotifier.state.isLoading);
+
+      expect(
+        appleNotifier.state.messages.last.content,
+        contains('diagnostic response'),
+      );
+      expect(toolService.executedToolNames, isEmpty);
+      expect(dataSource.toolAwareRequestCount, 1);
+      expect(dataSource.requestedToolNames, contains('diagnose'));
+    },
+  );
+
+  test(
+    'sendMessage falls back when Foundation Models tool bridge exceeds context',
+    () async {
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolService = _FakeMcpToolService(
+        results: {for (var index = 0; index < 80; index++) 'tool_$index': 'ok'},
+      );
+      final dataSource = _FoundationModelsContextFallbackDataSource();
+      final appleContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _AppleToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(appleContainer.dispose);
+
+      final appleNotifier = appleContainer.read(chatNotifierProvider.notifier);
+
+      await appleNotifier.sendMessage('Hello');
+      await _waitForCondition(() => !appleNotifier.state.isLoading);
+
+      expect(dataSource.toolAwareRequestCount, 1);
+      expect(dataSource.normalRequestCount, 1);
+      expect(toolService.executedToolNames, isEmpty);
+      expect(appleNotifier.state.error, isNull);
+      expect(appleNotifier.state.messages.last.content, 'fallback response');
+    },
+  );
 
   test(
     'suggestCurrentGoal validates LLM clarification against pending request',
@@ -3052,90 +3384,97 @@ void main() {
     },
   );
 
-  test('full chat approval auto-connects SSH when a password is saved', () async {
-    final dataSource = _ToolBatchChatDataSource(
-      initialToolCalls: [
-        ToolCallInfo(
-          id: 'tool-ssh',
-          name: 'ssh_connect',
-          arguments: const {'host': 'example.com', 'port': 22, 'username': 'me'},
+  test(
+    'full chat approval auto-connects SSH when a password is saved',
+    () async {
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-ssh',
+            name: 'ssh_connect',
+            arguments: const {
+              'host': 'example.com',
+              'port': 22,
+              'username': 'me',
+            },
+          ),
+        ],
+        toolRoleResponseContent: 'Connected.',
+        finalAnswerChunks: const ['SSH session is ready.'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'ssh_connect': 'Open an SSH session.'},
+        results: const {'ssh_connect': '{"ok":true}'},
+      );
+      final sshService = _MockSshService();
+      when(
+        () => sshService.connect(
+          host: any(named: 'host'),
+          port: any(named: 'port'),
+          username: any(named: 'username'),
+          password: any(named: 'password'),
         ),
-      ],
-      toolRoleResponseContent: 'Connected.',
-      finalAnswerChunks: const ['SSH session is ready.'],
-    );
-    final toolService = _FakeMcpToolService(
-      descriptions: const {'ssh_connect': 'Open an SSH session.'},
-      results: const {'ssh_connect': '{"ok":true}'},
-    );
-    final sshService = _MockSshService();
-    when(
-      () => sshService.connect(
-        host: any(named: 'host'),
-        port: any(named: 'port'),
-        username: any(named: 'username'),
-        password: any(named: 'password'),
-      ),
-    ).thenAnswer((_) async {});
-    final creds = _MockSshCredentialsManager();
-    when(
-      () => creds.loadPassword(
-        host: any(named: 'host'),
-        port: any(named: 'port'),
-        username: any(named: 'username'),
-      ),
-    ).thenAnswer((_) async => 'secret');
-    when(
-      () => creds.savePassword(
-        host: any(named: 'host'),
-        port: any(named: 'port'),
-        username: any(named: 'username'),
-        password: any(named: 'password'),
-      ),
-    ).thenAnswer((_) async {});
-    final appLifecycleService = _MockAppLifecycleService();
-    when(() => appLifecycleService.isInBackground).thenReturn(false);
-    final threadContainer = ProviderContainer(
-      overrides: [
-        settingsNotifierProvider.overrideWith(
-          _ToolEnabledChatFullAccessSettingsNotifier.new,
+      ).thenAnswer((_) async {});
+      final creds = _MockSshCredentialsManager();
+      when(
+        () => creds.loadPassword(
+          host: any(named: 'host'),
+          port: any(named: 'port'),
+          username: any(named: 'username'),
         ),
-        conversationsNotifierProvider.overrideWith(
-          _TestConversationsNotifier.new,
+      ).thenAnswer((_) async => 'secret');
+      when(
+        () => creds.savePassword(
+          host: any(named: 'host'),
+          port: any(named: 'port'),
+          username: any(named: 'username'),
+          password: any(named: 'password'),
         ),
-        conversationRepositoryProvider.overrideWithValue(
-          _FakeConversationRepository(),
-        ),
-        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
-        sessionMemoryServiceProvider.overrideWithValue(
-          _TestSessionMemoryService(),
-        ),
-        mcpToolServiceProvider.overrideWithValue(toolService),
-        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-        backgroundTaskServiceProvider.overrideWithValue(
-          _TestBackgroundTaskService(),
-        ),
-        sshServiceProvider.overrideWithValue(sshService),
-        sshCredentialsManagerProvider.overrideWithValue(creds),
-      ],
-    );
-    addTearDown(threadContainer.dispose);
+      ).thenAnswer((_) async {});
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledChatFullAccessSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+          sshServiceProvider.overrideWithValue(sshService),
+          sshCredentialsManagerProvider.overrideWithValue(creds),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
 
-    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
-    await chatNotifier.sendMessage('Connect to my server');
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('Connect to my server');
 
-    // Full access + a stored credential connects without raising the dialog.
-    expect(chatNotifier.state.pendingSshConnect, isNull);
-    verify(
-      () => sshService.connect(
-        host: 'example.com',
-        port: 22,
-        username: 'me',
-        password: 'secret',
-      ),
-    ).called(1);
-    expect(dataSource.autoReviewRequestMessages, isEmpty);
-  });
+      // Full access + a stored credential connects without raising the dialog.
+      expect(chatNotifier.state.pendingSshConnect, isNull);
+      verify(
+        () => sshService.connect(
+          host: 'example.com',
+          port: 22,
+          username: 'me',
+          password: 'secret',
+        ),
+      ).called(1);
+      expect(dataSource.autoReviewRequestMessages, isEmpty);
+    },
+  );
 
   test(
     'full chat approval falls back to the SSH dialog without a saved password',
@@ -3282,10 +3621,9 @@ void main() {
     final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
     await chatNotifier.sendMessage('Open the link');
 
-    final auditFiles = Directory('${auditDir.path}/approval_audit')
-        .listSync()
-        .whereType<File>()
-        .toList();
+    final auditFiles = Directory(
+      '${auditDir.path}/approval_audit',
+    ).listSync().whereType<File>().toList();
     expect(auditFiles, isNotEmpty);
     final entries = auditFiles
         .expand((file) => file.readAsLinesSync())
@@ -10234,6 +10572,68 @@ with open(path, "rb") as file:
       toolContainer.dispose();
     }
   });
+
+  test(
+    'Foundation Models suppresses repeated successful content tool calls',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final streamingDataSource = _QueuedStreamingChatDataSource([
+        [
+          '<tool_use>{"name":"echo_marker","arguments":{"marker":"FOUNDATION_REPEAT_OK"}}</tool_use>',
+        ],
+        [
+          '<tool_use>{"name":"echo_marker","arguments":{"marker":"FOUNDATION_REPEAT_OK"}}</tool_use>',
+        ],
+      ]);
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'echo_marker': '{"marker":"FOUNDATION_REPEAT_OK","status":"ok"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _AppleContentToolSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(streamingDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run the marker tool once.');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolService.executedToolNames, ['echo_marker']);
+        expect(streamingDataSource.requests, hasLength(2));
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('already ran with the same arguments'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('<tool_use>')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test('content tool results are exposed for workflow progress', () async {
     final conversationRepository = _FakeConversationRepository();

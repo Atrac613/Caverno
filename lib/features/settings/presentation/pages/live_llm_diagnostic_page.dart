@@ -1,13 +1,21 @@
 import 'dart:convert';
 
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
 import '../providers/live_llm_diagnostic_notifier.dart';
+import '../providers/settings_notifier.dart';
+
+const _foundationModelsCanaryCommand =
+    'tool/run_foundation_models_live_canary.sh';
+const _foundationModelsCanaryReportPath =
+    'build/integration_test_reports/foundation_models_live_canary_<timestamp>/canary_summary.json';
 
 class LiveLlmDiagnosticPage extends ConsumerWidget {
   const LiveLlmDiagnosticPage({super.key});
@@ -16,6 +24,11 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(liveLlmDiagnosticNotifierProvider);
     final report = state.report;
+    final settings = ref.watch(settingsNotifierProvider);
+    final showFoundationModelsCanary =
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.macOS &&
+        settings.llmProvider == LlmProvider.appleFoundationModels;
 
     return Scaffold(
       appBar: AppBar(
@@ -38,6 +51,10 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
             onRun: () =>
                 ref.read(liveLlmDiagnosticNotifierProvider.notifier).run(),
           ),
+          if (showFoundationModelsCanary) ...[
+            const SizedBox(height: 12),
+            const _FoundationModelsCanaryCard(),
+          ],
           if (state.error != null) ...[
             const SizedBox(height: 12),
             _ErrorBanner(error: state.error!),
@@ -69,6 +86,135 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('settings.live_llm_diag_copied'.tr())),
     );
+  }
+}
+
+class _FoundationModelsCanaryCard extends StatelessWidget {
+  const _FoundationModelsCanaryCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.science_outlined, color: theme.colorScheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'settings.foundation_models_live_canary_title'.tr(),
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'settings.foundation_models_live_canary_desc'.tr(),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _CopyableDiagnosticText(
+              label: 'settings.foundation_models_live_canary_command'.tr(),
+              value: _foundationModelsCanaryCommand,
+              copyKey: const ValueKey(
+                'foundation-models-live-canary-copy-command',
+              ),
+              copiedMessageKey:
+                  'settings.foundation_models_live_canary_command_copied',
+            ),
+            const SizedBox(height: 8),
+            _CopyableDiagnosticText(
+              label: 'settings.foundation_models_live_canary_report'.tr(),
+              value: _foundationModelsCanaryReportPath,
+              copyKey: const ValueKey(
+                'foundation-models-live-canary-copy-report-path',
+              ),
+              copiedMessageKey:
+                  'settings.foundation_models_live_canary_report_copied',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CopyableDiagnosticText extends StatelessWidget {
+  const _CopyableDiagnosticText({
+    required this.label,
+    required this.value,
+    required this.copyKey,
+    required this.copiedMessageKey,
+  });
+
+  final String label;
+  final String value;
+  final Key copyKey;
+  final String copiedMessageKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 2),
+              SelectableText(
+                value,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          key: copyKey,
+          tooltip: 'settings.live_llm_diag_copy'.tr(),
+          icon: const Icon(Icons.copy_outlined),
+          onPressed: () => _copyText(context, value, copiedMessageKey),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _copyText(
+    BuildContext context,
+    String value,
+    String copiedMessageKey,
+  ) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(copiedMessageKey.tr())));
   }
 }
 
@@ -244,8 +390,7 @@ class _SummarySection extends StatelessWidget {
             _MetricTile(
               icon: Icons.check_circle_outline,
               label: 'settings.live_llm_diag_completed'.tr(),
-              value:
-                  '${report.completedProbeCount}/${LiveLlmDiagnosticService.probeDefinitions.length}',
+              value: '${report.completedProbeCount}/${report.results.length}',
             ),
           ],
         ),

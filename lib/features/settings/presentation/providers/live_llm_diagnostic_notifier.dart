@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../chat/data/datasources/apple_foundation_models_datasource.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/mcp_tool_provider.dart';
+import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
 import 'settings_notifier.dart';
@@ -20,9 +22,12 @@ class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
   Future<void> run() async {
     final generation = ++_generation;
     state = state.copyWith(isRunning: true, clearError: true);
+    final settings = ref.read(settingsNotifierProvider);
     final service = LiveLlmDiagnosticService(
-      settings: ref.read(settingsNotifierProvider),
-      chatDataSource: ref.read(chatRemoteDataSourceProvider),
+      settings: settings,
+      chatDataSource: settings.llmProvider == LlmProvider.appleFoundationModels
+          ? AppleFoundationModelsDataSource()
+          : ref.read(chatRemoteDataSourceProvider),
       mcpToolService: ref.read(mcpToolServiceProvider),
     );
 

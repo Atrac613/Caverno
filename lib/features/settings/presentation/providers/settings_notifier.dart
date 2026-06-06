@@ -64,6 +64,17 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateLlmProvider(LlmProvider llmProvider) async {
+    state = state.copyWith(
+      llmProvider: llmProvider,
+      assistantMode: _assistantModeForProvider(
+        provider: llmProvider,
+        assistantMode: state.assistantMode,
+      ),
+    );
+    await _repository.save(state);
+  }
+
   Future<void> updateGoogleChatWebhookUrl(String webhookUrl) async {
     state = state.copyWith(googleChatWebhookUrl: webhookUrl.trim());
     await _repository.save(state);
@@ -333,8 +344,24 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateAssistantMode(AssistantMode assistantMode) async {
-    state = state.copyWith(assistantMode: assistantMode);
+    state = state.copyWith(
+      assistantMode: _assistantModeForProvider(
+        provider: state.llmProvider,
+        assistantMode: assistantMode,
+      ),
+    );
     await _repository.save(state);
+  }
+
+  AssistantMode _assistantModeForProvider({
+    required LlmProvider provider,
+    required AssistantMode assistantMode,
+  }) {
+    if (provider == LlmProvider.appleFoundationModels &&
+        assistantMode == AssistantMode.plan) {
+      return AssistantMode.general;
+    }
+    return assistantMode;
   }
 
   Future<void> updateEnableAgentsMd(bool value) async {
@@ -360,9 +387,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
-  Future<void> updateChatApprovalMode(
-    ToolApprovalMode chatApprovalMode,
-  ) async {
+  Future<void> updateChatApprovalMode(ToolApprovalMode chatApprovalMode) async {
     state = state.copyWith(chatApprovalMode: chatApprovalMode);
     await _repository.save(state);
   }

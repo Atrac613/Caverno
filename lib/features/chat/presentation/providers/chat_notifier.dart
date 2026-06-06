@@ -30,7 +30,9 @@ import '../../domain/services/system_prompt_builder.dart';
 import '../../domain/services/session_memory_service.dart';
 import '../../domain/services/skill_prompt_index_builder.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import '../../../settings/domain/services/llm_provider_capabilities.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../data/datasources/apple_foundation_models_datasource.dart';
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/demo_datasource.dart';
@@ -91,6 +93,9 @@ final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
   final settings = ref.watch(settingsNotifierProvider);
   if (settings.demoMode) {
     return DemoDataSource();
+  }
+  if (settings.llmProvider == LlmProvider.appleFoundationModels) {
+    return AppleFoundationModelsDataSource(enableSafePromptRetry: true);
   }
   return ChatRemoteDataSource(
     baseUrl: settings.baseUrl,
@@ -526,6 +531,10 @@ class ChatNotifier extends Notifier<ChatState> {
   ChatDataSource _buildChatDataSource(AppSettings settings) {
     if (settings.demoMode) {
       return DemoDataSource();
+    }
+
+    if (settings.llmProvider == LlmProvider.appleFoundationModels) {
+      return AppleFoundationModelsDataSource(enableSafePromptRetry: true);
     }
 
     return ChatRemoteDataSource(
@@ -7218,7 +7227,8 @@ class ChatNotifier extends Notifier<ChatState> {
     try {
       // Use tool-aware flow when the MCP tool service is available.
       if (_mcpToolService != null &&
-          (_settings.mcpEnabled || shouldUseTemporalTool)) {
+          (_settings.mcpEnabled || shouldUseTemporalTool) &&
+          _supportsToolAwareRequests) {
         final mode = _settings.mcpEnabled ? 'MCP' : 'TemporalOnly';
         appLog('[Tool] Sending in tool-aware mode ($mode)');
         await _sendWithTools(interactionGeneration: interactionGeneration);
@@ -7322,7 +7332,9 @@ class ChatNotifier extends Notifier<ChatState> {
     _onSendStarted();
 
     // Use tool-aware flow when the MCP tool service is available.
-    if (_mcpToolService != null && _settings.mcpEnabled) {
+    if (_mcpToolService != null &&
+        _settings.mcpEnabled &&
+        _supportsToolAwareRequests) {
       appLog('[Tool] Sending hidden prompt in tool-aware mode');
       await _sendWithTools(interactionGeneration: interactionGeneration);
     } else {
@@ -8861,6 +8873,17 @@ class ChatNotifier extends Notifier<ChatState> {
   }) async {
     if (!ref.mounted) return;
     final generation = interactionGeneration ?? _interactionGeneration;
+    if (!_supportsToolAwareRequests) {
+      appLog(
+        '[Tool] Tool-aware requests are unavailable for the selected provider; '
+        'falling back to normal mode',
+      );
+      await _sendWithoutTools(
+        allowContextRetry: allowContextRetry,
+        interactionGeneration: generation,
+      );
+      return;
+    }
     try {
       // Fetch tool definitions from the MCP tool service.
       final allTools = _mcpToolService?.getOpenAiToolDefinitions() ?? [];
@@ -9015,6 +9038,19 @@ class ChatNotifier extends Notifier<ChatState> {
 
       if (!_isCurrentInteractionGeneration(generation)) return;
 
+      if (_shouldFallbackFoundationModelsToolBridgeAfterContextError(e)) {
+        appLog(
+          '[Tool] Foundation Models tool bridge exceeded the context window; '
+          'falling back to normal mode',
+        );
+        _resetStreamingAssistantForRetry();
+        await _sendWithoutTools(
+          allowContextRetry: allowContextRetry,
+          interactionGeneration: generation,
+        );
+        return;
+      }
+
       // Fall back to normal mode for tool-related failures.
       // Examples include JSON parse errors, empty responses, or invalid payloads.
       if (errorStr.contains('formatexception') ||
@@ -9038,6 +9074,15 @@ class ChatNotifier extends Notifier<ChatState> {
       _handleError(e.toString());
     }
   }
+
+  bool _shouldFallbackFoundationModelsToolBridgeAfterContextError(
+    Object error,
+  ) {
+    return _settings.llmProvider == LlmProvider.appleFoundationModels &&
+        ConversationCompactionService.isContextLengthError(error.toString());
+  }
+
+  bool get _supportsToolAwareRequests => true;
 
   List<ToolResultInfo> _budgetToolResultsForPrompt(
     List<ToolResultInfo> toolResults, {
@@ -11123,14 +11168,85 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Detects and runs `tool_call` tags embedded in the content.
   void _checkForContentToolCalls(String content, {int? interactionGeneration}) {
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
-    final freshToolCalls = toolCalls.where((tc) {
-      return _seenContentToolCallHashes.add(_contentToolCallHash(tc));
-    }).toList();
+    final freshToolCalls = <ToolCallData>[];
+    final repeatedToolCalls = <ToolCallData>[];
+    for (final toolCall in toolCalls) {
+      if (_seenContentToolCallHashes.add(_contentToolCallHash(toolCall))) {
+        freshToolCalls.add(toolCall);
+      } else {
+        repeatedToolCalls.add(toolCall);
+      }
+    }
+
+    _handleRepeatedContentToolCalls(
+      repeatedToolCalls,
+      interactionGeneration: interactionGeneration ?? _interactionGeneration,
+    );
 
     _queueContentToolCalls(
       freshToolCalls,
       interactionGeneration: interactionGeneration ?? _interactionGeneration,
     );
+  }
+
+  void _handleRepeatedContentToolCalls(
+    List<ToolCallData> repeatedToolCalls, {
+    required int interactionGeneration,
+  }) {
+    if (repeatedToolCalls.isEmpty ||
+        !_isCurrentInteractionGeneration(interactionGeneration) ||
+        _settings.llmCapabilities.supportsAdvancedLiveToolDiagnostics) {
+      return;
+    }
+
+    for (final toolCall in repeatedToolCalls) {
+      final previousResult = _latestSuccessfulContentToolResultFor(toolCall);
+      if (previousResult == null) {
+        continue;
+      }
+
+      appLog(
+        '[ContentTool] Repeated successful tool call suppressed for '
+        '${toolCall.name}: ${toolCall.arguments}',
+      );
+      _replaceLastMessageContentForGeneration(
+        interactionGeneration,
+        _buildRepeatedContentToolCallFallback(previousResult),
+      );
+      return;
+    }
+  }
+
+  ToolResultInfo? _latestSuccessfulContentToolResultFor(ToolCallData toolCall) {
+    final toolCallKey = _contentToolCallHash(toolCall);
+    for (final result in _latestContentToolResults.reversed) {
+      if (_toolResultDedupKey(result) == toolCallKey &&
+          !_toolResultLooksFailed(result.result)) {
+        return result;
+      }
+    }
+    return null;
+  }
+
+  bool _toolResultLooksFailed(String result) {
+    final normalized = result.toLowerCase();
+    if (normalized.contains('"error"') && normalized.contains('"code"')) {
+      return true;
+    }
+    try {
+      final decoded = jsonDecode(result);
+      if (decoded is Map) {
+        return decoded.containsKey('error');
+      }
+    } catch (_) {
+      return false;
+    }
+    return false;
+  }
+
+  String _buildRepeatedContentToolCallFallback(ToolResultInfo previousResult) {
+    return 'The ${previousResult.name} tool already ran with the same arguments. '
+        'I will use the previous tool result instead of repeating the call.';
   }
 
   void _queueContentToolCalls(
@@ -12148,7 +12264,8 @@ class ChatNotifier extends Notifier<ChatState> {
     required ToolApprovalMode mode,
     required ToolApprovalAutoReviewDomain reviewDomain,
     required bool fullAccessEligible,
-    required Future<ToolApprovalAutoReviewRequest> Function() buildReviewRequest,
+    required Future<ToolApprovalAutoReviewRequest> Function()
+    buildReviewRequest,
   }) async {
     if (mode == ToolApprovalMode.fullAccess) {
       if (fullAccessEligible) {
@@ -12274,8 +12391,7 @@ class ChatNotifier extends Notifier<ChatState> {
   /// (network/parse failure), letting callers fall back to manual approval.
   Future<ToolApprovalAutoReviewDecision?> _runApprovalAutoReview(
     ToolApprovalAutoReviewRequest request, {
-    ToolApprovalAutoReviewDomain domain =
-        ToolApprovalAutoReviewDomain.coding,
+    ToolApprovalAutoReviewDomain domain = ToolApprovalAutoReviewDomain.coding,
   }) async {
     try {
       final response = await _dataSource.createChatCompletion(
@@ -13503,7 +13619,10 @@ class ChatNotifier extends Notifier<ChatState> {
       error: null,
     );
 
+    final continuationToolDefinitions =
+        _foundationModelsTextToolDefinitionsForContinuation();
     final messagesForLLM = _prepareMessagesForLLM(
+      toolDefinitionsOverride: continuationToolDefinitions,
       interactionGeneration: interactionGeneration,
     );
     final resultsText = toolResults.join('\n\n');
@@ -13546,12 +13665,22 @@ class ChatNotifier extends Notifier<ChatState> {
     );
 
     _runWithLlmSessionLogContextForGeneration(interactionGeneration, () {
-      final stream = _dataSource.streamChatCompletion(
-        messages: messagesForLLM,
-        model: _settings.model,
-        temperature: _settings.temperature,
-        maxTokens: _settings.maxTokens,
-      );
+      final stream = continuationToolDefinitions == null
+          ? _dataSource.streamChatCompletion(
+              messages: messagesForLLM,
+              model: _settings.model,
+              temperature: _settings.temperature,
+              maxTokens: _settings.maxTokens,
+            )
+          : _dataSource
+                .streamChatCompletionWithTools(
+                  messages: messagesForLLM,
+                  tools: continuationToolDefinitions,
+                  model: _settings.model,
+                  temperature: _settings.temperature,
+                  maxTokens: _settings.maxTokens,
+                )
+                .stream;
 
       _streamSubscription = stream.listen(
         (chunk) {
@@ -13581,6 +13710,24 @@ class ChatNotifier extends Notifier<ChatState> {
         cancelOnError: true,
       );
     });
+  }
+
+  List<Map<String, dynamic>>?
+  _foundationModelsTextToolDefinitionsForContinuation() {
+    if (_settings.llmProvider != LlmProvider.appleFoundationModels) {
+      return null;
+    }
+    final mcpToolService = _mcpToolService;
+    if (mcpToolService == null || !_settings.mcpEnabled) {
+      return null;
+    }
+    final allTools = mcpToolService.getOpenAiToolDefinitions();
+    if (allTools.isEmpty) {
+      return null;
+    }
+    return ToolDefinitionSearchService.buildInitialSelection(
+      allTools,
+    ).toolDefinitions;
   }
 
   Future<void> _recoverAfterContentToolResultsStreamError(
@@ -13705,6 +13852,14 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<MemoryExtractionDraft?> _extractMemoryDraftWithLlm(
     List<Message> messages,
   ) async {
+    if (!_settings.llmCapabilities.supportsLlmMemoryExtraction) {
+      appLog(
+        '[Memory] Skipping LLM memory extraction for selected provider '
+        '(using rule-based fallback)',
+      );
+      return null;
+    }
+
     final userMessages = messages.where((message) {
       return message.role == MessageRole.user &&
           message.content.trim().isNotEmpty;
@@ -13839,6 +13994,16 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     if (lower.contains('429') || lower.contains('rate limit')) {
       return 'Too many requests. Please wait a moment and try again.\nDetails: $cleanedError';
+    }
+    if (AppleFoundationModelsException.isUnsupportedLanguageOrLocaleText(
+      cleanedError,
+    )) {
+      return 'The selected local model rejected this language or locale. Try an English prompt, reduce system/tool context, or switch to an OpenAI-compatible provider for this task.\nDetails: $cleanedError';
+    }
+    if (AppleFoundationModelsException.isProviderUnavailableText(
+      cleanedError,
+    )) {
+      return 'Apple Foundation Models is not ready on this device. Check Apple Intelligence, model readiness, device eligibility, and OS support, or switch to an OpenAI-compatible provider.\nDetails: $cleanedError';
     }
     if (lower.contains('500') ||
         lower.contains('502') ||

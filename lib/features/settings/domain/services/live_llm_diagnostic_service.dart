@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../../../core/services/apple_foundation_models_platform_client.dart';
+import '../../../../core/utils/content_parser.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
@@ -8,6 +10,7 @@ import '../../../chat/domain/entities/message.dart';
 import '../../../chat/domain/services/tool_definition_search_service.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
+import 'llm_provider_capabilities.dart';
 
 typedef LiveLlmDiagnosticReportCallback =
     void Function(LiveLlmDiagnosticReport report);
@@ -28,6 +31,11 @@ class LiveLlmDiagnosticService {
       id: _instructionProbeId,
       titleKey: 'settings.live_llm_diag_probe_instruction_title',
       descriptionKey: 'settings.live_llm_diag_probe_instruction_desc',
+    ),
+    LiveLlmDiagnosticProbeDefinition(
+      id: _foundationModelsLanguageMatrixProbeId,
+      titleKey: 'settings.live_llm_diag_probe_fm_language_matrix_title',
+      descriptionKey: 'settings.live_llm_diag_probe_fm_language_matrix_desc',
     ),
     LiveLlmDiagnosticProbeDefinition(
       id: _narrowToolCallProbeId,
@@ -62,6 +70,8 @@ class LiveLlmDiagnosticService {
   ];
 
   static const _instructionProbeId = 'instruction_echo';
+  static const _foundationModelsLanguageMatrixProbeId =
+      'foundation_models_language_matrix';
   static const _narrowToolCallProbeId = 'narrow_tool_call';
   static const _toolResultProbeId = 'tool_result_integration';
   static const _initialHarnessProbeId = 'initial_harness_selection';
@@ -70,6 +80,9 @@ class LiveLlmDiagnosticService {
   static const _remoteMcpProbeId = 'remote_mcp_exposure';
 
   static const _marker = 'CAVERNO_LIVE_DIAGNOSTIC';
+  static const _foundationModelsEnglishMarker = 'CAVERNO_FM_LANG_EN';
+  static const _foundationModelsJapaneseMarker = 'CAVERNO_FM_LANG_JA';
+  static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
   static const _toolResultMarker = 'CAVERNO_TOOL_RESULT_OK';
   static const _subagentMarker = 'CAVERNO_SUBAGENT_DIAGNOSTIC';
   static const _diagnosticTemperature = 0.0;
@@ -81,8 +94,8 @@ class LiveLlmDiagnosticService {
     final startedAt = DateTime.now();
     var report = LiveLlmDiagnosticReport(
       startedAt: startedAt,
-      baseUrl: settings.baseUrl,
-      model: settings.model,
+      baseUrl: _diagnosticEndpoint,
+      model: _diagnosticModel,
       demoMode: settings.demoMode,
       mcpEnabled: settings.mcpEnabled,
       results: [
@@ -107,18 +120,55 @@ class LiveLlmDiagnosticService {
       return report;
     }
 
+    final capabilities = settings.llmCapabilities;
     report = await _runProbe(
       report,
       _instructionProbeId,
       onReport,
       _runInstructionProbe,
     );
+    if (settings.llmProvider == LlmProvider.appleFoundationModels) {
+      report = await _runProbe(
+        report,
+        _foundationModelsLanguageMatrixProbeId,
+        onReport,
+        _runFoundationModelsLanguageMatrixProbe,
+      );
+    } else {
+      report = report.withProbeResult(
+        const LiveLlmDiagnosticProbeResult(
+          id: _foundationModelsLanguageMatrixProbeId,
+          status: LiveLlmDiagnosticStatus.skipped,
+          summary:
+              'Skipped because the selected provider is not Apple Foundation Models.',
+        ),
+      );
+      onReport?.call(report);
+    }
+    if (!capabilities.supportsAnyToolBridge) {
+      report = _skipProviderUnsupportedToolProbes(
+        report,
+        _toolBridgeProbeDefinitions(),
+      );
+      report = report.copyWith(finishedAt: DateTime.now());
+      onReport?.call(report);
+      return report;
+    }
     report = await _runProbe(
       report,
       _narrowToolCallProbeId,
       onReport,
       () => _runNarrowToolCallProbe(catalogContext),
     );
+    if (!capabilities.supportsAdvancedLiveToolDiagnostics) {
+      report = _skipProviderUnsupportedToolProbes(
+        report,
+        _probeDefinitionsAfter(_narrowToolCallProbeId),
+      );
+      report = report.copyWith(finishedAt: DateTime.now());
+      onReport?.call(report);
+      return report;
+    }
     report = await _runProbe(
       report,
       _toolResultProbeId,
@@ -155,6 +205,32 @@ class LiveLlmDiagnosticService {
     return report;
   }
 
+  Iterable<LiveLlmDiagnosticProbeDefinition> _toolBridgeProbeDefinitions() {
+    return probeDefinitions.where((definition) {
+      return definition.id != _instructionProbeId &&
+          definition.id != _foundationModelsLanguageMatrixProbeId;
+    });
+  }
+
+  Iterable<LiveLlmDiagnosticProbeDefinition> _probeDefinitionsAfter(
+    String probeId,
+  ) {
+    final index = probeDefinitions.indexWhere(
+      (definition) => definition.id == probeId,
+    );
+    if (index < 0 || index + 1 >= probeDefinitions.length) {
+      return const <LiveLlmDiagnosticProbeDefinition>[];
+    }
+    return probeDefinitions.skip(index + 1);
+  }
+
+  String get _diagnosticEndpoint => switch (settings.llmProvider) {
+    LlmProvider.appleFoundationModels => 'apple-foundation-models://local',
+    LlmProvider.openAiCompatible => settings.baseUrl,
+  };
+
+  String get _diagnosticModel => settings.effectiveModel;
+
   LiveLlmDiagnosticReport _skipRemainingAfterLiveRequirement(
     LiveLlmDiagnosticReport report,
   ) {
@@ -163,7 +239,7 @@ class LiveLlmDiagnosticService {
         id: _instructionProbeId,
         status: LiveLlmDiagnosticStatus.failed,
         summary: 'Demo mode is enabled.',
-        details: 'Live diagnostics require a real OpenAI-compatible endpoint.',
+        details: 'Live diagnostics require a real selected LLM provider.',
       ),
     );
     for (final definition in probeDefinitions.skip(1)) {
@@ -200,17 +276,83 @@ class LiveLlmDiagnosticService {
         result.copyWith(elapsed: DateTime.now().difference(startedAt)),
       );
     } catch (error) {
+      final rawError = error.toString();
+      final unsupportedLanguage =
+          AppleFoundationModelsException.isUnsupportedLanguageOrLocaleText(
+            rawError,
+          );
+      final providerUnavailable =
+          AppleFoundationModelsException.isProviderUnavailableText(rawError);
       updated = updated.withProbeResult(
         LiveLlmDiagnosticProbeResult(
           id: probeId,
           status: LiveLlmDiagnosticStatus.failed,
-          summary: 'Probe failed with an exception.',
-          details: error.toString(),
+          summary: _probeFailureSummary(
+            unsupportedLanguage: unsupportedLanguage,
+            providerUnavailable: providerUnavailable,
+          ),
+          details: _probeFailureDetails(
+            rawError,
+            unsupportedLanguage: unsupportedLanguage,
+            providerUnavailable: providerUnavailable,
+          ),
           elapsed: DateTime.now().difference(startedAt),
         ),
       );
     }
     onReport?.call(updated);
+    return updated;
+  }
+
+  String _probeFailureSummary({
+    required bool unsupportedLanguage,
+    required bool providerUnavailable,
+  }) {
+    if (unsupportedLanguage) {
+      return 'The selected provider rejected this prompt language or locale.';
+    }
+    if (providerUnavailable) {
+      return 'Apple Foundation Models is not available for this device or session.';
+    }
+    return 'Probe failed with an exception.';
+  }
+
+  String _probeFailureDetails(
+    String rawError, {
+    required bool unsupportedLanguage,
+    required bool providerUnavailable,
+  }) {
+    if (unsupportedLanguage) {
+      return 'Foundation Models reported unsupportedLanguageOrLocale. '
+          'This is treated as provider incompatibility for the probe, not as '
+          'an application crash.\n\n$rawError';
+    }
+    if (providerUnavailable) {
+      return 'Foundation Models preflight reported that local generation is '
+          'unavailable. Check Apple Intelligence, model readiness, device '
+          'eligibility, and OS support, or switch providers.\n\n$rawError';
+    }
+    return rawError;
+  }
+
+  LiveLlmDiagnosticReport _skipProviderUnsupportedToolProbes(
+    LiveLlmDiagnosticReport report,
+    Iterable<LiveLlmDiagnosticProbeDefinition> definitions,
+  ) {
+    var updated = report;
+    for (final definition in definitions) {
+      updated = updated.withProbeResult(
+        LiveLlmDiagnosticProbeResult(
+          id: definition.id,
+          status: LiveLlmDiagnosticStatus.skipped,
+          summary:
+              'Skipped because the selected provider does not support this diagnostic capability.',
+          details:
+              'Foundation Models currently supports only limited text responses '
+              'and an experimental single-step textual tool bridge in Caverno.',
+        ),
+      );
+    }
     return updated;
   }
 
@@ -291,7 +433,7 @@ class LiveLlmDiagnosticService {
             'Return exactly this JSON object and no markdown:\n'
             '{"probe":"instruction_echo","status":"ok","marker":"$_marker"}',
       ),
-      model: settings.model,
+      model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
@@ -325,6 +467,122 @@ class LiveLlmDiagnosticService {
     );
   }
 
+  Future<LiveLlmDiagnosticProbeResult>
+  _runFoundationModelsLanguageMatrixProbe() async {
+    final cases = [
+      const _FoundationModelsLanguageProbeCase(
+        label: 'english_text',
+        marker: _foundationModelsEnglishMarker,
+        userPrompt:
+            'Reply with exactly $_foundationModelsEnglishMarker and no extra text.',
+      ),
+      const _FoundationModelsLanguageProbeCase(
+        label: 'japanese_text',
+        marker: _foundationModelsJapaneseMarker,
+        userPrompt:
+            '\u6b21\u306e\u6587\u5b57\u5217\u3060\u3051\u3092\u8fd4\u3057\u3066\u304f\u3060\u3055\u3044: $_foundationModelsJapaneseMarker',
+      ),
+      _FoundationModelsLanguageProbeCase(
+        label: 'english_tool_bridge',
+        marker: _foundationModelsToolBridgeMarker,
+        userPrompt:
+            'A diagnostic tool is listed, but do not call it. Reply with '
+            'exactly $_foundationModelsToolBridgeMarker and no extra text.',
+        tools: [_foundationModelsLanguageMatrixToolDefinition()],
+      ),
+    ];
+    final outcomes = <_FoundationModelsLanguageProbeOutcome>[];
+    for (final testCase in cases) {
+      outcomes.add(await _runFoundationModelsLanguageProbeCase(testCase));
+    }
+
+    final failed = outcomes.where((outcome) => !outcome.passed).toList();
+    final englishBaseline = outcomes.first;
+    final status = failed.isEmpty
+        ? LiveLlmDiagnosticStatus.passed
+        : englishBaseline.passed
+        ? LiveLlmDiagnosticStatus.warning
+        : LiveLlmDiagnosticStatus.failed;
+    final summary = failed.isEmpty
+        ? 'Foundation Models accepted English, Japanese, and tool-bridge prompts.'
+        : englishBaseline.passed
+        ? 'English baseline passed, but at least one language matrix case was rejected.'
+        : 'Foundation Models rejected the English baseline prompt.';
+
+    return LiveLlmDiagnosticProbeResult(
+      id: _foundationModelsLanguageMatrixProbeId,
+      status: status,
+      summary: summary,
+      details: outcomes.map((outcome) => outcome.toDetailLine()).join('\n'),
+      modelContent: outcomes
+          .map(
+            (outcome) =>
+                '${outcome.label}: ${_preview(outcome.preview, maxChars: 240)}',
+          )
+          .join('\n'),
+    );
+  }
+
+  Future<_FoundationModelsLanguageProbeOutcome>
+  _runFoundationModelsLanguageProbeCase(
+    _FoundationModelsLanguageProbeCase testCase,
+  ) async {
+    try {
+      final result = await chatDataSource.createChatCompletion(
+        messages: _messages(user: testCase.userPrompt),
+        tools: testCase.tools,
+        model: _diagnosticModel,
+        temperature: _diagnosticTemperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      final content = result.content.trim();
+      return _FoundationModelsLanguageProbeOutcome(
+        label: testCase.label,
+        passed: content.contains(testCase.marker),
+        classification: content.contains(testCase.marker)
+            ? 'accepted'
+            : 'missing_marker',
+        preview: content,
+      );
+    } catch (error) {
+      final rawError = error.toString();
+      final classification =
+          AppleFoundationModelsException.isUnsupportedLanguageOrLocaleText(
+            rawError,
+          )
+          ? 'unsupported_language_or_locale'
+          : AppleFoundationModelsException.isProviderUnavailableText(rawError)
+          ? 'provider_unavailable'
+          : 'exception';
+      return _FoundationModelsLanguageProbeOutcome(
+        label: testCase.label,
+        passed: false,
+        classification: classification,
+        preview: rawError,
+      );
+    }
+  }
+
+  Map<String, dynamic> _foundationModelsLanguageMatrixToolDefinition() {
+    return {
+      'type': 'function',
+      'function': {
+        'name': 'language_matrix_echo',
+        'description': 'Echoes a diagnostic marker when explicitly requested.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'marker': {
+              'type': 'string',
+              'description': 'Diagnostic marker to echo.',
+            },
+          },
+          'required': ['marker'],
+        },
+      },
+    };
+  }
+
   Future<LiveLlmDiagnosticProbeResult> _runNarrowToolCallProbe(
     _ToolCatalogContext catalog,
   ) async {
@@ -340,11 +598,11 @@ class LiveLlmDiagnosticService {
             'before using the tool.',
       ),
       tools: [dateTool],
-      model: settings.model,
+      model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final toolCalls = result.toolCalls ?? const <ToolCallInfo>[];
+    final toolCalls = _toolCallsFromResult(result);
     final names = toolCalls.map((call) => call.name).toList(growable: false);
     if (toolCalls.any((call) => call.name == 'get_current_datetime')) {
       return LiveLlmDiagnosticProbeResult(
@@ -388,11 +646,12 @@ class LiveLlmDiagnosticService {
     final firstResult = await chatDataSource.createChatCompletion(
       messages: messages,
       tools: [dateTool],
-      model: settings.model,
+      model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final call = (firstResult.toolCalls ?? const <ToolCallInfo>[])
+    final firstToolCalls = _toolCallsFromResult(firstResult);
+    final call = firstToolCalls
         .where((item) => item.name == 'get_current_datetime')
         .firstOrNull;
     if (call == null) {
@@ -400,7 +659,7 @@ class LiveLlmDiagnosticService {
         id: _toolResultProbeId,
         status: LiveLlmDiagnosticStatus.failed,
         summary: 'The model did not request the datetime tool.',
-        toolCalls: (firstResult.toolCalls ?? const <ToolCallInfo>[])
+        toolCalls: firstToolCalls
             .map((item) => item.name)
             .toList(growable: false),
         modelContent: _preview(firstResult.content),
@@ -440,7 +699,7 @@ class LiveLlmDiagnosticService {
         ),
       ],
       tools: [dateTool],
-      model: settings.model,
+      model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
@@ -483,13 +742,13 @@ class LiveLlmDiagnosticService {
             'get_current_datetime exactly once. Do not call tool_search.',
       ),
       tools: catalog.initialDefinitions,
-      model: settings.model,
+      model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final names = (result.toolCalls ?? const <ToolCallInfo>[])
-        .map((call) => call.name)
-        .toList(growable: false);
+    final names = _toolCallsFromResult(
+      result,
+    ).map((call) => call.name).toList(growable: false);
     if (names.contains('get_current_datetime')) {
       return LiveLlmDiagnosticProbeResult(
         id: _initialHarnessProbeId,
@@ -546,11 +805,11 @@ class LiveLlmDiagnosticService {
             'focused sub-task to another agent. Call tool_search only.',
       ),
       tools: catalog.initialDefinitions,
-      model: settings.model,
+      model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final calls = result.toolCalls ?? const <ToolCallInfo>[];
+    final calls = _toolCallsFromResult(result);
     final names = calls.map((call) => call.name).toList(growable: false);
     final searchCall = calls
         .where((call) => call.name == ToolDefinitionSearchService.toolName)
@@ -608,11 +867,11 @@ class LiveLlmDiagnosticService {
             'the marker "$_subagentMarker". Do not answer in text.',
       ),
       tools: subagentTools,
-      model: settings.model,
+      model: _diagnosticModel,
       temperature: _diagnosticTemperature,
       maxTokens: _diagnosticMaxTokens,
     );
-    final calls = result.toolCalls ?? const <ToolCallInfo>[];
+    final calls = _toolCallsFromResult(result);
     final names = calls.map((call) => call.name).toList(growable: false);
     final spawnCall = calls
         .where((call) => call.name == 'spawn_subagent')
@@ -698,13 +957,19 @@ class LiveLlmDiagnosticService {
 
   List<Message> _messages({required String user}) {
     final now = DateTime.now();
+    final capabilities = settings.llmCapabilities;
+    final toolInstruction = capabilities.supportsNativeToolCalls
+        ? 'Prefer OpenAI tool calls when the user asks for a tool.'
+        : capabilities.supportsTextualToolBridge
+        ? 'When tools are available, use the Caverno tool bridge tag exactly '
+              'when the user asks for a tool.'
+        : 'Tool calling is not supported by the selected provider.';
     return [
       Message(
         id: 'live-llm-diagnostic-system-${now.microsecondsSinceEpoch}',
         content:
             'You are running inside Caverno live LLM diagnostics. Follow the '
-            'user request exactly. Prefer OpenAI tool calls when the user asks '
-            'for a tool.',
+            'user request exactly. $toolInstruction',
         role: MessageRole.system,
         timestamp: now,
       ),
@@ -746,6 +1011,22 @@ class LiveLlmDiagnosticService {
 
   bool _containsTool(List<Map<String, dynamic>> definitions, String name) {
     return _singleTool(definitions, name) != null;
+  }
+
+  List<ToolCallInfo> _toolCallsFromResult(ChatCompletionResult result) {
+    final nativeCalls = result.toolCalls;
+    if (nativeCalls != null && nativeCalls.isNotEmpty) {
+      return nativeCalls;
+    }
+    return ContentParser.extractCompletedToolCalls(result.content)
+        .map(
+          (toolCall) => ToolCallInfo(
+            id: toolCall.occurrenceId ?? 'text-${toolCall.name}',
+            name: toolCall.name,
+            arguments: toolCall.arguments,
+          ),
+        )
+        .toList(growable: false);
   }
 
   List<String> _toolNamesFromDefinitions(
@@ -829,4 +1110,36 @@ class _ToolCatalogContext {
   final Set<String> selectedToolNames;
   final bool toolSearchEnabled;
   final LiveLlmDiagnosticToolCatalog catalog;
+}
+
+class _FoundationModelsLanguageProbeCase {
+  const _FoundationModelsLanguageProbeCase({
+    required this.label,
+    required this.marker,
+    required this.userPrompt,
+    this.tools,
+  });
+
+  final String label;
+  final String marker;
+  final String userPrompt;
+  final List<Map<String, dynamic>>? tools;
+}
+
+class _FoundationModelsLanguageProbeOutcome {
+  const _FoundationModelsLanguageProbeOutcome({
+    required this.label,
+    required this.passed,
+    required this.classification,
+    required this.preview,
+  });
+
+  final String label;
+  final bool passed;
+  final String classification;
+  final String preview;
+
+  String toDetailLine() {
+    return '$label: ${passed ? 'passed' : 'failed'} ($classification)';
+  }
 }

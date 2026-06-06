@@ -30,6 +30,8 @@ enum CodingVerificationTriggerPolicy { onCompletionClaim, onRequestOnly, off }
 
 enum ReasoningEffortPreference { automatic, low, medium, high }
 
+enum LlmProvider { openAiCompatible, appleFoundationModels }
+
 extension ReasoningEffortPreferenceApi on ReasoningEffortPreference {
   String? get apiValue => switch (this) {
     ReasoningEffortPreference.automatic => null,
@@ -172,6 +174,9 @@ abstract class AppSettings with _$AppSettings {
   const AppSettings._();
 
   const factory AppSettings({
+    @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)
+    @Default(LlmProvider.openAiCompatible)
+    LlmProvider llmProvider,
     required String baseUrl,
     required String model,
     required String apiKey,
@@ -252,6 +257,12 @@ abstract class AppSettings with _$AppSettings {
   static const int minCodingVerificationMaxFailures = 1;
   static const int maxCodingVerificationMaxFailures = 20;
   static const int defaultCodingVerificationMaxFailures = 5;
+  static const String appleFoundationModelsModelId =
+      ApiConstants.appleFoundationModelsModelId;
+
+  String get effectiveModel => llmProvider == LlmProvider.appleFoundationModels
+      ? appleFoundationModelsModelId
+      : model;
 
   static Map<String, dynamic> migrateLegacyJson(Map<String, dynamic> json) {
     if (json.containsKey('codingApprovalMode')) {

@@ -12,11 +12,14 @@ import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/data/datasources/apple_foundation_models_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
@@ -44,9 +47,16 @@ const _toolResultIgnoredTrigger =
 const _toolSearchArtifactMarker = 'TOOL_SEARCH_ARTIFACT_LIVE_OK';
 const _skillFollowUpMarker = 'SKILL_FOLLOWUP_LIVE_OK';
 const _skillFollowUpContinuation = 'では実際に確認を進めます';
+const _foundationEnglishMatrixMarker = 'FOUNDATION_LANGUAGE_EN_OK';
+const _foundationJapaneseMatrixMarker = 'FOUNDATION_LANGUAGE_JA_OK';
 
 void main() {
   final liveEnabled = Platform.environment['CAVERNO_CHAT_LIVE_CANARY'] == '1';
+  final foundationModelsRun =
+      liveEnabled && _isAppleFoundationModelsEnvironment();
+  final foundationLanguageMatrixRun =
+      foundationModelsRun &&
+      Platform.environment['CAVERNO_FOUNDATION_MODELS_LANGUAGE_MATRIX'] == '1';
 
   test(
     'live LLM produces a plain chat response without tools',
@@ -81,76 +91,208 @@ void main() {
     timeout: const Timeout(Duration(minutes: 5)),
   );
 
-  test(
-    'live LLM memory extraction returns parseable bounded memory',
-    () async {
-      final env = _ChatLiveEnv.fromEnvironment();
-      final dataSource = ChatRemoteDataSource(
-        baseUrl: env.baseUrl,
-        apiKey: env.apiKey,
-      );
-      final now = DateTime(2026, 5, 22, 10, 0);
-      final messages = [
-        Message(
-          id: 'memory_canary_user',
-          role: MessageRole.user,
-          timestamp: now,
-          content:
-              'My standing preference is concise English summaries. '
-              'I bought a model canary notebook for 1200 yen on 2026-05-22.',
-        ),
-        Message(
-          id: 'memory_canary_assistant',
-          role: MessageRole.assistant,
-          timestamp: now,
-          content: 'Understood.',
-        ),
-      ];
-      final extractionInput = MemoryExtractionDraftService.buildInput(
-        messages,
-        UserMemoryProfile.empty(),
-      );
+  if (foundationModelsRun) {
+    test(
+      'Foundation Models surfaces locale rejection without crashing',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: false,
+          toolService: _NoToolsMcpToolService(),
+        );
 
-      final result = await dataSource.createChatCompletion(
-        messages: [
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            'Reply in the ja-JP locale with one short sentence.',
+          );
+          await _waitForChatSettled(container);
+
+          final state = container.read(chatNotifierProvider);
+          final assistantContent = _lastAssistantContent(container).trim();
+          final error = state.error ?? '';
+          if (error.isNotEmpty) {
+            expect(
+              error.toLowerCase(),
+              anyOf(
+                contains('language or locale'),
+                contains('unsupported language'),
+              ),
+              reason: _chatDiagnostic(container),
+            );
+          } else {
+            expect(
+              assistantContent,
+              isNotEmpty,
+              reason: _chatDiagnostic(container),
+            );
+          }
+        } finally {
+          container.dispose();
+        }
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 5)),
+    );
+  }
+
+  if (foundationLanguageMatrixRun) {
+    test(
+      'Foundation Models language matrix accepts English baseline',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: false,
+          toolService: _NoToolsMcpToolService(),
+        );
+
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            'Reply with exactly $_foundationEnglishMatrixMarker and no extra text.',
+          );
+          await _waitForChatIdle(container);
+
+          final content = _lastAssistantContent(container);
+          expect(
+            content.toUpperCase(),
+            contains(_foundationEnglishMatrixMarker),
+            reason: _chatDiagnostic(container),
+          );
+        } finally {
+          container.dispose();
+        }
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 5)),
+    );
+
+    test(
+      'Foundation Models language matrix classifies Japanese prompt behavior',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: false,
+          toolService: _NoToolsMcpToolService(),
+        );
+
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            '\u6b21\u306e\u6587\u5b57\u5217\u3060\u3051\u3092\u8fd4\u3057\u3066\u304f\u3060\u3055\u3044: $_foundationJapaneseMatrixMarker',
+          );
+          await _waitForChatSettled(container);
+
+          final state = container.read(chatNotifierProvider);
+          final assistantContent = _lastAssistantContent(container).trim();
+          final error = state.error ?? '';
+          if (error.isNotEmpty) {
+            expect(
+              error.toLowerCase(),
+              anyOf(
+                contains('language or locale'),
+                contains('unsupported language'),
+              ),
+              reason: _chatDiagnostic(container),
+            );
+          } else {
+            expect(
+              assistantContent.toUpperCase(),
+              contains(_foundationJapaneseMatrixMarker),
+              reason: _chatDiagnostic(container),
+            );
+          }
+        } finally {
+          container.dispose();
+        }
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 5)),
+    );
+  }
+
+  if (!foundationModelsRun) {
+    test(
+      'live LLM memory extraction returns parseable bounded memory',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final dataSource = env.createDataSource();
+        final now = DateTime(2026, 5, 22, 10, 0);
+        final messages = [
           Message(
-            id: 'memory_canary_system',
-            role: MessageRole.system,
-            timestamp: now,
-            content: MemoryExtractionDraftService.systemPrompt,
-          ),
-          Message(
-            id: 'memory_canary_request',
+            id: 'memory_canary_user',
             role: MessageRole.user,
             timestamp: now,
-            content: extractionInput,
+            content:
+                'My standing preference is concise English summaries. '
+                'I bought a model canary notebook for 1200 yen on 2026-05-22.',
           ),
-        ],
-        model: env.model,
-        temperature: 0.1,
-        maxTokens: env.maxTokens > 1200 ? 1200 : env.maxTokens,
-      );
-      final draft = MemoryExtractionDraftService.parseDraft(result.content);
-      expect(draft, isNotNull, reason: 'rawMemoryExtraction=${result.content}');
+          Message(
+            id: 'memory_canary_assistant',
+            role: MessageRole.assistant,
+            timestamp: now,
+            content: 'Understood.',
+          ),
+        ];
+        final extractionInput = MemoryExtractionDraftService.buildInput(
+          messages,
+          UserMemoryProfile.empty(),
+        );
 
-      final parsed = draft!;
-      final combined = [
-        parsed.summary,
-        ...parsed.persona,
-        ...parsed.preferences,
-        ...parsed.doNot,
-        ...parsed.entries.map((entry) => entry.text),
-      ].join('\n').toLowerCase();
-      expect(combined, contains('concise'));
-      expect(combined, contains('1200'));
-      expect(parsed.summary.length, lessThanOrEqualTo(160));
-      expect(parsed.entries.length, lessThanOrEqualTo(8));
-    },
-    skip: liveEnabled
-        ? false
-        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
-    timeout: const Timeout(Duration(minutes: 5)),
-  );
+        final result = await dataSource.createChatCompletion(
+          messages: [
+            Message(
+              id: 'memory_canary_system',
+              role: MessageRole.system,
+              timestamp: now,
+              content: MemoryExtractionDraftService.systemPrompt,
+            ),
+            Message(
+              id: 'memory_canary_request',
+              role: MessageRole.user,
+              timestamp: now,
+              content: extractionInput,
+            ),
+          ],
+          model: env.model,
+          temperature: 0.1,
+          maxTokens: env.maxTokens > 1200 ? 1200 : env.maxTokens,
+        );
+        final draft = MemoryExtractionDraftService.parseDraft(result.content);
+        expect(
+          draft,
+          isNotNull,
+          reason: 'rawMemoryExtraction=${result.content}',
+        );
+
+        final parsed = draft!;
+        final combined = [
+          parsed.summary,
+          ...parsed.persona,
+          ...parsed.preferences,
+          ...parsed.doNot,
+          ...parsed.entries.map((entry) => entry.text),
+        ].join('\n').toLowerCase();
+        expect(combined, contains('concise'));
+        expect(combined, contains('1200'));
+        expect(parsed.summary.length, lessThanOrEqualTo(160));
+        expect(parsed.entries.length, lessThanOrEqualTo(8));
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 5)),
+    );
+  }
 
   test(
     'live LLM embedded tool call executes once and exposes the result',
@@ -191,455 +333,494 @@ void main() {
     timeout: const Timeout(Duration(minutes: 5)),
   );
 
-  test(
-    'live LLM continues after recovered incomplete content tool call',
-    () async {
-      final env = _ChatLiveEnv.fromEnvironment();
-      final prelude = _ScriptedIncompleteToolPrelude(
-        trigger: _inlineRecoveryTrigger,
-        toolName: _InlineRecoveryToolService.toolName,
-        marker: _inlineRecoveryMarker,
-      );
-      final dataSource = _ChatLiveDataSource(
-        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
-        scriptedIncompleteToolPrelude: prelude,
-      );
-      final toolService = _InlineRecoveryToolService();
-      final container = _buildChatContainer(
-        env,
-        mcpEnabled: true,
-        toolService: toolService,
-        chatDataSource: dataSource,
-      );
-
-      try {
-        final notifier = container.read(chatNotifierProvider.notifier);
-        await notifier.sendMessage(
-          'Run $_inlineRecoveryTrigger. '
-          'After the recovered tool result is available, answer with exactly '
-          '$_inlineRecoveryMarker and no extra text.',
+  if (!foundationModelsRun) {
+    test(
+      'live LLM continues after recovered incomplete content tool call',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final prelude = _ScriptedIncompleteToolPrelude(
+          trigger: _inlineRecoveryTrigger,
+          toolName: _InlineRecoveryToolService.toolName,
+          marker: _inlineRecoveryMarker,
         );
-        await _waitForChatIdle(container);
-
-        expect(prelude.used, isTrue, reason: _chatDiagnostic(container));
-        expect(
-          toolService.executedToolNames,
-          [_InlineRecoveryToolService.toolName],
-          reason: _inlineRecoveryDiagnostic(container, toolService),
+        final dataSource = _ChatLiveDataSource(
+          env.createDataSource(),
+          scriptedIncompleteToolPrelude: prelude,
         );
-        expect(
-          toolService.executedArguments.single['marker'],
-          _inlineRecoveryMarker,
-          reason: _inlineRecoveryDiagnostic(container, toolService),
-        );
-        expect(
-          _lastAssistantContent(container).toUpperCase(),
-          contains(_inlineRecoveryMarker),
-          reason: _inlineRecoveryDiagnostic(container, toolService),
+        final toolService = _InlineRecoveryToolService();
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: true,
+          toolService: toolService,
+          chatDataSource: dataSource,
         );
 
-        final liveContinuationRequest = dataSource.streamRequests.lastOrNull;
-        expect(
-          liveContinuationRequest,
-          isNotNull,
-          reason: _inlineRecoveryDiagnostic(container, toolService),
-        );
-        final assistantHistory = liveContinuationRequest!
-            .where((message) => message.role == MessageRole.assistant)
-            .map((message) => message.content)
-            .join('\n');
-        expect(
-          assistantHistory,
-          isNot(contains('<tool_use>')),
-          reason: _inlineRecoveryDiagnostic(container, toolService),
-        );
-        expect(
-          assistantHistory,
-          isNot(contains('<tool_result>')),
-          reason: _inlineRecoveryDiagnostic(container, toolService),
-        );
-      } finally {
-        container.dispose();
-      }
-    },
-    skip: liveEnabled
-        ? false
-        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
-    timeout: const Timeout(Duration(minutes: 5)),
-  );
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            'Run $_inlineRecoveryTrigger. '
+            'After the recovered tool result is available, answer with exactly '
+            '$_inlineRecoveryMarker and no extra text.',
+          );
+          await _waitForChatIdle(container);
 
-  test(
-    'live LLM continues after ignored assistant-authored tool result',
-    () async {
-      final env = _ChatLiveEnv.fromEnvironment();
-      final prelude = _ScriptedAssistantToolResultPrelude(
-        trigger: _toolResultIgnoredTrigger,
-        toolName: _ToolResultIgnoredToolService.toolName,
-        marker: _toolResultIgnoredMarker,
-      );
-      final dataSource = _ChatLiveDataSource(
-        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
-        scriptedAssistantToolResultPrelude: prelude,
-      );
-      final toolService = _ToolResultIgnoredToolService();
-      final container = _buildChatContainer(
-        env,
-        mcpEnabled: true,
-        toolService: toolService,
-        chatDataSource: dataSource,
-      );
+          expect(prelude.used, isTrue, reason: _chatDiagnostic(container));
+          expect(
+            toolService.executedToolNames,
+            [_InlineRecoveryToolService.toolName],
+            reason: _inlineRecoveryDiagnostic(container, toolService),
+          );
+          expect(
+            toolService.executedArguments.single['marker'],
+            _inlineRecoveryMarker,
+            reason: _inlineRecoveryDiagnostic(container, toolService),
+          );
+          expect(
+            _lastAssistantContent(container).toUpperCase(),
+            contains(_inlineRecoveryMarker),
+            reason: _inlineRecoveryDiagnostic(container, toolService),
+          );
 
-      try {
-        final notifier = container.read(chatNotifierProvider.notifier);
-        await notifier.sendMessage(
-          'Run $_toolResultIgnoredTrigger. '
-          'This is a no-tool recovery canary. If the application reports that '
-          'an assistant-authored tool_result was ignored, do not call tools. '
-          'Answer with exactly $_toolResultIgnoredMarker and no extra text.',
-        );
-        await _waitForChatIdle(container);
-
-        expect(prelude.used, isTrue, reason: _chatDiagnostic(container));
-        expect(
-          toolService.executedToolNames,
-          isEmpty,
-          reason: _toolResultIgnoredDiagnostic(container, toolService),
-        );
-        expect(
-          _lastAssistantContent(container).toUpperCase(),
-          contains(_toolResultIgnoredMarker),
-          reason: _toolResultIgnoredDiagnostic(container, toolService),
-        );
-        expect(
-          _chatTranscript(container),
-          isNot(contains('<tool_result>')),
-          reason: _toolResultIgnoredDiagnostic(container, toolService),
-        );
-
-        final liveContinuationRequest = dataSource.streamRequests.lastOrNull;
-        expect(
-          liveContinuationRequest,
-          isNotNull,
-          reason: _toolResultIgnoredDiagnostic(container, toolService),
-        );
-        expect(
-          liveContinuationRequest!.last.content,
-          contains('[Assistant-authored tool_result ignored]'),
-          reason: _toolResultIgnoredDiagnostic(container, toolService),
-        );
-      } finally {
-        container.dispose();
-      }
-    },
-    skip: liveEnabled
-        ? false
-        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
-    timeout: const Timeout(Duration(minutes: 5)),
-  );
-
-  test(
-    'live LLM trims load_skill follow-up inspection text',
-    () async {
-      final env = _ChatLiveEnv.fromEnvironment();
-      final toolService = _SkillFollowUpToolService();
-      final dataSource = _ChatLiveDataSource(
-        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
-      );
-      final container = _buildChatContainer(
-        env,
-        mcpEnabled: true,
-        toolService: toolService,
-        chatDataSource: dataSource,
-      );
-
-      try {
-        final notifier = container.read(chatNotifierProvider.notifier);
-        await notifier.sendMessage(
-          'Use the Release Check skill to verify release readiness. '
-          'Call load_skill first with id "release-check". '
-          'After the skill is loaded, follow its instructions exactly.',
-        );
-        await _waitForChatIdle(container, timeout: const Duration(minutes: 5));
-
-        final toolResultResponse = dataSource.toolResultResponses.lastOrNull;
-        expect(
-          toolResultResponse,
-          isNotNull,
-          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
-        );
-        final followUpToolNames =
-            toolResultResponse!.toolCalls
-                ?.map((toolCall) => toolCall.name)
-                .toList(growable: false) ??
-            const <String>[];
-        expect(
-          followUpToolNames,
-          containsAll([
-            _SkillFollowUpToolService.listDirectoryToolName,
-            _SkillFollowUpToolService.gitToolName,
-          ]),
-          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
-        );
-        expect(
-          toolResultResponse.content,
-          contains(_skillFollowUpContinuation),
-          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
-        );
-        expect(
-          toolService.executedToolNames,
-          [_SkillFollowUpToolService.loadSkillToolName],
-          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
-        );
-        expect(
-          _lastAssistantContent(container).toUpperCase(),
-          contains(_skillFollowUpMarker),
-          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
-        );
-        expect(
-          _lastAssistantContent(container),
-          isNot(contains(_skillFollowUpContinuation)),
-          reason: _skillFollowUpDiagnostic(container, toolService, dataSource),
-        );
-      } finally {
-        container.dispose();
-      }
-    },
-    skip: liveEnabled
-        ? false
-        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
-    timeout: const Timeout(Duration(minutes: 6)),
-  );
-
-  test(
-    'live LLM discovers a deferred tool and reads its persisted artifact',
-    () async {
-      final env = _ChatLiveEnv.fromEnvironment();
-      final artifactRoot = Directory.systemTemp.createTempSync(
-        'caverno_tool_search_artifact_live_',
-      );
-      final artifactStore = ToolResultArtifactStore(
-        baseDirectory: artifactRoot,
-      );
-      final toolService = _ToolSearchArtifactToolService();
-      final container = _buildChatContainer(
-        env,
-        mcpEnabled: true,
-        toolService: toolService,
-        artifactStore: artifactStore,
-      );
-
-      try {
-        final notifier = container.read(chatNotifierProvider.notifier);
-        await notifier.sendMessage(
-          'Find the hidden canary marker from the deep archive capability. '
-          'The needed archive capability is not in your current tool list, so first call tool_search with query "deep archive canary lookup". '
-          'Then call the matching archive tool. '
-          'If that tool result says the full output was saved and gives a file_path plus a line number, call read_file with that file_path, offset, and limit. '
-          'Answer with only the marker value, with no markdown or explanation.',
-        );
-        await _waitForChatIdle(container, timeout: const Duration(minutes: 5));
-
-        final persistedFiles = Directory(
-          '${artifactRoot.path}/tool-results',
-        ).listSync(recursive: true).whereType<File>().toList(growable: false);
-        final readFilePath = toolService.readFileArguments
-            .map((arguments) => arguments['path']?.toString() ?? '')
-            .where((path) => path.isNotEmpty)
-            .lastOrNull;
-
-        expect(
-          toolService.executedToolNames,
-          contains(ToolDefinitionSearchService.toolName),
-          reason: _toolSearchArtifactDiagnostic(
-            container,
-            toolService,
-            artifactRoot,
-          ),
-        );
-        expect(
-          toolService.executedToolNames,
-          contains(_ToolSearchArtifactToolService.archiveToolName),
-          reason: _toolSearchArtifactDiagnostic(
-            container,
-            toolService,
-            artifactRoot,
-          ),
-        );
-        expect(
-          toolService.executedToolNames,
-          contains(_ToolSearchArtifactToolService.readFileToolName),
-          reason: _toolSearchArtifactDiagnostic(
-            container,
-            toolService,
-            artifactRoot,
-          ),
-        );
-        expect(
-          persistedFiles,
-          isNotEmpty,
-          reason: _toolSearchArtifactDiagnostic(
-            container,
-            toolService,
-            artifactRoot,
-          ),
-        );
-        expect(
-          readFilePath,
-          startsWith(artifactRoot.path),
-          reason: _toolSearchArtifactDiagnostic(
-            container,
-            toolService,
-            artifactRoot,
-          ),
-        );
-        expect(
-          _lastAssistantContent(container).toUpperCase(),
-          contains(_toolSearchArtifactMarker),
-          reason: _toolSearchArtifactDiagnostic(
-            container,
-            toolService,
-            artifactRoot,
-          ),
-        );
-      } finally {
-        container.dispose();
-        if (artifactRoot.existsSync()) {
-          artifactRoot.deleteSync(recursive: true);
+          final liveContinuationRequest = dataSource.streamRequests.lastOrNull;
+          expect(
+            liveContinuationRequest,
+            isNotNull,
+            reason: _inlineRecoveryDiagnostic(container, toolService),
+          );
+          final assistantHistory = liveContinuationRequest!
+              .where((message) => message.role == MessageRole.assistant)
+              .map((message) => message.content)
+              .join('\n');
+          expect(
+            assistantHistory,
+            isNot(contains('<tool_use>')),
+            reason: _inlineRecoveryDiagnostic(container, toolService),
+          );
+          expect(
+            assistantHistory,
+            isNot(contains('<tool_result>')),
+            reason: _inlineRecoveryDiagnostic(container, toolService),
+          );
+        } finally {
+          container.dispose();
         }
-      }
-    },
-    skip: liveEnabled
-        ? false
-        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
-    timeout: const Timeout(Duration(minutes: 6)),
-  );
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 5)),
+    );
 
-  test(
-    'live LLM delegates a sub-task via spawn_subagent',
-    () async {
-      final env = _ChatLiveEnv.fromEnvironment();
-      final toolService = _SubagentCanaryToolService();
-      final container = _buildChatContainer(
-        env,
-        mcpEnabled: true,
-        toolService: toolService,
-      );
-
-      try {
-        final notifier = container.read(chatNotifierProvider.notifier);
-        await notifier.sendMessage(
-          'Use the spawn_subagent tool to delegate a sub-task that computes '
-          '6 times 7 and returns only the number. After the subagent result '
-          'is available, answer with only that number and no other text.',
+    test(
+      'live LLM continues after ignored assistant-authored tool result',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final prelude = _ScriptedAssistantToolResultPrelude(
+          trigger: _toolResultIgnoredTrigger,
+          toolName: _ToolResultIgnoredToolService.toolName,
+          marker: _toolResultIgnoredMarker,
         );
-        await _waitForChatIdle(container, timeout: const Duration(minutes: 5));
-
-        expect(
-          _lastAssistantContent(container),
-          contains('42'),
-          reason: _chatDiagnostic(container),
+        final dataSource = _ChatLiveDataSource(
+          env.createDataSource(),
+          scriptedAssistantToolResultPrelude: prelude,
         );
-      } finally {
-        container.dispose();
-      }
-    },
-    skip: liveEnabled
-        ? false
-        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
-    timeout: const Timeout(Duration(minutes: 6)),
-  );
-
-  test(
-    'live LLM subagent uses a tool and reports its result',
-    () async {
-      final env = _ChatLiveEnv.fromEnvironment();
-      final toolService = _SubagentToolUserCanaryToolService();
-      final container = _buildChatContainer(
-        env,
-        mcpEnabled: true,
-        toolService: toolService,
-      );
-
-      try {
-        final notifier = container.read(chatNotifierProvider.notifier);
-        await notifier.sendMessage(
-          'Use the spawn_subagent tool to delegate this sub-task: the subagent '
-          'must call get_current_datetime and report the current year. Then '
-          'answer with only the year.',
+        final toolService = _ToolResultIgnoredToolService();
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: true,
+          toolService: toolService,
+          chatDataSource: dataSource,
         );
-        await _waitForChatIdle(container, timeout: const Duration(minutes: 5));
 
-        expect(
-          toolService.executedToolNames,
-          contains('get_current_datetime'),
-          reason: _chatDiagnostic(container),
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            'Run $_toolResultIgnoredTrigger. '
+            'This is a no-tool recovery canary. If the application reports that '
+            'an assistant-authored tool_result was ignored, do not call tools. '
+            'Answer with exactly $_toolResultIgnoredMarker and no extra text.',
+          );
+          await _waitForChatIdle(container);
+
+          expect(prelude.used, isTrue, reason: _chatDiagnostic(container));
+          expect(
+            toolService.executedToolNames,
+            isEmpty,
+            reason: _toolResultIgnoredDiagnostic(container, toolService),
+          );
+          expect(
+            _lastAssistantContent(container).toUpperCase(),
+            contains(_toolResultIgnoredMarker),
+            reason: _toolResultIgnoredDiagnostic(container, toolService),
+          );
+          expect(
+            _chatTranscript(container),
+            isNot(contains('<tool_result>')),
+            reason: _toolResultIgnoredDiagnostic(container, toolService),
+          );
+
+          final liveContinuationRequest = dataSource.streamRequests.lastOrNull;
+          expect(
+            liveContinuationRequest,
+            isNotNull,
+            reason: _toolResultIgnoredDiagnostic(container, toolService),
+          );
+          expect(
+            liveContinuationRequest!.last.content,
+            contains('[Assistant-authored tool_result ignored]'),
+            reason: _toolResultIgnoredDiagnostic(container, toolService),
+          );
+        } finally {
+          container.dispose();
+        }
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 5)),
+    );
+
+    test(
+      'live LLM trims load_skill follow-up inspection text',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final toolService = _SkillFollowUpToolService();
+        final dataSource = _ChatLiveDataSource(env.createDataSource());
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: true,
+          toolService: toolService,
+          chatDataSource: dataSource,
         );
-        expect(
-          _lastAssistantContent(container),
-          isNotEmpty,
-          reason: _chatDiagnostic(container),
+
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            'Use the Release Check skill to verify release readiness. '
+            'Call load_skill first with id "release-check". '
+            'After the skill is loaded, follow its instructions exactly.',
+          );
+          await _waitForChatIdle(
+            container,
+            timeout: const Duration(minutes: 5),
+          );
+
+          final toolResultResponse = dataSource.toolResultResponses.lastOrNull;
+          expect(
+            toolResultResponse,
+            isNotNull,
+            reason: _skillFollowUpDiagnostic(
+              container,
+              toolService,
+              dataSource,
+            ),
+          );
+          final followUpToolNames =
+              toolResultResponse!.toolCalls
+                  ?.map((toolCall) => toolCall.name)
+                  .toList(growable: false) ??
+              const <String>[];
+          expect(
+            followUpToolNames,
+            containsAll([
+              _SkillFollowUpToolService.listDirectoryToolName,
+              _SkillFollowUpToolService.gitToolName,
+            ]),
+            reason: _skillFollowUpDiagnostic(
+              container,
+              toolService,
+              dataSource,
+            ),
+          );
+          expect(
+            toolResultResponse.content,
+            contains(_skillFollowUpContinuation),
+            reason: _skillFollowUpDiagnostic(
+              container,
+              toolService,
+              dataSource,
+            ),
+          );
+          expect(
+            toolService.executedToolNames,
+            [_SkillFollowUpToolService.loadSkillToolName],
+            reason: _skillFollowUpDiagnostic(
+              container,
+              toolService,
+              dataSource,
+            ),
+          );
+          expect(
+            _lastAssistantContent(container).toUpperCase(),
+            contains(_skillFollowUpMarker),
+            reason: _skillFollowUpDiagnostic(
+              container,
+              toolService,
+              dataSource,
+            ),
+          );
+          expect(
+            _lastAssistantContent(container),
+            isNot(contains(_skillFollowUpContinuation)),
+            reason: _skillFollowUpDiagnostic(
+              container,
+              toolService,
+              dataSource,
+            ),
+          );
+        } finally {
+          container.dispose();
+        }
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 6)),
+    );
+
+    test(
+      'live LLM discovers a deferred tool and reads its persisted artifact',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final artifactRoot = Directory.systemTemp.createTempSync(
+          'caverno_tool_search_artifact_live_',
         );
-      } finally {
-        container.dispose();
-      }
-    },
-    skip: liveEnabled
-        ? false
-        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
-    timeout: const Timeout(Duration(minutes: 6)),
-  );
-
-  test(
-    'live LLM recovers a background subagent result',
-    () async {
-      final env = _ChatLiveEnv.fromEnvironment();
-      final toolService = _SubagentToolUserCanaryToolService();
-      final container = _buildChatContainer(
-        env,
-        mcpEnabled: true,
-        toolService: toolService,
-      );
-
-      try {
-        final notifier = container.read(chatNotifierProvider.notifier);
-        await notifier.sendMessage(
-          'Use spawn_subagent with the background argument set to true to '
-          'compute 8 times 9 and return only the number. Tell me the task_id '
-          'immediately.',
+        final artifactStore = ToolResultArtifactStore(
+          baseDirectory: artifactRoot,
         );
-        await _waitForChatIdle(container, timeout: const Duration(minutes: 5));
+        final toolService = _ToolSearchArtifactToolService();
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: true,
+          toolService: toolService,
+          artifactStore: artifactStore,
+        );
 
-        // Wait for the fire-and-forget background run to settle.
-        final deadline = DateTime.now().add(const Duration(minutes: 4));
-        while (DateTime.now().isBefore(deadline)) {
-          final tasks = container.read(subagentTaskNotifierProvider);
-          if (tasks.isNotEmpty && tasks.first.isTerminal) {
-            break;
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            'Find the hidden canary marker from the deep archive capability. '
+            'The needed archive capability is not in your current tool list, so first call tool_search with query "deep archive canary lookup". '
+            'Then call the matching archive tool. '
+            'If that tool result says the full output was saved and gives a file_path plus a line number, call read_file with that file_path, offset, and limit. '
+            'Answer with only the marker value, with no markdown or explanation.',
+          );
+          await _waitForChatIdle(
+            container,
+            timeout: const Duration(minutes: 5),
+          );
+
+          final persistedFiles = Directory(
+            '${artifactRoot.path}/tool-results',
+          ).listSync(recursive: true).whereType<File>().toList(growable: false);
+          final readFilePath = toolService.readFileArguments
+              .map((arguments) => arguments['path']?.toString() ?? '')
+              .where((path) => path.isNotEmpty)
+              .lastOrNull;
+
+          expect(
+            toolService.executedToolNames,
+            contains(ToolDefinitionSearchService.toolName),
+            reason: _toolSearchArtifactDiagnostic(
+              container,
+              toolService,
+              artifactRoot,
+            ),
+          );
+          expect(
+            toolService.executedToolNames,
+            contains(_ToolSearchArtifactToolService.archiveToolName),
+            reason: _toolSearchArtifactDiagnostic(
+              container,
+              toolService,
+              artifactRoot,
+            ),
+          );
+          expect(
+            toolService.executedToolNames,
+            contains(_ToolSearchArtifactToolService.readFileToolName),
+            reason: _toolSearchArtifactDiagnostic(
+              container,
+              toolService,
+              artifactRoot,
+            ),
+          );
+          expect(
+            persistedFiles,
+            isNotEmpty,
+            reason: _toolSearchArtifactDiagnostic(
+              container,
+              toolService,
+              artifactRoot,
+            ),
+          );
+          expect(
+            readFilePath,
+            startsWith(artifactRoot.path),
+            reason: _toolSearchArtifactDiagnostic(
+              container,
+              toolService,
+              artifactRoot,
+            ),
+          );
+          expect(
+            _lastAssistantContent(container).toUpperCase(),
+            contains(_toolSearchArtifactMarker),
+            reason: _toolSearchArtifactDiagnostic(
+              container,
+              toolService,
+              artifactRoot,
+            ),
+          );
+        } finally {
+          container.dispose();
+          if (artifactRoot.existsSync()) {
+            artifactRoot.deleteSync(recursive: true);
           }
-          await Future<void>.delayed(const Duration(milliseconds: 200));
         }
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 6)),
+    );
 
-        final tasks = container.read(subagentTaskNotifierProvider);
-        expect(tasks, isNotEmpty, reason: _chatDiagnostic(container));
-        expect(
-          tasks.first.status,
-          SubagentTaskStatus.completed,
-          reason: _chatDiagnostic(container),
+    test(
+      'live LLM delegates a sub-task via spawn_subagent',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final toolService = _SubagentCanaryToolService();
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: true,
+          toolService: toolService,
         );
-        expect(
-          tasks.first.resultSummary,
-          contains('72'),
-          reason: _chatDiagnostic(container),
+
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            'Use the spawn_subagent tool to delegate a sub-task that computes '
+            '6 times 7 and returns only the number. After the subagent result '
+            'is available, answer with only that number and no other text.',
+          );
+          await _waitForChatIdle(
+            container,
+            timeout: const Duration(minutes: 5),
+          );
+
+          expect(
+            _lastAssistantContent(container),
+            contains('42'),
+            reason: _chatDiagnostic(container),
+          );
+        } finally {
+          container.dispose();
+        }
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 6)),
+    );
+
+    test(
+      'live LLM subagent uses a tool and reports its result',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final toolService = _SubagentToolUserCanaryToolService();
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: true,
+          toolService: toolService,
         );
-      } finally {
-        container.dispose();
-      }
-    },
-    skip: liveEnabled
-        ? false
-        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
-    timeout: const Timeout(Duration(minutes: 6)),
-  );
+
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            'Use the spawn_subagent tool to delegate this sub-task: the subagent '
+            'must call get_current_datetime and report the current year. Then '
+            'answer with only the year.',
+          );
+          await _waitForChatIdle(
+            container,
+            timeout: const Duration(minutes: 5),
+          );
+
+          expect(
+            toolService.executedToolNames,
+            contains('get_current_datetime'),
+            reason: _chatDiagnostic(container),
+          );
+          expect(
+            _lastAssistantContent(container),
+            isNotEmpty,
+            reason: _chatDiagnostic(container),
+          );
+        } finally {
+          container.dispose();
+        }
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 6)),
+    );
+
+    test(
+      'live LLM recovers a background subagent result',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final toolService = _SubagentToolUserCanaryToolService();
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: true,
+          toolService: toolService,
+        );
+
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            'Use spawn_subagent with the background argument set to true to '
+            'compute 8 times 9 and return only the number. Tell me the task_id '
+            'immediately.',
+          );
+          await _waitForChatIdle(
+            container,
+            timeout: const Duration(minutes: 5),
+          );
+
+          // Wait for the fire-and-forget background run to settle.
+          final deadline = DateTime.now().add(const Duration(minutes: 4));
+          while (DateTime.now().isBefore(deadline)) {
+            final tasks = container.read(subagentTaskNotifierProvider);
+            if (tasks.isNotEmpty && tasks.first.isTerminal) {
+              break;
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 200));
+          }
+
+          final tasks = container.read(subagentTaskNotifierProvider);
+          expect(tasks, isNotEmpty, reason: _chatDiagnostic(container));
+          expect(
+            tasks.first.status,
+            SubagentTaskStatus.completed,
+            reason: _chatDiagnostic(container),
+          );
+          expect(
+            tasks.first.resultSummary,
+            contains('72'),
+            reason: _chatDiagnostic(container),
+          );
+        } finally {
+          container.dispose();
+        }
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 6)),
+    );
+  }
 }
 
 ProviderContainer _buildChatContainer(
@@ -664,10 +845,7 @@ ProviderContainer _buildChatContainer(
       ),
       skillsNotifierProvider.overrideWith(_LiveSkillsNotifier.new),
       chatRemoteDataSourceProvider.overrideWithValue(
-        chatDataSource ??
-            _ChatLiveDataSource(
-              ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
-            ),
+        chatDataSource ?? _ChatLiveDataSource(env.createDataSource()),
       ),
       sessionMemoryServiceProvider.overrideWithValue(
         _NoopSessionMemoryService(),
@@ -702,6 +880,28 @@ Future<void> _waitForChatIdle(
   }
   throw TimeoutException(
     'Timed out waiting for chat live canary completion.\n'
+    '${_chatDiagnostic(container)}',
+  );
+}
+
+Future<void> _waitForChatSettled(
+  ProviderContainer container, {
+  Duration timeout = const Duration(minutes: 4),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    final state = container.read(chatNotifierProvider);
+    final hasFinishedAssistant = state.messages.any(
+      (message) =>
+          message.role == MessageRole.assistant && !message.isStreaming,
+    );
+    if (!state.isLoading && (hasFinishedAssistant || state.error != null)) {
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+  throw TimeoutException(
+    'Timed out waiting for chat live canary settlement.\n'
     '${_chatDiagnostic(container)}',
   );
 }
@@ -797,6 +997,7 @@ String _skillFollowUpDiagnostic(
 
 class _ChatLiveEnv {
   const _ChatLiveEnv({
+    required this.provider,
     required this.baseUrl,
     required this.apiKey,
     required this.model,
@@ -804,6 +1005,7 @@ class _ChatLiveEnv {
     required this.temperature,
   });
 
+  final LlmProvider provider;
   final String baseUrl;
   final String apiKey;
   final String model;
@@ -811,10 +1013,20 @@ class _ChatLiveEnv {
   final double temperature;
 
   static _ChatLiveEnv fromEnvironment() {
+    final provider = _llmProviderFromEnvironment();
+    final isAppleFoundationModels =
+        provider == LlmProvider.appleFoundationModels;
     return _ChatLiveEnv(
-      baseUrl: _requiredEnv('CAVERNO_LLM_BASE_URL'),
-      apiKey: _requiredEnv('CAVERNO_LLM_API_KEY'),
-      model: _requiredEnv('CAVERNO_LLM_MODEL'),
+      provider: provider,
+      baseUrl: isAppleFoundationModels
+          ? 'apple-foundation-models://local'
+          : _requiredEnv('CAVERNO_LLM_BASE_URL'),
+      apiKey: isAppleFoundationModels
+          ? ''
+          : _requiredEnv('CAVERNO_LLM_API_KEY'),
+      model: isAppleFoundationModels
+          ? AppSettings.appleFoundationModelsModelId
+          : _requiredEnv('CAVERNO_LLM_MODEL'),
       maxTokens:
           int.tryParse(
             Platform.environment['CAVERNO_CHAT_LIVE_CANARY_MAX_TOKENS'] ?? '',
@@ -827,6 +1039,16 @@ class _ChatLiveEnv {
           0.1,
     );
   }
+
+  ChatDataSource createDataSource() {
+    return switch (provider) {
+      LlmProvider.appleFoundationModels => AppleFoundationModelsDataSource(),
+      LlmProvider.openAiCompatible => ChatRemoteDataSource(
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+      ),
+    };
+  }
 }
 
 String _requiredEnv(String name) {
@@ -835,6 +1057,30 @@ String _requiredEnv(String name) {
     throw StateError('$name is required for chat live LLM validation.');
   }
   return value;
+}
+
+LlmProvider _llmProviderFromEnvironment() {
+  final value = Platform.environment['CAVERNO_LLM_PROVIDER']?.trim();
+  return switch (value) {
+    null ||
+    '' ||
+    'openAiCompatible' ||
+    'openai' ||
+    'openai_compatible' => LlmProvider.openAiCompatible,
+    'appleFoundationModels' ||
+    'apple_foundation_models' ||
+    'foundation_models' => LlmProvider.appleFoundationModels,
+    _ => throw StateError(
+      'Unsupported CAVERNO_LLM_PROVIDER "$value" for chat live LLM validation.',
+    ),
+  };
+}
+
+bool _isAppleFoundationModelsEnvironment() {
+  final value = Platform.environment['CAVERNO_LLM_PROVIDER']?.trim();
+  return value == 'appleFoundationModels' ||
+      value == 'apple_foundation_models' ||
+      value == 'foundation_models';
 }
 
 class _LiveSettingsNotifier extends SettingsNotifier {
@@ -847,6 +1093,7 @@ class _LiveSettingsNotifier extends SettingsNotifier {
   AppSettings build() {
     return AppSettings.defaults().copyWith(
       assistantMode: AssistantMode.general,
+      llmProvider: env.provider,
       baseUrl: env.baseUrl,
       apiKey: env.apiKey,
       model: env.model,
@@ -861,6 +1108,14 @@ class _LiveSettingsNotifier extends SettingsNotifier {
 class _LiveConversationsNotifier extends ConversationsNotifier {
   @override
   ConversationsState build() => ConversationsState.initial();
+
+  @override
+  Conversation? ensureCurrentConversation({
+    WorkspaceMode? workspaceMode,
+    String? projectId,
+  }) {
+    return null;
+  }
 
   @override
   Future<void> ensureCurrentPlanArtifactBackfilled() async {}
@@ -955,7 +1210,7 @@ class _ChatLiveDataSource implements ChatDataSource {
     this.scriptedAssistantToolResultPrelude,
   });
 
-  final ChatRemoteDataSource delegate;
+  final ChatDataSource delegate;
   final _ScriptedIncompleteToolPrelude? scriptedIncompleteToolPrelude;
   final _ScriptedAssistantToolResultPrelude? scriptedAssistantToolResultPrelude;
   final List<List<Message>> streamRequests = [];
@@ -1593,16 +1848,26 @@ class _SubagentToolUserCanaryToolService extends McpToolService {
     };
 
     return [
-      fn('spawn_subagent', 'Delegate a sub-task to a child agent that runs its '
-          'own tool loop and returns a summary.', {
-        'description': {'type': 'string'},
-        'prompt': {'type': 'string'},
-        'background': {'type': 'boolean'},
-      }, ['description', 'prompt']),
-      fn('get_subagent_result', 'Fetch the status/result of a background '
-          'subagent.', {
-        'task_id': {'type': 'string'},
-      }, ['task_id']),
+      fn(
+        'spawn_subagent',
+        'Delegate a sub-task to a child agent that runs its '
+            'own tool loop and returns a summary.',
+        {
+          'description': {'type': 'string'},
+          'prompt': {'type': 'string'},
+          'background': {'type': 'boolean'},
+        },
+        ['description', 'prompt'],
+      ),
+      fn(
+        'get_subagent_result',
+        'Fetch the status/result of a background '
+            'subagent.',
+        {
+          'task_id': {'type': 'string'},
+        },
+        ['task_id'],
+      ),
       fn(
         'get_current_datetime',
         'Return the current date and time.',

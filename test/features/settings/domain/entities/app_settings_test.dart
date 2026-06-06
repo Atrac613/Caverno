@@ -81,6 +81,22 @@ void main() {
     expect(ReasoningEffortPreference.automatic.apiValue, isNull);
   });
 
+  test('defaults and persists LLM provider selection', () {
+    expect(AppSettings.defaults().llmProvider, LlmProvider.openAiCompatible);
+    expect(AppSettings.defaults().effectiveModel, AppSettings.defaults().model);
+
+    final settings = AppSettings.defaults().copyWith(
+      llmProvider: LlmProvider.appleFoundationModels,
+    );
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.llmProvider, LlmProvider.appleFoundationModels);
+    expect(decoded.effectiveModel, AppSettings.appleFoundationModelsModelId);
+  });
+
   test('persists coding approval mode', () {
     final settings = AppSettings.defaults().copyWith(
       codingApprovalMode: ToolApprovalMode.autoReview,
@@ -115,7 +131,7 @@ void main() {
   test('legacy settings without chatApprovalMode fall back to default', () {
     final legacyJson =
         jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
-            as Map<String, dynamic>
+              as Map<String, dynamic>
           ..remove('chatApprovalMode');
 
     final decoded = AppSettings.fromJson(legacyJson);
