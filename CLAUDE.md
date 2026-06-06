@@ -28,12 +28,15 @@ python3 tool/pack_python_worker.py
 #     --target lib/core/services/script_runtime/worker/__pypackages__ <package>
 #   python3 tool/pack_python_worker.py
 
-# iOS/macOS only: serious_python's Apple build phase needs its native-framework
-# directory staged once per machine, after `flutter pub get` and before the
-# first iOS build (otherwise the build fails on a missing
-# dist_ios/site-xcframeworks). Pure-Python deps ride in the worker bundle; this
-# only stages the interpreter's stdlib native modules (_ssl, _socket, ...):
-tool/prepare_serious_python_apple.sh
+# serious_python (embedded Python) native setup — run once per machine after
+# `flutter pub get`. Stages the interpreter's stdlib native modules
+# (_ssl, _socket, ...) for iOS/macOS/Android. Without it iOS builds fail on a
+# missing dist_ios/site-xcframeworks and Android gradle errors on an unset env:
+tool/prepare_serious_python.sh
+# iOS/macOS are then ready to build. Android ALSO needs the env var at build
+# time (the gradle plugin reads it live):
+#   export SERIOUS_PYTHON_SITE_PACKAGES="$(pwd)/build/serious_python_site"
+#   flutter run -d <android>   # or: flutter build apk
 
 # Lint
 flutter analyze
