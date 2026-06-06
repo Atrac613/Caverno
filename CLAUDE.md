@@ -19,12 +19,14 @@ flutter pub get
 dart run build_runner build --delete-conflicting-outputs
 
 # Regenerate the embedded Python worker asset (run_python_script tool) after
-# editing lib/core/services/script_runtime/worker/ — stdlib-only MVP bundle:
-zip -X -j assets/python/app.zip lib/core/services/script_runtime/worker/main.py
-# To bundle pure-Python pip packages instead (mobile supports pure-Python
-# wheels only), use the serious_python packager (downloads CPython + runs pip):
-#   dart run serious_python:main package lib/core/services/script_runtime/worker \
-#     -a assets/python/app.zip -p iOS -r piexif
+# editing lib/core/services/script_runtime/worker/ (incl. its vendored
+# __pypackages__/ deps). Produces a deterministic assets/python/app.zip:
+python3 tool/pack_python_worker.py
+# To vendor another pure-Python package (mobile supports pure-Python wheels
+# only), install it into the worker's __pypackages__/ and repackage:
+#   python3 -m pip install --no-deps --no-compile \
+#     --target lib/core/services/script_runtime/worker/__pypackages__ <package>
+#   python3 tool/pack_python_worker.py
 
 # Lint
 flutter analyze

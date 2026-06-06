@@ -26,6 +26,15 @@ import traceback
 import types
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+# Make bundled pure-Python dependencies importable. They are vendored under
+# `__pypackages__/` next to this file and shipped inside the asset; adding the
+# directory here means imports work regardless of the host's sys.path setup.
+_PYPACKAGES = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "__pypackages__"
+)
+if os.path.isdir(_PYPACKAGES) and _PYPACKAGES not in sys.path:
+    sys.path.insert(0, _PYPACKAGES)
+
 # Upper bound on characters returned per stream. The host truncates further
 # before forwarding to the model; this only guards against unbounded buffers.
 _MAX_STREAM_CHARS = 200_000
