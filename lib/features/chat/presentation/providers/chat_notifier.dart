@@ -1096,6 +1096,104 @@ class ChatNotifier extends Notifier<ChatState> {
     ].join('\n');
   }
 
+  Future<ChatCompletionResult?> _requestPythonAttachmentPathFailureRepair({
+    required String candidateResponse,
+    required List<ToolResultInfo> batchToolResults,
+    required List<ToolResultInfo> executedToolResults,
+    required List<Map<String, dynamic>> tools,
+    required int interactionGeneration,
+  }) async {
+    if (!_shouldRepairPythonAttachmentPathFailure(
+      candidateResponse: candidateResponse,
+      toolResults: executedToolResults,
+      tools: tools,
+      interactionGeneration: interactionGeneration,
+    )) {
+      return null;
+    }
+
+    appLog('[Tool] Requesting run_python_script repair for missing file path');
+    List<Message> buildRepairMessages(bool forceCompaction) {
+      final messages = _prepareMessagesForLLM(
+        forceCompaction: forceCompaction,
+        toolDefinitionsOverride: tools,
+        interactionGeneration: interactionGeneration,
+      );
+      messages.add(
+        Message(
+          id: 'python_attachment_path_repair_${DateTime.now().millisecondsSinceEpoch}',
+          role: MessageRole.user,
+          content: _buildPythonAttachmentPathFailureRepairPrompt(),
+          timestamp: DateTime.now(),
+        ),
+      );
+      return messages;
+    }
+
+    return _createToolResultCompletionWithContextRetry(
+      logLabel: 'python attachment path repair',
+      interactionGeneration: interactionGeneration,
+      buildMessages: buildRepairMessages,
+      toolResults: batchToolResults,
+      assistantContent: candidateResponse.isNotEmpty ? candidateResponse : null,
+      tools: tools,
+    );
+  }
+
+  bool _shouldRepairPythonAttachmentPathFailure({
+    required String candidateResponse,
+    required List<ToolResultInfo> toolResults,
+    required List<Map<String, dynamic>> tools,
+    required int interactionGeneration,
+  }) {
+    if (candidateResponse.trim().isEmpty) {
+      return false;
+    }
+    if (_settings.disabledBuiltInToolsSet.contains('run_python_script')) {
+      return false;
+    }
+    if (_latestPythonInputMessage() == null) {
+      return false;
+    }
+    final availableToolNames =
+        ToolDefinitionSearchService.toolNamesFromDefinitions(tools).toSet();
+    if (!availableToolNames.contains('run_python_script')) {
+      return false;
+    }
+    if (!_hasRunPythonScriptPathFailure(toolResults)) {
+      return false;
+    }
+    final latestUserContent = _latestUserContentForGeneration(
+      interactionGeneration,
+    );
+    return _looksLikePythonAttachmentAnalysisRequest(latestUserContent);
+  }
+
+  bool _hasRunPythonScriptPathFailure(List<ToolResultInfo> toolResults) {
+    return toolResults.any((toolResult) {
+      if (toolResult.name.trim().toLowerCase() != 'run_python_script') {
+        return false;
+      }
+      final normalized = toolResult.result.toLowerCase();
+      return _containsAny(normalized, const [
+        'filenotfounderror',
+        'no such file or directory',
+        'file not found',
+      ]);
+    });
+  }
+
+  String _buildPythonAttachmentPathFailureRepairPrompt() {
+    return [
+      'The previous run_python_script call failed because it opened a guessed file path such as test.jpg.',
+      'The latest user request still has an attached file staged for run_python_script as caverno.inputs[0].',
+      'Do not ask the user to reattach the file or provide a path.',
+      'Call run_python_script again with a complete Python script that reads caverno.inputs[0].path or caverno.inputs[0].read_bytes().',
+      'Do not open literal paths such as test.jpg, attachment_0.jpg, or any guessed relative path.',
+      'Print concise metadata findings from the staged attachment.',
+    ].join('\n');
+  }
+
   ToolResultInfo? _buildUnexecutedSkippedBrowserActionToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> batchToolResults,
@@ -9800,6 +9898,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var attemptedDuplicateFollowUpRecovery = false;
     var attemptedToolLoopExhaustionRecovery = false;
     var attemptedSkippedPythonAttachmentRepair = false;
+    var attemptedPythonAttachmentPathRepair = false;
     final attemptedCompletionVerificationMutationSignatures = <String>{};
     final verificationFailureCounts =
         completionVerificationFailureCounts ?? <String, int>{};
@@ -10460,6 +10559,38 @@ class ChatNotifier extends Notifier<ChatState> {
           if (unexecutedBrowserAction != null) {
             executedToolResults.add(unexecutedBrowserAction);
             _recordHiddenAssistantResponse(browserActionRepairResult.content);
+          }
+        }
+        if (!attemptedPythonAttachmentPathRepair) {
+          attemptedPythonAttachmentPathRepair = true;
+          final pythonAttachmentPathRepairResult =
+              await _requestPythonAttachmentPathFailureRepair(
+                candidateResponse: fallbackResponse,
+                batchToolResults: batchToolResults,
+                executedToolResults: executedToolResults,
+                tools: tools,
+                interactionGeneration: interactionGeneration,
+              );
+          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+          if (!ref.mounted) return;
+          if (pythonAttachmentPathRepairResult != null) {
+            if (pythonAttachmentPathRepairResult.hasToolCalls) {
+              appLog(
+                '[Tool] Python attachment path repair requested tool calls',
+              );
+              currentToolCalls = pythonAttachmentPathRepairResult.toolCalls!;
+              _recordHiddenAssistantResponse(
+                pythonAttachmentPathRepairResult.content,
+              );
+              currentAssistantContent =
+                  pythonAttachmentPathRepairResult.content.isNotEmpty
+                  ? pythonAttachmentPathRepairResult.content
+                  : fallbackResponse;
+              continue;
+            }
+            _recordHiddenAssistantResponse(
+              pythonAttachmentPathRepairResult.content,
+            );
           }
         }
         if (!attemptedSkippedPythonAttachmentRepair) {
@@ -12867,6 +12998,10 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _looksLikeStructuredToolRequest(String content) {
+    if (_looksLikeBracketedToolRequest(content)) {
+      return true;
+    }
+
     final fencedJsonBlocks = RegExp(
       r'```(?:json)?\s*([\s\S]*?)```',
       caseSensitive: false,
@@ -12881,6 +13016,14 @@ class ChatNotifier extends Notifier<ChatState> {
     final trimmed = content.trim();
     return (trimmed.startsWith('[') || trimmed.startsWith('{')) &&
         _jsonLooksLikeCommandProposal(trimmed);
+  }
+
+  bool _looksLikeBracketedToolRequest(String content) {
+    return RegExp(
+      r'\[Tool:\s*[A-Za-z_][\w.-]*\]\s*(?:\r?\n)+\s*Arguments:\s*(?:\{|\[)',
+      caseSensitive: false,
+      dotAll: true,
+    ).hasMatch(content);
   }
 
   bool _looksLikePlanOnlyFinalToolAnswer(String content) {

@@ -5889,6 +5889,74 @@ void main() {
     },
   );
 
+  test(
+    'sendMessage marks bracketed tool requests in final answers as unexecuted',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-read',
+            name: 'read_file',
+            arguments: const {'path': '/tmp/session-log.jsonl'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The tool result is not enough; retry with Python.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'I need to retry the analysis.\n\n'
+              '[Tool: run_python_script]\n'
+              'Arguments: {"code":"print(1)"}',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'read_file':
+              '{"path":"/tmp/session-log.jsonl","content":"target log body"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Find and read the interrupted log');
+
+        expect(toolService.executedToolNames, ['read_file']);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains(
+            'I could not execute the additional tool request above in this final-answer step.',
+          ),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
   test('sendMessage marks plan-only final tool answers as unexecuted', () async {
     final toolLoopResponses = [
       for (var index = 1; index < 12; index += 1)
@@ -6169,6 +6237,115 @@ print(json.dumps({"input_count": len(caverno.inputs)}))
         expect(
           toolDataSource.toolResultBatches.last.single.result,
           contains('input_count'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage repairs run_python_script file path failures for attachments',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-python-guessed-path',
+            name: 'run_python_script',
+            arguments: const {
+              'code': '''
+with open("test.jpg", "rb") as file:
+    print(len(file.read()))
+''',
+              'reason': 'Inspect attached image metadata',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                'The file test.jpg was not found. Please attach the image or provide a path.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'Retrying with the staged attachment path.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-python-staged-path',
+                name: 'run_python_script',
+                arguments: const {
+                  'code': '''
+path = caverno.inputs[0].path
+with open(path, "rb") as file:
+    print(len(file.read()))
+''',
+                  'reason': 'Inspect attached image metadata',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The attached image metadata analysis completed.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'run_python_script': '{"stdout":"4\\n"}'},
+        queuedResults: const {
+          'run_python_script': [
+            '{"error":"FileNotFoundError: [Errno 2] No such file or directory: \'test.jpg\'"}',
+            '{"stdout":"4\\n"}',
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage(
+          'Use run_python_script to analyze the metadata',
+          imageBase64: base64Encode([1, 2, 3, 4]),
+          imageMimeType: 'image/jpeg',
+        );
+
+        expect(toolService.executedToolNames, [
+          'run_python_script',
+          'run_python_script',
+        ]);
+        expect(
+          toolService.executedToolArguments.first['code'],
+          contains('test.jpg'),
+        );
+        expect(
+          toolService.executedToolArguments.last['code'],
+          contains('caverno.inputs[0].path'),
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        expect(
+          toolDataSource.toolResultBatches.last.single.result,
+          contains('"stdout":"4'),
         );
       } finally {
         toolContainer.dispose();
