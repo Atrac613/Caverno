@@ -62,10 +62,7 @@ class ChatCompletionResult {
   final String finishReason;
   final TokenUsage usage;
 
-  bool get hasToolCalls =>
-      toolCalls != null &&
-      toolCalls!.isNotEmpty &&
-      (finishReason == 'tool_calls' || finishReason == 'toolCalls');
+  bool get hasToolCalls => toolCalls != null && toolCalls!.isNotEmpty;
 }
 
 class ChatRemoteDataSource implements ChatDataSource {

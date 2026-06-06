@@ -52,6 +52,22 @@ void main() {
     expect(toolCalls.first.id, isNotEmpty);
   });
 
+  test('treats tool calls as actionable when finish reason is length', () {
+    final result = ChatCompletionResult(
+      content: 'Preparing to run Python',
+      finishReason: 'length',
+      toolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'run_python_script',
+          arguments: const {},
+        ),
+      ],
+    );
+
+    expect(result.hasToolCalls, isTrue);
+  });
+
   test('annotates successful write_file updates for LLM retries', () {
     final content = dataSource.formatToolResultContentForLlm(
       ToolResultInfo(
