@@ -5361,6 +5361,89 @@ void main() {
   );
 
   test(
+    'sendMessage lets run_python_script recover after missing code',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-python-empty',
+            name: 'run_python_script',
+            arguments: const {},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Retry with a complete Python script.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-python-retry',
+                name: 'run_python_script',
+                arguments: const {
+                  'code': 'print("metadata ok")',
+                  'reason': 'Inspect the attached image metadata',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The Python metadata analysis completed.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'run_python_script': '{"stdout":"metadata ok\\n","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Analyze the attached image metadata');
+
+        expect(toolService.executedToolNames, ['run_python_script']);
+        expect(
+          toolService.executedToolArguments.single['code'],
+          contains('metadata ok'),
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(
+          toolDataSource.toolResultBatches.first.single.result,
+          allOf(contains('code is required'), contains('caverno.inputs[0]')),
+        );
+        expect(
+          toolDataSource.toolResultBatches.last.single.result,
+          contains('metadata ok'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage executes pending read-only local command at tool loop limit',
     () async {
       final toolLoopResponses = [

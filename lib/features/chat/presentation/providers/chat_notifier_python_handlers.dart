@@ -8,11 +8,15 @@ extension ChatNotifierPythonHandlers on ChatNotifier {
   Future<McpToolResult> _handlePythonScript(ToolCallInfo toolCall) async {
     final code = (toolCall.arguments['code'] as String?)?.trim() ?? '';
     if (code.isEmpty) {
+      const missingCodeMessage =
+          'code is required; call run_python_script again with a complete '
+          'Python script in the code argument. Use caverno.inputs[0] for '
+          'attached files when analyzing attachments.';
       return McpToolResult(
         toolName: toolCall.name,
         result: '',
         isSuccess: false,
-        errorMessage: 'code is required',
+        errorMessage: missingCodeMessage,
       );
     }
 
