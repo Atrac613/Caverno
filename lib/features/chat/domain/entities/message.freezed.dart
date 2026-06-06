@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Message {
 
- String get id; String get content; MessageRole get role; DateTime get timestamp; bool get isStreaming; String? get error; String? get imageBase64; String? get imageMimeType;
+ String get id; String get content; MessageRole get role; DateTime get timestamp; bool get isStreaming; String? get error; String? get imageBase64; String? get imageMimeType; String? get originalImagePath; String? get originalImageMimeType;
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $MessageCopyWith<Message> get copyWith => _$MessageCopyWithImpl<Message>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType);
+int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,originalImagePath,originalImageMimeType);
 
 @override
 String toString() {
-  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType)';
+  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $MessageCopyWith<$Res>  {
   factory $MessageCopyWith(Message value, $Res Function(Message) _then) = _$MessageCopyWithImpl;
 @useResult
 $Res call({
- String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType
+ String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, String? originalImagePath, String? originalImageMimeType
 });
 
 
@@ -65,7 +65,7 @@ class _$MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
@@ -75,6 +75,8 @@ as DateTime,isStreaming: null == isStreaming ? _self.isStreaming : isStreaming /
 as bool,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
 as String?,imageBase64: freezed == imageBase64 ? _self.imageBase64 : imageBase64 // ignore: cast_nullable_to_non_nullable
 as String?,imageMimeType: freezed == imageMimeType ? _self.imageMimeType : imageMimeType // ignore: cast_nullable_to_non_nullable
+as String?,originalImagePath: freezed == originalImagePath ? _self.originalImagePath : originalImagePath // ignore: cast_nullable_to_non_nullable
+as String?,originalImageMimeType: freezed == originalImageMimeType ? _self.originalImageMimeType : originalImageMimeType // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }
@@ -160,10 +162,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType);case _:
   return orElse();
 
 }
@@ -181,10 +183,10 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType)  $default,) {final _that = this;
 switch (_that) {
 case _Message():
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -201,10 +203,10 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType)?  $default,) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType);case _:
   return null;
 
 }
@@ -216,7 +218,7 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 @JsonSerializable()
 
 class _Message implements Message {
-  const _Message({required this.id, required this.content, required this.role, required this.timestamp, this.isStreaming = false, this.error, this.imageBase64, this.imageMimeType});
+  const _Message({required this.id, required this.content, required this.role, required this.timestamp, this.isStreaming = false, this.error, this.imageBase64, this.imageMimeType, this.originalImagePath, this.originalImageMimeType});
   factory _Message.fromJson(Map<String, dynamic> json) => _$MessageFromJson(json);
 
 @override final  String id;
@@ -227,6 +229,8 @@ class _Message implements Message {
 @override final  String? error;
 @override final  String? imageBase64;
 @override final  String? imageMimeType;
+@override final  String? originalImagePath;
+@override final  String? originalImageMimeType;
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
@@ -241,16 +245,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType);
+int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,originalImagePath,originalImageMimeType);
 
 @override
 String toString() {
-  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType)';
+  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType)';
 }
 
 
@@ -261,7 +265,7 @@ abstract mixin class _$MessageCopyWith<$Res> implements $MessageCopyWith<$Res> {
   factory _$MessageCopyWith(_Message value, $Res Function(_Message) _then) = __$MessageCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType
+ String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, String? originalImagePath, String? originalImageMimeType
 });
 
 
@@ -278,7 +282,7 @@ class __$MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,}) {
   return _then(_Message(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
@@ -288,6 +292,8 @@ as DateTime,isStreaming: null == isStreaming ? _self.isStreaming : isStreaming /
 as bool,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
 as String?,imageBase64: freezed == imageBase64 ? _self.imageBase64 : imageBase64 // ignore: cast_nullable_to_non_nullable
 as String?,imageMimeType: freezed == imageMimeType ? _self.imageMimeType : imageMimeType // ignore: cast_nullable_to_non_nullable
+as String?,originalImagePath: freezed == originalImagePath ? _self.originalImagePath : originalImagePath // ignore: cast_nullable_to_non_nullable
+as String?,originalImageMimeType: freezed == originalImageMimeType ? _self.originalImageMimeType : originalImageMimeType // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }

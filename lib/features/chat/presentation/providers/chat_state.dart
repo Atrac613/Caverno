@@ -435,6 +435,8 @@ class QueuedChatMessage {
     required this.languageCode,
     required this.isVoiceMode,
     required this.bypassPlanMode,
+    this.originalImagePath,
+    this.originalImageMimeType,
     this.origin = ChatInteractionOrigin.local,
   });
 
@@ -442,6 +444,8 @@ class QueuedChatMessage {
   final String content;
   final String? imageBase64;
   final String? imageMimeType;
+  final String? originalImagePath;
+  final String? originalImageMimeType;
   final String languageCode;
   final bool isVoiceMode;
   final bool bypassPlanMode;
@@ -457,6 +461,8 @@ class QueuedChatMessage {
             content == other.content &&
             imageBase64 == other.imageBase64 &&
             imageMimeType == other.imageMimeType &&
+            originalImagePath == other.originalImagePath &&
+            originalImageMimeType == other.originalImageMimeType &&
             languageCode == other.languageCode &&
             isVoiceMode == other.isVoiceMode &&
             bypassPlanMode == other.bypassPlanMode &&
@@ -469,6 +475,8 @@ class QueuedChatMessage {
     content,
     imageBase64,
     imageMimeType,
+    originalImagePath,
+    originalImageMimeType,
     languageCode,
     isVoiceMode,
     bypassPlanMode,

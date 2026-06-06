@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path_provider/path_provider.dart';
 
@@ -31,6 +32,21 @@ class AttachmentStorageService {
     final stamp = DateTime.now().millisecondsSinceEpoch;
     final destPath = '${dir.path}${Platform.pathSeparator}${stamp}_$safe';
     final dest = await File(sourcePath).copy(destPath);
+    return dest.absolute.path;
+  }
+
+  /// Writes [bytes] into the durable attachments directory and returns the
+  /// absolute destination path.
+  static Future<String> persistBytes({
+    required Uint8List bytes,
+    required String originalName,
+  }) async {
+    final dir = await _attachmentsDir();
+    final safe = _safeName(originalName);
+    final stamp = DateTime.now().millisecondsSinceEpoch;
+    final destPath = '${dir.path}${Platform.pathSeparator}${stamp}_$safe';
+    final dest = File(destPath);
+    await dest.writeAsBytes(bytes, flush: true);
     return dest.absolute.path;
   }
 

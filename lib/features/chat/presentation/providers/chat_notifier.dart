@@ -6775,6 +6775,8 @@ class ChatNotifier extends Notifier<ChatState> {
     String content, {
     String? imageBase64,
     String? imageMimeType,
+    String? originalImagePath,
+    String? originalImageMimeType,
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,
@@ -6789,6 +6791,8 @@ class ChatNotifier extends Notifier<ChatState> {
       content: content,
       imageBase64: imageBase64,
       imageMimeType: imageMimeType,
+      originalImagePath: originalImagePath,
+      originalImageMimeType: originalImageMimeType,
       languageCode: languageCode,
       isVoiceMode: isVoiceMode,
       bypassPlanMode: bypassPlanMode,
@@ -6813,6 +6817,8 @@ class ChatNotifier extends Notifier<ChatState> {
     final content = queuedMessage.content;
     final imageBase64 = queuedMessage.imageBase64;
     final imageMimeType = queuedMessage.imageMimeType;
+    final originalImagePath = queuedMessage.originalImagePath;
+    final originalImageMimeType = queuedMessage.originalImageMimeType;
     final languageCode = queuedMessage.languageCode;
     final isVoiceMode = queuedMessage.isVoiceMode;
     final bypassPlanMode = queuedMessage.bypassPlanMode;
@@ -6889,6 +6895,8 @@ class ChatNotifier extends Notifier<ChatState> {
       timestamp: DateTime.now(),
       imageBase64: imageBase64,
       imageMimeType: imageMimeType,
+      originalImagePath: originalImagePath,
+      originalImageMimeType: originalImageMimeType,
     );
 
     if (!ref.mounted) return;

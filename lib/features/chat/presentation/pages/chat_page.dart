@@ -1230,6 +1230,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       String message,
       String? imageBase64,
       String? imageMimeType,
+      String? originalImagePath,
+      String? originalImageMimeType,
     ) {
       if (isCodingWorkspace &&
           currentConversation != null &&
@@ -1256,6 +1258,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             message: message,
             imageBase64: imageBase64,
             imageMimeType: imageMimeType,
+            originalImagePath: originalImagePath,
+            originalImageMimeType: originalImageMimeType,
             languageCode: languageCode,
           ).then((sent) {
             if (sent || !mounted) {
@@ -1280,6 +1284,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           message,
           imageBase64: imageBase64,
           imageMimeType: imageMimeType,
+          originalImagePath: originalImagePath,
+          originalImageMimeType: originalImageMimeType,
           languageCode: languageCode,
         ),
       );

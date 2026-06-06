@@ -27,9 +27,32 @@ class PythonInputStaging {
   static Future<StagedPythonInputs> stage({
     String? imageBase64,
     String? imageMimeType,
+    String? originalImagePath,
+    String? originalImageMimeType,
   }) async {
     final runDir = await Directory.systemTemp.createTemp('caverno_python_');
     final inputs = <Map<String, dynamic>>[];
+
+    final sourcePath = originalImagePath?.trim();
+    if (sourcePath != null && sourcePath.isNotEmpty) {
+      try {
+        final source = File(sourcePath);
+        if (await source.exists()) {
+          final mime = originalImageMimeType ?? imageMimeType;
+          final name =
+              'attachment_0${_extensionForPathOrMime(sourcePath, mime)}';
+          final file = await source.copy('${runDir.path}/$name');
+          inputs.add({'name': name, 'path': file.path, 'mime': mime});
+          return StagedPythonInputs(
+            workingDirectory: runDir.path,
+            inputs: inputs,
+          );
+        }
+        appLog('[python] original attachment path does not exist: $sourcePath');
+      } catch (error) {
+        appLog('[python] failed to stage original attachment: $error');
+      }
+    }
 
     if (imageBase64 != null && imageBase64.isNotEmpty) {
       try {
@@ -44,6 +67,14 @@ class PythonInputStaging {
     }
 
     return StagedPythonInputs(workingDirectory: runDir.path, inputs: inputs);
+  }
+
+  static String _extensionForPathOrMime(String path, String? mime) {
+    final match = RegExp(r'\.[A-Za-z0-9]+$').firstMatch(path);
+    if (match != null) {
+      return match.group(0)!.toLowerCase();
+    }
+    return _extensionForMime(mime);
   }
 
   static String _extensionForMime(String? mime) {

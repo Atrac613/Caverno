@@ -35,6 +35,8 @@ extension ChatNotifierPythonHandlers on ChatNotifier {
     final staged = await PythonInputStaging.stage(
       imageBase64: inputMessage?.imageBase64,
       imageMimeType: inputMessage?.imageMimeType,
+      originalImagePath: inputMessage?.originalImagePath,
+      originalImageMimeType: inputMessage?.originalImageMimeType,
     );
 
     // Running model-written Python with file + network access is high-risk, so
@@ -107,7 +109,8 @@ extension ChatNotifierPythonHandlers on ChatNotifier {
   Message? _latestPythonInputMessage() {
     for (final message in state.messages.reversed) {
       if (message.role == MessageRole.user &&
-          (message.imageBase64?.isNotEmpty ?? false)) {
+          ((message.originalImagePath?.isNotEmpty ?? false) ||
+              (message.imageBase64?.isNotEmpty ?? false))) {
         return message;
       }
     }

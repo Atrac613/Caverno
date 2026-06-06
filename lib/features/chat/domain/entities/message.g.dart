@@ -15,6 +15,8 @@ _Message _$MessageFromJson(Map<String, dynamic> json) => _Message(
   error: json['error'] as String?,
   imageBase64: json['imageBase64'] as String?,
   imageMimeType: json['imageMimeType'] as String?,
+  originalImagePath: json['originalImagePath'] as String?,
+  originalImageMimeType: json['originalImageMimeType'] as String?,
 );
 
 Map<String, dynamic> _$MessageToJson(_Message instance) => <String, dynamic>{
@@ -26,6 +28,8 @@ Map<String, dynamic> _$MessageToJson(_Message instance) => <String, dynamic>{
   'error': instance.error,
   'imageBase64': instance.imageBase64,
   'imageMimeType': instance.imageMimeType,
+  'originalImagePath': instance.originalImagePath,
+  'originalImageMimeType': instance.originalImageMimeType,
 };
 
 const _$MessageRoleEnumMap = {

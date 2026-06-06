@@ -47,6 +47,8 @@ class _ControllableChatNotifier extends ChatNotifier {
     String content, {
     String? imageBase64,
     String? imageMimeType,
+    String? originalImagePath,
+    String? originalImageMimeType,
     String languageCode = 'en',
     bool isVoiceMode = false,
     bool bypassPlanMode = false,

@@ -16,6 +16,8 @@ abstract class Message with _$Message {
     String? error,
     String? imageBase64,
     String? imageMimeType,
+    String? originalImagePath,
+    String? originalImageMimeType,
   }) = _Message;
 
   factory Message.fromJson(Map<String, dynamic> json) =>

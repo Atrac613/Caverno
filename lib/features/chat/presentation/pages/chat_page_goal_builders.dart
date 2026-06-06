@@ -38,6 +38,8 @@ extension _ChatPageGoalBuilders on _ChatPageState {
     required String message,
     required String? imageBase64,
     required String? imageMimeType,
+    required String? originalImagePath,
+    required String? originalImageMimeType,
     required String languageCode,
   }) async {
     if (_isCodingGoalSuggestionInProgressFor(currentConversation)) {
@@ -68,6 +70,8 @@ extension _ChatPageGoalBuilders on _ChatPageState {
           message,
           imageBase64: imageBase64,
           imageMimeType: imageMimeType,
+          originalImagePath: originalImagePath,
+          originalImageMimeType: originalImageMimeType,
           languageCode: languageCode,
         );
     return true;

@@ -70,6 +70,8 @@ class MessageInput extends ConsumerStatefulWidget {
     String message,
     String? imageBase64,
     String? imageMimeType,
+    String? originalImagePath,
+    String? originalImageMimeType,
   )
   onSend;
   final VoidCallback onCancel;
@@ -111,6 +113,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
   Uint8List? _selectedImageBytes;
   String? _selectedImageMimeType;
+  String? _selectedOriginalImagePath;
+  String? _selectedOriginalImageMimeType;
   String? _selectedFileName;
   String? _selectedFileContent;
   int? _selectedFileSize;
@@ -228,9 +232,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     MessageInputImageAttachment attachment,
   ) async {
     try {
-      final resized = await _resizeImageIfNeeded(attachment.bytes);
-      final normalized = await _normalizeImageForUpload(
-        bytes: resized,
+      final prepared = await _prepareImageAttachmentForSend(
+        originalBytes: attachment.bytes,
         mimeType: attachment.mimeType,
         filePath: attachment.filePath,
       );
@@ -239,8 +242,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       }
 
       setState(() {
-        _selectedImageBytes = normalized.bytes;
-        _selectedImageMimeType = normalized.mimeType;
+        _selectedImageBytes = prepared.bytes;
+        _selectedImageMimeType = prepared.mimeType;
+        _selectedOriginalImagePath = prepared.originalPath;
+        _selectedOriginalImageMimeType = prepared.originalMimeType;
       });
       _refreshSlashSuggestions();
       _focusNode.requestFocus();
@@ -480,7 +485,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
           _focusNode.requestFocus();
           return;
         }
-        widget.onSend(promptToSend, null, null);
+        widget.onSend(promptToSend, null, null, null, null);
         _pushToHistory(invocation.rawInput.trim());
         _controller.clear();
         _clearImage();
@@ -608,28 +613,118 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     try {
       final pickedFile = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
       );
 
       if (pickedFile != null) {
         final rawBytes = await pickedFile.readAsBytes();
         final rawMimeType = pickedFile.mimeType ?? 'image/jpeg';
-        final normalized = await _normalizeImageForUpload(
-          bytes: rawBytes,
+        final prepared = await _prepareImageAttachmentForSend(
+          originalBytes: rawBytes,
           mimeType: rawMimeType,
-          filePath: pickedFile.path,
+          filePath: pickedFile.name.isNotEmpty
+              ? pickedFile.name
+              : pickedFile.path,
         );
 
         setState(() {
-          _selectedImageBytes = normalized.bytes;
-          _selectedImageMimeType = normalized.mimeType;
+          _selectedImageBytes = prepared.bytes;
+          _selectedImageMimeType = prepared.mimeType;
+          _selectedOriginalImagePath = prepared.originalPath;
+          _selectedOriginalImageMimeType = prepared.originalMimeType;
         });
         _refreshSlashSuggestions();
       }
     } catch (e) {
       debugPrint('Failed to pick image: $e');
+    }
+  }
+
+  Future<
+    ({
+      Uint8List bytes,
+      String mimeType,
+      String? originalPath,
+      String originalMimeType,
+    })
+  >
+  _prepareImageAttachmentForSend({
+    required Uint8List originalBytes,
+    required String mimeType,
+    required String filePath,
+  }) async {
+    final originalPath = await _persistOriginalImageAttachment(
+      bytes: originalBytes,
+      mimeType: mimeType,
+      filePath: filePath,
+    );
+    final resized = await _resizeImageIfNeeded(
+      originalBytes,
+      mimeType: mimeType,
+    );
+    final normalized = await _normalizeImageForUpload(
+      bytes: resized.bytes,
+      mimeType: resized.mimeType,
+      filePath: filePath,
+    );
+    return (
+      bytes: normalized.bytes,
+      mimeType: normalized.mimeType,
+      originalPath: originalPath,
+      originalMimeType: mimeType,
+    );
+  }
+
+  Future<String?> _persistOriginalImageAttachment({
+    required Uint8List bytes,
+    required String mimeType,
+    required String filePath,
+  }) async {
+    try {
+      return await AttachmentStorageService.persistBytes(
+        bytes: bytes,
+        originalName: _attachmentOriginalName(filePath, mimeType),
+      );
+    } catch (e) {
+      debugPrint('Failed to persist original image attachment: $e');
+      return null;
+    }
+  }
+
+  String _attachmentOriginalName(String filePath, String mimeType) {
+    final trimmed = filePath.trim();
+    if (trimmed.isEmpty) {
+      return 'image${_extensionForMimeType(mimeType)}';
+    }
+    final name = trimmed.split(RegExp(r'[\\/]')).last;
+    if (name.trim().isEmpty) {
+      return 'image${_extensionForMimeType(mimeType)}';
+    }
+    if (name.contains('.')) {
+      return name;
+    }
+    return '$name${_extensionForMimeType(mimeType)}';
+  }
+
+  String _extensionForMimeType(String mimeType) {
+    switch (mimeType.toLowerCase()) {
+      case 'image/jpeg':
+        return '.jpg';
+      case 'image/png':
+        return '.png';
+      case 'image/gif':
+        return '.gif';
+      case 'image/webp':
+        return '.webp';
+      case 'image/heic':
+        return '.heic';
+      case 'image/heif':
+        return '.heif';
+      case 'image/bmp':
+        return '.bmp';
+      case 'image/tiff':
+        return '.tiff';
+      default:
+        return '';
     }
   }
 
@@ -683,6 +778,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     setState(() {
       _selectedImageBytes = null;
       _selectedImageMimeType = null;
+      _selectedOriginalImagePath = null;
+      _selectedOriginalImageMimeType = null;
     });
     _refreshSlashSuggestions();
   }
@@ -823,16 +920,17 @@ class _MessageInputState extends ConsumerState<MessageInput> {
           try {
             final data = await file.readAll();
             final bytes = Uint8List.fromList(data);
-            final resized = await _resizeImageIfNeeded(bytes);
-            final normalized = await _normalizeImageForUpload(
-              bytes: resized,
+            final prepared = await _prepareImageAttachmentForSend(
+              originalBytes: bytes,
               mimeType: mimeType,
               filePath: 'clipboard.$ext',
             );
             if (mounted) {
               setState(() {
-                _selectedImageBytes = normalized.bytes;
-                _selectedImageMimeType = normalized.mimeType;
+                _selectedImageBytes = prepared.bytes;
+                _selectedImageMimeType = prepared.mimeType;
+                _selectedOriginalImagePath = prepared.originalPath;
+                _selectedOriginalImageMimeType = prepared.originalMimeType;
               });
               _refreshSlashSuggestions();
             }
@@ -884,17 +982,18 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
     try {
       final bytes = content.data!;
-      final resized = await _resizeImageIfNeeded(bytes);
       final ext = mimeType.split('/').last;
-      final normalized = await _normalizeImageForUpload(
-        bytes: resized,
+      final prepared = await _prepareImageAttachmentForSend(
+        originalBytes: bytes,
         mimeType: mimeType,
         filePath: 'inserted.$ext',
       );
       if (mounted) {
         setState(() {
-          _selectedImageBytes = normalized.bytes;
-          _selectedImageMimeType = normalized.mimeType;
+          _selectedImageBytes = prepared.bytes;
+          _selectedImageMimeType = prepared.mimeType;
+          _selectedOriginalImagePath = prepared.originalPath;
+          _selectedOriginalImageMimeType = prepared.originalMimeType;
         });
         _refreshSlashSuggestions();
       }
@@ -903,8 +1002,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
   }
 
-  Future<Uint8List> _resizeImageIfNeeded(
+  Future<({Uint8List bytes, String mimeType})> _resizeImageIfNeeded(
     Uint8List bytes, {
+    required String mimeType,
     int maxDimension = 1024,
   }) async {
     ui.Codec? codec;
@@ -918,12 +1018,14 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       final imageHeight = image.height;
 
       if (imageWidth <= maxDimension && imageHeight <= maxDimension) {
-        return bytes;
+        return (bytes: bytes, mimeType: mimeType);
       }
 
       // Re-decode with target size to resize
       image.dispose();
+      image = null;
       codec.dispose();
+      codec = null;
 
       final targetWidth = imageWidth >= imageHeight ? maxDimension : null;
       final targetHeight = imageHeight > imageWidth ? maxDimension : null;
@@ -937,11 +1039,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       image = resizedFrame.image;
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
 
-      if (byteData == null) return bytes;
-      return byteData.buffer.asUint8List();
+      if (byteData == null) return (bytes: bytes, mimeType: mimeType);
+      return (bytes: byteData.buffer.asUint8List(), mimeType: 'image/png');
     } catch (e) {
       debugPrint('Failed to resize image: $e');
-      return bytes;
+      return (bytes: bytes, mimeType: mimeType);
     } finally {
       image?.dispose();
       codec?.dispose();
@@ -995,7 +1097,13 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       finalText = text.isEmpty ? ref : '$ref\n\n$text';
     }
 
-    widget.onSend(finalText, imageBase64, _selectedImageMimeType);
+    widget.onSend(
+      finalText,
+      imageBase64,
+      _selectedImageMimeType,
+      _selectedOriginalImagePath,
+      _selectedOriginalImageMimeType,
+    );
     _pushToHistory(text);
     _controller.clear();
     _clearImage();

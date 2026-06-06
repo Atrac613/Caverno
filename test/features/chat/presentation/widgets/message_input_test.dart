@@ -34,7 +34,13 @@ Future<SharedPreferences> _pumpMessageInput(
   WidgetTester tester, {
   required ValueNotifier<bool> isLoading,
   required VoidCallback onCancel,
-  void Function(String message, String? imageBase64, String? imageMimeType)?
+  void Function(
+    String message,
+    String? imageBase64,
+    String? imageMimeType,
+    String? originalImagePath,
+    String? originalImageMimeType,
+  )?
   onSend,
   MessageInputImageAttachment? droppedImageAttachment,
   AppSettings? initialSettings,
@@ -83,7 +89,7 @@ Future<SharedPreferences> _pumpMessageInput(
                     valueListenable: isLoading,
                     builder: (context, loading, child) {
                       return MessageInput(
-                        onSend: onSend ?? (_, _, _) {},
+                        onSend: onSend ?? (_, _, _, _, _) {},
                         onCancel: onCancel,
                         isLoading: loading,
                         assistantMode: AssistantMode.general,
@@ -116,6 +122,19 @@ Future<SharedPreferences> _pumpMessageInput(
   });
   await tester.pump();
   return preferences;
+}
+
+Future<void> _waitForImageAttachmentPreview(WidgetTester tester) async {
+  for (var attempt = 0; attempt < 20; attempt++) {
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pump();
+    if (find.byIcon(Icons.close).evaluate().isNotEmpty) {
+      return;
+    }
+  }
+  fail('Timed out waiting for image attachment preview');
 }
 
 const _testSlashCommands = <SlashCommandDefinition>[
@@ -164,7 +183,7 @@ void main() {
       onCancel: () {
         cancelCount += 1;
       },
-      onSend: (message, _, _) {
+      onSend: (message, _, _, _, _) {
         sentMessages.add(message);
       },
     );
@@ -284,7 +303,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _) {
+      onSend: (message, _, _, _, _) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -320,7 +339,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _) {
+      onSend: (message, _, _, _, _) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -359,7 +378,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _) {
+      onSend: (message, _, _, _, _) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -398,7 +417,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _) {
+      onSend: (message, _, _, _, _) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -432,7 +451,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _) {
+      onSend: (message, _, _, _, _) {
         sentMessages.add(message);
       },
       slashCommands: _testSlashCommands,
@@ -476,7 +495,7 @@ void main() {
         tester,
         isLoading: isLoading,
         onCancel: () {},
-        onSend: (message, imageBase64, _) {
+        onSend: (message, imageBase64, _, _, _) {
           sentMessage = message;
           sentImageBase64 = imageBase64;
         },
@@ -493,10 +512,7 @@ void main() {
         },
       );
 
-      await tester.runAsync(() async {
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      });
-      await tester.pump();
+      await _waitForImageAttachmentPreview(tester);
     } finally {
       debugPrint = previousDebugPrint;
     }
@@ -529,7 +545,7 @@ void main() {
         tester,
         isLoading: isLoading,
         onCancel: () {},
-        onSend: (message, imageBase64, imageMimeType) {
+        onSend: (message, imageBase64, imageMimeType, _, _) {
           sentMessage = message;
           sentImageBase64 = imageBase64;
           sentImageMimeType = imageMimeType;
@@ -542,10 +558,7 @@ void main() {
         ),
       );
 
-      await tester.runAsync(() async {
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      });
-      await tester.pump();
+      await _waitForImageAttachmentPreview(tester);
     } finally {
       debugPrint = previousDebugPrint;
     }
@@ -723,7 +736,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _) {
+      onSend: (message, _, _, _, _) {
         sentMessages.add(message);
       },
       isCodingWorkspace: true,
@@ -742,7 +755,7 @@ void main() {
       tester,
       isLoading: isLoading,
       onCancel: () {},
-      onSend: (message, _, _) {
+      onSend: (message, _, _, _, _) {
         sentMessages.add(message);
       },
       isCodingWorkspace: true,
