@@ -143,6 +143,13 @@ const _$McpServerTrustStateEnumMap = {
 };
 
 _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
+  llmProvider:
+      $enumDecodeNullable(
+        _$LlmProviderEnumMap,
+        json['llmProvider'],
+        unknownValue: LlmProvider.openAiCompatible,
+      ) ??
+      LlmProvider.openAiCompatible,
   baseUrl: json['baseUrl'] as String,
   model: json['model'] as String,
   apiKey: json['apiKey'] as String,
@@ -244,6 +251,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
 Map<String, dynamic> _$AppSettingsToJson(
   _AppSettings instance,
 ) => <String, dynamic>{
+  'llmProvider': _$LlmProviderEnumMap[instance.llmProvider]!,
   'baseUrl': instance.baseUrl,
   'model': instance.model,
   'apiKey': instance.apiKey,
@@ -286,6 +294,11 @@ Map<String, dynamic> _$AppSettingsToJson(
   'localCommandPermissionRules': instance.localCommandPermissionRules,
   'routineComputerUseActionAllowlist':
       instance.routineComputerUseActionAllowlist,
+};
+
+const _$LlmProviderEnumMap = {
+  LlmProvider.openAiCompatible: 'openAiCompatible',
+  LlmProvider.appleFoundationModels: 'appleFoundationModels',
 };
 
 const _$ReasoningEffortPreferenceEnumMap = {

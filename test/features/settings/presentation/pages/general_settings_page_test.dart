@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/apple_foundation_models_platform_client.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/general_settings_page.dart';
+import 'package:caverno/features/settings/presentation/providers/apple_foundation_models_availability_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -150,12 +152,39 @@ void main() {
     expect(text, isNot(contains('super-secret-key')));
     expect(find.text('Plan Mode support snapshot copied.'), findsOneWidget);
   });
+
+  testWidgets('shows the full disabled Apple provider status below dropdown', (
+    tester,
+  ) async {
+    await _pumpGeneralSettingsPage(
+      tester,
+      settings: AppSettings.defaults(),
+      loadModels: () async => [AppSettings.defaults().model],
+      appleAvailability: const AppleFoundationModelsAvailability(
+        isAvailable: false,
+        status: 'unavailable',
+        reason: 'appleIntelligenceNotEnabled',
+      ),
+      physicalSize: const Size(720, 1400),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(DropdownButtonFormField<LlmProvider>), findsOneWidget);
+    expect(
+      find.text(
+        'Apple Foundation Models status: Enable Apple Intelligence (appleIntelligenceNotEnabled)',
+      ),
+      findsOneWidget,
+    );
+  });
 }
 
 Future<void> _pumpGeneralSettingsPage(
   WidgetTester tester, {
   required AppSettings settings,
   required Future<List<String>> Function() loadModels,
+  AppleFoundationModelsAvailability? appleAvailability,
+  Size physicalSize = const Size(1200, 1800),
 }) async {
   SharedPreferences.setMockInitialValues({
     'app_settings': jsonEncode(settings.toJson()),
@@ -167,7 +196,7 @@ Future<void> _pumpGeneralSettingsPage(
   );
 
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(1200, 1800);
+  tester.view.physicalSize = physicalSize;
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 
@@ -188,6 +217,15 @@ Future<void> _pumpGeneralSettingsPage(
               modelListProvider(
                 modelConfig,
               ).overrideWith((ref) => loadModels()),
+              appleFoundationModelsAvailabilityProvider.overrideWith(
+                (ref) async =>
+                    appleAvailability ??
+                    const AppleFoundationModelsAvailability(
+                      isAvailable: false,
+                      status: 'unavailable',
+                      reason: 'deviceNotEligible',
+                    ),
+              ),
             ],
             child: MaterialApp(
               localizationsDelegates: context.localizationDelegates,

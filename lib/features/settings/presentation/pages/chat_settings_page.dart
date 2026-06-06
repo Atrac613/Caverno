@@ -8,6 +8,7 @@ import '../../../chat/data/repositories/chat_memory_repository.dart';
 import '../../../chat/data/repositories/conversation_repository.dart';
 import '../../../chat/domain/entities/session_memory.dart';
 import '../../../chat/domain/services/session_memory_service.dart';
+import '../../domain/entities/app_settings.dart';
 import '../providers/settings_notifier.dart';
 
 class ChatSettingsPage extends ConsumerStatefulWidget {
@@ -166,9 +167,9 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
       return 'Unknown source';
     }
 
-    final conversation = ref.read(conversationRepositoryProvider).getById(
-      conversationId,
-    );
+    final conversation = ref
+        .read(conversationRepositoryProvider)
+        .getById(conversationId);
     final summary = _sessionSummaries
         .where((item) => item.conversationId == conversationId)
         .firstOrNull;
@@ -190,6 +191,13 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsNotifierProvider);
     final notifier = ref.read(settingsNotifierProvider.notifier);
+    final isFoundationModelsProvider =
+        settings.llmProvider == LlmProvider.appleFoundationModels;
+    final visibleAssistantMode =
+        isFoundationModelsProvider &&
+            settings.assistantMode == AssistantMode.plan
+        ? AssistantMode.general
+        : settings.assistantMode;
 
     return Scaffold(
       appBar: AppBar(title: Text('settings.menu_chat'.tr())),
@@ -215,16 +223,17 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
                 value: AssistantMode.plan,
                 label: Text('settings.assistant_plan'.tr()),
                 icon: Icon(Icons.route_outlined),
+                enabled: !isFoundationModelsProvider,
               ),
             ],
-            selected: {settings.assistantMode},
+            selected: {visibleAssistantMode},
             onSelectionChanged: (selection) {
               notifier.updateAssistantMode(selection.first);
             },
           ),
           const SizedBox(height: 8),
           Text(
-            switch (settings.assistantMode) {
+            switch (visibleAssistantMode) {
               AssistantMode.general => 'settings.assistant_general_desc'.tr(),
               AssistantMode.coding => 'settings.assistant_coding_desc'.tr(),
               AssistantMode.plan => 'settings.assistant_plan_desc'.tr(),
@@ -233,6 +242,15 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
               color: Theme.of(context).colorScheme.outline,
             ),
           ),
+          if (isFoundationModelsProvider) ...[
+            const SizedBox(height: 8),
+            Text(
+              'settings.assistant_plan_foundation_models_disabled'.tr(),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
 
           // Conversation memory section
@@ -279,7 +297,9 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
                     ),
                   ),
                   Text('Review queue: ${_memorySnapshot.reviewCount}'),
-                  Text('Suppression rules: ${_memorySnapshot.suppressionCount}'),
+                  Text(
+                    'Suppression rules: ${_memorySnapshot.suppressionCount}',
+                  ),
                   Text(
                     'Suppressed candidates: ${_memorySnapshot.suppressionHitCount}',
                   ),
@@ -401,60 +421,64 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
             const SizedBox(height: 16),
             _buildSectionHeader('Stored memories'),
             const SizedBox(height: 8),
-            ..._storedMemories.take(12).map(
-              (item) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(item.text),
-                  subtitle: Text(
-                    [
-                      '${_memoryTypeLabel(item.type)} • confidence ${item.confidence.toStringAsFixed(2)} • updated ${_formatDateTime(item.updatedAt)}',
-                      if (item.sourceConversationId != null)
-                        'Source: ${_resolveMemorySourceLabel(item.sourceConversationId)}',
-                    ].join('\n'),
-                  ),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) {
-                      switch (value) {
-                        case 'delete':
-                          _deleteStoredMemory(item.id);
-                          return;
-                        case 'suppress':
-                          _suppressStoredMemory(item);
-                          return;
-                      }
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'delete', child: Text('Delete')),
-                      PopupMenuItem(
-                        value: 'suppress',
-                        child: Text('Suppress similar'),
+            ..._storedMemories
+                .take(12)
+                .map(
+                  (item) => Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text(item.text),
+                      subtitle: Text(
+                        [
+                          '${_memoryTypeLabel(item.type)} • confidence ${item.confidence.toStringAsFixed(2)} • updated ${_formatDateTime(item.updatedAt)}',
+                          if (item.sourceConversationId != null)
+                            'Source: ${_resolveMemorySourceLabel(item.sourceConversationId)}',
+                        ].join('\n'),
                       ),
-                    ],
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (value) {
+                          switch (value) {
+                            case 'delete':
+                              _deleteStoredMemory(item.id);
+                              return;
+                            case 'suppress':
+                              _suppressStoredMemory(item);
+                              return;
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: 'delete', child: Text('Delete')),
+                          PopupMenuItem(
+                            value: 'suppress',
+                            child: Text('Suppress similar'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
           ],
           if (_sessionSummaries.isNotEmpty) ...[
             const SizedBox(height: 16),
             _buildSectionHeader('Recent session notes'),
             const SizedBox(height: 8),
-            ..._sessionSummaries.take(6).map(
-              (summary) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(summary.summary),
-                  subtitle: Text(
-                    [
-                      if (summary.openLoops.isNotEmpty)
-                        'Open loops: ${summary.openLoops.join(', ')}',
-                      'Updated ${_formatDateTime(summary.updatedAt)}',
-                    ].join('\n'),
+            ..._sessionSummaries
+                .take(6)
+                .map(
+                  (summary) => Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text(summary.summary),
+                      subtitle: Text(
+                        [
+                          if (summary.openLoops.isNotEmpty)
+                            'Open loops: ${summary.openLoops.join(', ')}',
+                          'Updated ${_formatDateTime(summary.updatedAt)}',
+                        ].join('\n'),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
           ],
           const SizedBox(height: 16),
         ],

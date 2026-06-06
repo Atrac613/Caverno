@@ -6,9 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/services/apple_foundation_models_platform_client.dart';
 import '../../../../core/services/google_chat_delivery_service.dart';
 import '../../../../core/utils/debouncer.dart';
 import '../../domain/entities/app_settings.dart';
+import '../providers/apple_foundation_models_availability_provider.dart';
 import '../providers/model_list_provider.dart';
 import '../providers/settings_notifier.dart';
 
@@ -86,6 +88,86 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     return 'settings.compatibility_api_key_configured'.tr();
   }
 
+  String _providerLabel(LlmProvider provider) => switch (provider) {
+    LlmProvider.openAiCompatible => 'settings.llm_provider_openai'.tr(),
+    LlmProvider.appleFoundationModels =>
+      'settings.llm_provider_apple_foundation_models'.tr(),
+  };
+
+  String _providerDisabledReason(
+    AppleFoundationModelsAvailability? availability,
+  ) {
+    return switch (availability?.reason) {
+      'appleIntelligenceNotEnabled' =>
+        'settings.llm_provider_apple_intelligence_disabled'.tr(),
+      'modelNotReady' => 'settings.llm_provider_apple_model_not_ready'.tr(),
+      _ => 'settings.llm_provider_unavailable'.tr(),
+    };
+  }
+
+  String _providerAvailabilityStatus(
+    AppleFoundationModelsAvailability availability,
+  ) {
+    if (availability.isAvailable) {
+      return 'settings.llm_provider_available'.tr();
+    }
+    return _providerDisabledReason(availability);
+  }
+
+  String _providerAvailabilityMessage(
+    AppleFoundationModelsAvailability availability,
+  ) {
+    final reason = availability.reason?.trim();
+    if (reason == null || reason.isEmpty) {
+      return 'settings.llm_provider_apple_status_without_reason'.tr(
+        namedArgs: {'status': _providerAvailabilityStatus(availability)},
+      );
+    }
+    return 'settings.llm_provider_apple_status_with_reason'.tr(
+      namedArgs: {
+        'status': _providerAvailabilityStatus(availability),
+        'reason': reason,
+      },
+    );
+  }
+
+  Widget _buildProviderAvailabilityMessage(
+    AppleFoundationModelsAvailability availability,
+  ) {
+    final theme = Theme.of(context);
+    final color = availability.isAvailable
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          availability.isAvailable
+              ? Icons.check_circle_outline
+              : Icons.info_outline,
+          size: 16,
+          color: color,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            _providerAvailabilityMessage(availability),
+            softWrap: true,
+            style: theme.textTheme.bodySmall?.copyWith(color: color),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _providerEndpointLabel(LlmProvider provider, String baseUrl) {
+    return switch (provider) {
+      LlmProvider.openAiCompatible => _modelsEndpoint(baseUrl),
+      LlmProvider.appleFoundationModels =>
+        'settings.compatibility_apple_endpoint'.tr(),
+    };
+  }
+
   Widget _buildCompatibilityDetail({
     required IconData icon,
     required String text,
@@ -110,12 +192,14 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
 
   Widget _buildCompatibilityStatus({
     required AsyncValue<List<String>> asyncModels,
+    required LlmProvider llmProvider,
     required String baseUrl,
     required String apiKey,
     required String selectedModel,
   }) {
     final theme = Theme.of(context);
-    final endpoint = _modelsEndpoint(baseUrl);
+    final endpoint = _providerEndpointLabel(llmProvider, baseUrl);
+    final isAppleProvider = llmProvider == LlmProvider.appleFoundationModels;
 
     return asyncModels.when(
       data: (models) {
@@ -152,7 +236,9 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      isWarning
+                      isAppleProvider
+                          ? 'settings.compatibility_apple_selected'.tr()
+                          : isWarning
                           ? 'settings.compatibility_model_missing_title'.tr()
                           : 'settings.compatibility_connected'.tr(),
                       style: theme.textTheme.labelLarge?.copyWith(
@@ -164,7 +250,9 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
               ),
               const SizedBox(height: 8),
               _buildCompatibilityDetail(
-                icon: Icons.http_outlined,
+                icon: isAppleProvider
+                    ? Icons.phone_iphone_outlined
+                    : Icons.http_outlined,
                 text: 'settings.compatibility_endpoint'.tr(
                   namedArgs: {'endpoint': endpoint},
                 ),
@@ -176,13 +264,15 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                   namedArgs: {'model': selectedModel},
                 ),
               ),
-              const SizedBox(height: 6),
-              _buildCompatibilityDetail(
-                icon: Icons.key_outlined,
-                text: 'settings.compatibility_api_key'.tr(
-                  namedArgs: {'status': _apiKeyStatus(apiKey)},
+              if (!isAppleProvider) ...[
+                const SizedBox(height: 6),
+                _buildCompatibilityDetail(
+                  icon: Icons.key_outlined,
+                  text: 'settings.compatibility_api_key'.tr(
+                    namedArgs: {'status': _apiKeyStatus(apiKey)},
+                  ),
                 ),
-              ),
+              ],
               if (isWarning) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -267,8 +357,12 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
 
   String _supportFailureClassification({
     required AsyncValue<List<String>> asyncModels,
+    required LlmProvider llmProvider,
     required String selectedModel,
   }) {
+    if (llmProvider == LlmProvider.appleFoundationModels) {
+      return 'onDeviceProviderSelected';
+    }
     return asyncModels.when(
       data: (models) =>
           models.contains(selectedModel) ? 'ready' : 'modelNotAvailable',
@@ -291,17 +385,18 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     required String baseUrl,
     required String apiKey,
   }) {
-    final selectedModel = settings.model.trim().isEmpty
+    final selectedModel = settings.effectiveModel.trim().isEmpty
         ? ApiConstants.defaultModel
-        : settings.model.trim();
+        : settings.effectiveModel.trim();
     final loadedModels = _loadedModels(asyncModels);
     return {
       'schemaName': 'plan_mode_support_snapshot',
       'schemaVersion': 1,
       'generatedAt': DateTime.now().toUtc().toIso8601String(),
       'settings': {
+        'llmProvider': settings.llmProvider.name,
         'baseUrl': baseUrl,
-        'modelsEndpoint': _modelsEndpoint(baseUrl),
+        'modelsEndpoint': _providerEndpointLabel(settings.llmProvider, baseUrl),
         'model': selectedModel,
         'apiKeyStatus': _apiKeyStatus(apiKey),
         'demoMode': settings.demoMode,
@@ -311,6 +406,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
       'preflight': {
         'failureClassification': _supportFailureClassification(
           asyncModels: asyncModels,
+          llmProvider: settings.llmProvider,
           selectedModel: selectedModel,
         ),
         'availableModelCount': loadedModels?.length,
@@ -376,9 +472,11 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     required String apiKey,
   }) {
     final theme = Theme.of(context);
+    final selectedModel = settings.effectiveModel;
     final classification = _supportFailureClassification(
       asyncModels: asyncModels,
-      selectedModel: settings.model,
+      llmProvider: settings.llmProvider,
+      selectedModel: selectedModel,
     );
     return Container(
       width: double.infinity,
@@ -452,8 +550,19 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
 
   Widget _buildModelSelector({
     required AsyncValue<List<String>> asyncModels,
+    required LlmProvider llmProvider,
     required String selectedModel,
   }) {
+    if (llmProvider == LlmProvider.appleFoundationModels) {
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'settings.model_name'.tr(),
+          border: const OutlineInputBorder(),
+          helperText: 'settings.apple_model_helper'.tr(),
+        ),
+        child: Text(selectedModel, overflow: TextOverflow.ellipsis),
+      );
+    }
     return asyncModels.when(
       data: (models) {
         final options = [...models];
@@ -540,8 +649,41 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(appleFoundationModelsAvailabilityProvider, (_, next) {
+      next.whenData((availability) {
+        if (availability.isAvailable) return;
+        final currentSettings = ref.read(settingsNotifierProvider);
+        if (currentSettings.llmProvider != LlmProvider.appleFoundationModels) {
+          return;
+        }
+        ref
+            .read(settingsNotifierProvider.notifier)
+            .updateLlmProvider(LlmProvider.openAiCompatible);
+      });
+    });
+
     final settings = ref.watch(settingsNotifierProvider);
     final notifier = ref.read(settingsNotifierProvider.notifier);
+    final appleAvailabilityAsync = ref.watch(
+      appleFoundationModelsAvailabilityProvider,
+    );
+    final appleAvailability = appleAvailabilityAsync.maybeWhen(
+      data: (availability) => availability,
+      orElse: () => null,
+    );
+    final selectableProviders = selectableLlmProviders(
+      appleFoundationModelsAvailability: appleAvailability,
+    );
+    final visibleProviders = visibleLlmProviders(
+      appleFoundationModelsAvailability: appleAvailability,
+    );
+    final visibleProvider = visibleLlmProviderSelection(
+      selectedProvider: settings.llmProvider,
+      selectableProviders: selectableProviders,
+    );
+    final visibleSettings = settings.llmProvider == visibleProvider
+        ? settings
+        : settings.copyWith(llmProvider: visibleProvider);
     final baseUrl = _baseUrlController.text.trim().isEmpty
         ? ApiConstants.defaultBaseUrl
         : _baseUrlController.text.trim();
@@ -549,7 +691,12 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
         ? ApiConstants.defaultApiKey
         : _apiKeyController.text.trim();
     final modelListConfig = ModelListConfig(baseUrl: baseUrl, apiKey: apiKey);
-    final asyncModels = ref.watch(modelListProvider(modelListConfig));
+    final isAppleProvider =
+        visibleSettings.llmProvider == LlmProvider.appleFoundationModels;
+    final selectedModel = visibleSettings.effectiveModel;
+    final asyncModels = isAppleProvider
+        ? AsyncValue.data([selectedModel])
+        : ref.watch(modelListProvider(modelListConfig));
 
     return Scaffold(
       appBar: AppBar(title: Text('settings.menu_general'.tr())),
@@ -577,36 +724,98 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                   // Server settings section
                   _buildSectionHeader('settings.server_section'.tr()),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: _baseUrlController,
+                  DropdownButtonFormField<LlmProvider>(
+                    isExpanded: true,
+                    initialValue: visibleProvider,
                     decoration: InputDecoration(
-                      labelText: 'API Base URL',
-                      hintText: 'http://localhost:1234/v1',
+                      labelText: 'settings.llm_provider_label'.tr(),
                       border: const OutlineInputBorder(),
-                      helperText: 'settings.base_url_helper'.tr(),
+                      helperText: 'settings.llm_provider_helper'.tr(),
                     ),
-                    keyboardType: TextInputType.url,
-                    onChanged: (_) {
-                      _baseUrlDebouncer.run(() {
-                        notifier.updateBaseUrl(_baseUrlController.text.trim());
-                      });
+                    items: visibleProviders
+                        .map((provider) {
+                          final isSelectable = isLlmProviderSelectable(
+                            provider: provider,
+                            appleFoundationModelsAvailability:
+                                appleAvailability,
+                          );
+                          final label = _providerLabel(provider);
+                          return DropdownMenuItem<LlmProvider>(
+                            value: provider,
+                            enabled: isSelectable,
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        })
+                        .toList(growable: false),
+                    onChanged: (provider) {
+                      if (provider == null) return;
+                      notifier.updateLlmProvider(provider);
                     },
                   ),
+                  if (appleAvailability != null &&
+                      visibleProviders.contains(
+                        LlmProvider.appleFoundationModels,
+                      )) ...[
+                    const SizedBox(height: 8),
+                    _buildProviderAvailabilityMessage(appleAvailability),
+                  ],
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: _apiKeyController,
-                    decoration: InputDecoration(
-                      labelText: 'API Key',
-                      hintText: 'no-key',
-                      border: const OutlineInputBorder(),
-                      helperText: 'settings.api_key_helper'.tr(),
+                  IgnorePointer(
+                    ignoring: isAppleProvider,
+                    child: AnimatedOpacity(
+                      opacity: isAppleProvider ? 0.45 : 1,
+                      duration: const Duration(milliseconds: 200),
+                      child: TextField(
+                        controller: _baseUrlController,
+                        decoration: InputDecoration(
+                          labelText: 'API Base URL',
+                          hintText: 'http://localhost:1234/v1',
+                          border: const OutlineInputBorder(),
+                          helperText: isAppleProvider
+                              ? 'settings.base_url_apple_disabled_helper'.tr()
+                              : 'settings.base_url_helper'.tr(),
+                        ),
+                        keyboardType: TextInputType.url,
+                        onChanged: (_) {
+                          _baseUrlDebouncer.run(() {
+                            notifier.updateBaseUrl(
+                              _baseUrlController.text.trim(),
+                            );
+                          });
+                        },
+                      ),
                     ),
-                    obscureText: true,
-                    onChanged: (_) {
-                      _apiKeyDebouncer.run(() {
-                        notifier.updateApiKey(_apiKeyController.text.trim());
-                      });
-                    },
+                  ),
+                  const SizedBox(height: 16),
+                  IgnorePointer(
+                    ignoring: isAppleProvider,
+                    child: AnimatedOpacity(
+                      opacity: isAppleProvider ? 0.45 : 1,
+                      duration: const Duration(milliseconds: 200),
+                      child: TextField(
+                        controller: _apiKeyController,
+                        decoration: InputDecoration(
+                          labelText: 'API Key',
+                          hintText: 'no-key',
+                          border: const OutlineInputBorder(),
+                          helperText: isAppleProvider
+                              ? 'settings.api_key_apple_disabled_helper'.tr()
+                              : 'settings.api_key_helper'.tr(),
+                        ),
+                        obscureText: true,
+                        onChanged: (_) {
+                          _apiKeyDebouncer.run(() {
+                            notifier.updateApiKey(
+                              _apiKeyController.text.trim(),
+                            );
+                          });
+                        },
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 24),
 
@@ -616,9 +825,13 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                       _buildSectionHeader('settings.model_section'.tr()),
                       const SizedBox(width: 8),
                       IconButton(
-                        onPressed: () {
-                          ref.invalidate(modelListProvider(modelListConfig));
-                        },
+                        onPressed: isAppleProvider
+                            ? null
+                            : () {
+                                ref.invalidate(
+                                  modelListProvider(modelListConfig),
+                                );
+                              },
                         icon: const Icon(Icons.refresh, size: 18),
                         tooltip: 'settings.model_refresh'.tr(),
                         visualDensity: VisualDensity.compact,
@@ -628,18 +841,20 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                   const SizedBox(height: 8),
                   _buildModelSelector(
                     asyncModels: asyncModels,
-                    selectedModel: settings.model,
+                    llmProvider: visibleSettings.llmProvider,
+                    selectedModel: selectedModel,
                   ),
                   const SizedBox(height: 12),
                   _buildCompatibilityStatus(
                     asyncModels: asyncModels,
+                    llmProvider: visibleSettings.llmProvider,
                     baseUrl: baseUrl,
                     apiKey: apiKey,
-                    selectedModel: settings.model,
+                    selectedModel: selectedModel,
                   ),
                   const SizedBox(height: 12),
                   _buildSupportSnapshotCard(
-                    settings: settings,
+                    settings: visibleSettings,
                     asyncModels: asyncModels,
                     baseUrl: baseUrl,
                     apiKey: apiKey,

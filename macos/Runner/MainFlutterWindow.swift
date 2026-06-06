@@ -4,6 +4,9 @@ import Darwin
 import FlutterMacOS
 import ServiceManagement
 import Sparkle
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 @objc(CavernoComputerUseXpcProtocol)
 protocol CavernoComputerUseXpcProtocol: NSObjectProtocol {
@@ -15,6 +18,7 @@ class MainFlutterWindow: NSWindow {
   private var computerUseChannel: MacosComputerUseChannel?
   private var sparkleUpdateChannel: MacosSparkleUpdateChannel?
   private var appMenuChannel: MacosAppMenuChannel?
+  private var appleFoundationModelsChannel: MacosAppleFoundationModelsChannel?
 
   /// Asks the Flutter side to present the in-app settings modal. Invoked from the
   /// native application menu (Caverno > Settings…) via the AppDelegate.
@@ -55,6 +59,9 @@ class MainFlutterWindow: NSWindow {
     appMenuChannel = MacosAppMenuChannel(
       messenger: flutterViewController.engine.binaryMessenger
     )
+    appleFoundationModelsChannel = MacosAppleFoundationModelsChannel(
+      messenger: flutterViewController.engine.binaryMessenger
+    )
 
     super.awakeFromNib()
   }
@@ -80,6 +87,141 @@ final class MacosAppMenuChannel {
   func requestQuit() {
     channel.invokeMethod("quit", arguments: nil)
   }
+}
+
+final class MacosAppleFoundationModelsChannel {
+  private let channel: FlutterMethodChannel
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(
+      name: "com.caverno/apple_foundation_models",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler(handle)
+  }
+
+  private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "checkAvailability":
+      checkAvailability(result: result)
+    case "respond":
+      respond(call: call, result: result)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func checkAvailability(result: @escaping FlutterResult) {
+#if canImport(FoundationModels)
+    if #available(macOS 26.0, *) {
+      result(Self.availabilityPayload())
+      return
+    }
+#endif
+    result([
+      "isAvailable": false,
+      "status": "unavailable",
+      "reason": "macos_26_required",
+    ])
+  }
+
+  private func respond(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard let arguments = call.arguments as? [String: Any],
+          let prompt = arguments["prompt"] as? String else {
+      result(FlutterError(
+        code: "invalid_arguments",
+        message: "A prompt string is required.",
+        details: nil
+      ))
+      return
+    }
+
+    let instructions = arguments["instructions"] as? String ?? ""
+    let temperature = (arguments["temperature"] as? NSNumber)?.doubleValue
+    let maxTokens = (arguments["maxTokens"] as? NSNumber)?.intValue
+
+#if canImport(FoundationModels)
+    if #available(macOS 26.0, *) {
+      Task {
+        do {
+          let content = try await Self.generateResponse(
+            instructions: instructions,
+            prompt: prompt,
+            temperature: temperature,
+            maxTokens: maxTokens
+          )
+          await MainActor.run {
+            result(["content": content])
+          }
+        } catch {
+          await MainActor.run {
+            result(FlutterError(
+              code: "foundation_models_error",
+              message: error.localizedDescription,
+              details: String(describing: error)
+            ))
+          }
+        }
+      }
+      return
+    }
+#endif
+
+    result(FlutterError(
+      code: "foundation_models_unavailable",
+      message: "Apple Foundation Models requires macOS 26 or newer.",
+      details: "macos_26_required"
+    ))
+  }
+
+#if canImport(FoundationModels)
+  @available(macOS 26.0, *)
+  private static func availabilityPayload() -> [String: Any] {
+    switch SystemLanguageModel.default.availability {
+    case .available:
+      return [
+        "isAvailable": true,
+        "status": "available",
+      ]
+    case .unavailable(let reason):
+      return [
+        "isAvailable": false,
+        "status": "unavailable",
+        "reason": String(describing: reason),
+      ]
+    }
+  }
+
+  @available(macOS 26.0, *)
+  private static func generateResponse(
+    instructions: String,
+    prompt: String,
+    temperature: Double?,
+    maxTokens: Int?
+  ) async throws -> String {
+    let model = SystemLanguageModel.default
+    guard model.isAvailable else {
+      throw NSError(
+        domain: "CavernoAppleFoundationModels",
+        code: 1,
+        userInfo: [
+          NSLocalizedDescriptionKey: "Apple Foundation Models is unavailable.",
+          "availability": String(describing: model.availability),
+        ]
+      )
+    }
+
+    let normalizedTemperature = temperature.map { min(max($0, 0.0), 1.0) }
+    let normalizedMaxTokens = maxTokens.flatMap { $0 > 0 ? $0 : nil }
+    let options = GenerationOptions(
+      temperature: normalizedTemperature,
+      maximumResponseTokens: normalizedMaxTokens
+    )
+    let session = LanguageModelSession(model: model, instructions: instructions)
+    let response = try await session.respond(to: prompt, options: options)
+    return response.content
+  }
+#endif
 }
 
 final class MacosSparkleUpdateChannel {
