@@ -783,10 +783,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       setState(() {
         _droppedImageAttachment = attachment;
       });
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('message.drop_image_attached'.tr())),
-      );
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
