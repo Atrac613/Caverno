@@ -6083,6 +6083,100 @@ void main() {
   );
 
   test(
+    'sendMessage repairs skipped run_python_script after tool search',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-search-python',
+            name: ToolDefinitionSearchService.toolName,
+            arguments: const {'query': 'run_python_script'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                '`run_python_script` is available. I will analyze the attached file metadata.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'Retrying with the required Python call.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-python-metadata',
+                name: 'run_python_script',
+                arguments: const {
+                  'code': '''
+import json
+print(json.dumps({"input_count": len(caverno.inputs)}))
+''',
+                  'reason': 'Inspect attached image metadata',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The attached image metadata analysis completed.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'run_python_script': '{"stdout":"{\\"input_count\\":1}\\n"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage(
+          'Use run_python_script to analyze the metadata',
+          imageBase64: base64Encode([1, 2, 3, 4]),
+          imageMimeType: 'image/png',
+        );
+
+        expect(toolService.executedToolNames, [
+          ToolDefinitionSearchService.toolName,
+          'run_python_script',
+        ]);
+        expect(
+          toolService.executedToolArguments.last['code'],
+          contains('caverno.inputs'),
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        expect(
+          toolDataSource.toolResultBatches.last.single.result,
+          contains('input_count'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage retries tool-result follow-up with forced prompt compaction',
     () async {
       final toolDataSource = _ToolBatchChatDataSource(

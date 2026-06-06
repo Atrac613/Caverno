@@ -973,6 +973,129 @@ class ChatNotifier extends Notifier<ChatState> {
     ].join('\n');
   }
 
+  Future<ChatCompletionResult?> _requestSkippedPythonAttachmentAnalysisRepair({
+    required String candidateResponse,
+    required List<ToolResultInfo> batchToolResults,
+    required List<ToolResultInfo> executedToolResults,
+    required List<Map<String, dynamic>> tools,
+    required int interactionGeneration,
+  }) async {
+    if (!_shouldRepairSkippedPythonAttachmentAnalysis(
+      candidateResponse: candidateResponse,
+      toolResults: executedToolResults,
+      tools: tools,
+      interactionGeneration: interactionGeneration,
+    )) {
+      return null;
+    }
+
+    appLog('[Tool] Requesting run_python_script repair for attached file');
+    List<Message> buildRepairMessages(bool forceCompaction) {
+      final messages = _prepareMessagesForLLM(
+        forceCompaction: forceCompaction,
+        toolDefinitionsOverride: tools,
+        interactionGeneration: interactionGeneration,
+      );
+      messages.add(
+        Message(
+          id: 'python_attachment_repair_${DateTime.now().millisecondsSinceEpoch}',
+          role: MessageRole.user,
+          content: _buildSkippedPythonAttachmentAnalysisRepairPrompt(),
+          timestamp: DateTime.now(),
+        ),
+      );
+      return messages;
+    }
+
+    return _createToolResultCompletionWithContextRetry(
+      logLabel: 'python attachment analysis repair',
+      interactionGeneration: interactionGeneration,
+      buildMessages: buildRepairMessages,
+      toolResults: batchToolResults,
+      assistantContent: candidateResponse.isNotEmpty ? candidateResponse : null,
+      tools: tools,
+    );
+  }
+
+  bool _shouldRepairSkippedPythonAttachmentAnalysis({
+    required String candidateResponse,
+    required List<ToolResultInfo> toolResults,
+    required List<Map<String, dynamic>> tools,
+    required int interactionGeneration,
+  }) {
+    if (candidateResponse.trim().isEmpty) {
+      return false;
+    }
+    if (_settings.disabledBuiltInToolsSet.contains('run_python_script')) {
+      return false;
+    }
+    if (_latestPythonInputMessage() == null) {
+      return false;
+    }
+    final availableToolNames =
+        ToolDefinitionSearchService.toolNamesFromDefinitions(tools).toSet();
+    if (!availableToolNames.contains('run_python_script')) {
+      return false;
+    }
+    if (_hasRunPythonScriptToolResult(toolResults)) {
+      return false;
+    }
+    final latestUserContent = _latestUserContentForGeneration(
+      interactionGeneration,
+    );
+    return _looksLikePythonAttachmentAnalysisRequest(latestUserContent);
+  }
+
+  bool _hasRunPythonScriptToolResult(List<ToolResultInfo> toolResults) {
+    return toolResults.any(
+      (toolResult) =>
+          toolResult.name.trim().toLowerCase() == 'run_python_script',
+    );
+  }
+
+  bool _looksLikePythonAttachmentAnalysisRequest(String text) {
+    final normalized = text.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    final mentionsPythonTool = _containsAny(normalized, const [
+      'run_python_script',
+      'python',
+    ]);
+    final mentionsAnalysis = _containsAny(normalized, const [
+      'metadata',
+      'exif',
+      'analyze',
+      'analyse',
+      'analysis',
+      'inspect',
+      'parse',
+    ]);
+    return mentionsPythonTool &&
+        (mentionsAnalysis || _containsCjkAnalysisMarker(text));
+  }
+
+  bool _containsCjkAnalysisMarker(String value) {
+    final analysisMarkers = [
+      String.fromCharCodes([0x30e1, 0x30bf, 0x30c7, 0x30fc, 0x30bf]),
+      String.fromCharCodes([0x89e3, 0x6790]),
+      String.fromCharCodes([0x753b, 0x50cf]),
+      String.fromCharCodes([0x5199, 0x771f]),
+      String.fromCharCodes([0x6dfb, 0x4ed8]),
+    ];
+    return analysisMarkers.any(value.contains);
+  }
+
+  String _buildSkippedPythonAttachmentAnalysisRepairPrompt() {
+    return [
+      'The latest user request requires run_python_script to inspect an attached file.',
+      'A file is already staged for run_python_script as caverno.inputs[0].',
+      'Do not answer in prose that analysis will happen, and do not claim the attachment is missing.',
+      'Call run_python_script now with a complete Python script in the code argument.',
+      'The script should read caverno.inputs[0], print concise metadata findings, and use only the standard library plus piexif when useful.',
+    ].join('\n');
+  }
+
   ToolResultInfo? _buildUnexecutedSkippedBrowserActionToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> batchToolResults,
@@ -9676,6 +9799,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var attemptedDuplicateInspectionRecovery = false;
     var attemptedDuplicateFollowUpRecovery = false;
     var attemptedToolLoopExhaustionRecovery = false;
+    var attemptedSkippedPythonAttachmentRepair = false;
     final attemptedCompletionVerificationMutationSignatures = <String>{};
     final verificationFailureCounts =
         completionVerificationFailureCounts ?? <String, int>{};
@@ -10336,6 +10460,36 @@ class ChatNotifier extends Notifier<ChatState> {
           if (unexecutedBrowserAction != null) {
             executedToolResults.add(unexecutedBrowserAction);
             _recordHiddenAssistantResponse(browserActionRepairResult.content);
+          }
+        }
+        if (!attemptedSkippedPythonAttachmentRepair) {
+          attemptedSkippedPythonAttachmentRepair = true;
+          final pythonAttachmentRepairResult =
+              await _requestSkippedPythonAttachmentAnalysisRepair(
+                candidateResponse: fallbackResponse,
+                batchToolResults: batchToolResults,
+                executedToolResults: executedToolResults,
+                tools: tools,
+                interactionGeneration: interactionGeneration,
+              );
+          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+          if (!ref.mounted) return;
+          if (pythonAttachmentRepairResult != null) {
+            if (pythonAttachmentRepairResult.hasToolCalls) {
+              appLog('[Tool] Python attachment repair requested tool calls');
+              currentToolCalls = pythonAttachmentRepairResult.toolCalls!;
+              _recordHiddenAssistantResponse(
+                pythonAttachmentRepairResult.content,
+              );
+              currentAssistantContent =
+                  pythonAttachmentRepairResult.content.isNotEmpty
+                  ? pythonAttachmentRepairResult.content
+                  : fallbackResponse;
+              continue;
+            }
+            _recordHiddenAssistantResponse(
+              pythonAttachmentRepairResult.content,
+            );
           }
         }
         final verificationRepairResult =
