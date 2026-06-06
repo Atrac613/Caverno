@@ -794,6 +794,9 @@ class ChatNotifier extends Notifier<ChatState> {
         isVoiceMode: _isVoiceMode,
         agentsMarkdown: agentsMarkdown,
         skillsContext: _buildSkillsPromptContext(toolNames),
+        hasPythonInputAttachment:
+            toolNames.contains('run_python_script') &&
+            _latestPythonInputMessage() != null,
       ),
       role: MessageRole.system,
       timestamp: now,

@@ -32,6 +32,7 @@ class SystemPromptBuilder {
     bool isVoiceMode = false,
     String? agentsMarkdown,
     String? skillsContext,
+    bool hasPythonInputAttachment = false,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
     final hasTools = uniqueToolNames.isNotEmpty;
@@ -55,6 +56,9 @@ class SystemPromptBuilder {
     );
     final hasLocalShellTool = uniqueToolNames.contains('local_execute_command');
     final hasRunTestsTool = uniqueToolNames.contains('run_tests');
+    final hasRunPythonScriptTool = uniqueToolNames.contains(
+      'run_python_script',
+    );
     final hasOsSystemInfoTool = uniqueToolNames.contains('os_get_system_info');
     final hasOsLogTool = uniqueToolNames.contains('os_log_read');
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
@@ -453,6 +457,24 @@ class SystemPromptBuilder {
           'When a listed user skill is relevant, call load_skill before '
           'using it so you can follow the full saved instructions.',
         );
+      }
+      if (hasRunPythonScriptTool) {
+        buffer.writeln(
+          'Use run_python_script to compute answers you cannot derive '
+          'directly: parsing or analyzing files, inspecting attached media '
+          '(e.g. image metadata/EXIF), data processing, or math. Write a '
+          'complete Python 3 script that prints its findings and/or calls '
+          'caverno.set_output(value). Only the Python standard library is '
+          'guaranteed; piexif is bundled for image EXIF.',
+        );
+        if (hasPythonInputAttachment) {
+          buffer.writeln(
+            'The user\'s latest message includes an attached file, staged on '
+            'disk and available to run_python_script via caverno.inputs[0] '
+            '(.path, .read_bytes(), .read_text()). Reach the attachment '
+            'through caverno.inputs instead of asking for or guessing a path.',
+          );
+        }
       }
       if (hasBrowserTools) {
         buffer.writeln(
