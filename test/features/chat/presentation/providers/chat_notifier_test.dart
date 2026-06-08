@@ -1404,6 +1404,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
   final List<String> finalAnswerChunks;
   final List<List<ToolResultInfo>> toolResultBatches = [];
   final List<Message> finalAnswerMessages = <Message>[];
+  final List<String?> assistantContents = [];
 
   @override
   Stream<String> streamChatCompletion({
@@ -1491,6 +1492,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
+    assistantContents.add(assistantContent);
     return _toolLoopResponses.removeFirst();
   }
 }
@@ -4105,7 +4107,7 @@ void main() {
       );
       expect(
         chatNotifier.state.messages.last.content,
-        isNot(contains('では、まずステップ1から進めます')),
+        contains('では、まずステップ1から進めます'),
       );
     },
   );
@@ -4384,7 +4386,7 @@ void main() {
     );
     expect(
       chatNotifier.state.messages.last.content,
-      isNot(contains('リポジトリの構造と Git ステータスを見てみましょう')),
+      contains('リポジトリの構造と Git ステータスを見てみましょう'),
     );
   });
 
@@ -4484,10 +4486,7 @@ void main() {
       chatNotifier.state.messages.last.content,
       contains('Release readiness inputs inspected.'),
     );
-    expect(
-      chatNotifier.state.messages.last.content,
-      isNot(contains('では実際に確認を進めます')),
-    );
+    expect(chatNotifier.state.messages.last.content, contains('では実際に確認を進めます'));
   });
 
   test(
@@ -6188,6 +6187,90 @@ void main() {
   );
 
   test(
+    'sendMessage shows and persists non-streaming tool-call preambles',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-read-release-doc',
+            name: 'read_file',
+            arguments: const {'path': 'docs/release.md'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Release notes found. Inspecting status next.\n\n',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-inspect-status',
+                name: 'inspect_status',
+                arguments: const {'scope': 'release'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const ['Release readiness summary.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'read_file': '{"content":"Release procedure"}',
+          'inspect_status': '{"status":"clean"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Release the app');
+
+        final visibleContent = toolNotifier.state.messages.last.content;
+        expect(visibleContent, contains('Release notes found.'));
+        expect(visibleContent, contains('Release readiness summary.'));
+        expect(visibleContent, contains('<tool_use>'));
+
+        final persistedContent = toolContainer
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .messages
+            .last
+            .content;
+        expect(persistedContent, contains('Release notes found.'));
+        expect(persistedContent, contains('<tool_use>'));
+
+        expect(toolDataSource.assistantContents, hasLength(2));
+        expect(
+          toolDataSource.assistantContents.last,
+          contains('Release notes found.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage lets run_python_script recover after missing code',
     () async {
       final toolDataSource = _QueuedToolLoopChatDataSource(
@@ -6255,7 +6338,7 @@ void main() {
           toolService.executedToolArguments.single['code'],
           contains('metadata ok'),
         );
-        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(toolDataSource.toolResultBatches, hasLength(3));
         expect(
           toolDataSource.toolResultBatches.first.single.result,
           allOf(contains('code is required'), contains('caverno.inputs[0]')),
@@ -9506,7 +9589,7 @@ with open(path, "rb") as file:
         );
         expect(
           toolNotifier.state.messages.last.content,
-          isNot(contains('Now let me run')),
+          contains('Now let me run'),
         );
       } finally {
         toolContainer.dispose();
@@ -10194,14 +10277,18 @@ with open(path, "rb") as file:
 
       await toolNotifier.sendMessage('Start a background process');
 
-      expect(toolService.executedToolNames, ['process_start']);
+      expect(toolService.executedToolNames, [
+        'process_start',
+        'process_wait',
+        'process_wait',
+      ]);
       expect(
-        toolService.executedToolArguments.single,
+        toolService.executedToolArguments.first,
         containsPair('working_directory', '/tmp/project'),
       );
-      expect(toolDataSource.toolResultBatches, hasLength(1));
+      expect(toolDataSource.toolResultBatches, hasLength(3));
       expect(
-        toolDataSource.toolResultBatches.single.single.name,
+        toolDataSource.toolResultBatches.first.single.name,
         'process_start',
       );
       expect(
@@ -10606,7 +10693,7 @@ with open(path, "rb") as file:
         );
         expect(
           toolNotifier.state.messages.last.content,
-          contains('still running'),
+          contains('process_wait'),
         );
         expect(
           toolNotifier.state.messages.last.content,
@@ -12129,22 +12216,25 @@ with open(path, "rb") as file:
 
         await toolNotifier.sendMessage('Run a long task');
 
-        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(toolService.executedToolNames, [
+          'local_execute_command',
+          'process_wait',
+        ]);
         expect(
-          toolService.executedToolArguments.single,
+          toolService.executedToolArguments.first,
           containsPair('background', true),
         );
-        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(toolDataSource.toolResultBatches, hasLength(3));
         expect(
           toolDataSource.toolResultBatches.first.single.name,
           'local_execute_command',
         );
         expect(
-          toolDataSource.toolResultBatches.last.single.name,
+          toolDataSource.toolResultBatches[1].single.name,
           'background_process_monitor',
         );
         final monitorPayload =
-            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+            jsonDecode(toolDataSource.toolResultBatches[1].single.result)
                 as Map<String, dynamic>;
         expect(
           monitorPayload,
@@ -12161,11 +12251,326 @@ with open(path, "rb") as file:
         );
         expect(
           toolNotifier.state.messages.last.content,
-          contains('still running'),
+          contains('process_wait'),
         );
         expect(
           toolNotifier.state.messages.last.content,
           isNot(contains('complete.')),
+        );
+      } finally {
+        monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage preserves streamed final answer text on background repair follow-up',
+    () async {
+      const command = 'bash tool/run_long_task.sh';
+      const jobId = 'proc_local_background_stream_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'local-exec-background-stream-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'background': true,
+              'label': 'long task',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'process-status-1',
+                name: 'process_status',
+                arguments: const {'job_id': jobId},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const ['The long task is complete.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+          'process_wait': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'elapsed_ms': 12000,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+          'process_status': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+        },
+        queuedResults: {
+          'process_wait': [
+            jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'elapsed_ms': 14000,
+              'command': command,
+              'working_directory': '/tmp/project',
+            }),
+            jsonEncode({
+              'ok': true,
+              'status': 'exited',
+              'exit_code': 0,
+              'job_id': jobId,
+              'pid': 123,
+              'elapsed_ms': 30000,
+              'command': command,
+              'working_directory': '/tmp/project',
+            }),
+          ],
+        },
+      );
+      final monitorService = BackgroundProcessMonitorService(
+        tools: _FakeBackgroundProcessTools(
+          statusResults: {
+            jobId: jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'task is running',
+              'stderr_tail': '',
+            }),
+          },
+        ),
+        pollInterval: const Duration(minutes: 1),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          backgroundProcessMonitorServiceProvider.overrideWithValue(
+            monitorService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run a long task');
+
+        expect(
+          toolService.executedToolNames,
+          containsAll(<String>[
+            'local_execute_command',
+            'process_status',
+            'process_wait',
+            'process_wait',
+          ]),
+        );
+        expect(
+          toolDataSource.toolResultBatches,
+          hasLength(greaterThanOrEqualTo(4)),
+        );
+        expect(
+          toolService.executedToolNames,
+          hasLength(greaterThanOrEqualTo(4)),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('The long task is complete.'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('<tool_use>'),
+        );
+      } finally {
+        monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage finishes streaming when final background monitor repair has no follow-up',
+    () async {
+      const command = 'bash tool/run_long_task.sh';
+      const jobId = 'proc_local_finalize_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'local-exec-background-finalize-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'background': true,
+              'label': 'long task',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          ChatCompletionResult(
+            content:
+                'Still running. I will continue monitoring status before reporting completion.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content:
+                'Still running. One more check is required before completion.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'I am waiting for the background completion status.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Background task completed successfully.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+        },
+        queuedResults: {
+          'process_wait': [
+            jsonEncode({
+              'ok': true,
+              'status': 'exited',
+              'exit_code': 1,
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+            }),
+          ],
+        },
+      );
+      final monitorService = BackgroundProcessMonitorService(
+        tools: _FakeBackgroundProcessTools(
+          statusResults: {
+            jobId: jsonEncode({
+              'ok': true,
+              'status': 'failed',
+              'exit_code': 1,
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'error': 'process exited with error',
+              'stdout_tail': 'working',
+              'stderr_tail': '',
+            }),
+          },
+        ),
+        pollInterval: const Duration(minutes: 1),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          backgroundProcessMonitorServiceProvider.overrideWithValue(
+            monitorService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run a long background task');
+
+        expect(
+          toolService.executedToolNames,
+          containsAll(<String>['local_execute_command', 'process_wait']),
+        );
+        expect(
+          toolDataSource.toolResultBatches,
+          hasLength(greaterThanOrEqualTo(3)),
+        );
+        expect(
+          toolDataSource.toolResultBatches.last.single.name,
+          'background_process_monitor',
+        );
+        expect(
+          toolDataSource.toolResultBatches[1].single.result,
+          contains('"status":"exited"'),
+        );
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(toolNotifier.state.messages.last.role, MessageRole.assistant);
+        expect(toolNotifier.state.messages.last.isStreaming, isFalse);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Background task completed successfully.'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains(
+            'Still running. One more check is required before completion.',
+          ),
         );
       } finally {
         monitorService.dispose();
@@ -12401,18 +12806,19 @@ with open(path, "rb") as file:
         expect(toolService.executedToolNames, [
           'local_execute_command',
           'process_wait',
+          'process_wait',
         ]);
-        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(toolDataSource.toolResultBatches, hasLength(3));
         expect(
           toolDataSource.toolResultBatches.first.map((result) => result.name),
           containsAllInOrder(const ['local_execute_command', 'process_wait']),
         );
         expect(
-          toolDataSource.toolResultBatches.last.single.name,
+          toolDataSource.toolResultBatches[1].single.name,
           'background_process_monitor',
         );
         final monitorPayload =
-            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+            jsonDecode(toolDataSource.toolResultBatches[1].single.result)
                 as Map<String, dynamic>;
         expect(
           monitorPayload,
@@ -12420,7 +12826,7 @@ with open(path, "rb") as file:
         );
         expect(
           toolNotifier.state.messages.last.content,
-          contains('still running'),
+          contains('process_wait'),
         );
         expect(
           toolNotifier.state.messages.last.content,

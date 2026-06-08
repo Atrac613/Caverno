@@ -402,8 +402,7 @@ class ChatNotifier extends Notifier<ChatState> {
   void _persistCurrentNonStreamingMessages() {
     final messagesToSave = state.messages
         .where((message) => !message.isStreaming)
-        .map(_sanitizeMessageForModelHistory)
-        .where(_shouldKeepMessageForModelHistory)
+        .where(_shouldKeepVisibleMessage)
         .toList(growable: false);
     unawaited(_onMessagesChanged(messagesToSave));
   }
@@ -6866,6 +6865,18 @@ class ChatNotifier extends Notifier<ChatState> {
     return message.content.trim().isNotEmpty;
   }
 
+  bool _shouldKeepVisibleMessage(Message message) {
+    if (message.role != MessageRole.assistant) {
+      return true;
+    }
+    return message.content.trim().isNotEmpty ||
+        ContentParser.parse(message.content).segments.any(
+          (segment) =>
+              segment.type == ContentType.toolCall ||
+              segment.type == ContentType.toolResult,
+        );
+  }
+
   ConversationCompactionArtifact? _resolvePromptCompactionArtifact({
     required Conversation? currentConversation,
     required List<Message> messages,
@@ -8851,6 +8862,8 @@ class ChatNotifier extends Notifier<ChatState> {
             _buildToolResultAnswerMessages(toolResults, budgetMode: budgetMode),
           );
 
+          final preAnswerContent =
+              _lastMessageContentForGeneration(interactionGeneration) ?? '';
           _appendToLastMessageForGeneration(interactionGeneration, '<think>');
 
           final stream = _dataSource.streamChatCompletion(
@@ -8891,11 +8904,14 @@ class ChatNotifier extends Notifier<ChatState> {
           if (isFirstChunk) {
             _removeTrailingThinkTagForGeneration(interactionGeneration);
           }
-          _stripToolArtifactsFromLastAssistantMessage(
-            interactionGeneration: interactionGeneration,
+          final rawStreamedAnswer = streamedAnswer.toString();
+          _stripToolArtifactsFromStreamedAnswerSuffix(
+            interactionGeneration,
+            preAnswerContent: preAnswerContent,
           );
-          _appendUnexecutedToolRequestNoticeIfNeeded(
+          _appendUnexecutedToolRequestNoticeForContentIfNeeded(
             interactionGeneration: interactionGeneration,
+            content: rawStreamedAnswer,
           );
           _appendUnexecutedFileSideEffectNoticeIfNeeded(
             toolResults: toolResults,
@@ -11039,11 +11055,15 @@ class ChatNotifier extends Notifier<ChatState> {
           break;
         }
         appLog('[Tool] LLM requested additional tool calls');
+        _appendAssistantToolPreambleIfPresent(
+          nextResult.content,
+          interactionGeneration: interactionGeneration,
+        );
         currentToolCalls = nextToolCalls;
         _recordHiddenAssistantResponse(nextResult.content);
         currentAssistantContent = nextResult.content.isNotEmpty
             ? nextResult.content
-            : null;
+            : currentAssistantContent;
         if (iteration >= maxIterations &&
             _hasUnseenReadOnlyInspectionToolCalls(
               currentToolCalls,
@@ -11515,9 +11535,6 @@ class ChatNotifier extends Notifier<ChatState> {
 
       if (!ref.mounted) return;
 
-      final preStreamContent = _lastMessageContentForGeneration(
-        interactionGeneration,
-      );
       final streamedFinalAnswer = await _streamToolResultAnswerWithContextRetry(
         toolResults: finalToolResults,
         interactionGeneration: interactionGeneration,
@@ -11540,12 +11557,6 @@ class ChatNotifier extends Notifier<ChatState> {
         if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
         if (!ref.mounted) return;
         if (backgroundProcessRepairResult != null) {
-          if (preStreamContent != null) {
-            _replaceLastMessageContentForGeneration(
-              interactionGeneration,
-              preStreamContent,
-            );
-          }
           if (backgroundProcessRepairResult.hasToolCalls) {
             appLog(
               '[BackgroundProcess] Streamed final answer monitor follow-up '
@@ -11593,8 +11604,9 @@ class ChatNotifier extends Notifier<ChatState> {
               monitorResponse,
               interactionGeneration: interactionGeneration,
             );
+            currentAssistantContent = monitorResponse;
+            hasTextResponse = true;
           }
-          return;
         }
         final verificationRepairResult =
             await _requestCodingVerificationRepairForCompletionClaim(
@@ -11610,12 +11622,6 @@ class ChatNotifier extends Notifier<ChatState> {
         if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
         if (!ref.mounted) return;
         if (verificationRepairResult != null) {
-          if (preStreamContent != null) {
-            _replaceLastMessageContentForGeneration(
-              interactionGeneration,
-              preStreamContent,
-            );
-          }
           if (verificationRepairResult.hasToolCalls) {
             appLog(
               '[CodingVerification] Streamed final answer repair requested '
@@ -12125,6 +12131,25 @@ class ChatNotifier extends Notifier<ChatState> {
     _appendToLastMessageForGeneration(
       interactionGeneration ?? _interactionGeneration,
       '<tool_use>${jsonEncode(payload)}</tool_use>\n',
+      scanForTools: false,
+    );
+  }
+
+  void _appendAssistantToolPreambleIfPresent(
+    String content, {
+    required int interactionGeneration,
+  }) {
+    final visibleContent = ContentParser.stripToolArtifacts(content).trim();
+    if (visibleContent.isEmpty) {
+      return;
+    }
+    final currentContent =
+        _lastMessageContentForGeneration(interactionGeneration) ?? '';
+    final needsLeadingBreak =
+        currentContent.isNotEmpty && !currentContent.endsWith('\n');
+    _appendToLastMessageForGeneration(
+      interactionGeneration,
+      '${needsLeadingBreak ? '\n\n' : ''}$visibleContent\n',
       scanForTools: false,
     );
   }
@@ -14065,6 +14090,38 @@ class ChatNotifier extends Notifier<ChatState> {
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
   }
 
+  void _stripToolArtifactsFromStreamedAnswerSuffix(
+    int generation, {
+    required String preAnswerContent,
+  }) {
+    final currentContent = _lastMessageContentForGeneration(generation);
+    if (currentContent == null ||
+        !currentContent.startsWith(preAnswerContent)) {
+      _stripToolArtifactsFromLastAssistantMessage(
+        interactionGeneration: generation,
+      );
+      return;
+    }
+
+    final streamedSuffix = currentContent.substring(preAnswerContent.length);
+    final strippedSuffix = ContentParser.stripToolArtifacts(
+      streamedSuffix,
+    ).trim();
+    if (strippedSuffix.isEmpty) {
+      _replaceLastMessageContentForGeneration(generation, preAnswerContent);
+      return;
+    }
+
+    final separator =
+        preAnswerContent.isEmpty || preAnswerContent.endsWith('\n')
+        ? ''
+        : '\n\n';
+    _replaceLastMessageContentForGeneration(
+      generation,
+      '$preAnswerContent$separator$strippedSuffix',
+    );
+  }
+
   void _appendUnexecutedToolRequestNoticeIfNeeded({
     int? interactionGeneration,
   }) {
@@ -14120,6 +14177,29 @@ class ChatNotifier extends Notifier<ChatState> {
     );
     state = state.copyWith(messages: updatedMessages);
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+  }
+
+  void _appendUnexecutedToolRequestNoticeForContentIfNeeded({
+    required int interactionGeneration,
+    required String content,
+  }) {
+    const notice =
+        'I could not execute the additional tool request above in this final-answer step. '
+        'Treat it as unexecuted; ask me to continue with a narrower follow-up '
+        'if the missing action still matters.';
+    if (content.contains(notice) || !_looksLikeUnexecutedToolRequest(content)) {
+      return;
+    }
+    final currentContent = _lastMessageContentForGeneration(
+      interactionGeneration,
+    );
+    if (currentContent == null || currentContent.contains(notice)) {
+      return;
+    }
+    _replaceLastMessageContentForGeneration(
+      interactionGeneration,
+      '${currentContent.trimRight()}\n\n$notice',
+    );
   }
 
   void _appendUnexecutedFileSideEffectNoticeIfNeeded({
@@ -14686,8 +14766,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final messagesToSave = updatedMessages
         .where((message) => !message.isStreaming)
-        .map(_sanitizeMessageForModelHistory)
-        .where(_shouldKeepMessageForModelHistory)
+        .where(_shouldKeepVisibleMessage)
         .toList(growable: false);
 
     await _onConversationMessagesChanged(targetConversationId, messagesToSave);
@@ -15116,8 +15195,7 @@ class ChatNotifier extends Notifier<ChatState> {
     // Save only messages that are no longer streaming.
     final messagesToSave = state.messages
         .where((m) => !m.isStreaming)
-        .map(_sanitizeMessageForModelHistory)
-        .where(_shouldKeepMessageForModelHistory)
+        .where(_shouldKeepVisibleMessage)
         .toList();
     String? targetAssistantMessageId;
     for (var i = messagesToSave.length - 1; i >= 0; i--) {
@@ -15131,10 +15209,14 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final currentConversationId = conversationId;
     if (currentConversationId != null && targetAssistantMessageId != null) {
+      final modelHistoryMessages = messagesToSave
+          .map(_sanitizeMessageForModelHistory)
+          .where(_shouldKeepMessageForModelHistory)
+          .toList(growable: false);
       unawaited(
         _updateSessionMemory(
           currentConversationId,
-          messagesToSave,
+          modelHistoryMessages,
           targetAssistantMessageId,
         ),
       );
