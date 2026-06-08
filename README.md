@@ -318,10 +318,11 @@ CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1 \
 tool/run_plan_mode_pm5_live_gate.sh
 ```
 
-The PM5 live gate runs the live smoke suite and the ping CLI live canary. Use
-`CAVERNO_PLAN_MODE_PM5_SKIP_SMOKE=1` only after a fresh live smoke pass when
-you need a faster ping-only rediscovery loop. On failure, the gate prints the
-latest live suite and ping canary artifact paths plus the investigation order.
+The PM5 live gate runs the live smoke suite, the ping CLI live canary, and the
+chat background-process live canary. Use `CAVERNO_PLAN_MODE_PM5_SKIP_SMOKE=1`
+only after a fresh live smoke pass when you need a faster ping-only rediscovery
+loop. On failure, the gate prints the latest live suite, ping canary, and
+background-process canary artifact paths plus the investigation order.
 
 ### Deterministic suite
 
@@ -367,8 +368,10 @@ The PM5 gate also supports these optional variables:
 | `CAVERNO_PLAN_MODE_PM5_SMOKE_SCENARIOS` | No | Optional scenario filter for the live smoke phase |
 | `CAVERNO_PLAN_MODE_PM5_SMOKE_TAGS` | No | Defaults to `smoke` |
 | `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT` | No | Defaults to `1` |
+| `CAVERNO_PLAN_MODE_PM5_BACKGROUND_PROCESS_REPEAT_COUNT` | No | Defaults to `1` |
 | `CAVERNO_PLAN_MODE_PM5_SKIP_SMOKE` | No | Set to `1` to skip the smoke phase |
 | `CAVERNO_PLAN_MODE_PM5_SKIP_PING_CANARY` | No | Set to `1` to skip the ping CLI canary phase |
+| `CAVERNO_PLAN_MODE_PM5_SKIP_BACKGROUND_PROCESS_CANARY` | No | Set to `1` to skip the chat background-process canary phase |
 
 Example:
 
@@ -419,6 +422,8 @@ Use `docs/plan_mode_scenario_coverage.md` before promoting any canary into
 the default smoke surface.
 Use `docs/live_llm_canary_coverage.md` when comparing chat, coding, and
 routine coverage for a model switch or Live LLM regression investigation.
+Long-running background process MVP task tracking lives in
+[`docs/long_running_process_mvp_tasks.md`](docs/long_running_process_mvp_tasks.md).
 
 Examples:
 
@@ -470,6 +475,23 @@ CAVERNO_LLM_BASE_URL=... \
 CAVERNO_LLM_API_KEY=... \
 CAVERNO_LLM_MODEL=... \
 tool/run_tool_result_budget_live_canary.sh
+```
+
+The background-process lifecycle path is covered with a dedicated canary that
+verifies long-running command start/monitor/ completion safety.
+
+```bash
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+tool/run_chat_background_process_live_canary.sh
+```
+
+For stability checks, run three consecutive times by setting:
+
+```bash
+CAVERNO_CHAT_BACKGROUND_PROCESS_LIVE_REPEAT_COUNT=3 \
+tool/run_chat_background_process_live_canary.sh
 ```
 
 Both scripts write `canary_summary.json`, `canary_summary.md`, and the captured

@@ -19,6 +19,7 @@ Future<void> main(List<String> args) async {
       '[--coding-diagnostic-feedback-summary PATH] '
       '[--coding-verification-feedback-summary PATH] '
       '[--chat-summary PATH] '
+      '[--background-process-summary PATH] '
       '[--budget-summary PATH] [--routine-summary PATH]',
     );
     exitCode = 64;
@@ -48,6 +49,9 @@ Future<void> main(List<String> args) async {
         'coding-verification-feedback-summary',
       ),
       chatSummary: options.optionalFile('chat-summary'),
+      backgroundProcessSummary: options.optionalFile(
+        'background-process-summary',
+      ),
       budgetSummary: options.optionalFile('budget-summary'),
       routineSummary: options.optionalFile('routine-summary'),
     );
@@ -97,6 +101,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
   File? codingDiagnosticFeedbackSummary,
   File? codingVerificationFeedbackSummary,
   File? chatSummary,
+  File? backgroundProcessSummary,
   File? budgetSummary,
   File? routineSummary,
   DateTime? generatedAt,
@@ -113,6 +118,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
     codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
     codingVerificationFeedbackSummary: codingVerificationFeedbackSummary,
     chatSummary: chatSummary,
+    backgroundProcessSummary: backgroundProcessSummary,
     budgetSummary: budgetSummary,
     routineSummary: routineSummary,
   );
@@ -130,6 +136,7 @@ buildLiveLlmCanaryReferenceReportFromArtifacts({
     codingVerificationFeedbackSummary:
         evidence.codingVerificationFeedbackSummary,
     chatSummary: evidence.chatSummary,
+    backgroundProcessSummary: evidence.backgroundProcessSummary,
     budgetSummary: evidence.budgetSummary,
     routineSummary: evidence.routineSummary,
     generatedAt: generatedAt,
@@ -148,6 +155,7 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
   File? codingDiagnosticFeedbackSummary,
   File? codingVerificationFeedbackSummary,
   File? chatSummary,
+  File? backgroundProcessSummary,
   File? budgetSummary,
   File? routineSummary,
   DateTime? generatedAt,
@@ -206,6 +214,9 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
   if (chatSummary != null) {
     entries.add(await _buildLiveSummaryEntry(chatSummary));
   }
+  if (backgroundProcessSummary != null) {
+    entries.add(await _buildLiveSummaryEntry(backgroundProcessSummary));
+  }
   if (budgetSummary != null) {
     entries.add(await _buildLiveSummaryEntry(budgetSummary));
   }
@@ -238,6 +249,7 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
   File? codingDiagnosticFeedbackSummary,
   File? codingVerificationFeedbackSummary,
   File? chatSummary,
+  File? backgroundProcessSummary,
   File? budgetSummary,
   File? routineSummary,
 }) async {
@@ -253,6 +265,7 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
       codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
       codingVerificationFeedbackSummary: codingVerificationFeedbackSummary,
       chatSummary: chatSummary,
+      backgroundProcessSummary: backgroundProcessSummary,
       budgetSummary: budgetSummary,
       routineSummary: routineSummary,
     );
@@ -324,6 +337,13 @@ resolveLiveLlmCanaryReferenceEvidenceFiles({
           directoryPrefix: 'chat_live_llm_canary_',
           fileName: 'canary_summary.json',
         ),
+    backgroundProcessSummary:
+        backgroundProcessSummary ??
+        _findLatestReportFile(
+          reportRoot: reportRoot,
+          directoryPrefix: 'chat_background_process_live_canary_',
+          fileName: 'canary_summary.json',
+        ),
     budgetSummary:
         budgetSummary ??
         _findLatestReportFile(
@@ -353,6 +373,7 @@ class LiveLlmCanaryReferenceEvidenceFiles {
     required this.codingDiagnosticFeedbackSummary,
     required this.codingVerificationFeedbackSummary,
     required this.chatSummary,
+    required this.backgroundProcessSummary,
     required this.budgetSummary,
     required this.routineSummary,
   });
@@ -367,6 +388,7 @@ class LiveLlmCanaryReferenceEvidenceFiles {
   final File? codingDiagnosticFeedbackSummary;
   final File? codingVerificationFeedbackSummary;
   final File? chatSummary;
+  final File? backgroundProcessSummary;
   final File? budgetSummary;
   final File? routineSummary;
 }
@@ -580,6 +602,9 @@ class LiveLlmCanaryReferenceSignals {
     this.dartTestFailureCount = 0,
     this.codingOutputFeedbackCount = 0,
     this.codingOutputIssueCount = 0,
+    this.backgroundProcessFailedCount = 0,
+    this.backgroundProcessStillRunningCount = 0,
+    this.backgroundProcessStatusUnverifiedCount = 0,
     this.failureClassCounts = const <String, int>{},
   });
 
@@ -636,6 +661,15 @@ class LiveLlmCanaryReferenceSignals {
       codingOutputIssueCount: codingOutputIssueCount > 0
           ? codingOutputIssueCount
           : _asInt(codingOutputFeedback['issueCount']),
+      backgroundProcessFailedCount: _asInt(
+        json['backgroundProcessFailedCount'],
+      ),
+      backgroundProcessStillRunningCount: _asInt(
+        json['backgroundProcessStillRunningCount'],
+      ),
+      backgroundProcessStatusUnverifiedCount: _asInt(
+        json['backgroundProcessStatusUnverifiedCount'],
+      ),
       failureClassCounts: _stringIntMap(json['failureClassCounts']),
     );
   }
@@ -660,12 +694,18 @@ class LiveLlmCanaryReferenceSignals {
   final int dartTestFailureCount;
   final int codingOutputFeedbackCount;
   final int codingOutputIssueCount;
+  final int backgroundProcessFailedCount;
+  final int backgroundProcessStillRunningCount;
+  final int backgroundProcessStatusUnverifiedCount;
   final Map<String, int> failureClassCounts;
 
   bool get hasRisk =>
       unexpectedWarningCount > 0 ||
       taskDriftCount > 0 ||
       reportQualityBlockerCount > 0 ||
+      backgroundProcessFailedCount > 0 ||
+      backgroundProcessStillRunningCount > 0 ||
+      backgroundProcessStatusUnverifiedCount > 0 ||
       recoveredStreamFallbackCount > 0 ||
       assistantAuthoredToolBlockCount > 0 ||
       transportDisconnectCount > 0 ||
@@ -693,6 +733,10 @@ class LiveLlmCanaryReferenceSignals {
       'dartTestFailureCount': dartTestFailureCount,
       'codingOutputFeedbackCount': codingOutputFeedbackCount,
       'codingOutputIssueCount': codingOutputIssueCount,
+      'backgroundProcessFailedCount': backgroundProcessFailedCount,
+      'backgroundProcessStillRunningCount': backgroundProcessStillRunningCount,
+      'backgroundProcessStatusUnverifiedCount':
+          backgroundProcessStatusUnverifiedCount,
       'failureClassCounts': failureClassCounts,
     };
   }
@@ -750,6 +794,19 @@ class LiveLlmCanaryReferenceSignals {
     if (codingOutputFeedbackCount > 0 || codingOutputIssueCount > 0) {
       parts.add(
         'command output feedback $codingOutputFeedbackCount, issues $codingOutputIssueCount',
+      );
+    }
+    if (backgroundProcessFailedCount > 0) {
+      parts.add('background process failed $backgroundProcessFailedCount');
+    }
+    if (backgroundProcessStillRunningCount > 0) {
+      parts.add(
+        'background process still running $backgroundProcessStillRunningCount',
+      );
+    }
+    if (backgroundProcessStatusUnverifiedCount > 0) {
+      parts.add(
+        'background process unverified $backgroundProcessStatusUnverifiedCount',
       );
     }
     final failingClasses = failureClassCounts.entries
@@ -939,6 +996,10 @@ Future<LiveLlmCanaryReferenceEntry> _buildLiveSummaryEntry(
       : null;
   final verificationGateBlocked =
       verificationGate?.blockedGateIds.isNotEmpty == true;
+  final backgroundProcessBlocked =
+      _asInt(signals['backgroundProcessFailedCount']) > 0 ||
+      _asInt(signals['backgroundProcessStillRunningCount']) > 0 ||
+      _asInt(signals['backgroundProcessStatusUnverifiedCount']) > 0;
 
   return LiveLlmCanaryReferenceEntry(
     surface: json['surface'] as String? ?? 'unknown',
@@ -946,7 +1007,8 @@ Future<LiveLlmCanaryReferenceEntry> _buildLiveSummaryEntry(
     result:
         assistantAuthoredToolBlockCount > 0 ||
             diagnosticGateBlocked ||
-            verificationGateBlocked
+            verificationGateBlocked ||
+            backgroundProcessBlocked
         ? 'failed'
         : result,
     model: json['model'] as String?,
@@ -977,6 +1039,15 @@ Future<LiveLlmCanaryReferenceEntry> _buildLiveSummaryEntry(
       dartTestFailureCount: _asInt(dartTestFeedback['failedCount']),
       codingOutputFeedbackCount: _asInt(codingOutputFeedback['feedbackCount']),
       codingOutputIssueCount: _asInt(codingOutputFeedback['issueCount']),
+      backgroundProcessFailedCount: _asInt(
+        signals['backgroundProcessFailedCount'],
+      ),
+      backgroundProcessStillRunningCount: _asInt(
+        signals['backgroundProcessStillRunningCount'],
+      ),
+      backgroundProcessStatusUnverifiedCount: _asInt(
+        signals['backgroundProcessStatusUnverifiedCount'],
+      ),
       failureClassCounts: {
         for (final gateId in diagnosticGate?.blockedGateIds ?? const <String>[])
           gateId: 1,

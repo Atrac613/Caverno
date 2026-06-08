@@ -673,6 +673,10 @@ void main() {
     expect(sparkleBuildScript, contains('build macos --release'));
     expect(sparkleBuildScript, contains('CAVERNO_MACOS_CODESIGN_IDENTITY'));
     expect(sparkleBuildScript, contains('resign_sparkle_updater_components'));
+    expect(sparkleBuildScript, contains('sign_embedded_python_binaries'));
+    expect(sparkleBuildScript, contains('Python.framework'));
+    expect(sparkleBuildScript, contains('serious_python_darwin.framework'));
+    expect(sparkleBuildScript, contains('lib-dynload'));
     expect(sparkleBuildScript, contains('XPCServices/Downloader.xpc'));
     expect(sparkleBuildScript, contains('XPCServices/Installer.xpc'));
     expect(sparkleBuildScript, contains('Updater.app'));
@@ -889,6 +893,9 @@ void main() {
     final stdout = '${result.stdout}';
     expect(stdout, contains('Building macOS Sparkle release'));
     expect(stdout, contains('build macos --release'));
+    expect(stdout, contains('Re-signing embedded Python native binaries'));
+    expect(stdout, contains('Python.framework'));
+    expect(stdout, contains('serious_python_darwin.framework'));
     expect(stdout, contains('codesign --verify --deep --strict'));
     expect(stdout, contains('ditto -c -k'));
     expect(stdout, contains('macOS Sparkle release artifact ready'));

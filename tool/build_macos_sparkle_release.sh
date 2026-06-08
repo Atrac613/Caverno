@@ -279,12 +279,68 @@ resolve_codesign_identity() {
     awk -F= '/^Authority=Developer ID Application:/ && identity == "" { identity = $2 } END { if (identity != "") print identity }'
 }
 
-resign_sparkle_updater_components() {
-  local sparkle_framework="${APP_PATH}/Contents/Frameworks/Sparkle.framework"
-  if [[ "${DRY_RUN}" != "yes" && ! -d "${sparkle_framework}" ]]; then
+sign_embedded_python_binaries() {
+  local identity="$1"
+  local sign_args=(
+    /usr/bin/codesign
+    --force
+    --sign
+    "${identity}"
+    --timestamp
+    --options
+    runtime
+    --preserve-metadata=identifier,requirements
+  )
+  local python_framework="${APP_PATH}/Contents/Frameworks/Python.framework"
+  local serious_python_framework="${APP_PATH}/Contents/Frameworks/serious_python_darwin.framework"
+  local items=()
+  local frameworks=()
+  local item
+
+  if [[ "${DRY_RUN}" == "yes" ]]; then
+    items+=(
+      "${python_framework}/Versions/3.12/Resources/Python.app/Contents/MacOS/Python"
+      "${serious_python_framework}/Versions/A/Resources/python.bundle/lib/python3.12/lib-dynload/_struct.cpython-312-darwin.so"
+    )
+    frameworks+=("${python_framework}" "${serious_python_framework}")
+  else
+    if [[ -d "${python_framework}" ]]; then
+      while IFS= read -r -d '' item; do
+        items+=("${item}")
+      done < <(
+        find "${python_framework}" -type f \
+          \( -name "Python" -o -name "*.so" -o -name "*.dylib" \) \
+          -print0
+      )
+      frameworks+=("${python_framework}")
+    fi
+    if [[ -d "${serious_python_framework}" ]]; then
+      while IFS= read -r -d '' item; do
+        items+=("${item}")
+      done < <(
+        find "${serious_python_framework}" -type f \
+          \( -name "*.so" -o -name "*.dylib" \) \
+          -print0
+      )
+      frameworks+=("${serious_python_framework}")
+    fi
+  fi
+
+  if [[ "${#items[@]}" -eq 0 && "${#frameworks[@]}" -eq 0 ]]; then
     return 0
   fi
 
+  echo "Re-signing embedded Python native binaries with Developer ID"
+  for item in "${items[@]}"; do
+    run "${sign_args[@]}" "${item}"
+  done
+  for item in "${frameworks[@]}"; do
+    run "${sign_args[@]}" "${item}"
+  done
+}
+
+resign_sparkle_updater_components() {
+  local sparkle_framework="${APP_PATH}/Contents/Frameworks/Sparkle.framework"
   local identity
   identity="$(resolve_codesign_identity)"
   if [[ -z "${identity}" ]]; then
@@ -325,6 +381,11 @@ resign_sparkle_updater_components() {
     "${sparkle_version_dir}/Autoupdate"
   )
   local computer_use_helper="${APP_PATH}/Contents/Helpers/Caverno Computer Use.app"
+
+  sign_embedded_python_binaries "${identity}"
+  if [[ "${DRY_RUN}" != "yes" && ! -d "${sparkle_framework}" ]]; then
+    return 0
+  fi
 
   echo "Re-signing Sparkle updater components with Developer ID"
   for item in "${sparkle_items[@]}"; do

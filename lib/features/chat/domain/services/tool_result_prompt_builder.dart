@@ -203,6 +203,13 @@ class ToolResultPromptBuilder {
         'instead of emitting tool-call tags.',
       )
       ..writeln(
+        'Only say a local command, dry run, test, validation, git operation, or '
+        'release script ran when the corresponding command-execution tool '
+        'result succeeded. If a tool result reports '
+        'code=unexecuted_command_action, state that the requested command '
+        'remains unexecuted.',
+      )
+      ..writeln(
         'When browser_snapshot returns page elements, include the relevant '
         'element refs, labels, and roles needed for likely follow-up browser '
         'actions. State that refs are valid only for the current page snapshot. '

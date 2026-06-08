@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/ble_service.dart';
@@ -10,6 +12,8 @@ import '../../../../core/services/wifi_service.dart';
 import '../../../../core/services/script_runtime/script_runtime_provider.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../data/datasources/background_process_monitor_service.dart';
+import '../../data/datasources/background_process_tools.dart';
 import '../../data/datasources/mcp_client.dart';
 import '../../data/datasources/mcp_stdio_client.dart';
 import '../../data/datasources/mcp_tool_service.dart';
@@ -66,6 +70,23 @@ final searxngClientProvider = Provider<SearxngClient?>((ref) {
   return SearxngClient(baseUrl: primaryMcpUrl);
 });
 
+final backgroundProcessToolsProvider = Provider<BackgroundProcessTools>((ref) {
+  final tools = BackgroundProcessTools();
+  ref.onDispose(() {
+    unawaited(tools.dispose());
+  });
+  return tools;
+});
+
+final backgroundProcessMonitorServiceProvider =
+    Provider<BackgroundProcessMonitorService>((ref) {
+      final service = BackgroundProcessMonitorService(
+        tools: ref.watch(backgroundProcessToolsProvider),
+      );
+      ref.onDispose(service.dispose);
+      return service;
+    });
+
 /// Provides the MCP tool service.
 ///
 /// Exposes a service that fetches and executes tools from an MCP server.
@@ -89,6 +110,10 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final computerUseService = ref.watch(macosComputerUseServiceProvider);
   final browserService = ref.watch(browserSessionServiceProvider);
   final scriptRuntimeRegistry = ref.watch(scriptRuntimeRegistryProvider);
+  final backgroundProcessTools = ref.watch(backgroundProcessToolsProvider);
+  final backgroundProcessMonitorService = ref.watch(
+    backgroundProcessMonitorServiceProvider,
+  );
   final settings = ref.watch(settingsNotifierProvider);
   // Keep the browser session's availability in sync with settings without
   // recreating the singleton (it owns the live webview controller). The
@@ -113,6 +138,8 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     computerUseService: computerUseService,
     browserService: browserService,
     scriptRuntimeRegistry: scriptRuntimeRegistry,
+    backgroundProcessTools: backgroundProcessTools,
+    backgroundProcessMonitorService: backgroundProcessMonitorService,
     disabledBuiltInTools: settings.disabledBuiltInToolsSet,
   );
 });

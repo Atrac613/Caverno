@@ -194,9 +194,15 @@ class GitTools {
   /// positional tag name that would create a tag).
   static bool _isTagReadOnly(List<String> args) {
     const writeFlags = {'-a', '-d', '-s', '-f', '--delete', '--sign', '-u'};
+    var hasListFlag = false;
     for (var i = 1; i < args.length; i++) {
-      if (writeFlags.contains(args[i])) return false;
+      final arg = args[i];
+      if (writeFlags.contains(arg)) return false;
+      if (arg == '-l' || arg == '--list' || arg.startsWith('--list=')) {
+        hasListFlag = true;
+      }
     }
+    if (hasListFlag) return true;
     final positionals = args.skip(1).where((a) => !a.startsWith('-')).toList();
     if (positionals.isNotEmpty) return false;
     return true;

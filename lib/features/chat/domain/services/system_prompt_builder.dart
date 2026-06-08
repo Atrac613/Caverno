@@ -59,6 +59,16 @@ class SystemPromptBuilder {
     final hasRunPythonScriptTool = uniqueToolNames.contains(
       'run_python_script',
     );
+    final hasBackgroundProcessTools = uniqueToolNames.any(
+      (name) =>
+          name == 'process_start' ||
+          name == 'process_status' ||
+          name == 'process_tail' ||
+          name == 'process_wait' ||
+          name == 'process_cancel' ||
+          name == 'process_list',
+    );
+    final hasSubagentTools = uniqueToolNames.contains('spawn_subagent');
     final hasOsSystemInfoTool = uniqueToolNames.contains('os_get_system_info');
     final hasOsLogTool = uniqueToolNames.contains('os_log_read');
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
@@ -241,6 +251,38 @@ class SystemPromptBuilder {
           );
         }
       }
+      if (hasBackgroundProcessTools) {
+        buffer.writeln(
+          'Use local_execute_command with background=true, or use process_start '
+          'for builds, releases, migrations, uploads, long tests, or commands '
+          'expected to run longer than roughly one minute.',
+        );
+        buffer.writeln(
+          'After starting a background process, use process_list(refresh: true, '
+          'include_finished: false) to find and refresh running jobs started '
+          'with process_start or background local_execute_command, then use '
+          'process_status, process_tail, or process_wait to monitor until '
+          'the command exits successfully.',
+        );
+        buffer.writeln(
+          'For long-running background work, do not merely wait silently. '
+          'Periodically inspect status plus stdout/stderr tails, report concise '
+          'progress with the latest observed phase, elapsed time, and any '
+          'important warnings or errors, then continue monitoring until a '
+          'terminal status is observed.',
+        );
+        buffer.writeln(
+          'Do not claim task completion from prose or tool argument success '
+          'until the relevant background job has exited with exit_code 0.',
+        );
+      }
+      if (hasSubagentTools) {
+        buffer.writeln(
+          'When using spawn_subagent with background=true, do not claim the '
+          'task is complete until get_subagent_result reports status=completed for that '
+          'task_id, and include the summary when it does.',
+        );
+      }
       if (hasOsSystemInfoTool) {
         buffer.writeln(
           'Use os_get_system_info when the current machine operating system '
@@ -274,6 +316,12 @@ class SystemPromptBuilder {
         buffer.writeln(
           'Do not claim that git state changed unless a successful '
           'application-executed git_execute_command result confirms it.',
+        );
+        buffer.writeln(
+          'Before creating a git tag, inspect existing tags with '
+          'git_execute_command (for example, "tag --list" or '
+          '"for-each-ref refs/tags --format=%(refname:short)") and choose a '
+          'new tag name that matches the repository\'s existing tag format.',
         );
       }
       if (hasProjectReadTools || hasLocalShellTool || hasGitTool) {

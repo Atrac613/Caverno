@@ -296,7 +296,11 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     );
     return gate.bypassedApproval
         ? result
-        : _rememberToolApprovalResult(toolCall.name, toolCall.arguments, result);
+        : _rememberToolApprovalResult(
+            toolCall.name,
+            toolCall.arguments,
+            result,
+          );
   }
 
   Future<McpToolResult> _handleLocalExecuteCommand(
@@ -440,6 +444,230 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     );
     // Full access never caches, so the model can re-run a command (e.g. re-run
     // tests after an edit); approvals cache to avoid re-prompting.
+    return gate.bypassedApproval
+        ? result
+        : _rememberToolApprovalResult(toolCall.name, localArguments, result);
+  }
+
+  Future<McpToolResult> _handleProcessStart(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final command = LocalShellTools.normalizeCommand(
+      (resolvedArguments['command'] as String?)?.trim() ?? '',
+    );
+    final workingDirectory =
+        (resolvedArguments['working_directory'] as String?)?.trim() ?? '';
+    if (command.isEmpty || workingDirectory.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage:
+            'command is required and working_directory must be provided or inferred from the selected coding project',
+      );
+    }
+
+    final localArguments = {
+      ...resolvedArguments,
+      'command': command,
+      'working_directory': workingDirectory,
+    };
+
+    final permissionDecision = LocalCommandPermissionService.evaluate(
+      command: command,
+      workingDirectory: workingDirectory,
+      rules: _settings.localCommandPermissionRules,
+    );
+    final requiresExplicitApproval =
+        LocalCommandPermissionService.requiresExplicitApproval(command);
+    if (permissionDecision.isDenied) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'Local command was denied by a saved permission rule',
+      );
+    }
+    if (!_isRemoteInteraction &&
+        permissionDecision.isAllowed &&
+        !requiresExplicitApproval) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: localArguments,
+      );
+    }
+
+    if (LocalShellTools.isReadOnly(command) && !requiresExplicitApproval) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: localArguments,
+      );
+    }
+
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      localArguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
+    final riskWarning = LocalCommandPermissionService.riskWarningFor(command);
+    final reason = toolCall.arguments['reason'] as String?;
+    final gate = await _resolveToolApprovalGate(
+      toolCall: toolCall,
+      actionKind: 'process_start',
+      mode: _settings.codingApprovalMode,
+      reviewDomain: ToolApprovalAutoReviewDomain.coding,
+      fullAccessEligible: true,
+      buildReviewRequest: () async => _buildAutoReviewRequest(
+        toolCall: toolCall,
+        actionKind: 'process_start',
+        arguments: localArguments,
+        workingDirectory: workingDirectory,
+        reason: reason,
+        warningTitle: riskWarning?.title,
+        warningMessage: riskWarning?.message,
+      ),
+    );
+    if (gate.isDenied) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        localArguments,
+        _autoReviewDeniedResult(
+          toolName: toolCall.name,
+          rationale: gate.deniedRationale!,
+        ),
+      );
+    }
+    if (gate.needsManual) {
+      final approval = await requestLocalCommand(
+        command: command,
+        workingDirectory: workingDirectory,
+        reason: reason,
+        warningTitle: riskWarning?.title,
+        warningMessage: riskWarning?.message,
+      );
+
+      if (approval.shouldRemember && !_isRemoteInteraction) {
+        await ref
+            .read(settingsNotifierProvider.notifier)
+            .upsertLocalCommandPermissionRule(
+              LocalCommandPermissionService.buildExactRule(
+                id: const Uuid().v4(),
+                action: approval.rememberedRuleAction!,
+                command: command,
+                workingDirectory: workingDirectory,
+              ).copyWith(match: approval.rememberedRuleMatch!),
+            );
+      }
+
+      if (!approval.approved) {
+        return _rememberToolApprovalResult(
+          toolCall.name,
+          localArguments,
+          McpToolResult(
+            toolName: toolCall.name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'User denied background process start',
+          ),
+        );
+      }
+    }
+
+    final result = await _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: localArguments,
+    );
+    return gate.bypassedApproval
+        ? result
+        : _rememberToolApprovalResult(toolCall.name, localArguments, result);
+  }
+
+  Future<McpToolResult> _handleProcessCancel(ToolCallInfo toolCall) async {
+    final jobId = toolCall.arguments['job_id']?.toString().trim() ?? '';
+    if (jobId.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'ok': false,
+          'code': 'job_id_required',
+          'error': 'job_id is required',
+        }),
+        isSuccess: false,
+        errorMessage: 'job_id is required',
+      );
+    }
+    final workingDirectory = _getActiveProjectRootPath()?.trim() ?? '.';
+    final localArguments = {'job_id': jobId};
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      localArguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
+    final gate = await _resolveToolApprovalGate(
+      toolCall: toolCall,
+      actionKind: 'process_cancel',
+      mode: _settings.codingApprovalMode,
+      reviewDomain: ToolApprovalAutoReviewDomain.coding,
+      fullAccessEligible: true,
+      buildReviewRequest: () async => _buildAutoReviewRequest(
+        toolCall: toolCall,
+        actionKind: 'process_cancel',
+        arguments: localArguments,
+        workingDirectory: workingDirectory,
+        reason: 'Cancel background process $jobId',
+        warningTitle: 'Cancel background process?',
+        warningMessage:
+            'This stops a running local command and may leave partial side effects.',
+      ),
+    );
+    if (gate.isDenied) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        localArguments,
+        _autoReviewDeniedResult(
+          toolName: toolCall.name,
+          rationale: gate.deniedRationale!,
+        ),
+      );
+    }
+    if (gate.needsManual) {
+      final approval = await requestLocalCommand(
+        command: 'process_cancel $jobId',
+        workingDirectory: workingDirectory,
+        reason: 'Cancel background process $jobId',
+        warningTitle: 'Cancel background process?',
+        warningMessage:
+            'This stops a running local command and may leave partial side effects.',
+      );
+      if (!approval.approved) {
+        return _rememberToolApprovalResult(
+          toolCall.name,
+          localArguments,
+          McpToolResult(
+            toolName: toolCall.name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'User denied background process cancellation',
+          ),
+        );
+      }
+    }
+
+    final result = await _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: localArguments,
+    );
     return gate.bypassedApproval
         ? result
         : _rememberToolApprovalResult(toolCall.name, localArguments, result);

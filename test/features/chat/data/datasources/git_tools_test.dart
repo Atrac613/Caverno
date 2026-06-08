@@ -31,6 +31,18 @@ void main() {
         isFalse,
       );
     });
+
+    test('classifies tag pattern listings as read-only', () {
+      expect(
+        GitTools.isReadOnly("tag -l '1.3.4*' --sort=-version:refname"),
+        isTrue,
+      );
+      expect(
+        GitTools.isReadOnly('tag --list 1.3.4* --sort=-version:refname'),
+        isTrue,
+      );
+      expect(GitTools.isReadOnly('tag 1.3.4+15'), isFalse);
+    });
   });
 
   group('GitTools.firstShellControlOperator', () {

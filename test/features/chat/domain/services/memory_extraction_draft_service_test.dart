@@ -76,6 +76,7 @@ void main() {
     expect(input, contains('Only include open_loops when the latest turn'));
     expect(input, contains('Do not save assistant claims about local file'));
     expect(input, contains('code=unexecuted_file_save'));
+    expect(input, contains('missing file-operation tool action'));
     expect(input, contains('Do not summarize browser actions'));
     expect(input, contains('code=unexecuted_browser_action'));
     expect(input, contains('Treat search_past_conversations'));
@@ -315,6 +316,179 @@ void main() {
     expect(draft!.entries, hasLength(1));
     expect(draft.entries.single.text, contains('concise coding explanations'));
     expect(draft.entries.single.text, isNot(contains('browser-saves')));
+  });
+
+  test('parseDraft preserves unexecuted file save as an open loop', () {
+    final inputContext = MemoryExtractionDraftService.buildInput(
+      [
+        Message(
+          id: 'user-1',
+          content: 'Create release notes for the current version.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 7, 9),
+        ),
+        Message(
+          id: 'assistant-1',
+          content:
+              'The release note draft was created. Next, run the dry release check.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 6, 7, 9, 1),
+        ),
+      ],
+      UserMemoryProfile(
+        persona: const [],
+        preferences: const [],
+        doNot: const [],
+        updatedAt: DateTime(2026, 6, 7, 9),
+      ),
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: const {'path': 'docs/releases/caverno-1.3.4.md'},
+          result: jsonEncode({
+            'ok': false,
+            'code': 'unexecuted_file_save',
+            'error': 'The requested file save was not executed.',
+          }),
+        ),
+      ],
+    );
+    const raw = '''
+{
+  "summary":"Release note draft created; dry run pending.",
+  "open_loops":["Confirm and execute dry run for release process"],
+  "profile":{
+    "persona":[],
+    "preferences":[],
+    "do_not":[]
+  },
+  "memories":[
+    {
+      "text":"Release note draft created for the current version.",
+      "type":"fact",
+      "confidence":0.95,
+      "importance":0.8,
+      "ttl_days":30
+    },
+    {
+      "text":"Release entry point script is tool/release_ios_macos.sh.",
+      "type":"fact",
+      "confidence":0.95,
+      "importance":0.7,
+      "ttl_days":30
+    }
+  ]
+}
+''';
+
+    final draft = MemoryExtractionDraftService.parseDraft(
+      raw,
+      inputContext: inputContext,
+    );
+
+    expect(draft, isNotNull);
+    expect(
+      draft!.summary,
+      'Latest requested file save or mutation remains unexecuted.',
+    );
+    expect(
+      draft.openLoops.first,
+      'Create or save the requested file with a file-operation tool.',
+    );
+    expect(
+      draft.openLoops,
+      contains('Confirm and execute dry run for release process'),
+    );
+    expect(draft.entries, hasLength(1));
+    expect(
+      draft.entries.single.text,
+      'Release entry point script is tool/release_ios_macos.sh.',
+    );
+  });
+
+  test('parseDraft guards unexecuted command execution claims', () {
+    final inputContext = MemoryExtractionDraftService.buildInput(
+      [
+        Message(
+          id: 'user-1',
+          content: 'Run the release dry run.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 7, 9),
+        ),
+        Message(
+          id: 'assistant-1',
+          content: 'I will run the dry-run release script now.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 6, 7, 9, 1),
+        ),
+      ],
+      UserMemoryProfile(
+        persona: const [],
+        preferences: const [],
+        doNot: const [],
+        updatedAt: DateTime(2026, 6, 7, 9),
+      ),
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'local_execute_command',
+          arguments: const {'reason': 'Missing command execution'},
+          result: jsonEncode({
+            'ok': false,
+            'code': 'unexecuted_command_action',
+            'error': 'The requested command was not executed.',
+          }),
+        ),
+      ],
+    );
+    const raw = '''
+{
+  "summary":"Release dry run was executed successfully.",
+  "open_loops":[],
+  "profile":{
+    "persona":[],
+    "preferences":[],
+    "do_not":[]
+  },
+  "memories":[
+    {
+      "text":"Release dry run was executed successfully.",
+      "type":"fact",
+      "confidence":0.95,
+      "importance":0.8,
+      "ttl_days":30
+    },
+    {
+      "text":"Release entry point script is tool/release_ios_macos.sh.",
+      "type":"fact",
+      "confidence":0.95,
+      "importance":0.7,
+      "ttl_days":30
+    }
+  ]
+}
+''';
+
+    final draft = MemoryExtractionDraftService.parseDraft(
+      raw,
+      inputContext: inputContext,
+    );
+
+    expect(draft, isNotNull);
+    expect(
+      draft!.summary,
+      'Latest requested command execution remains unexecuted.',
+    );
+    expect(
+      draft.openLoops.first,
+      'Execute the requested command with a command-execution tool.',
+    );
+    expect(draft.entries, hasLength(1));
+    expect(
+      draft.entries.single.text,
+      'Release entry point script is tool/release_ios_macos.sh.',
+    );
   });
 
   test('parseDraft recovers JSON from reasoning text with other objects', () {

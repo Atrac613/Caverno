@@ -2,10 +2,57 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/core/services/macos_computer_use_service.dart';
+import 'package:caverno/features/chat/data/datasources/background_process_monitor_service.dart';
+import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _FakeBackgroundProcessTools extends BackgroundProcessTools {
+  _FakeBackgroundProcessTools({
+    required this.statusResults,
+    this.startResult = '',
+  });
+
+  final Map<String, String> statusResults;
+  final String startResult;
+  final List<Map<String, dynamic>> startCalls = [];
+
+  @override
+  Future<String> start({
+    required String command,
+    required String workingDirectory,
+    String? label,
+  }) async {
+    startCalls.add({
+      'command': command,
+      'working_directory': workingDirectory,
+      if (label != null && label.isNotEmpty) 'label': label,
+    });
+    return startResult.isNotEmpty
+        ? startResult
+        : jsonEncode({
+            'ok': false,
+            'code': 'start_not_configured',
+            'error': 'No start result configured.',
+          });
+  }
+
+  @override
+  bool get isSupported => true;
+
+  @override
+  Future<String> status({required String jobId, int? tailChars}) async {
+    return statusResults[jobId] ??
+        jsonEncode({
+          'ok': false,
+          'code': 'job_not_found',
+          'job_id': jobId,
+          'error': 'No background process job exists for job_id: $jobId',
+        });
+  }
+}
 
 void main() {
   group('McpToolEntity.toOpenAiTool', () {
@@ -62,6 +109,299 @@ void main() {
       if (Platform.isMacOS || Platform.isLinux) {
         expect(functionNames, contains('os_log_read'));
       }
+    });
+
+    test(
+      'includes process_list when background process tools are supported',
+      () {
+        final service = McpToolService(
+          backgroundProcessTools: _FakeBackgroundProcessTools(
+            statusResults: {},
+          ),
+        );
+
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(
+              (tool) =>
+                  (tool['function']! as Map<String, dynamic>)['name']!
+                      as String,
+            )
+            .toList();
+
+        expect(functionNames, contains('process_start'));
+        expect(functionNames, contains('process_status'));
+        expect(functionNames, contains('process_tail'));
+        expect(functionNames, contains('process_wait'));
+        expect(functionNames, contains('process_cancel'));
+        expect(functionNames, contains('process_list'));
+      },
+    );
+
+    test(
+      'includes background args in local_execute_command tool definition',
+      () {
+        final service = McpToolService();
+        final localExecute =
+            service.getOpenAiToolDefinitions().firstWhere(
+                  (tool) =>
+                      (tool['function']! as Map<String, dynamic>)['name'] ==
+                      'local_execute_command',
+                )['function']!
+                as Map<String, dynamic>;
+        final parameters = localExecute['parameters']! as Map<String, dynamic>;
+        final properties = parameters['properties']! as Map<String, dynamic>;
+
+        expect(properties['background'], isNotNull);
+        final backgroundProperty =
+            properties['background']! as Map<String, dynamic>;
+        final labelProperty = properties['label']! as Map<String, dynamic>;
+
+        expect(backgroundProperty['type'], 'boolean');
+        expect(labelProperty['type'], 'string');
+      },
+    );
+
+    test('describes process tools for background local command jobs', () {
+      final service = McpToolService(
+        backgroundProcessTools: _FakeBackgroundProcessTools(
+          statusResults: const {},
+        ),
+      );
+      final functions = service
+          .getOpenAiToolDefinitions()
+          .map((tool) => tool['function']! as Map<String, dynamic>)
+          .toList();
+      String descriptionFor(String toolName) {
+        final tool = functions.firstWhere(
+          (item) => (item['name']! as String) == toolName,
+          orElse: () => throw StateError('Missing tool: $toolName'),
+        );
+        return (tool['description']! as String);
+      }
+
+      expect(
+        descriptionFor('process_status'),
+        contains('process_start or background local_execute_command'),
+      );
+      expect(
+        descriptionFor('process_tail'),
+        contains('background local_execute_command'),
+      );
+      expect(descriptionFor('process_wait'), contains('background process'));
+      expect(
+        descriptionFor('process_wait'),
+        contains('report concise progress'),
+      );
+      expect(
+        descriptionFor('process_cancel'),
+        contains('running background process'),
+      );
+      expect(
+        descriptionFor('process_list'),
+        contains('background local_execute_command'),
+      );
+    });
+
+    test(
+      'executes local_execute_command in background when requested',
+      () async {
+        final fakeTools = _FakeBackgroundProcessTools(
+          statusResults: const {},
+          startResult: jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': 'proc_local_1',
+            'command': 'sleep 30',
+            'working_directory': '/tmp/project',
+            'label': 'long task',
+          }),
+        );
+        final service = McpToolService(backgroundProcessTools: fakeTools);
+
+        final result = await service.executeTool(
+          name: 'local_execute_command',
+          arguments: const {
+            'command': 'sleep 30',
+            'working_directory': '/tmp/project',
+            'background': true,
+            'label': 'long task',
+          },
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(fakeTools.startCalls, hasLength(1));
+        expect(
+          fakeTools.startCalls.single,
+          equals({
+            'command': 'sleep 30',
+            'working_directory': '/tmp/project',
+            'label': 'long task',
+          }),
+        );
+        expect(jsonDecode(result.result), containsPair('status', 'running'));
+      },
+    );
+
+    test(
+      'waits for a background local_execute_command process to complete',
+      () async {
+        if (!BackgroundProcessTools().isSupported) {
+          return;
+        }
+
+        final workingDirectory = await Directory.systemTemp.createTemp(
+          'mcp_tool_service_wait_test_',
+        );
+        addTearDown(() async {
+          if (workingDirectory.existsSync()) {
+            await workingDirectory.delete(recursive: true);
+          }
+        });
+
+        final backgroundTools = BackgroundProcessTools();
+        final monitorService = BackgroundProcessMonitorService(
+          tools: backgroundTools,
+        );
+        addTearDown(() async {
+          monitorService.dispose();
+          await backgroundTools.dispose();
+        });
+        final service = McpToolService(
+          backgroundProcessTools: backgroundTools,
+          backgroundProcessMonitorService: monitorService,
+        );
+
+        final startResult = await service.executeTool(
+          name: 'local_execute_command',
+          arguments: {
+            'command': 'echo done',
+            'working_directory': workingDirectory.path,
+            'background': true,
+            'label': 'integration wait test',
+          },
+        );
+        expect(startResult.isSuccess, isTrue);
+        final startPayload =
+            jsonDecode(startResult.result) as Map<String, dynamic>;
+        expect(startPayload['ok'], isTrue);
+
+        final jobId = startPayload['job_id'] as String;
+        expect(jobId, isNotEmpty);
+
+        late Map<String, dynamic> waitPayload;
+        for (var i = 0; i < 5; i++) {
+          final waitResult = await service.executeTool(
+            name: 'process_wait',
+            arguments: {'job_id': jobId},
+          );
+          expect(waitResult.isSuccess, isTrue);
+          waitPayload = jsonDecode(waitResult.result) as Map<String, dynamic>;
+          if (waitPayload['status'] == 'exited') {
+            break;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(waitPayload['ok'], isTrue);
+        expect(waitPayload['job_id'], jobId);
+        expect(waitPayload['status'], 'exited');
+        expect(waitPayload['exit_code'], 0);
+      },
+    );
+
+    test(
+      'returns unavailable when background local_execute_command tools are missing',
+      () async {
+        final service = McpToolService();
+        final result = await service.executeTool(
+          name: 'local_execute_command',
+          arguments: const {
+            'command': 'sleep 30',
+            'working_directory': '/tmp/project',
+            'background': true,
+          },
+        );
+
+        expect(result.isSuccess, isFalse);
+        expect(
+          result.errorMessage,
+          'Background process tools are not available',
+        );
+      },
+    );
+
+    test('returns monitored process snapshots from process_list', () async {
+      final fakeTools = _FakeBackgroundProcessTools(
+        statusResults: const {
+          'missing': '{"ok":false,"code":"job_not_found","job_id":"missing"}',
+        },
+      );
+      final monitor = BackgroundProcessMonitorService(tools: fakeTools);
+      final registeredRunning = monitor.registerProcessStartResult(
+        result: jsonEncode({
+          'ok': true,
+          'status': 'running',
+          'job_id': 'proc_running',
+          'command': 'sleep 1',
+          'working_directory': '/tmp',
+        }),
+        arguments: const {'command': 'sleep 1', 'working_directory': '/tmp'},
+      );
+      final registeredFinished = monitor.registerProcessStartResult(
+        result: jsonEncode({
+          'ok': true,
+          'status': 'exited',
+          'exit_code': 0,
+          'job_id': 'proc_done',
+          'command': 'printf done',
+          'working_directory': '/tmp',
+        }),
+        arguments: const {
+          'command': 'printf done',
+          'working_directory': '/tmp',
+        },
+      );
+
+      expect(registeredRunning, isNotNull);
+      expect(registeredFinished, isNotNull);
+
+      final service = McpToolService(
+        backgroundProcessTools: fakeTools,
+        backgroundProcessMonitorService: monitor,
+      );
+
+      final runningOnly = await service.executeTool(
+        name: 'process_list',
+        arguments: {'include_finished': false},
+      );
+      final runningPayload =
+          jsonDecode(runningOnly.result) as Map<String, dynamic>;
+      expect(runningOnly.isSuccess, isTrue);
+      expect(runningPayload['ok'], isTrue);
+      final runningJobs = runningPayload['jobs'] as List<dynamic>;
+      expect(runningJobs, hasLength(1));
+      expect(
+        (runningJobs.single as Map<String, dynamic>)['job_id'],
+        'proc_running',
+      );
+
+      final filtered = await service.executeTool(
+        name: 'process_list',
+        arguments: {
+          'job_ids': ['proc_done'],
+          'include_finished': true,
+          'limit': 3,
+        },
+      );
+      final filteredPayload =
+          jsonDecode(filtered.result) as Map<String, dynamic>;
+      expect(filteredPayload['ok'], isTrue);
+      final filteredJobs = filteredPayload['jobs'] as List<dynamic>;
+      expect(filteredJobs, hasLength(1));
+      expect(
+        (filteredJobs.single as Map<String, dynamic>)['job_id'],
+        'proc_done',
+      );
     });
 
     test('registers read-only file tools (incl. inspect_file) everywhere', () {

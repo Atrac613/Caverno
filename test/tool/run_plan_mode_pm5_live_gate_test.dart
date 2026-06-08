@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Plan mode PM5 live gate helper', () {
-    test('runs smoke suite and ping canary with PM5 defaults', () async {
+    test('runs smoke suite and canaries with PM5 defaults', () async {
       final fixture = _ScriptFixture.create();
       fixture.writeHelper(
         path: fixture.liveHelper.path,
@@ -31,6 +31,17 @@ exit 0
   printf 'REPORTER:%s\\n' "\${CAVERNO_PLAN_MODE_REPORTER:-}"
   printf 'PROMPT:%s\\n' "\$*"
 } > "\${PING_LOG}"
+exit 0
+''',
+      );
+      fixture.writeHelper(
+        path: fixture.backgroundHelper.path,
+        contents: '''
+#!/usr/bin/env bash
+{
+  printf 'REPEAT:%s\\n' "\${CAVERNO_CHAT_BACKGROUND_PROCESS_LIVE_REPEAT_COUNT:-}"
+  printf 'REPORT_ROOT:%s\\n' "\${CAVERNO_CHAT_BACKGROUND_PROCESS_LIVE_CANARY_REPORT_ROOT:-}"
+} > "\${BACKGROUND_LOG}"
 exit 0
 ''',
       );
@@ -68,6 +79,13 @@ exit 0
           contains('PROMPT:Custom ping prompt'),
         ),
       );
+      expect(
+        fixture.backgroundLog.readAsStringSync(),
+        allOf(
+          contains('REPEAT:1'),
+          contains('REPORT_ROOT:${fixture.reportRoot.path}'),
+        ),
+      );
     });
 
     test('uses strict one-file ping prompt by default', () async {
@@ -84,6 +102,13 @@ exit 0
         contents: '''
 #!/usr/bin/env bash
 printf 'PROMPT:%s\\n' "\$*" > "\${PING_LOG}"
+exit 0
+''',
+      );
+      fixture.writeHelper(
+        path: fixture.backgroundHelper.path,
+        contents: '''
+#!/usr/bin/env bash
 exit 0
 ''',
       );
@@ -125,6 +150,14 @@ printf 'should not run\\n' > "\${PING_LOG}"
 exit 0
 ''',
       );
+      fixture.writeHelper(
+        path: fixture.backgroundHelper.path,
+        contents: '''
+#!/usr/bin/env bash
+printf 'should not run\\n' > "\${BACKGROUND_LOG}"
+exit 0
+''',
+      );
 
       final result = await fixture.runGate(
         environment: const <String, String>{
@@ -147,6 +180,7 @@ exit 0
         contains('TAGS:smoke,recovery'),
       );
       expect(fixture.pingLog.existsSync(), isFalse);
+      expect(fixture.backgroundLog.existsSync(), isFalse);
     });
 
     test('prints latest artifact paths when the ping canary fails', () async {
@@ -176,6 +210,14 @@ printf '# Canary summary\\n' > "\${canary_dir}/canary_summary.md"
 printf '{"failedCount":1}\\n' > "\${canary_dir}/run_01_suite_report.json"
 printf 'failure log\\n' > "\${canary_dir}/run_01_run.log"
 exit 7
+''',
+      );
+      fixture.writeHelper(
+        path: fixture.backgroundHelper.path,
+        contents: '''
+#!/usr/bin/env bash
+printf 'should not run\\n' > "\${BACKGROUND_LOG}"
+exit 0
 ''',
       );
 
@@ -214,6 +256,50 @@ exit 7
         contains('docs/plan_mode_ping_cli_stabilization_playbook.md'),
       );
       expect(result.stdout, contains('Open the latest canary_summary.md'));
+      expect(result.stdout, contains('Background-process canary summary JSON'));
+      expect(fixture.backgroundLog.existsSync(), isFalse);
+    });
+
+    test('allows skipping the background-process canary', () async {
+      final fixture = _ScriptFixture.create();
+      fixture.writeHelper(
+        path: fixture.liveHelper.path,
+        contents: '''
+#!/usr/bin/env bash
+exit 0
+''',
+      );
+      fixture.writeHelper(
+        path: fixture.pingHelper.path,
+        contents: '''
+#!/usr/bin/env bash
+exit 0
+''',
+      );
+      fixture.writeHelper(
+        path: fixture.backgroundHelper.path,
+        contents: '''
+#!/usr/bin/env bash
+printf 'should not run\\n' > "\${BACKGROUND_LOG}"
+exit 0
+''',
+      );
+
+      final result = await fixture.runGate(
+        environment: const <String, String>{
+          'CAVERNO_LLM_BASE_URL': 'http://127.0.0.1:1234/v1',
+          'CAVERNO_LLM_API_KEY': 'test-key',
+          'CAVERNO_LLM_MODEL': 'test-model',
+          'CAVERNO_PLAN_MODE_PM5_SKIP_BACKGROUND_PROCESS_CANARY': '1',
+        },
+      );
+
+      expect(result.exitCode, 0);
+      expect(
+        result.stdout,
+        contains('Chat background-process live canary skipped'),
+      );
+      expect(fixture.backgroundLog.existsSync(), isFalse);
     });
   });
 }
@@ -225,8 +311,10 @@ final class _ScriptFixture {
 
   File get liveHelper => File('${root.path}/live_helper.sh');
   File get pingHelper => File('${root.path}/ping_helper.sh');
+  File get backgroundHelper => File('${root.path}/background_helper.sh');
   File get liveLog => File('${root.path}/live.log');
   File get pingLog => File('${root.path}/ping.log');
+  File get backgroundLog => File('${root.path}/background.log');
   Directory get reportRoot => Directory('${root.path}/reports');
 
   static _ScriptFixture create() {
@@ -256,9 +344,12 @@ final class _ScriptFixture {
         ...environment,
         'CAVERNO_PLAN_MODE_LIVE_TEST_HELPER': liveHelper.path,
         'CAVERNO_PLAN_MODE_PING_CLI_CANARY_HELPER': pingHelper.path,
+        'CAVERNO_PLAN_MODE_BACKGROUND_PROCESS_CANARY_HELPER':
+            backgroundHelper.path,
         'CAVERNO_PLAN_MODE_REPORT_ROOT': reportRoot.path,
         'LIVE_LOG': liveLog.path,
         'PING_LOG': pingLog.path,
+        'BACKGROUND_LOG': backgroundLog.path,
       },
     );
   }

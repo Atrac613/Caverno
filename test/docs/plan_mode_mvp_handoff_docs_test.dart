@@ -32,6 +32,7 @@ void main() {
       expect(readme, contains('CAVERNO_PLAN_MODE_PM5_SKIP_SMOKE=1'));
       expect(readme, contains('tool/run_chat_live_llm_canary.sh'));
       expect(readme, contains('tool/run_tool_result_budget_live_canary.sh'));
+      expect(readme, contains('docs/long_running_process_mvp_tasks.md'));
     });
 
     test('handoff records readiness signals and review blockers', () {
@@ -143,6 +144,32 @@ void main() {
       expect(coverage, contains('routine_workspace_write_shape_live_canary'));
       expect(coverage, contains('Baseline Model Switch Flow'));
       expect(coverage, contains('three consecutive clean runs'));
+      expect(coverage, contains('docs/long_running_process_mvp_tasks.md'));
+      expect(coverage, contains('process_start'));
+      expect(coverage, contains('process_wait'));
+    });
+
+    test('long-running process MVP task doc records remaining work', () {
+      final tasks = File(
+        'docs/long_running_process_mvp_tasks.md',
+      ).readAsStringSync();
+
+      expect(tasks, contains('# Long-Running Process MVP Tasks'));
+      expect(tasks, contains('LRP-MVP-5'));
+      expect(tasks, contains('background_process_status_unverified'));
+      expect(tasks, contains('periodic progress reports'));
+      expect(tasks, contains('output tails'));
+      expect(
+        tasks,
+        contains('tool/run_chat_background_process_live_canary.sh'),
+      );
+      expect(
+        tasks,
+        contains('CAVERNO_CHAT_BACKGROUND_PROCESS_LIVE_REPEAT_COUNT=3'),
+      );
+      expect(tasks, contains('MVP Ready Criteria'));
+      expect(tasks, contains('Cleanup cancellation'));
+      expect(tasks, contains('docs/plan_mode_live_llm_model_canary_matrix.md'));
     });
 
     test('compatibility doc records PM11 endpoint and model boundaries', () {

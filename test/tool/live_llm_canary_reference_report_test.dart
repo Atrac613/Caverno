@@ -80,6 +80,21 @@ void main() {
       testCount: 3,
       signals: const {},
     );
+    final backgroundProcessSummary = _writeLiveSummary(
+      directory: directory,
+      fileName: 'background_process_summary.json',
+      surface: 'chat_background_process',
+      canaryName: 'chat_background_process_live_canary',
+      passedCount: 3,
+      testCount: 3,
+      signals: const {
+        'processStartCount': 3,
+        'processWaitCount': 3,
+        'backgroundProcessFailedCount': 0,
+        'backgroundProcessStillRunningCount': 0,
+        'backgroundProcessStatusUnverifiedCount': 0,
+      },
+    );
     final codingGoalSummary = _writeLiveSummary(
       directory: directory,
       fileName: 'coding_goal_summary.json',
@@ -206,6 +221,7 @@ void main() {
       codingDiagnosticFeedbackSummary: codingDiagnosticFeedbackSummary,
       codingVerificationFeedbackSummary: codingVerificationFeedbackSummary,
       chatSummary: chatSummary,
+      backgroundProcessSummary: backgroundProcessSummary,
       budgetSummary: budgetSummary,
       routineSummary: routineSummary,
       generatedAt: DateTime.utc(2026, 5, 23, 1, 2, 3),
@@ -214,10 +230,10 @@ void main() {
     expect(report.result, 'passed');
     expect(report.model, 'qwen3.6-27b-mtp-vision');
     expect(report.baseUrl, 'http://127.0.0.1:1234/v1');
-    expect(report.totalPassed, 32);
-    expect(report.totalCount, 32);
+    expect(report.totalPassed, 35);
+    expect(report.totalCount, 35);
     expect(report.validationErrors, isEmpty);
-    expect(report.entries, hasLength(12));
+    expect(report.entries, hasLength(13));
     expect(report.entries.first.riskSummary, contains('approval fallback 3'));
     expect(
       report.entries.first.riskSummary,
@@ -242,6 +258,12 @@ void main() {
           .singleWhere((entry) => entry.surface == 'chat_budget')
           .riskSummary,
       contains('compaction retry 1'),
+    );
+    expect(
+      report.entries
+          .singleWhere((entry) => entry.surface == 'chat_background_process')
+          .check,
+      'chat_background_process_live_canary',
     );
     final diagnosticEntry = report.entries.singleWhere(
       (entry) => entry.surface == 'coding_diagnostic_feedback',
@@ -337,6 +359,43 @@ void main() {
       contains('assistant tool blocks 1'),
     );
   });
+
+  test(
+    'fails when background-process evidence has unsafe final states',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'live-llm-reference-background-process-test-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+
+      final backgroundProcessSummary = _writeLiveSummary(
+        directory: directory,
+        fileName: 'background_process_summary.json',
+        surface: 'chat_background_process',
+        canaryName: 'chat_background_process_live_canary',
+        passedCount: 1,
+        testCount: 1,
+        signals: const {
+          'processStartCount': 1,
+          'processWaitCount': 1,
+          'backgroundProcessStatusUnverifiedCount': 1,
+        },
+      );
+
+      final report = await buildLiveLlmCanaryReferenceReport(
+        label: 'unsafe background process',
+        backgroundProcessSummary: backgroundProcessSummary,
+        generatedAt: DateTime.utc(2026, 6, 8),
+      );
+
+      expect(report.result, 'failed');
+      expect(report.isSuccessful, isFalse);
+      expect(
+        report.entries.single.riskSummary,
+        contains('background process unverified 1'),
+      );
+    },
+  );
 
   test(
     'fails when diagnostic feedback evidence misses release gate coverage',
@@ -547,6 +606,23 @@ void main() {
     );
     _writeJsonPath(
       directory,
+      'chat_background_process_live_canary_525/canary_summary.json',
+      _liveSummaryJson(
+        surface: 'chat_background_process',
+        canaryName: 'chat_background_process_live_canary',
+        testCount: 3,
+        passedCount: 3,
+        signals: const {
+          'processStartCount': 3,
+          'processWaitCount': 3,
+          'backgroundProcessFailedCount': 0,
+          'backgroundProcessStillRunningCount': 0,
+          'backgroundProcessStatusUnverifiedCount': 0,
+        },
+      ),
+    );
+    _writeJsonPath(
+      directory,
       'coding_goal_live_llm_canary_550/canary_summary.json',
       _liveSummaryJson(
         surface: 'coding_goal',
@@ -678,7 +754,7 @@ void main() {
     );
 
     expect(report.result, 'passed');
-    expect(report.entries, hasLength(12));
+    expect(report.entries, hasLength(13));
     expect(report.model, 'new-model');
     expect(
       report.entries
@@ -701,6 +777,12 @@ void main() {
           .singleWhere((entry) => entry.surface == 'coding_goal')
           .evidencePath,
       endsWith('coding_goal_live_llm_canary_550/canary_summary.json'),
+    );
+    expect(
+      report.entries
+          .singleWhere((entry) => entry.surface == 'chat_background_process')
+          .evidencePath,
+      endsWith('chat_background_process_live_canary_525/canary_summary.json'),
     );
     expect(
       report.entries

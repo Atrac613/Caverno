@@ -22,6 +22,19 @@ The PM5 gate runs:
 - the live smoke suite (`live_host_health_scaffold`,
   `live_cli_entrypoint_decision`, `live_clarify_recovery`)
 - the ping CLI live canary (`live_ping_cli_completion`)
+- the chat background-process live canary (`chat_background_process`)
+
+For stability-focused background-process checks, increase
+`CAVERNO_PLAN_MODE_PM5_BACKGROUND_PROCESS_REPEAT_COUNT` or run the focused
+helper directly:
+
+```bash
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+CAVERNO_CHAT_BACKGROUND_PROCESS_LIVE_REPEAT_COUNT=3 \
+tool/run_chat_background_process_live_canary.sh
+```
 
 For quick rediscovery after a fresh full PM5 pass, use the narrower ping canary:
 
@@ -89,6 +102,8 @@ Minimum comparison criteria for the next model:
   unobserved for artifact-sensitive scenarios.
 - The run notes capture proposal parsing, reasoning-only recovery, approval
   path, cleanup cancellation, content-fit issues, and final completion behavior.
+- Chat background-process monitoring must pass with clean final process state counts
+  (`failed=0`, `still_running=0`, `status_unverified=0`).
 
 ## Next Model Task Breakdown
 
@@ -107,7 +122,9 @@ candidate:
    full product surface, not only coding.
 6. Add a result-matrix row and a run-evidence subsection before moving to the
    next candidate model.
-7. Classify the candidate as baseline-ready, provisional, blocked by model
+7. Archive the PM5 background-process artifacts and include
+   `canary_summary.json` and `canary_summary.md` under the model evidence block.
+8. Classify the candidate as baseline-ready, provisional, blocked by model
    behavior, or blocked by environment. Do not mark it baseline-ready with
    unexpected warnings, report-quality blockers, task drift, or unreviewed
    artifact content-fit concerns.
@@ -748,6 +765,49 @@ candidate:
   candidate pass, but require repeat clean same-revision evidence before
   replacing qwen as the named reference.
 
+### `chat_background_process` canary evidence
+
+- Command:
+  `tool/run_chat_background_process_live_canary.sh`
+- Environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=qwen3.6-27b-mtp-vision`
+- One-run artifacts:
+  - `build/integration_test_reports/chat_background_process_live_canary_1780910078/canary_summary.json`
+  - `build/integration_test_reports/chat_background_process_live_canary_1780910078/canary_summary.md`
+- Repeat artifacts:
+  - `build/integration_test_reports/chat_background_process_live_canary_1780910146/canary_summary.json`
+  - `build/integration_test_reports/chat_background_process_live_canary_1780910146/canary_summary.md`
+- Progress-report artifacts:
+  - `build/integration_test_reports/chat_background_process_live_canary_1780913499/canary_summary.json`
+  - `build/integration_test_reports/chat_background_process_live_canary_1780913499/canary_summary.md`
+- Prose-only recovery artifacts:
+  - `build/integration_test_reports/chat_background_process_live_canary_1780914959/canary_summary.json`
+  - `build/integration_test_reports/chat_background_process_live_canary_1780914959/canary_summary.md`
+- Outcome:
+  - one-run canary: 1/1 passed, 0 failed, 0 skipped
+  - three-run repeat canary: 3/3 passed, 0 failed, 0 skipped
+  - progress-report canary: 1/1 passed, 0 failed, 0 skipped
+  - prose-only recovery canary: 2/2 passed, 0 failed, 0 skipped
+  - process execution counts in the repeat summary:
+    `process_start=3`, `process_wait=3`
+  - progress-report execution counts:
+    `process_start=1`, `process_wait=2`
+  - prose-only recovery execution counts:
+    `process_start=2`, `process_wait=4`,
+    `background_process_still_running=1`
+  - progress-report coverage: first wait observed a running process with
+    `PHASE_ONE_PROGRESS`; the assistant then reported `PROGRESS_OBSERVED`
+    before the second wait observed zero-exit completion.
+  - prose-only recovery coverage: monitor feedback blocked a premature
+    completion claim; the model replied with `PROSE_WAIT_OBSERVED` instead of a
+    tool call; Caverno forced follow-up `process_wait` checks until the final
+    `BACKGROUND_PROCESS_PROSE_CANARY_DONE` marker.
+  - final process states: `failed=0`, `still_running=0`,
+    `status_unverified=0`
+  - report quality: ready, no unexpected warnings
+
 ## Per-Model Notes
 
 ### `qwen3.6-27b-mtp-vision`
@@ -814,6 +874,10 @@ candidate:
     package and nested package Dart repairs. Analyzer feedback was observed for
     `lib/main.dart` and `packages/nested_app/lib/main.dart`, with 11 feedback
     packets, 17 diagnostics, and 0 recovery signals.
+  - The 2026-06-08 chat background-process canary passed both the focused
+    one-run check and the three-run repeat check, with clean
+    `process_start`/`process_wait` execution counts and no failed,
+    still-running, or unverified final process states.
 
 ### `gemma4-26b-vision`
 

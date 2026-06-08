@@ -241,6 +241,24 @@ class LiveLlmCanarySummary {
         '- Memory extraction fallback count: '
         '`${signals.memoryExtractionFallbackCount}`',
       )
+      ..writeln('- Process-start call count: `${signals.processStartCount}`')
+      ..writeln('- Process-wait call count: `${signals.processWaitCount}`')
+      ..writeln(
+        '- Background process still-running count: '
+        '`${signals.backgroundProcessStillRunningCount}`',
+      )
+      ..writeln(
+        '- Background process completed count: '
+        '`${signals.backgroundProcessCompletedCount}`',
+      )
+      ..writeln(
+        '- Background process failed count: '
+        '`${signals.backgroundProcessFailedCount}`',
+      )
+      ..writeln(
+        '- Background process status-unverified count: '
+        '`${signals.backgroundProcessStatusUnverifiedCount}`',
+      )
       ..writeln()
       ..writeln('## Coding Diagnostic Feedback')
       ..writeln()
@@ -374,6 +392,12 @@ class LiveLlmCanarySignals {
     required this.assistantAuthoredToolBlockCount,
     required this.transportDisconnectCount,
     required this.memoryExtractionFallbackCount,
+    required this.processStartCount,
+    required this.processWaitCount,
+    required this.backgroundProcessStillRunningCount,
+    required this.backgroundProcessCompletedCount,
+    required this.backgroundProcessFailedCount,
+    required this.backgroundProcessStatusUnverifiedCount,
     required this.dartAnalyzeFeedback,
     required this.dartTestFeedback,
     required this.codingOutputFeedback,
@@ -386,6 +410,12 @@ class LiveLlmCanarySignals {
   final int assistantAuthoredToolBlockCount;
   final int transportDisconnectCount;
   final int memoryExtractionFallbackCount;
+  final int processStartCount;
+  final int processWaitCount;
+  final int backgroundProcessStillRunningCount;
+  final int backgroundProcessCompletedCount;
+  final int backgroundProcessFailedCount;
+  final int backgroundProcessStatusUnverifiedCount;
   final LiveLlmCanaryDartAnalyzeFeedbackSignals dartAnalyzeFeedback;
   final LiveLlmCanaryDartTestFeedbackSignals dartTestFeedback;
   final LiveLlmCanaryCodingOutputFeedbackSignals codingOutputFeedback;
@@ -430,6 +460,24 @@ class LiveLlmCanarySignals {
           caseSensitive: false,
         ),
       ),
+      processStartCount: _countToolExecutionMessages(rawLog, 'process_start'),
+      processWaitCount: _countToolExecutionMessages(rawLog, 'process_wait'),
+      backgroundProcessStillRunningCount: _countMatches(
+        rawLog,
+        RegExp('background_process_still_running'),
+      ),
+      backgroundProcessCompletedCount: _countMatches(
+        rawLog,
+        RegExp('background_process_completed'),
+      ),
+      backgroundProcessFailedCount: _countMatches(
+        rawLog,
+        RegExp('background_process_failed'),
+      ),
+      backgroundProcessStatusUnverifiedCount: _countMatches(
+        rawLog,
+        RegExp('background_process_status_unverified'),
+      ),
       dartAnalyzeFeedback: dartAnalyzeFeedback,
       dartTestFeedback: dartTestFeedback,
       codingOutputFeedback: codingOutputFeedback,
@@ -445,6 +493,13 @@ class LiveLlmCanarySignals {
       'assistantAuthoredToolBlockCount': assistantAuthoredToolBlockCount,
       'transportDisconnectCount': transportDisconnectCount,
       'memoryExtractionFallbackCount': memoryExtractionFallbackCount,
+      'processStartCount': processStartCount,
+      'processWaitCount': processWaitCount,
+      'backgroundProcessStillRunningCount': backgroundProcessStillRunningCount,
+      'backgroundProcessCompletedCount': backgroundProcessCompletedCount,
+      'backgroundProcessFailedCount': backgroundProcessFailedCount,
+      'backgroundProcessStatusUnverifiedCount':
+          backgroundProcessStatusUnverifiedCount,
       'dartAnalyzeFeedback': dartAnalyzeFeedback.toJson(),
       'dartTestFeedback': dartTestFeedback.toJson(),
       'codingOutputFeedback': codingOutputFeedback.toJson(),
@@ -807,6 +862,19 @@ class _LiveLlmCanarySummaryOptions {
 
 int _countMatches(String input, RegExp pattern) {
   return pattern.allMatches(input).length;
+}
+
+int _countToolExecutionMessages(String rawLog, String toolName) {
+  var count = 0;
+  for (final line in const LineSplitter().convert(rawLog)) {
+    for (final message in _messagesFromLogLine(line)) {
+      if (message == '[ToolCall] $toolName' ||
+          message.contains('[Tool] Executing tool: $toolName')) {
+        count += 1;
+      }
+    }
+  }
+  return count;
 }
 
 LiveLlmCanaryDartAnalyzeFeedbackSignals _extractDartAnalyzeFeedbackSignals(

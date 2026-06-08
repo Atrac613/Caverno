@@ -51,6 +51,33 @@ class MemoryExtractionDraftService {
     r'\b(/users/|/tmp/|browser-saves|tool-results|application support|\.md|\.json|\.txt|\.csv|\.dart)\b.*\b(saved|wrote|created|updated|generated|exported)\b',
     caseSensitive: false,
   );
+  static final RegExp _artifactCompletionMemoryPattern = RegExp(
+    r'\b(saved|wrote|created|updated|generated|exported)\b.*\b(file|draft|release notes?|markdown|document|report|artifact)\b|'
+    r'\b(file|draft|release notes?|markdown|document|report|artifact)\b.*\b(saved|wrote|created|updated|generated|exported)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _artifactCompletionSummaryPattern = RegExp(
+    r'\b(saved|wrote|created|updated|generated|exported)\b|\b(draft|release notes?|markdown|document|report|artifact)\b.*\b(done|complete|completed|ready)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _commandExecutionCompletionMemoryPattern = RegExp(
+    r'\b(command|script|dry[- ]?run|test|tests|validation|release)\b.*\b(ran|run|executed|completed|passed|succeeded)\b|'
+    r'\b(ran|executed|completed|passed|succeeded)\b.*\b(command|script|dry[- ]?run|test|tests|validation|release)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _commandExecutionCompletionSummaryPattern = RegExp(
+    r'\b(command|script|dry[- ]?run|test|tests|validation|release)\b.*\b(ran|run|executed|completed|passed|succeeded)\b|'
+    r'\b(ran|executed|completed|passed|succeeded)\b.*\b(command|script|dry[- ]?run|test|tests|validation|release)\b',
+    caseSensitive: false,
+  );
+  static const _unexecutedFileSaveOpenLoop =
+      'Create or save the requested file with a file-operation tool.';
+  static const _unexecutedFileSaveSummary =
+      'Latest requested file save or mutation remains unexecuted.';
+  static const _unexecutedCommandActionOpenLoop =
+      'Execute the requested command with a command-execution tool.';
+  static const _unexecutedCommandActionSummary =
+      'Latest requested command execution remains unexecuted.';
 
   static const systemPrompt =
       'You extract reusable user memory from a conversation. '
@@ -167,6 +194,12 @@ class MemoryExtractionDraftService {
         '- Do not save assistant claims about local file, git, command, or external state changes as facts unless they are supported by the application-executed tool results above or directly stated by the user. If a file-operation result reports code=unexecuted_file_save, treat the requested save or file mutation as unexecuted.',
       )
       ..writeln(
+        '- If the latest tool results include code=unexecuted_file_save, include an open loop for the missing file-operation tool action before any follow-up release, dry-run, or validation task.',
+      )
+      ..writeln(
+        '- If the latest tool results include code=unexecuted_command_action, do not summarize command, dry-run, test, validation, git, or release-script execution as completed. Include an open loop for the missing command-execution tool action.',
+      )
+      ..writeln(
         '- Do not summarize browser actions such as open, click, fill, submit, or navigation as completed unless the corresponding browser tool result above succeeded. If only browser_snapshot is present, or a browser result reports code=unexecuted_browser_action, treat the browser action as unexecuted.',
       )
       ..writeln(
@@ -217,6 +250,7 @@ class MemoryExtractionDraftService {
 
   static MemoryExtractionDraft? parseDraft(
     String rawContent, {
+    String? inputContext,
     void Function(String message)? onRepair,
     void Function(Object error)? onError,
   }) {
@@ -228,7 +262,7 @@ class MemoryExtractionDraftService {
           'Recovered memory extraction from structured reasoning text',
         );
       }
-      return draft;
+      return _applyInputContextGuards(draft, inputContext: inputContext);
     }
 
     try {
@@ -237,7 +271,7 @@ class MemoryExtractionDraftService {
         onRepair?.call('Repaired malformed memory extraction JSON');
       }
       if (!draft.isEmpty) {
-        return draft;
+        return _applyInputContextGuards(draft, inputContext: inputContext);
       }
       final structuredDraft = _parseStructuredReasoningDraft(rawContent);
       if (structuredDraft != null) {
@@ -245,7 +279,10 @@ class MemoryExtractionDraftService {
           'Recovered memory extraction from structured reasoning text',
         );
       }
-      return structuredDraft;
+      return _applyInputContextGuards(
+        structuredDraft,
+        inputContext: inputContext,
+      );
     } catch (error) {
       onError?.call(error);
       final draft = _parseStructuredReasoningDraft(rawContent);
@@ -254,8 +291,76 @@ class MemoryExtractionDraftService {
           'Recovered memory extraction from structured reasoning text',
         );
       }
+      return _applyInputContextGuards(draft, inputContext: inputContext);
+    }
+  }
+
+  static MemoryExtractionDraft? _applyInputContextGuards(
+    MemoryExtractionDraft? draft, {
+    required String? inputContext,
+  }) {
+    if (draft == null || inputContext == null) {
       return draft;
     }
+
+    var guardedDraft = draft;
+    if (_inputContextHasToolResultCode(inputContext, 'unexecuted_file_save')) {
+      final summary = _looksLikeArtifactCompletionSummary(guardedDraft.summary)
+          ? _unexecutedFileSaveSummary
+          : guardedDraft.summary;
+      final openLoops = [
+        _unexecutedFileSaveOpenLoop,
+        ...guardedDraft.openLoops.where(
+          (loop) =>
+              loop.trim().isNotEmpty &&
+              loop.trim() != _unexecutedFileSaveOpenLoop,
+        ),
+      ].take(3).toList(growable: false);
+      final entries = guardedDraft.entries
+          .where((entry) => !_isArtifactCompletionMemory(entry.text))
+          .toList(growable: false);
+
+      guardedDraft = MemoryExtractionDraft(
+        summary: summary,
+        openLoops: openLoops,
+        persona: guardedDraft.persona,
+        preferences: guardedDraft.preferences,
+        doNot: guardedDraft.doNot,
+        entries: entries,
+      );
+    }
+
+    if (_inputContextHasToolResultCode(
+      inputContext,
+      'unexecuted_command_action',
+    )) {
+      final summary =
+          _looksLikeCommandExecutionCompletionSummary(guardedDraft.summary)
+          ? _unexecutedCommandActionSummary
+          : guardedDraft.summary;
+      final openLoops = [
+        _unexecutedCommandActionOpenLoop,
+        ...guardedDraft.openLoops.where(
+          (loop) =>
+              loop.trim().isNotEmpty &&
+              loop.trim() != _unexecutedCommandActionOpenLoop,
+        ),
+      ].take(3).toList(growable: false);
+      final entries = guardedDraft.entries
+          .where((entry) => !_isCommandExecutionCompletionMemory(entry.text))
+          .toList(growable: false);
+
+      guardedDraft = MemoryExtractionDraft(
+        summary: summary,
+        openLoops: openLoops,
+        persona: guardedDraft.persona,
+        preferences: guardedDraft.preferences,
+        doNot: guardedDraft.doNot,
+        entries: entries,
+      );
+    }
+
+    return guardedDraft;
   }
 
   static MemoryExtractionDraft _draftFromMap(Map<String, dynamic> map) {
@@ -282,7 +387,7 @@ class MemoryExtractionDraftService {
         }
         final item = Map<String, dynamic>.from(raw);
         final text = (item['text'] as String?)?.trim() ?? '';
-        if (text.isEmpty || _isSavedArtifactPathMemory(text)) {
+        if (text.isEmpty || _isArtifactCompletionMemory(text)) {
           continue;
         }
         final type = (item['type'] as String?)?.trim() ?? 'topic';
@@ -416,7 +521,7 @@ class MemoryExtractionDraftService {
       final textMatch = _memoryTextPattern.firstMatch(normalizedLine);
       final text = _cleanStructuredValue(textMatch?.group(1) ?? '');
       if (text.isEmpty ||
-          _isSavedArtifactPathMemory(text) ||
+          _isArtifactCompletionMemory(text) ||
           !seenTexts.add(text.toLowerCase())) {
         continue;
       }
@@ -523,6 +628,35 @@ class MemoryExtractionDraftService {
 
   static bool _isSavedArtifactPathMemory(String text) {
     return _savedArtifactPathMemoryPattern.hasMatch(text);
+  }
+
+  static bool _isArtifactCompletionMemory(String text) {
+    return _isSavedArtifactPathMemory(text) ||
+        _artifactCompletionMemoryPattern.hasMatch(text);
+  }
+
+  static bool _looksLikeArtifactCompletionSummary(String text) {
+    return _artifactCompletionSummaryPattern.hasMatch(text);
+  }
+
+  static bool _isCommandExecutionCompletionMemory(String text) {
+    return _commandExecutionCompletionMemoryPattern.hasMatch(text);
+  }
+
+  static bool _looksLikeCommandExecutionCompletionSummary(String text) {
+    return _commandExecutionCompletionSummaryPattern.hasMatch(text);
+  }
+
+  static bool _inputContextHasToolResultCode(String inputContext, String code) {
+    final escapedCode = RegExp.escape(code);
+    return RegExp(
+      r'''- [^:\n]+: arguments=.*;\s*result=.*(?:code["']?\s*[:=]\s*["']?''' +
+          escapedCode +
+          r'|code=' +
+          escapedCode +
+          r')',
+      caseSensitive: false,
+    ).hasMatch(inputContext);
   }
 
   static List<String> _stringList(Object? raw, {required int maxLength}) {

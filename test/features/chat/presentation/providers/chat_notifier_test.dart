@@ -19,6 +19,8 @@ import 'package:caverno/core/services/tool_approval_audit_log.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/background_process_monitor_service.dart';
+import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -29,6 +31,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/subagent_task.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
@@ -44,6 +47,7 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/subagent_task_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -1845,6 +1849,48 @@ class _FakeMcpToolService extends McpToolService {
   }
 }
 
+class _FakeBackgroundProcessTools extends BackgroundProcessTools {
+  _FakeBackgroundProcessTools({required this.statusResults});
+
+  final Map<String, String> statusResults;
+  final List<Map<String, dynamic>> startCalls = [];
+
+  @override
+  bool get isSupported => true;
+
+  @override
+  Future<String> start({
+    required String command,
+    required String workingDirectory,
+    String? label,
+  }) async {
+    startCalls.add({
+      'command': command,
+      'working_directory': workingDirectory,
+      if (label != null && label.isNotEmpty) 'label': label,
+    });
+    return jsonEncode({
+      'ok': true,
+      'status': 'running',
+      'job_id': 'proc_fake',
+      'command': command,
+      'working_directory': workingDirectory,
+      'label': label,
+    });
+  }
+
+  @override
+  Future<String> status({required String jobId, int? tailChars}) async {
+    return statusResults[jobId] ??
+        jsonEncode({
+          'ok': false,
+          'code': 'job_not_found',
+          'job_id': jobId,
+          'error': 'No background process job exists for job_id: $jobId',
+        });
+  }
+}
+
 class _WritingFileMcpToolService extends McpToolService {
   _WritingFileMcpToolService(this.root);
 
@@ -3130,6 +3176,172 @@ void main() {
   );
 
   test(
+    'sendMessage marks CJK future file creation without tool call as unexecuted',
+    () async {
+      const finalContent = '1.3.3+14 から 1.3.4+15 への変更点を調べてリリースノートを作成します。';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: finalContent,
+        initialStreamChunks: const [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'write_file': 'Write a file to the selected project.',
+        },
+        results: const {'write_file': '{"ok":true}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('はい');
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(
+          'I could not execute the additional tool request above in this final-answer step.',
+        ),
+      );
+    },
+  );
+
+  test(
+    'sendMessage marks future command execution without tool call as unexecuted',
+    () async {
+      const finalContent =
+          'I will run the dry-run release script now using a local command.';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: finalContent,
+        initialStreamChunks: const [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Execute a local shell command.',
+        },
+        results: const {'local_execute_command': '{"exit_code":0}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('yes');
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(
+          'The requested command was not executed because no successful command-execution tool result is available.',
+        ),
+      );
+    },
+  );
+
+  test(
+    'sendMessage marks Japanese release execution claim without tool call as unexecuted',
+    () async {
+      const finalContent = '本番リリーススクリプトを実行します。';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: finalContent,
+        initialStreamChunks: const [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Execute a local shell command.',
+        },
+        results: const {'local_execute_command': '{"exit_code":0}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('yes');
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(
+          'The requested command was not executed because no successful command-execution tool result is available.',
+        ),
+      );
+    },
+  );
+
+  test(
     'sendMessage shows resolved browser save target before approval',
     () async {
       final saveDirectory = Directory.systemTemp.createTempSync(
@@ -3805,7 +4017,7 @@ void main() {
   });
 
   test(
-    'sendMessage ignores follow-up tool calls after constrained skill output',
+    'sendMessage executes follow-up tools after constrained skill continuation',
     () async {
       const preamble =
           'I will verify release readiness with the saved skill before answering.\n\n';
@@ -3827,18 +4039,18 @@ void main() {
         initialStreamChunks: const [preamble],
         followUpToolCalls: [
           ToolCallInfo(
-            id: 'tool-git-status',
-            name: 'git_execute_command',
-            arguments: const {'command': 'status'},
+            id: 'tool-read-pubspec',
+            name: 'read_file',
+            arguments: const {'path': 'pubspec.yaml'},
           ),
         ],
         intermediateToolRoleResponseContent: constrainedAnswer,
-        finalAnswerChunks: const ['FALLBACK_FINAL_SHOULD_NOT_STREAM'],
+        finalAnswerChunks: const ['Release status inspected.'],
       );
       final toolService = _FakeMcpToolService(
         descriptions: const {
           'load_skill': 'Load the full markdown instructions for a skill.',
-          'git_execute_command': 'Execute a git command in a local repository.',
+          'read_file': 'Read a file from disk.',
         },
         results: {
           'load_skill': jsonEncode({
@@ -3847,7 +4059,10 @@ void main() {
             'content':
                 'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
           }),
-          'git_execute_command': 'unexpected git status',
+          'read_file': jsonEncode({
+            'path': 'pubspec.yaml',
+            'content': 'version: 1.3.4+15',
+          }),
         },
       );
       final appLifecycleService = _MockAppLifecycleService();
@@ -3881,16 +4096,12 @@ void main() {
         'Use the Release Check skill if relevant. Verify release readiness.',
       );
 
-      expect(toolService.executedToolNames, ['load_skill']);
-      expect(dataSource.toolResultBatches, hasLength(1));
-      expect(dataSource.finalAnswerRequestMessages, isEmpty);
+      expect(toolService.executedToolNames, ['load_skill', 'read_file']);
+      expect(dataSource.toolResultBatches, hasLength(2));
+      expect(dataSource.finalAnswerRequestMessages, hasLength(1));
       expect(
         chatNotifier.state.messages.last.content,
-        contains('SKILL_LIVE_OK'),
-      );
-      expect(
-        chatNotifier.state.messages.last.content,
-        isNot(contains('FALLBACK_FINAL_SHOULD_NOT_STREAM')),
+        contains('Release status inspected.'),
       );
       expect(
         chatNotifier.state.messages.last.content,
@@ -3899,16 +4110,104 @@ void main() {
     },
   );
 
+  test('sendMessage executes follow-up tools after skill start marker', () async {
+    const preamble = 'リリース準備チェックのスキルをまず読み込んでから進めます。\n\n';
+    const constrainedAnswer =
+        'SKILL_LIVE_OK\n\n'
+        'リリース準備チェックを開始します。プロジェクトの現状を確認させてください。';
+    final dataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-load-skill',
+          name: 'load_skill',
+          arguments: const {'id': 'release-check'},
+        ),
+      ],
+      initialCompletionContent: preamble,
+      initialStreamChunks: const [preamble],
+      followUpToolCalls: [
+        ToolCallInfo(
+          id: 'tool-list-directory',
+          name: 'list_directory',
+          arguments: const {'path': '/project'},
+        ),
+        ToolCallInfo(
+          id: 'tool-read-pubspec',
+          name: 'read_file',
+          arguments: const {'path': '/project/pubspec.yaml'},
+        ),
+      ],
+      intermediateToolRoleResponseContent: constrainedAnswer,
+      finalAnswerChunks: const ['Release project files inspected.'],
+    );
+    final toolService = _FakeMcpToolService(
+      descriptions: const {
+        'load_skill': 'Load the full markdown instructions for a skill.',
+        'list_directory': 'List files in a directory.',
+        'read_file': 'Read a file from disk.',
+      },
+      results: {
+        'load_skill': jsonEncode({
+          'id': 'release-check',
+          'name': 'Release Check',
+          'content':
+              'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
+        }),
+        'list_directory': jsonEncode({
+          'path': '/project',
+          'entries': ['pubspec.yaml'],
+        }),
+        'read_file': jsonEncode({
+          'path': '/project/pubspec.yaml',
+          'content': 'version: 1.3.4+15',
+        }),
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final threadContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(threadContainer.dispose);
+
+    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage('ios,macosアプリをリリース処理したい');
+
+    expect(toolService.executedToolNames, [
+      'load_skill',
+      'list_directory',
+      'read_file',
+    ]);
+    expect(dataSource.toolResultBatches, hasLength(2));
+    expect(dataSource.finalAnswerRequestMessages, hasLength(1));
+    expect(
+      chatNotifier.state.messages.last.content,
+      contains('Release project files inspected.'),
+    );
+  });
+
   test(
-    'sendMessage trims look-around text before ignored skill follow-up tools',
+    'sendMessage executes follow-up tools after skill search intent',
     () async {
-      const preamble = 'リリースチェックのスキルをロードして進めます。\n\n';
-      const constrainedAnswer =
-          'SKILL_LIVE_OK\n\n'
-          'リリース準備状況を確認するために、以下の2つの検証ステップを実行します：\n\n'
-          '1. **コードベースのリリース関連チェック** – バージョン番号、変更ログ、ビルド設定ファイルが最新かつ整合性を持っているか確認します。\n'
-          '2. **テストとビルドの健全性チェック** – テストスイートの結果とビルドが正常に完了しているか確認します。\n\n'
-          '現在のプロジェクトの状態を確認するために、まずリポジトリの構造と Git ステータスを見てみましょう。';
+      const preamble = 'リリース準備チェックのスキルを読み込みます。\n\n';
+      const constrainedAnswer = 'SKILL_LIVE_OK\n\nリリース手順の資料を探します。';
       final dataSource = _ToolBatchChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -3921,24 +4220,18 @@ void main() {
         initialStreamChunks: const [preamble],
         followUpToolCalls: [
           ToolCallInfo(
-            id: 'tool-list-directory',
-            name: 'list_directory',
-            arguments: const {'recursive': false, 'max_entries': 30},
-          ),
-          ToolCallInfo(
-            id: 'tool-git-status',
-            name: 'git_execute_command',
-            arguments: const {'command': 'status'},
+            id: 'tool-find-release',
+            name: 'find_files',
+            arguments: const {'pattern': '*release*', 'recursive': true},
           ),
         ],
         intermediateToolRoleResponseContent: constrainedAnswer,
-        finalAnswerChunks: const ['FALLBACK_FINAL_SHOULD_NOT_STREAM'],
+        finalAnswerChunks: const ['Release documentation search completed.'],
       );
       final toolService = _FakeMcpToolService(
         descriptions: const {
           'load_skill': 'Load the full markdown instructions for a skill.',
-          'list_directory': 'List files in a directory.',
-          'git_execute_command': 'Execute a git command in a local repository.',
+          'find_files': 'Find files by glob pattern.',
         },
         results: {
           'load_skill': jsonEncode({
@@ -3947,8 +4240,11 @@ void main() {
             'content':
                 'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
           }),
-          'list_directory': 'unexpected directory listing',
-          'git_execute_command': 'unexpected git status',
+          'find_files': jsonEncode({
+            'path': '/project',
+            'pattern': '*release*',
+            'matches': ['docs/ios_macos_release.md'],
+          }),
         },
       );
       final appLifecycleService = _MockAppLifecycleService();
@@ -3978,128 +4274,221 @@ void main() {
       addTearDown(threadContainer.dispose);
 
       final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
-      await chatNotifier.sendMessage(
-        'Use the Release Check skill if relevant. Verify release readiness.',
-      );
+      await chatNotifier.sendMessage('ios,macosアプリをリリース処理したい 資料にリリース手順があるはず');
 
-      expect(toolService.executedToolNames, ['load_skill']);
-      expect(dataSource.toolResultBatches, hasLength(1));
-      expect(dataSource.finalAnswerRequestMessages, isEmpty);
+      expect(toolService.executedToolNames, ['load_skill', 'find_files']);
+      expect(dataSource.toolResultBatches, hasLength(2));
+      expect(dataSource.finalAnswerRequestMessages, hasLength(1));
       expect(
         chatNotifier.state.messages.last.content,
-        contains('SKILL_LIVE_OK'),
-      );
-      expect(
-        chatNotifier.state.messages.last.content,
-        isNot(contains('FALLBACK_FINAL_SHOULD_NOT_STREAM')),
-      );
-      expect(
-        chatNotifier.state.messages.last.content,
-        isNot(contains('リポジトリの構造と Git ステータスを見てみましょう')),
+        contains('Release documentation search completed.'),
       );
     },
   );
 
-  test(
-    'sendMessage trims actual-check text before ignored skill follow-up tools',
-    () async {
-      const preamble = 'リリースチェックのスキルをロードして、リリース準備状況を確認します。\n\n';
-      const constrainedAnswer =
-          'SKILL_LIVE_OK\n\n'
-          'リリース準備状況の確認として、以下の2つの検証ステップを行います。\n\n'
-          '1. **プロジェクト構造と設定ファイルの確認** — `pubspec.yaml`、`build.yaml` などの設定がリリースビルドに適切に設定されているか確認します。\n'
-          '2. **Git ステータスの確認** — 未コミットの変更、未プッシュのコミット、ブランチ状態を確認して、リリース対象が正しい状態か検証します。\n\n'
-          'では実際に確認を進めます。';
-      final dataSource = _ToolBatchChatDataSource(
-        initialToolCalls: [
-          ToolCallInfo(
-            id: 'tool-load-skill',
-            name: 'load_skill',
-            arguments: const {'id': 'release-check'},
-          ),
-        ],
-        initialCompletionContent: preamble,
-        initialStreamChunks: const [preamble],
-        followUpToolCalls: [
-          ToolCallInfo(
-            id: 'tool-list-directory',
-            name: 'list_directory',
-            arguments: const {'path': '.'},
-          ),
-          ToolCallInfo(
-            id: 'tool-git-status',
-            name: 'git_execute_command',
-            arguments: const {'command': 'status'},
-          ),
-        ],
-        intermediateToolRoleResponseContent: constrainedAnswer,
-        finalAnswerChunks: const ['FALLBACK_FINAL_SHOULD_NOT_STREAM'],
-      );
-      final toolService = _FakeMcpToolService(
-        descriptions: const {
-          'load_skill': 'Load the full markdown instructions for a skill.',
-          'list_directory': 'List files in a directory.',
-          'git_execute_command': 'Execute a git command in a local repository.',
-        },
-        results: {
-          'load_skill': jsonEncode({
-            'id': 'release-check',
-            'name': 'Release Check',
-            'content':
-                'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
-          }),
-          'list_directory': 'unexpected directory listing',
-          'git_execute_command': 'unexpected git status',
-        },
-      );
-      final appLifecycleService = _MockAppLifecycleService();
-      when(() => appLifecycleService.isInBackground).thenReturn(false);
-      final threadContainer = ProviderContainer(
-        overrides: [
-          settingsNotifierProvider.overrideWith(
-            _ToolEnabledSettingsNotifier.new,
-          ),
-          conversationsNotifierProvider.overrideWith(
-            _TestConversationsNotifier.new,
-          ),
-          conversationRepositoryProvider.overrideWithValue(
-            _FakeConversationRepository(),
-          ),
-          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
-          sessionMemoryServiceProvider.overrideWithValue(
-            _TestSessionMemoryService(),
-          ),
-          mcpToolServiceProvider.overrideWithValue(toolService),
-          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-          backgroundTaskServiceProvider.overrideWithValue(
-            _TestBackgroundTaskService(),
-          ),
-        ],
-      );
-      addTearDown(threadContainer.dispose);
+  test('sendMessage executes look-around skill follow-up tools', () async {
+    const preamble = 'リリースチェックのスキルをロードして進めます。\n\n';
+    const constrainedAnswer =
+        'SKILL_LIVE_OK\n\n'
+        'リリース準備状況を確認するために、以下の2つの検証ステップを実行します：\n\n'
+        '1. **コードベースのリリース関連チェック** – バージョン番号、変更ログ、ビルド設定ファイルが最新かつ整合性を持っているか確認します。\n'
+        '2. **テストとビルドの健全性チェック** – テストスイートの結果とビルドが正常に完了しているか確認します。\n\n'
+        '現在のプロジェクトの状態を確認するために、まずリポジトリの構造と Git ステータスを見てみましょう。';
+    final dataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-load-skill',
+          name: 'load_skill',
+          arguments: const {'id': 'release-check'},
+        ),
+      ],
+      initialCompletionContent: preamble,
+      initialStreamChunks: const [preamble],
+      followUpToolCalls: [
+        ToolCallInfo(
+          id: 'tool-list-directory',
+          name: 'list_directory',
+          arguments: const {'recursive': false, 'max_entries': 30},
+        ),
+        ToolCallInfo(
+          id: 'tool-read-pubspec',
+          name: 'read_file',
+          arguments: const {'path': 'pubspec.yaml'},
+        ),
+      ],
+      intermediateToolRoleResponseContent: constrainedAnswer,
+      finalAnswerChunks: const ['Repository structure inspected.'],
+    );
+    final toolService = _FakeMcpToolService(
+      descriptions: const {
+        'load_skill': 'Load the full markdown instructions for a skill.',
+        'list_directory': 'List files in a directory.',
+        'read_file': 'Read a file from disk.',
+      },
+      results: {
+        'load_skill': jsonEncode({
+          'id': 'release-check',
+          'name': 'Release Check',
+          'content':
+              'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
+        }),
+        'list_directory': jsonEncode({
+          'path': '.',
+          'entries': ['pubspec.yaml'],
+        }),
+        'read_file': jsonEncode({
+          'path': 'pubspec.yaml',
+          'content': 'version: 1.3.4+15',
+        }),
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final threadContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(threadContainer.dispose);
 
-      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
-      await chatNotifier.sendMessage(
-        'Use the Release Check skill if relevant. Verify release readiness.',
-      );
+    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage(
+      'Use the Release Check skill if relevant. Verify release readiness.',
+    );
 
-      expect(toolService.executedToolNames, ['load_skill']);
-      expect(dataSource.toolResultBatches, hasLength(1));
-      expect(dataSource.finalAnswerRequestMessages, isEmpty);
-      expect(
-        chatNotifier.state.messages.last.content,
-        contains('SKILL_LIVE_OK'),
-      );
-      expect(
-        chatNotifier.state.messages.last.content,
-        isNot(contains('FALLBACK_FINAL_SHOULD_NOT_STREAM')),
-      );
-      expect(
-        chatNotifier.state.messages.last.content,
-        isNot(contains('では実際に確認を進めます')),
-      );
-    },
-  );
+    expect(toolService.executedToolNames, [
+      'load_skill',
+      'list_directory',
+      'read_file',
+    ]);
+    expect(dataSource.toolResultBatches, hasLength(2));
+    expect(dataSource.finalAnswerRequestMessages, hasLength(1));
+    expect(
+      chatNotifier.state.messages.last.content,
+      contains('Repository structure inspected.'),
+    );
+    expect(
+      chatNotifier.state.messages.last.content,
+      isNot(contains('リポジトリの構造と Git ステータスを見てみましょう')),
+    );
+  });
+
+  test('sendMessage executes actual-check skill follow-up tools', () async {
+    const preamble = 'リリースチェックのスキルをロードして、リリース準備状況を確認します。\n\n';
+    const constrainedAnswer =
+        'SKILL_LIVE_OK\n\n'
+        'リリース準備状況の確認として、以下の2つの検証ステップを行います。\n\n'
+        '1. **プロジェクト構造と設定ファイルの確認** — `pubspec.yaml`、`build.yaml` などの設定がリリースビルドに適切に設定されているか確認します。\n'
+        '2. **Git ステータスの確認** — 未コミットの変更、未プッシュのコミット、ブランチ状態を確認して、リリース対象が正しい状態か検証します。\n\n'
+        'では実際に確認を進めます。';
+    final dataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-load-skill',
+          name: 'load_skill',
+          arguments: const {'id': 'release-check'},
+        ),
+      ],
+      initialCompletionContent: preamble,
+      initialStreamChunks: const [preamble],
+      followUpToolCalls: [
+        ToolCallInfo(
+          id: 'tool-list-directory',
+          name: 'list_directory',
+          arguments: const {'path': '.'},
+        ),
+        ToolCallInfo(
+          id: 'tool-read-pubspec',
+          name: 'read_file',
+          arguments: const {'path': 'pubspec.yaml'},
+        ),
+      ],
+      intermediateToolRoleResponseContent: constrainedAnswer,
+      finalAnswerChunks: const ['Release readiness inputs inspected.'],
+    );
+    final toolService = _FakeMcpToolService(
+      descriptions: const {
+        'load_skill': 'Load the full markdown instructions for a skill.',
+        'list_directory': 'List files in a directory.',
+        'read_file': 'Read a file from disk.',
+      },
+      results: {
+        'load_skill': jsonEncode({
+          'id': 'release-check',
+          'name': 'Release Check',
+          'content':
+              'When this skill is loaded, include SKILL_LIVE_OK. List exactly two verification steps.',
+        }),
+        'list_directory': jsonEncode({
+          'path': '.',
+          'entries': ['pubspec.yaml'],
+        }),
+        'read_file': jsonEncode({
+          'path': 'pubspec.yaml',
+          'content': 'version: 1.3.4+15',
+        }),
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final threadContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(threadContainer.dispose);
+
+    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage(
+      'Use the Release Check skill if relevant. Verify release readiness.',
+    );
+
+    expect(toolService.executedToolNames, [
+      'load_skill',
+      'list_directory',
+      'read_file',
+    ]);
+    expect(dataSource.toolResultBatches, hasLength(2));
+    expect(dataSource.finalAnswerRequestMessages, hasLength(1));
+    expect(
+      chatNotifier.state.messages.last.content,
+      contains('Release readiness inputs inspected.'),
+    );
+    expect(
+      chatNotifier.state.messages.last.content,
+      isNot(contains('では実際に確認を進めます')),
+    );
+  });
 
   test(
     'sendHiddenPrompt preserves the hidden assistant response for follow-up inference',
@@ -4500,6 +4889,106 @@ void main() {
         chatNotifier.state.messages.last.content,
         contains('Continuing with the selected direction.'),
       );
+    },
+  );
+
+  test(
+    'ask-user-question answer is retained across later tool follow-ups',
+    () async {
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-ask-version',
+            name: 'ask_user_question',
+            arguments: const {
+              'question': 'How should the version be updated?',
+              'options': [
+                {'label': 'Minor version and build number'},
+                {'label': 'Build number only'},
+              ],
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Use the selected version update.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-read-pubspec',
+                name: 'read_file',
+                arguments: const {'path': 'pubspec.yaml'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const ['Version update is still pending.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'ask_user_question': '',
+          'read_file': '{"path":"pubspec.yaml","content":"version: 1.3.3+14"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      final sendFuture = chatNotifier.sendMessage('Update version and build');
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final pending = chatNotifier.state.pendingAskUserQuestion;
+      expect(pending, isNotNull);
+      chatNotifier.resolveAskUserQuestion(
+        id: pending!.id,
+        answer: AskUserQuestionAnswer(
+          question: pending.question,
+          selectedOptions: const [
+            AskUserQuestionSelection(
+              id: 'minor-and-build',
+              label: 'Minor version and build number',
+            ),
+          ],
+        ),
+      );
+
+      await sendFuture;
+
+      expect(dataSource.toolResultBatches, hasLength(2));
+      expect(dataSource.toolResultBatches.first.map((result) => result.name), [
+        'ask_user_question',
+      ]);
+      expect(dataSource.toolResultBatches.last.map((result) => result.name), [
+        'ask_user_question',
+        'read_file',
+      ]);
+      final retainedAnswer =
+          jsonDecode(dataSource.toolResultBatches.last.first.result)
+              as Map<String, dynamic>;
+      expect(retainedAnswer['answer'], 'Minor version and build number');
+      expect(toolService.executedToolNames, ['read_file']);
     },
   );
 
@@ -9421,6 +9910,983 @@ with open(path, "rb") as file:
   );
 
   test(
+    'sendMessage blocks duplicate side-effect command after timeout',
+    () async {
+      const command =
+          'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.4.md';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'release-command-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The release timed out; I will retry it.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'release-command-2',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': command,
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The retry was blocked until the user confirms.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'command': command,
+            'working_directory': '/tmp/project',
+            'error': 'Command timed out after 60 seconds.',
+            'timed_out': true,
+            'timeout_ms': 60000,
+            'process_terminated': true,
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Release Caverno');
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(
+          jsonDecode(toolDataSource.toolResultBatches.first.single.result),
+          containsPair('timed_out', true),
+        );
+        final retryBlock =
+            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+                as Map<String, dynamic>;
+        expect(
+          retryBlock,
+          containsPair('code', 'command_retry_after_timeout_blocked'),
+        );
+        expect(retryBlock['command'], command);
+        expect(
+          retryBlock['required_action'],
+          contains('read-only inspection command'),
+        );
+        final finalPrompt = toolDataSource.finalAnswerMessages
+            .map((message) => message.content)
+            .join('\n');
+        expect(finalPrompt, contains('command_retry_after_timeout_blocked'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('sendMessage repeats delayed process monitor after release timeout', () async {
+    const releaseCommand =
+        'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.4.md';
+    const monitorCommand =
+        'sleep 30 && ps aux | grep -i "gen_snapshot\\|xcodebuild" | grep -v grep | head -5';
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'release-command',
+          name: 'local_execute_command',
+          arguments: const {
+            'command': releaseCommand,
+            'working_directory': '/tmp/project',
+          },
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content:
+              'The release timed out; I will check whether the build is still running.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'monitor-command-1',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': monitorCommand,
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content:
+              'AOT completed and export started; I will wait again and check export progress.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'monitor-command-2',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': monitorCommand,
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'The export process is no longer running.',
+          finishReason: 'stop',
+        ),
+      ],
+      finalAnswerChunks: const ['Release monitoring completed.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'local_execute_command': 'unexpected command'},
+      queuedResults: {
+        'local_execute_command': [
+          jsonEncode({
+            'command': releaseCommand,
+            'working_directory': '/tmp/project',
+            'error': 'Command timed out after 60 seconds.',
+            'timed_out': true,
+            'timeout_ms': 60000,
+          }),
+          jsonEncode({
+            'command': monitorCommand,
+            'working_directory': '/tmp/project',
+            'exit_code': 0,
+            'stdout': 'gen_snapshot_arm64 is running',
+            'stderr': '',
+          }),
+          jsonEncode({
+            'command': monitorCommand,
+            'working_directory': '/tmp/project',
+            'exit_code': 0,
+            'stdout': 'xcodebuild -exportArchive is running',
+            'stderr': '',
+          }),
+        ],
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Release Caverno');
+
+      expect(
+        toolService.executedToolArguments
+            .map((arguments) => arguments['command'])
+            .toList(),
+        [releaseCommand, monitorCommand, monitorCommand],
+      );
+      expect(toolDataSource.toolResultBatches, hasLength(3));
+      expect(
+        jsonDecode(toolDataSource.toolResultBatches[2].single.result),
+        containsPair('stdout', 'xcodebuild -exportArchive is running'),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test('sendMessage dispatches process_start as command evidence', () async {
+    const command = 'pwd';
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'process-start-1',
+          name: 'process_start',
+          arguments: const {
+            'command': command,
+            'working_directory': '/tmp/project',
+            'label': 'workspace check',
+          },
+        ),
+      ],
+      initialCompletionContent: 'I will start a background process.',
+      finalAnswerChunks: const ['The background process was started.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: {
+        'process_start': jsonEncode({
+          'ok': true,
+          'status': 'running',
+          'job_id': 'proc_test_1',
+          'pid': 123,
+          'command': command,
+          'working_directory': '/tmp/project',
+        }),
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Start a background process');
+
+      expect(toolService.executedToolNames, ['process_start']);
+      expect(
+        toolService.executedToolArguments.single,
+        containsPair('working_directory', '/tmp/project'),
+      );
+      expect(toolDataSource.toolResultBatches, hasLength(1));
+      expect(
+        toolDataSource.toolResultBatches.single.single.name,
+        'process_start',
+      );
+      expect(
+        toolNotifier.state.messages.last.content,
+        isNot(contains('unexecuted')),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test('sendMessage blocks stale process_start results', () async {
+    const command = 'bash tool/release_ios_macos.sh';
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'process-start-stale',
+          name: 'process_start',
+          arguments: const {
+            'command': command,
+            'working_directory': '/tmp/project',
+            'label': 'release',
+          },
+        ),
+      ],
+      initialCompletionContent: 'I will start the release.',
+      finalAnswerChunks: const ['The release start result was stale.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: {
+        'process_start': jsonEncode({
+          'ok': true,
+          'status': 'running',
+          'job_id': 'proc_old_1',
+          'pid': 123,
+          'command': command,
+          'working_directory': '/tmp/project',
+          'started_at': '2026-01-01T00:00:00.000',
+        }),
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Release the app');
+
+      expect(toolService.executedToolNames.first, 'process_start');
+      expect(toolDataSource.toolResultBatches, isNotEmpty);
+      final payload =
+          jsonDecode(toolDataSource.toolResultBatches.first.single.result)
+              as Map<String, dynamic>;
+      expect(
+        payload,
+        containsPair('code', 'background_process_start_stale_result'),
+      );
+      expect(payload, containsPair('job_id', 'proc_old_1'));
+      expect(
+        payload['required_action'],
+        contains('Do not report the command as newly started'),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test('sendMessage allows duplicate existing process_start results', () async {
+    const command = 'bash tool/release_ios_macos.sh';
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'process-start-duplicate',
+          name: 'process_start',
+          arguments: const {
+            'command': command,
+            'working_directory': '/tmp/project',
+            'label': 'release',
+          },
+        ),
+      ],
+      initialCompletionContent: 'I will start the release.',
+      finalAnswerChunks: const ['The existing release process is monitored.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: {
+        'process_start': jsonEncode({
+          'ok': true,
+          'status': 'running',
+          'duplicate_existing': true,
+          'job_id': 'proc_old_running_1',
+          'pid': 123,
+          'command': command,
+          'working_directory': '/tmp/project',
+          'started_at': '2026-01-01T00:00:00.000',
+        }),
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Release the app');
+
+      expect(toolService.executedToolNames.first, 'process_start');
+      expect(toolDataSource.toolResultBatches, isNotEmpty);
+      final payload =
+          jsonDecode(toolDataSource.toolResultBatches.first.single.result)
+              as Map<String, dynamic>;
+      expect(payload, containsPair('duplicate_existing', true));
+      expect(
+        payload,
+        isNot(containsPair('code', 'background_process_start_stale_result')),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test(
+    'sendMessage dispatches process_list as read-only monitor query',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'process-list-1',
+            name: 'process_list',
+            arguments: const {'include_finished': true},
+          ),
+        ],
+        initialCompletionContent: 'I will list the background jobs.',
+        finalAnswerChunks: const ['Background process list is available.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'process_list': jsonEncode({
+            'ok': true,
+            'job_count': 1,
+            'jobs': [
+              {
+                'job_id': 'proc_123',
+                'status': 'running',
+                'command': 'sleep 30',
+                'working_directory': '/tmp',
+              },
+            ],
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Show background process status');
+
+        expect(toolService.executedToolNames, ['process_list']);
+        expect(
+          toolDataSource.toolResultBatches.single.single.name,
+          'process_list',
+        );
+        expect(
+          toolDataSource.toolResultBatches.single.single.result,
+          contains('"job_count":1'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('unexecuted')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage blocks completion claims while a background process is running',
+    () async {
+      const command = 'bash tool/release_ios_macos.sh';
+      const jobId = 'proc_release_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'process-start-release',
+            name: 'process_start',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'label': 'release',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The release is complete.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content:
+                'The release is still running, so I will keep monitoring it.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'The release is still running after the follow-up check.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'The release is still running after the second check.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'The release is still running after the second check.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'process_start': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+        },
+        queuedResults: {
+          'process_wait': [
+            jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Uploading archive...',
+              'stderr_tail': '',
+            }),
+            jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Uploading archive...',
+              'stderr_tail': '',
+            }),
+          ],
+        },
+      );
+      final monitorService = BackgroundProcessMonitorService(
+        tools: _FakeBackgroundProcessTools(
+          statusResults: {
+            jobId: jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Uploading archive...',
+              'stderr_tail': '',
+            }),
+          },
+        ),
+        pollInterval: const Duration(minutes: 1),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          backgroundProcessMonitorServiceProvider.overrideWithValue(
+            monitorService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Release the app');
+
+        expect(toolService.executedToolNames, [
+          'process_start',
+          'process_wait',
+          'process_wait',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(4));
+        expect(
+          toolDataSource.toolResultBatches.first.single.name,
+          'process_start',
+        );
+        expect(
+          toolDataSource.toolResultBatches[1].single.name,
+          'background_process_monitor',
+        );
+        final monitorPayload =
+            jsonDecode(toolDataSource.toolResultBatches[1].single.result)
+                as Map<String, dynamic>;
+        expect(
+          toolDataSource.toolResultBatches.last.single.name,
+          'process_wait',
+        );
+        expect(
+          monitorPayload,
+          containsPair('code', 'background_process_still_running'),
+        );
+        expect(monitorPayload, containsPair('progress_report_required', true));
+        expect(
+          monitorPayload['required_action'],
+          contains('Inspect stdout_tail, stderr_tail, elapsed_ms, and status'),
+        );
+        expect(
+          monitorPayload['required_action'],
+          contains('Do not just wait silently'),
+        );
+        expect(
+          monitorPayload['progress_report_fields'],
+          containsAll(const [
+            'status',
+            'elapsed_ms',
+            'stdout_tail',
+            'stderr_tail',
+          ]),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('still running'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('complete.')),
+        );
+      } finally {
+        monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage keeps monitoring when running-process feedback gets prose',
+    () async {
+      const command = 'bash tool/release_ios_macos.sh';
+      const jobId = 'proc_release_prose_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'process-start-release',
+            name: 'process_start',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'label': 'release',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The release is complete.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content:
+                'The release is still running, so I will wait and check again.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content:
+                'The release is still running after the wait, so I will keep waiting.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'The release completed successfully.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['The release completed successfully.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'process_start': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+        },
+        queuedResults: {
+          'process_wait': [
+            jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Upload still running',
+              'stderr_tail': '',
+            }),
+            jsonEncode({
+              'ok': true,
+              'status': 'exited',
+              'exit_code': 0,
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Upload complete',
+              'stderr_tail': '',
+            }),
+          ],
+        },
+      );
+      final monitorService = BackgroundProcessMonitorService(
+        tools: _FakeBackgroundProcessTools(
+          statusResults: {
+            jobId: jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Uploading archive...',
+              'stderr_tail': '',
+            }),
+          },
+        ),
+        pollInterval: const Duration(minutes: 1),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          backgroundProcessMonitorServiceProvider.overrideWithValue(
+            monitorService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Release the app');
+
+        expect(toolService.executedToolNames, [
+          'process_start',
+          'process_wait',
+          'process_wait',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(4));
+        expect(
+          toolDataSource.toolResultBatches.map(
+            (batch) => batch.map((result) => result.name).toList(),
+          ),
+          containsAllInOrder([
+            ['process_start'],
+            ['background_process_monitor'],
+            ['process_wait'],
+            ['process_wait'],
+          ]),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('completed successfully'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('wait and check again')),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('still running after the wait')),
+        );
+      } finally {
+        monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage blocks completion claims while a background subagent is running',
+    () async {
+      const taskId = 'subagent_bg_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'subagent-result-1',
+            name: 'get_subagent_result',
+            arguments: const {'task_id': taskId},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The subagent task is complete.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content:
+                'The subagent is still running, so I will keep polling it.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['This final answer should not be requested.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'get_subagent_result': jsonEncode({
+            'ok': true,
+            'task_id': taskId,
+            'status': 'running',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final notifier = toolContainer.read(chatNotifierProvider.notifier);
+        final subagentTaskNotifier = toolContainer.read(
+          subagentTaskNotifierProvider.notifier,
+        );
+        subagentTaskNotifier.register(
+          SubagentTask(
+            id: taskId,
+            status: SubagentTaskStatus.running,
+            description: 'background subagent compute',
+            isBackground: true,
+            startedAt: DateTime.now(),
+          ),
+        );
+
+        await notifier.sendMessage('Check background subagent progress.');
+
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(
+          toolDataSource.toolResultBatches.first.single.name,
+          'get_subagent_result',
+        );
+        expect(
+          toolDataSource.toolResultBatches.last.single.name,
+          'get_subagent_result',
+        );
+        final monitorPayload =
+            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+                as Map<String, dynamic>;
+        expect(monitorPayload, containsPair('code', 'subagent_still_running'));
+        expect(
+          monitorPayload,
+          containsPair('required_action', contains('get_subagent_result')),
+        );
+        final blockedTasks =
+            (monitorPayload['tasks'] as List<dynamic>?) ?? const [];
+        final blockedTaskIds = blockedTasks
+            .whereType<Map<String, dynamic>>()
+            .map((task) => task['task_id']?.toString())
+            .whereType<String>();
+        expect(blockedTaskIds, contains(taskId));
+        expect(notifier.state.messages.last.content, contains('still running'));
+        expect(
+          notifier.state.messages.last.content,
+          isNot(contains('complete.')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage stops follow-up tool calls after saved validation succeeds',
     () async {
       final conversation = Conversation(
@@ -10572,6 +12038,664 @@ with open(path, "rb") as file:
       toolContainer.dispose();
     }
   });
+
+  test(
+    'sendMessage blocks completion claims while a background local command is running',
+    () async {
+      const command = 'bash tool/run_long_task.sh';
+      const jobId = 'proc_local_background_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'local-exec-background-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'background': true,
+              'label': 'long task',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The long task is complete.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content:
+                'The long task is still running, so I will keep monitoring.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['This final answer should not be requested.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+        },
+      );
+      final monitorService = BackgroundProcessMonitorService(
+        tools: _FakeBackgroundProcessTools(
+          statusResults: {
+            jobId: jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'task is active',
+              'stderr_tail': '',
+            }),
+          },
+        ),
+        pollInterval: const Duration(minutes: 1),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          backgroundProcessMonitorServiceProvider.overrideWithValue(
+            monitorService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run a long task');
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(
+          toolService.executedToolArguments.single,
+          containsPair('background', true),
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(
+          toolDataSource.toolResultBatches.first.single.name,
+          'local_execute_command',
+        );
+        expect(
+          toolDataSource.toolResultBatches.last.single.name,
+          'background_process_monitor',
+        );
+        final monitorPayload =
+            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+                as Map<String, dynamic>;
+        expect(
+          monitorPayload,
+          containsPair('code', 'background_process_still_running'),
+        );
+        expect(monitorPayload, containsPair('progress_report_required', true));
+        expect(
+          monitorPayload['required_action'],
+          contains('Inspect stdout_tail, stderr_tail, elapsed_ms, and status'),
+        );
+        expect(
+          monitorPayload['required_action'],
+          contains('Do not just wait silently'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('still running'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('complete.')),
+        );
+      } finally {
+        monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage accepts completion after local_execute_command background wait succeeds',
+    () async {
+      const command = 'bash tool/run_long_task.sh';
+      const jobId = 'proc_local_wait_success_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'local-exec-background-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'background': true,
+              'label': 'long task',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            toolCalls: [
+              ToolCallInfo(
+                id: 'process-wait-1',
+                name: 'process_wait',
+                arguments: {'job_id': jobId, 'wait_ms': 1000},
+              ),
+            ],
+            content: 'I will wait for the background process.',
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The background process completed successfully.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+          'process_wait': jsonEncode({
+            'ok': true,
+            'status': 'exited',
+            'exit_code': 0,
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run a long task');
+
+        expect(toolService.executedToolNames, [
+          'local_execute_command',
+          'process_wait',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(
+          toolDataSource.toolResultBatches.first.single.name,
+          'local_execute_command',
+        );
+        expect(
+          toolDataSource.toolResultBatches.last.single.name,
+          'process_wait',
+        );
+        expect(toolNotifier.state.messages.last.content, isNotEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('The requested command was not executed')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage keeps blocking when multiple background jobs are not all complete',
+    () async {
+      const command1 = 'bash tool/run_long_task.sh';
+      const command2 = 'bash tool/run_build_task.sh';
+      const jobId1 = 'proc_local_running_1';
+      const jobId2 = 'proc_wait_success_2';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'local-exec-background-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command1,
+              'working_directory': '/tmp/project',
+              'background': true,
+              'label': 'long task 1',
+            },
+          ),
+          ToolCallInfo(
+            id: 'process-wait-1',
+            name: 'process_wait',
+            arguments: {'job_id': jobId2, 'wait_ms': 1000},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                'The long task completed and this message should be accepted.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'One process is still running, so I will keep monitoring.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId1,
+            'pid': 123,
+            'command': command1,
+            'working_directory': '/tmp/project',
+          }),
+          'process_wait': jsonEncode({
+            'ok': true,
+            'status': 'exited',
+            'exit_code': 0,
+            'job_id': jobId2,
+            'pid': 456,
+            'command': command2,
+            'working_directory': '/tmp/project',
+          }),
+        },
+      );
+      final monitorService = BackgroundProcessMonitorService(
+        tools: _FakeBackgroundProcessTools(
+          statusResults: {
+            jobId1: jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId1,
+              'pid': 123,
+              'command': command1,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'task 1 is active',
+              'stderr_tail': '',
+            }),
+            jobId2: jsonEncode({
+              'ok': true,
+              'status': 'exited',
+              'exit_code': 0,
+              'job_id': jobId2,
+              'pid': 456,
+              'command': command2,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'done',
+              'stderr_tail': '',
+            }),
+          },
+        ),
+        pollInterval: const Duration(minutes: 1),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          backgroundProcessMonitorServiceProvider.overrideWithValue(
+            monitorService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run two long tasks');
+
+        expect(toolService.executedToolNames, [
+          'local_execute_command',
+          'process_wait',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(
+          toolDataSource.toolResultBatches.first.map((result) => result.name),
+          containsAllInOrder(const ['local_execute_command', 'process_wait']),
+        );
+        expect(
+          toolDataSource.toolResultBatches.last.single.name,
+          'background_process_monitor',
+        );
+        final monitorPayload =
+            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+                as Map<String, dynamic>;
+        expect(
+          monitorPayload,
+          containsPair('code', 'background_process_still_running'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('still running'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('should be accepted')),
+        );
+      } finally {
+        monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage blocks completion when process_wait indicates background process failed',
+    () async {
+      const command = 'bash tool/run_long_task.sh';
+      const jobId = 'proc_local_wait_failed_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'local-exec-background-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'background': true,
+              'label': 'failing long task',
+            },
+          ),
+          ToolCallInfo(
+            id: 'process-wait-1',
+            name: 'process_wait',
+            arguments: {'job_id': jobId, 'wait_ms': 1000},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                'The long task finished successfully, so I will stop here.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content:
+                'The background process exited with an error, so I will keep monitoring.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+          'process_wait': jsonEncode({
+            'ok': true,
+            'status': 'exited',
+            'exit_code': 1,
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+        },
+      );
+      final monitorService = BackgroundProcessMonitorService(
+        tools: _FakeBackgroundProcessTools(
+          statusResults: {
+            jobId: jsonEncode({
+              'ok': true,
+              'status': 'exited',
+              'exit_code': 1,
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': '',
+              'stderr_tail': 'command failed',
+            }),
+          },
+        ),
+        pollInterval: const Duration(minutes: 1),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          backgroundProcessMonitorServiceProvider.overrideWithValue(
+            monitorService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run a failing long task');
+
+        expect(toolService.executedToolNames, [
+          'local_execute_command',
+          'process_wait',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(
+          toolDataSource.toolResultBatches.last.single.name,
+          'background_process_monitor',
+        );
+        final monitorPayload =
+            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+                as Map<String, dynamic>;
+        expect(
+          monitorPayload,
+          containsPair('code', 'background_process_failed'),
+        );
+        expect(monitorPayload['error']?.toString() ?? '', contains('non-zero'));
+        expect(toolNotifier.state.messages.last.content, contains('error'));
+      } finally {
+        monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage keeps completion blocked when process status is unverified',
+    () async {
+      const command = 'bash tool/run_long_task.sh';
+      const jobId = 'proc_local_wait_unknown_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'local-exec-background-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'background': true,
+              'label': 'uncertain long task',
+            },
+          ),
+          ToolCallInfo(
+            id: 'process-wait-1',
+            name: 'process_wait',
+            arguments: {'job_id': jobId, 'wait_ms': 1000},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The long task completed.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'Status was unavailable, so I will keep monitoring.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+          'process_wait': jsonEncode({
+            'ok': false,
+            'status': 'unknown',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+        },
+      );
+      final monitorService = BackgroundProcessMonitorService(
+        tools: _FakeBackgroundProcessTools(
+          statusResults: {
+            jobId: jsonEncode({
+              'ok': true,
+              'status': 'unknown',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': '',
+              'stderr_tail': 'status could not be read',
+            }),
+          },
+        ),
+        pollInterval: const Duration(minutes: 1),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          backgroundProcessMonitorServiceProvider.overrideWithValue(
+            monitorService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run a long task');
+
+        expect(toolService.executedToolNames, [
+          'local_execute_command',
+          'process_wait',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(
+          toolDataSource.toolResultBatches.last.single.name,
+          'background_process_monitor',
+        );
+        final monitorPayload =
+            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+                as Map<String, dynamic>;
+        expect(
+          monitorPayload,
+          containsPair('code', 'background_process_status_unverified'),
+        );
+        expect(monitorPayload['required_action'], contains('process_list'));
+        final jobs = monitorPayload['jobs'] as List<dynamic>;
+        expect(jobs, hasLength(1));
+        final job = jobs.single as Map<String, dynamic>;
+        expect(job, containsPair('status', 'unknown'));
+        expect(job, containsPair('stderr_tail', 'status could not be read'));
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('monitoring'),
+        );
+      } finally {
+        monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test(
     'Foundation Models suppresses repeated successful content tool calls',
@@ -14121,6 +16245,461 @@ void main() {
       }
     },
   );
+
+  test('git tag creation requires prior tag format inspection', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'git_execute_command',
+          arguments: const {
+            'command': 'tag -a v1.3.4 -m "Release v1.3.4"',
+            'reason': 'Create release tag',
+          },
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'git_execute_command': '{"exit_code":0}'},
+    );
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/tmp/project',
+      createdAt: DateTime(2026, 5, 26),
+      updatedAt: DateTime(2026, 5, 26),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage(
+        'Create a release tag',
+        bypassPlanMode: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(toolNotifier.state.pendingGitCommand, isNull);
+      expect(toolService.executedToolNames, isEmpty);
+      expect(toolDataSource.toolResultBatches, hasLength(1));
+      final result = toolDataSource.toolResultBatches.single.single;
+      expect(result.name, 'git_execute_command');
+      expect(result.result, contains('git_tag_format_inspection_required'));
+      expect(result.result, contains('tag --list'));
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test('piped git tag list is not blocked by tag creation guard', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'git_execute_command',
+          arguments: const {
+            'command': 'tag --list --sort=-v:refname | head -10',
+          },
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'git_execute_command':
+            '{"command":"git tag --list --sort=-v:refname | head -10","working_directory":"/tmp/project","exit_code":2,"error":"git_execute_command accepts one git subcommand per tool call. Shell control operator \\"|\\" is not supported."}',
+      },
+    );
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/tmp/project',
+      createdAt: DateTime(2026, 5, 26),
+      updatedAt: DateTime(2026, 5, 26),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage(
+        'Inspect recent release tags',
+        bypassPlanMode: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(toolService.executedToolNames, ['git_execute_command']);
+      expect(toolDataSource.toolResultBatches, hasLength(1));
+      final result = toolDataSource.toolResultBatches.single.single;
+      expect(result.result, contains('one git subcommand'));
+      expect(
+        result.result,
+        isNot(contains('git_tag_format_inspection_required')),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test('git tag pattern list is not blocked by tag creation guard', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'git_execute_command',
+          arguments: const {
+            'command': "tag -l '1.3.4*' --sort=-version:refname",
+          },
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'git_execute_command':
+            '{"command":"git tag -l \'1.3.4*\' --sort=-version:refname","working_directory":"/tmp/project","exit_code":0,"stdout":"1.3.4+15\\n","stderr":""}',
+      },
+    );
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/tmp/project',
+      createdAt: DateTime(2026, 5, 26),
+      updatedAt: DateTime(2026, 5, 26),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage(
+        'Inspect release tags',
+        bypassPlanMode: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(toolService.executedToolNames, ['git_execute_command']);
+      expect(toolDataSource.toolResultBatches, hasLength(1));
+      final result = toolDataSource.toolResultBatches.single.single;
+      expect(result.result, contains('1.3.4+15'));
+      expect(
+        result.result,
+        isNot(contains('git_tag_format_inspection_required')),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test(
+    'repeated successful git command can continue to next tool call',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'git_execute_command',
+            arguments: const {'command': 'tag --list'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-2',
+                name: 'git_execute_command',
+                arguments: const {'command': 'tag --list'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-3',
+                name: 'write_file',
+                arguments: const {
+                  'path': 'docs/releases/caverno-1.3.4.md',
+                  'content': '# Caverno 1.3.4\n',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Release notes were created.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Release notes were created.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'git_execute_command':
+              '{"command":"git tag --list","working_directory":"/tmp/project","exit_code":0,"stdout":"1.3.3+14\\n1.3.4+15\\n","stderr":""}',
+          'write_file': '{"ok":true,"created":true}',
+        },
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage(
+          'Create release notes',
+          bypassPlanMode: true,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolService.executedToolNames, [
+          'git_execute_command',
+          'write_file',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        expect(
+          toolDataSource.toolResultBatches[1].single.result,
+          contains('1.3.4+15'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Release notes were created.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('git tag creation runs after tag format inspection', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'git_execute_command',
+          arguments: const {'command': 'tag --list'},
+        ),
+      ],
+      followUpToolCalls: [
+        ToolCallInfo(
+          id: 'tool-2',
+          name: 'git_execute_command',
+          arguments: const {
+            'command': 'tag 1.3.4+15',
+            'reason': 'Create release tag matching existing format',
+          },
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'git_execute_command': '{"exit_code":0}'},
+      queuedResults: const {
+        'git_execute_command': [
+          '{"command":"git tag --list","working_directory":"/tmp/project","exit_code":0,"stdout":"1.3.3+14\\n","stderr":""}',
+          '{"command":"git tag 1.3.4+15","working_directory":"/tmp/project","exit_code":0,"stdout":"","stderr":""}',
+        ],
+      },
+    );
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/tmp/project',
+      createdAt: DateTime(2026, 5, 26),
+      updatedAt: DateTime(2026, 5, 26),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage(
+        'Create a release tag',
+        bypassPlanMode: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(toolNotifier.state.pendingGitCommand, isNull);
+      expect(toolService.executedToolNames, [
+        'git_execute_command',
+        'git_execute_command',
+      ]);
+      expect(
+        toolService.executedToolArguments.map((arguments) {
+          return arguments['command'];
+        }),
+        ['tag --list', 'tag 1.3.4+15'],
+      );
+      expect(toolDataSource.toolResultBatches, hasLength(2));
+      expect(
+        toolDataSource.toolResultBatches.last.single.result,
+        isNot(contains('git_tag_format_inspection_required')),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
 
   test('full access runs git writes without a pending approval', () async {
     final conversationRepository = _FakeConversationRepository();

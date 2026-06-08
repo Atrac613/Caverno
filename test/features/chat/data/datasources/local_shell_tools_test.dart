@@ -122,6 +122,34 @@ void main() {
     expect(result['stderr'], isEmpty);
   });
 
+  test('terminates shell commands that exceed the timeout', () async {
+    if (Platform.isWindows) {
+      return;
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp(
+      'local_shell_tools_timeout_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final raw = await LocalShellTools.execute(
+      command: 'sleep 2',
+      workingDirectory: tempDir.path,
+      timeout: const Duration(milliseconds: 100),
+    );
+
+    final result = jsonDecode(raw) as Map<String, dynamic>;
+    expect(result['command'], 'sleep 2');
+    expect(result['timed_out'], isTrue);
+    expect(result['timeout_ms'], 100);
+    expect(result['process_terminated'], isTrue);
+    expect(result['error'], contains('100 milliseconds'));
+  });
+
   test('executes head, tail, wc, find, and rg internally', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'local_shell_tools_extended_test_',

@@ -109,6 +109,36 @@ void main() {
       expect(names, isNot(contains('remote_tool_29')));
     });
 
+    test('keeps process monitoring tools available in large catalogs', () {
+      final definitions = [
+        _tool('process_start', 'Start a background local process.'),
+        _tool('process_status', 'Check background process status.'),
+        _tool('process_tail', 'Read a background process tail.'),
+        _tool('process_wait', 'Wait briefly for a background process.'),
+        _tool('process_cancel', 'Cancel a background process.'),
+        _tool('process_list', 'List monitored background processes.'),
+        for (var i = 0; i < 30; i++)
+          _tool('remote_tool_$i', 'Remote MCP capability number $i.'),
+      ];
+
+      final selection = ToolDefinitionSearchService.buildInitialSelection(
+        ToolDefinitionSearchService.appendSearchToolIfUseful(definitions),
+      );
+      final names = ToolDefinitionSearchService.toolNamesFromDefinitions(
+        selection.toolDefinitions,
+      );
+
+      expect(selection.toolSearchEnabled, isTrue);
+      expect(names, contains('process_start'));
+      expect(names, contains('process_status'));
+      expect(names, contains('process_tail'));
+      expect(names, contains('process_wait'));
+      expect(names, contains('process_cancel'));
+      expect(names, contains('process_list'));
+      expect(names, isNot(contains('remote_tool_29')));
+      expect(names, contains(ToolDefinitionSearchService.toolName));
+    });
+
     test('keeps legacy initial search behavior for small catalogs', () {
       final selection = ToolDefinitionSearchService.buildInitialSelection([
         _tool('web_search', 'Search the web.'),

@@ -23,6 +23,8 @@ import '../../../settings/domain/entities/app_settings.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository.dart';
 import '../repositories/skill_repository.dart';
+import 'background_process_tools.dart';
+import 'background_process_monitor_service.dart';
 import 'ble_tools.dart';
 import 'filesystem_tools.dart';
 import 'git_tools.dart';
@@ -91,6 +93,12 @@ class McpToolService {
     'find_files',
     'search_files',
     'local_execute_command',
+    'process_start',
+    'process_status',
+    'process_tail',
+    'process_wait',
+    'process_cancel',
+    'process_list',
     'run_python_script',
     'run_tests',
     'git_execute_command',
@@ -146,6 +154,8 @@ class McpToolService {
     this.browserService,
     this.osLogProcessRunner,
     this.scriptRuntimeRegistry,
+    this.backgroundProcessTools,
+    this.backgroundProcessMonitorService,
     this.disabledBuiltInTools = const {},
   });
 
@@ -163,6 +173,8 @@ class McpToolService {
   final BrowserSessionService? browserService;
   final OsLogProcessRunner? osLogProcessRunner;
   final ScriptRuntimeRegistry? scriptRuntimeRegistry;
+  final BackgroundProcessTools? backgroundProcessTools;
+  final BackgroundProcessMonitorService? backgroundProcessMonitorService;
   final Set<String> disabledBuiltInTools;
 
   List<McpToolEntity> _cachedTools = [];
@@ -187,6 +199,14 @@ class McpToolService {
 
   bool get _hasEnabledSkills =>
       skillRepository?.getAll().any((skill) => skill.isUsable) ?? false;
+
+  String _backgroundProcessUnavailableResult() {
+    return jsonEncode({
+      'ok': false,
+      'code': 'background_process_tools_unavailable',
+      'error': 'Background process tools are not available',
+    });
+  }
 
   /// Connects to the MCP server and fetches available tools.
   ///
@@ -546,6 +566,14 @@ class McpToolService {
 
     if (LocalShellTools.isDesktopPlatform) {
       _addIfEnabled(toolDefinitions, _localExecuteCommandTool);
+      if (backgroundProcessTools?.isSupported ?? false) {
+        _addIfEnabled(toolDefinitions, _processStartTool);
+        _addIfEnabled(toolDefinitions, _processStatusTool);
+        _addIfEnabled(toolDefinitions, _processTailTool);
+        _addIfEnabled(toolDefinitions, _processWaitTool);
+        _addIfEnabled(toolDefinitions, _processCancelTool);
+        _addIfEnabled(toolDefinitions, _processListTool);
+      }
       _addIfEnabled(toolDefinitions, _runTestsTool);
     }
 
@@ -665,6 +693,23 @@ class McpToolService {
       return null;
     }
     return null;
+  }
+
+  bool _asBool(Object? value) {
+    if (value == null) {
+      return false;
+    }
+    if (value is bool) {
+      return value;
+    }
+    if (value is num) {
+      return value != 0;
+    }
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      return normalized == 'true' || normalized == '1' || normalized == 'yes';
+    }
+    return false;
   }
 
   /// Executes a tool.
@@ -996,11 +1041,230 @@ class McpToolService {
           errorMessage: 'command and working_directory are required',
         );
       }
+      final isBackground = _asBool(arguments['background']);
+      if (isBackground) {
+        final tools = backgroundProcessTools;
+        if (tools == null || !tools.isSupported) {
+          return McpToolResult(
+            toolName: name,
+            result: _backgroundProcessUnavailableResult(),
+            isSuccess: false,
+            errorMessage: 'Background process tools are not available',
+          );
+        }
+        final result = await tools.start(
+          command: command,
+          workingDirectory: workingDirectory,
+          label: (arguments['label'] as String?)?.trim(),
+        );
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      }
       final result = await LocalShellTools.execute(
         command: command,
         workingDirectory: workingDirectory,
       );
       return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'process_start') {
+      final command = LocalShellTools.normalizeCommand(
+        (arguments['command'] as String?)?.trim() ?? '',
+      );
+      final workingDirectory =
+          (arguments['working_directory'] as String?)?.trim() ?? '';
+      if (command.isEmpty || workingDirectory.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'command and working_directory are required',
+        );
+      }
+      final tools = backgroundProcessTools;
+      if (tools == null || !tools.isSupported) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'Background process tools are not available',
+        );
+      }
+      final result = await tools.start(
+        command: command,
+        workingDirectory: workingDirectory,
+        label: (arguments['label'] as String?)?.trim(),
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'process_status') {
+      final jobId = (arguments['job_id'] as String?)?.trim() ?? '';
+      if (jobId.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'job_id is required',
+        );
+      }
+      final result = await backgroundProcessTools?.status(
+        jobId: jobId,
+        tailChars: (arguments['tail_chars'] as num?)?.toInt(),
+      );
+      return McpToolResult(
+        toolName: name,
+        result: result ?? _backgroundProcessUnavailableResult(),
+        isSuccess: result != null,
+        errorMessage: result == null
+            ? 'Background process tools are not available'
+            : null,
+      );
+    }
+
+    if (name == 'process_tail') {
+      final jobId = (arguments['job_id'] as String?)?.trim() ?? '';
+      if (jobId.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'job_id is required',
+        );
+      }
+      final result = await backgroundProcessTools?.tail(
+        jobId: jobId,
+        maxChars: (arguments['max_chars'] as num?)?.toInt(),
+      );
+      return McpToolResult(
+        toolName: name,
+        result: result ?? _backgroundProcessUnavailableResult(),
+        isSuccess: result != null,
+        errorMessage: result == null
+            ? 'Background process tools are not available'
+            : null,
+      );
+    }
+
+    if (name == 'process_wait') {
+      final jobId = (arguments['job_id'] as String?)?.trim() ?? '';
+      if (jobId.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'job_id is required',
+        );
+      }
+      final result = await backgroundProcessTools?.wait(
+        jobId: jobId,
+        waitMs: (arguments['wait_ms'] as num?)?.toInt(),
+      );
+      return McpToolResult(
+        toolName: name,
+        result: result ?? _backgroundProcessUnavailableResult(),
+        isSuccess: result != null,
+        errorMessage: result == null
+            ? 'Background process tools are not available'
+            : null,
+      );
+    }
+
+    if (name == 'process_list') {
+      final monitor = backgroundProcessMonitorService;
+      if (monitor == null) {
+        return McpToolResult(
+          toolName: name,
+          result: jsonEncode({
+            'ok': false,
+            'code': 'background_process_monitor_unavailable',
+            'error': 'Background process monitor is not available',
+          }),
+          isSuccess: false,
+          errorMessage: 'Background process monitor is not available',
+        );
+      }
+
+      final jobIdsArgument = arguments['job_ids'];
+      List<String> jobIds;
+      if (jobIdsArgument == null) {
+        jobIds = const [];
+      } else if (jobIdsArgument is List<dynamic>) {
+        jobIds = jobIdsArgument
+            .whereType<String>()
+            .map((jobId) => jobId.trim())
+            .where((jobId) => jobId.isNotEmpty)
+            .toList(growable: false);
+      } else {
+        return McpToolResult(
+          toolName: name,
+          result: jsonEncode({
+            'ok': false,
+            'code': 'invalid_job_ids',
+            'error': 'job_ids must be an array of strings',
+          }),
+          isSuccess: false,
+          errorMessage: 'job_ids must be an array of strings',
+        );
+      }
+
+      final includeFinished = arguments['include_finished'] is bool
+          ? arguments['include_finished'] as bool
+          : true;
+      final refresh = arguments['refresh'] is bool
+          ? arguments['refresh'] as bool
+          : false;
+      final requestedLimit = (arguments['limit'] as num?)?.toInt();
+      if (refresh) {
+        if (jobIds.isEmpty) {
+          await monitor.refreshActiveJobs();
+        } else {
+          await monitor.refreshJobs(jobIds);
+        }
+      }
+
+      final snapshots = monitor.listJobs(
+        jobIds: jobIds,
+        includeFinished: includeFinished,
+        limit: requestedLimit,
+      );
+      final now = DateTime.now().toIso8601String();
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({
+          'ok': true,
+          'generated_at': now,
+          'job_count': snapshots.length,
+          'jobs': snapshots
+              .map((snapshot) => snapshot.toJson())
+              .toList(growable: false),
+          'active_count': monitor.activeSnapshots.length,
+          'finished_count': snapshots
+              .where((snapshot) => !snapshot.isRunning)
+              .length,
+        }),
+        isSuccess: true,
+      );
+    }
+
+    if (name == 'process_cancel') {
+      final jobId = (arguments['job_id'] as String?)?.trim() ?? '';
+      if (jobId.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'job_id is required',
+        );
+      }
+      final result = await backgroundProcessTools?.cancel(jobId: jobId);
+      return McpToolResult(
+        toolName: name,
+        result: result ?? _backgroundProcessUnavailableResult(),
+        isSuccess: result != null,
+        errorMessage: result == null
+            ? 'Background process tools are not available'
+            : null,
+      );
     }
 
     if (name == 'run_python_script') {
@@ -4190,6 +4454,18 @@ class McpToolService {
             'type': 'string',
             'description': 'Exact shell command to run.',
           },
+          'background': {
+            'type': 'boolean',
+            'description':
+                'Run the command in the background and return a job id without '
+                'waiting for completion.',
+          },
+          'label': {
+            'type': 'string',
+            'description':
+                'Optional short label for background runs (required when '
+                'background=true).',
+          },
           'working_directory': {
             'type': 'string',
             'description':
@@ -4202,6 +4478,178 @@ class McpToolService {
           },
         },
         'required': ['command'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _processStartTool => {
+    'type': 'function',
+    'function': {
+      'name': 'process_start',
+      'description':
+          'Start a long-running local shell command as a background process and return a job_id immediately. Use this instead of local_execute_command for builds, releases, deploys, uploads, long tests, or commands expected to run longer than about one minute. Pair this with process_list/process_status/process_tail/process_wait to observe completion. Starting a process may modify files or external state and requires the same approval as local_execute_command.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'command': {
+            'type': 'string',
+            'description': 'Exact shell command to start.',
+          },
+          'working_directory': {
+            'type': 'string',
+            'description':
+                'Absolute or project-relative working directory. Optional when a coding project is selected.',
+          },
+          'label': {
+            'type': 'string',
+            'description':
+                'Short label for the background job, such as "iOS release".',
+          },
+          'reason': {
+            'type': 'string',
+            'description':
+                'Short human-readable reason shown in the approval dialog.',
+          },
+        },
+        'required': ['command'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _processStatusTool => {
+    'type': 'function',
+    'function': {
+      'name': 'process_status',
+      'description':
+          'Check the status of a background process started with process_start or background local_execute_command. This is read-only and returns running/exited state, PID, exit code when available, elapsed time, and recent output tails.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'job_id': {
+            'type': 'string',
+            'description':
+                'The job_id returned by process_start or background '
+                'local_execute_command.',
+          },
+          'tail_chars': {
+            'type': 'integer',
+            'description':
+                'Optional number of stdout/stderr tail characters to include.',
+          },
+        },
+        'required': ['job_id'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _processTailTool => {
+    'type': 'function',
+    'function': {
+      'name': 'process_tail',
+      'description':
+          'Read stdout/stderr tails for a background process started with '
+          'process_start or background local_execute_command. This is read-only.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'job_id': {
+            'type': 'string',
+            'description':
+                'The job_id returned by process_start or background '
+                'local_execute_command.',
+          },
+          'max_chars': {
+            'type': 'integer',
+            'description': 'Maximum tail characters per stream.',
+          },
+        },
+        'required': ['job_id'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _processWaitTool => {
+    'type': 'function',
+    'function': {
+      'name': 'process_wait',
+      'description':
+          'Wait briefly for a background process and return its current status. Keep '
+          'wait_ms short and call process_status/process_tail again as needed '
+          'instead of starting the command again. Use the returned status and '
+          'output tails to report concise progress before continuing to wait.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'job_id': {
+            'type': 'string',
+            'description':
+                'The job_id returned by process_start or background '
+                'local_execute_command.',
+          },
+          'wait_ms': {
+            'type': 'integer',
+            'description': 'Milliseconds to wait, capped by the app.',
+          },
+        },
+        'required': ['job_id'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _processCancelTool => {
+    'type': 'function',
+    'function': {
+      'name': 'process_cancel',
+      'description':
+          'Request cancellation of a running background process by job_id. This can '
+          'stop a local command and may require user approval depending on '
+          'context.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'job_id': {
+            'type': 'string',
+            'description':
+                'The job_id returned by process_start or background '
+                'local_execute_command.',
+          },
+        },
+        'required': ['job_id'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _processListTool => {
+    'type': 'function',
+    'function': {
+      'name': 'process_list',
+      'description':
+          'List monitored background processes started with process_start or '
+          'background local_execute_command and return current status snapshots, '
+          'including optional completed jobs.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'job_ids': {
+            'type': 'array',
+            'description': 'Optional list of job IDs to filter results.',
+            'items': {'type': 'string'},
+          },
+          'include_finished': {
+            'type': 'boolean',
+            'description':
+                'Whether to include exited/finished jobs. Defaults to true.',
+          },
+          'refresh': {
+            'type': 'boolean',
+            'description':
+                'Refresh statuses before listing. Defaults to false.',
+          },
+          'limit': {
+            'type': 'integer',
+            'description': 'Maximum number of jobs to return.',
+          },
+        },
       },
     },
   };

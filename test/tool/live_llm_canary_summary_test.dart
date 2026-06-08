@@ -92,6 +92,61 @@ void main() {
         }),
         jsonEncode({
           'testID': 2,
+          'message':
+              'First call process_start with command "sleep 3 && echo ok".',
+          'type': 'print',
+          'time': 37,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message': '{"name":"process_start","description":"Starts one"}',
+          'type': 'print',
+          'time': 38,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message': '[Tool] Executing tool: process_start',
+          'type': 'print',
+          'time': 39,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message': '[Tool] Executing tool: process_wait',
+          'type': 'print',
+          'time': 40,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message': '[ToolCall] process_start',
+          'type': 'print',
+          'time': 41,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message': '[ToolCall] process_wait',
+          'type': 'print',
+          'time': 42,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message': '{"code":"background_process_still_running"}',
+          'type': 'print',
+          'time': 43,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message': '{"code":"background_process_completed"}',
+          'type': 'print',
+          'time': 44,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message': '{"code":"background_process_status_unverified"}',
+          'type': 'print',
+          'time': 45,
+        }),
+        jsonEncode({
+          'testID': 2,
           'result': 'success',
           'skipped': false,
           'hidden': false,
@@ -178,6 +233,12 @@ void main() {
       'python3 get_weather.py',
     ]);
     expect(summary.signals.codingOutputFeedback.validationStatuses, ['failed']);
+    expect(summary.signals.processStartCount, 2);
+    expect(summary.signals.processWaitCount, 2);
+    expect(summary.signals.backgroundProcessStillRunningCount, 1);
+    expect(summary.signals.backgroundProcessCompletedCount, 1);
+    expect(summary.signals.backgroundProcessFailedCount, 0);
+    expect(summary.signals.backgroundProcessStatusUnverifiedCount, 1);
 
     final json = summary.toJson();
     expect(json['schemaName'], 'live_llm_canary_summary');
@@ -199,6 +260,22 @@ void main() {
       (json['signals'] as Map<String, dynamic>)['codingOutputFeedback'],
       containsPair('issueCount', 1),
     );
+    expect(
+      (json['signals'] as Map<String, dynamic>),
+      containsPair('processStartCount', 2),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>),
+      containsPair('processWaitCount', 2),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>),
+      containsPair('backgroundProcessCompletedCount', 1),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>),
+      containsPair('backgroundProcessStatusUnverifiedCount', 1),
+    );
     expect(summary.toMarkdown(), contains('Live LLM Canary Summary'));
     expect(summary.toMarkdown(), contains('Recovered stream fallback count'));
     expect(
@@ -206,6 +283,12 @@ void main() {
       contains('Incomplete content-tool recovery count'),
     );
     expect(summary.toMarkdown(), contains('Assistant-authored tool block'));
+    expect(summary.toMarkdown(), contains('Process-start call count'));
+    expect(summary.toMarkdown(), contains('Process-wait call count'));
+    expect(
+      summary.toMarkdown(),
+      contains('Background process still-running count'),
+    );
     expect(
       summary.toMarkdown(),
       contains('Dart analyzer feedback observed: `yes`'),

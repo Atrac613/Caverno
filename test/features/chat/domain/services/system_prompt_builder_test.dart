@@ -82,6 +82,10 @@ void main() {
     );
     expect(
       prompt,
+      contains('Before creating a git tag, inspect existing tags'),
+    );
+    expect(
+      prompt,
       contains(
         'Do not claim that local files were created, edited, moved, saved, or deleted unless an application-executed tool result confirms the successful operation.',
       ),
@@ -153,6 +157,45 @@ void main() {
     expect(prompt, contains('element_not_found'));
     expect(prompt, contains('refresh refs before retrying'));
   });
+
+  test(
+    'instructs background execution and local_execute_command alternatives',
+    () {
+      final prompt = SystemPromptBuilder.build(
+        now: DateTime(2026, 5, 3, 9, 0),
+        assistantMode: AssistantMode.coding,
+        languageCode: 'en',
+        toolNames: const [
+          'local_execute_command',
+          'process_start',
+          'process_status',
+          'process_tail',
+          'process_wait',
+        ],
+      );
+
+      expect(
+        prompt,
+        contains(
+          'Use local_execute_command with background=true, or use process_start '
+          'for builds, releases, migrations, uploads, long tests, or commands '
+          'expected to run longer than roughly one minute.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'include_finished: false) to find and refresh running jobs started '
+          'with process_start or background local_execute_command',
+        ),
+      );
+      expect(prompt, contains('do not merely wait silently'));
+      expect(
+        prompt,
+        contains('report concise progress with the latest observed phase'),
+      );
+    },
+  );
 
   test('marks injected session context as historical evidence', () {
     final prompt = SystemPromptBuilder.build(

@@ -62,6 +62,7 @@ class LocalShellTools {
   static Future<String> execute({
     required String command,
     required String workingDirectory,
+    Duration timeout = _timeout,
   }) async {
     final directory = Directory(workingDirectory);
     if (!directory.existsSync()) {
@@ -88,38 +89,13 @@ class LocalShellTools {
         : ['-c', normalizedCommand];
 
     try {
-      final result = await Process.run(
-        shellExecutable,
-        shellArgs,
-        workingDirectory: workingDirectory,
-        // Inject the login-shell PATH so user commands resolve their binaries.
-        environment: await LoginShellEnvironment.instance.environment(),
-      ).timeout(_timeout);
-
-      final stdout = result.stdout as String;
-      final stderr = result.stderr as String;
-      final stdoutTruncated = stdout.length > _maxOutputChars;
-      final stderrTruncated = stderr.length > _maxOutputChars;
-
-      return jsonEncode({
-        'command': normalizedCommand,
-        'working_directory': directory.absolute.path,
-        'exit_code': result.exitCode,
-        'stdout': stdoutTruncated
-            ? stdout.substring(0, _maxOutputChars)
-            : stdout,
-        'stderr': stderrTruncated
-            ? stderr.substring(0, _maxOutputChars)
-            : stderr,
-        if (stdoutTruncated) 'stdout_truncated': true,
-        if (stderrTruncated) 'stderr_truncated': true,
-      });
-    } on TimeoutException {
-      return jsonEncode({
-        'command': normalizedCommand,
-        'working_directory': directory.absolute.path,
-        'error': 'Command timed out after ${_timeout.inSeconds} seconds.',
-      });
+      return _executeWithProcessHandle(
+        command: normalizedCommand,
+        workingDirectory: directory.absolute.path,
+        shellExecutable: shellExecutable,
+        shellArgs: shellArgs,
+        timeout: timeout,
+      );
     } catch (e) {
       return jsonEncode({
         'command': normalizedCommand,
@@ -127,6 +103,119 @@ class LocalShellTools {
         'error': e.toString(),
       });
     }
+  }
+
+  static Future<String> _executeWithProcessHandle({
+    required String command,
+    required String workingDirectory,
+    required String shellExecutable,
+    required List<String> shellArgs,
+    required Duration timeout,
+  }) async {
+    final process = await Process.start(
+      shellExecutable,
+      shellArgs,
+      workingDirectory: workingDirectory,
+      // Inject the login-shell PATH so user commands resolve their binaries.
+      environment: await LoginShellEnvironment.instance.environment(),
+    );
+    final stdout = _BoundedOutputBuffer(_maxOutputChars);
+    final stderr = _BoundedOutputBuffer(_maxOutputChars);
+    final stdoutSubscription = process.stdout
+        .transform(utf8.decoder)
+        .listen(stdout.add);
+    final stderrSubscription = process.stderr
+        .transform(utf8.decoder)
+        .listen(stderr.add);
+    final stdoutDone = stdoutSubscription.asFuture<void>();
+    final stderrDone = stderrSubscription.asFuture<void>();
+
+    try {
+      final exitCode = await process.exitCode.timeout(timeout);
+      await Future.wait([stdoutDone, stderrDone]);
+      return _encodeProcessResult(
+        command: command,
+        workingDirectory: workingDirectory,
+        exitCode: exitCode,
+        stdout: stdout,
+        stderr: stderr,
+      );
+    } on TimeoutException {
+      final processTerminated = await _terminateTimedOutProcess(process);
+      if (!processTerminated) {
+        await stdoutSubscription.cancel();
+        await stderrSubscription.cancel();
+      } else {
+        await Future.wait([
+          stdoutDone,
+          stderrDone,
+        ]).timeout(const Duration(seconds: 1), onTimeout: () => const <void>[]);
+      }
+      return _encodeProcessResult(
+        command: command,
+        workingDirectory: workingDirectory,
+        stdout: stdout,
+        stderr: stderr,
+        timedOut: true,
+        timeout: timeout,
+        processTerminated: processTerminated,
+      );
+    }
+  }
+
+  static Future<bool> _terminateTimedOutProcess(Process process) async {
+    process.kill();
+    try {
+      await process.exitCode.timeout(const Duration(seconds: 2));
+      return true;
+    } on TimeoutException {
+      if (!Platform.isWindows) {
+        process.kill(ProcessSignal.sigkill);
+        try {
+          await process.exitCode.timeout(const Duration(seconds: 2));
+          return true;
+        } on TimeoutException {
+          return false;
+        }
+      }
+      return false;
+    }
+  }
+
+  static String _encodeProcessResult({
+    required String command,
+    required String workingDirectory,
+    required _BoundedOutputBuffer stdout,
+    required _BoundedOutputBuffer stderr,
+    int? exitCode,
+    bool timedOut = false,
+    Duration? timeout,
+    bool? processTerminated,
+  }) {
+    return jsonEncode({
+      'command': command,
+      'working_directory': workingDirectory,
+      'exit_code': ?exitCode,
+      'stdout': stdout.text,
+      'stderr': stderr.text,
+      if (stdout.truncated) 'stdout_truncated': true,
+      if (stderr.truncated) 'stderr_truncated': true,
+      if (timedOut) ...{
+        'error': 'Command timed out after ${_formatTimeout(timeout!)}.',
+        'timed_out': true,
+        'timeout_ms': timeout.inMilliseconds,
+        'process_terminated': processTerminated ?? false,
+      },
+    });
+  }
+
+  static String _formatTimeout(Duration timeout) {
+    if (timeout.inMilliseconds % Duration.millisecondsPerSecond == 0) {
+      final seconds = timeout.inSeconds;
+      return '$seconds ${seconds == 1 ? 'second' : 'seconds'}';
+    }
+    final milliseconds = timeout.inMilliseconds;
+    return '$milliseconds ${milliseconds == 1 ? 'millisecond' : 'milliseconds'}';
   }
 
   static bool _hasUnsafeShellSyntax(String command) {
@@ -1149,6 +1238,30 @@ class LocalShellTools {
 
     return absoluteCandidate.substring(prefix.length);
   }
+}
+
+class _BoundedOutputBuffer {
+  _BoundedOutputBuffer(this.maxLength);
+
+  final int maxLength;
+  final StringBuffer _buffer = StringBuffer();
+  bool truncated = false;
+
+  void add(String chunk) {
+    final remaining = maxLength - _buffer.length;
+    if (remaining <= 0) {
+      truncated = true;
+      return;
+    }
+    if (chunk.length <= remaining) {
+      _buffer.write(chunk);
+      return;
+    }
+    _buffer.write(chunk.substring(0, remaining));
+    truncated = true;
+  }
+
+  String get text => _buffer.toString();
 }
 
 class _LocalCommandResult {

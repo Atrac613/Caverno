@@ -127,6 +127,24 @@ The driver runs release signing preflight, the static packaging report,
 submission, stapler validation, Sparkle packaging, and the S3 appcast publish
 helper. Use `--dry-run` to inspect commands without running them.
 
+The release driver also re-signs embedded Python native code before the final
+app seal. This covers the bundled `Python.framework` interpreter, its native
+libraries, and `serious_python_darwin.framework` stdlib extension modules under
+`lib-dynload`. If notarization reports unsigned Python binaries, first verify
+that the release log contains `Re-signing embedded Python native binaries with
+Developer ID`, then inspect representative files with:
+
+```bash
+/usr/bin/codesign -dv --verbose=4 \
+  build/macos/Build/Products/Release/Caverno.app/Contents/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python
+/usr/bin/codesign -dv --verbose=4 \
+  build/macos/Build/Products/Release/Caverno.app/Contents/Frameworks/serious_python_darwin.framework/Versions/A/Resources/python.bundle/Contents/Resources/stdlib/lib-dynload/_struct.cpython-312-darwin.so
+```
+
+Both should show the release Team ID and hardened runtime flags before
+submission. After notarization, Gatekeeper assessment should report
+`source=Notarized Developer ID`.
+
 For a local packaging rehearsal without Apple notarization or S3 upload:
 
 ```bash
@@ -148,6 +166,27 @@ The wrapper defaults to
 `s3://caverno-macos-releases/caverno/macos/staging`, keeps notarization disabled, and
 passes `--dry-run` to the release driver. A real run is blocked until the
 download URL is overridden.
+
+## Notarization Evidence
+
+Record the Apple submission ID, stapler result, Gatekeeper assessment source,
+and final Sparkle artifact after each release candidate. This is the minimal
+evidence needed to distinguish local signing readiness from an accepted
+notarized build.
+
+Recent validation:
+
+- Build: `1.3.3+14`
+- Notary archive: `Caverno-1.3.3-14-notary.zip`
+- Submission ID: `cd8a17a8-18e6-4563-aa3e-1770b6bcdbfa`
+- Notary status: `Accepted`
+- Stapler: `The staple and validate action worked!`
+- Stapler validate: `The validate action worked!`
+- Gatekeeper: `accepted`, `source=Notarized Developer ID`
+- Final artifact: `build/macos_sparkle_release/Caverno-1.3.3-14.zip`
+
+This run also verified the embedded Python signing path added for
+`Python.framework` and `serious_python_darwin.framework` native modules.
 
 ## S3 Publish
 
