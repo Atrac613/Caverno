@@ -70,6 +70,20 @@ class MemoryExtractionDraftService {
     r'\b(ran|executed|completed|passed|succeeded)\b.*\b(command|script|dry[- ]?run|test|tests|validation|release)\b',
     caseSensitive: false,
   );
+  static final RegExp _releasePartialFailureMarkerPattern = RegExp(
+    r'overall:\s*partial_failure|encountered error while creating the ipa|error:\s*exportarchive|the bundle version must be higher|upload failed|ipatool failed|itms-\d+',
+    caseSensitive: false,
+  );
+  static final RegExp _releaseCompletionMemoryPattern = RegExp(
+    r'\b(release|ios|ipa|app store connect|macos)\b.*\b(completed|complete|successfully|succeeded|uploaded|uploading|sent|submitted|released)\b|'
+    r'\b(completed|complete|successfully|succeeded|uploaded|uploading|sent|submitted|released)\b.*\b(release|ios|ipa|app store connect|macos)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _releaseCompletionSummaryPattern = RegExp(
+    r'\b(release|ios|ipa|app store connect|macos)\b.*\b(completed|complete|successfully|succeeded|uploaded|uploading|sent|submitted|released)\b|'
+    r'\b(completed|complete|successfully|succeeded|uploaded|uploading|sent|submitted|released)\b.*\b(release|ios|ipa|app store connect|macos)\b',
+    caseSensitive: false,
+  );
   static const _unexecutedFileSaveOpenLoop =
       'Create or save the requested file with a file-operation tool.';
   static const _unexecutedFileSaveSummary =
@@ -78,6 +92,10 @@ class MemoryExtractionDraftService {
       'Execute the requested command with a command-execution tool.';
   static const _unexecutedCommandActionSummary =
       'Latest requested command execution remains unexecuted.';
+  static const _releasePartialFailureOpenLoop =
+      'Resolve the failed release lane before recording the release as complete.';
+  static const _releasePartialFailureSummary =
+      'Latest release attempt had a partial failure.';
 
   static const systemPrompt =
       'You extract reusable user memory from a conversation. '
@@ -348,6 +366,32 @@ class MemoryExtractionDraftService {
       ].take(3).toList(growable: false);
       final entries = guardedDraft.entries
           .where((entry) => !_isCommandExecutionCompletionMemory(entry.text))
+          .toList(growable: false);
+
+      guardedDraft = MemoryExtractionDraft(
+        summary: summary,
+        openLoops: openLoops,
+        persona: guardedDraft.persona,
+        preferences: guardedDraft.preferences,
+        doNot: guardedDraft.doNot,
+        entries: entries,
+      );
+    }
+
+    if (_inputContextHasReleasePartialFailure(inputContext)) {
+      final summary = _looksLikeReleaseCompletionSummary(guardedDraft.summary)
+          ? _releasePartialFailureSummary
+          : guardedDraft.summary;
+      final openLoops = [
+        _releasePartialFailureOpenLoop,
+        ...guardedDraft.openLoops.where(
+          (loop) =>
+              loop.trim().isNotEmpty &&
+              loop.trim() != _releasePartialFailureOpenLoop,
+        ),
+      ].take(3).toList(growable: false);
+      final entries = guardedDraft.entries
+          .where((entry) => !_isReleaseCompletionMemory(entry.text))
           .toList(growable: false);
 
       guardedDraft = MemoryExtractionDraft(
@@ -645,6 +689,18 @@ class MemoryExtractionDraftService {
 
   static bool _looksLikeCommandExecutionCompletionSummary(String text) {
     return _commandExecutionCompletionSummaryPattern.hasMatch(text);
+  }
+
+  static bool _isReleaseCompletionMemory(String text) {
+    return _releaseCompletionMemoryPattern.hasMatch(text);
+  }
+
+  static bool _looksLikeReleaseCompletionSummary(String text) {
+    return _releaseCompletionSummaryPattern.hasMatch(text);
+  }
+
+  static bool _inputContextHasReleasePartialFailure(String inputContext) {
+    return _releasePartialFailureMarkerPattern.hasMatch(inputContext);
   }
 
   static bool _inputContextHasToolResultCode(String inputContext, String code) {

@@ -15,12 +15,15 @@ IOS_BUNDLE_ID="${CAVERNO_IOS_BUNDLE_ID:-com.noguwo.apps.caverno}"
 IOS_TEAM_ID="${CAVERNO_IOS_TEAM_ID:-89UG59TBNX}"
 IOS_EXPORT_DESTINATION="${CAVERNO_IOS_EXPORT_DESTINATION:-upload}"
 IOS_EXPORT_ROOT="${CAVERNO_IOS_EXPORT_ROOT:-}"
+IOS_SIGNING_STYLE="${CAVERNO_IOS_SIGNING_STYLE:-manual}"
+IOS_PROVISIONING_PROFILE="${CAVERNO_IOS_PROVISIONING_PROFILE:-}"
 
 MACOS_NOTARY_PROFILE="${CAVERNO_NOTARYTOOL_PROFILE:-caverno-notary}"
 MACOS_PACKAGE="${CAVERNO_MACOS_SPARKLE_PACKAGE_FORMAT:-zip}"
 MACOS_DOWNLOAD_URL_PREFIX="${CAVERNO_SPARKLE_DOWNLOAD_URL_PREFIX:-https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos}"
 MACOS_S3_URI="${CAVERNO_SPARKLE_S3_URI:-s3://caverno-macos-releases/caverno/macos}"
 MACOS_RELEASE_NOTES="${CAVERNO_SPARKLE_RELEASE_NOTES_PATH:-}"
+RELEASE_LOG_DIR="${CAVERNO_RELEASE_LOG_DIR:-}"
 
 usage() {
   cat <<'USAGE'
@@ -40,12 +43,17 @@ Options:
   --ios-export-root PATH        iOS export working directory.
   --ios-team-id TEAMID          iOS App Store Connect team ID.
   --ios-bundle-id BUNDLE_ID     iOS bundle identifier.
+  --ios-signing-style automatic|manual
+                               ExportOptions signing style, default manual.
+  --ios-provisioning-profile NAME
+                               App Store provisioning profile name for manual signing.
   --macos-notary-profile NAME   notarytool keychain profile.
   --macos-package zip|dmg       macOS Sparkle artifact package.
   --macos-download-url-prefix URL
                                Sparkle public download URL prefix.
   --macos-s3-uri URI            Sparkle S3 destination.
   --macos-release-notes PATH    Release notes for Sparkle appcast.
+  --release-log-dir PATH        Directory for per-lane release logs.
   --no-pub-get                  Skip flutter pub get.
   --dry-run                     Print commands without executing them.
   --help                        Show this help.
@@ -122,6 +130,16 @@ while [[ $# -gt 0 ]]; do
       IOS_BUNDLE_ID="$2"
       shift 2
       ;;
+    --ios-signing-style)
+      require_value "$@"
+      IOS_SIGNING_STYLE="$2"
+      shift 2
+      ;;
+    --ios-provisioning-profile)
+      require_value "$@"
+      IOS_PROVISIONING_PROFILE="$2"
+      shift 2
+      ;;
     --macos-notary-profile)
       require_value "$@"
       MACOS_NOTARY_PROFILE="$2"
@@ -145,6 +163,11 @@ while [[ $# -gt 0 ]]; do
     --macos-release-notes)
       require_value "$@"
       MACOS_RELEASE_NOTES="$2"
+      shift 2
+      ;;
+    --release-log-dir)
+      require_value "$@"
+      RELEASE_LOG_DIR="$2"
       shift 2
       ;;
     --no-pub-get)
@@ -172,6 +195,15 @@ case "${IOS_EXPORT_DESTINATION}" in
     ;;
   *)
     echo "--ios-destination must be upload or export." >&2
+    exit 64
+    ;;
+esac
+
+case "${IOS_SIGNING_STYLE}" in
+  automatic|manual)
+    ;;
+  *)
+    echo "--ios-signing-style must be automatic or manual." >&2
     exit 64
     ;;
 esac
@@ -221,6 +253,10 @@ if [[ -z "${IOS_EXPORT_ROOT}" ]]; then
   IOS_EXPORT_ROOT="/private/tmp/caverno-ios-appstore-${BUILD_NAME}-${BUILD_NUMBER}"
 fi
 
+if [[ -z "${RELEASE_LOG_DIR}" ]]; then
+  RELEASE_LOG_DIR="${ROOT_DIR}/build/release_logs"
+fi
+
 if [[ -z "${MACOS_RELEASE_NOTES}" ]]; then
   DEFAULT_RELEASE_NOTES="${ROOT_DIR}/docs/releases/caverno-${BUILD_NAME}.md"
   if [[ -f "${DEFAULT_RELEASE_NOTES}" ]]; then
@@ -235,6 +271,11 @@ fi
 
 if [[ "${DRY_RUN}" != "yes" && "${RUN_IOS}" == "yes" ]]; then
   mkdir -p "${IOS_EXPORT_ROOT}"
+  if [[ "${IOS_SIGNING_STYLE}" == "manual" && -z "${IOS_PROVISIONING_PROFILE}" ]]; then
+    echo "Manual iOS export requires --ios-provisioning-profile or CAVERNO_IOS_PROVISIONING_PROFILE." >&2
+    echo "Use the App Store provisioning profile for ${IOS_BUNDLE_ID}, not the development profile." >&2
+    exit 66
+  fi
 fi
 
 shell_join() {
@@ -277,7 +318,15 @@ write_ios_export_options() {
   <key>method</key>
   <string>app-store-connect</string>
   <key>signingStyle</key>
-  <string>automatic</string>
+  <string>${IOS_SIGNING_STYLE}</string>
+$(if [[ "${IOS_SIGNING_STYLE}" == "manual" ]]; then cat <<PROFILE_PLIST
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>${IOS_BUNDLE_ID}</key>
+    <string>${IOS_PROVISIONING_PROFILE}</string>
+  </dict>
+PROFILE_PLIST
+fi)
   <key>teamID</key>
   <string>${IOS_TEAM_ID}</string>
   <key>uploadSymbols</key>
@@ -293,6 +342,70 @@ run_pub_get() {
   fi
 }
 
+IOS_RELEASE_LOG=""
+MACOS_RELEASE_LOG=""
+IOS_STATUS="skipped"
+MACOS_STATUS="skipped"
+
+run_release_lane() {
+  local lane="$1"
+  local failure_pattern="$2"
+  shift 2
+
+  if [[ "${DRY_RUN}" == "yes" ]]; then
+    "$@"
+    return 0
+  fi
+
+  mkdir -p "${RELEASE_LOG_DIR}"
+  local log_path="${RELEASE_LOG_DIR}/${lane}-${BUILD_NAME}-${BUILD_NUMBER}-$(date +%Y%m%d%H%M%S).log"
+  case "${lane}" in
+    ios)
+      IOS_RELEASE_LOG="${log_path}"
+      ;;
+    macos)
+      MACOS_RELEASE_LOG="${log_path}"
+      ;;
+  esac
+
+  echo "Release lane log (${lane}): ${log_path}"
+  set +e
+  "$@" 2>&1 | tee "${log_path}"
+  local command_status="${PIPESTATUS[0]}"
+  set -e
+
+  if [[ -n "${failure_pattern}" ]] && grep -Eiq "${failure_pattern}" "${log_path}"; then
+    echo "Detected ${lane} release failure marker in ${log_path}." >&2
+    return 1
+  fi
+  return "${command_status}"
+}
+
+print_release_summary() {
+  local overall="succeeded"
+  if [[ "${IOS_STATUS}" == "failed" || "${MACOS_STATUS}" == "failed" ]]; then
+    overall="partial_failure"
+  fi
+
+  echo "Release workflow summary:"
+  echo "  iOS: ${IOS_STATUS}"
+  if [[ -n "${IOS_RELEASE_LOG}" ]]; then
+    echo "  iOS log: ${IOS_RELEASE_LOG}"
+  fi
+  echo "  macOS: ${MACOS_STATUS}"
+  if [[ -n "${MACOS_RELEASE_LOG}" ]]; then
+    echo "  macOS log: ${MACOS_RELEASE_LOG}"
+  fi
+  echo "  overall: ${overall}"
+
+  if [[ "${overall}" == "partial_failure" ]]; then
+    echo "Release workflow completed with one or more failed lanes." >&2
+    return 1
+  fi
+  echo "Release workflow completed successfully."
+  return 0
+}
+
 release_ios() {
   local export_options="${IOS_EXPORT_ROOT}/ExportOptions.plist"
 
@@ -302,6 +415,10 @@ release_ios() {
   echo "  Build: ${BUILD_NAME}+${BUILD_NUMBER}"
   echo "  Destination: ${IOS_EXPORT_DESTINATION}"
   echo "  Export root: ${IOS_EXPORT_ROOT}"
+  echo "  Signing style: ${IOS_SIGNING_STYLE}"
+  if [[ "${IOS_SIGNING_STYLE}" == "manual" ]]; then
+    echo "  Provisioning profile: ${IOS_PROVISIONING_PROFILE:-<required for real run>}"
+  fi
 
   write_ios_export_options "${export_options}"
   run "${FLUTTER_CMD[@]}" build ipa \
@@ -354,11 +471,20 @@ echo "  Dry run: ${DRY_RUN}"
 run_pub_get
 
 if [[ "${RUN_IOS}" == "yes" ]]; then
-  release_ios
+  IOS_STATUS="succeeded"
+  if ! run_release_lane \
+    ios \
+    'Encountered error while creating the IPA|error: exportArchive|The bundle version must be higher|Upload failed|App Store Connect.*(error|failed)|ITMS-[0-9]+|ipatool failed' \
+    release_ios; then
+    IOS_STATUS="failed"
+  fi
 fi
 
 if [[ "${RUN_MACOS}" == "yes" ]]; then
-  release_macos
+  MACOS_STATUS="succeeded"
+  if ! run_release_lane macos '' release_macos; then
+    MACOS_STATUS="failed"
+  fi
 fi
 
-echo "Release workflow completed."
+print_release_summary

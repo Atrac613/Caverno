@@ -14,6 +14,9 @@ Running the script without `--dry-run` is a production action:
   updates the public appcast.
 - The script does not submit the iOS build for App Review.
 - The script does not change `pubspec.yaml`, create commits, push, or tag.
+- The script prints a lane summary at the end. If one platform fails while the
+  other succeeds, the summary reports `overall: partial_failure` and exits
+  non-zero so callers do not treat the combined release as fully successful.
 
 Run a dry run first whenever changing arguments or release destinations.
 
@@ -92,6 +95,7 @@ Defaults:
 - Team ID: `89UG59TBNX`
 - Export destination: `upload`
 - Export root: `/private/tmp/caverno-ios-appstore-VERSION-BUILD`
+- Signing style: `manual`
 
 Useful overrides:
 
@@ -100,12 +104,25 @@ bash tool/release_ios_macos.sh --only ios \
   --ios-destination upload \
   --ios-team-id 89UG59TBNX \
   --ios-bundle-id com.noguwo.apps.caverno \
+  --ios-signing-style manual \
+  --ios-provisioning-profile "Caverno AppStore Provisioning Profile" \
   --ios-export-root /private/tmp/caverno-ios-appstore-1.3.3-14
 ```
 
-The script generates an automatic-signing App Store Connect
-`ExportOptions.plist` with `manageAppVersionAndBuildNumber` set to `false` so
-Xcode does not rewrite the build number during upload.
+The script generates an App Store Connect `ExportOptions.plist` with
+`manageAppVersionAndBuildNumber` set to `false` so Xcode does not rewrite the
+build number during upload. Manual signing is the default because the iOS
+Runner target is configured for manual signing. For real manual-signing runs,
+provide the App Store provisioning profile name with
+`--ios-provisioning-profile` or `CAVERNO_IOS_PROVISIONING_PROFILE`; do not use a
+development profile.
+
+Automatic export is still available when the archive and account support it:
+
+```bash
+bash tool/release_ios_macos.sh --only ios \
+  --ios-signing-style automatic
+```
 
 ## macOS Options
 
@@ -131,6 +148,23 @@ bash tool/release_ios_macos.sh --only macos \
 
 For lower-level Sparkle, S3, or rollback details, see
 `docs/macos_sparkle_s3_updates.md`.
+
+## Partial Failures
+
+The combined release is intentionally lane-aware. For example, App Store
+Connect can reject an iOS upload because the build number is already used while
+the macOS Sparkle release still finishes successfully. In that case, the script
+continues far enough to publish the macOS lane, then prints a summary like:
+
+```text
+Release workflow summary:
+  iOS: failed
+  macOS: succeeded
+  overall: partial_failure
+```
+
+Treat `partial_failure` as a failed combined release. Fix the failed lane, such
+as incrementing the iOS build number, and re-run that lane explicitly.
 
 ## Verification
 

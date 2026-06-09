@@ -491,6 +491,91 @@ void main() {
     );
   });
 
+  test('parseDraft guards partial release failure completion claims', () {
+    final inputContext = MemoryExtractionDraftService.buildInput(
+      [
+        Message(
+          id: 'user-1',
+          content: 'Release iOS and macOS.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 9, 20),
+        ),
+        Message(
+          id: 'assistant-1',
+          content:
+              'macOS succeeded, but iOS failed because build number 17 already exists.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 6, 9, 20, 21),
+        ),
+      ],
+      UserMemoryProfile(
+        persona: const [],
+        preferences: const [],
+        doNot: const [],
+        updatedAt: DateTime(2026, 6, 9, 20),
+      ),
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'process_wait',
+          arguments: const {'job_id': 'proc_release_1'},
+          result: jsonEncode({
+            'ok': true,
+            'status': 'exited',
+            'exit_code': 0,
+            'stderr_tail':
+                'Encountered error while creating the IPA: error: exportArchive The bundle version must be higher than the previously uploaded version: 17.',
+            'stdout_tail': 'macOS Sparkle release uploaded successfully.',
+          }),
+        ),
+      ],
+    );
+    const raw = '''
+{
+  "summary":"Completed iOS and macOS release for Caverno v1.3.5+17.",
+  "open_loops":[],
+  "profile":{
+    "persona":[],
+    "preferences":[],
+    "do_not":[]
+  },
+  "memories":[
+    {
+      "text":"Release script completed successfully for iOS and macOS.",
+      "type":"fact",
+      "confidence":1.0,
+      "importance":0.9,
+      "ttl_days":30
+    },
+    {
+      "text":"Release procedure is documented in docs/ios_macos_release.md.",
+      "type":"fact",
+      "confidence":1.0,
+      "importance":0.8,
+      "ttl_days":90
+    }
+  ]
+}
+''';
+
+    final draft = MemoryExtractionDraftService.parseDraft(
+      raw,
+      inputContext: inputContext,
+    );
+
+    expect(draft, isNotNull);
+    expect(draft!.summary, 'Latest release attempt had a partial failure.');
+    expect(
+      draft.openLoops.first,
+      'Resolve the failed release lane before recording the release as complete.',
+    );
+    expect(draft.entries, hasLength(1));
+    expect(
+      draft.entries.single.text,
+      'Release procedure is documented in docs/ios_macos_release.md.',
+    );
+  });
+
   test('parseDraft recovers JSON from reasoning text with other objects', () {
     const raw = '''
 <think>

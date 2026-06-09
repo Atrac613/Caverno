@@ -1852,9 +1852,13 @@ class _FakeMcpToolService extends McpToolService {
 }
 
 class _FakeBackgroundProcessTools extends BackgroundProcessTools {
-  _FakeBackgroundProcessTools({required this.statusResults});
+  _FakeBackgroundProcessTools({
+    required this.statusResults,
+    this.queuedStatusResults = const {},
+  });
 
   final Map<String, String> statusResults;
+  final Map<String, List<String>> queuedStatusResults;
   final List<Map<String, dynamic>> startCalls = [];
 
   @override
@@ -1883,6 +1887,10 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
 
   @override
   Future<String> status({required String jobId, int? tailChars}) async {
+    final queued = queuedStatusResults[jobId];
+    if (queued != null && queued.isNotEmpty) {
+      return queued.removeAt(0);
+    }
     return statusResults[jobId] ??
         jsonEncode({
           'ok': false,
@@ -3291,7 +3299,7 @@ void main() {
   test(
     'sendMessage marks Japanese release execution claim without tool call as unexecuted',
     () async {
-      const finalContent = '本番リリーススクリプトを実行します。';
+      const finalContent = '本番リリースを開始しました。まず macOS 側が進行中です。進捗を確認します。';
       final dataSource = _ToolBatchChatDataSource(
         initialToolCalls: const [],
         initialFinishReason: 'stop',
@@ -3340,6 +3348,11 @@ void main() {
           'The requested command was not executed because no successful command-execution tool result is available.',
         ),
       );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('開始しました')),
+      );
+      expect(chatNotifier.state.messages.last.content, isNot(contains('進行中')));
     },
   );
 
@@ -3925,8 +3938,190 @@ void main() {
       expect(finalPrompt, contains('unexecuted_file_save'));
       expect(finalPrompt, contains('browser_save_data'));
       expect(
+        dataSource.finalAnswerMessages
+            .map((message) => message.content)
+            .join('\n'),
+        contains('unexecuted_file_save'),
+      );
+    },
+  );
+
+  test(
+    'sendMessage marks release completion claims unexecuted without command tool result',
+    () async {
+      final buildSuccess = String.fromCharCodes(const [
+        0x30d3,
+        0x30eb,
+        0x30c9,
+        0x6210,
+        0x529f,
+      ]);
+      final uploadSuccess = String.fromCharCodes(const [
+        0x30a2,
+        0x30c3,
+        0x30d7,
+        0x30ed,
+        0x30fc,
+        0x30c9,
+        0x6210,
+        0x529f,
+      ]);
+      final releaseComplete = String.fromCharCodes(const [
+        0x30ea,
+        0x30ea,
+        0x30fc,
+        0x30b9,
+        0x5b8c,
+        0x4e86,
+      ]);
+      final unsupportedReleaseClaim =
+          'iOS IPA $buildSuccess\n'
+          'App Store Connect $uploadSuccess\n'
+          'iOS $releaseComplete';
+      final dataSource = _NoToolStreamingWithToolsDataSource(
+        streamChunks: [unsupportedReleaseClaim],
+        completionContent: unsupportedReleaseClaim,
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Run a local shell command.',
+          'process_start': 'Start a background process.',
+          'process_wait': 'Wait for a background process.',
+        },
+        results: const {'local_execute_command': '{}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('Retry the iOS release upload');
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(
         chatNotifier.state.messages.last.content,
-        contains('The requested file save was not executed'),
+        isNot(contains('iOS IPA')),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('The requested command was not executed'),
+      );
+    },
+  );
+
+  test(
+    'sendMessage blocks command after unexecuted version file mutation claim',
+    () async {
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-read-pubspec',
+            name: 'read_file',
+            arguments: const {'path': 'pubspec.yaml'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                'The current version is 1.3.5+17. I will increment pubspec.yaml to build 18, then run the release build.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-build-ios',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'fvm flutter build ios --release --no-codesign',
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The version file still needs to be edited first.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'read_file': 'Read a file from the project.',
+          'edit_file': 'Edit a file in the project.',
+          'write_file': 'Write a file in the project.',
+          'local_execute_command': 'Run a local shell command.',
+        },
+        results: const {
+          'read_file': '{"path":"pubspec.yaml","content":"version: 1.3.5+17"}',
+          'local_execute_command': 'unexpected command execution',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(
+        'Release iOS after bumping the build number',
+      );
+
+      expect(toolService.executedToolNames, ['read_file']);
+      expect(dataSource.toolResultBatches, hasLength(2));
+      final blockedPayload =
+          jsonDecode(dataSource.toolResultBatches.last.single.result)
+              as Map<String, dynamic>;
+      expect(blockedPayload, containsPair('code', 'unexecuted_file_save'));
+      expect(
+        blockedPayload['blocked_tool']?.toString(),
+        'local_execute_command',
+      );
+      expect(
+        dataSource.finalAnswerMessages
+            .map((message) => message.content)
+            .join('\n'),
+        contains('unexecuted_file_save'),
       );
     },
   );
@@ -6338,7 +6533,7 @@ void main() {
           toolService.executedToolArguments.single['code'],
           contains('metadata ok'),
         );
-        expect(toolDataSource.toolResultBatches, hasLength(3));
+        expect(toolDataSource.toolResultBatches, hasLength(2));
         expect(
           toolDataSource.toolResultBatches.first.single.result,
           allOf(contains('code is required'), contains('caverno.inputs[0]')),
@@ -10096,6 +10291,83 @@ with open(path, "rb") as file:
     },
   );
 
+  test('sendMessage blocks success claims after command timeout', () async {
+    const command = 'fvm flutter test --no-pub';
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'test-command',
+          name: 'local_execute_command',
+          arguments: const {
+            'command': command,
+            'working_directory': '/tmp/project',
+          },
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ],
+      finalAnswerChunks: const [
+        'Unit tests passed. 54 tests passed before timeout completed.',
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: {
+        'local_execute_command': jsonEncode({
+          'command': command,
+          'working_directory': '/tmp/project',
+          'error': 'Command timed out after 60 seconds.',
+          'timed_out': true,
+          'timeout_ms': 60000,
+          'process_terminated': true,
+        }),
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Run tests');
+
+      expect(toolDataSource.toolResultBatches, isNotEmpty);
+      expect(
+        toolDataSource.toolResultBatches.first.single.name,
+        'local_execute_command',
+      );
+      expect(
+        toolNotifier.state.messages.last.content,
+        isNot(contains('Unit tests passed')),
+      );
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('A command timed out'),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
   test('sendMessage repeats delayed process monitor after release timeout', () async {
     const releaseCommand =
         'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.4.md';
@@ -10860,6 +11132,190 @@ with open(path, "rb") as file:
         );
       } finally {
         monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage repeats identical process_wait until process exits',
+    () async {
+      const command = 'bash tool/release_ios_macos.sh';
+      const jobId = 'proc_release_repeat_wait_1';
+      const waitArguments = {
+        'job_id': jobId,
+        'wait_ms': 5000,
+        'working_directory': '/tmp/project',
+      };
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'process-start-release-repeat-wait',
+            name: 'process_start',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'label': 'release',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The release is running, so I will wait.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'process-wait-repeat-1',
+                name: 'process_wait',
+                arguments: waitArguments,
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The release is still running, so I will wait again.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'process-wait-repeat-2',
+                name: 'process_wait',
+                arguments: waitArguments,
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The release is still running, so I will wait again.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'process-wait-repeat-3',
+                name: 'process_wait',
+                arguments: waitArguments,
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The release completed successfully.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['The release completed successfully.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'process_start': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+          'process_wait': jsonEncode({
+            'ok': true,
+            'status': 'exited',
+            'exit_code': 0,
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+            'stdout_tail': 'Release complete',
+            'stderr_tail': '',
+          }),
+        },
+        queuedResults: {
+          'process_wait': [
+            jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Current status: In Progress...',
+              'stderr_tail': '',
+            }),
+            jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Current status: In Progress...',
+              'stderr_tail': '',
+            }),
+            jsonEncode({
+              'ok': true,
+              'status': 'exited',
+              'exit_code': 0,
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Release complete',
+              'stderr_tail': '',
+            }),
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Release the app');
+
+        expect(toolService.executedToolNames, [
+          'process_start',
+          'process_wait',
+          'process_wait',
+          'process_wait',
+        ]);
+        expect(toolService.executedToolArguments.sublist(1), [
+          waitArguments,
+          waitArguments,
+          waitArguments,
+        ]);
+        expect(
+          toolDataSource.toolResultBatches.map(
+            (batch) => batch.map((result) => result.name).toList(),
+          ),
+          containsAllInOrder([
+            ['process_start'],
+            ['process_wait'],
+            ['process_wait'],
+            ['process_wait'],
+          ]),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('completed successfully'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('unexecuted')),
+        );
+      } finally {
         toolContainer.dispose();
       }
     },
@@ -12564,10 +13020,6 @@ with open(path, "rb") as file:
         expect(toolNotifier.state.messages.last.isStreaming, isFalse);
         expect(
           toolNotifier.state.messages.last.content,
-          contains('Background task completed successfully.'),
-        );
-        expect(
-          toolNotifier.state.messages.last.content,
           contains(
             'Still running. One more check is required before completion.',
           ),
@@ -13104,6 +13556,363 @@ with open(path, "rb") as file:
   );
 
   test(
+    'sendMessage removes streamed completion claim when background process is still running',
+    () async {
+      const command = 'bash tool/release_ios_macos.sh';
+      const jobId = 'proc_stream_release_running_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'process-start-release',
+            name: 'process_start',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'label': 'release',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          ChatCompletionResult(
+            content: 'The release is still running; I will wait again.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'The release failed with exit code 1.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'The iOS IPA export completed and the release is complete.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'process_start': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+        },
+        queuedResults: {
+          'process_wait': [
+            jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Building App Store IPA...',
+              'stderr_tail': '',
+            }),
+            jsonEncode({
+              'ok': true,
+              'status': 'running',
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': 'Building App Store IPA...',
+              'stderr_tail': '',
+            }),
+            jsonEncode({
+              'ok': true,
+              'status': 'exited',
+              'exit_code': 1,
+              'job_id': jobId,
+              'pid': 123,
+              'command': command,
+              'working_directory': '/tmp/project',
+              'stdout_tail': '',
+              'stderr_tail':
+                  'exportArchive: export options require signingStyle manual',
+            }),
+          ],
+        },
+      );
+      final monitorService = BackgroundProcessMonitorService(
+        tools: _FakeBackgroundProcessTools(
+          statusResults: const {},
+          queuedStatusResults: {
+            jobId: [
+              jsonEncode({
+                'ok': true,
+                'status': 'running',
+                'job_id': jobId,
+                'pid': 123,
+                'command': command,
+                'working_directory': '/tmp/project',
+                'stdout_tail': 'Building App Store IPA...',
+                'stderr_tail': '',
+              }),
+              jsonEncode({
+                'ok': true,
+                'status': 'exited',
+                'exit_code': 1,
+                'job_id': jobId,
+                'pid': 123,
+                'command': command,
+                'working_directory': '/tmp/project',
+                'stdout_tail': '',
+                'stderr_tail':
+                    'exportArchive: export options require signingStyle manual',
+              }),
+            ],
+          },
+        ),
+        pollInterval: const Duration(minutes: 1),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          backgroundProcessMonitorServiceProvider.overrideWithValue(
+            monitorService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Release the app');
+
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        expect(
+          toolDataSource.toolResultBatches
+              .expand((batch) => batch)
+              .map((result) => result.name),
+          contains('background_process_monitor'),
+        );
+        expect(toolService.executedToolNames, [
+          'process_start',
+          'process_wait',
+          'process_wait',
+          'process_wait',
+        ]);
+        final finalContent = toolNotifier.state.messages.last.content;
+        expect(finalContent, isNot(contains('iOS IPA export completed')));
+        expect(finalContent, isNot(contains('release is complete')));
+        expect(finalContent, contains('exit code 1'));
+      } finally {
+        monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage blocks streamed release success after exit zero partial failure',
+    () async {
+      const command = 'bash tool/release_ios_macos.sh';
+      const jobId = 'proc_release_partial_failure_1';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'process-start-release-partial',
+            name: 'process_start',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'label': 'release',
+            },
+          ),
+          ToolCallInfo(
+            id: 'process-wait-release-partial',
+            name: 'process_wait',
+            arguments: const {'job_id': jobId, 'wait_ms': 1000},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+          ChatCompletionResult(
+            content:
+                'macOS completed, but iOS failed because the App Store build number already exists.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'Release complete. iOS uploaded to App Store Connect and macOS uploaded to S3.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'process_start': jsonEncode({
+            'ok': true,
+            'status': 'running',
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+          }),
+          'process_wait': jsonEncode({
+            'ok': true,
+            'status': 'exited',
+            'exit_code': 0,
+            'job_id': jobId,
+            'pid': 123,
+            'command': command,
+            'working_directory': '/tmp/project',
+            'stdout_tail': 'macOS Sparkle release uploaded successfully.',
+            'stderr_tail':
+                'Encountered error while creating the IPA: error: exportArchive The bundle version must be higher than the previously uploaded version: 17.',
+          }),
+        },
+      );
+      final monitorService = BackgroundProcessMonitorService(
+        tools: _FakeBackgroundProcessTools(statusResults: const {}),
+        pollInterval: const Duration(minutes: 1),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          backgroundProcessMonitorServiceProvider.overrideWithValue(
+            monitorService,
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Release the app');
+
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        final monitorResults = toolDataSource.toolResultBatches
+            .expand((batch) => batch)
+            .where((result) => result.name == 'background_process_monitor')
+            .toList(growable: false);
+        expect(monitorResults, isNotEmpty);
+        final monitorPayload =
+            jsonDecode(monitorResults.single.result) as Map<String, dynamic>;
+        expect(
+          monitorPayload,
+          containsPair('code', 'background_process_partial_failure'),
+        );
+        final finalContent = toolNotifier.state.messages.last.content;
+        expect(finalContent, isNot(contains('iOS uploaded')));
+        expect(finalContent, isNot(contains('Release complete')));
+        expect(finalContent, contains('iOS failed'));
+      } finally {
+        monitorService.dispose();
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage replaces streamed success claim after non-zero command exit',
+    () async {
+      const command = 'bash tool/release_ios_macos.sh';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'release-command',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'label': 'release check',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const [
+          'macOS upload completed successfully and the release is complete.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'command': command,
+            'working_directory': '/tmp/project',
+            'exit_code': -15,
+            'stdout':
+                'upload: build/macos_sparkle_updates/Caverno.zip to s3://bucket/Caverno.zip',
+            'stderr': '',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Release the app');
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        final finalContent = toolNotifier.state.messages.last.content;
+        expect(finalContent, isNot(contains('upload completed successfully')));
+        expect(finalContent, isNot(contains('release is complete')));
+        expect(finalContent, contains('non-zero exit code'));
+        expect(finalContent, contains('-15'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'Foundation Models suppresses repeated successful content tool calls',
     () async {
       final conversationRepository = _FakeConversationRepository();
@@ -13305,6 +14114,79 @@ with open(path, "rb") as file:
         expect(
           continuationRequest.last.content,
           contains('Do not write <tool_result> tags'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'fenced tool-name continuation after incomplete tool call is recovered',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final streamingDataSource = _QueuedStreamingChatDataSource([
+        ['Release docs lookup.\n<tool_use>...'],
+        [
+          'First I will inspect the release files.\n\n'
+              '```tool_name\nread_file\n```\n\n'
+              '```tool_name\nlist_directory\n```',
+        ],
+        ['No release command has been executed yet.'],
+      ]);
+      final toolService = _FakeMcpToolService(results: const {});
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ContentToolSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(streamingDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Release the app');
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolService.executedToolNames, isEmpty);
+        expect(streamingDataSource.requests, hasLength(3));
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('No release command has been executed yet.'),
+        );
+        expect(
+          toolNotifier.state.messages
+              .map((message) => message.content)
+              .join('\n'),
+          isNot(contains('```tool_name')),
+        );
+
+        final continuationPrompt =
+            streamingDataSource.requests.last.last.content;
+        expect(
+          continuationPrompt,
+          contains('[Assistant tool-name block ignored]'),
+        );
+        expect(
+          continuationPrompt,
+          contains('No tool was executed from the fenced tool_name block'),
         );
       } finally {
         toolContainer.dispose();

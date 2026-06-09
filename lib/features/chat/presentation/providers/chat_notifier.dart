@@ -1287,7 +1287,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<ToolResultInfo> toolResults,
     required int interactionGeneration,
   }) {
-    if (!_looksLikeFutureCommandExecutionAction(candidateResponse) ||
+    if (!_looksLikeUnsupportedCommandExecutionAction(candidateResponse) ||
         _hasSuccessfulCommandExecutionResult(toolResults)) {
       return null;
     }
@@ -8088,12 +8088,31 @@ class ChatNotifier extends Notifier<ChatState> {
       'external package',
       'implementation',
     ]);
+    final hasFailureReportMarker = _containsAny(normalized, const [
+      'failed',
+      'failure',
+      'exited with',
+      'exit code',
+      'non-zero',
+      'nonzero',
+      'error:',
+    ]);
     final hasCjkBlockerMarker = _containsCjkBlockerMarker(candidate);
     final hasCjkMissingEvidenceMarker = _containsCjkMissingEvidenceMarker(
       candidate,
     );
+    final hasCjkFailureReportMarker = _containsAnyCodeUnitSequence(
+      candidate,
+      const [
+        [0x5931, 0x6557],
+        [0x30a8, 0x30e9, 0x30fc],
+        [0x7570, 0x5e38, 0x7d42, 0x4e86],
+      ],
+    );
     return (hasBlockerMarker && hasMissingEvidenceMarker) ||
-        (hasCjkBlockerMarker && hasCjkMissingEvidenceMarker);
+        hasFailureReportMarker ||
+        (hasCjkBlockerMarker && hasCjkMissingEvidenceMarker) ||
+        hasCjkFailureReportMarker;
   }
 
   void _appendRecoveredAssistantResponse(
@@ -8913,6 +8932,14 @@ class ChatNotifier extends Notifier<ChatState> {
             interactionGeneration: interactionGeneration,
             content: rawStreamedAnswer,
           );
+          _replaceTimedOutCommandSuccessClaimIfNeeded(
+            toolResults: toolResults,
+            interactionGeneration: interactionGeneration,
+          );
+          _replaceFailedCommandSuccessClaimIfNeeded(
+            toolResults: toolResults,
+            interactionGeneration: interactionGeneration,
+          );
           _appendUnexecutedFileSideEffectNoticeIfNeeded(
             toolResults: toolResults,
             interactionGeneration: interactionGeneration,
@@ -9380,6 +9407,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<ToolResultInfo> batchToolResults,
     required List<Map<String, dynamic>> tools,
     required int interactionGeneration,
+    void Function()? onBlockingFeedbackPrepared,
   }) async {
     if (!_looksLikeBackgroundProcessCompletionClaim(candidateResponse)) {
       return null;
@@ -9406,6 +9434,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     batchToolResults.add(promptFeedback);
     executedToolResults.add(promptFeedback);
+    onBlockingFeedbackPrepared?.call();
 
     appLog(
       '[BackgroundProcess] Completion claim blocked by background process '
@@ -9436,6 +9465,14 @@ class ChatNotifier extends Notifier<ChatState> {
     required String candidateResponse,
     required List<ToolResultInfo> toolResults,
   }) async {
+    final partialFailureFeedback =
+        _buildBackgroundProcessPartialFailureFeedbackToolResult(
+          candidateResponse: candidateResponse,
+          toolResults: toolResults,
+        );
+    if (partialFailureFeedback != null) {
+      return partialFailureFeedback;
+    }
     if (_hasSuccessfulBackgroundProcessCompletionToolResult(toolResults)) {
       return null;
     }
@@ -9449,6 +9486,49 @@ class ChatNotifier extends Notifier<ChatState> {
     return _buildSubagentMonitorFeedbackToolResult(
       candidateResponse: candidateResponse,
       toolResults: toolResults,
+    );
+  }
+
+  ToolResultInfo? _buildBackgroundProcessPartialFailureFeedbackToolResult({
+    required String candidateResponse,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final failedResults = toolResults
+        .where(_toolResultContainsReleaseFailureMarker)
+        .toList(growable: false);
+    if (failedResults.isEmpty) {
+      return null;
+    }
+    final jobIds = _backgroundProcessJobIdsFromResults(failedResults);
+    return ToolResultInfo(
+      id: 'background_process_partial_failure_${DateTime.now().microsecondsSinceEpoch}',
+      name: 'background_process_monitor',
+      arguments: {
+        if (jobIds.isNotEmpty) 'job_ids': jobIds,
+        'source': 'tool_result_output',
+      },
+      result: jsonEncode({
+        'ok': false,
+        'code': 'background_process_partial_failure',
+        'error':
+            'A background process output contains a release failure marker, '
+            'so an exit code 0 is not enough to verify full completion.',
+        if (jobIds.isNotEmpty) 'job_ids': jobIds,
+        'failed_tool_results': failedResults
+            .map(
+              (result) => {
+                'tool_name': result.name,
+                'arguments': result.arguments,
+                'result_excerpt': _clipForDiagnostic(result.result),
+              },
+            )
+            .toList(growable: false),
+        'claimedResponse': _clipForDiagnostic(candidateResponse),
+        'required_action':
+            'Report the partial failure explicitly. Do not claim the release, '
+            'upload, or export completed successfully until a later command '
+            'result proves the failed lane was retried and succeeded.',
+      }),
     );
   }
 
@@ -9477,6 +9557,22 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
     return relevantJobIds.every(successfulJobIds.contains);
+  }
+
+  bool _toolResultContainsReleaseFailureMarker(ToolResultInfo result) {
+    if (!_isCommandExecutionTool(result.name)) {
+      return false;
+    }
+    final normalized = result.result.toLowerCase();
+    return _containsAny(normalized, const [
+          'overall: partial_failure',
+          'encountered error while creating the ipa',
+          'error: exportarchive',
+          'the bundle version must be higher',
+          'upload failed',
+          'ipatool failed',
+        ]) ||
+        RegExp(r'itms-\d+').hasMatch(normalized);
   }
 
   Future<ToolResultInfo?> _buildBackgroundProcessMonitorToolResult({
@@ -9788,6 +9884,22 @@ class ChatNotifier extends Notifier<ChatState> {
       'pending',
       'not yet',
       'unverified',
+      'failed',
+      'failure',
+      'error',
+      'non-zero',
+      'nonzero',
+      'exit code 1',
+      'exit code 2',
+      'exit code 64',
+      'exit code 65',
+    ])) {
+      return false;
+    }
+    if (_containsAnyCodeUnitSequence(candidate, const [
+      [0x5931, 0x6557],
+      [0x30a8, 0x30e9, 0x30fc],
+      [0x7570, 0x5e38, 0x7d42, 0x4e86],
     ])) {
       return false;
     }
@@ -9875,6 +9987,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required Map<String, int> verificationFailureCounts,
     required List<Map<String, dynamic>> tools,
     required int interactionGeneration,
+    void Function()? onBlockingFeedbackPrepared,
   }) async {
     if (!_codingVerificationEnabledFor(
       CodingVerificationTrigger.completionClaim,
@@ -9936,6 +10049,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     batchToolResults.add(promptFeedback);
     executedToolResults.add(promptFeedback);
+    onBlockingFeedbackPrepared?.call();
 
     appLog(
       '[CodingVerification] Completion claim blocked by failing tests; '
@@ -10588,6 +10702,16 @@ class ChatNotifier extends Notifier<ChatState> {
           );
           if (timeoutRetryGuardResult != null) {
             return timeoutRetryGuardResult;
+          }
+          final unexecutedFileMutationGuardResult =
+              _buildUnexecutedFileMutationBeforeCommandGuardResult(
+                toolCall,
+                currentAssistantContent: currentAssistantContent,
+                pendingToolCalls: pendingBatchCalls,
+                executedToolResults: executedToolResults,
+              );
+          if (unexecutedFileMutationGuardResult != null) {
+            return unexecutedFileMutationGuardResult;
           }
           final dispatchedAt = DateTime.now();
           final dispatchResult = await _dispatchToolCall(
@@ -11535,6 +11659,8 @@ class ChatNotifier extends Notifier<ChatState> {
 
       if (!ref.mounted) return;
 
+      final preFinalAnswerContent =
+          _lastMessageContentForGeneration(interactionGeneration) ?? '';
       final streamedFinalAnswer = await _streamToolResultAnswerWithContextRetry(
         toolResults: finalToolResults,
         interactionGeneration: interactionGeneration,
@@ -11553,6 +11679,11 @@ class ChatNotifier extends Notifier<ChatState> {
               batchToolResults: streamVerificationBatchToolResults,
               tools: tools,
               interactionGeneration: interactionGeneration,
+              onBlockingFeedbackPrepared: () =>
+                  _removeStreamedAnswerSuffixForGeneration(
+                    interactionGeneration,
+                    preAnswerContent: preFinalAnswerContent,
+                  ),
             );
         if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
         if (!ref.mounted) return;
@@ -11618,6 +11749,11 @@ class ChatNotifier extends Notifier<ChatState> {
               verificationFailureCounts: verificationFailureCounts,
               tools: tools,
               interactionGeneration: interactionGeneration,
+              onBlockingFeedbackPrepared: () =>
+                  _removeStreamedAnswerSuffixForGeneration(
+                    interactionGeneration,
+                    preAnswerContent: preFinalAnswerContent,
+                  ),
             );
         if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
         if (!ref.mounted) return;
@@ -11769,6 +11905,59 @@ class ChatNotifier extends Notifier<ChatState> {
           'Ask the user before retrying, or verify the previous process state '
           'with a read-only inspection command first.',
     });
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: true,
+    );
+  }
+
+  McpToolResult? _buildUnexecutedFileMutationBeforeCommandGuardResult(
+    ToolCallInfo toolCall, {
+    required String? currentAssistantContent,
+    required List<ToolCallInfo> pendingToolCalls,
+    required List<ToolResultInfo> executedToolResults,
+  }) {
+    if (!_isCommandExecutionTool(toolCall.name) ||
+        _isReadOnlyCommandExecutionToolCall(toolCall)) {
+      return null;
+    }
+    if (pendingToolCalls.any((pendingToolCall) {
+      return pendingToolCall.id != toolCall.id &&
+          _isFileMutationToolName(pendingToolCall.name);
+    })) {
+      return null;
+    }
+    if (_hasSuccessfulFileSideEffectResult(executedToolResults)) {
+      return null;
+    }
+
+    final candidate = currentAssistantContent?.trim() ?? '';
+    if (!_looksLikeFutureFileSideEffectAction(candidate)) {
+      return null;
+    }
+
+    final blockedCommand = _toolCommandArgument(toolCall.arguments);
+    final payloadMap = <String, Object?>{
+      'ok': false,
+      'code': 'unexecuted_file_save',
+      'error':
+          'A command was blocked because the assistant claimed a local file '
+          'would be changed, but no successful write_file, edit_file, or '
+          'rollback_last_file_change result is available for that claimed '
+          'mutation.',
+      'missing_tool': 'edit_file',
+      'blocked_tool': toolCall.name,
+      'claimedResponse': _clipForDiagnostic(candidate),
+      'required_action':
+          'Use write_file or edit_file to perform the claimed file mutation '
+          'before running the command, or explain that the command remains '
+          'blocked because the file change was not executed.',
+    };
+    if (blockedCommand != null) {
+      payloadMap['blocked_command'] = blockedCommand;
+    }
+    final payload = jsonEncode(payloadMap);
     return McpToolResult(
       toolName: toolCall.name,
       result: payload,
@@ -12309,7 +12498,19 @@ class ChatNotifier extends Notifier<ChatState> {
     // usually loop noise. Legitimate validation retries get a fresh dedup key
     // through commandRetryGeneration after the task edits a file.
     return toolCall.name == 'read_file' ||
+        _isRepeatableBackgroundProcessInspectionTool(toolCall) ||
         _isRepeatableProcessMonitorToolCall(toolCall);
+  }
+
+  bool _isRepeatableBackgroundProcessInspectionTool(ToolCallInfo toolCall) {
+    switch (toolCall.name.trim().toLowerCase()) {
+      case 'process_status':
+      case 'process_tail':
+      case 'process_wait':
+      case 'process_list':
+        return true;
+    }
+    return false;
   }
 
   bool _isRepeatableProcessMonitorToolCall(ToolCallInfo toolCall) {
@@ -14038,6 +14239,65 @@ class ChatNotifier extends Notifier<ChatState> {
     return true;
   }
 
+  bool _recoverAssistantToolNameBlocksFromLastMessage({
+    int? interactionGeneration,
+  }) {
+    if (!ref.mounted || state.messages.isEmpty) return false;
+
+    final lastMessage = state.messages.last;
+    if (lastMessage.role != MessageRole.assistant) {
+      return false;
+    }
+
+    final toolNames = _extractFencedToolNameBlocks(lastMessage.content);
+    if (toolNames.isEmpty) {
+      return false;
+    }
+
+    appLog(
+      '[ContentTool] Ignoring assistant-authored fenced tool_name block(s): '
+      '${toolNames.join(", ")}',
+    );
+    _replaceLastMessageContentForGeneration(
+      interactionGeneration ?? _interactionGeneration,
+      _stripFencedToolNameBlocks(lastMessage.content),
+    );
+    _pendingContentToolResults.add(
+      '[Assistant tool-name block ignored]\n'
+      'The assistant emitted fenced tool_name block(s) instead of a complete '
+      '<tool_use>...</tool_use> call: ${toolNames.join(", ")}. '
+      'No tool was executed from the fenced tool_name block. If tool use is '
+      'still needed, call one available tool with exactly one complete '
+      '<tool_use>...</tool_use> JSON tag; otherwise answer from verified prior '
+      'tool results only.',
+    );
+    return true;
+  }
+
+  List<String> _extractFencedToolNameBlocks(String content) {
+    final toolNames = <String>[];
+    final pattern = RegExp(
+      r'```tool_name\s*([\s\S]*?)```',
+      caseSensitive: false,
+    );
+    for (final match in pattern.allMatches(content)) {
+      final name = (match.group(1) ?? '').trim();
+      if (name.isNotEmpty) {
+        toolNames.add(name);
+      }
+    }
+    return toolNames;
+  }
+
+  String _stripFencedToolNameBlocks(String content) {
+    return content
+        .replaceAll(
+          RegExp(r'```tool_name\s*[\s\S]*?```', caseSensitive: false),
+          '',
+        )
+        .trim();
+  }
+
   void _stripToolArtifactsFromLastAssistantMessage({
     int? interactionGeneration,
   }) {
@@ -14120,6 +14380,20 @@ class ChatNotifier extends Notifier<ChatState> {
       generation,
       '$preAnswerContent$separator$strippedSuffix',
     );
+  }
+
+  void _removeStreamedAnswerSuffixForGeneration(
+    int generation, {
+    required String preAnswerContent,
+  }) {
+    final currentContent = _lastMessageContentForGeneration(generation);
+    if (currentContent == null) {
+      return;
+    }
+    if (!currentContent.startsWith(preAnswerContent)) {
+      return;
+    }
+    _replaceLastMessageContentForGeneration(generation, preAnswerContent);
   }
 
   void _appendUnexecutedToolRequestNoticeIfNeeded({
@@ -14285,13 +14559,14 @@ class ChatNotifier extends Notifier<ChatState> {
       if (lastMessage.role != MessageRole.assistant) {
         return;
       }
-      final content = lastMessage.content;
-      if (content.contains(notice)) {
+      final content = _messageContentWithUnexecutedCommandActionNotice(
+        lastMessage.content,
+        notice,
+      );
+      if (lastMessage.content == content) {
         return;
       }
-      updatedMessages[lastIndex] = lastMessage.copyWith(
-        content: '${content.trimRight()}\n\n$notice',
-      );
+      updatedMessages[lastIndex] = lastMessage.copyWith(content: content);
       _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
       return;
     }
@@ -14304,15 +14579,114 @@ class ChatNotifier extends Notifier<ChatState> {
     if (lastMessage.role != MessageRole.assistant) {
       return;
     }
-    final content = lastMessage.content;
-    if (content.contains(notice)) {
+    final content = _messageContentWithUnexecutedCommandActionNotice(
+      lastMessage.content,
+      notice,
+    );
+    if (lastMessage.content == content) {
       return;
     }
-    updatedMessages[lastIndex] = lastMessage.copyWith(
-      content: '${content.trimRight()}\n\n$notice',
-    );
+    updatedMessages[lastIndex] = lastMessage.copyWith(content: content);
     state = state.copyWith(messages: updatedMessages);
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+  }
+
+  void _replaceTimedOutCommandSuccessClaimIfNeeded({
+    required List<ToolResultInfo> toolResults,
+    int? interactionGeneration,
+  }) {
+    if (!_hasTimedOutCommandResult(toolResults)) {
+      return;
+    }
+    final generation = interactionGeneration ?? _interactionGeneration;
+    const notice =
+        'A command timed out, so any success, pass, or completion claim is unverified. '
+        'Treat the command result as incomplete until a successful command-execution tool result is available.';
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+
+      final updatedMessages = [...activeMessages];
+      final lastIndex = updatedMessages.length - 1;
+      final lastMessage = updatedMessages[lastIndex];
+      if (lastMessage.role != MessageRole.assistant ||
+          !_looksLikeCommandSuccessClaim(lastMessage.content)) {
+        return;
+      }
+      updatedMessages[lastIndex] = lastMessage.copyWith(content: notice);
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+      return;
+    }
+
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    if (lastMessage.role != MessageRole.assistant ||
+        !_looksLikeCommandSuccessClaim(lastMessage.content)) {
+      return;
+    }
+    updatedMessages[lastIndex] = lastMessage.copyWith(content: notice);
+    state = state.copyWith(messages: updatedMessages);
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+  }
+
+  void _replaceFailedCommandSuccessClaimIfNeeded({
+    required List<ToolResultInfo> toolResults,
+    int? interactionGeneration,
+  }) {
+    final failedExitCode = _firstFailedCommandExitCode(toolResults);
+    if (failedExitCode == null) {
+      return;
+    }
+    final generation = interactionGeneration ?? _interactionGeneration;
+    final notice =
+        'A command exited with non-zero exit code $failedExitCode, so any '
+        'success, upload, release, pass, or completion claim is unverified. '
+        'Treat the command as failed until a later command-execution tool '
+        'result exits successfully.';
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+
+      final updatedMessages = [...activeMessages];
+      final lastIndex = updatedMessages.length - 1;
+      final lastMessage = updatedMessages[lastIndex];
+      if (lastMessage.role != MessageRole.assistant ||
+          !_looksLikeCommandSuccessClaim(lastMessage.content)) {
+        return;
+      }
+      updatedMessages[lastIndex] = lastMessage.copyWith(content: notice);
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+      return;
+    }
+
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    if (lastMessage.role != MessageRole.assistant ||
+        !_looksLikeCommandSuccessClaim(lastMessage.content)) {
+      return;
+    }
+    updatedMessages[lastIndex] = lastMessage.copyWith(content: notice);
+    state = state.copyWith(messages: updatedMessages);
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+  }
+
+  String _messageContentWithUnexecutedCommandActionNotice(
+    String content,
+    String notice,
+  ) {
+    if (content.contains(notice)) {
+      return content;
+    }
+    if (_looksLikeUnsupportedCommandExecutionAction(content.trim())) {
+      return notice;
+    }
+    return '${content.trimRight()}\n\n$notice';
   }
 
   bool _looksLikeUnsupportedFileSideEffectClaim(
@@ -14391,6 +14765,69 @@ class ChatNotifier extends Notifier<ChatState> {
     });
   }
 
+  bool _hasTimedOutCommandResult(List<ToolResultInfo> toolResults) {
+    return toolResults.any(_toolResultTimedOut);
+  }
+
+  int? _firstFailedCommandExitCode(List<ToolResultInfo> toolResults) {
+    for (final toolResult in toolResults) {
+      if (!_isCommandExecutionTool(toolResult.name)) {
+        continue;
+      }
+      final normalizedName = toolResult.name.trim().toLowerCase();
+      if (normalizedName == 'process_start' ||
+          normalizedName == 'process_status' ||
+          normalizedName == 'process_wait') {
+        continue;
+      }
+      if (_toolResultTimedOut(toolResult)) {
+        continue;
+      }
+      final decoded = _tryDecodeMap(toolResult.result);
+      final exitCode = _exitCodeValue(decoded?['exit_code']);
+      if (exitCode != null && exitCode != 0) {
+        return exitCode;
+      }
+    }
+    return null;
+  }
+
+  bool _looksLikeCommandSuccessClaim(String content) {
+    final normalized = content.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    if (_containsAny(normalized, const [
+      'not passed',
+      'not complete',
+      'not completed',
+      'not successful',
+      'failed',
+      'failure',
+      'unverified',
+      'incomplete',
+      'timed out and did not complete',
+    ])) {
+      return false;
+    }
+    return _containsAny(normalized, const [
+          'passed',
+          'success',
+          'successful',
+          'succeeded',
+          'completed',
+          'complete',
+          'green',
+          'no issues found',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x5408, 0x683c],
+          [0x6210, 0x529f],
+          [0x5b8c, 0x4e86],
+          [0x901a, 0x904e],
+        ]);
+  }
+
   bool _looksLikeUnexecutedToolRequest(String content) {
     if (_looksLikeStructuredToolRequest(content)) {
       return true;
@@ -14398,8 +14835,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final trimmed = content.trim();
     return _looksLikePlanOnlyFinalToolAnswer(trimmed) ||
-        _looksLikeFutureCommandExecutionAction(trimmed) ||
+        _looksLikeUnsupportedCommandExecutionAction(trimmed) ||
         _looksLikeFutureFileSideEffectAction(trimmed);
+  }
+
+  bool _looksLikeUnsupportedCommandExecutionAction(String content) {
+    return _looksLikeFutureCommandExecutionAction(content) ||
+        _looksLikeCompletedCommandExecutionClaim(content);
   }
 
   bool _looksLikeFutureCommandExecutionAction(String content) {
@@ -14411,22 +14853,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     final lowerContent = content.toLowerCase();
-    final hasCommandContext = _containsAny(lowerContent, const [
-      'local command',
-      'command line',
-      'shell command',
-      'local_execute_command',
-      'run_tests',
-      'git_execute_command',
-      'dry run',
-      'dry-run',
-      'release script',
-      'tool/release_',
-      'flutter test',
-      'flutter analyze',
-      'dart test',
-      'bash ',
-    ]);
+    final hasCommandContext = _containsCommandExecutionContext(content);
     final hasEnglishAction = _containsAny(lowerContent, const [
       'i will run',
       'i will execute',
@@ -14441,6 +14868,86 @@ class ChatNotifier extends Notifier<ChatState> {
     ]);
     return (hasCommandContext && hasEnglishAction) ||
         _containsCjkFutureCommandExecutionAction(content);
+  }
+
+  bool _looksLikeCompletedCommandExecutionClaim(String content) {
+    if (content.isEmpty || content.length > 1800) {
+      return false;
+    }
+    if (_looksLikeCommandExecutionQuestion(content)) {
+      return false;
+    }
+    if (!_containsCommandExecutionContext(content)) {
+      return false;
+    }
+
+    final lowerContent = content.toLowerCase();
+    if (_containsAny(lowerContent, const [
+      'not completed',
+      'not successful',
+      'not uploaded',
+      'not released',
+      'failed',
+      'failure',
+      'unverified',
+      'not executed',
+    ])) {
+      return false;
+    }
+
+    return _containsAny(lowerContent, const [
+          'completed',
+          'succeeded',
+          'successful',
+          'successfully',
+          'uploaded',
+          'exported',
+          'released',
+          'build passed',
+          'upload succeeded',
+          'release complete',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x6210, 0x529f],
+          [0x5b8c, 0x4e86],
+          [0x6e08, 0x307f],
+        ]);
+  }
+
+  bool _containsCommandExecutionContext(String content) {
+    final lowerContent = content.toLowerCase();
+    if (_containsAny(lowerContent, const [
+      'local command',
+      'command line',
+      'shell command',
+      'local_execute_command',
+      'run_tests',
+      'git_execute_command',
+      'dry run',
+      'dry-run',
+      'release script',
+      'tool/release_',
+      'flutter test',
+      'flutter analyze',
+      'flutter build',
+      'dart test',
+      'xcodebuild',
+      'app store connect',
+      'build/ios',
+      'ipa',
+      'bash ',
+    ])) {
+      return true;
+    }
+    return _containsAnyCodeUnitSequence(content, const [
+      [0x30d3, 0x30eb, 0x30c9],
+      [0x30a2, 0x30c3, 0x30d7, 0x30ed, 0x30fc, 0x30c9],
+      [0x30ea, 0x30ea, 0x30fc, 0x30b9],
+      [0x30d7, 0x30ed, 0x30bb, 0x30b9],
+      [0x30b3, 0x30de, 0x30f3, 0x30c9],
+      [0x691c, 0x8a3c],
+      [0x5b9f, 0x884c],
+    ]);
   }
 
   bool _looksLikeCommandExecutionQuestion(String content) {
@@ -14466,6 +14973,8 @@ class ChatNotifier extends Notifier<ChatState> {
     final hasAction = _containsAnyCodeUnitSequence(value, const [
       [0x5b9f, 0x884c, 0x3057, 0x307e, 0x3059],
       [0x8d70, 0x3089, 0x305b, 0x307e, 0x3059],
+      [0x958b, 0x59cb, 0x3057, 0x307e, 0x3059],
+      [0x958b, 0x59cb, 0x3057, 0x307e, 0x3057, 0x305f],
     ]);
     if (!hasAction) {
       return false;
@@ -14492,15 +15001,27 @@ class ChatNotifier extends Notifier<ChatState> {
           'i will create',
           'i will write',
           'i will save',
+          'i will edit',
+          'i will update',
+          'i will bump',
+          'i will increment',
           "i'll create",
           "i'll write",
           "i'll save",
+          "i'll edit",
+          "i'll update",
+          "i'll bump",
+          "i'll increment",
         ]) &&
         _containsAny(lowerContent, const [
           'file',
           'release note',
           'markdown',
           'document',
+          'pubspec.yaml',
+          'yaml',
+          'version',
+          'build number',
         ]);
     if (hasEnglishFileAction) {
       return true;
@@ -14622,6 +15143,8 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _containsCjkFutureFileSideEffectAction(String value) {
     final objectMarkers = [
       String.fromCharCodes([0x30d5, 0x30a1, 0x30a4, 0x30eb]),
+      'pubspec.yaml',
+      'version',
       String.fromCharCodes([
         0x30ea,
         0x30ea,
@@ -14641,6 +15164,18 @@ class ChatNotifier extends Notifier<ChatState> {
       String.fromCharCodes([0x66f8, 0x304d, 0x307e, 0x3059]),
       String.fromCharCodes([0x66f8, 0x304d, 0x8fbc, 0x307f, 0x307e, 0x3059]),
       String.fromCharCodes([0x751f, 0x6210, 0x3057, 0x307e, 0x3059]),
+      String.fromCharCodes([
+        0x30a4,
+        0x30f3,
+        0x30af,
+        0x30ea,
+        0x30e1,
+        0x30f3,
+        0x30c8,
+        0x3057,
+        0x307e,
+        0x3059,
+      ]),
     ];
     return objectMarkers.any(value.contains) &&
         actionMarkers.any(value.contains);
@@ -14842,6 +15377,27 @@ class ChatNotifier extends Notifier<ChatState> {
             interactionGeneration: generation,
           );
       if (recoveredUntrustedToolResult) {
+        final toolResults = List<String>.from(_pendingContentToolResults);
+        _pendingContentToolResults.clear();
+        if (_contentToolContinuationCount >= _maxContentToolContinuations) {
+          _appendToolContinuationLimitNotice();
+        } else {
+          _contentToolContinuationCount += 1;
+          await _continueAfterContentToolResults(
+            toolResults,
+            interactionGeneration: generation,
+          );
+          return;
+        }
+      }
+    }
+
+    if (_pendingContentToolResults.isEmpty) {
+      final recoveredToolNameBlock =
+          _recoverAssistantToolNameBlocksFromLastMessage(
+            interactionGeneration: generation,
+          );
+      if (recoveredToolNameBlock) {
         final toolResults = List<String>.from(_pendingContentToolResults);
         _pendingContentToolResults.clear();
         if (_contentToolContinuationCount >= _maxContentToolContinuations) {
