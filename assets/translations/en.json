@@ -647,6 +647,8 @@
     "live_llm_diag_status_skipped": "Skipped",
     "live_llm_diag_probe_instruction_title": "Instruction contract",
     "live_llm_diag_probe_instruction_desc": "Verifies exact JSON output without tools.",
+    "live_llm_diag_probe_exact_preservation_title": "Exact preservation",
+    "live_llm_diag_probe_exact_preservation_desc": "Checks exact copying of unit, money, raw tool-result, date, ID, and URL values.",
     "live_llm_diag_probe_fm_language_matrix_title": "Foundation Models language matrix",
     "live_llm_diag_probe_fm_language_matrix_desc": "Checks English, Japanese, and tool-bridge prompts for Foundation Models locale safety.",
     "live_llm_diag_probe_tool_call_title": "Built-in tool call",

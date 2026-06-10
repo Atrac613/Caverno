@@ -115,6 +115,7 @@ class SystemPromptBuilder {
     // In voice mode, follow-up questions are handled by the voice mode instruction.
     if (!isVoiceMode) {
       buffer.writeln(SystemPromptConstants.optionalFollowUpQuestionInstruction);
+      buffer.writeln(SystemPromptConstants.exactPreservationInstruction);
     }
 
     if (assistantMode == AssistantMode.general) {

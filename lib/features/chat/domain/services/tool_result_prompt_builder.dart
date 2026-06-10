@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import '../../../../core/constants/system_prompt_constants.dart';
 import '../entities/tool_call_info.dart';
 
 enum ToolResultPromptBudgetMode { normal, compact }
@@ -27,6 +28,9 @@ class _ToolResultPromptBudget {
 
 class ToolResultPromptBuilder {
   ToolResultPromptBuilder._();
+
+  static const String exactPreservationToolResultInstruction =
+      SystemPromptConstants.toolResultExactPreservationInstruction;
 
   static const _normalBudget = _ToolResultPromptBudget(
     maxTotalResultChars: 48000,
@@ -181,6 +185,7 @@ class ToolResultPromptBuilder {
         'Prefer explicit fields such as role, type, kind, category, or '
         'interpretation_hint over heuristics based on how an identifier looks.',
       )
+      ..writeln(exactPreservationToolResultInstruction)
       ..writeln(
         'Only claim that a local file was created, edited, saved, moved, or '
         'deleted when the provided tool results include a successful tool '

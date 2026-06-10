@@ -67,6 +67,24 @@ void main() {
       expect(prompt, contains('Scope note:'));
     });
 
+    test('adds exact preservation guidance for raw tool result values', () {
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'diagnostic_exact_value',
+          arguments: const {'field': 'product_label'},
+          result: 'Raw result:\n{"product_label":"ZX-900_\\u03b1 2026-06-12"}',
+        ),
+      ]);
+
+      expect(prompt, contains('TOOL RESULT EXACT PRESERVATION:'));
+      expect(prompt, contains('copy those values character-for-character'));
+      expect(prompt, contains('Do not summarize, translate, normalize'));
+      expect(prompt, contains('If a tool result includes "Raw result:"'));
+      expect(prompt, contains('source of truth'));
+      expect(prompt, contains('ZX-900_\\u03b1 2026-06-12'));
+    });
+
     test('guards against unverified local file side-effect claims', () {
       final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
         ToolResultInfo(

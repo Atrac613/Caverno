@@ -31,7 +31,7 @@ void main() {
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
           .length,
-      6,
+      7,
     );
     expect(
       report.results
@@ -53,6 +53,10 @@ void main() {
     expect(report.toolCatalog.totalToolCount, 0);
     expect(
       _result(report, 'instruction_echo').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+    expect(
+      _result(report, 'exact_preservation').status,
       LiveLlmDiagnosticStatus.passed,
     );
     expect(
@@ -85,11 +89,15 @@ void main() {
       expect(report.baseUrl, 'apple-foundation-models://local');
       expect(report.model, AppSettings.appleFoundationModelsModelId);
       expect(dataSource.requestedModels, [
-        for (var i = 0; i < 5; i += 1) AppSettings.appleFoundationModelsModelId,
+        for (var i = 0; i < 8; i += 1) AppSettings.appleFoundationModelsModelId,
       ]);
       expect(dataSource.toolResultFollowUpCount, 0);
       expect(
         _result(report, 'instruction_echo').status,
+        LiveLlmDiagnosticStatus.passed,
+      );
+      expect(
+        _result(report, 'exact_preservation').status,
         LiveLlmDiagnosticStatus.passed,
       );
       expect(
@@ -110,6 +118,25 @@ void main() {
       );
     },
   );
+
+  test('warns when an exact preservation probe value changes', () async {
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: _ExactPreservationMismatchDataSource(),
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run();
+    final result = _result(report, 'exact_preservation');
+
+    expect(result.status, LiveLlmDiagnosticStatus.warning);
+    expect(result.summary, contains('changed at least one'));
+    expect(result.details, contains('direct_echo_money_unit: failed'));
+    expect(result.details, contains('Expected: 12 GiB, \u00a53,980'));
+    expect(result.details, contains('Actual: 12 GiB, \u00a53,980.'));
+    expect(result.modelContent, contains('direct_echo_money_unit:'));
+    expect(result.modelContent, contains('12 GiB, \u00a53,980.'));
+  });
 
   test(
     'reports unsupported Foundation Models language errors as probe failures',
@@ -220,6 +247,25 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
   }) async {
     requestedModels.add(model);
     final user = messages.last.content;
+    if (user.contains('product_label')) {
+      return ChatCompletionResult(
+        content: 'ZX-900_\u03b1 2026-06-12',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('example.test/downloads')) {
+      return ChatCompletionResult(
+        content:
+            'https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('12 GiB')) {
+      return ChatCompletionResult(
+        content: '12 GiB, \u00a53,980',
+        finishReason: 'stop',
+      );
+    }
     if (user.contains('Return exactly this JSON object')) {
       return ChatCompletionResult(
         content:
@@ -374,6 +420,35 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
         ToolCallInfo(id: 'call-$name', name: name, arguments: arguments),
       ],
       finishReason: 'tool_calls',
+    );
+  }
+}
+
+class _ExactPreservationMismatchDataSource extends _FakeDiagnosticDataSource {
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    final user = messages.last.content;
+    if (!user.contains('product_label') &&
+        !user.contains('example.test/downloads') &&
+        user.contains('12 GiB')) {
+      requestedModels.add(model);
+      return ChatCompletionResult(
+        content: '12 GiB, \u00a53,980.',
+        finishReason: 'stop',
+      );
+    }
+    return super.createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
     );
   }
 }

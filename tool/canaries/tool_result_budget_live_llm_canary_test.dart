@@ -12,10 +12,13 @@ import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
+import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
@@ -54,6 +57,9 @@ void main() {
       final delegate = ChatRemoteDataSource(baseUrl: baseUrl, apiKey: apiKey);
       final dataSource = _BudgetLiveDataSource(delegate);
       final toolService = _LargeReadFileToolService();
+      final tempDir = await Directory.systemTemp.createTemp(
+        'caverno_tool_result_budget_canary_',
+      );
       final appLifecycleService = _MockAppLifecycleService();
       when(() => appLifecycleService.isInBackground).thenReturn(false);
       final container = ProviderContainer(
@@ -76,6 +82,9 @@ void main() {
           chatRemoteDataSourceProvider.overrideWithValue(dataSource),
           sessionMemoryServiceProvider.overrideWithValue(
             _NoopSessionMemoryService(),
+          ),
+          toolResultArtifactStoreProvider.overrideWithValue(
+            ToolResultArtifactStore(baseDirectory: tempDir),
           ),
           mcpToolServiceProvider.overrideWithValue(toolService),
           appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
@@ -112,7 +121,10 @@ void main() {
         );
         expect(
           dataSource.toolResultBatches[1].single.result,
-          contains('content_reduced_for_prompt_budget'),
+          anyOf(
+            contains('content_reduced_for_prompt_budget'),
+            contains('reduced to fit the prompt budget'),
+          ),
         );
         expect(
           finalContent.toUpperCase(),
@@ -121,6 +133,9 @@ void main() {
         );
       } finally {
         container.dispose();
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
       }
     },
     skip: liveEnabled
@@ -186,6 +201,14 @@ class _LiveSettingsNotifier extends SettingsNotifier {
 class _LiveConversationsNotifier extends ConversationsNotifier {
   @override
   ConversationsState build() => ConversationsState.initial();
+
+  @override
+  Conversation? ensureCurrentConversation({
+    WorkspaceMode? workspaceMode,
+    String? projectId,
+  }) {
+    return null;
+  }
 
   @override
   Future<void> ensureCurrentPlanArtifactBackfilled() async {}

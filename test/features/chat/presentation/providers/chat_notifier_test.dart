@@ -6449,6 +6449,11 @@ void main() {
         final answerPrompt = toolDataSource.finalAnswerMessages.singleWhere(
           (message) => message.content.contains('[Tool: read_file]'),
         );
+        expect(
+          answerPrompt.content,
+          contains('TOOL RESULT EXACT PRESERVATION:'),
+        );
+        expect(answerPrompt.content, contains('Raw result:'));
         expect(answerPrompt.content, isNot(contains('<tool_use>')));
         expect(
           answerPrompt.content,
@@ -14828,6 +14833,10 @@ with open(path, "rb") as file:
         expect(
           dataSource.completionRequests.first.last.content,
           contains('Continue the task using the following tool results.'),
+        );
+        expect(
+          dataSource.completionRequests.first.last.content,
+          contains('TOOL RESULT EXACT PRESERVATION:'),
         );
         expect(toolNotifier.state.isLoading, isFalse);
         expect(toolNotifier.state.error, isNull);

@@ -138,6 +138,25 @@ prerequisites. Use `blocked` for app-side workflow regressions, unexpected
 warnings, report quality blockers, unexplained task drift, or unknown approval
 paths.
 
+## Qwen3.6-35B-A3B Main LLM Notes
+
+When evaluating `Qwen3.6-35B-A3B-UD-Q4_K_M` as the main LLM, treat exact value
+preservation as a release-sensitive compatibility axis. Local benchmarks showed
+strong `coding_hard` and speed results, but weaker preservation for URLs,
+ISO-style dates, money values, unit values, and opaque identifiers.
+
+Recommended operating posture:
+
+- Keep temperature low for coding, tool-heavy, and diagnostic workflows.
+- Treat tool-result URLs, IDs, dates, money values, unit values, JSON keys, and
+  scalar values as exact-copy data unless the user explicitly asks for
+  conversion.
+- Run Live LLM Diagnostics before promoting the model for main use, and require
+  the `exact_preservation` probe to pass or explicitly review any warning.
+- If exact preservation warnings appear, inspect the diagnostic `details` and
+  `modelContent` fields for the expected and actual value previews before
+  expanding canary coverage.
+
 ## Evidence Snapshot
 
 Current compatibility evidence comes from:

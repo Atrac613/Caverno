@@ -15675,6 +15675,7 @@ class ChatNotifier extends Notifier<ChatState> {
             'permission_denied or equivalent access error. '
             'Explain the issue and ask the user to re-select the project '
             'folder or grant access instead.\n\n'
+            '${ToolResultPromptBuilder.exactPreservationToolResultInstruction}\n\n'
             'Interpret each tool name, description, arguments, and result '
             'together. Preserve the entity roles implied by the tool and the '
             'payload. If the role of an opaque identifier is not explicit, '

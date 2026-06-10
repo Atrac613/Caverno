@@ -115,6 +115,36 @@ void main() {
     expect(prompt, isNot(contains('Project name: "caverno".')));
   });
 
+  test('includes exact preservation guidance in normal text prompts', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 6, 10, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+    );
+
+    expect(prompt, contains('EXACT PRESERVATION:'));
+    expect(prompt, contains('URLs, file paths, file names'));
+    expect(prompt, contains('IDs and opaque identifiers'));
+    expect(prompt, contains('JSON keys and scalar values'));
+    expect(prompt, contains('Keep 2026-06-12 as 2026-06-12'));
+    expect(prompt, contains('keep \u00a53,980 exactly'));
+  });
+
+  test('keeps voice mode natural speech guidance separate', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 6, 10, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      isVoiceMode: true,
+    );
+
+    expect(prompt, contains('VOICE MODE:'));
+    expect(prompt, contains('Never output URLs'));
+    expect(prompt, contains('YYYY-MM-DD dates'));
+    expect(prompt, contains('Express dates/times naturally'));
+    expect(prompt, isNot(contains('EXACT PRESERVATION:')));
+  });
+
   test('instructs tool search before missing tool claims', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),
