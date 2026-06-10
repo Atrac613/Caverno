@@ -626,6 +626,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _seenContentToolCallHashes.clear();
       _toolApprovalCache.clear();
       _pendingContentToolResults.clear();
+      _pendingContentToolContinuationFallback = null;
       _pendingToolExecutions.clear();
       if (!sameConversation) {
         _queuedChatMessages.clear();
@@ -6940,6 +6941,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final Set<String> _executedContentToolCalls = {};
   final Set<String> _seenContentToolCallHashes = {};
   final List<String> _pendingContentToolResults = [];
+  String? _pendingContentToolContinuationFallback;
   final List<QueuedChatMessage> _queuedChatMessages = [];
   final ToolApprovalCache _toolApprovalCache = ToolApprovalCache();
   static const int _maxContentToolContinuations = 5;
@@ -7143,6 +7145,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _isVoiceMode = isVoiceMode;
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
+    _pendingContentToolContinuationFallback = null;
     _pendingToolExecutions.clear();
     _latestContentToolResults.clear();
     _contentToolContinuationCount = 0;
@@ -9133,6 +9136,14 @@ class ChatNotifier extends Notifier<ChatState> {
             ? streamedAssistantContent
             : result.content;
         _recordHiddenAssistantResponse(hiddenAssistantEvidence);
+        final recoveredContentToolArtifact =
+            _recoverContentToolArtifactsBeforeNoToolFinalization(
+              interactionGeneration: generation,
+            );
+        if (recoveredContentToolArtifact) {
+          await _finishStreaming(interactionGeneration: generation);
+          return;
+        }
         _stripToolArtifactsFromLastAssistantMessage(
           interactionGeneration: generation,
         );
@@ -14234,9 +14245,38 @@ class ChatNotifier extends Notifier<ChatState> {
       'The assistant emitted <tool_result> tags without a corresponding tool '
       'execution. Tool results must come from executed tools only. If the data '
       'is still needed, call the tool with one complete <tool_use>...</tool_use> '
-      'tag; otherwise answer from verified prior tool results only.',
+      'tag. If the current user request can be completed without the ignored '
+      'tag or any additional tool, answer that user request directly now. For '
+      'exact no-tool recovery or echo requests, return the literal text the '
+      'user requested exactly. Do not use values that appear only inside the '
+      'ignored <tool_result> content.',
     );
     return true;
+  }
+
+  bool _recoverContentToolArtifactsBeforeNoToolFinalization({
+    required int interactionGeneration,
+  }) {
+    final pendingToolExecutionCount = _pendingToolExecutions.length;
+    final pendingContentToolResultCount = _pendingContentToolResults.length;
+
+    _recoverIncompleteContentToolCallsFromLastMessage(
+      interactionGeneration: interactionGeneration,
+    );
+    if (_pendingToolExecutions.length > pendingToolExecutionCount ||
+        _pendingContentToolResults.length > pendingContentToolResultCount) {
+      return true;
+    }
+
+    if (_recoverUntrustedAssistantToolResultsFromLastMessage(
+      interactionGeneration: interactionGeneration,
+    )) {
+      return true;
+    }
+
+    return _recoverAssistantToolNameBlocksFromLastMessage(
+      interactionGeneration: interactionGeneration,
+    );
   }
 
   bool _recoverAssistantToolNameBlocksFromLastMessage({
@@ -15346,15 +15386,28 @@ class ChatNotifier extends Notifier<ChatState> {
     final updatedMessages = [...activeMessages];
     final lastIndex = updatedMessages.length - 1;
     final lastMessage = updatedMessages[lastIndex];
+    final fallbackContent = _pendingContentToolContinuationFallback?.trim();
+    final shouldUseContentToolContinuationFallback =
+        lastMessage.role == MessageRole.assistant &&
+        !_assistantMessageHasVisibleContent(lastMessage.content) &&
+        fallbackContent != null &&
+        fallbackContent.isNotEmpty;
     final shouldDropLastAssistant =
         lastMessage.role == MessageRole.assistant &&
-        !_assistantMessageHasVisibleContent(lastMessage.content);
+        !_assistantMessageHasVisibleContent(lastMessage.content) &&
+        !shouldUseContentToolContinuationFallback;
 
-    if (shouldDropLastAssistant) {
+    if (shouldUseContentToolContinuationFallback) {
+      updatedMessages[lastIndex] = lastMessage.copyWith(
+        content: fallbackContent,
+        isStreaming: false,
+      );
+    } else if (shouldDropLastAssistant) {
       updatedMessages.removeAt(lastIndex);
     } else {
       updatedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
     }
+    _pendingContentToolContinuationFallback = null;
 
     final messagesToSave = updatedMessages
         .where((message) => !message.isStreaming)
@@ -15478,15 +15531,28 @@ class ChatNotifier extends Notifier<ChatState> {
     final updatedMessages = [...state.messages];
     final lastIndex = updatedMessages.length - 1;
     final lastMessage = updatedMessages[lastIndex];
+    final fallbackContent = _pendingContentToolContinuationFallback?.trim();
+    final shouldUseContentToolContinuationFallback =
+        lastMessage.role == MessageRole.assistant &&
+        !_assistantMessageHasVisibleContent(lastMessage.content) &&
+        fallbackContent != null &&
+        fallbackContent.isNotEmpty;
     final shouldDropLastAssistant =
         lastMessage.role == MessageRole.assistant &&
-        !_assistantMessageHasVisibleContent(lastMessage.content);
+        !_assistantMessageHasVisibleContent(lastMessage.content) &&
+        !shouldUseContentToolContinuationFallback;
 
-    if (shouldDropLastAssistant) {
+    if (shouldUseContentToolContinuationFallback) {
+      updatedMessages[lastIndex] = lastMessage.copyWith(
+        content: fallbackContent,
+        isStreaming: false,
+      );
+    } else if (shouldDropLastAssistant) {
       updatedMessages.removeAt(lastIndex);
     } else {
       updatedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
     }
+    _pendingContentToolContinuationFallback = null;
 
     // Capture token usage from the data source
     _updateTokenUsage();
@@ -15646,6 +15712,8 @@ class ChatNotifier extends Notifier<ChatState> {
       interactionGeneration: interactionGeneration,
     );
     final resultsText = toolResults.join('\n\n');
+    _pendingContentToolContinuationFallback =
+        _buildContentToolContinuationFallback(toolResults);
     messagesForLLM.add(
       Message(
         id: 'content_tool_result_${DateTime.now().millisecondsSinceEpoch}',
@@ -15731,6 +15799,27 @@ class ChatNotifier extends Notifier<ChatState> {
         cancelOnError: true,
       );
     });
+  }
+
+  String _buildContentToolContinuationFallback(List<String> toolResults) {
+    final joined = toolResults.join('\n\n');
+    if (joined.contains('[Assistant-authored tool_result ignored]')) {
+      return 'I ignored an assistant-authored tool_result because it was not '
+          'produced by an executed tool. No trusted tool result is available '
+          'from that tag.';
+    }
+    if (joined.contains('[Assistant tool-name block ignored]')) {
+      return 'I ignored an assistant-authored tool request block because no '
+          'application tool executed it. No trusted tool result is available '
+          'from that block.';
+    }
+    if (joined.contains('[Incomplete assistant tool call]')) {
+      return 'The assistant emitted an incomplete tool call, so no trusted '
+          'tool result is available yet.';
+    }
+    return 'I received the tool result, but the model did not produce a final '
+        'answer. The trusted tool result is still available in the '
+        'conversation context.';
   }
 
   List<Map<String, dynamic>>?
@@ -16090,6 +16179,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _seenContentToolCallHashes.clear();
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
+    _pendingContentToolContinuationFallback = null;
     _pendingToolExecutions.clear();
     _queuedChatMessages.clear();
     _latestContentToolResults.clear();

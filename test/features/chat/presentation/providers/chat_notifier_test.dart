@@ -14685,10 +14685,228 @@ with open(path, "rb") as file:
         continuationPrompt,
         contains('Tool results must come from executed tools only.'),
       );
+      expect(
+        continuationPrompt,
+        contains('exact no-tool recovery or echo requests'),
+      );
     } finally {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'assistant-authored tool result empty continuation uses safe fallback',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final streamingDataSource = _QueuedStreamingChatDataSource([
+        [
+          '<tool_result>{"name":"arp","summary":"Completed","details":["entries: 15"]}</tool_result>',
+        ],
+        const <String>[],
+      ]);
+      final toolService = _FakeMcpToolService(
+        results: const {'arp': '{"entries":15}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ContentToolSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(streamingDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Deep dive clients');
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolService.executedToolNames, isEmpty);
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('I ignored an assistant-authored tool_result'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('No trusted tool result is available from that tag.'),
+        );
+        expect(
+          toolNotifier.state.messages
+              .map((message) => message.content)
+              .join('\n'),
+          isNot(contains('<tool_result>')),
+        );
+
+        final continuationPrompt =
+            streamingDataSource.requests.last.last.content;
+        expect(
+          continuationPrompt,
+          contains('[Assistant-authored tool_result ignored]'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'tool-aware no-tool response recovers assistant-authored tool results before stripping',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      const assistantToolResult =
+          '<tool_result>{"name":"arp","summary":"Completed","details":["entries: 15"]}</tool_result>';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialStreamChunks: const [assistantToolResult],
+        initialCompletionContent: assistantToolResult,
+        finalAnswerChunks: const [
+          'Answering from verified prior results only.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'arp': '{"entries":15}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Deep dive clients');
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolService.executedToolNames, isEmpty);
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Answering from verified prior results only.'),
+        );
+        expect(
+          toolNotifier.state.messages
+              .map((message) => message.content)
+              .join('\n'),
+          isNot(contains('<tool_result>')),
+        );
+        expect(dataSource.finalAnswerRequestMessages, hasLength(1));
+        expect(
+          dataSource.finalAnswerRequestMessages.single.last.content,
+          contains('[Assistant-authored tool_result ignored]'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'tool-aware no-tool response recovers incomplete content tool calls before stripping',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      const marker = 'INLINE_RECOVERY_OK';
+      const toolName = 'inline_recovery_marker';
+      const incompleteToolUse =
+          'Starting inline recovery canary.\n'
+          '<tool_use>{"name":"$toolName","arguments":{"marker":"$marker"}}';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialStreamChunks: const [
+          'Starting inline recovery canary.\n',
+          '<tool_use>{"name":"$toolName","arguments":{"marker":"$marker"}}',
+        ],
+        initialCompletionContent: incompleteToolUse,
+        finalAnswerChunks: const [marker],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {toolName: '{"marker":"$marker"}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run inline recovery');
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolService.executedToolNames, contains(toolName));
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(toolNotifier.state.messages.last.content, contains(marker));
+        expect(
+          toolNotifier.state.messages
+              .map((message) => message.content)
+              .join('\n'),
+          isNot(contains('<tool_use>')),
+        );
+        expect(dataSource.finalAnswerRequestMessages, hasLength(1));
+        expect(
+          dataSource.finalAnswerRequestMessages.single.last.content,
+          contains('[Result of $toolName]'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test('content tool continuations ignore display-only print tool calls', () async {
     final conversationRepository = _FakeConversationRepository();
