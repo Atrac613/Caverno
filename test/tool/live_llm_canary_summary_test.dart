@@ -242,8 +242,18 @@ void main() {
 
     final json = summary.toJson();
     expect(json['schemaName'], 'live_llm_canary_summary');
+    expect(json['schemaVersion'], 2);
     expect(json['generatedAt'], '2026-05-23T01:02:03.000Z');
+    expect(json['mainReadiness'], containsPair('status', 'ready'));
     expect(json['tests'], hasLength(2));
+    expect(
+      (json['tests'] as List<dynamic>).first,
+      containsPair('category', 'core_tool'),
+    );
+    expect(
+      (json['tests'] as List<dynamic>).first,
+      containsPair('readinessImpact', 'satisfied'),
+    );
     expect(
       (json['signals'] as Map<String, dynamic>)['dartAnalyzeFeedback'],
       containsPair('diagnosticCount', 2),
@@ -277,6 +287,8 @@ void main() {
       containsPair('backgroundProcessStatusUnverifiedCount', 1),
     );
     expect(summary.toMarkdown(), contains('Live LLM Canary Summary'));
+    expect(summary.toMarkdown(), contains('Main readiness: `ready`'));
+    expect(summary.toMarkdown(), contains('## Main Readiness'));
     expect(summary.toMarkdown(), contains('Recovered stream fallback count'));
     expect(
       summary.toMarkdown(),
@@ -353,6 +365,163 @@ void main() {
     expect(summary.isSuccessful, isFalse);
     expect(summary.skippedCount, 1);
     expect(summary.tests.single.skipReason, contains('CAVERNO_CHAT'));
+  });
+
+  test(
+    'marks warning-only chat canary failures as usable with warnings',
+    () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'live-llm-summary-warning-test-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final logFile = File('${directory.path}/flutter_test.jsonl');
+      await logFile.writeAsString(
+        [
+          jsonEncode({'protocolVersion': '0.1.1', 'type': 'start', 'time': 0}),
+          jsonEncode({
+            'test': {
+              'id': 1,
+              'name': 'live LLM produces a plain chat response without tools',
+              'metadata': {'skip': false, 'skipReason': null},
+            },
+            'type': 'testStart',
+            'time': 0,
+          }),
+          jsonEncode({
+            'testID': 1,
+            'result': 'success',
+            'skipped': false,
+            'hidden': false,
+            'type': 'testDone',
+            'time': 20,
+          }),
+          jsonEncode({
+            'test': {
+              'id': 2,
+              'name':
+                  'live LLM continues after recovered incomplete content tool call',
+              'metadata': {'skip': false, 'skipReason': null},
+            },
+            'type': 'testStart',
+            'time': 30,
+          }),
+          jsonEncode({
+            'testID': 2,
+            'error':
+                'Expected inline_recovery_marker but the model stopped early.',
+            'isFailure': true,
+            'type': 'error',
+            'time': 40,
+          }),
+          jsonEncode({
+            'testID': 2,
+            'result': 'failure',
+            'skipped': false,
+            'hidden': false,
+            'type': 'testDone',
+            'time': 50,
+          }),
+          jsonEncode({
+            'test': {
+              'id': 3,
+              'name': 'live LLM trims load_skill follow-up inspection text',
+              'metadata': {'skip': false, 'skipReason': null},
+            },
+            'type': 'testStart',
+            'time': 60,
+          }),
+          jsonEncode({
+            'testID': 3,
+            'error': 'Expected git_execute_command and list_directory.',
+            'isFailure': true,
+            'type': 'error',
+            'time': 70,
+          }),
+          jsonEncode({
+            'testID': 3,
+            'result': 'failure',
+            'skipped': false,
+            'hidden': false,
+            'type': 'testDone',
+            'time': 90,
+          }),
+          jsonEncode({'success': false, 'type': 'done', 'time': 100}),
+        ].join('\n'),
+      );
+
+      final summary = await buildLiveLlmCanarySummary(
+        logFile: logFile,
+        canaryName: 'chat_live_llm_canary',
+        surface: 'chat',
+        baseUrl: 'http://127.0.0.1:1234/v1',
+        model: 'test-model',
+        command: 'tool/run_chat_live_llm_canary.sh',
+        generatedAt: DateTime.utc(2026, 6, 10),
+      );
+
+      expect(summary.result, 'failed');
+      expect(summary.readiness.status, 'usable_with_warnings');
+      expect(summary.readiness.warningFailedCount, 2);
+      expect(summary.readiness.blockerFailedCount, 0);
+      expect(summary.tests[1].category, 'recovery');
+      expect(summary.tests[1].readinessImpact, 'warning');
+      expect(summary.tests[1].failureMessage, contains('stopped early'));
+      expect(summary.tests[2].category, 'skill_follow_up');
+      expect(summary.toMarkdown(), contains('usable_with_warnings'));
+      expect(summary.toMarkdown(), contains('Failed Test Details'));
+    },
+  );
+
+  test('marks core chat failures as blocked readiness', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'live-llm-summary-blocked-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final logFile = File('${directory.path}/flutter_test.jsonl');
+    await logFile.writeAsString(
+      [
+        jsonEncode({
+          'test': {
+            'id': 1,
+            'name': 'live LLM produces a plain chat response without tools',
+            'metadata': {'skip': false, 'skipReason': null},
+          },
+          'type': 'testStart',
+          'time': 0,
+        }),
+        jsonEncode({
+          'testID': 1,
+          'error': 'Expected BASIC marker.',
+          'isFailure': true,
+          'type': 'error',
+          'time': 5,
+        }),
+        jsonEncode({
+          'testID': 1,
+          'result': 'failure',
+          'skipped': false,
+          'hidden': false,
+          'type': 'testDone',
+          'time': 10,
+        }),
+        jsonEncode({'success': false, 'type': 'done', 'time': 11}),
+      ].join('\n'),
+    );
+
+    final summary = await buildLiveLlmCanarySummary(
+      logFile: logFile,
+      canaryName: 'chat_live_llm_canary',
+      surface: 'chat',
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'test-model',
+      command: 'tool/run_chat_live_llm_canary.sh',
+      generatedAt: DateTime.utc(2026, 6, 10),
+    );
+
+    expect(summary.readiness.status, 'blocked');
+    expect(summary.readiness.blockerFailedCount, 1);
+    expect(summary.tests.single.category, 'core_chat');
+    expect(summary.tests.single.readinessImpact, 'blocker');
   });
 
   test('aggregates repeated Flutter JSON reporter output', () async {

@@ -82,7 +82,7 @@ Future<LiveLlmCanarySummary> buildLiveLlmCanarySummary({
   );
   return LiveLlmCanarySummary(
     schemaName: 'live_llm_canary_summary',
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: generatedAt ?? DateTime.now(),
     canaryName: canaryName,
     surface: surface,
@@ -101,6 +101,11 @@ Future<LiveLlmCanarySummary> buildLiveLlmCanarySummary({
     hiddenTestCount: parsed.hiddenTestCount,
     malformedJsonLineCount: parsed.malformedJsonLineCount,
     signals: LiveLlmCanarySignals.fromLog(rawLog),
+    readiness: LiveLlmCanaryReadiness.fromTests(
+      result: result,
+      doneSeen: parsed.doneSeen,
+      tests: tests,
+    ),
     tests: tests,
   );
 }
@@ -142,6 +147,7 @@ class LiveLlmCanarySummary {
     required this.hiddenTestCount,
     required this.malformedJsonLineCount,
     required this.signals,
+    required this.readiness,
     required this.tests,
   });
 
@@ -165,6 +171,7 @@ class LiveLlmCanarySummary {
   final int hiddenTestCount;
   final int malformedJsonLineCount;
   final LiveLlmCanarySignals signals;
+  final LiveLlmCanaryReadiness readiness;
   final List<LiveLlmCanaryTestResult> tests;
 
   bool get isSuccessful => result == 'passed';
@@ -191,6 +198,7 @@ class LiveLlmCanarySummary {
       'hiddenTestCount': hiddenTestCount,
       'malformedJsonLineCount': malformedJsonLineCount,
       'signals': signals.toJson(),
+      'mainReadiness': readiness.toJson(),
       'tests': tests.map((test) => test.toJson()).toList(growable: false),
     };
   }
@@ -202,6 +210,7 @@ class LiveLlmCanarySummary {
       ..writeln('- Canary: `$canaryName`')
       ..writeln('- Surface: `$surface`')
       ..writeln('- Result: `$result`')
+      ..writeln('- Main readiness: `${readiness.status}`')
       ..writeln('- Model: `$model`')
       ..writeln('- Base URL: `$baseUrl`')
       ..writeln('- Command: `$command`')
@@ -211,6 +220,14 @@ class LiveLlmCanarySummary {
         '`$failedCount` failed, `$skippedCount` skipped',
       )
       ..writeln('- Duration: `${durationMs ?? 0} ms`')
+      ..writeln()
+      ..writeln('## Main Readiness')
+      ..writeln()
+      ..writeln('- Status: `${readiness.status}`')
+      ..writeln('- Blocker failures: `${readiness.blockerFailedCount}`')
+      ..writeln('- Warning failures: `${readiness.warningFailedCount}`')
+      ..writeln('- Skipped tests: `${readiness.skippedCount}`')
+      ..writeln('- Note: ${readiness.note}')
       ..writeln()
       ..writeln('## Recovery Signals')
       ..writeln()
@@ -371,15 +388,112 @@ class LiveLlmCanarySummary {
       ..writeln()
       ..writeln('## Tests')
       ..writeln()
-      ..writeln('| Test | Result | Duration |')
-      ..writeln('|------|--------|----------|');
+      ..writeln('| Test | Result | Category | Impact | Duration |')
+      ..writeln('|------|--------|----------|--------|----------|');
     for (final test in tests) {
       buffer.writeln(
         '| ${_tableCell(test.name)} | `${test.result}` | '
+        '`${test.category}` | `${test.readinessImpact}` | '
         '`${test.durationMs ?? 0} ms` |',
       );
     }
+    final failedTests = tests
+        .where((test) => test.failureMessage != null)
+        .toList(growable: false);
+    if (failedTests.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## Failed Test Details')
+        ..writeln();
+      for (final test in failedTests) {
+        buffer
+          ..writeln('### ${test.name}')
+          ..writeln()
+          ..writeln('- Category: `${test.category}`')
+          ..writeln('- Impact: `${test.readinessImpact}`')
+          ..writeln('- Failure: ${_inlineCode(test.failurePreview)}')
+          ..writeln();
+      }
+    }
     return buffer.toString();
+  }
+}
+
+class LiveLlmCanaryReadiness {
+  const LiveLlmCanaryReadiness({
+    required this.status,
+    required this.blockerFailedCount,
+    required this.warningFailedCount,
+    required this.skippedCount,
+    required this.note,
+  });
+
+  final String status;
+  final int blockerFailedCount;
+  final int warningFailedCount;
+  final int skippedCount;
+  final String note;
+
+  static LiveLlmCanaryReadiness fromTests({
+    required String result,
+    required bool doneSeen,
+    required List<LiveLlmCanaryTestResult> tests,
+  }) {
+    final visibleTests = tests.where((test) => !test.hidden).toList();
+    final failedTests = visibleTests
+        .where((test) => test.result == 'failed')
+        .toList(growable: false);
+    final warningFailedCount = failedTests
+        .where((test) => test.readinessImpact == 'warning')
+        .length;
+    final blockerFailedCount = failedTests.length - warningFailedCount;
+    final skippedCount = visibleTests.where((test) => test.skipped).length;
+
+    if (!doneSeen || result == 'skipped') {
+      return LiveLlmCanaryReadiness(
+        status: 'not_run',
+        blockerFailedCount: blockerFailedCount,
+        warningFailedCount: warningFailedCount,
+        skippedCount: skippedCount,
+        note: 'The canary did not complete with actionable readiness evidence.',
+      );
+    }
+    if (failedTests.isEmpty && result == 'passed') {
+      return LiveLlmCanaryReadiness(
+        status: 'ready',
+        blockerFailedCount: 0,
+        warningFailedCount: 0,
+        skippedCount: skippedCount,
+        note: 'All visible live canary checks passed.',
+      );
+    }
+    if (failedTests.isNotEmpty && blockerFailedCount == 0) {
+      return LiveLlmCanaryReadiness(
+        status: 'usable_with_warnings',
+        blockerFailedCount: 0,
+        warningFailedCount: warningFailedCount,
+        skippedCount: skippedCount,
+        note:
+            'Core checks passed, but recovery or skill follow-up checks need attention.',
+      );
+    }
+    return LiveLlmCanaryReadiness(
+      status: 'blocked',
+      blockerFailedCount: blockerFailedCount,
+      warningFailedCount: warningFailedCount,
+      skippedCount: skippedCount,
+      note: 'At least one core live canary check failed.',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'status': status,
+      'blockerFailedCount': blockerFailedCount,
+      'warningFailedCount': warningFailedCount,
+      'skippedCount': skippedCount,
+      'note': note,
+    };
   }
 }
 
@@ -631,6 +745,7 @@ class LiveLlmCanaryTestResult {
     required this.durationMs,
     required this.skipReason,
     required this.messageCount,
+    required this.failureMessage,
   });
 
   final int id;
@@ -641,6 +756,11 @@ class LiveLlmCanaryTestResult {
   final int? durationMs;
   final String? skipReason;
   final int messageCount;
+  final String? failureMessage;
+
+  String get category => _categoryForTestName(name);
+  String get readinessImpact => _readinessImpactForCategory(category, result);
+  String get failurePreview => _truncateForSummary(failureMessage ?? '', 700);
 
   Map<String, dynamic> toJson() {
     return {
@@ -652,6 +772,9 @@ class LiveLlmCanaryTestResult {
       'durationMs': durationMs,
       'skipReason': skipReason,
       'messageCount': messageCount,
+      'category': category,
+      'readinessImpact': readinessImpact,
+      if (failureMessage != null) 'failureMessage': failureMessage,
     };
   }
 }
@@ -664,6 +787,7 @@ class _FlutterJsonTestLogParser {
   _ParsedFlutterJsonTestLog parse() {
     final starts = <int, _TestStart>{};
     final messages = <int, List<String>>{};
+    final errors = <int, List<String>>{};
     final tests = <LiveLlmCanaryTestResult>[];
     var malformedJsonLineCount = 0;
     var hiddenTestCount = 0;
@@ -712,6 +836,12 @@ class _FlutterJsonTestLogParser {
           if (testId != null && message != null) {
             messages.putIfAbsent(testId, () => []).add(message);
           }
+        case 'error':
+          final testId = (decoded['testID'] as num?)?.toInt();
+          final message = decoded['error'] as String?;
+          if (testId != null && message != null) {
+            errors.putIfAbsent(testId, () => []).add(message);
+          }
         case 'testDone':
           final testId = (decoded['testID'] as num?)?.toInt();
           if (testId == null) {
@@ -742,6 +872,7 @@ class _FlutterJsonTestLogParser {
                   : endMs - start!.startedAtMs!,
               skipReason: start?.skipReason,
               messageCount: messages[testId]?.length ?? 0,
+              failureMessage: _joinedFailureMessages(errors[testId]),
             ),
           );
         case 'done':
@@ -1186,4 +1317,66 @@ Map<String, dynamic> _tryDecodeObject(String value) {
 
 String _tableCell(String value) {
   return value.replaceAll('|', r'\|').replaceAll('\n', ' ');
+}
+
+String _inlineCode(String value) {
+  return '`${value.replaceAll('`', r'\`').replaceAll('\n', r'\n')}`';
+}
+
+String? _joinedFailureMessages(List<String>? messages) {
+  if (messages == null || messages.isEmpty) {
+    return null;
+  }
+  return _truncateForSummary(messages.join('\n\n'), 4000);
+}
+
+String _truncateForSummary(String value, int maxLength) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return '${value.substring(0, maxLength)}...';
+}
+
+String _categoryForTestName(String name) {
+  final normalized = name.toLowerCase();
+  if (normalized.contains('plain chat') ||
+      normalized.contains('memory extraction')) {
+    return 'core_chat';
+  }
+  if (normalized.contains('embedded tool call') ||
+      normalized.contains('deferred tool') ||
+      normalized.contains('persisted artifact') ||
+      normalized.contains('compacted oversized tool results') ||
+      normalized.contains('tool-result budget')) {
+    return 'core_tool';
+  }
+  if (normalized.contains('subagent')) {
+    return 'subagent';
+  }
+  if (normalized.contains('recovered incomplete') ||
+      normalized.contains('ignored assistant-authored') ||
+      normalized.contains('recovers') ||
+      normalized.contains('recovery')) {
+    return 'recovery';
+  }
+  if (normalized.contains('load_skill') || normalized.contains('skill')) {
+    return 'skill_follow_up';
+  }
+  return 'uncategorized';
+}
+
+String _readinessImpactForCategory(String category, String result) {
+  if (result == 'passed') {
+    return 'satisfied';
+  }
+  if (result == 'skipped') {
+    return 'skipped';
+  }
+  switch (category) {
+    case 'recovery':
+    case 'skill_follow_up':
+      return 'warning';
+    default:
+      return 'blocker';
+  }
 }
