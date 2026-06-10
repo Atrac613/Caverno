@@ -588,7 +588,21 @@ void main() {
                 _skillFollowUpDiagnostic(container, toolService, dataSource),
           );
 
-          final toolResultResponse = dataSource.toolResultResponses.lastOrNull;
+          ChatCompletionResult? toolResultResponse;
+          for (final response in dataSource.toolResultResponses) {
+            final toolNames =
+                response.toolCalls
+                    ?.map((toolCall) => toolCall.name)
+                    .toList(growable: false) ??
+                const <String>[];
+            if (toolNames.contains(
+                  _SkillFollowUpToolService.listDirectoryToolName,
+                ) &&
+                toolNames.contains(_SkillFollowUpToolService.gitToolName)) {
+              toolResultResponse = response;
+              break;
+            }
+          }
           expect(
             toolResultResponse,
             isNotNull,
@@ -626,7 +640,11 @@ void main() {
           );
           expect(
             toolService.executedToolNames,
-            [_SkillFollowUpToolService.loadSkillToolName],
+            containsAll([
+              _SkillFollowUpToolService.loadSkillToolName,
+              _SkillFollowUpToolService.listDirectoryToolName,
+              _SkillFollowUpToolService.gitToolName,
+            ]),
             reason: _skillFollowUpDiagnostic(
               container,
               toolService,

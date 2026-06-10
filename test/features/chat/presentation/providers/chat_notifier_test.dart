@@ -4487,7 +4487,7 @@ void main() {
       );
       expect(
         chatNotifier.state.messages.last.content,
-        contains('では、まずステップ1から進めます'),
+        isNot(contains('では、まずステップ1から進めます')),
       );
     },
   );
@@ -4766,7 +4766,7 @@ void main() {
     );
     expect(
       chatNotifier.state.messages.last.content,
-      contains('リポジトリの構造と Git ステータスを見てみましょう'),
+      isNot(contains('リポジトリの構造と Git ステータスを見てみましょう')),
     );
   });
 
@@ -4866,7 +4866,10 @@ void main() {
       chatNotifier.state.messages.last.content,
       contains('Release readiness inputs inspected.'),
     );
-    expect(chatNotifier.state.messages.last.content, contains('では実際に確認を進めます'));
+    expect(
+      chatNotifier.state.messages.last.content,
+      isNot(contains('では実際に確認を進めます')),
+    );
   });
 
   test(

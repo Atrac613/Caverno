@@ -11190,8 +11190,16 @@ class ChatNotifier extends Notifier<ChatState> {
           break;
         }
         appLog('[Tool] LLM requested additional tool calls');
+        final assistantPreambleContent =
+            _hasSuccessfulLoadSkillResult(batchToolResults) &&
+                _looksLikeSkillContinuationWorkIntent(fallbackResponse)
+            ? _normalizeTerminalSkillToolRoleResponse(
+                fallbackResponse,
+                batchToolResults,
+              )
+            : nextResult.content;
         _appendAssistantToolPreambleIfPresent(
-          nextResult.content,
+          assistantPreambleContent,
           interactionGeneration: interactionGeneration,
         );
         currentToolCalls = nextToolCalls;
