@@ -3,6 +3,31 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('uses Caverno App Store provisioning profile by default', () async {
+    final fixture = _ReleaseScriptFixture.create();
+    fixture.writeFvmEchoExportOptions();
+
+    final result = await fixture.runReleaseScript(
+      arguments: [
+        '--only',
+        'ios',
+        '--no-pub-get',
+        '--ios-export-root',
+        '${fixture.root.path}/ios-export',
+      ],
+    );
+
+    expect(result.exitCode, 0);
+    expect(
+      result.stdout,
+      contains('Provisioning profile: Caverno AppStore Provisioning Profile'),
+    );
+    expect(
+      result.stdout,
+      contains('<string>Caverno AppStore Provisioning Profile</string>'),
+    );
+  });
+
   test(
     'reports partial failure when iOS export emits failure marker with zero exit',
     () async {
@@ -58,6 +83,20 @@ final class _ReleaseScriptFixture {
 echo "Encountered error while creating the IPA:"
 echo "error: exportArchive The provided entity includes an attribute with a value that has already been used."
 echo "The bundle version must be higher than the previously uploaded version: '17'."
+exit 0
+''');
+  }
+
+  void writeFvmEchoExportOptions() {
+    _writeExecutable('fvm', r'''
+#!/usr/bin/env bash
+for ((i = 1; i <= $#; i++)); do
+  if [[ "${!i}" == "--export-options-plist" ]]; then
+    next=$((i + 1))
+    cat "${!next}"
+    exit 0
+  fi
+done
 exit 0
 ''');
   }

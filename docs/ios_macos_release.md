@@ -96,6 +96,7 @@ Defaults:
 - Export destination: `upload`
 - Export root: `/private/tmp/caverno-ios-appstore-VERSION-BUILD`
 - Signing style: `manual`
+- Provisioning profile: `Caverno AppStore Provisioning Profile`
 
 Useful overrides:
 
@@ -112,10 +113,10 @@ bash tool/release_ios_macos.sh --only ios \
 The script generates an App Store Connect `ExportOptions.plist` with
 `manageAppVersionAndBuildNumber` set to `false` so Xcode does not rewrite the
 build number during upload. Manual signing is the default because the iOS
-Runner target is configured for manual signing. For real manual-signing runs,
-provide the App Store provisioning profile name with
-`--ios-provisioning-profile` or `CAVERNO_IOS_PROVISIONING_PROFILE`; do not use a
-development profile.
+Runner target is configured for manual signing. The Caverno App Store
+provisioning profile is the default. Override it with
+`--ios-provisioning-profile` or `CAVERNO_IOS_PROVISIONING_PROFILE` only when the
+installed App Store profile name differs; do not use a development profile.
 
 Automatic export is still available when the archive and account support it:
 
