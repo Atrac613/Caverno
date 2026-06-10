@@ -524,6 +524,66 @@ void main() {
     expect(summary.tests.single.readinessImpact, 'blocker');
   });
 
+  test('marks transport-disconnect failures as inconclusive readiness', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'live-llm-summary-inconclusive-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final logFile = File('${directory.path}/flutter_test.jsonl');
+    await logFile.writeAsString(
+      [
+        jsonEncode({
+          'test': {
+            'id': 1,
+            'name':
+                'live LLM discovers a deferred tool and reads its persisted artifact',
+            'metadata': {'skip': false, 'skipReason': null},
+          },
+          'type': 'testStart',
+          'time': 0,
+        }),
+        jsonEncode({
+          'testID': 1,
+          'message':
+              'ClientException: Connection closed before full header was received',
+          'type': 'print',
+          'time': 4,
+        }),
+        jsonEncode({
+          'testID': 1,
+          'error': 'Expected persisted artifact read_file call.',
+          'isFailure': true,
+          'type': 'error',
+          'time': 5,
+        }),
+        jsonEncode({
+          'testID': 1,
+          'result': 'failure',
+          'skipped': false,
+          'hidden': false,
+          'type': 'testDone',
+          'time': 10,
+        }),
+        jsonEncode({'success': false, 'type': 'done', 'time': 11}),
+      ].join('\n'),
+    );
+
+    final summary = await buildLiveLlmCanarySummary(
+      logFile: logFile,
+      canaryName: 'chat_live_llm_canary',
+      surface: 'chat',
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'test-model',
+      command: 'tool/run_chat_live_llm_canary.sh',
+      generatedAt: DateTime.utc(2026, 6, 10),
+    );
+
+    expect(summary.readiness.status, 'inconclusive');
+    expect(summary.readiness.blockerFailedCount, 1);
+    expect(summary.signals.transportDisconnectCount, 1);
+    expect(summary.toMarkdown(), contains('Transport disconnects occurred'));
+  });
+
   test('aggregates repeated Flutter JSON reporter output', () async {
     final directory = Directory.systemTemp.createTempSync(
       'live-llm-summary-repeat-test-',

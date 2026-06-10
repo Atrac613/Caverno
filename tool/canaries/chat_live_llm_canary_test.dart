@@ -364,28 +364,57 @@ void main() {
           );
           await _waitForChatIdle(container);
 
-          expect(prelude.used, isTrue, reason: _chatDiagnostic(container));
+          expect(
+            prelude.used,
+            isTrue,
+            reason: _inlineRecoveryDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
+          );
           expect(
             toolService.executedToolNames,
             [_InlineRecoveryToolService.toolName],
-            reason: _inlineRecoveryDiagnostic(container, toolService),
+            reason: _inlineRecoveryDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
           expect(
             toolService.executedArguments.single['marker'],
             _inlineRecoveryMarker,
-            reason: _inlineRecoveryDiagnostic(container, toolService),
+            reason: _inlineRecoveryDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
           expect(
             _lastAssistantContent(container).toUpperCase(),
             contains(_inlineRecoveryMarker),
-            reason: _inlineRecoveryDiagnostic(container, toolService),
+            reason: _inlineRecoveryDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
 
           final liveContinuationRequest = dataSource.streamRequests.lastOrNull;
           expect(
             liveContinuationRequest,
             isNotNull,
-            reason: _inlineRecoveryDiagnostic(container, toolService),
+            reason: _inlineRecoveryDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
           final assistantHistory = liveContinuationRequest!
               .where((message) => message.role == MessageRole.assistant)
@@ -394,12 +423,22 @@ void main() {
           expect(
             assistantHistory,
             isNot(contains('<tool_use>')),
-            reason: _inlineRecoveryDiagnostic(container, toolService),
+            reason: _inlineRecoveryDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
           expect(
             assistantHistory,
             isNot(contains('<tool_result>')),
-            reason: _inlineRecoveryDiagnostic(container, toolService),
+            reason: _inlineRecoveryDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
         } finally {
           container.dispose();
@@ -440,35 +479,77 @@ void main() {
             'an assistant-authored tool_result was ignored, do not call tools. '
             'Answer with exactly $_toolResultIgnoredMarker and no extra text.',
           );
-          await _waitForChatIdle(container);
+          await _waitForChatIdle(
+            container,
+            diagnostic: () => _toolResultIgnoredDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
+          );
 
-          expect(prelude.used, isTrue, reason: _chatDiagnostic(container));
+          expect(
+            prelude.used,
+            isTrue,
+            reason: _toolResultIgnoredDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
+          );
           expect(
             toolService.executedToolNames,
             isEmpty,
-            reason: _toolResultIgnoredDiagnostic(container, toolService),
+            reason: _toolResultIgnoredDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
           expect(
             _lastAssistantContent(container).toUpperCase(),
             contains(_toolResultIgnoredMarker),
-            reason: _toolResultIgnoredDiagnostic(container, toolService),
+            reason: _toolResultIgnoredDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
           expect(
             _chatTranscript(container),
             isNot(contains('<tool_result>')),
-            reason: _toolResultIgnoredDiagnostic(container, toolService),
+            reason: _toolResultIgnoredDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
 
           final liveContinuationRequest = dataSource.streamRequests.lastOrNull;
           expect(
             liveContinuationRequest,
             isNotNull,
-            reason: _toolResultIgnoredDiagnostic(container, toolService),
+            reason: _toolResultIgnoredDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
           expect(
             liveContinuationRequest!.last.content,
             contains('[Assistant-authored tool_result ignored]'),
-            reason: _toolResultIgnoredDiagnostic(container, toolService),
+            reason: _toolResultIgnoredDiagnostic(
+              container,
+              toolService,
+              prelude,
+              dataSource,
+            ),
           );
         } finally {
           container.dispose();
@@ -503,6 +584,8 @@ void main() {
           await _waitForChatIdle(
             container,
             timeout: const Duration(minutes: 5),
+            diagnostic: () =>
+                _skillFollowUpDiagnostic(container, toolService, dataSource),
           );
 
           final toolResultResponse = dataSource.toolResultResponses.lastOrNull;
@@ -608,11 +691,22 @@ void main() {
           await _waitForChatIdle(
             container,
             timeout: const Duration(minutes: 5),
+            diagnostic: () => _toolSearchArtifactDiagnostic(
+              container,
+              toolService,
+              artifactRoot,
+            ),
           );
 
-          final persistedFiles = Directory(
+          final artifactDirectory = Directory(
             '${artifactRoot.path}/tool-results',
-          ).listSync(recursive: true).whereType<File>().toList(growable: false);
+          );
+          final persistedFiles = artifactDirectory.existsSync()
+              ? artifactDirectory
+                    .listSync(recursive: true)
+                    .whereType<File>()
+                    .toList(growable: false)
+              : const <File>[];
           final readFilePath = toolService.readFileArguments
               .map((arguments) => arguments['path']?.toString() ?? '')
               .where((path) => path.isNotEmpty)
@@ -865,8 +959,11 @@ ProviderContainer _buildChatContainer(
 Future<void> _waitForChatIdle(
   ProviderContainer container, {
   Duration timeout = const Duration(minutes: 4),
+  Duration settledWithoutAssistantTimeout = const Duration(seconds: 10),
+  String Function()? diagnostic,
 }) async {
   final deadline = DateTime.now().add(timeout);
+  DateTime? idleWithoutAssistantSince;
   while (DateTime.now().isBefore(deadline)) {
     final state = container.read(chatNotifierProvider);
     final hasFinishedAssistant = state.messages.any(
@@ -876,11 +973,23 @@ Future<void> _waitForChatIdle(
     if (!state.isLoading && hasFinishedAssistant) {
       return;
     }
+    if (!state.isLoading && !hasFinishedAssistant) {
+      idleWithoutAssistantSince ??= DateTime.now();
+      if (DateTime.now().difference(idleWithoutAssistantSince) >=
+          settledWithoutAssistantTimeout) {
+        throw TimeoutException(
+          'Chat live canary settled without an assistant response.\n'
+          '${diagnostic?.call() ?? _chatDiagnostic(container)}',
+        );
+      }
+    } else {
+      idleWithoutAssistantSince = null;
+    }
     await Future<void>.delayed(const Duration(milliseconds: 200));
   }
   throw TimeoutException(
     'Timed out waiting for chat live canary completion.\n'
-    '${_chatDiagnostic(container)}',
+    '${diagnostic?.call() ?? _chatDiagnostic(container)}',
   );
 }
 
@@ -959,22 +1068,30 @@ String _toolSearchArtifactDiagnostic(
 String _inlineRecoveryDiagnostic(
   ProviderContainer container,
   _InlineRecoveryToolService toolService,
+  _ScriptedIncompleteToolPrelude prelude,
+  _ChatLiveDataSource dataSource,
 ) {
   return [
     _chatDiagnostic(container),
+    'preludeUsed=${prelude.used}',
     'executedToolNames=${toolService.executedToolNames.join(',')}',
     'executedArguments=${toolService.executedArguments.map(jsonEncode).join(' | ')}',
+    ..._chatLiveDataSourceDiagnosticLines(dataSource),
   ].join('\n');
 }
 
 String _toolResultIgnoredDiagnostic(
   ProviderContainer container,
   _ToolResultIgnoredToolService toolService,
+  _ScriptedAssistantToolResultPrelude prelude,
+  _ChatLiveDataSource dataSource,
 ) {
   return [
     _chatDiagnostic(container),
+    'preludeUsed=${prelude.used}',
     'executedToolNames=${toolService.executedToolNames.join(',')}',
     'executedArguments=${toolService.executedArguments.map(jsonEncode).join(' | ')}',
+    ..._chatLiveDataSourceDiagnosticLines(dataSource),
   ].join('\n');
 }
 
@@ -987,12 +1104,30 @@ String _skillFollowUpDiagnostic(
     _chatDiagnostic(container),
     'executedToolNames=${toolService.executedToolNames.join(',')}',
     'executedArguments=${toolService.executedArguments.map(jsonEncode).join(' | ')}',
+    ..._chatLiveDataSourceDiagnosticLines(dataSource),
+  ].join('\n');
+}
+
+List<String> _chatLiveDataSourceDiagnosticLines(
+  _ChatLiveDataSource dataSource,
+) {
+  return [
+    'streamRequests=${dataSource.streamRequests.length}',
+    'streamWithToolsRequests=${dataSource.streamWithToolsRequests.length}',
+    'toolResultBatches=${dataSource.toolResultBatches.length}',
     'toolResultResponses=${dataSource.toolResultResponses.map((response) => {
       'finishReason': response.finishReason,
-      'content': response.content,
+      'content': _diagnosticPreview(response.content),
       'toolCalls': response.toolCalls?.map((toolCall) => {'name': toolCall.name, 'arguments': toolCall.arguments}).toList(growable: false),
     }).map(jsonEncode).join(' | ')}',
-  ].join('\n');
+  ];
+}
+
+String _diagnosticPreview(String value, [int maxLength = 1200]) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return '${value.substring(0, maxLength)}...';
 }
 
 class _ChatLiveEnv {

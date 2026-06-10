@@ -80,6 +80,7 @@ Future<LiveLlmCanarySummary> buildLiveLlmCanarySummary({
     failedCount: failedCount,
     skippedCount: skippedCount,
   );
+  final signals = LiveLlmCanarySignals.fromLog(rawLog);
   return LiveLlmCanarySummary(
     schemaName: 'live_llm_canary_summary',
     schemaVersion: 2,
@@ -100,10 +101,11 @@ Future<LiveLlmCanarySummary> buildLiveLlmCanarySummary({
     skippedCount: skippedCount,
     hiddenTestCount: parsed.hiddenTestCount,
     malformedJsonLineCount: parsed.malformedJsonLineCount,
-    signals: LiveLlmCanarySignals.fromLog(rawLog),
+    signals: signals,
     readiness: LiveLlmCanaryReadiness.fromTests(
       result: result,
       doneSeen: parsed.doneSeen,
+      signals: signals,
       tests: tests,
     ),
     tests: tests,
@@ -437,6 +439,7 @@ class LiveLlmCanaryReadiness {
   static LiveLlmCanaryReadiness fromTests({
     required String result,
     required bool doneSeen,
+    required LiveLlmCanarySignals signals,
     required List<LiveLlmCanaryTestResult> tests,
   }) {
     final visibleTests = tests.where((test) => !test.hidden).toList();
@@ -475,6 +478,16 @@ class LiveLlmCanaryReadiness {
         skippedCount: skippedCount,
         note:
             'Core checks passed, but recovery or skill follow-up checks need attention.',
+      );
+    }
+    if (failedTests.isNotEmpty && signals.transportDisconnectCount > 0) {
+      return LiveLlmCanaryReadiness(
+        status: 'inconclusive',
+        blockerFailedCount: blockerFailedCount,
+        warningFailedCount: warningFailedCount,
+        skippedCount: skippedCount,
+        note:
+            'Transport disconnects occurred; rerun before making a model readiness decision.',
       );
     }
     return LiveLlmCanaryReadiness(
