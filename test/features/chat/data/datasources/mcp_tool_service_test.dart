@@ -468,6 +468,26 @@ void main() {
       expect(result.result, contains('"code":"approval_required"'));
     });
 
+    test(
+      'describes run_tests as scoped and points full suites to background',
+      () {
+        final service = McpToolService();
+        final runTests =
+            service.getOpenAiToolDefinitions().firstWhere(
+                  (tool) =>
+                      (tool['function']! as Map<String, dynamic>)['name'] ==
+                      'run_tests',
+                )['function']!
+                as Map<String, dynamic>;
+        final description = runTests['description'] as String;
+
+        expect(description, contains('specific test file or directory'));
+        expect(description, contains('full suites'));
+        expect(description, contains('process_start'));
+        expect(description, contains('background=true'));
+      },
+    );
+
     test('executes git init in a non-repository directory', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'mcp_tool_service_git_init_test_',

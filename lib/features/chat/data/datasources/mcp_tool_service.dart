@@ -4659,7 +4659,7 @@ class McpToolService {
     'function': {
       'name': 'run_tests',
       'description':
-          'Run scoped Dart or Flutter tests in the selected coding project. The app builds a safe project-scoped test command and applies the same approval flow as local shell commands. Prefer this over local_execute_command for validation tests.',
+          'Run scoped Dart or Flutter tests in the selected coding project. Use this only with a specific test file or directory. For full suites such as flutter test, fvm flutter test, dart test, or fvm dart test with no specific test path, use process_start or local_execute_command with background=true so the app can monitor the long-running command.',
       'parameters': {
         'type': 'object',
         'properties': {

@@ -3241,6 +3241,136 @@ void main() {
   );
 
   test(
+    'sendMessage marks CJK UI edit claims without tool call as unexecuted',
+    () async {
+      final editAction = String.fromCharCodes(const [
+        0x7de8,
+        0x96c6,
+        0x3092,
+        0x884c,
+        0x3044,
+        0x307e,
+        0x3059,
+        0x3002,
+      ]);
+      final section = String.fromCharCodes(const [
+        0x30bb,
+        0x30af,
+        0x30b7,
+        0x30e7,
+        0x30f3,
+      ]);
+      final mobileHiddenFuture = String.fromCharCodes(const [
+        0x3092,
+        0x30e2,
+        0x30d0,
+        0x30a4,
+        0x30eb,
+        0x975e,
+        0x8868,
+        0x793a,
+        0x306b,
+        0x3057,
+        0x307e,
+        0x3059,
+        0x3002,
+      ]);
+      final wrappingComplete = String.fromCharCodes(const [
+        0x30e9,
+        0x30c3,
+        0x30d4,
+        0x30f3,
+        0x30b0,
+        0x5b8c,
+        0x4e86,
+        0x3002,
+      ]);
+      final next = String.fromCharCodes(const [0x6b21, 0x306b]);
+      final alsoHiddenCompleted = String.fromCharCodes(const [
+        0x3082,
+        0x30e2,
+        0x30d0,
+        0x30a4,
+        0x30eb,
+        0x975e,
+        0x8868,
+        0x793a,
+        0x306b,
+        0x3057,
+        0x307e,
+        0x3057,
+        0x305f,
+        0x3002,
+      ]);
+      final confirmChanges = String.fromCharCodes(const [
+        0x5909,
+        0x66f4,
+        0x3092,
+        0x78ba,
+        0x8a8d,
+        0x3057,
+        0x307e,
+        0x3059,
+        0x3002,
+      ]);
+      final finalContent =
+          '$editAction\n\n'
+          'Hand Settings $section$mobileHiddenFuture\n\n'
+          '$wrappingComplete$next App Close Behavior $alsoHiddenCompleted\n\n'
+          '$confirmChanges';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: finalContent,
+        initialStreamChunks: [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'edit_file': 'Edit a file in the selected project.',
+          'write_file': 'Write a file to the selected project.',
+        },
+        results: const {'edit_file': '{"ok":true}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('Update the mobile settings UI.');
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(
+          'I could not execute the additional tool request above in this final-answer step.',
+        ),
+      );
+    },
+  );
+
+  test(
     'sendMessage marks future command execution without tool call as unexecuted',
     () async {
       const finalContent =
@@ -3285,6 +3415,61 @@ void main() {
 
       final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
       await chatNotifier.sendMessage('yes');
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(
+          'The requested command was not executed because no successful command-execution tool result is available.',
+        ),
+      );
+    },
+  );
+
+  test(
+    'sendMessage marks Japanese static analysis without tool call as unexecuted',
+    () async {
+      const finalContent = '静的解析を実行します。';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: finalContent,
+        initialStreamChunks: const [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Execute a local shell command.',
+        },
+        results: const {'local_execute_command': '{"exit_code":0}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('continue');
 
       expect(toolService.executedToolNames, isEmpty);
       expect(
@@ -13911,6 +14096,247 @@ with open(path, "rb") as file:
       }
     },
   );
+
+  test(
+    'sendMessage replaces CJK committed claim after non-zero command exit',
+    () async {
+      const command = 'git commit -m "fix: update settings"';
+      final committedClaim = String.fromCharCodes(const [
+        0x524d,
+        0x306e,
+        0x30b3,
+        0x30df,
+        0x30c3,
+        0x30c8,
+        0x3067,
+        0x65e2,
+        0x306b,
+        0x30b3,
+        0x30df,
+        0x30c3,
+        0x30c8,
+        0x6e08,
+        0x307f,
+        0x3060,
+        0x3063,
+        0x305f,
+        0x3088,
+        0x3046,
+        0x3067,
+        0x3059,
+        0x3002,
+      ]);
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'commit-command',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+              'label': 'Commit changes',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: [committedClaim],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'command': command,
+            'working_directory': '/tmp/project',
+            'exit_code': 1,
+            'stdout':
+                'On branch fix/mobile-hide-desktop-settings\nnothing to commit, working tree clean\n',
+            'stderr': '',
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Commit the changes');
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        final finalContent = toolNotifier.state.messages.last.content;
+        expect(finalContent, isNot(contains(committedClaim)));
+        expect(finalContent, contains('non-zero exit code'));
+        expect(finalContent, contains('1'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('sendMessage preserves success claim after later command success', () async {
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'create-branch',
+          name: 'local_execute_command',
+          arguments: const {
+            'command': 'git checkout -b chore/update-fvm-3.44.1',
+            'working_directory': '/tmp/project',
+            'label': 'Create branch',
+          },
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: '',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'stage-ignored-file',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'git add .fvm/fvm_config.json AGENTS.md',
+                'working_directory': '/tmp/project',
+                'label': 'Stage files',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: '.fvm is ignored, so I will stage AGENTS.md only.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'stage-agents',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'git add AGENTS.md',
+                'working_directory': '/tmp/project',
+                'label': 'Stage AGENTS.md',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Staged AGENTS.md. I will commit it now.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'commit-agents',
+              name: 'local_execute_command',
+              arguments: const {
+                'command':
+                    'git commit -m "chore: update FVM Flutter version from 3.44.0 to 3.44.1"',
+                'working_directory': '/tmp/project',
+                'label': 'Commit AGENTS.md',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ],
+      finalAnswerChunks: const [
+        'Done. Branch chore/update-fvm-3.44.1 was created and commit 1c387ff9 completed successfully.',
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'local_execute_command': ''},
+      queuedResults: {
+        'local_execute_command': [
+          jsonEncode({
+            'command': 'git checkout -b chore/update-fvm-3.44.1',
+            'working_directory': '/tmp/project',
+            'exit_code': 0,
+            'stdout': '',
+            'stderr': "Switched to a new branch 'chore/update-fvm-3.44.1'\n",
+          }),
+          jsonEncode({
+            'command': 'git add .fvm/fvm_config.json AGENTS.md',
+            'working_directory': '/tmp/project',
+            'exit_code': 1,
+            'stdout': '',
+            'stderr':
+                'The following paths are ignored by one of your .gitignore files:\n.fvm\n',
+          }),
+          jsonEncode({
+            'command': 'git add AGENTS.md',
+            'working_directory': '/tmp/project',
+            'exit_code': 0,
+            'stdout': '',
+            'stderr': '',
+          }),
+          jsonEncode({
+            'command':
+                'git commit -m "chore: update FVM Flutter version from 3.44.0 to 3.44.1"',
+            'working_directory': '/tmp/project',
+            'exit_code': 0,
+            'stdout':
+                '[chore/update-fvm-3.44.1 1c387ff9] chore: update FVM Flutter version from 3.44.0 to 3.44.1\n',
+            'stderr': '',
+          }),
+        ],
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Create a branch and commit');
+
+      expect(toolService.executedToolNames, [
+        'local_execute_command',
+        'local_execute_command',
+        'local_execute_command',
+        'local_execute_command',
+      ]);
+      final finalContent = toolNotifier.state.messages.last.content;
+      expect(finalContent, contains('completed successfully'));
+      expect(finalContent, isNot(contains('non-zero exit code')));
+    } finally {
+      toolContainer.dispose();
+    }
+  });
 
   test(
     'Foundation Models suppresses repeated successful content tool calls',

@@ -84,6 +84,19 @@ class MemoryExtractionDraftService {
     r'\b(completed|complete|successfully|succeeded|uploaded|uploading|sent|submitted|released)\b.*\b(release|ios|ipa|app store connect|macos)\b',
     caseSensitive: false,
   );
+  static final RegExp _branchCreationMemoryPattern = RegExp(
+    r'\bbranch\b.*\b(created|new|checked out|switched)\b|'
+    r'\b(created|new|checked out|switched)\b.*\bbranch\b',
+    caseSensitive: false,
+  );
+  static final RegExp _branchCreationCommandPattern = RegExp(
+    r'\b(?:git\s+)?(?:checkout\s+-b|switch\s+-c)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _successfulExitCodePattern = RegExp(
+    r'''exit[_ ]?code["']?\s*[:=]\s*0\b''',
+    caseSensitive: false,
+  );
   static const _unexecutedFileSaveOpenLoop =
       'Create or save the requested file with a file-operation tool.';
   static const _unexecutedFileSaveSummary =
@@ -210,6 +223,9 @@ class MemoryExtractionDraftService {
       )
       ..writeln(
         '- Do not save assistant claims about local file, git, command, or external state changes as facts unless they are supported by the application-executed tool results above or directly stated by the user. If a file-operation result reports code=unexecuted_file_save, treat the requested save or file mutation as unexecuted.',
+      )
+      ..writeln(
+        '- A git status or git log result only proves the current branch or history. Do not state that a branch was created unless a successful branch-creation command result is present.',
       )
       ..writeln(
         '- If the latest tool results include code=unexecuted_file_save, include an open loop for the missing file-operation tool action before any follow-up release, dry-run, or validation task.',
@@ -401,6 +417,22 @@ class MemoryExtractionDraftService {
         preferences: guardedDraft.preferences,
         doNot: guardedDraft.doNot,
         entries: entries,
+      );
+    }
+
+    if (!_inputContextHasBranchCreationEvidence(inputContext) &&
+        guardedDraft.entries.any(
+          (entry) => _isBranchCreationMemory(entry.text),
+        )) {
+      guardedDraft = MemoryExtractionDraft(
+        summary: guardedDraft.summary,
+        openLoops: guardedDraft.openLoops,
+        persona: guardedDraft.persona,
+        preferences: guardedDraft.preferences,
+        doNot: guardedDraft.doNot,
+        entries: guardedDraft.entries
+            .where((entry) => !_isBranchCreationMemory(entry.text))
+            .toList(growable: false),
       );
     }
 
@@ -699,6 +731,22 @@ class MemoryExtractionDraftService {
     return _releaseCompletionSummaryPattern.hasMatch(text);
   }
 
+  static bool _isBranchCreationMemory(String text) {
+    return _branchCreationMemoryPattern.hasMatch(text) ||
+        (_containsCodeUnitSequence(text, const [
+              0x30d6,
+              0x30e9,
+              0x30f3,
+              0x30c1,
+            ]) &&
+            _containsCodeUnitSequence(text, const [0x4f5c, 0x6210]));
+  }
+
+  static bool _inputContextHasBranchCreationEvidence(String inputContext) {
+    return _branchCreationCommandPattern.hasMatch(inputContext) &&
+        _successfulExitCodePattern.hasMatch(inputContext);
+  }
+
   static bool _inputContextHasReleasePartialFailure(String inputContext) {
     return _releasePartialFailureMarkerPattern.hasMatch(inputContext);
   }
@@ -713,6 +761,30 @@ class MemoryExtractionDraftService {
           r')',
       caseSensitive: false,
     ).hasMatch(inputContext);
+  }
+
+  static bool _containsCodeUnitSequence(String value, List<int> sequence) {
+    if (sequence.isEmpty || value.length < sequence.length) {
+      return false;
+    }
+    for (var index = 0; index <= value.length - sequence.length; index += 1) {
+      var matched = true;
+      for (
+        var sequenceIndex = 0;
+        sequenceIndex < sequence.length;
+        sequenceIndex += 1
+      ) {
+        if (value.codeUnitAt(index + sequenceIndex) !=
+            sequence[sequenceIndex]) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static List<String> _stringList(Object? raw, {required int maxLength}) {

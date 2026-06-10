@@ -224,9 +224,9 @@ class SystemPromptBuilder {
       }
       if (hasRunTestsTool) {
         buffer.writeln(
-          'Use run_tests for scoped Dart or Flutter validation tests. It '
-          'builds a project-scoped command and uses the local command approval '
-          'flow.',
+          'Use run_tests only for scoped Dart or Flutter validation tests with '
+          'a specific test file or directory. It builds a project-scoped '
+          'command and uses the local command approval flow.',
         );
       }
       if (hasLocalShellTool) {
@@ -252,6 +252,14 @@ class SystemPromptBuilder {
         }
       }
       if (hasBackgroundProcessTools) {
+        if (hasRunTestsTool) {
+          buffer.writeln(
+            'For full project test suites such as flutter test, '
+            'fvm flutter test, dart test, or fvm dart test with no specific '
+            'test path, use local_execute_command with background=true or '
+            'process_start instead of run_tests.',
+          );
+        }
         buffer.writeln(
           'Use local_execute_command with background=true, or use process_start '
           'for builds, releases, migrations, uploads, long tests, or commands '

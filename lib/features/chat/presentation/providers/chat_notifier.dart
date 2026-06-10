@@ -14770,6 +14770,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   int? _firstFailedCommandExitCode(List<ToolResultInfo> toolResults) {
+    int? unrecoveredExitCode;
     for (final toolResult in toolResults) {
       if (!_isCommandExecutionTool(toolResult.name)) {
         continue;
@@ -14786,10 +14787,12 @@ class ChatNotifier extends Notifier<ChatState> {
       final decoded = _tryDecodeMap(toolResult.result);
       final exitCode = _exitCodeValue(decoded?['exit_code']);
       if (exitCode != null && exitCode != 0) {
-        return exitCode;
+        unrecoveredExitCode ??= exitCode;
+      } else if (exitCode == 0) {
+        unrecoveredExitCode = null;
       }
     }
-    return null;
+    return unrecoveredExitCode;
   }
 
   bool _looksLikeCommandSuccessClaim(String content) {
@@ -14825,6 +14828,7 @@ class ChatNotifier extends Notifier<ChatState> {
           [0x6210, 0x529f],
           [0x5b8c, 0x4e86],
           [0x901a, 0x904e],
+          [0x30b3, 0x30df, 0x30c3, 0x30c8, 0x6e08, 0x307f],
         ]);
   }
 
@@ -14985,6 +14989,8 @@ class ChatNotifier extends Notifier<ChatState> {
       [0x30b3, 0x30de, 0x30f3, 0x30c9],
       [0x691c, 0x8a3c],
       [0x30c6, 0x30b9, 0x30c8],
+      [0x9759, 0x7684, 0x89e3, 0x6790],
+      [0x89e3, 0x6790],
       [0x30ea, 0x30ea, 0x30fc, 0x30b9],
       [0x672c, 0x756a],
       [0x30b9, 0x30af, 0x30ea, 0x30d7, 0x30c8],
@@ -15141,6 +15147,10 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _containsCjkFutureFileSideEffectAction(String value) {
+    final hasFilePath = RegExp(
+      r'(?:^|[\s`"(<])[\w./-]+\.(?:dart|yaml|yml|json|md|txt|swift|kt|java|js|ts|tsx|jsx|py|rs|go|rb|php|css|scss|html)(?:$|[\s`")>,.])',
+      caseSensitive: false,
+    ).hasMatch(value);
     final objectMarkers = [
       String.fromCharCodes([0x30d5, 0x30a1, 0x30a4, 0x30eb]),
       'pubspec.yaml',
@@ -15158,6 +15168,12 @@ class ChatNotifier extends Notifier<ChatState> {
       'Markdown',
       String.fromCharCodes([0x30c9, 0x30ad, 0x30e5, 0x30e1, 0x30f3, 0x30c8]),
     ];
+    final hasUiMutationTarget = _containsAnyCodeUnitSequence(value, const [
+      [0x30bb, 0x30af, 0x30b7, 0x30e7, 0x30f3],
+      [0x753b, 0x9762],
+      [0x8a2d, 0x5b9a],
+      [0x9805, 0x76ee],
+    ]);
     final actionMarkers = [
       String.fromCharCodes([0x4f5c, 0x6210, 0x3057, 0x307e, 0x3059]),
       String.fromCharCodes([0x4fdd, 0x5b58, 0x3057, 0x307e, 0x3059]),
@@ -15176,8 +15192,49 @@ class ChatNotifier extends Notifier<ChatState> {
         0x307e,
         0x3059,
       ]),
+      String.fromCharCodes([
+        0x7de8,
+        0x96c6,
+        0x3092,
+        0x884c,
+        0x3044,
+        0x307e,
+        0x3059,
+      ]),
+      String.fromCharCodes([0x7de8, 0x96c6, 0x3057, 0x307e, 0x3059]),
+      String.fromCharCodes([0x5909, 0x66f4, 0x3057, 0x307e, 0x3059]),
+      String.fromCharCodes([
+        0x975e,
+        0x8868,
+        0x793a,
+        0x306b,
+        0x3057,
+        0x307e,
+        0x3059,
+      ]),
+      String.fromCharCodes([
+        0x975e,
+        0x8868,
+        0x793a,
+        0x306b,
+        0x3057,
+        0x307e,
+        0x3057,
+        0x305f,
+      ]),
+      String.fromCharCodes([
+        0x30e9,
+        0x30c3,
+        0x30d4,
+        0x30f3,
+        0x30b0,
+        0x5b8c,
+        0x4e86,
+      ]),
     ];
-    return objectMarkers.any(value.contains) &&
+    return (hasFilePath ||
+            hasUiMutationTarget ||
+            objectMarkers.any(value.contains)) &&
         actionMarkers.any(value.contains);
   }
 

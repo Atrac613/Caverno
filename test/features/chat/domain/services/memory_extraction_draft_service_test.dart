@@ -75,6 +75,7 @@ void main() {
     expect(input, contains('git_execute_command'));
     expect(input, contains('Only include open_loops when the latest turn'));
     expect(input, contains('Do not save assistant claims about local file'));
+    expect(input, contains('git status or git log result only proves'));
     expect(input, contains('code=unexecuted_file_save'));
     expect(input, contains('missing file-operation tool action'));
     expect(input, contains('Do not summarize browser actions'));
@@ -404,6 +405,95 @@ void main() {
     expect(
       draft.entries.single.text,
       'Release entry point script is tool/release_ios_macos.sh.',
+    );
+  });
+
+  test('parseDraft drops branch creation memories without creation evidence', () {
+    final inputContext = MemoryExtractionDraftService.buildInput(
+      [
+        Message(
+          id: 'user-1',
+          content: 'Create a new branch and update the mobile settings screen.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 10, 18),
+        ),
+        Message(
+          id: 'assistant-1',
+          content: 'The branch was created and the settings work started.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 6, 10, 18, 1),
+        ),
+      ],
+      UserMemoryProfile(
+        persona: const [],
+        preferences: const [],
+        doNot: const [],
+        updatedAt: DateTime(2026, 6, 10, 18),
+      ),
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-status',
+          name: 'git_execute_command',
+          arguments: const {
+            'command': 'status',
+            'working_directory': '/tmp/project',
+          },
+          result: jsonEncode({
+            'command': 'git status',
+            'working_directory': '/tmp/project',
+            'exit_code': 0,
+            'stdout':
+                'On branch fix/mobile-hide-desktop-settings\nnothing to commit, working tree clean\n',
+            'stderr': '',
+          }),
+        ),
+      ],
+    );
+    const raw = '''
+{
+  "summary":"Branch exists and settings changes are pending.",
+  "open_loops":["Apply settings screen changes"],
+  "profile":{
+    "persona":[],
+    "preferences":[],
+    "do_not":[]
+  },
+  "memories":[
+    {
+      "text":"Git branch fix/mobile-hide-desktop-settings was created for the settings UI changes.",
+      "type":"fact",
+      "confidence":1.0,
+      "importance":0.8,
+      "ttl_days":7
+    },
+    {
+      "text":"User is working on mobile settings visibility.",
+      "type":"topic",
+      "confidence":0.8,
+      "importance":0.6,
+      "ttl_days":7
+    }
+  ]
+}
+''';
+
+    final draft = MemoryExtractionDraftService.parseDraft(
+      raw,
+      inputContext: inputContext,
+    );
+
+    expect(draft, isNotNull);
+    expect(
+      draft!.entries.map((entry) => entry.text),
+      isNot(
+        contains(
+          'Git branch fix/mobile-hide-desktop-settings was created for the settings UI changes.',
+        ),
+      ),
+    );
+    expect(
+      draft.entries.map((entry) => entry.text),
+      contains('User is working on mobile settings visibility.'),
     );
   });
 

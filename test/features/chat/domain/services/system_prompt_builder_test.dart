@@ -171,9 +171,19 @@ void main() {
           'process_status',
           'process_tail',
           'process_wait',
+          'run_tests',
         ],
       );
 
+      expect(
+        prompt,
+        contains(
+          'For full project test suites such as flutter test, '
+          'fvm flutter test, dart test, or fvm dart test with no specific '
+          'test path, use local_execute_command with background=true or '
+          'process_start instead of run_tests.',
+        ),
+      );
       expect(
         prompt,
         contains(
