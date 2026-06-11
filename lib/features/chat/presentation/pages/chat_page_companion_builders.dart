@@ -656,9 +656,8 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: () => _openFileWorkspaceViewer(
-          FileWorkspaceViewerRequest.diff(diff: diff),
-        ),
+        onTap: () =>
+            _openFileWorkspaceViewer(_buildTurnDiffViewerRequest(diff)),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(

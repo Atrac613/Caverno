@@ -37,6 +37,7 @@ import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/demo_datasource.dart';
 import '../../data/datasources/background_process_monitor_service.dart';
+import '../../data/datasources/file_rollback_checkpoint_store.dart';
 import '../../data/datasources/filesystem_tools.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/local_shell_tools.dart';
@@ -90,6 +91,7 @@ part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
 part 'chat_notifier_python_handlers.dart';
 part 'chat_notifier_tool_handler_registry.dart';
+part 'chat_notifier_turn_rollback_handlers.dart';
 
 final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
   final settings = ref.watch(settingsNotifierProvider);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,6 +10,9 @@ import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/file_reference_extractor.dart';
 
 const int _maxFilePreviewBytes = 220000;
+
+typedef TurnDiffRevertCallback =
+    Future<void> Function(BuildContext context, TurnDiff diff);
 
 Future<void> showFileWorkspaceViewer(
   BuildContext context, {
@@ -28,10 +32,17 @@ Future<void> showFileWorkspaceViewer(
   );
 }
 
-Future<void> showTurnDiffSheet(BuildContext context, {required TurnDiff diff}) {
+Future<void> showTurnDiffSheet(
+  BuildContext context, {
+  required TurnDiff diff,
+  TurnDiffRevertCallback? onRevertLastTurn,
+}) {
   return showFileWorkspaceViewerPanel(
     context: context,
-    request: FileWorkspaceViewerRequest.diff(diff: diff),
+    request: FileWorkspaceViewerRequest.diff(
+      diff: diff,
+      onRevertLastTurn: onRevertLastTurn,
+    ),
   );
 }
 
@@ -85,6 +96,7 @@ class FileWorkspaceViewerRequest {
     this.initialPath,
     this.projectName,
     this.diff,
+    this.onRevertLastTurn,
   });
 
   factory FileWorkspaceViewerRequest.files({
@@ -101,8 +113,14 @@ class FileWorkspaceViewerRequest {
     );
   }
 
-  factory FileWorkspaceViewerRequest.diff({required TurnDiff diff}) {
-    return FileWorkspaceViewerRequest._(diff: diff);
+  factory FileWorkspaceViewerRequest.diff({
+    required TurnDiff diff,
+    TurnDiffRevertCallback? onRevertLastTurn,
+  }) {
+    return FileWorkspaceViewerRequest._(
+      diff: diff,
+      onRevertLastTurn: onRevertLastTurn,
+    );
   }
 
   final String? rootPath;
@@ -110,6 +128,7 @@ class FileWorkspaceViewerRequest {
   final String? initialPath;
   final String? projectName;
   final TurnDiff? diff;
+  final TurnDiffRevertCallback? onRevertLastTurn;
 
   bool get isDiff => diff != null;
 
@@ -119,6 +138,7 @@ class FileWorkspaceViewerRequest {
       return FileWorkspaceViewerSheet.forDiff(
         diff: requestDiff,
         onClose: onClose,
+        onRevertLastTurn: onRevertLastTurn,
       );
     }
     return FileWorkspaceViewerSheet.forFiles(
@@ -132,14 +152,24 @@ class FileWorkspaceViewerRequest {
 }
 
 class TurnDiffSheet extends StatelessWidget {
-  const TurnDiffSheet({super.key, required this.diff, this.onClose});
+  const TurnDiffSheet({
+    super.key,
+    required this.diff,
+    this.onClose,
+    this.onRevertLastTurn,
+  });
 
   final TurnDiff diff;
   final VoidCallback? onClose;
+  final TurnDiffRevertCallback? onRevertLastTurn;
 
   @override
   Widget build(BuildContext context) {
-    return FileWorkspaceViewerSheet.forDiff(diff: diff, onClose: onClose);
+    return FileWorkspaceViewerSheet.forDiff(
+      diff: diff,
+      onClose: onClose,
+      onRevertLastTurn: onRevertLastTurn,
+    );
   }
 }
 
@@ -153,6 +183,7 @@ class FileWorkspaceViewerSheet extends StatefulWidget {
     this.diff,
     this.initialPath,
     this.onClose,
+    this.onRevertLastTurn,
   }) : _items = items;
 
   factory FileWorkspaceViewerSheet.forFiles({
@@ -179,6 +210,7 @@ class FileWorkspaceViewerSheet extends StatefulWidget {
   factory FileWorkspaceViewerSheet.forDiff({
     required TurnDiff diff,
     VoidCallback? onClose,
+    TurnDiffRevertCallback? onRevertLastTurn,
   }) {
     final title = diff.source == TurnDiffSource.git
         ? 'Uncommitted changes'
@@ -190,6 +222,7 @@ class FileWorkspaceViewerSheet extends StatefulWidget {
           : diff.userPromptPreview.trim(),
       diff: diff,
       onClose: onClose,
+      onRevertLastTurn: onRevertLastTurn,
       items: [
         for (final file in diff.files)
           _WorkspaceViewerItem.diff(file: file, path: file.filePath),
@@ -204,6 +237,7 @@ class FileWorkspaceViewerSheet extends StatefulWidget {
   final TurnDiff? diff;
   final String? initialPath;
   final VoidCallback? onClose;
+  final TurnDiffRevertCallback? onRevertLastTurn;
   final List<_WorkspaceViewerItem> _items;
 
   @override
@@ -441,6 +475,7 @@ class _FileWorkspaceViewerSheetState extends State<FileWorkspaceViewerSheet> {
             title: widget.title,
             subtitle: widget.subtitle,
             summary: _summaryText(),
+            trailingAction: _buildHeaderAction(),
             onClose: widget.onClose ?? () => Navigator.of(context).maybePop(),
           ),
           const Divider(height: 1),
@@ -473,6 +508,22 @@ class _FileWorkspaceViewerSheetState extends State<FileWorkspaceViewerSheet> {
           : 'No file changes recorded';
     }
     return diff.summaryLabel;
+  }
+
+  Widget? _buildHeaderAction() {
+    final diff = widget.diff;
+    final onRevertLastTurn = widget.onRevertLastTurn;
+    if (diff == null ||
+        onRevertLastTurn == null ||
+        diff.source != TurnDiffSource.tool ||
+        !diff.hasChanges) {
+      return null;
+    }
+    return IconButton(
+      tooltip: 'Revert last turn changes',
+      onPressed: () => unawaited(onRevertLastTurn(context, diff)),
+      icon: const Icon(Icons.restore_rounded),
+    );
   }
 
   Widget _buildEmptyState(ThemeData theme) {
@@ -597,11 +648,13 @@ class _ViewerHeader extends StatelessWidget {
     required this.summary,
     required this.onClose,
     this.subtitle,
+    this.trailingAction,
   });
 
   final String title;
   final String? subtitle;
   final String summary;
+  final Widget? trailingAction;
   final VoidCallback onClose;
 
   @override
@@ -637,6 +690,7 @@ class _ViewerHeader extends StatelessWidget {
               ],
             ),
           ),
+          ?trailingAction,
           IconButton(
             tooltip: 'Close',
             onPressed: onClose,

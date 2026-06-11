@@ -53,6 +53,59 @@ void main() {
     expect(find.text('lib/parser.dart'), findsWidgets);
     expect(find.text('-old'), findsOneWidget);
     expect(find.text('+new'), findsOneWidget);
+    expect(find.byTooltip('Revert last turn changes'), findsNothing);
+  });
+
+  testWidgets('TurnDiffSheet calls revert callback from header action', (
+    tester,
+  ) async {
+    final diff = TurnDiff(
+      id: 'd1',
+      assistantMessageId: 'a1',
+      userPromptPreview: 'Update the parser',
+      timestamp: DateTime(2026),
+      files: const [
+        TurnDiffFile(
+          filePath: 'lib/parser.dart',
+          linesAdded: 1,
+          linesRemoved: 1,
+          unifiedPatch: '''
+--- lib/parser.dart
++++ lib/parser.dart
+@@
+-old
++new''',
+        ),
+      ],
+      filesChanged: 1,
+      linesAdded: 1,
+      linesRemoved: 1,
+      changedFilePaths: const ['lib/parser.dart'],
+    );
+    var calls = 0;
+    TurnDiff? revertedDiff;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TurnDiffSheet(
+            diff: diff,
+            onRevertLastTurn: (context, diff) async {
+              calls += 1;
+              revertedDiff = diff;
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byTooltip('Revert last turn changes'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Revert last turn changes'));
+    await tester.pump();
+
+    expect(calls, 1);
+    expect(revertedDiff?.id, 'd1');
   });
 
   testWidgets('TurnDiffSheet renders clean git state', (tester) async {
@@ -66,12 +119,18 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: TurnDiffSheet(diff: diff)),
+        home: Scaffold(
+          body: TurnDiffSheet(
+            diff: diff,
+            onRevertLastTurn: (context, diff) async {},
+          ),
+        ),
       ),
     );
 
     expect(find.text('Uncommitted changes'), findsOneWidget);
     expect(find.text('Working tree is clean'), findsWidgets);
+    expect(find.byTooltip('Revert last turn changes'), findsNothing);
   });
 
   testWidgets('FileWorkspaceViewerSheet previews referenced project files', (

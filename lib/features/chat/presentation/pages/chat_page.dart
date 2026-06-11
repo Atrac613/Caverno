@@ -27,6 +27,7 @@ import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/providers/model_list_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
+import '../../data/datasources/file_rollback_checkpoint_store.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
@@ -75,6 +76,7 @@ part 'chat_page_companion_builders.dart';
 part 'chat_page_goal_builders.dart';
 part 'chat_page_header_builders.dart';
 part 'chat_page_plan_builders.dart';
+part 'chat_page_turn_rollback_support.dart';
 part 'chat_page_workflow_builders.dart';
 part 'chat_page_workflow_support.dart';
 
@@ -118,6 +120,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final _scrollController = ScrollController();
   final _workflowPanelScrollController = ScrollController();
   final Set<String> _activeApprovalDialogIds = <String>{};
+  final Set<String> _rolledBackTurnDiffIds = <String>{};
   final _uuid = const Uuid();
   String? _workflowPanelConversationId;
   bool _isApprovedPlanExpanded = false;
@@ -1635,8 +1638,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       onOpenTurnDiff: turnDiff == null
                                           ? null
                                           : () => _openFileWorkspaceViewer(
-                                              FileWorkspaceViewerRequest.diff(
-                                                diff: turnDiff,
+                                              _buildTurnDiffViewerRequest(
+                                                turnDiff,
                                               ),
                                             ),
                                       onOpenFileWorkspaceViewer:
