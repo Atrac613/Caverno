@@ -73,6 +73,7 @@ import '../../domain/services/subagent_execution_service.dart';
 import '../../domain/services/subagent_tool_policy.dart';
 import '../../../settings/domain/services/local_command_permission_service.dart';
 import 'chat_state.dart';
+import 'chat_tool_dispatcher.dart';
 import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
 import 'macos_computer_use_approval_copy.dart';
@@ -13953,36 +13954,20 @@ class ChatNotifier extends Notifier<ChatState> {
     ToolCallInfo toolCall, {
     int? interactionGeneration,
   }) async {
-    final planningPolicyResult = _enforcePlanningToolPolicy(toolCall);
-    if (planningPolicyResult != null) {
-      return planningPolicyResult;
-    }
-
-    if (MacosComputerUseToolPolicy.requiresUserApproval(toolCall.name)) {
-      return _handleComputerUseAction(toolCall);
-    }
-    if (MacosComputerUseToolPolicy.isComputerUseTool(toolCall.name)) {
-      return _handleComputerUseActionWithoutApproval(toolCall);
-    }
-
-    if (BrowserToolPolicy.requiresUserApproval(toolCall.name)) {
-      return _handleBrowserAction(toolCall);
-    }
-    if (BrowserToolPolicy.isBrowserTool(toolCall.name)) {
-      return _handleBrowserActionWithoutApproval(toolCall);
-    }
-
-    final registryResult = await _buildToolHandlerRegistry(
-      interactionGeneration: interactionGeneration,
+    return ChatToolDispatcher(
+      enforcePlanningPolicy: _enforcePlanningToolPolicy,
+      handleComputerUseAction: _handleComputerUseAction,
+      handleComputerUseObservation: _handleComputerUseActionWithoutApproval,
+      handleBrowserAction: _handleBrowserAction,
+      handleBrowserObservation: _handleBrowserActionWithoutApproval,
+      handlerRegistry: _buildToolHandlerRegistry(
+        interactionGeneration: interactionGeneration,
+      ),
+      executeFallbackTool: (toolCall) => _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+      ),
     ).dispatch(toolCall);
-    if (registryResult != null) {
-      return registryResult;
-    }
-
-    return _mcpToolService!.executeTool(
-      name: toolCall.name,
-      arguments: toolCall.arguments,
-    );
   }
 
   Future<McpToolResult> _handleProjectScopedTool(ToolCallInfo toolCall) async {

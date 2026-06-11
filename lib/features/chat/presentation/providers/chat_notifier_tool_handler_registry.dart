@@ -1,27 +1,10 @@
 part of 'chat_notifier.dart';
 
-typedef _ChatToolHandler =
-    Future<McpToolResult> Function(ToolCallInfo toolCall);
-
-final class _ChatToolHandlerRegistry {
-  const _ChatToolHandlerRegistry(this._handlers);
-
-  final Map<String, _ChatToolHandler> _handlers;
-
-  Future<McpToolResult?> dispatch(ToolCallInfo toolCall) {
-    final handler = _handlers[toolCall.name];
-    if (handler == null) {
-      return Future.value();
-    }
-    return handler(toolCall);
-  }
-}
-
 extension ChatNotifierToolHandlerRegistry on ChatNotifier {
-  _ChatToolHandlerRegistry _buildToolHandlerRegistry({
+  ChatToolHandlerRegistry _buildToolHandlerRegistry({
     int? interactionGeneration,
   }) {
-    return _ChatToolHandlerRegistry({
+    return ChatToolHandlerRegistry({
       for (final toolName in const [
         'list_directory',
         'read_file',
