@@ -168,6 +168,21 @@ class _DivergingSaveConversationsNotifier extends ConversationsNotifier {
       return;
     }
 
+    await updateConversationMessages(current.id, messages);
+  }
+
+  @override
+  Future<void> updateConversationMessages(
+    String conversationId,
+    List<Message> messages,
+  ) async {
+    final current = state.conversations
+        .where((conversation) => conversation.id == conversationId)
+        .firstOrNull;
+    if (current == null) {
+      return;
+    }
+
     final persistedMessages = messages
         .map(
           (message) => message.role == MessageRole.assistant
@@ -193,6 +208,28 @@ class _DivergingSaveConversationsNotifier extends ConversationsNotifier {
 
   @override
   Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+}
+
+class _DelayedFirstMessageSaveConversationsNotifier
+    extends _TestConversationsNotifier {
+  final Completer<void> firstMessageSaveStarted = Completer<void>();
+  final Completer<void> releaseFirstMessageSave = Completer<void>();
+  bool _delayedFirstMessageSave = false;
+
+  @override
+  Future<void> updateConversationMessages(
+    String conversationId,
+    List<Message> messages,
+  ) async {
+    if (!_delayedFirstMessageSave && messages.length == 1) {
+      _delayedFirstMessageSave = true;
+      if (!firstMessageSaveStarted.isCompleted) {
+        firstMessageSaveStarted.complete();
+      }
+      await releaseFirstMessageSave.future;
+    }
+    await super.updateConversationMessages(conversationId, messages);
+  }
 }
 
 class _WorkflowTestConversationsNotifier extends ConversationsNotifier {
@@ -2592,6 +2629,70 @@ void main() {
     expect(notifier.state.messages.last.role, MessageRole.assistant);
     expect(notifier.state.messages.last.isStreaming, isTrue);
   });
+
+  test(
+    'sendMessage keeps final assistant response when initial save completes late',
+    () async {
+      final delayedController = StreamController<String>();
+      final conversationsNotifier =
+          _DelayedFirstMessageSaveConversationsNotifier();
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final delayedContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            () => conversationsNotifier,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(
+            _StreamingChatDataSource(delayedController),
+          ),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        delayedContainer.dispose();
+        if (!delayedController.isClosed) {
+          await delayedController.close();
+        }
+      });
+
+      final delayedNotifier = delayedContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final sendFuture = delayedNotifier.sendMessage('Hello');
+      await conversationsNotifier.firstMessageSaveStarted.future;
+
+      delayedController.add('Final answer');
+      await delayedController.close();
+      await _waitForCondition(() => !delayedNotifier.state.isLoading);
+      await Future<void>.delayed(Duration.zero);
+
+      conversationsNotifier.releaseFirstMessageSave.complete();
+      await sendFuture;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(delayedNotifier.state.messages.map((message) => message.content), [
+        'Hello',
+        'Final answer',
+      ]);
+      expect(
+        delayedContainer
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .messages
+            .map((message) => message.content),
+        ['Hello', 'Final answer'],
+      );
+    },
+  );
 
   test(
     'sendMessage notifies when a streaming response completes in the background',

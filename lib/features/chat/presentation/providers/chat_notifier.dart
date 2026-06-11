@@ -385,18 +385,37 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Persists messages to the conversation store. Replaces the previous
   /// `onMessagesChanged` callback wired in via the provider builder.
   Future<void> _onMessagesChanged(List<Message> messages) {
-    return ref
-        .read(conversationsNotifierProvider.notifier)
-        .updateCurrentConversation(messages);
+    final targetConversationId = ref
+        .read(conversationsNotifierProvider)
+        .currentConversationId;
+    if (targetConversationId == null) {
+      return Future<void>.value();
+    }
+    return _onConversationMessagesChanged(targetConversationId, messages);
   }
 
   Future<void> _onConversationMessagesChanged(
     String conversationId,
     List<Message> messages,
   ) {
-    return ref
-        .read(conversationsNotifierProvider.notifier)
-        .updateConversationMessages(conversationId, messages);
+    final messagesSnapshot = List<Message>.unmodifiable(messages);
+    final write = _conversationMessagePersistenceTail.then((_) async {
+      if (!ref.mounted) return;
+      await ref
+          .read(conversationsNotifierProvider.notifier)
+          .updateConversationMessages(conversationId, messagesSnapshot);
+    });
+    _conversationMessagePersistenceTail = write.catchError((
+      Object error,
+      StackTrace stackTrace,
+    ) {
+      appLog(
+        '[ChatNotifier] Conversation message persistence failed: '
+        '${error.runtimeType}: $error',
+      );
+      appLog('[ChatNotifier] stackTrace: $stackTrace');
+    });
+    return write;
   }
 
   void _persistCurrentNonStreamingMessages() {
@@ -6947,6 +6966,7 @@ class ChatNotifier extends Notifier<ChatState> {
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
   Future<void> _contentToolExecutionTail = Future<void>.value();
+  Future<void> _conversationMessagePersistenceTail = Future<void>.value();
   bool _forcePromptCompactionForNextRequest = false;
   bool _isDrainingQueuedMessages = false;
   int _interactionGeneration = 0;
