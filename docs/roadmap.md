@@ -707,7 +707,8 @@ phase ordering live in `docs/local_llm_agent_roadmap.md`. Summary:
 - Phase 5: LL7 (Best-of-N verification loop), LL8 (LAN inference mesh),
   LL12 (personal eval harness), F5 (ongoing large-file decomposition per
   `docs/large_file_refactor_plan.md`).
-- Phase 6: LL13 (parallel agents in isolated git worktrees over the mesh).
+- Phase 6: LL13 (parallel agents in isolated git worktrees over the mesh),
+  LL17 (self-improving harness loop gated by the personal eval suite).
 
 ## Operating Loop
 

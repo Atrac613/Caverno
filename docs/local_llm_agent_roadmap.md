@@ -70,6 +70,7 @@ structurally unmotivated to build:
 | Local LLM | LL14 | later | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
 | Local LLM | LL15 | later | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
 | Local LLM | LL16 | later | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
+| Local LLM | LL17 | later | L | LL3, LL12 | Self-improving harness loop: mine failure traces, propose profile mutations, adopt only on eval non-regression. |
 
 Size legend: S = days, M = one to a few weeks of slices, L = multi-week.
 
@@ -149,12 +150,15 @@ incumbent on the user's own recorded tasks. F5 continues large-file
 decomposition as background slices, ratcheting F1 budgets down as files
 shrink.
 
-### Phase 6 — The agent farm (LL13)
+### Phase 6 — The agent farm (LL13, LL17)
 
 LL13 runs multiple agent tasks in parallel, each isolated in its own git
 worktree with its own checkpoint history (LL2), optionally executing on
 different LL8 mesh endpoints. This is the capstone: a home lab running several
-unattended coding tasks overnight, each verified green before merge.
+unattended coding tasks overnight, each verified green before merge. LL17 is
+the other capstone, closing the loop the profile thread opened: instead of
+hand-tuning harness behavior per model, the app mines its own failure traces
+and adapts the LL3 profile under the LL12 regression gate.
 
 ## Milestone Notes
 
@@ -499,6 +503,39 @@ Acceptance criteria:
 - Routines and coding tool loops no longer read the chat temperature; their
   managed defaults are visible in diagnostics so a support report shows
   which temperature actually served each request.
+
+### LL17: Self-Improving Harness Loop
+
+Inspired by Self-Harness (arXiv:2606.09498), which showed agents can improve
+their own model-specific harnesses by mining failure traces and validating
+proposals with regression tests (Terminal-Bench-2.0 pass rates improved by
+14-21 points from a minimal baseline harness). Caverno already detects the
+relevant failures and plans the validation gate, so this milestone composes
+existing pieces rather than building new machinery.
+
+Scope:
+- Mine model-specific failure patterns from traces the app already records:
+  malformed tool calls, JSON repairs, edit-apply failures, repetition-loop
+  detections, and context-length errors. Run the mining pass as a scheduled
+  Routine, routed to the strongest available local model (LL1 / LL8).
+- Generate proposals strictly as LL3 profile mutations (few-shot exemplars,
+  tool-call style, edit format, sampler preset, prompt phrasing variants) —
+  a declared schema of tunable fields, never self-modifying code.
+- Validate every proposal against the LL12 personal eval suite; adopt only
+  on non-regression, with an audit trail linking each adopted change to the
+  failure evidence that motivated it and the eval run that validated it.
+
+Acceptance criteria:
+- Proposals outside the declared profile-field schema are rejected.
+- A regressing proposal is never adopted, and adoption history supports
+  one-tap revert to any previous profile revision.
+- A weak-model profile shows a measurable failure-rate reduction in live
+  canaries after one mining-adoption cycle.
+
+Risks:
+- Gains over Caverno's already-hardened harness will be smaller than the
+  paper's minimal-baseline numbers; treat LL12 coverage quality as the
+  binding constraint before trusting automated adoption.
 
 ## Cross-Cutting Rules
 
