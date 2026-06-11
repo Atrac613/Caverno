@@ -162,5 +162,99 @@ void main() {
       expect(decoded['error'], contains('one git subcommand'));
       expect(decoded['error'], contains('&&'));
     });
+
+    test('rejects commit when unstaged changes would be omitted', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'git_tools_stale_index_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      Map<String, dynamic> decode(String raw) =>
+          jsonDecode(raw) as Map<String, dynamic>;
+
+      expect(
+        decode(
+          await GitTools.execute(
+            command: 'init',
+            workingDirectory: tempDir.path,
+          ),
+        )['exit_code'],
+        0,
+      );
+      expect(
+        decode(
+          await GitTools.execute(
+            command: 'config user.email "canary@example.com"',
+            workingDirectory: tempDir.path,
+          ),
+        )['exit_code'],
+        0,
+      );
+      expect(
+        decode(
+          await GitTools.execute(
+            command: 'config user.name "Canary Bot"',
+            workingDirectory: tempDir.path,
+          ),
+        )['exit_code'],
+        0,
+      );
+
+      final pubspec = File('${tempDir.path}/pubspec.yaml');
+      await pubspec.writeAsString('version: 1.3.5+16\n');
+      expect(
+        decode(
+          await GitTools.execute(
+            command: 'add pubspec.yaml',
+            workingDirectory: tempDir.path,
+          ),
+        )['exit_code'],
+        0,
+      );
+      expect(
+        decode(
+          await GitTools.execute(
+            command: 'commit -m "Initial version"',
+            workingDirectory: tempDir.path,
+          ),
+        )['exit_code'],
+        0,
+      );
+
+      await pubspec.writeAsString('version: 1.3.5+17\n');
+      expect(
+        decode(
+          await GitTools.execute(
+            command: 'add pubspec.yaml',
+            workingDirectory: tempDir.path,
+          ),
+        )['exit_code'],
+        0,
+      );
+      await pubspec.writeAsString('version: 1.3.5+18\n');
+
+      final commitResult = decode(
+        await GitTools.execute(
+          command: 'commit -m "Bump version to 1.3.5+18"',
+          workingDirectory: tempDir.path,
+        ),
+      );
+
+      expect(commitResult['exit_code'], 2);
+      expect(commitResult['code'], 'git_commit_unstaged_changes');
+      expect(commitResult['error'], contains('unstaged or untracked changes'));
+
+      final headFile = decode(
+        await GitTools.execute(
+          command: 'show HEAD:pubspec.yaml',
+          workingDirectory: tempDir.path,
+        ),
+      );
+      expect(headFile['stdout'], 'version: 1.3.5+16\n');
+    });
   });
 }

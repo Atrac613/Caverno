@@ -271,6 +271,8 @@ class GitTools {
       });
     }
 
+    final environment = await LoginShellEnvironment.instance.environment();
+
     // `git init` is the one write operation that must run before a repository
     // exists. All other subcommands keep the repository preflight.
     if (args.first != 'init') {
@@ -279,7 +281,7 @@ class GitTools {
           'git',
           ['rev-parse', '--git-dir'],
           workingDirectory: workingDirectory,
-          environment: await LoginShellEnvironment.instance.environment(),
+          environment: environment,
         );
         if (check.exitCode != 0) {
           return jsonEncode({
@@ -289,6 +291,16 @@ class GitTools {
       } catch (e) {
         return jsonEncode({'error': 'Failed to verify git repository: $e'});
       }
+
+      final commitPreflightError = await _commitPreflightError(
+        args: args,
+        normalizedCommand: normalizedCommand,
+        workingDirectory: workingDirectory,
+        environment: environment,
+      );
+      if (commitPreflightError != null) {
+        return commitPreflightError;
+      }
     }
 
     try {
@@ -296,7 +308,7 @@ class GitTools {
         'git',
         args,
         workingDirectory: workingDirectory,
-        environment: await LoginShellEnvironment.instance.environment(),
+        environment: environment,
       ).timeout(_kTimeout);
 
       final stdout = result.stdout as String;
@@ -332,6 +344,106 @@ class GitTools {
         'error': e.toString(),
       });
     }
+  }
+
+  static Future<String?> _commitPreflightError({
+    required List<String> args,
+    required String normalizedCommand,
+    required String workingDirectory,
+    required Map<String, String> environment,
+  }) async {
+    if (!_requiresCleanWorktreeForCommit(args)) {
+      return null;
+    }
+
+    try {
+      final status = await Process.run(
+        'git',
+        ['status', '--porcelain'],
+        workingDirectory: workingDirectory,
+        environment: environment,
+      ).timeout(_kTimeout);
+      if (status.exitCode != 0) {
+        return jsonEncode({
+          'command': 'git $normalizedCommand',
+          'working_directory': workingDirectory,
+          'exit_code': status.exitCode,
+          'code': 'git_commit_preflight_failed',
+          'error': 'Failed to inspect git status before commit.',
+          'stdout': status.stdout as String,
+          'stderr': status.stderr as String,
+        });
+      }
+
+      final stdout = status.stdout as String;
+      if (!_hasUnstagedOrUntrackedChanges(stdout)) {
+        return null;
+      }
+      return jsonEncode({
+        'command': 'git $normalizedCommand',
+        'working_directory': workingDirectory,
+        'exit_code': 2,
+        'code': 'git_commit_unstaged_changes',
+        'error':
+            'git commit was blocked because the working tree has unstaged or untracked changes. '
+            'Run git status --short and stage the intended files with git add before committing.',
+        'status': stdout.length > _kMaxOutputChars
+            ? stdout.substring(0, _kMaxOutputChars)
+            : stdout,
+        if (stdout.length > _kMaxOutputChars) 'status_truncated': true,
+      });
+    } on TimeoutException {
+      return jsonEncode({
+        'command': 'git $normalizedCommand',
+        'working_directory': workingDirectory,
+        'exit_code': 2,
+        'code': 'git_commit_preflight_timeout',
+        'error': 'Timed out while inspecting git status before commit.',
+      });
+    } catch (e) {
+      return jsonEncode({
+        'command': 'git $normalizedCommand',
+        'working_directory': workingDirectory,
+        'exit_code': 2,
+        'code': 'git_commit_preflight_failed',
+        'error': 'Failed to inspect git status before commit: $e',
+      });
+    }
+  }
+
+  static bool _requiresCleanWorktreeForCommit(List<String> args) {
+    if (args.isEmpty || args.first != 'commit') {
+      return false;
+    }
+    for (final arg in args.skip(1)) {
+      if (arg == '--') {
+        break;
+      }
+      if (arg == '--all') {
+        return false;
+      }
+      if (arg.startsWith('-') &&
+          !arg.startsWith('--') &&
+          arg.substring(1).contains('a')) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static bool _hasUnstagedOrUntrackedChanges(String statusPorcelain) {
+    for (final line in const LineSplitter().convert(statusPorcelain)) {
+      if (line.isEmpty || line.startsWith('!!')) {
+        continue;
+      }
+      if (line.startsWith('??')) {
+        return true;
+      }
+      if (line.length >= 2 && line.codeUnitAt(1) != 0x20) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // -------------------------------------------------------------------------
