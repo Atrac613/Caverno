@@ -13,6 +13,7 @@ import 'package:caverno/core/services/background_task_service.dart';
 import 'package:caverno/core/services/browser_session_service.dart';
 import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/notification_providers.dart';
+import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/core/services/ssh_credentials_manager.dart';
 import 'package:caverno/core/services/ssh_service.dart';
 import 'package:caverno/core/services/tool_approval_audit_log.dart';
@@ -330,6 +331,25 @@ class _TestBackgroundTaskService extends BackgroundTaskService {
 
   @override
   void dispose() {}
+}
+
+class _FakeNotificationService extends NotificationService {
+  final List<_NotificationCall> calls = [];
+
+  @override
+  Future<void> showResponseCompleteNotification(
+    String title,
+    String body,
+  ) async {
+    calls.add(_NotificationCall(title: title, body: body));
+  }
+}
+
+class _NotificationCall {
+  const _NotificationCall({required this.title, required this.body});
+
+  final String title;
+  final String body;
 }
 
 class _ReleaseCheckSkillsNotifier extends SkillsNotifier {
@@ -2572,6 +2592,57 @@ void main() {
     expect(notifier.state.messages.last.role, MessageRole.assistant);
     expect(notifier.state.messages.last.isStreaming, isTrue);
   });
+
+  test(
+    'sendMessage notifies when a streaming response completes in the background',
+    () async {
+      final backgroundController = StreamController<String>();
+      final notificationService = _FakeNotificationService();
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(true);
+      final backgroundContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(
+            _StreamingChatDataSource(backgroundController),
+          ),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+          notificationServiceProvider.overrideWithValue(notificationService),
+        ],
+      );
+      addTearDown(() async {
+        backgroundContainer.dispose();
+        if (!backgroundController.isClosed) {
+          await backgroundController.close();
+        }
+      });
+
+      final backgroundNotifier = backgroundContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final sendFuture = backgroundNotifier.sendMessage('Run a long task');
+      backgroundController.add('Done\nThe result is ready.');
+      await backgroundController.close();
+      await sendFuture;
+      for (var i = 0; i < 10 && notificationService.calls.isEmpty; i += 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      expect(notificationService.calls, hasLength(1));
+      expect(notificationService.calls.single.title, 'Done');
+      expect(notificationService.calls.single.body, 'The result is ready.');
+    },
+  );
 
   test(
     'sendMessage uses tool-aware streaming for Apple Foundation Models with tools enabled',

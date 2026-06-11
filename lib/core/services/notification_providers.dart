@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app_lifecycle_service.dart';
@@ -7,7 +9,7 @@ import 'notification_service.dart';
 /// Notification service provider.
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   final service = NotificationService();
-  service.init();
+  unawaited(service.init());
   ref.onDispose(() => service.dispose());
   return service;
 });

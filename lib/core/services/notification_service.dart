@@ -8,11 +8,20 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+  Future<void>? _initialization;
   bool _initialized = false;
   bool _permissionRequested = false;
 
   /// Initialize the plugin without requesting permissions upfront.
-  Future<void> init() async {
+  Future<void> init() {
+    if (_initialization != null) {
+      return _initialization!;
+    }
+    _initialization = _initialize();
+    return _initialization!;
+  }
+
+  Future<void> _initialize() async {
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
     );
@@ -120,6 +129,7 @@ class NotificationService {
     required String channelId,
     required String channelName,
   }) async {
+    await init();
     if (!_initialized) return;
     await _ensurePermission();
 
@@ -130,11 +140,12 @@ class NotificationService {
       priority: Priority.defaultPriority,
     );
 
-    const iosDetails = DarwinNotificationDetails();
+    const darwinDetails = DarwinNotificationDetails();
 
     final details = NotificationDetails(
       android: androidDetails,
-      iOS: iosDetails,
+      iOS: darwinDetails,
+      macOS: darwinDetails,
     );
 
     await _plugin.show(
