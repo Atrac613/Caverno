@@ -162,6 +162,10 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
         unknownValue: ReasoningEffortPreference.automatic,
       ) ??
       ReasoningEffortPreference.automatic,
+  memoryExtractionModel: json['memoryExtractionModel'] as String? ?? '',
+  subagentModel: json['subagentModel'] as String? ?? '',
+  goalSuggestionModel: json['goalSuggestionModel'] as String? ?? '',
+  approvalAutoReviewModel: json['approvalAutoReviewModel'] as String? ?? '',
   googleChatWebhookUrl: json['googleChatWebhookUrl'] as String? ?? '',
   mcpUrl: json['mcpUrl'] as String? ?? '',
   mcpUrls:
@@ -259,6 +263,10 @@ Map<String, dynamic> _$AppSettingsToJson(
   'maxTokens': instance.maxTokens,
   'reasoningEffort':
       _$ReasoningEffortPreferenceEnumMap[instance.reasoningEffort]!,
+  'memoryExtractionModel': instance.memoryExtractionModel,
+  'subagentModel': instance.subagentModel,
+  'goalSuggestionModel': instance.goalSuggestionModel,
+  'approvalAutoReviewModel': instance.approvalAutoReviewModel,
   'googleChatWebhookUrl': instance.googleChatWebhookUrl,
   'mcpUrl': instance.mcpUrl,
   'mcpUrls': instance.mcpUrls,

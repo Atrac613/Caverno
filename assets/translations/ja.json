@@ -910,7 +910,20 @@
     "qr_scan_title": "設定QRコードをスキャン",
     "qr_scan_hint": "カメラを設定QRコードに向けてください",
     "qr_import_confirm": "QRコードから設定を復元しますか？（現在の設定は上書きされます）",
-    "qr_data_too_large": "設定データが大きすぎてQRコードに変換できません。ファイルエクスポートをご利用ください。"
+    "qr_data_too_large": "設定データが大きすぎてQRコードに変換できません。ファイルエクスポートをご利用ください。",
+    "model_routing_title": "モデルルーティング",
+    "model_routing_menu_desc": "補助的な処理を小型モデルで実行",
+    "model_routing_intro": "メイン会話とは別のモデルに補助的なLLM呼び出しを振り分けます。小型で高速なモデルを使うと、メモリ抽出やバックグラウンド処理が軽快になり、メインモデルは会話に専念できます。「デフォルト」はメインモデルを使用します。",
+    "model_routing_apple_unsupported": "Apple Foundation Models プロバイダの選択中はモデルルーティングを利用できません（単一のオンデバイスモデルのみ提供されるため）。",
+    "model_routing_default_option": "デフォルト（メインモデル）",
+    "model_routing_memory_extraction": "メモリ抽出",
+    "model_routing_memory_extraction_desc": "アシスタントの応答後にセッションメモリを抽出します。",
+    "model_routing_subagent": "サブエージェント",
+    "model_routing_subagent_desc": "委任されたサブエージェントタスクを実行します。",
+    "model_routing_goal_suggestion": "ゴール提案",
+    "model_routing_goal_suggestion_desc": "現在の会話のゴールを提案します。",
+    "model_routing_approval_auto_review": "ツール承認の自動レビュー",
+    "model_routing_approval_auto_review_desc": "高リスクのツール呼び出しを確認前に事前レビューします。"
   },
   "routines": {
     "title": "Routines",

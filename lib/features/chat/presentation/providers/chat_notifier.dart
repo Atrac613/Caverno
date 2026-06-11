@@ -7473,7 +7473,7 @@ class ChatNotifier extends Notifier<ChatState> {
           clarificationQuestion: clarificationQuestion,
           clarificationAnswer: clarificationAnswer,
         ),
-        model: _settings.model,
+        model: _settings.effectiveGoalSuggestionModel,
         temperature: 0.1,
         maxTokens: _settings.maxTokens > 600 ? 600 : _settings.maxTokens,
       );
@@ -13746,7 +13746,7 @@ class ChatNotifier extends Notifier<ChatState> {
           request,
           domain: domain,
         ),
-        model: _settings.model,
+        model: _settings.effectiveApprovalAutoReviewModel,
         temperature: 0,
         maxTokens: 512,
       );
@@ -16017,7 +16017,7 @@ class ChatNotifier extends Notifier<ChatState> {
     try {
       final result = await _dataSource.createChatCompletion(
         messages: extractionMessages,
-        model: _settings.model,
+        model: _settings.effectiveMemoryExtractionModel,
         temperature: 0.1,
         maxTokens: _settings.maxTokens > 1200 ? 1200 : _settings.maxTokens,
       );

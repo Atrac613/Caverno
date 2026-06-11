@@ -910,7 +910,20 @@
     "qr_scan_title": "Scan Settings QR Code",
     "qr_scan_hint": "Point your camera at a settings QR code",
     "qr_import_confirm": "Restore settings from QR code? Current settings will be overwritten.",
-    "qr_data_too_large": "Settings data is too large to encode as a QR code. Please use file export instead."
+    "qr_data_too_large": "Settings data is too large to encode as a QR code. Please use file export instead.",
+    "model_routing_title": "Model routing",
+    "model_routing_menu_desc": "Run secondary calls on a smaller model",
+    "model_routing_intro": "Route secondary LLM calls to a different model than the main conversation. A smaller, faster model keeps memory extraction and background work snappy while the main model focuses on your conversation. \"Default\" uses the main model.",
+    "model_routing_apple_unsupported": "Model routing is unavailable while the Apple Foundation Models provider is selected, because it serves a single on-device model.",
+    "model_routing_default_option": "Default (main model)",
+    "model_routing_memory_extraction": "Memory extraction",
+    "model_routing_memory_extraction_desc": "Extracts session memory after each assistant response.",
+    "model_routing_subagent": "Subagents",
+    "model_routing_subagent_desc": "Runs delegated subagent tasks.",
+    "model_routing_goal_suggestion": "Goal suggestions",
+    "model_routing_goal_suggestion_desc": "Suggests the current conversation goal.",
+    "model_routing_approval_auto_review": "Tool approval auto-review",
+    "model_routing_approval_auto_review_desc": "Pre-reviews high-risk tool calls before asking you."
   },
   "routines": {
     "title": "Routines",

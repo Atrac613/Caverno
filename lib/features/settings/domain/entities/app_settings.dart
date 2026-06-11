@@ -185,6 +185,12 @@ abstract class AppSettings with _$AppSettings {
     @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)
     @Default(ReasoningEffortPreference.automatic)
     ReasoningEffortPreference reasoningEffort,
+    // Per-role model routing (LL1). Empty string means "use the main model".
+    // Lets secondary LLM calls run on a smaller, faster local model.
+    @Default('') String memoryExtractionModel,
+    @Default('') String subagentModel,
+    @Default('') String goalSuggestionModel,
+    @Default('') String approvalAutoReviewModel,
     @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
     @Default(<String>[]) List<String> mcpUrls,
@@ -263,6 +269,27 @@ abstract class AppSettings with _$AppSettings {
   String get effectiveModel => llmProvider == LlmProvider.appleFoundationModels
       ? appleFoundationModelsModelId
       : model;
+
+  String get effectiveMemoryExtractionModel =>
+      _resolveRoleModel(memoryExtractionModel);
+
+  String get effectiveSubagentModel => _resolveRoleModel(subagentModel);
+
+  String get effectiveGoalSuggestionModel =>
+      _resolveRoleModel(goalSuggestionModel);
+
+  String get effectiveApprovalAutoReviewModel =>
+      _resolveRoleModel(approvalAutoReviewModel);
+
+  /// Role models only apply to OpenAI-compatible endpoints; the Apple
+  /// Foundation Models provider has a single on-device model.
+  String _resolveRoleModel(String roleModel) {
+    if (llmProvider == LlmProvider.appleFoundationModels) {
+      return effectiveModel;
+    }
+    final trimmed = roleModel.trim();
+    return trimmed.isEmpty ? effectiveModel : trimmed;
+  }
 
   static Map<String, dynamic> migrateLegacyJson(Map<String, dynamic> json) {
     if (json.containsKey('codingApprovalMode')) {

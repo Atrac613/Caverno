@@ -201,7 +201,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         childToolCall,
         interactionGeneration: interactionGeneration,
       ),
-      model: _settings.model,
+      model: _settings.effectiveSubagentModel,
       temperature: _settings.temperature,
       maxTokens: _settings.maxTokens,
       isBackground: isBackground,

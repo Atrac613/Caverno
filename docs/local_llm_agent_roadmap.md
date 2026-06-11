@@ -1,0 +1,488 @@
+# Local LLM Agent Roadmap
+
+This document plans the next major Caverno arc: making Caverno the strongest
+coding agent specialized for local LLMs, while paying down the structural debt
+that would otherwise block that work.
+
+It introduces two tracks following the conventions in `docs/roadmap.md`:
+
+- `F<number>` — Foundation track: refactoring, dependency currency, storage.
+- `LL<number>` — Local LLM Agent track: features that attack local-LLM-specific
+  constraints (small context, heterogeneous model capability, slow inference)
+  and weaponize the one local asset: zero marginal token cost.
+
+## Design Thesis
+
+Caverno already has the rare building blocks: Plan Mode, subagents, skills,
+custom slash commands, conversation compaction with token-pressure detection,
+completion-claim verification (`coding_verification_feedback_service`), past
+conversation search, and Remote Coding. The next leap does not come from
+imitating cloud agents further. It comes from features cloud-billed agents are
+structurally unmotivated to build:
+
+1. **Capability heterogeneity is the core local problem.** Every local model
+   differs in tool-call fidelity, JSON discipline, edit-format success, and
+   usable context. Today the app compensates reactively (JSON repair, embedded
+   `<tool_call>` tag parsing). Promote this to proactive diagnosis: probe once,
+   store a profile, tune agent behavior per model.
+2. **Small context windows make exploration expensive.** A compressed repo map
+   plus fully local semantic search (OpenAI-compatible `/v1/embeddings`)
+   compensates for the model's limited ability to explore via tool calls.
+3. **Prefill latency is the local UX killer.** llama.cpp / LM Studio reuse the
+   KV cache only while the prompt prefix is byte-stable. The current request
+   construction (tool list changing between the first and subsequent requests,
+   tool results re-sent as user-role messages) invalidates the cache every
+   turn. A prefix-stable mode converts design discipline directly into speed.
+4. **Tokens are free locally.** Best-of-N patch generation gated by the
+   existing verification loop, and overnight unattended retry-until-green runs
+   via Routines, turn zero marginal cost into output quality.
+5. **The LAN is yours.** Local users often own several machines that can serve
+   models with no rate limits. Caverno already ships a LAN scanner and remote
+   coding pairing; discovering and routing across multiple inference endpoints
+   turns a home lab into an agent farm.
+6. **Local models are stale and change weekly.** Their training data ages and
+   users swap GGUFs constantly. Grounding answers in the project's actually
+   installed dependency versions, and replaying the user's own recorded tasks
+   as a personal eval suite, beat both problems offline.
+
+## Milestone Index
+
+| Track | Milestone | Status | Size | Depends on | Goal |
+|-------|-----------|--------|------|------------|------|
+| Foundation | F1 | done | S | — | CI-enforced line-count ratchet for oversized files. |
+| Foundation | F2 | next | M | F1 | Extract the tool-call loop from `ChatNotifier` behind a handler registry. |
+| Foundation | F3 | later | M | — | Major dependency upgrades, `openai_dart` 6.x first. |
+| Foundation | F4 | later | L | — | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS history search. |
+| Foundation | F5 | later | ongoing | F2 | Continue large-file decomposition per `docs/large_file_refactor_plan.md` phases 2-4. |
+| Local LLM | LL1 | done | S | — | Per-role model routing (memory extraction, subagents, goal suggestions, approval auto-review on a small fast model). |
+| Local LLM | LL2 | next | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
+| Local LLM | LL3 | later | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
+| Local LLM | LL4 | later | M | LL3 | Repo map v1: ranked, compressed symbol outline injected into the system prompt. |
+| Local LLM | LL5 | later | M | F4, LL4 | Local semantic code search via `/v1/embeddings`, stored in the drift database. |
+| Local LLM | LL6 | later | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
+| Local LLM | LL7 | later | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
+| Local LLM | LL8 | later | M | LL1 | LAN inference mesh: discover and route across multiple OpenAI-compatible endpoints. |
+| Local LLM | LL9 | later | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
+| Local LLM | LL10 | later | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
+| Local LLM | LL11 | later | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
+| Local LLM | LL12 | later | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
+| Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
+| Local LLM | LL14 | later | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
+| Local LLM | LL15 | later | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
+
+Size legend: S = days, M = one to a few weeks of slices, L = multi-week.
+
+## Phase Plan
+
+Phases are orderings, not date commitments. Each milestone still follows the
+operating loop in `docs/roadmap.md` (one atomic slice, focused tests, format,
+analyze, smoke, conventional commit).
+
+### Phase 0 — Stop the bleeding, win quickly (F1, LL1)
+
+F1 freezes the growth of the god files so that every later phase gets cheaper
+instead of more expensive. LL1 is the highest user-visible win per line of
+code: secondary LLM calls (memory extraction, title generation, compaction
+summaries, subagents) stop occupying the big model.
+
+### Phase 1 — Unlock the architecture (F2, LL2)
+
+F2 is the keystone refactor: the tool loop becomes a domain service with a
+handler registry (the `chat_notifier_*_handlers.dart` part files are already
+handler-shaped). LL6 and LL7 are blocked on it, and `RoutineToolRunner` /
+`SubagentExecutionService` get to share the loop instead of duplicating it.
+LL2 lands the safety net early so later, riskier agent behavior changes are
+cheap to undo for users.
+
+### Phase 2 — Platform currency and diagnosis (F3, LL3, LL9)
+
+F3 starts with `openai_dart` 4.x → 6.x because the API client underpins LL3
+(probing structured-output support) and LL6 (request shaping). Remaining major
+upgrades (`serious_python` 2, `flutter_local_notifications` 22, `record` 7,
+`network_info_plus` 8) follow as isolated slices. LL3 reuses
+`live_llm_diagnostic_service` and the canary infrastructure to probe each
+registered model: native tool calls vs embedded tags, `json_schema` / grammar
+enforcement, edit-format success rates, usable context length. The stored
+profile becomes the tuning input for LL4, LL6, LL7, and LL15. LL9 extends the
+existing read-only LM Studio / llama.cpp catalog integration
+(`model_remote_datasource.dart`) into management, sharing the
+model-registration touchpoint with LL3 probing.
+
+### Phase 3 — Capability and speed leap (LL4, LL6, LL14, LL15)
+
+LL4 ships the repo map without waiting for embeddings: symbol outlines via
+ctags / LSP `documentSymbol` / Dart analyzer, ranked and compressed to a
+budgeted token size per the model profile. LL6 ships the prefix-stable mode:
+stable tool list across loop iterations, append-only history, volatile context
+moved to the message tail, with prefill latency measured before/after on a
+30B-class local model. LL14 is designed together with LL6 because eviction and
+prefix stability pull in opposite directions: stale-result eviction must land
+only at compaction boundaries where the cache is already paid. LL15 follows
+LL3 directly, turning probe findings into grammar-constrained edit blocks and
+per-model few-shot exemplars.
+
+### Phase 4 — Storage, retrieval, and grounding (F4, then LL5, LL10, LL11)
+
+F4 migrates conversations and chat memory from Hive (effectively unmaintained,
+JSON-string blobs) to drift/SQLite with FTS5, shipping history full-text
+search as the user-facing payoff. LL5 then stores embedding vectors in the
+same database for fully local semantic code and history search. LL10 grounds
+the model in the project's actually installed dependency versions, reusing the
+F4 index for fast lookup. LL11 generalizes the Dart-only diagnostic loop to
+any language with a language server and feeds richer symbols back into LL4.
+
+### Phase 5 — Quality leap and scale-out (LL7, LL8, LL12, F5)
+
+LL7 combines free local tokens with the existing verification loop: generate N
+candidate patches, run verification on each, keep the first green one; expose
+an overnight Routines preset that retries until tests pass within a bounded
+budget. LL8 scales the same idea horizontally: the existing LAN scanner learns
+to discover OpenAI-compatible endpoints, and role routing (LL1) plus Best-of-N
+(LL7) spread across them. LL12 turns the canary infrastructure into a personal
+eval suite that decides whether a newly downloaded model actually beats the
+incumbent on the user's own recorded tasks. F5 continues large-file
+decomposition as background slices, ratcheting F1 budgets down as files
+shrink.
+
+### Phase 6 — The agent farm (LL13)
+
+LL13 runs multiple agent tasks in parallel, each isolated in its own git
+worktree with its own checkpoint history (LL2), optionally executing on
+different LL8 mesh endpoints. This is the capstone: a home lab running several
+unattended coding tasks overnight, each verified green before merge.
+
+## Milestone Notes
+
+### F1: Line-Count Ratchet Gate
+
+Scope:
+- A focused test asserts line-count budgets for the current oversized files:
+  `chat_notifier.dart`, `chat_page.dart`, `mcp_tool_service.dart`,
+  `computer_use_settings_page.dart`, `computer_use_debug_page.dart`,
+  `network_tools.dart`, and `chat_notifier_test.dart`.
+- Budgets start at current counts rounded up slightly; shrinking a file lowers
+  its budget in the same PR.
+
+Acceptance criteria:
+- CI fails when a budgeted file grows past its budget.
+- The failure message names the file, the budget, and the refactor plan doc.
+
+Status: `done`
+
+Evidence:
+- `test/quality/file_size_ratchet_test.dart`
+- CI runs the full suite via `tool/codex_verify.sh` (`flutter test --coverage`
+  with no targets), so the ratchet is enforced on every PR.
+
+### F2: Tool Loop Extraction
+
+Scope:
+- Extract tool-call dispatch and loop orchestration from `ChatNotifier` into a
+  domain service with a tool-handler registry interface.
+- Convert `chat_notifier_*_handlers.dart` part files into classes implementing
+  the handler interface; preserve provider names and tool names/JSON shapes.
+- Reuse the extracted loop from `RoutineToolRunner` and
+  `SubagentExecutionService` where semantics already match.
+
+Acceptance criteria:
+- `chat_notifier.dart` drops materially below its F1 budget.
+- Existing chat notifier, workflow proposal, and Plan Mode smoke tests pass
+  without fixture rewrites.
+- High-risk tool approval still routes through the same user approval gate.
+
+### LL1: Per-Role Model Routing
+
+Scope:
+- `AppSettings` gains optional role→model assignments for the four secondary
+  LLM call sites that actually exist: memory extraction, subagent execution,
+  goal suggestions, and tool approval auto-review. Default remains the main
+  model. (Title generation and compaction summaries turned out to be
+  rule-based with no LLM call, so they have no role.)
+- Settings UI exposes the assignments with the existing model catalog.
+
+Acceptance criteria:
+- Each secondary call site resolves its role model with fallback to main.
+- Settings round-trip and chat notifier memory tests cover the routing.
+
+Status: `done`
+
+Evidence:
+- `lib/features/settings/domain/entities/app_settings.dart` (role fields and
+  `effective*Model` resolution, ignored for the Apple Foundation Models
+  provider)
+- `lib/features/settings/presentation/pages/model_routing_settings_page.dart`
+- Call sites: `_extractMemoryDraftWithLlm`, `suggestCurrentGoal`,
+  `_runApprovalAutoReview` in `chat_notifier.dart`, and the subagent run in
+  `chat_notifier_subagent_handlers.dart`
+- `test/features/settings/domain/entities/app_settings_test.dart`
+- `test/features/settings/presentation/providers/settings_notifier_test.dart`
+- `test/features/settings/presentation/pages/model_routing_settings_page_test.dart`
+- `fvm flutter analyze`; settings suite and chat notifier suites pass.
+
+### LL2: Whole-Turn Checkpoints
+
+Scope:
+- Record a shadow checkpoint (per-session ref or stash-like snapshot) of files
+  the agent modified during a turn, building on the bookkeeping behind
+  `rollback_last_file_change`.
+- UI affordance to revert the last agent turn's file changes.
+
+Acceptance criteria:
+- A multi-file agent turn can be reverted in one action.
+- Reverting never touches files the agent did not modify.
+
+### LL3: Model Capability Profiles
+
+Scope:
+- On model registration (and on demand), run a bounded probe suite: native
+  tool calls vs `<tool_call>` tags, `response_format: json_schema` / grammar
+  support, edit-format success (whole-file vs search-replace vs diff), usable
+  context estimate.
+- Persist a per-model profile; agent behavior (tool-call style, edit format,
+  context budget) reads the profile with safe defaults when absent.
+
+Acceptance criteria:
+- Probes are non-destructive, bounded in time, and skippable.
+- A weak-model profile measurably reduces malformed tool calls in the
+  existing live canary suite.
+
+### LL4: Repo Map v1
+
+Scope:
+- Symbol outline per coding project via ctags / LSP `documentSymbol` / Dart
+  analyzer, refreshed incrementally.
+- Ranked compression to a token budget from the model profile; injected into
+  the system prompt for coding mode.
+
+Acceptance criteria:
+- Map generation is incremental and bounded on large repos.
+- Live coding canaries show fewer exploration tool calls to reach a correct
+  first file edit.
+
+### LL5: Local Semantic Search
+
+Scope:
+- Embed code chunks and conversation history via the configured
+  OpenAI-compatible `/v1/embeddings` endpoint; store vectors in the drift
+  database from F4.
+- Expose a `semantic_search` built-in tool and wire history search UI.
+- Optional rerank stage via llama.cpp `POST /reranking` (reranker model with
+  `--pooling rank`) when the endpoint advertises it.
+
+Acceptance criteria:
+- Works fully offline against LM Studio / llama.cpp embeddings endpoints.
+- Degrades gracefully (lexical FTS only) when no embeddings endpoint exists.
+
+### LL6: KV-Cache-Friendly Mode
+
+Scope:
+- Optional request mode: byte-stable system prompt and tool list across loop
+  iterations, append-only message history, volatile context (temporal,
+  memory) moved to the tail.
+- On llama.cpp endpoints, pin the conversation to a server slot via the
+  per-request `id_slot` parameter and recommend `--cache-reuse N` (chunked KV
+  reuse via shifting) so small mid-prompt changes still reuse cache.
+- Measure cache effectiveness directly from response `timings` fields
+  (`cache_n`, `prompt_n`, `prompt_ms`) instead of wall-clock estimates; show
+  prefill progress in the UI via `return_progress` during long prompts.
+
+Acceptance criteria:
+- Prompt prefix is byte-identical across consecutive turn requests in the
+  mode, verified by a focused test on request construction.
+- `timings.cache_n / prompt_n` ratio improves measurably versus the default
+  mode on a 30B-class local model, recorded as evidence.
+- Existing first-request search-tool gating remains available as the default
+  mode.
+
+### LL7: Best-of-N Verification Loop
+
+Scope:
+- Generate N candidate patches (sequential or parallel per endpoint slots),
+  apply each in an isolated checkpoint (LL2), run
+  `coding_verification_feedback_service` verification, keep the first green.
+- On llama.cpp, candidates can run concurrently on one machine via server
+  slots (`--parallel N` with continuous batching), each isolated with its own
+  `id_slot`; `GET /slots` provides progress monitoring.
+- Routines preset for bounded overnight retry-until-green runs with a final
+  report.
+
+Acceptance criteria:
+- Failed candidates leave no residue in the working tree.
+- Overnight runs respect tool policy, never require interactive approval, and
+  end with a single consolidated report.
+
+### LL8: LAN Inference Mesh
+
+Scope:
+- Extend `LanScanService` host probing to detect OpenAI-compatible endpoints
+  (LM Studio 1234, Ollama 11434, llama.cpp 8080, custom ports) via
+  `GET /v1/models`, and offer one-tap registration as named endpoints.
+- Role routing (LL1) gains an endpoint dimension: a role maps to
+  endpoint + model. Health checks demote unreachable endpoints with fallback
+  to the primary.
+- Subagents and Best-of-N candidates (LL7) may fan out across endpoints.
+
+Acceptance criteria:
+- Discovery never sends credentials to unverified hosts; registration is
+  explicit and user-confirmed.
+- A dropped mesh endpoint degrades to the primary endpoint without failing
+  the active turn.
+
+### LL9: Local Stack Manager
+
+Scope:
+- Extend the read-only LM Studio / llama.cpp catalog integration into
+  lifecycle management where the server exposes it: LM Studio REST
+  load/unload and JIT, Ollama pull/list/show, and llama.cpp router mode
+  (`GET /models` with loaded/loading/unloaded status, `POST /models/load`,
+  `POST /models/unload`, LRU eviction via `--models-max`, per-model presets
+  via `--models-preset`).
+- On llama.cpp router endpoints, per-role models (LL1) need no management at
+  all: each role selects its model via the request `model` field and the
+  router autoloads on demand.
+- Recommend free speedups where supported: ngram speculative decoding
+  (`--spec-type ngram-simple`, no draft model required) and draft-model
+  speculation for coding models.
+- Detect host resources (RAM, Apple Silicon unified memory) and recommend
+  model + quantization + context length combinations that fit, including
+  per-role suggestions for LL1 (small fast model for memory/titles).
+- One-tap "prepare role models": ensure every assigned role model is loaded
+  before an agent run starts.
+
+Acceptance criteria:
+- Management actions are no-ops with clear messaging on servers that do not
+  support them.
+- Recommendations never exceed detected memory and state their assumptions.
+
+### LL10: Installed-Dependency Grounding
+
+Scope:
+- A built-in tool resolves a package or symbol to the exact installed
+  version's source and docs from the project's lockfile: pub cache for Dart,
+  `node_modules`, Python site-packages/venv, vendored sources.
+- Results return version-accurate API signatures and doc comments, sized to
+  the model profile's context budget.
+- Optionally index dependency sources through the F4 database for fast
+  lookup.
+
+Acceptance criteria:
+- Lookups are fully offline and lockfile-accurate (never a newer upstream
+  version than the one installed).
+- Live coding canaries show reduced hallucinated-API failures on a
+  weak-model profile.
+
+### LL11: LSP Bridge
+
+Scope:
+- Manage language server processes per coding project (reusing the
+  background-process infrastructure) and consume diagnostics after each
+  `edit_file` / `write_file`, generalizing the Dart-only
+  `coding_diagnostic_feedback_service` loop to any LSP language.
+- Expose `documentSymbol` output to LL4 repo map generation and a
+  go-to-definition tool for token-cheap precise navigation.
+
+Acceptance criteria:
+- Post-edit diagnostics reach the model within the same tool loop iteration.
+- A missing or crashed language server degrades to current behavior without
+  blocking edits.
+
+### LL12: Personal Eval Harness
+
+Scope:
+- Record completed real agent sessions (prompt, repo state reference, final
+  verification result) as replayable eval cases, with explicit user consent
+  per recording.
+- Replay the suite against a candidate model/endpoint and score: verification
+  pass rate, tool-call fidelity, turns to green, wall-clock time.
+- Compare against the incumbent model's stored scores and feed conclusions
+  into LL3 profiles.
+
+Acceptance criteria:
+- Recordings are local-only, anonymization-free by design (private machine),
+  but excluded from any export by default.
+- A replay run produces a single comparison report usable for a model swap
+  decision.
+
+### LL13: Parallel Agents In Worktrees
+
+Scope:
+- Run multiple agent tasks concurrently, each in an isolated git worktree
+  with its own LL2 checkpoint lineage and tool-approval scope.
+- Distribute tasks across LL8 mesh endpoints when available; otherwise queue
+  on the primary endpoint.
+- Merge flow: verified-green tasks produce a branch ready for review; nothing
+  merges automatically.
+
+Acceptance criteria:
+- Two concurrent tasks cannot write to the same worktree.
+- Killing the app mid-task leaves worktrees recoverable and listed on
+  restart.
+
+### LL14: Context Surgery
+
+Scope:
+- Evict stale tool results and deduplicate repeated file reads (keep the
+  newest copy, replace older ones with a one-line stub) — applied only at
+  compaction boundaries so LL6 prefix stability is preserved between them.
+- Model-switch handoff: when the user changes model mid-conversation,
+  generate a compact model-agnostic brief instead of replaying the full
+  history into the new model's cold cache.
+- Extend the token usage indicator with a per-section budget breakdown
+  (system prompt, repo map, memory, tools, history).
+
+Acceptance criteria:
+- Eviction never removes results the current task still references (guarded
+  by the same heuristics as compaction's recent-message floor).
+- A model switch on a long conversation reaches first token measurably
+  faster than full-history replay.
+
+### LL15: Weak-Model Edit Harness
+
+Scope:
+- When the LL3 profile reports grammar support, constrain edit-block output
+  with `json_schema` / GBNF so search-replace blocks cannot be malformed.
+- Store known-good few-shot exemplars (tool call, edit block) per model
+  family in the profile and inject them for models below a fidelity
+  threshold.
+- Track edit-apply failure rates per model and feed them back into the
+  profile.
+
+Acceptance criteria:
+- Edit-apply failure rate drops measurably on a weak-model profile in live
+  canaries.
+- Strong models skip the few-shot overhead entirely.
+
+## Cross-Cutting Rules
+
+- All tracks obey the F1 ratchet: no milestone may push a budgeted file past
+  its budget; extraction slices lower budgets in the same PR.
+- LL3 profiles are the single source of model-behavior tuning. LL4, LL6, LL7,
+  LL12, and LL15 read the profile rather than adding per-feature model flags.
+- Context mutation (LL14 eviction, compaction) happens only at compaction
+  boundaries so LL6 prefix stability holds between them.
+- Anything that executes work on another machine (LL8, LL13) inherits the
+  existing tool-approval and Remote Coding pairing trust model; no implicit
+  remote execution.
+
+## Appendix: llama.cpp Server Capability Reference
+
+Researched 2026-06-11 from `ggml-org/llama.cpp` `tools/server/README.md` and
+the ggml-org model management announcement. Re-verify flags before
+implementation; the server moves fast.
+
+| Capability | Server surface | Feeds milestone |
+|------------|----------------|-----------------|
+| Prompt cache reuse | `cache_prompt` (request, default `true`), `--cache-reuse N` / `n_cache_reuse` (chunked KV-shift reuse), `--slot-prompt-similarity` | LL6 |
+| Slot pinning and monitoring | `id_slot` request param (default `-1`), `GET /slots` | LL6, LL7 |
+| Cache measurement | response `timings`: `cache_n`, `prompt_n`, `prompt_ms`, `predicted_per_second`; `return_progress` (streamed prefill progress) | LL6, LL14 |
+| KV cache persistence | `POST /slots/{id}?action=save\|restore` with `--slot-save-path` | LL6 extension (resume cache across restarts) |
+| Structured output | `json_schema` / `grammar` (GBNF) request params, `response_format` json_schema | LL3, LL15 |
+| Tool calling | `--jinja` (default on), `parallel_tool_calls`, native tool-call parsing per chat template | LL3 |
+| Router mode (model management) | launch without `-m`; `--models-dir`, `--models-max` (LRU eviction), `--no-models-autoload`, `--models-preset`; `GET /models`, `POST /models/load`, `POST /models/unload`; per-request `model` autoload | LL1, LL8, LL9 |
+| Parallel inference | `--parallel N` slots, continuous batching (default on) | LL7, LL13 |
+| Speculative decoding | `--spec-draft-model`, `--spec-type` incl. `ngram-simple` (no draft model needed) | LL9 guidance |
+| Embeddings and reranking | `POST /v1/embeddings`, `POST /reranking` (`--pooling rank`) | LL5 |
+| Server identity probing | `GET /props`, `GET /health` | LL3, LL8 discovery |
+- Behavior-changing slices around tool execution, Plan Mode, persistence,
+  approval, or recovery run `tool/codex_verify.sh --coverage` per
+  `docs/large_file_refactor_plan.md`.

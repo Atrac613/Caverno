@@ -303,4 +303,93 @@ void main() {
       'x-post-button',
     );
   });
+
+  test('role models fall back to the main model when unset', () {
+    const settings = AppSettings(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'main-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+    );
+
+    expect(settings.effectiveMemoryExtractionModel, 'main-model');
+    expect(settings.effectiveSubagentModel, 'main-model');
+    expect(settings.effectiveGoalSuggestionModel, 'main-model');
+    expect(settings.effectiveApprovalAutoReviewModel, 'main-model');
+
+    final whitespaceOnly = settings.copyWith(memoryExtractionModel: '   ');
+    expect(whitespaceOnly.effectiveMemoryExtractionModel, 'main-model');
+  });
+
+  test('assigned role models override the main model per role', () {
+    const settings = AppSettings(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'main-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      memoryExtractionModel: 'small-memory-model',
+      subagentModel: 'small-subagent-model',
+    );
+
+    expect(settings.effectiveMemoryExtractionModel, 'small-memory-model');
+    expect(settings.effectiveSubagentModel, 'small-subagent-model');
+    // Unassigned roles still fall back to the main model.
+    expect(settings.effectiveGoalSuggestionModel, 'main-model');
+    expect(settings.effectiveApprovalAutoReviewModel, 'main-model');
+  });
+
+  test('role models are ignored for the Apple Foundation Models provider', () {
+    const settings = AppSettings(
+      llmProvider: LlmProvider.appleFoundationModels,
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'main-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      memoryExtractionModel: 'small-memory-model',
+    );
+
+    expect(
+      settings.effectiveMemoryExtractionModel,
+      AppSettings.appleFoundationModelsModelId,
+    );
+    expect(
+      settings.effectiveSubagentModel,
+      AppSettings.appleFoundationModelsModelId,
+    );
+  });
+
+  test('role models survive a JSON round-trip and default for legacy JSON', () {
+    const settings = AppSettings(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'main-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      memoryExtractionModel: 'small-memory-model',
+      subagentModel: 'small-subagent-model',
+      goalSuggestionModel: 'small-goal-model',
+      approvalAutoReviewModel: 'small-review-model',
+    );
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+    expect(decoded.memoryExtractionModel, 'small-memory-model');
+    expect(decoded.subagentModel, 'small-subagent-model');
+    expect(decoded.goalSuggestionModel, 'small-goal-model');
+    expect(decoded.approvalAutoReviewModel, 'small-review-model');
+
+    final legacy = AppSettings.fromJson({
+      'baseUrl': 'http://localhost:1234/v1',
+      'model': 'main-model',
+      'apiKey': 'no-key',
+      'temperature': 0.7,
+      'maxTokens': 4096,
+    });
+    expect(legacy.memoryExtractionModel, '');
+    expect(legacy.effectiveMemoryExtractionModel, 'main-model');
+  });
 }

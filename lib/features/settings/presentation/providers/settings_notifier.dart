@@ -47,6 +47,26 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateMemoryExtractionModel(String model) async {
+    state = state.copyWith(memoryExtractionModel: model.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateSubagentModel(String model) async {
+    state = state.copyWith(subagentModel: model.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateGoalSuggestionModel(String model) async {
+    state = state.copyWith(goalSuggestionModel: model.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateApprovalAutoReviewModel(String model) async {
+    state = state.copyWith(approvalAutoReviewModel: model.trim());
+    await _repository.save(state);
+  }
+
   Future<void> updateTemperature(double temperature) async {
     state = state.copyWith(temperature: temperature);
     await _repository.save(state);

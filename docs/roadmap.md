@@ -9,6 +9,9 @@ handoffs can refer to the same unit of work over time.
 - Use `PM<number>` for Plan Mode milestones.
 - Keep `M<number>` for the existing macOS Computer Use milestones documented in
   `docs/macos_computer_use_helper_architecture.md`.
+- Use `F<number>` for Foundation (refactoring, dependency currency, storage)
+  milestones and `LL<number>` for Local LLM Agent milestones, both documented
+  in `docs/local_llm_agent_roadmap.md`.
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
 - Every active milestone should record scope, acceptance criteria, verification
   evidence, and the next action.
@@ -44,6 +47,10 @@ handoffs can refer to the same unit of work over time.
 | Computer Use | M56 | done | Hand off the approved post-expansion rollout decision to the next user-operated rollout branch. | Use `bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh` for rollout decision handoff evidence. |
 | Remote Coding | RC0 | done | Ship the P0 LAN mobile control safety gate for existing desktop coding projects. | Use `dart run tool/remote_coding_p0_release_gate.dart` before P0 release review. |
 | Remote Coding | RC1 | current | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Use `dart run tool/remote_coding_p1_release_gate.dart` for P1 release review. |
+| Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
+| Foundation | F2 | next | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Plan the first extraction slice after F1 lands. |
+| Local LLM | LL1 | done | Route secondary LLM calls (memory extraction, subagents, goal suggestions, approval auto-review) to a configurable small model. | Surface the routing settings in user docs when LL9 model guidance lands. |
+| Local LLM | LL2 | next | Whole-turn file-change checkpoints with one-action revert. | Design the shadow checkpoint format on top of `rollback_last_file_change` bookkeeping. |
 
 ## Plan Mode Track
 
@@ -683,6 +690,24 @@ intact and links them to MVP readiness.
 | M12 | later | Real-app observe-only canaries for public-action boundary classification. |
 
 MVP ready criteria live in `docs/macos_computer_use_mvp_checklist.md`.
+
+## Foundation And Local LLM Agent Tracks
+
+The `F<number>` and `LL<number>` milestones, their dependency graph, and the
+phase ordering live in `docs/local_llm_agent_roadmap.md`. Summary:
+
+- Phase 0: F1 (line-count ratchet), LL1 (per-role model routing).
+- Phase 1: F2 (tool loop extraction), LL2 (whole-turn checkpoints).
+- Phase 2: F3 (`openai_dart` 6.x and other major upgrades), LL3 (model
+  capability profiles), LL9 (local stack manager).
+- Phase 3: LL4 (repo map v1), LL6 (KV-cache-friendly mode), LL14 (context
+  surgery), LL15 (weak-model edit harness).
+- Phase 4: F4 (Hive to drift/SQLite with FTS), then LL5 (local semantic
+  search), LL10 (installed-dependency grounding), LL11 (LSP bridge).
+- Phase 5: LL7 (Best-of-N verification loop), LL8 (LAN inference mesh),
+  LL12 (personal eval harness), F5 (ongoing large-file decomposition per
+  `docs/large_file_refactor_plan.md`).
+- Phase 6: LL13 (parallel agents in isolated git worktrees over the mesh).
 
 ## Operating Loop
 

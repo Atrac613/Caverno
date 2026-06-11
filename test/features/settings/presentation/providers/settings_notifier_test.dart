@@ -178,4 +178,36 @@ void main() {
       );
     },
   );
+
+  test('role model updates persist through the repository', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(settingsNotifierProvider.notifier);
+
+    await notifier.updateMemoryExtractionModel(' small-memory-model ');
+    await notifier.updateSubagentModel('small-subagent-model');
+    await notifier.updateGoalSuggestionModel('small-goal-model');
+    await notifier.updateApprovalAutoReviewModel('small-review-model');
+
+    final settings = container.read(settingsNotifierProvider);
+    expect(settings.memoryExtractionModel, 'small-memory-model');
+    expect(settings.effectiveMemoryExtractionModel, 'small-memory-model');
+
+    final reloaded = SettingsRepository(prefs).load();
+    expect(reloaded.memoryExtractionModel, 'small-memory-model');
+    expect(reloaded.subagentModel, 'small-subagent-model');
+    expect(reloaded.goalSuggestionModel, 'small-goal-model');
+    expect(reloaded.approvalAutoReviewModel, 'small-review-model');
+
+    await notifier.updateSubagentModel('');
+    expect(
+      container.read(settingsNotifierProvider).effectiveSubagentModel,
+      container.read(settingsNotifierProvider).model,
+    );
+  });
 }
