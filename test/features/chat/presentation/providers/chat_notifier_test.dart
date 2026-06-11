@@ -3629,6 +3629,72 @@ void main() {
   );
 
   test(
+    'sendMessage does not execute git write when asking for commit confirmation',
+    () async {
+      const confirmationContent =
+          '更新しました。\n\n- 旧: `1.3.5+17`\n- 新: `1.3.6+18`\n\nコミットしますか？';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-stage-version',
+            name: 'git_execute_command',
+            arguments: const {
+              'command': 'add pubspec.yaml',
+              'reason': 'Stage version bump',
+            },
+          ),
+        ],
+        initialCompletionContent: confirmationContent,
+        initialStreamChunks: const [confirmationContent],
+        toolRoleResponseContent: 'This should not be reached.',
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'git_execute_command': 'Execute a git command.'},
+        results: const {
+          'git_execute_command':
+              '{"command":"git add pubspec.yaml","exit_code":0}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('バージョン番号とビルドナンバーを更新');
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(dataSource.toolResultBatches, isEmpty);
+      expect(chatNotifier.state.messages.last.content, contains('コミットしますか？'));
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('This should not be reached')),
+      );
+    },
+  );
+
+  test(
     'sendMessage marks Japanese release execution claim without tool call as unexecuted',
     () async {
       const finalContent = '本番リリースを開始しました。まず macOS 側が進行中です。進捗を確認します。';
