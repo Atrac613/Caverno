@@ -3,15 +3,20 @@ import 'dart:io';
 
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_store.dart';
+import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_environment_snapshot_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -80,6 +85,40 @@ class _CompanionCodingProjectsNotifier extends CodingProjectsNotifier {
 class _TestChatNotifier extends ChatNotifier {
   @override
   ChatState build() => ChatState.initial();
+}
+
+class _RollbackChatNotifier extends ChatNotifier {
+  @override
+  ChatState build() {
+    updateMcpToolService(ref.read(mcpToolServiceProvider));
+    return ChatState.initial();
+  }
+}
+
+class _RollbackMcpToolService extends McpToolService {
+  int previewCalls = 0;
+  int rollbackCalls = 0;
+
+  @override
+  Future<FileTurnRollbackPreview?> previewLastFileTurnCheckpoint() async {
+    previewCalls += 1;
+    return const FileTurnRollbackPreview(
+      turnId: 'turn-1',
+      paths: ['lib/parser.dart'],
+      preview: 'diff --git a/lib/parser.dart b/lib/parser.dart',
+      summary: 'Revert the last agent turn file change.',
+    );
+  }
+
+  @override
+  Future<McpToolResult> rollbackLastFileTurnCheckpoint() async {
+    rollbackCalls += 1;
+    return const McpToolResult(
+      toolName: 'rollback_last_turn_file_changes',
+      result: '{"ok":true}',
+      isSuccess: true,
+    );
+  }
 }
 
 void main() {
@@ -329,5 +368,141 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
 
     expect(find.text('Progress'), findsNothing);
     expect(find.text('Uncommitted changes'), findsOneWidget);
+  });
+
+  testWidgets('header action reverts the latest agent turn checkpoint', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final tempDir = Directory.systemTemp.createTempSync(
+      'chat_page_turn_revert_test_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    final now = DateTime(2026, 6, 12, 9, 25);
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'example_app',
+      rootPath: tempDir.path,
+      createdAt: now,
+      updatedAt: now,
+    );
+    final conversation = Conversation(
+      id: 'thread-1',
+      title: 'Turn revert thread',
+      messages: const [],
+      createdAt: now,
+      updatedAt: now,
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      turnDiffs: [
+        TurnDiff(
+          id: 'turn-diff-1',
+          assistantMessageId: 'assistant-1',
+          userPromptPreview: 'Update the parser',
+          timestamp: now,
+          files: const [
+            TurnDiffFile(
+              filePath: 'lib/parser.dart',
+              linesAdded: 1,
+              linesRemoved: 1,
+              unifiedPatch: '''
+--- lib/parser.dart
++++ lib/parser.dart
+@@
+-old
++new''',
+            ),
+          ],
+          filesChanged: 1,
+          linesAdded: 1,
+          linesRemoved: 1,
+          changedFilePaths: const ['lib/parser.dart'],
+        ),
+      ],
+    );
+
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    final rollbackService = _RollbackMcpToolService();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          () => _CompanionConversationsNotifier(conversation),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _CompanionCodingProjectsNotifier(project),
+        ),
+        chatNotifierProvider.overrideWith(_RollbackChatNotifier.new),
+        mcpToolServiceProvider.overrideWithValue(rollbackService),
+        routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
+        codingEnvironmentProcessRunnerProvider.overrideWithValue((
+          executable,
+          arguments, {
+          workingDirectory,
+        }) async {
+          return ProcessResult(1, 0, '', '');
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        startLocale: const Locale('en'),
+        useOnlyLangCode: true,
+        saveLocale: false,
+        assetLoader: const _TestTranslationLoader(),
+        child: Builder(
+          builder: (context) {
+            return UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp(
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                home: const ChatPage(),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('revert-last-turn-action')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('revert-last-turn-action')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Revert last agent turn?'), findsOneWidget);
+    expect(find.text('lib/parser.dart'), findsOneWidget);
+    expect(rollbackService.previewCalls, 1);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Revert'));
+    await tester.pumpAndSettle();
+
+    expect(rollbackService.rollbackCalls, 1);
+    expect(
+      find.text('Reverted 1 file from the last agent turn.'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('revert-last-turn-action')), findsNothing);
   });
 }

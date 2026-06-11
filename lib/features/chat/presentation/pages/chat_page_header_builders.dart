@@ -5,6 +5,204 @@
 part of 'chat_page.dart';
 
 extension _ChatPageHeaderBuilders on _ChatPageState {
+  Widget _buildPersistentWorkspaceHeader(
+    BuildContext context, {
+    required bool isRoutinesWorkspace,
+    required bool isCodingWorkspace,
+    required bool isMobileRemoteCoding,
+    required CodingProject? activeProject,
+    required String currentTitle,
+    required AppSettings settings,
+    required bool canCompose,
+    required bool canShowCompanionPanel,
+    required bool isWideForCompanion,
+    required Conversation? currentConversation,
+    required ConversationsState conversationsState,
+    required ConversationsNotifier conversationsNotifier,
+    required ChatState chatState,
+    String? routineTitle,
+  }) {
+    return Container(
+      key: const ValueKey('persistent-workspace-header'),
+      height: 64,
+      padding: const EdgeInsets.only(left: 16, right: 6),
+      alignment: Alignment.center,
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildWorkspaceHeaderTitle(
+              context,
+              isRoutinesWorkspace: isRoutinesWorkspace,
+              isCodingWorkspace: isCodingWorkspace,
+              activeProject: activeProject,
+              currentTitle: currentTitle,
+              settings: settings,
+              prominent: true,
+              routineTitle: routineTitle,
+            ),
+          ),
+          ..._buildWorkspaceHeaderActions(
+            context,
+            activeProject: activeProject,
+            canShowCompanionPanel: canShowCompanionPanel,
+            isWideForCompanion: isWideForCompanion,
+            currentConversation: currentConversation,
+            chatState: chatState,
+            compact: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkspaceHeaderTitle(
+    BuildContext context, {
+    required bool isRoutinesWorkspace,
+    required bool isCodingWorkspace,
+    required CodingProject? activeProject,
+    required String currentTitle,
+    required AppSettings settings,
+    required bool prominent,
+    String? routineTitle,
+  }) {
+    final theme = Theme.of(context);
+    final titleStyle = prominent
+        ? theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)
+        : null;
+
+    final title = isRoutinesWorkspace
+        ? Text(
+            routineTitle ?? 'chat.workspace_routines'.tr(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: titleStyle,
+          )
+        : isCodingWorkspace
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                activeProject?.name ?? 'chat.workspace_coding'.tr(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: titleStyle,
+              ),
+              Text(
+                activeProject == null
+                    ? 'chat.coding_no_project_short'.tr()
+                    : currentTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          )
+        : Text(
+            currentTitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: titleStyle,
+          );
+
+    return Row(
+      children: [
+        Expanded(child: title),
+        if (settings.demoMode) ...[
+          const SizedBox(width: 8),
+          Chip(
+            label: Text('chat.demo_banner'.tr()),
+            labelStyle: TextStyle(
+              fontSize: 11,
+              color: theme.colorScheme.onTertiaryContainer,
+            ),
+            backgroundColor: theme.colorScheme.tertiaryContainer,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+          ),
+        ],
+      ],
+    );
+  }
+
+  List<Widget> _buildWorkspaceHeaderActions(
+    BuildContext context, {
+    required CodingProject? activeProject,
+    required bool canShowCompanionPanel,
+    required bool isWideForCompanion,
+    required Conversation? currentConversation,
+    required ChatState chatState,
+    required bool compact,
+  }) {
+    Widget actionButton({
+      Key? key,
+      required IconData icon,
+      required String tooltip,
+      required VoidCallback? onPressed,
+    }) {
+      return IconButton(
+        key: key,
+        onPressed: onPressed,
+        icon: Icon(icon),
+        tooltip: tooltip,
+        visualDensity: compact ? VisualDensity.compact : null,
+        constraints: compact
+            ? const BoxConstraints.tightFor(width: 40, height: 40)
+            : null,
+      );
+    }
+
+    final companionConversation = currentConversation;
+    final companionProject = activeProject;
+    final revertableTurnDiff = activeProject == null
+        ? null
+        : _latestRevertableTurnDiff(
+            currentConversation: currentConversation,
+            chatState: chatState,
+          );
+    final actions = <Widget>[];
+
+    if (revertableTurnDiff != null) {
+      actions.add(
+        actionButton(
+          key: const ValueKey('revert-last-turn-action'),
+          onPressed: () => unawaited(
+            _confirmAndRollbackLastFileTurn(context, revertableTurnDiff),
+          ),
+          icon: Icons.restore_rounded,
+          tooltip: 'Revert last turn changes',
+        ),
+      );
+    }
+
+    if (canShowCompanionPanel &&
+        companionConversation != null &&
+        companionProject != null) {
+      actions.add(
+        actionButton(
+          onPressed: () {
+            if (isWideForCompanion) {
+              _toggleCompanionSidebar();
+              return;
+            }
+            _showCompanionPanelSheet(
+              context,
+              currentConversation: companionConversation,
+              chatState: chatState,
+              activeProject: companionProject,
+            );
+          },
+          icon: Icons.view_sidebar_outlined,
+          tooltip: 'chat.companion_panel_toggle'.tr(),
+        ),
+      );
+    }
+
+    return actions;
+  }
+
   Widget _buildTokenUsageBar(
     BuildContext context,
     ChatState chatState,

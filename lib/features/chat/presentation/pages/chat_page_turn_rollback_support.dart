@@ -5,6 +5,20 @@
 part of 'chat_page.dart';
 
 extension _ChatPageTurnRollbackSupport on _ChatPageState {
+  TurnDiff? _latestRevertableTurnDiff({
+    required Conversation? currentConversation,
+    required ChatState chatState,
+  }) {
+    if (chatState.isLoading) {
+      return null;
+    }
+    final diff = currentConversation?.effectiveTurnDiffs.lastOrNull;
+    if (diff == null || !_canRevertTurnDiff(diff)) {
+      return null;
+    }
+    return diff;
+  }
+
   FileWorkspaceViewerRequest _buildTurnDiffViewerRequest(TurnDiff diff) {
     return FileWorkspaceViewerRequest.diff(
       diff: diff,
