@@ -85,6 +85,13 @@ void main() {
       ),
     );
     expect(prompt, contains('Requested replan focus:'));
+    expect(
+      prompt,
+      contains(
+        'Preserve exact literal values from user messages, saved plans, research context, and tool results in every JSON text field.',
+      ),
+    );
+    expect(prompt, contains('placeholders such as "EXACT..." or "the URL"'));
   });
 
   test('proposal transcript keeps only visible plain text content', () {
@@ -107,6 +114,30 @@ void main() {
     expect(transcript, contains('- user: User request'));
     expect(transcript, contains('- assistant: Visible answer'));
     expect(transcript, isNot(contains('hidden')));
+  });
+
+  test('proposal transcript preserves tail exact values in long messages', () {
+    const exactValue =
+        'EXACT_PRESERVATION_VALUE: https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def | ZX-900_α | 2026-06-12 | ¥3,980 | 12 GiB';
+    final longPrefix = List<String>.filled(
+      90,
+      'context-before-literal',
+    ).join(' ');
+    final transcript =
+        ConversationPlanningPromptService.buildProposalTranscript([
+          Message(
+            id: 'message-long',
+            role: MessageRole.user,
+            content: '$longPrefix\n$exactValue',
+            timestamp: DateTime(2026, 6, 11, 9),
+          ),
+        ]);
+
+    expect(transcript, contains(exactValue));
+    expect(
+      transcript,
+      contains('[middle omitted; tail preserved for exact values]'),
+    );
   });
 
   test('task proposal prompt forbids research notes as task titles', () {
@@ -195,6 +226,13 @@ void main() {
         'In an empty or nearly empty workspace, avoid splitting the same source file across multiple implementation tasks in the first pass. Prefer one implementation task per source file, then separate verification or documentation tasks.',
       ),
     );
+    expect(
+      prompt,
+      contains(
+        'Preserve exact literal values from user messages, saved workflow fields, research context, and tool results in title, targetFiles, validationCommand, and notes.',
+      ),
+    );
+    expect(prompt, contains('placeholders such as "EXACT..." or "the URL"'));
   });
 
   test('compact task proposal prompt trims verbose planning context', () {

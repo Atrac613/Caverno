@@ -524,6 +524,59 @@ void main() {
     expect(summary.tests.single.readinessImpact, 'blocker');
   });
 
+  test('marks exact preservation failures as blocked readiness', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'live-llm-summary-exact-preservation-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final logFile = File('${directory.path}/flutter_test.jsonl');
+    await logFile.writeAsString(
+      [
+        jsonEncode({'protocolVersion': '0.1.1', 'type': 'start', 'time': 0}),
+        jsonEncode({
+          'test': {
+            'id': 1,
+            'name': 'live LLM preserves exact raw tool result values',
+            'metadata': {'skip': false, 'skipReason': null},
+          },
+          'type': 'testStart',
+          'time': 0,
+        }),
+        jsonEncode({
+          'testID': 1,
+          'error': 'Expected exact raw value but got a reformatted URL.',
+          'isFailure': true,
+          'type': 'error',
+          'time': 5,
+        }),
+        jsonEncode({
+          'testID': 1,
+          'result': 'failure',
+          'skipped': false,
+          'hidden': false,
+          'type': 'testDone',
+          'time': 10,
+        }),
+        jsonEncode({'success': false, 'type': 'done', 'time': 11}),
+      ].join('\n'),
+    );
+
+    final summary = await buildLiveLlmCanarySummary(
+      logFile: logFile,
+      canaryName: 'chat_live_llm_canary',
+      surface: 'chat',
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'test-model',
+      command: 'tool/run_chat_live_llm_canary.sh',
+      generatedAt: DateTime.utc(2026, 6, 10),
+    );
+
+    expect(summary.readiness.status, 'blocked');
+    expect(summary.readiness.blockerFailedCount, 1);
+    expect(summary.tests.single.category, 'exact_preservation');
+    expect(summary.tests.single.readinessImpact, 'blocker');
+  });
+
   test('marks transport-disconnect failures as inconclusive readiness', () async {
     final directory = Directory.systemTemp.createTempSync(
       'live-llm-summary-inconclusive-test-',

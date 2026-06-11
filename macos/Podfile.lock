@@ -39,11 +39,11 @@ PODS:
   - network_info_plus (0.0.1):
     - FlutterMacOS
   - OrderedSet (6.0.3)
-  - record_macos (1.2.0):
+  - record_macos (1.2.1):
     - FlutterMacOS
   - screen_retriever_macos (0.0.1):
     - FlutterMacOS
-  - serious_python_darwin (1.0.0):
+  - serious_python_darwin (1.0.1):
     - Flutter
     - FlutterMacOS
   - shared_preferences_foundation (0.0.1):
@@ -163,9 +163,9 @@ SPEC CHECKSUMS:
   mobile_scanner: 77265f3dc8d580810e91849d4a0811a90467ed5e
   network_info_plus: 2cb02d8435635eae13b3b79279681985121cf30c
   OrderedSet: e539b66b644ff081c73a262d24ad552a69be3a94
-  record_macos: 4680f37daeebf52162e715efb7ff682f0a5ce4fd
-  screen_retriever_macos: 776e0fa5d42c6163d2bf772d22478df4b302b161
-  serious_python_darwin: 90467e94380e0a34f9a3f800390a2cc016e063ec
+  record_macos: ccd7864c9922136e50c2937b21384f0b175922f2
+  screen_retriever_macos: 038d3f7b34a779b06f536842003e41e8ec1fb4b7
+  serious_python_darwin: 2e644f13e4e0f47565eb18dd1acddd7e8a466a27
   shared_preferences_foundation: 5086985c1d43c5ba4d5e69a4e8083a389e2909e6
   Sparkle: 2d0c930d42d53ee0fdf98bbb342c08eaf18ab5f0
   speech_to_text: 87bf9298952e8d9073be1b6aade6d5758db5170c

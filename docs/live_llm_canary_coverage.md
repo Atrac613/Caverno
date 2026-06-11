@@ -13,6 +13,47 @@ settings, or feature-specific execution behavior.
 | Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_suggestion_live_canary.sh`, `tool/run_coding_weather_code_live_canary.sh`, `tool/run_coding_overwrite_transparency_live_canary.sh`, `tool/run_coding_output_feedback_live_canary.sh`, `tool/run_coding_goal_live_canary.sh`, `tool/run_coding_goal_live_edit_canary.sh`, `tool/run_coding_diagnostic_feedback_live_canary.sh`, `tool/run_coding_verification_feedback_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal suggestion artifact preservation, Open-Meteo WMO weather-code interpretation across saved reports, final answers, and memory extraction, write_file existing-file update transparency in final answers, zero-exit command output feedback and artifact repair, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, real coding-goal file edit with local test execution, red-green repair after observing a failing fixture test, two-file coding-goal edit coordination, package-like parser repair without test mutation, file create/read/update/delete lifecycle with final filesystem verification, Git init/commit/revert lifecycle with final clean-status verification, repeated-blocker auto-blocking, Dart analyzer diagnostic feedback after a broken edit, Dart test feedback after a premature completion claim with failing tests, report quality | Larger native coding-mode refactors and broader multi-file suites are still covered mainly through Plan Mode | Keep PM5 as baseline; run the focused coding-goal, weather-code, overwrite-transparency, output-feedback, diagnostic-feedback, and verification-feedback canaries after changing goal state, coding prompts, budget handling, tool execution, tool-result interpretation, diagnostic or verification feedback, command output guardrails, file/Git side effects, or completion/blocker inference |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
 
+## Qwen3.6-35B-A3B Main LLM Gate
+
+Use the focused Qwen3.6 gate before setting `qwen3.6-35b-a3b-vision` as the
+main local LLM:
+
+```bash
+tool/run_qwen36_main_llm_gate.sh
+```
+
+The wrapper defaults to:
+
+- `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+- `CAVERNO_LLM_API_KEY=no-key`
+- `CAVERNO_LLM_MODEL=qwen3.6-35b-a3b-vision`
+
+The default gate runs the exact-preservation Plan Mode canary, the Chat live
+LLM canary, and the tool-result budget canary. These checks cover the current
+Qwen3.6-35B-A3B promotion risks: URL, ID, date, money, and unit preservation;
+tool-result final answer handling; and oversized tool-result compaction.
+
+For final promotion evidence, add the heavier PM5 coding gate:
+
+```bash
+CAVERNO_QWEN36_MAIN_LLM_RUN_PM5=1 \
+tool/run_qwen36_main_llm_gate.sh
+```
+
+For a quick exact-preservation rerun after prompt-only changes, keep the
+focused Plan Mode check and skip the broader chat checks:
+
+```bash
+CAVERNO_QWEN36_MAIN_LLM_SKIP_CHAT=1 \
+CAVERNO_QWEN36_MAIN_LLM_SKIP_TOOL_RESULT_BUDGET=1 \
+tool/run_qwen36_main_llm_gate.sh
+```
+
+Run the in-app Live LLM Diagnostic before promoting a new endpoint or model
+alias. The exact-preservation probe must pass without warnings for main LLM
+use. If the diagnostic reports changed URL, ID, date, money, or unit values,
+lower temperature for coding/tool use and rerun the gate before promotion.
+
 ## Baseline Model Switch Flow
 
 For each model switch, run this minimum set before comparing model quality:

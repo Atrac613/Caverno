@@ -10,6 +10,7 @@ class PlanModeScenarioTestConfig {
     required this.mode,
     required this.suiteName,
     required this.reportPrefix,
+    required this.reportRootPath,
     required this.scenarios,
     required this.failOnWarnings,
     required this.requestedScenarioNames,
@@ -23,6 +24,7 @@ class PlanModeScenarioTestConfig {
   final PlanModeScenarioExecutionMode mode;
   final String suiteName;
   final String reportPrefix;
+  final String reportRootPath;
   final List<PlanModeScenarioSpec> scenarios;
   final bool failOnWarnings;
   final List<String> requestedScenarioNames;
@@ -165,6 +167,11 @@ PlanModeScenarioTestConfig resolvePlanModeScenarioTestConfig({
   final resolvedDeviceName = deviceName == null || deviceName.isEmpty
       ? defaultDeviceName ?? defaultPlanModeDeviceName()
       : deviceName;
+  final rawReportRootPath = resolvedEnvironment['CAVERNO_PLAN_MODE_REPORT_ROOT']
+      ?.trim();
+  final reportRootPath = rawReportRootPath == null || rawReportRootPath.isEmpty
+      ? '${Directory.current.path}/build/integration_test_reports'
+      : rawReportRootPath;
   final requestedScenarioNames = _splitCsv(
     resolvedEnvironment['CAVERNO_PLAN_MODE_SCENARIOS'],
   );
@@ -211,6 +218,7 @@ PlanModeScenarioTestConfig resolvePlanModeScenarioTestConfig({
       mode: PlanModeScenarioExecutionMode.fake,
       suiteName: 'plan_mode_scenarios_$resolvedDeviceName',
       reportPrefix: 'plan_mode_suite_$resolvedDeviceName',
+      reportRootPath: reportRootPath,
       scenarios: filteredScenarios,
       failOnWarnings: failOnWarnings,
       requestedScenarioNames: requestedScenarioNames,
@@ -223,6 +231,7 @@ PlanModeScenarioTestConfig resolvePlanModeScenarioTestConfig({
     mode: PlanModeScenarioExecutionMode.live,
     suiteName: 'plan_mode_live_scenarios_$resolvedDeviceName',
     reportPrefix: 'plan_mode_live_suite_$resolvedDeviceName',
+    reportRootPath: reportRootPath,
     scenarios: filteredScenarios,
     failOnWarnings: failOnWarnings,
     requestedScenarioNames: requestedScenarioNames,

@@ -1363,6 +1363,10 @@ String _categoryForTestName(String name) {
       normalized.contains('tool-result budget')) {
     return 'core_tool';
   }
+  if (normalized.contains('exact raw tool result') ||
+      normalized.contains('exact preservation')) {
+    return 'exact_preservation';
+  }
   if (normalized.contains('subagent')) {
     return 'subagent';
   }

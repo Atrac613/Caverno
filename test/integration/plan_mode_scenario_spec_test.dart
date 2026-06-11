@@ -79,7 +79,9 @@ void main() {
       'live_clarify_recovery',
     });
     expect(canaryScenarios, contains('live_readme_first_canary'));
+    expect(canaryScenarios, contains('live_exact_preservation_readme'));
     expect(smokeScenarios, isNot(contains('live_readme_first_canary')));
+    expect(smokeScenarios, isNot(contains('live_exact_preservation_readme')));
     expect(smokeScenarios, isNot(contains('live_ping_cli_completion')));
   });
 
@@ -125,6 +127,9 @@ void main() {
     final readmeCanary = scenarios.firstWhere(
       (item) => item.name == 'live_readme_first_canary',
     );
+    final exactPreservationCanary = scenarios.firstWhere(
+      (item) => item.name == 'live_exact_preservation_readme',
+    );
     final pingCanary = scenarios.firstWhere(
       (item) => item.name == 'live_ping_cli_completion',
     );
@@ -152,6 +157,29 @@ void main() {
     expect(
       readmeCanary.logExpectations.map((item) => item.pattern),
       contains(planModeSavedValidationSuccessPattern),
+    );
+
+    const exactValue =
+        'EXACT_PRESERVATION_VALUE: https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def | ZX-900_α | 2026-06-12 | ¥3,980 | 12 GiB';
+    expect(exactPreservationCanary.tags, contains('exact_preservation'));
+    expect(exactPreservationCanary.tags, isNot(contains('smoke')));
+    expect(exactPreservationCanary.harnessTaskExecutionLimit, 1);
+    expect(exactPreservationCanary.userPrompt, contains(exactValue));
+    expect(
+      exactPreservationCanary.resolvedArtifactExpectations
+          .singleWhere((item) => item.path == 'README.md')
+          .contains,
+      contains(exactValue),
+    );
+    expect(
+      exactPreservationCanary
+          .savedWorkflowExpectation!
+          .firstTaskTargetFilesContain,
+      contains('README.md'),
+    );
+    expect(
+      exactPreservationCanary.savedWorkflowExpectation!.textContains,
+      contains(exactValue),
     );
 
     expect(pingCanary.waitForExecutionCompletion, isTrue);

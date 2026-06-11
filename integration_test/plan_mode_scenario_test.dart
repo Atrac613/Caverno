@@ -555,9 +555,7 @@ void main() {
     final suiteResults = <Map<String, Object?>>[];
 
     setUpAll(() async {
-      final reportRoot = Directory(
-        '${Directory.current.path}/build/integration_test_reports',
-      );
+      final reportRoot = Directory(config.reportRootPath);
       await reportRoot.create(recursive: true);
       suiteRunDirectory = Directory(
         '${reportRoot.path}/${config.reportPrefix}_${DateTime.now().millisecondsSinceEpoch}',
@@ -597,9 +595,7 @@ void main() {
     });
 
     tearDownAll(() async {
-      final reportDirectory = Directory(
-        '${Directory.current.path}/build/integration_test_reports',
-      );
+      final reportDirectory = Directory(config.reportRootPath);
       await reportDirectory.create(recursive: true);
 
       final suiteReportConfig = PlanModeSuiteReportConfig(

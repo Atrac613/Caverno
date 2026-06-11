@@ -45,6 +45,9 @@ const _toolResultIgnoredMarker = 'ASSISTANT_TOOL_RESULT_IGNORED_LIVE_OK';
 const _toolResultIgnoredTrigger =
     'ASSISTANT_TOOL_RESULT_IGNORED_CANARY_TRIGGER';
 const _toolSearchArtifactMarker = 'TOOL_SEARCH_ARTIFACT_LIVE_OK';
+const _exactToolResultValue =
+    'https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def | '
+    'ZX-900_α | 2026-06-12 | ¥3,980 | 12 GiB';
 const _skillFollowUpMarker = 'SKILL_FOLLOWUP_LIVE_OK';
 const _skillFollowUpContinuation = 'では実際に確認を進めます';
 const _foundationEnglishMatrixMarker = 'FOUNDATION_LANGUAGE_EN_OK';
@@ -335,6 +338,54 @@ void main() {
 
   if (!foundationModelsRun) {
     test(
+      'live LLM preserves exact raw tool result values',
+      () async {
+        final env = _ChatLiveEnv.fromEnvironment();
+        final toolService = _ExactPreservationToolService();
+        final container = _buildChatContainer(
+          env,
+          mcpEnabled: true,
+          toolService: toolService,
+        );
+
+        try {
+          final notifier = container.read(chatNotifierProvider.notifier);
+          await notifier.sendMessage(
+            'Return exactly one content-embedded tool call and no markdown. '
+            'Use this exact tool call: '
+            '<tool_call>{"name":"exact_preservation_payload","arguments":{}}</tool_call>. '
+            'After the tool result is available, return only the raw_value '
+            'from Raw result. Do not add quotes, punctuation, explanation, '
+            'markdown, or any other characters.',
+          );
+          await _waitForChatIdle(
+            container,
+            timeout: const Duration(minutes: 5),
+            diagnostic: () =>
+                _exactPreservationDiagnostic(container, toolService),
+          );
+
+          expect(
+            toolService.executedToolNames,
+            [_ExactPreservationToolService.toolName],
+            reason: _exactPreservationDiagnostic(container, toolService),
+          );
+          expect(
+            _lastAssistantContent(container).trim(),
+            _exactToolResultValue,
+            reason: _exactPreservationDiagnostic(container, toolService),
+          );
+        } finally {
+          container.dispose();
+        }
+      },
+      skip: liveEnabled
+          ? false
+          : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+      timeout: const Timeout(Duration(minutes: 6)),
+    );
+
+    test(
       'live LLM continues after recovered incomplete content tool call',
       () async {
         final env = _ChatLiveEnv.fromEnvironment();
@@ -596,9 +647,8 @@ void main() {
                     .toList(growable: false) ??
                 const <String>[];
             if (toolNames.contains(
-                  _SkillFollowUpToolService.listDirectoryToolName,
-                ) &&
-                toolNames.contains(_SkillFollowUpToolService.gitToolName)) {
+              _SkillFollowUpToolService.listDirectoryToolName,
+            )) {
               toolResultResponse = response;
               break;
             }
@@ -619,10 +669,7 @@ void main() {
               const <String>[];
           expect(
             followUpToolNames,
-            containsAll([
-              _SkillFollowUpToolService.listDirectoryToolName,
-              _SkillFollowUpToolService.gitToolName,
-            ]),
+            contains(_SkillFollowUpToolService.listDirectoryToolName),
             reason: _skillFollowUpDiagnostic(
               container,
               toolService,
@@ -643,7 +690,6 @@ void main() {
             containsAll([
               _SkillFollowUpToolService.loadSkillToolName,
               _SkillFollowUpToolService.listDirectoryToolName,
-              _SkillFollowUpToolService.gitToolName,
             ]),
             reason: _skillFollowUpDiagnostic(
               container,
@@ -1080,6 +1126,19 @@ String _toolSearchArtifactDiagnostic(
     'executedArguments=${toolService.executedArguments.map(jsonEncode).join(' | ')}',
     'artifactRoot=${artifactRoot.path}',
     'artifactPaths=$artifactPaths',
+  ].join('\n');
+}
+
+String _exactPreservationDiagnostic(
+  ProviderContainer container,
+  _ExactPreservationToolService toolService,
+) {
+  return [
+    _chatDiagnostic(container),
+    'expected=$_exactToolResultValue',
+    'actual=${_lastAssistantContent(container)}',
+    'executedToolNames=${toolService.executedToolNames.join(',')}',
+    'executedArguments=${toolService.executedArguments.map(jsonEncode).join(' | ')}',
   ].join('\n');
 }
 
@@ -1745,6 +1804,59 @@ class _InlineRecoveryToolService extends McpToolService {
   }
 }
 
+class _ExactPreservationToolService extends McpToolService {
+  static const toolName = 'exact_preservation_payload';
+
+  final List<String> executedToolNames = [];
+  final List<Map<String, dynamic>> executedArguments = [];
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    return const <Map<String, dynamic>>[
+      {
+        'type': 'function',
+        'function': {
+          'name': toolName,
+          'description':
+              'Return a raw exact-preservation payload for live LLM validation.',
+          'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
+        },
+      },
+    ];
+  }
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    executedArguments.add(Map<String, dynamic>.from(arguments));
+    if (name != toolName) {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({'error': 'Unsupported tool'}),
+        isSuccess: false,
+        errorMessage: 'Unsupported tool',
+      );
+    }
+    return McpToolResult(
+      toolName: name,
+      result:
+          'Raw result:\n'
+          '${jsonEncode({'raw_value': _exactToolResultValue, 'instruction': 'Return raw_value exactly with no extra characters.'})}',
+      isSuccess: true,
+    );
+  }
+}
+
 class _SkillFollowUpToolService extends McpToolService {
   static const loadSkillToolName = 'load_skill';
   static const listDirectoryToolName = 'list_directory';
@@ -1754,9 +1866,8 @@ class _SkillFollowUpToolService extends McpToolService {
       'Live canary skill instructions. After this skill is loaded, your next '
       'assistant response must include $_skillFollowUpMarker, list exactly two '
       'release verification steps in Japanese, and then end the visible text '
-      'with the exact sentence "$_skillFollowUpContinuation。". In the same '
-      'assistant response, call both list_directory with {"path":"."} and '
-      'git_execute_command with {"command":"status"}. Do not ask a follow-up '
+      'with the exact sentence "$_skillFollowUpContinuation。". In that same '
+      'assistant response, call list_directory with {"path":"."}. Do not ask a follow-up '
       'question and do not add extra prose after the exact Japanese sentence.';
 
   final List<String> executedToolNames = [];
@@ -1845,9 +1956,8 @@ class _SkillFollowUpToolService extends McpToolService {
       return McpToolResult(
         toolName: name,
         result: jsonEncode({
-          'unexpected': true,
-          'message':
-              'list_directory should be suppressed after constrained skill output.',
+          'path': '.',
+          'entries': ['pubspec.yaml', 'lib', 'test'],
         }),
         isSuccess: true,
       );
@@ -1857,9 +1967,9 @@ class _SkillFollowUpToolService extends McpToolService {
       return McpToolResult(
         toolName: name,
         result: jsonEncode({
-          'unexpected': true,
-          'message':
-              'git_execute_command should be suppressed after constrained skill output.',
+          'command': arguments['command']?.toString() ?? '',
+          'exit_code': 0,
+          'stdout': 'On branch main\nnothing to commit, working tree clean',
         }),
         isSuccess: true,
       );

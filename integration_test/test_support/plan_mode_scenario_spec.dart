@@ -12,6 +12,9 @@ import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 
 import 'plan_mode_tool_loop_convergence.dart';
 
+const _liveExactPreservationLine =
+    'EXACT_PRESERVATION_VALUE: https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def | ZX-900_α | 2026-06-12 | ¥3,980 | 12 GiB';
+
 class PlanModeScenarioTaskSpec {
   const PlanModeScenarioTaskSpec({
     required this.title,
@@ -70,6 +73,7 @@ class PlanModeSavedWorkflowExpectation {
     this.firstTaskTargetFilesContain = const <String>[],
     this.targetFilesContain = const <String>[],
     this.openQuestionsContain = const <String>[],
+    this.textContains = const <String>[],
   });
 
   final ConversationWorkflowStage? stage;
@@ -80,6 +84,7 @@ class PlanModeSavedWorkflowExpectation {
   final List<String> firstTaskTargetFilesContain;
   final List<String> targetFilesContain;
   final List<String> openQuestionsContain;
+  final List<String> textContains;
 }
 
 class PlanModeScenarioToolOverrideSpec {
@@ -1775,6 +1780,81 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       ],
       planningProposalTimeout: const Duration(minutes: 3),
       harnessTaskExecutionLimit: 1,
+      allowedWarningPatterns: const <String>[
+        '[Workflow] Workflow proposal parse failed',
+        '[Workflow] Workflow proposal recovered on retry',
+        '[Workflow] Using fallback proposal',
+        '[LLM] Recovered raw text response after create parse failure',
+      ],
+    ),
+    PlanModeScenarioSpec(
+      name: 'live_exact_preservation_readme',
+      userPrompt:
+          'Create a reviewable plan for a README-only exact preservation '
+          'canary. Do not ask clarifying questions. The approved '
+          'implementation must contain exactly one implementation task. That '
+          'task must create or update only README.md. Do not create Python '
+          'source files, requirements.txt, test files, or any other project '
+          'files. In README.md, include this exact line copied '
+          'character-for-character with no substitutions, punctuation changes, '
+          'URL changes, date reformatting, money changes, or unit changes: '
+          '$_liveExactPreservationLine',
+      projectName: 'tmp-live-exact-preservation',
+      tags: const <String>['live', 'canary', 'exact_preservation'],
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      uiExpectations: const <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Approve and start',
+        ),
+      ],
+      artifactExpectations: const <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(
+          path: 'README.md',
+          contains: <String>[_liveExactPreservationLine],
+        ),
+        PlanModeArtifactExpectation(
+          path: 'requirements.txt',
+          shouldExist: false,
+        ),
+        PlanModeArtifactExpectation(path: 'main.py', shouldExist: false),
+        PlanModeArtifactExpectation(path: 'test_ping.py', shouldExist: false),
+      ],
+      planningProposalTimeout: const Duration(minutes: 3),
+      harnessTaskExecutionLimit: 1,
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        minTaskCount: 1,
+        firstTaskTargetFilesContain: <String>['README.md'],
+        textContains: <String>[_liveExactPreservationLine],
+      ),
+      logExpectations: const <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[Workflow] Planning research pass started',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== createChatCompletion ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[Workflow] Harness approved file operation:',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern:
+              '[Workflow] Harness stopped after reaching task execution limit: 1',
+          minCount: 1,
+        ),
+      ],
       allowedWarningPatterns: const <String>[
         '[Workflow] Workflow proposal parse failed',
         '[Workflow] Workflow proposal recovered on retry',

@@ -88,6 +88,12 @@ class ConversationPlanningPromptService {
       ..writeln(
         '- Do not put yes/no, direct preference choices, or direct user-input prompts into openQuestions when they should be decisions instead.',
       )
+      ..writeln(
+        '- Preserve exact literal values from user messages, saved plans, research context, and tool results in every JSON text field. Do not abbreviate, translate, normalize, naturalize, infer, or replace URLs, file paths, file names, IDs, tokens, dates, times, money values, unit values, JSON keys, or scalar values unless the user explicitly requests conversion.',
+      )
+      ..writeln(
+        '- If an exact value is too long to repeat safely, keep the relevant field concise without replacing the value with placeholders such as "EXACT..." or "the URL".',
+      )
       ..writeln('- Never output explanatory prose outside JSON.');
 
     if (project != null) {
@@ -254,6 +260,12 @@ class ConversationPlanningPromptService {
             ? '- Keep notes brief and keep the whole response under 180 tokens.'
             : '- validationCommand and notes may be empty strings.',
       )
+      ..writeln(
+        '- Preserve exact literal values from user messages, saved workflow fields, research context, and tool results in title, targetFiles, validationCommand, and notes. Do not abbreviate, translate, normalize, naturalize, infer, or replace URLs, file paths, file names, IDs, tokens, dates, times, money values, unit values, JSON keys, or scalar values unless the user explicitly requests conversion.',
+      )
+      ..writeln(
+        '- If an exact value is too long to repeat safely, keep the relevant field concise without replacing the value with placeholders such as "EXACT..." or "the URL".',
+      )
       ..writeln('- Never output explanatory prose outside JSON.');
 
     if (project != null) {
@@ -342,13 +354,25 @@ class ConversationPlanningPromptService {
 
     final clipped = lines
         .map(
-          (line) => line.length > 140 ? '${line.substring(0, 140)}...' : line,
+          (line) => _clipTextPreservingTail(
+            line,
+            maxLength: 140,
+            headLength: 64,
+            tailLength: 64,
+            marker: '...[tail preserved]...',
+          ),
         )
         .join('\n');
     if (clipped.length <= 420) {
       return clipped;
     }
-    return '${clipped.substring(0, 417)}...';
+    return _clipTextPreservingTail(
+      clipped,
+      maxLength: 420,
+      headLength: 196,
+      tailLength: 196,
+      marker: '...[tail preserved]...',
+    );
   }
 
   static String buildProposalTranscript(List<Message> messages) {
@@ -365,13 +389,36 @@ class ConversationPlanningPromptService {
       if (plainText.isEmpty) {
         continue;
       }
-      final clipped = plainText.length > 500
-          ? '${plainText.substring(0, 500)}...'
-          : plainText;
+      final clipped = _clipProposalTranscriptMessage(plainText);
       buffer.writeln('- ${message.role.name}: $clipped');
     }
 
     return buffer.toString().trimRight();
+  }
+
+  static String _clipProposalTranscriptMessage(String plainText) {
+    return _clipTextPreservingTail(
+      plainText,
+      maxLength: 1000,
+      headLength: 480,
+      tailLength: 480,
+      marker: '...[middle omitted; tail preserved for exact values]...',
+    );
+  }
+
+  static String _clipTextPreservingTail(
+    String value, {
+    required int maxLength,
+    required int headLength,
+    required int tailLength,
+    required String marker,
+  }) {
+    if (value.length <= maxLength) {
+      return value;
+    }
+    final head = value.substring(0, headLength).trimRight();
+    final tail = value.substring(value.length - tailLength).trimLeft();
+    return '$head\n$marker\n$tail';
   }
 
   static String proposalLanguageName(String languageCode) {

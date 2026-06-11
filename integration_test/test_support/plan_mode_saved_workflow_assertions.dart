@@ -88,6 +88,12 @@ void assertPlanModeSavedWorkflowExpectation({
   for (final openQuestion in expectation.openQuestionsContain) {
     expect(savedWorkflow.openQuestions, contains(openQuestion));
   }
+  if (expectation.textContains.isNotEmpty) {
+    final savedWorkflowText = _savedWorkflowSearchText(savedWorkflow);
+    for (final expectedText in expectation.textContains) {
+      expect(savedWorkflowText, contains(expectedText));
+    }
+  }
 }
 
 String _savedWorkflowTaskTitles(ConversationWorkflowSpec savedWorkflow) {
@@ -95,6 +101,22 @@ String _savedWorkflowTaskTitles(ConversationWorkflowSpec savedWorkflow) {
       .map((task) => task.title.trim())
       .where((title) => title.isNotEmpty)
       .join(' | ');
+}
+
+String _savedWorkflowSearchText(ConversationWorkflowSpec savedWorkflow) {
+  final buffer = StringBuffer()
+    ..writeln(savedWorkflow.goal)
+    ..writeln(savedWorkflow.constraints.join('\n'))
+    ..writeln(savedWorkflow.acceptanceCriteria.join('\n'))
+    ..writeln(savedWorkflow.openQuestions.join('\n'));
+  for (final task in savedWorkflow.tasks) {
+    buffer
+      ..writeln(task.title)
+      ..writeln(task.targetFiles.join('\n'))
+      ..writeln(task.validationCommand)
+      ..writeln(task.notes);
+  }
+  return buffer.toString();
 }
 
 String _normalizeSavedWorkflowTaskTitle(String value) {

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/test_support/plan_mode_scenario_config.dart';
@@ -29,6 +31,10 @@ void main() {
       expect(config.deviceName, 'macos');
       expect(config.suiteName, 'plan_mode_scenarios_macos');
       expect(config.reportPrefix, 'plan_mode_suite_macos');
+      expect(
+        config.reportRootPath,
+        '${Directory.current.path}/build/integration_test_reports',
+      );
       expect(config.failOnWarnings, isTrue);
       expect(config.requestedTags, const <String>['smoke', 'recovery']);
       expect(config.scenarios.map((scenario) => scenario.name), const <String>[
@@ -57,6 +63,10 @@ void main() {
       expect(config.usesLiveLlm, isTrue);
       expect(config.suiteName, 'plan_mode_live_scenarios_macos');
       expect(config.reportPrefix, 'plan_mode_live_suite_macos');
+      expect(
+        config.reportRootPath,
+        '${Directory.current.path}/build/integration_test_reports',
+      );
       expect(config.baseUrl, 'http://localhost:1234/v1');
       expect(config.apiKey, 'test-key');
       expect(config.model, 'test-model');
@@ -74,6 +84,19 @@ void main() {
         ),
         throwsStateError,
       );
+    });
+
+    test('resolves report root override', () {
+      final config = resolvePlanModeScenarioTestConfig(
+        environment: const {
+          'CAVERNO_PLAN_MODE_REPORT_ROOT': ' /tmp/caverno-qwen-gate ',
+        },
+        defaultDeviceName: 'macos',
+        deterministicScenarios: <PlanModeScenarioSpec>[_scenario('fake')],
+        liveScenarios: <PlanModeScenarioSpec>[_scenario('live')],
+      );
+
+      expect(config.reportRootPath, '/tmp/caverno-qwen-gate');
     });
 
     test('resolves timeout overrides from seconds', () {

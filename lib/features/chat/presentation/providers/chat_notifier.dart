@@ -11590,9 +11590,13 @@ class ChatNotifier extends Notifier<ChatState> {
           hasTextResponse = true;
           break;
         }
+        final skillTerminalToolResults =
+            _hasSuccessfulLoadSkillResult(batchToolResults)
+            ? batchToolResults
+            : executedToolResults;
         if (_shouldAcceptTerminalSkillToolRoleResponse(
           fallbackResponse,
-          batchToolResults,
+          skillTerminalToolResults,
         )) {
           appLog(
             '[Tool] Accepting terminal skill tool-role response without final answer fallback',
@@ -11600,7 +11604,7 @@ class ChatNotifier extends Notifier<ChatState> {
           final normalizedSkillResponse =
               _normalizeTerminalSkillToolRoleResponse(
                 fallbackResponse,
-                batchToolResults,
+                skillTerminalToolResults,
               );
           _appendRecoveredAssistantResponse(
             normalizedSkillResponse,

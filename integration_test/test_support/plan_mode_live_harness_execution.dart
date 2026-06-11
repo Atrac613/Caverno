@@ -12,6 +12,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_execution_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 
 import 'plan_mode_execution_progress.dart';
@@ -232,6 +233,7 @@ Future<void> _runApprovedTaskFromHarness(
       }
       final producedEvidence = await _runHarnessTaskTurn(
         container,
+        scenarioDir: scenarioDir,
         task: currentTask,
         previousAssistantMessageId: currentPreviousAssistantMessageId,
         prompt: currentPrompt,
@@ -405,6 +407,7 @@ Future<void> _runApprovedTaskFromHarness(
 
 Future<bool> _runHarnessTaskTurn(
   ProviderContainer container, {
+  required Directory scenarioDir,
   required ConversationWorkflowTask task,
   required String? previousAssistantMessageId,
   required String prompt,
@@ -418,15 +421,21 @@ Future<bool> _runHarnessTaskTurn(
   final conversationsNotifier = container.read(
     conversationsNotifierProvider.notifier,
   );
-  if (useHiddenPrompt) {
-    await chatNotifier.sendHiddenPrompt(prompt, languageCode: 'en');
-  } else {
-    await chatNotifier.sendMessage(
-      prompt,
-      languageCode: 'en',
-      bypassPlanMode: true,
-    );
-  }
+  await _sendHarnessPromptWithApprovals(
+    container,
+    scenarioDir: scenarioDir,
+    cancellationSignal: cancellationSignal,
+    send: () {
+      if (useHiddenPrompt) {
+        return chatNotifier.sendHiddenPrompt(prompt, languageCode: 'en');
+      }
+      return chatNotifier.sendMessage(
+        prompt,
+        languageCode: 'en',
+        bypassPlanMode: true,
+      );
+    },
+  );
   if (cancellationSignal.isCancellationRequested) {
     return false;
   }
@@ -462,6 +471,111 @@ Future<bool> _runHarnessTaskTurn(
         fallbackAssistantResponse: fallbackResponse,
       );
   return true;
+}
+
+Future<void> _sendHarnessPromptWithApprovals(
+  ProviderContainer container, {
+  required Directory scenarioDir,
+  required Future<void> Function() send,
+  required PlanModeHarnessCancellationSignal cancellationSignal,
+}) async {
+  final chatNotifier = container.read(chatNotifierProvider.notifier);
+  final completion = Completer<void>();
+  unawaited(
+    send()
+        .then((_) {
+          if (!completion.isCompleted) {
+            completion.complete();
+          }
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          if (!completion.isCompleted) {
+            completion.completeError(error, stackTrace);
+          }
+        }),
+  );
+
+  while (!completion.isCompleted) {
+    final pendingFileOperation = container
+        .read(chatNotifierProvider)
+        .pendingFileOperation;
+    if (pendingFileOperation != null) {
+      final approved =
+          !cancellationSignal.isCancellationRequested &&
+          _isSafeHarnessFileOperation(pendingFileOperation, scenarioDir);
+      chatNotifier.resolveFileOperation(
+        id: pendingFileOperation.id,
+        approved: approved,
+      );
+      appLog(
+        approved
+            ? '[Workflow] Harness approved file operation: '
+                  '${pendingFileOperation.operation} ${pendingFileOperation.path}'
+            : '[Workflow] Harness denied file operation: '
+                  '${pendingFileOperation.operation} ${pendingFileOperation.path}',
+      );
+    }
+    final pendingLocalCommand = container
+        .read(chatNotifierProvider)
+        .pendingLocalCommand;
+    if (pendingLocalCommand != null) {
+      final approved =
+          !cancellationSignal.isCancellationRequested &&
+          _isSafeHarnessLocalCommand(pendingLocalCommand, scenarioDir);
+      chatNotifier.resolveLocalCommand(
+        id: pendingLocalCommand.id,
+        approval: LocalCommandApproval(approved: approved),
+      );
+      appLog(
+        approved
+            ? '[Workflow] Harness approved local command: '
+                  '${pendingLocalCommand.command}'
+            : '[Workflow] Harness denied local command: '
+                  '${pendingLocalCommand.command}',
+      );
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+  }
+
+  await completion.future;
+}
+
+bool _isSafeHarnessFileOperation(
+  PendingFileOperation pending,
+  Directory scenarioDir,
+) {
+  final path = pending.path.trim();
+  if (path.isEmpty) {
+    return false;
+  }
+  if (path.startsWith(Platform.pathSeparator)) {
+    return _isWithinScenarioWorkspace(path, scenarioDir);
+  }
+  final segments = path.split(RegExp(r'[/\\]+'));
+  return !segments.contains('..');
+}
+
+bool _isSafeHarnessLocalCommand(
+  PendingLocalCommand pending,
+  Directory scenarioDir,
+) {
+  final command = pending.command.trimLeft();
+  final usesScenarioWorkspace =
+      command.contains(scenarioDir.path) ||
+      _isWithinScenarioWorkspace(pending.workingDirectory.trim(), scenarioDir);
+  if (!usesScenarioWorkspace) {
+    return false;
+  }
+  return command.startsWith('grep ') || command.startsWith('/usr/bin/grep ');
+}
+
+bool _isWithinScenarioWorkspace(String path, Directory scenarioDir) {
+  if (path.isEmpty) {
+    return false;
+  }
+  final scenarioPath = scenarioDir.path;
+  return path == scenarioPath ||
+      path.startsWith('$scenarioPath${Platform.pathSeparator}');
 }
 
 List<String> missingPlanModeHarnessTargetFiles(
