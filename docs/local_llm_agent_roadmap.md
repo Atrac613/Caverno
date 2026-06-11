@@ -468,10 +468,15 @@ tool-loop iterations currently inherit the single user-facing temperature
 (default 0.7), while secondary calls hardcode 0.0-0.1. Three layers fix this.
 
 Scope:
-- Layer 1 (static request-class split, no probing): tool-loop iterations and
-  plan/edit requests run at a low default temperature distinct from the
-  final prose answer, which keeps the user-facing temperature. The
-  datasource already accepts per-request temperature, so this is wiring.
+- Layer 1 (static request-class split, no probing): the user-facing
+  temperature slider is rescoped to chat prose only. Agentic surfaces get a
+  managed low default (0.1-0.2, never 0.0) instead of inheriting it:
+  tool-loop iterations in any mode, coding/plan mode requests, routine
+  executions (`routine_execution_service.dart` currently passes
+  `_settings.temperature` unattended), and subagent runs. The settings UI
+  relabels the slider as chat temperature with helper text explaining the
+  split. The datasource already accepts per-request temperature, so this is
+  wiring.
 - Layer 2 (probe calibration, LL3 machinery): on model registration, score a
   small temperature matrix (roughly 0.0/0.2/0.4/0.7, repeated runs) on
   tool-call validity, edit-block applicability, and repetition degeneration;
@@ -491,6 +496,9 @@ Acceptance criteria:
   when the probe shows degeneration).
 - The user-facing temperature setting keeps controlling final prose answers;
   calibration never silently overrides explicit per-role user choices.
+- Routines and coding tool loops no longer read the chat temperature; their
+  managed defaults are visible in diagnostics so a support report shows
+  which temperature actually served each request.
 
 ## Cross-Cutting Rules
 
