@@ -822,10 +822,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Widget _buildConversationDrawer({
     required bool closeOnAction,
     double? width,
+    bool useRemoteCodingDrawer = false,
   }) {
     return ConversationDrawer(
       closeOnAction: closeOnAction,
       width: width,
+      codingWorkspaceDrawerBuilder: useRemoteCodingDrawer
+          ? (context, closeDrawer) =>
+                RemoteCodingDrawerSection(closeDrawer: closeDrawer)
+          : null,
       onWorkspaceModeSelected: _switchWorkspaceMode,
       onCodingProjectSelected: _activateCodingProject,
       onConversationSelected: _selectDrawerConversation,
@@ -1781,7 +1786,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             ),
       drawer: usePersistentDrawer
           ? null
-          : _buildConversationDrawer(closeOnAction: true),
+          : _buildConversationDrawer(
+              closeOnAction: true,
+              useRemoteCodingDrawer: isMobileRemoteCoding,
+            ),
       // The persistent drawer exposes a create button in its routines list, but
       // the temporary drawer closes after switching workspaces and leaves the
       // read-only home dashboard without one. Surface a create FAB so mobile can

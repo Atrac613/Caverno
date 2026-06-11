@@ -13,6 +13,7 @@ import 'package:caverno/features/chat/presentation/providers/conversations_notif
 import 'package:caverno/features/chat/presentation/widgets/conversation_drawer.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
+import 'package:caverno/features/remote_coding/presentation/remote_coding_client_notifier.dart';
 import 'package:caverno/features/remote_coding/presentation/remote_coding_page.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -159,6 +160,95 @@ class _TestChatNotifier extends ChatNotifier {
   ChatState build() => ChatState.initial();
 }
 
+class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
+  static final _generatedAt = DateTime(2026, 6, 3, 12);
+
+  @override
+  RemoteCodingClientState build() {
+    return RemoteCodingClientState(
+      status: RemoteCodingConnectionStatus.connected,
+      host: RemoteCodingHost(
+        id: 'desktop-1',
+        name: 'Desktop',
+        host: '192.168.1.10',
+        port: 8767,
+        createdAt: _generatedAt,
+        updatedAt: _generatedAt,
+      ),
+      projects: const [
+        RemoteCodingProjectSummary(
+          id: 'project-1',
+          name: 'Caverno',
+          rootPath: '/workspace/caverno',
+        ),
+        RemoteCodingProjectSummary(
+          id: 'project-2',
+          name: 'Universal BLE',
+          rootPath: '/workspace/universal_ble',
+        ),
+      ],
+      selectedProjectId: 'project-1',
+      threads: [
+        RemoteCodingThreadSummary(
+          id: 'thread-1',
+          title: 'Mobile drawer thread',
+          projectId: 'project-1',
+          updatedAt: _generatedAt,
+        ),
+      ],
+      currentConversationId: 'thread-1',
+      snapshotGeneratedAt: _generatedAt,
+    );
+  }
+
+  @override
+  Future<void> requestSnapshot() async {
+    state = state.copyWith(snapshotSequence: state.snapshotSequence + 1);
+  }
+
+  @override
+  Future<void> selectProject(String projectId) async {
+    final thread = RemoteCodingThreadSummary(
+      id: projectId == 'project-2' ? 'thread-2' : 'thread-1',
+      title: projectId == 'project-2'
+          ? 'Other remote thread'
+          : 'Mobile drawer thread',
+      projectId: projectId,
+      updatedAt: _generatedAt,
+    );
+    state = state.copyWith(
+      selectedProjectId: projectId,
+      threads: [thread],
+      currentConversationId: thread.id,
+    );
+  }
+
+  @override
+  Future<void> selectConversation(String conversationId) async {
+    state = state.copyWith(currentConversationId: conversationId);
+  }
+
+  @override
+  Future<void> createThread({String? projectId}) async {
+    final targetProjectId = projectId ?? state.selectedProjectId;
+    if (targetProjectId == null) {
+      return;
+    }
+    const threadId = 'created-thread';
+    final thread = RemoteCodingThreadSummary(
+      id: threadId,
+      title: 'Created remote thread',
+      projectId: targetProjectId,
+      updatedAt: _generatedAt,
+    );
+    state = state.copyWith(
+      selectedProjectId: targetProjectId,
+      threads: [thread, ...state.threads],
+      currentConversationId: threadId,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
@@ -229,6 +319,54 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ConversationDrawer), findsOneWidget);
+  });
+
+  testWidgets('mobile remote coding lists projects and threads in the drawer', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+
+    final container = await _pumpCodingWorkspace(
+      tester,
+      size: const Size(390, 844),
+      connectRemoteClient: true,
+    );
+
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('remote-drawer-project-project-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('remote-drawer-project-project-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('remote-drawer-thread-thread-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('drawer-project-project-1')),
+      findsNothing,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('remote-drawer-project-project-2')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(remoteCodingClientProvider).selectedProjectId,
+      'project-2',
+    );
+    expect(
+      find.byKey(const ValueKey('remote-drawer-thread-thread-2')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('desktop coding tab keeps local project controls', (
@@ -385,6 +523,7 @@ void main() {
 Future<ProviderContainer> _pumpCodingWorkspace(
   WidgetTester tester, {
   Size size = const Size(1200, 900),
+  bool connectRemoteClient = false,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -405,6 +544,10 @@ Future<ProviderContainer> _pumpCodingWorkspace(
       ),
       chatNotifierProvider.overrideWith(_TestChatNotifier.new),
       routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
+      if (connectRemoteClient)
+        remoteCodingClientProvider.overrideWith(
+          _ConnectedRemoteCodingClientNotifier.new,
+        ),
     ],
   );
   addTearDown(container.dispose);

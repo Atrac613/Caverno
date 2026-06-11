@@ -21,6 +21,9 @@ import '../providers/conversations_notifier.dart';
 const _collapsedCodingProjectIdsPrefsKey =
     'conversationDrawer.collapsedCodingProjectIds';
 
+typedef CodingWorkspaceDrawerBuilder =
+    Widget Function(BuildContext context, VoidCallback closeDrawer);
+
 class ConversationDrawer extends ConsumerStatefulWidget {
   const ConversationDrawer({
     super.key,
@@ -28,6 +31,7 @@ class ConversationDrawer extends ConsumerStatefulWidget {
     required this.onCodingProjectSelected,
     required this.onConversationSelected,
     required this.onAddCodingProject,
+    this.codingWorkspaceDrawerBuilder,
     this.closeOnAction = true,
     this.width,
   });
@@ -37,6 +41,7 @@ class ConversationDrawer extends ConsumerStatefulWidget {
   final Future<void> Function(String projectId) onCodingProjectSelected;
   final Future<void> Function(String conversationId) onConversationSelected;
   final Future<void> Function() onAddCodingProject;
+  final CodingWorkspaceDrawerBuilder? codingWorkspaceDrawerBuilder;
   final bool closeOnAction;
   final double? width;
 
@@ -95,56 +100,62 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                   ),
                   closeDrawer: () => _closeDrawerIfNeeded(context),
                 ),
-                WorkspaceMode.coding => _CodingProjectsSection(
-                  projectsState: projectsState,
-                  conversationsState: conversationsState,
-                  conversationsNotifier: conversationsNotifier,
-                  expandedProjectIds: _expandedProjectIds,
-                  collapsedProjectIds: _collapsedProjectIds,
-                  collapsedThreadLimit: _collapsedProjectThreadLimit,
-                  onAddProject: widget.onAddCodingProject,
-                  onProjectSelected: (projectId) async {
-                    setState(() {
-                      _collapsedProjectIds.remove(projectId);
-                    });
-                    _persistCollapsedProjectIds();
-                    await widget.onCodingProjectSelected(projectId);
-                  },
-                  onConversationSelected: (conversationId) =>
-                      _selectConversation(context, conversationId),
-                  onDeleteConversation: (conversation) => _showDeleteDialog(
-                    context,
-                    conversationsNotifier,
-                    conversation,
-                  ),
-                  onDeleteAllThreads: () => _showDeleteScopedDialog(
-                    context,
-                    conversationsNotifier,
-                    isCodingWorkspace: true,
-                  ),
-                  onDeleteProject: (project) => _showDeleteProjectDialog(
-                    context,
-                    conversationsNotifier,
-                    projectsNotifier,
-                    project,
-                  ),
-                  onToggleProjectExpanded: (projectId) {
-                    setState(() {
-                      if (!_expandedProjectIds.add(projectId)) {
-                        _expandedProjectIds.remove(projectId);
-                      }
-                    });
-                  },
-                  onToggleProjectCollapsed: (projectId) {
-                    setState(() {
-                      if (!_collapsedProjectIds.add(projectId)) {
-                        _collapsedProjectIds.remove(projectId);
-                      }
-                    });
-                    _persistCollapsedProjectIds();
-                  },
-                  closeDrawer: () => _closeDrawerIfNeeded(context),
-                ),
+                WorkspaceMode.coding =>
+                  widget.codingWorkspaceDrawerBuilder?.call(
+                        context,
+                        () => _closeDrawerIfNeeded(context),
+                      ) ??
+                      _CodingProjectsSection(
+                        projectsState: projectsState,
+                        conversationsState: conversationsState,
+                        conversationsNotifier: conversationsNotifier,
+                        expandedProjectIds: _expandedProjectIds,
+                        collapsedProjectIds: _collapsedProjectIds,
+                        collapsedThreadLimit: _collapsedProjectThreadLimit,
+                        onAddProject: widget.onAddCodingProject,
+                        onProjectSelected: (projectId) async {
+                          setState(() {
+                            _collapsedProjectIds.remove(projectId);
+                          });
+                          _persistCollapsedProjectIds();
+                          await widget.onCodingProjectSelected(projectId);
+                        },
+                        onConversationSelected: (conversationId) =>
+                            _selectConversation(context, conversationId),
+                        onDeleteConversation: (conversation) =>
+                            _showDeleteDialog(
+                              context,
+                              conversationsNotifier,
+                              conversation,
+                            ),
+                        onDeleteAllThreads: () => _showDeleteScopedDialog(
+                          context,
+                          conversationsNotifier,
+                          isCodingWorkspace: true,
+                        ),
+                        onDeleteProject: (project) => _showDeleteProjectDialog(
+                          context,
+                          conversationsNotifier,
+                          projectsNotifier,
+                          project,
+                        ),
+                        onToggleProjectExpanded: (projectId) {
+                          setState(() {
+                            if (!_expandedProjectIds.add(projectId)) {
+                              _expandedProjectIds.remove(projectId);
+                            }
+                          });
+                        },
+                        onToggleProjectCollapsed: (projectId) {
+                          setState(() {
+                            if (!_collapsedProjectIds.add(projectId)) {
+                              _collapsedProjectIds.remove(projectId);
+                            }
+                          });
+                          _persistCollapsedProjectIds();
+                        },
+                        closeDrawer: () => _closeDrawerIfNeeded(context),
+                      ),
                 WorkspaceMode.routines => _RoutinesSection(
                   closeDrawer: () => _closeDrawerIfNeeded(context),
                 ),

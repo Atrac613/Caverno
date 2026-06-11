@@ -268,10 +268,13 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     });
   }
 
-  Future<void> createThread() {
-    return _sendCommand('createThread', {
-      if (state.selectedProjectId != null) 'projectId': state.selectedProjectId,
-    });
+  Future<void> createThread({String? projectId}) {
+    final targetProjectId = projectId ?? state.selectedProjectId;
+    final payload = <String, dynamic>{};
+    if (targetProjectId != null) {
+      payload['projectId'] = targetProjectId;
+    }
+    return _sendCommand('createThread', payload);
   }
 
   Future<void> sendMessage(String content, {String languageCode = 'en'}) {
