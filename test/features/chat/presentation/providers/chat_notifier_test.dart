@@ -3572,6 +3572,63 @@ void main() {
   );
 
   test(
+    'sendMessage marks Japanese git commit claim without tool call as unexecuted',
+    () async {
+      const finalContent = 'pubspec.yaml をステージしてコミットします。';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: finalContent,
+        initialStreamChunks: const [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'git_execute_command': 'Execute a git command.'},
+        results: const {'git_execute_command': '{"exit_code":0}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('commit');
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(
+          'The requested command was not executed because no successful command-execution tool result is available.',
+        ),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains(finalContent)),
+      );
+    },
+  );
+
+  test(
     'sendMessage marks Japanese release execution claim without tool call as unexecuted',
     () async {
       const finalContent = '本番リリースを開始しました。まず macOS 側が進行中です。進捗を確認します。';
