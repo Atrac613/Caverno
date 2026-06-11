@@ -74,6 +74,7 @@ import '../../domain/services/subagent_tool_policy.dart';
 import '../../../settings/domain/services/local_command_permission_service.dart';
 import 'chat_state.dart';
 import 'chat_tool_dispatcher.dart';
+import 'chat_tool_execution_log_formatter.dart';
 import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
 import 'macos_computer_use_approval_copy.dart';
@@ -10584,13 +10585,11 @@ class ChatNotifier extends Notifier<ChatState> {
     ToolExecutionLifecycleEvent event, {
     required int loopIndex,
   }) {
-    _logToolLifecycleEvent(
-      toolCall: event.toolCall,
-      lifecycleState: event.state.name,
-      loopIndex: loopIndex,
-      schedulerMode: event.schedulerMode,
-      resultStatus: event.resultStatus,
-      durationMs: event.durationMs,
+    appLog(
+      ChatToolExecutionLogFormatter.lifecycleLineForEvent(
+        event,
+        loopIndex: loopIndex,
+      ),
     );
   }
 
@@ -10603,25 +10602,17 @@ class ChatNotifier extends Notifier<ChatState> {
     String? skipReason,
     int? durationMs,
   }) {
-    final payload = <String, Object?>{
-      'toolCallId': toolCall.id,
-      'toolName': toolCall.name,
-      'lifecycleState': lifecycleState,
-      'loopIndex': loopIndex,
-    };
-    if (schedulerMode != null) {
-      payload['schedulerClass'] = schedulerMode.name;
-    }
-    if (resultStatus != null) {
-      payload['resultStatus'] = resultStatus;
-    }
-    if (skipReason != null) {
-      payload['skipReason'] = skipReason;
-    }
-    if (durationMs != null) {
-      payload['durationMs'] = durationMs;
-    }
-    appLog('[Tool] Lifecycle ${jsonEncode(payload)}');
+    appLog(
+      ChatToolExecutionLogFormatter.lifecycleLine(
+        toolCall: toolCall,
+        lifecycleState: lifecycleState,
+        loopIndex: loopIndex,
+        schedulerMode: schedulerMode,
+        resultStatus: resultStatus,
+        skipReason: skipReason,
+        durationMs: durationMs,
+      ),
+    );
   }
 
   /// Executes tool calls, supporting a repeated tool-call loop.
@@ -10766,11 +10757,7 @@ class ChatNotifier extends Notifier<ChatState> {
         onLifecycle: (event) =>
             _logScheduledToolLifecycleEvent(event, loopIndex: iteration),
         onBatch: (telemetry) {
-          appLog(
-            '[Tool] Scheduler ${telemetry.mode.name} batch '
-            '(size=${telemetry.batchSize}, tools=${telemetry.toolNames.join(', ')})'
-            '${telemetry.note == null ? '' : ' • ${telemetry.note}'}',
-          );
+          appLog(ChatToolExecutionLogFormatter.schedulerBatchLine(telemetry));
         },
       );
 
@@ -12205,9 +12192,10 @@ class ChatNotifier extends Notifier<ChatState> {
           _logScheduledToolLifecycleEvent(event, loopIndex: loopIndex),
       onBatch: (telemetry) {
         appLog(
-          '[Tool] Scheduler ${telemetry.mode.name} final inspection batch '
-          '(size=${telemetry.batchSize}, tools=${telemetry.toolNames.join(', ')})'
-          '${telemetry.note == null ? '' : ' • ${telemetry.note}'}',
+          ChatToolExecutionLogFormatter.schedulerBatchLine(
+            telemetry,
+            finalInspection: true,
+          ),
         );
       },
     );
