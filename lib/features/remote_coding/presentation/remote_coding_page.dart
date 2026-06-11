@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -75,9 +76,6 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
         children: [
           _RemoteCodingHeader(
             state: state,
-            onProjectSelected: notifier.selectProject,
-            onThreadSelected: notifier.selectConversation,
-            onCreateThread: notifier.createThread,
             onRefresh: notifier.requestSnapshot,
           ),
           if (state.error?.isNotEmpty == true)
@@ -541,137 +539,408 @@ class _RemoteTroubleshootingCard extends StatelessWidget {
   }
 }
 
-class _RemoteCodingHeader extends StatelessWidget {
-  const _RemoteCodingHeader({
-    required this.state,
-    required this.onProjectSelected,
-    required this.onThreadSelected,
-    required this.onCreateThread,
-    required this.onRefresh,
+class RemoteCodingDrawerSection extends ConsumerWidget {
+  const RemoteCodingDrawerSection({super.key, required this.closeDrawer});
+
+  final VoidCallback closeDrawer;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(remoteCodingClientProvider);
+    final notifier = ref.read(remoteCodingClientProvider.notifier);
+
+    return Column(
+      children: [
+        _RemoteDrawerSectionHeader(
+          title: 'Projects',
+          actions: [
+            _RemoteDrawerIconButton(
+              icon: Icons.refresh,
+              tooltip: 'Refresh',
+              onPressed: state.isConnected
+                  ? () => unawaited(notifier.requestSnapshot())
+                  : null,
+            ),
+          ],
+        ),
+        Expanded(
+          child: !state.isConnected
+              ? const _RemoteDrawerEmptyState(
+                  message:
+                      'Connect to a desktop before selecting remote projects.',
+                )
+              : state.projects.isEmpty
+              ? const _RemoteDrawerEmptyState(
+                  message: 'No desktop projects yet.',
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  itemCount: state.projects.length,
+                  itemBuilder: (context, index) {
+                    final project = state.projects[index];
+                    return _RemoteProjectThreadGroup(
+                      project: project,
+                      threads: _remoteThreadsForProject(state, project.id),
+                      isSelected: project.id == state.selectedProjectId,
+                      selectedThreadId: state.currentConversationId,
+                      onProjectSelected: () =>
+                          unawaited(notifier.selectProject(project.id)),
+                      onCreateThread: () {
+                        closeDrawer();
+                        unawaited(notifier.createThread(projectId: project.id));
+                      },
+                      onThreadSelected: (threadId) {
+                        closeDrawer();
+                        unawaited(notifier.selectConversation(threadId));
+                      },
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RemoteDrawerSectionHeader extends StatelessWidget {
+  const _RemoteDrawerSectionHeader({
+    required this.title,
+    required this.actions,
   });
 
-  final RemoteCodingClientState state;
-  final ValueChanged<String> onProjectSelected;
-  final ValueChanged<String> onThreadSelected;
-  final VoidCallback onCreateThread;
-  final VoidCallback onRefresh;
+  final String title;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
-    final projectValue =
-        state.projects.any((project) => project.id == state.selectedProjectId)
-        ? state.selectedProjectId
-        : null;
-    final projectIds = state.projects.map((project) => project.id).join('|');
-    final threadValue =
-        state.threads.any((thread) => thread.id == state.currentConversationId)
-        ? state.currentConversationId
-        : null;
-    final threadIds = state.threads.map((thread) => thread.id).join('|');
-    final snapshotGeneratedAt = state.snapshotGeneratedAt;
-    final updatedLabel = snapshotGeneratedAt == null
-        ? null
-        : TimeOfDay.fromDateTime(snapshotGeneratedAt.toLocal()).format(context);
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      child: Column(
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 4),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  key: ValueKey('remote-project-$projectIds-$projectValue'),
-                  initialValue: projectValue,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Project',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  items: state.projects
-                      .map(
-                        (project) => DropdownMenuItem(
-                          value: project.id,
-                          child: Text(
-                            project.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) onProjectSelected(value);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh',
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  key: ValueKey(
-                    'remote-thread-$projectValue-$threadIds-$threadValue',
-                  ),
-                  initialValue: threadValue,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Thread',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  items: state.threads
-                      .map(
-                        (thread) => DropdownMenuItem(
-                          value: thread.id,
-                          child: Text(
-                            thread.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) onThreadSelected(value);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: state.selectedProjectId == null
-                    ? null
-                    : onCreateThread,
-                icon: const Icon(Icons.add),
-                tooltip: 'New Thread',
-              ),
-            ],
-          ),
-          if (updatedLabel != null) ...[
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Updated $updatedLabel',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
-          ],
+          ),
+          ...actions,
         ],
       ),
     );
   }
+}
+
+class _RemoteDrawerIconButton extends StatelessWidget {
+  const _RemoteDrawerIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon, size: 20),
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+      onPressed: onPressed,
+    );
+  }
+}
+
+class _RemoteDrawerEmptyState extends StatelessWidget {
+  const _RemoteDrawerEmptyState({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.grey),
+        ),
+      ),
+    );
+  }
+}
+
+class _RemoteProjectThreadGroup extends StatelessWidget {
+  const _RemoteProjectThreadGroup({
+    required this.project,
+    required this.threads,
+    required this.isSelected,
+    required this.selectedThreadId,
+    required this.onProjectSelected,
+    required this.onCreateThread,
+    required this.onThreadSelected,
+  });
+
+  final RemoteCodingProjectSummary project;
+  final List<RemoteCodingThreadSummary> threads;
+  final bool isSelected;
+  final String? selectedThreadId;
+  final VoidCallback onProjectSelected;
+  final VoidCallback onCreateThread;
+  final ValueChanged<String> onThreadSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _RemoteProjectTile(
+          project: project,
+          isSelected: isSelected,
+          onTap: onProjectSelected,
+          onCreateThread: onCreateThread,
+        ),
+        if (isSelected)
+          for (final thread in threads)
+            _RemoteThreadTile(
+              thread: thread,
+              isSelected: thread.id == selectedThreadId,
+              onTap: () => onThreadSelected(thread.id),
+            ),
+        if (isSelected && threads.isEmpty)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(52, 4, 16, 8),
+            child: Text(
+              'No threads yet.',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _RemoteProjectTile extends StatelessWidget {
+  const _RemoteProjectTile({
+    required this.project,
+    required this.isSelected,
+    required this.onTap,
+    required this.onCreateThread,
+  });
+
+  final RemoteCodingProjectSummary project;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onCreateThread;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      key: ValueKey('remote-drawer-project-${project.id}'),
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsetsDirectional.only(start: 16, end: 6),
+      selected: isSelected,
+      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
+        alpha: 0.3,
+      ),
+      leading: Icon(
+        Icons.folder_outlined,
+        size: 20,
+        color: isSelected ? theme.colorScheme.primary : null,
+      ),
+      title: Text(
+        project.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      subtitle: project.rootPath.isEmpty
+          ? null
+          : Text(
+              project.rootPath,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+      trailing: IconButton(
+        icon: const Icon(Icons.add, size: 18),
+        tooltip: 'New Thread',
+        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+        onPressed: onCreateThread,
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _RemoteThreadTile extends StatelessWidget {
+  const _RemoteThreadTile({
+    required this.thread,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final RemoteCodingThreadSummary thread;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      key: ValueKey('remote-drawer-thread-${thread.id}'),
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsets.only(left: 52, right: 16),
+      selected: isSelected,
+      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
+        alpha: 0.3,
+      ),
+      title: Text(
+        thread.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      subtitle: Text(
+        _formatRemoteThreadDate(thread.updatedAt),
+        style: TextStyle(
+          fontSize: 12,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _RemoteCodingHeader extends StatelessWidget {
+  const _RemoteCodingHeader({required this.state, required this.onRefresh});
+
+  final RemoteCodingClientState state;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedProject = _selectedRemoteProject(state);
+    final selectedThread = _selectedRemoteThread(state);
+    final snapshotGeneratedAt = state.snapshotGeneratedAt;
+    final updatedLabel = snapshotGeneratedAt == null
+        ? null
+        : TimeOfDay.fromDateTime(snapshotGeneratedAt.toLocal()).format(context);
+    final subtitle = selectedProject == null
+        ? (state.projects.isEmpty
+              ? 'No desktop projects'
+              : 'Choose a project or thread from the menu')
+        : selectedThread == null
+        ? selectedProject.rootPath
+        : selectedThread.title;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Icon(Icons.lan_outlined, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  selectedProject?.name ?? 'Remote Coding',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  updatedLabel == null ? subtitle : '$subtitle - $updatedLabel',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+RemoteCodingProjectSummary? _selectedRemoteProject(
+  RemoteCodingClientState state,
+) {
+  for (final project in state.projects) {
+    if (project.id == state.selectedProjectId) {
+      return project;
+    }
+  }
+  return null;
+}
+
+RemoteCodingThreadSummary? _selectedRemoteThread(
+  RemoteCodingClientState state,
+) {
+  for (final thread in state.threads) {
+    if (thread.id == state.currentConversationId) {
+      return thread;
+    }
+  }
+  return null;
+}
+
+List<RemoteCodingThreadSummary> _remoteThreadsForProject(
+  RemoteCodingClientState state,
+  String projectId,
+) {
+  return state.threads
+      .where((thread) => thread.projectId == projectId)
+      .toList(growable: false);
+}
+
+String _formatRemoteThreadDate(DateTime date) {
+  final now = DateTime.now();
+  final diff = now.difference(date);
+
+  if (diff.inDays == 0) {
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+  if (diff.inDays == 1) {
+    return 'Yesterday';
+  }
+  if (diff.inDays < 7) {
+    return '${diff.inDays} days ago';
+  }
+  return '${date.month}/${date.day}';
 }
 
 class _RemoteEmptyProjectsView extends StatelessWidget {
