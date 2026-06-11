@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:caverno/core/constants/api_constants.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/settings/data/settings_repository.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -176,6 +177,35 @@ void main() {
         SettingsRepository(prefs).load().assistantMode,
         AssistantMode.general,
       );
+    },
+  );
+
+  test(
+    'applyNvidiaNimCloudPreset stores the OpenAI-compatible NIM endpoint',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      await notifier.updateLlmProvider(LlmProvider.appleFoundationModels);
+      await notifier.updateApiKey(ApiConstants.defaultApiKey);
+      await notifier.applyNvidiaNimCloudPreset();
+
+      final settings = container.read(settingsNotifierProvider);
+      expect(settings.llmProvider, LlmProvider.openAiCompatible);
+      expect(settings.baseUrl, ApiConstants.nvidiaNimBaseUrl);
+      expect(settings.model, ApiConstants.nvidiaNimDefaultModel);
+      expect(settings.apiKey, isEmpty);
+
+      final reloaded = SettingsRepository(prefs).load();
+      expect(reloaded.baseUrl, ApiConstants.nvidiaNimBaseUrl);
+      expect(reloaded.model, ApiConstants.nvidiaNimDefaultModel);
+      expect(reloaded.apiKey, isEmpty);
     },
   );
 

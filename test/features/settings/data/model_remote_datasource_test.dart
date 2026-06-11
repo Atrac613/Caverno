@@ -1,4 +1,5 @@
 import 'package:caverno/features/settings/data/model_remote_datasource.dart';
+import 'package:caverno/core/constants/api_constants.dart';
 import 'package:caverno/features/settings/domain/entities/model_catalog_entry.dart';
 import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -104,6 +105,80 @@ void main() {
       ]),
       16384,
     );
+  });
+
+  test(
+    'uses NVIDIA NIM cloud catalog fallback when models route is unsupported',
+    () async {
+      final requests = <Uri>[];
+      final client = MockClient((request) async {
+        requests.add(request.url);
+        if (request.url.path == '/v1/models') {
+          return http.Response('Not found', 404);
+        }
+        return http.Response('Unexpected request', 500);
+      });
+
+      final dataSource = ModelRemoteDataSource(
+        baseUrl: '${ApiConstants.nvidiaNimBaseUrl}/',
+        apiKey: 'nvapi-test-key',
+        client: client,
+      );
+
+      final catalog = await dataSource.listModelCatalog();
+
+      expect(
+        catalog,
+        contains(
+          const ModelCatalogEntry(
+            id: ApiConstants.nvidiaNimDefaultModel,
+            ownedBy: 'nvidia',
+          ),
+        ),
+      );
+      expect(
+        catalog,
+        contains(
+          const ModelCatalogEntry(id: 'openai/gpt-oss-120b', ownedBy: 'openai'),
+        ),
+      );
+      expect(requests.map((uri) => uri.toString()), [
+        'https://integrate.api.nvidia.com/v1/models',
+      ]);
+    },
+  );
+
+  test('does not use NVIDIA NIM catalog fallback without an API key', () async {
+    final requests = <Uri>[];
+    final client = MockClient((request) async {
+      requests.add(request.url);
+      return http.Response('Not found', 404);
+    });
+
+    final dataSource = ModelRemoteDataSource(
+      baseUrl: ApiConstants.nvidiaNimBaseUrl,
+      apiKey: ApiConstants.defaultApiKey,
+      client: client,
+    );
+
+    await expectLater(dataSource.listModelCatalog(), throwsException);
+    expect(requests.map((uri) => uri.toString()), [
+      'https://integrate.api.nvidia.com/v1/models',
+    ]);
+  });
+
+  test('does not mask NVIDIA NIM authorization failures', () async {
+    final client = MockClient((request) async {
+      return http.Response('Unauthorized', 401);
+    });
+
+    final dataSource = ModelRemoteDataSource(
+      baseUrl: ApiConstants.nvidiaNimBaseUrl,
+      apiKey: 'nvapi-test-key',
+      client: client,
+    );
+
+    await expectLater(dataSource.listModelCatalog(), throwsException);
   });
 
   test('enriches catalog with LM Studio native metadata fallback', () async {

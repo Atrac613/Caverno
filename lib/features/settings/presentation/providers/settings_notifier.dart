@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../data/settings_file_service.dart';
 import '../../data/settings_qr_service.dart';
@@ -44,6 +45,21 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> updateApiKey(String apiKey) async {
     state = state.copyWith(apiKey: apiKey);
+    await _repository.save(state);
+  }
+
+  Future<void> applyNvidiaNimCloudPreset() async {
+    final currentApiKey = state.apiKey.trim();
+    state = state.copyWith(
+      llmProvider: LlmProvider.openAiCompatible,
+      baseUrl: ApiConstants.nvidiaNimBaseUrl,
+      model: ApiConstants.nvidiaNimDefaultModel,
+      apiKey: currentApiKey == ApiConstants.defaultApiKey ? '' : state.apiKey,
+      assistantMode: _assistantModeForProvider(
+        provider: LlmProvider.openAiCompatible,
+        assistantMode: state.assistantMode,
+      ),
+    );
     await _repository.save(state);
   }
 

@@ -160,6 +160,54 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     );
   }
 
+  Future<void> _applyNvidiaNimCloudPreset(SettingsNotifier notifier) async {
+    _baseUrlController.text = ApiConstants.nvidiaNimBaseUrl;
+    _maxTokensController.text = ApiConstants.defaultMaxTokens.toString();
+    if (_apiKeyController.text.trim() == ApiConstants.defaultApiKey) {
+      _apiKeyController.clear();
+    }
+    await notifier.applyNvidiaNimCloudPreset();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('settings.nvidia_nim_preset_applied'.tr())),
+    );
+  }
+
+  Widget _buildEndpointPresetButtons(SettingsNotifier notifier) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'settings.api_preset_label'.tr(),
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              key: const ValueKey('apply-nvidia-nim-preset'),
+              onPressed: () => _applyNvidiaNimCloudPreset(notifier),
+              icon: const Icon(Icons.cloud_outlined, size: 18),
+              label: Text('settings.nvidia_nim_preset_label'.tr()),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'settings.nvidia_nim_preset_helper'.tr(),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
   String _providerEndpointLabel(LlmProvider provider, String baseUrl) {
     return switch (provider) {
       LlmProvider.openAiCompatible => _modelsEndpoint(baseUrl),
@@ -763,6 +811,8 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                     const SizedBox(height: 8),
                     _buildProviderAvailabilityMessage(appleAvailability),
                   ],
+                  const SizedBox(height: 12),
+                  _buildEndpointPresetButtons(notifier),
                   const SizedBox(height: 16),
                   IgnorePointer(
                     ignoring: isAppleProvider,
