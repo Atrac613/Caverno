@@ -50,12 +50,12 @@ structurally unmotivated to build:
 | Track | Milestone | Status | Size | Depends on | Goal |
 |-------|-----------|--------|------|------------|------|
 | Foundation | F1 | done | S | — | CI-enforced line-count ratchet for oversized files. |
-| Foundation | F2 | next | M | F1 | Extract the tool-call loop from `ChatNotifier` behind a handler registry. |
+| Foundation | F2 | current | M | F1 | Extract the tool-call loop from `ChatNotifier` behind a handler registry. |
 | Foundation | F3 | later | M | — | Major dependency upgrades, `openai_dart` 6.x first. |
 | Foundation | F4 | later | L | — | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS history search. |
 | Foundation | F5 | later | ongoing | F2 | Continue large-file decomposition per `docs/large_file_refactor_plan.md` phases 2-4. |
 | Local LLM | LL1 | done | S | — | Per-role model routing (memory extraction, subagents, goal suggestions, approval auto-review on a small fast model). |
-| Local LLM | LL2 | next | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
+| Local LLM | LL2 | current | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
 | Local LLM | LL3 | later | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
 | Local LLM | LL4 | later | M | LL3 | Repo map v1: ranked, compressed symbol outline injected into the system prompt. |
 | Local LLM | LL5 | later | M | F4, LL4 | Local semantic code search via `/v1/embeddings`, stored in the drift database. |
@@ -176,6 +176,8 @@ Evidence:
 
 ### F2: Tool Loop Extraction
 
+Status: `current`
+
 Scope:
 - Extract tool-call dispatch and loop orchestration from `ChatNotifier` into a
   domain service with a tool-handler registry interface.
@@ -220,6 +222,8 @@ Evidence:
 - `fvm flutter analyze`; settings suite and chat notifier suites pass.
 
 ### LL2: Whole-Turn Checkpoints
+
+Status: `current`
 
 Scope:
 - Record a shadow checkpoint (per-session ref or stash-like snapshot) of files

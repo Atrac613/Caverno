@@ -26,6 +26,7 @@ import '../repositories/skill_repository.dart';
 import 'background_process_tools.dart';
 import 'background_process_monitor_service.dart';
 import 'ble_tools.dart';
+import 'file_rollback_checkpoint_store.dart';
 import 'filesystem_tools.dart';
 import 'git_tools.dart';
 import 'lan_scan_tools.dart';
@@ -38,18 +39,6 @@ import 'python_script_tools.dart';
 import 'searxng_client.dart';
 import 'serial_port_tools.dart';
 import 'wifi_tools.dart';
-
-class FileRollbackPreview {
-  const FileRollbackPreview({
-    required this.path,
-    required this.preview,
-    required this.summary,
-  });
-
-  final String path;
-  final String preview;
-  final String summary;
-}
 
 /// MCP tool management service.
 ///
@@ -179,7 +168,8 @@ class McpToolService {
 
   List<McpToolEntity> _cachedTools = [];
   final Map<String, _RemoteToolBinding> _remoteToolBindings = {};
-  final List<_FileRollbackEntry> _fileRollbackStack = [];
+  final FileRollbackCheckpointStore _fileRollbackCheckpointStore =
+      FileRollbackCheckpointStore();
   List<McpServerConnectionInfo> _serverStates = const [];
   McpConnectionStatus _status = McpConnectionStatus.disconnected;
   String? _lastError;
@@ -938,34 +928,9 @@ class McpToolService {
     }
 
     if (name == 'rollback_last_file_change') {
-      final entry = _fileRollbackStack.isEmpty
-          ? null
-          : _fileRollbackStack.removeLast();
-      if (entry == null) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'No recent file change is available to roll back',
-        );
-      }
-
-      final result = await FilesystemTools.restoreTextSnapshot(
-        path: entry.path,
-        existedBefore: entry.existedBefore,
-        content: entry.previousContent,
+      return _fileRollbackCheckpointStore.rollbackLastFileChange(
+        toolName: name,
       );
-      if (!_isFilesystemPayloadSuccess(result)) {
-        _fileRollbackStack.add(entry);
-        return McpToolResult(
-          toolName: name,
-          result: result,
-          isSuccess: false,
-          errorMessage: 'Failed to roll back the last file change',
-        );
-      }
-
-      return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
     if (name == 'find_files') {
@@ -2118,36 +2083,23 @@ class McpToolService {
   }
 
   Future<FileRollbackPreview?> previewLastFileRollbackChange() async {
-    final entry = _fileRollbackStack.isEmpty ? null : _fileRollbackStack.last;
-    if (entry == null) return null;
+    return _fileRollbackCheckpointStore.previewLastFileRollbackChange();
+  }
 
-    final currentSnapshot = await FilesystemTools.captureTextSnapshot(
-      entry.path,
-    );
-    final summary = entry.existedBefore
-        ? 'Restore the previous contents of this file.'
-        : 'Delete the newly created file.';
+  void beginFileTurnCheckpoint(String turnId) {
+    _fileRollbackCheckpointStore.beginFileTurnCheckpoint(turnId);
+  }
 
-    if (currentSnapshot.error != null) {
-      return FileRollbackPreview(
-        path: entry.path,
-        preview:
-            'Diff preview unavailable: ${currentSnapshot.error}\n\n'
-            'Rollback target: ${entry.path}\n'
-            '$summary',
-        summary: summary,
-      );
-    }
+  void endFileTurnCheckpoint() {
+    _fileRollbackCheckpointStore.endFileTurnCheckpoint();
+  }
 
-    return FileRollbackPreview(
-      path: entry.path,
-      preview: FilesystemTools.buildUnifiedDiff(
-        path: entry.path,
-        oldContent: currentSnapshot.exists ? currentSnapshot.content : null,
-        newContent: entry.existedBefore ? (entry.previousContent ?? '') : null,
-      ),
-      summary: summary,
-    );
+  Future<FileTurnRollbackPreview?> previewLastFileTurnCheckpoint() async {
+    return _fileRollbackCheckpointStore.previewLastFileTurnCheckpoint();
+  }
+
+  Future<McpToolResult> rollbackLastFileTurnCheckpoint() async {
+    return _fileRollbackCheckpointStore.rollbackLastFileTurnCheckpoint();
   }
 
   bool _isFilesystemPayloadSuccess(String payload) {
@@ -2541,17 +2493,7 @@ class McpToolService {
       return;
     }
 
-    _fileRollbackStack.add(
-      _FileRollbackEntry(
-        path: snapshot.path,
-        existedBefore: snapshot.exists,
-        previousContent: snapshot.content,
-      ),
-    );
-
-    if (_fileRollbackStack.length > 20) {
-      _fileRollbackStack.removeAt(0);
-    }
+    _fileRollbackCheckpointStore.push(snapshot);
   }
 
   /// Fallback `web_search` tool definition for SearXNG.
@@ -5377,18 +5319,6 @@ class _ConversationMatch {
   final String role;
   final String content;
   final double score;
-}
-
-class _FileRollbackEntry {
-  const _FileRollbackEntry({
-    required this.path,
-    required this.existedBefore,
-    this.previousContent,
-  });
-
-  final String path;
-  final bool existedBefore;
-  final String? previousContent;
 }
 
 class _RemoteToolBinding {

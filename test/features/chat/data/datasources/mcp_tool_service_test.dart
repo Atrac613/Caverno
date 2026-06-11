@@ -916,6 +916,70 @@ BuildVersion: 23F79
         expect(rollbackResult.isSuccess, isTrue);
         expect(File(path).existsSync(), isFalse);
       });
+
+      test(
+        'rolls back all file changes from the last turn checkpoint',
+        () async {
+          final separator = Platform.pathSeparator;
+          final firstPath =
+              '${tempDir.path}${separator}lib${separator}first.txt';
+          final secondPath =
+              '${tempDir.path}${separator}lib${separator}second.txt';
+          final firstFile = File(firstPath)..createSync(recursive: true);
+          firstFile.writeAsStringSync('before\n');
+
+          service.beginFileTurnCheckpoint('turn-1');
+          final firstWriteResult = await service.executeTool(
+            name: 'write_file',
+            arguments: {'path': firstPath, 'content': 'after first\n'},
+          );
+          final secondWriteResult = await service.executeTool(
+            name: 'write_file',
+            arguments: {'path': secondPath, 'content': 'created\n'},
+          );
+          final firstEditResult = await service.executeTool(
+            name: 'edit_file',
+            arguments: {
+              'path': firstPath,
+              'old_text': 'after first\n',
+              'new_text': 'after second\n',
+            },
+          );
+          service.endFileTurnCheckpoint();
+
+          expect(firstWriteResult.isSuccess, isTrue);
+          expect(secondWriteResult.isSuccess, isTrue);
+          expect(firstEditResult.isSuccess, isTrue);
+          expect(await firstFile.readAsString(), 'after second\n');
+          expect(File(secondPath).existsSync(), isTrue);
+
+          final preview = await service.previewLastFileTurnCheckpoint();
+          expect(preview, isNotNull);
+          expect(preview!.turnId, 'turn-1');
+          expect(preview.paths, [firstPath, secondPath]);
+          expect(preview.preview, contains(firstPath));
+          expect(preview.preview, contains(secondPath));
+
+          final rollbackResult = await service.rollbackLastFileTurnCheckpoint();
+          expect(rollbackResult.isSuccess, isTrue);
+          expect(await firstFile.readAsString(), 'before\n');
+          expect(File(secondPath).existsSync(), isFalse);
+        },
+      );
+
+      test('discards empty turn checkpoints', () async {
+        service.beginFileTurnCheckpoint('empty-turn');
+        service.endFileTurnCheckpoint();
+
+        expect(await service.previewLastFileTurnCheckpoint(), isNull);
+        final rollbackResult = await service.rollbackLastFileTurnCheckpoint();
+
+        expect(rollbackResult.isSuccess, isFalse);
+        expect(
+          rollbackResult.errorMessage,
+          'No recent turn file checkpoint is available to roll back',
+        );
+      });
     });
   });
 }

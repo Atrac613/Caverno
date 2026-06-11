@@ -46,11 +46,11 @@ handoffs can refer to the same unit of work over time.
 | Computer Use | M55 | done | Review post-expansion Computer Use evidence and decide whether to continue, hold, pause, or roll back. | Use `bash tool/run_macos_computer_use_m55_post_expansion_monitoring_gate.sh` for post-expansion monitoring evidence. |
 | Computer Use | M56 | done | Hand off the approved post-expansion rollout decision to the next user-operated rollout branch. | Use `bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh` for rollout decision handoff evidence. |
 | Remote Coding | RC0 | done | Ship the P0 LAN mobile control safety gate for existing desktop coding projects. | Use `dart run tool/remote_coding_p0_release_gate.dart` before P0 release review. |
-| Remote Coding | RC1 | current | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Use `dart run tool/remote_coding_p1_release_gate.dart` for P1 release review. |
+| Remote Coding | RC1 | later | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Keep light manual smoke as sufficient until P1 release evidence becomes a release priority. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
-| Foundation | F2 | next | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Plan the first extraction slice after F1 lands. |
+| Foundation | F2 | current | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Continue moving tool dispatch and loop orchestration behind focused services. |
 | Local LLM | LL1 | done | Route secondary LLM calls (memory extraction, subagents, goal suggestions, approval auto-review) to a configurable small model. | Surface the routing settings in user docs when LL9 model guidance lands. |
-| Local LLM | LL2 | next | Whole-turn file-change checkpoints with one-action revert. | Design the shadow checkpoint format on top of `rollback_last_file_change` bookkeeping. |
+| Local LLM | LL2 | current | Whole-turn file-change checkpoints with one-action revert. | Connect the backend turn checkpoint preview and rollback API to the user-facing revert affordance. |
 
 ## Plan Mode Track
 

@@ -89,6 +89,7 @@ part 'chat_notifier_serial_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
 part 'chat_notifier_python_handlers.dart';
+part 'chat_notifier_tool_handler_registry.dart';
 
 final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
   final settings = ref.watch(settingsNotifierProvider);
@@ -9022,6 +9023,7 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       return;
     }
+    _mcpToolService?.beginFileTurnCheckpoint('chat_generation_$generation');
     try {
       // Fetch tool definitions from the MCP tool service.
       final allTools = _mcpToolService?.getOpenAiToolDefinitions() ?? [];
@@ -9236,6 +9238,8 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       if (!_isCurrentInteractionGeneration(generation)) return;
       _handleError(e.toString());
+    } finally {
+      _mcpToolService?.endFileTurnCheckpoint();
     }
   }
 
@@ -13966,61 +13970,17 @@ class ChatNotifier extends Notifier<ChatState> {
       return _handleBrowserActionWithoutApproval(toolCall);
     }
 
-    switch (toolCall.name) {
-      case 'list_directory':
-      case 'read_file':
-      case 'inspect_file':
-      case 'find_files':
-      case 'search_files':
-        return _handleProjectScopedTool(toolCall);
-      case 'write_file':
-        return _handleWriteFile(toolCall);
-      case 'edit_file':
-        return _handleEditFile(toolCall);
-      case 'rollback_last_file_change':
-        return _handleRollbackLastFileChange(toolCall);
-      case 'local_execute_command':
-        return _handleLocalExecuteCommand(toolCall);
-      case 'process_start':
-        return _handleProcessStart(toolCall);
-      case 'process_status':
-      case 'process_tail':
-      case 'process_wait':
-        return _handleProjectScopedTool(toolCall);
-      case 'process_cancel':
-        return _handleProcessCancel(toolCall);
-      case 'run_python_script':
-        return _handlePythonScript(toolCall);
-      case 'run_tests':
-        return _handleRunTests(toolCall);
-      case 'ssh_connect':
-        return _handleSshConnect(toolCall);
-      case 'ssh_execute_command':
-        return _handleSshExecuteCommand(toolCall);
-      case 'git_execute_command':
-        return _handleGitExecuteCommand(toolCall);
-      case 'ble_connect':
-        return _handleBleConnect(toolCall);
-      case 'serial_open':
-        return _handleSerialOpen(toolCall);
-      case 'ask_user_question':
-        return _handleAskUserQuestion(
-          toolCall,
-          interactionGeneration: interactionGeneration,
-        );
-      case 'spawn_subagent':
-        return _handleSpawnSubagent(
-          toolCall,
-          interactionGeneration: interactionGeneration,
-        );
-      case 'get_subagent_result':
-        return _handleGetSubagentResult(toolCall);
-      default:
-        return _mcpToolService!.executeTool(
-          name: toolCall.name,
-          arguments: toolCall.arguments,
-        );
+    final registryResult = await _buildToolHandlerRegistry(
+      interactionGeneration: interactionGeneration,
+    ).dispatch(toolCall);
+    if (registryResult != null) {
+      return registryResult;
     }
+
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+    );
   }
 
   Future<McpToolResult> _handleProjectScopedTool(ToolCallInfo toolCall) async {
