@@ -6,6 +6,15 @@ import 'package:http/http.dart' as http;
 import '../../../core/constants/api_constants.dart';
 import '../domain/entities/model_catalog_entry.dart';
 
+class ModelCatalogHttpException implements Exception {
+  const ModelCatalogHttpException(this.statusCode);
+
+  final int statusCode;
+
+  @override
+  String toString() => 'Failed to retrieve models ($statusCode)';
+}
+
 class ModelRemoteDataSource {
   ModelRemoteDataSource({String? baseUrl, String? apiKey, http.Client? client})
     : _baseUrl = baseUrl?.trim().isEmpty ?? true
@@ -59,11 +68,16 @@ class ModelRemoteDataSource {
     final selectedModel = _normalizeModelId(selectedModelId);
     Object? primaryError;
     var catalog = const <ModelCatalogEntry>[];
+    final isNvidiaNimCloud = ApiConstants.isNvidiaNimCloudBaseUrl(_baseUrl);
 
     try {
       catalog = await _fetchOpenAiCatalog();
     } catch (error) {
       primaryError = error;
+    }
+
+    if (catalog.isEmpty && _canUseNvidiaNimFallback(primaryError)) {
+      catalog = nvidiaNimCloudModelCatalog();
     }
 
     List<ModelCatalogEntry>? lmStudioCatalog;
@@ -73,27 +87,29 @@ class ModelRemoteDataSource {
       );
     }
 
-    if (catalog.isEmpty) {
-      catalog = await loadLmStudioCatalog();
-    } else if (_needsSelectedContextMetadata(catalog, selectedModel)) {
-      final nativeCatalog = await loadLmStudioCatalog();
-      catalog = _mergeCatalogContext(
-        catalog,
-        nativeCatalog,
-        selectedModelId: selectedModel,
-      );
-    }
-
-    if (_needsSelectedContextMetadata(catalog, selectedModel)) {
-      final tokens = await _fetchLlamaCppContextWindowTokens(
-        selectedModelId: selectedModel,
-      );
-      if (tokens != null) {
-        catalog = _mergeSingleContextWindow(
+    if (!isNvidiaNimCloud) {
+      if (catalog.isEmpty) {
+        catalog = await loadLmStudioCatalog();
+      } else if (_needsSelectedContextMetadata(catalog, selectedModel)) {
+        final nativeCatalog = await loadLmStudioCatalog();
+        catalog = _mergeCatalogContext(
           catalog,
-          contextWindowTokens: tokens,
+          nativeCatalog,
           selectedModelId: selectedModel,
         );
+      }
+
+      if (_needsSelectedContextMetadata(catalog, selectedModel)) {
+        final tokens = await _fetchLlamaCppContextWindowTokens(
+          selectedModelId: selectedModel,
+        );
+        if (tokens != null) {
+          catalog = _mergeSingleContextWindow(
+            catalog,
+            contextWindowTokens: tokens,
+            selectedModelId: selectedModel,
+          );
+        }
       }
     }
 
@@ -112,7 +128,7 @@ class ModelRemoteDataSource {
   Future<List<ModelCatalogEntry>> _fetchOpenAiCatalog() async {
     final response = await _client.get(_modelsUri(), headers: _headers());
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Failed to retrieve models (${response.statusCode})');
+      throw ModelCatalogHttpException(response.statusCode);
     }
 
     final decoded = jsonDecode(response.body);
@@ -155,6 +171,13 @@ class ModelRemoteDataSource {
     }
 
     return entriesById.values.toList()..sort((a, b) => a.id.compareTo(b.id));
+  }
+
+  static List<ModelCatalogEntry> nvidiaNimCloudModelCatalog() {
+    return [
+      for (final id in ApiConstants.nvidiaNimModelIds)
+        ModelCatalogEntry(id: id, ownedBy: id.split('/').first),
+    ];
   }
 
   static List<ModelCatalogEntry> parseLmStudioModelCatalogResponse(
@@ -361,6 +384,25 @@ class ModelRemoteDataSource {
     } on Object {
       return null;
     }
+  }
+
+  bool _canUseNvidiaNimFallback(Object? primaryError) {
+    if (!ApiConstants.isNvidiaNimCloudBaseUrl(_baseUrl)) {
+      return false;
+    }
+    if (!_hasConfiguredApiKey) {
+      return false;
+    }
+    if (primaryError == null) {
+      return true;
+    }
+    return primaryError is ModelCatalogHttpException &&
+        (primaryError.statusCode == 404 || primaryError.statusCode == 405);
+  }
+
+  bool get _hasConfiguredApiKey {
+    final normalized = _apiKey.trim();
+    return normalized.isNotEmpty && normalized != ApiConstants.defaultApiKey;
   }
 
   static String? _readString(Map<String, dynamic> json, String key) {
