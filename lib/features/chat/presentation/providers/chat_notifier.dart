@@ -67,6 +67,7 @@ import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
+import '../../domain/services/tool_loop_recovery_policy.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import '../../domain/services/turn_diff_service.dart';
 import '../../domain/services/subagent_execution_service.dart';
@@ -250,6 +251,8 @@ class ChatNotifier extends Notifier<ChatState> {
   late CodingDiagnosticFeedbackService _codingDiagnosticFeedbackService;
   late CodingVerificationFeedbackService _codingVerificationFeedbackService;
   late BackgroundProcessMonitorService _backgroundProcessMonitorService;
+  final ToolLoopRecoveryPolicy _toolLoopRecoveryPolicy =
+      const ToolLoopRecoveryPolicy();
   String? conversationId;
   String _languageCode = 'en';
   String? _sessionMemoryContext;
@@ -12387,10 +12390,10 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _containsOnlyReadOnlyInspectionToolCalls(List<ToolCallInfo> toolCalls) {
-    if (toolCalls.isEmpty) {
-      return false;
-    }
-    return toolCalls.every(_isReadOnlyInspectionToolCall);
+    return _toolLoopRecoveryPolicy.containsOnlyReadOnlyInspectionToolCalls(
+      toolCalls,
+      isReadOnlyInspectionToolCall: _isReadOnlyInspectionToolCall,
+    );
   }
 
   bool _hasUnseenReadOnlyInspectionToolCalls(
@@ -12398,16 +12401,14 @@ class ChatNotifier extends Notifier<ChatState> {
     Set<String> executedToolCallKeys, {
     required int commandRetryGeneration,
   }) {
-    if (!_containsOnlyReadOnlyInspectionToolCalls(toolCalls)) {
-      return false;
-    }
-    return toolCalls.any((toolCall) {
-      final toolCallKey = _toolExecutionKey(
-        toolCall,
-        commandRetryGeneration: commandRetryGeneration,
-      );
-      return !executedToolCallKeys.contains(toolCallKey);
-    });
+    return _toolLoopRecoveryPolicy.hasUnseenReadOnlyInspectionToolCalls(
+      toolCalls,
+      executedToolCallKeys,
+      commandRetryGeneration: commandRetryGeneration,
+      isReadOnlyInspectionToolCall: _isReadOnlyInspectionToolCall,
+      toolCallKey: (toolCall, generation) =>
+          _toolExecutionKey(toolCall, commandRetryGeneration: generation),
+    );
   }
 
   bool _containsOnlyPreviouslySuccessfulCommandToolCalls(
@@ -12884,35 +12885,13 @@ class ChatNotifier extends Notifier<ChatState> {
     required Set<String> executedToolCallKeys,
     required int commandRetryGeneration,
   }) {
-    if (toolCalls.isEmpty) {
-      return const [];
-    }
-
-    final pending = <ToolResultInfo>[];
-    for (final toolCall in toolCalls) {
-      final toolCallKey = _toolExecutionKey(
-        toolCall,
-        commandRetryGeneration: commandRetryGeneration,
-      );
-      if (executedToolCallKeys.contains(toolCallKey)) {
-        continue;
-      }
-      pending.add(
-        ToolResultInfo(
-          id: toolCall.id,
-          name: toolCall.name,
-          arguments: toolCall.arguments,
-          result: jsonEncode({
-            'code': 'tool_call_not_executed',
-            'error':
-                'Tool call was requested after the bounded tool loop stopped and was not executed before the final answer.',
-            'reason': 'bounded_tool_loop_exhausted',
-            'tool_name': toolCall.name,
-          }),
-        ),
-      );
-    }
-    return pending;
+    return _toolLoopRecoveryPolicy.buildUnexecutedPendingToolResults(
+      toolCalls: toolCalls,
+      executedToolCallKeys: executedToolCallKeys,
+      commandRetryGeneration: commandRetryGeneration,
+      toolCallKey: (toolCall, generation) =>
+          _toolExecutionKey(toolCall, commandRetryGeneration: generation),
+    );
   }
 
   String _buildDuplicateInspectionRecoveryPrompt(
@@ -12976,34 +12955,10 @@ class ChatNotifier extends Notifier<ChatState> {
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
   }) {
-    final pendingToolNames = toolCalls
-        .map((toolCall) => toolCall.name.trim())
-        .where((name) => name.isNotEmpty)
-        .toSet()
-        .join(', ');
-    final hasEditMismatch = _toolResultsContainEditMismatch(
-      previousToolResults,
+    return _toolLoopRecoveryPolicy.buildExhaustionRecoveryPrompt(
+      toolCalls,
+      previousToolResults: previousToolResults,
     );
-    final hasMatchingReadContext = previousToolResults.any(
-      (toolResult) => toolResult.name == 'read_file',
-    );
-    return [
-      'You hit the bounded tool loop limit while working on the current saved task.',
-      if (pendingToolNames.isNotEmpty)
-        'Pending tool calls at the limit: $pendingToolNames.',
-      'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
-      'Use the latest tool results and finish the current saved task now.',
-      if (hasEditMismatch)
-        'A recent edit_file failed because old_text did not match the current file.',
-      if (hasEditMismatch && hasMatchingReadContext)
-        'A recent read_file result for the same path is already provided below. Use that exact file content and return only one edit_file call for the same file, or a brief blocker statement if the edit is unsafe.',
-      if (hasEditMismatch && hasMatchingReadContext)
-        'Do not call read_file again for the same path in this turn.',
-      if (hasEditMismatch && !hasMatchingReadContext)
-        'If the latest tool result reports code=edit_mismatch, read that exact file once and then retry edit_file with the exact current file content as old_text.',
-      'If one final tool call is still required, return only the single most important tool call for the current saved task.',
-      'Otherwise reply with a brief completion or blocker statement for the current saved task.',
-    ].join('\n');
   }
 
   List<ToolResultInfo> _buildToolLoopRecoveryToolResults({
@@ -13011,30 +12966,13 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<ToolResultInfo> executedToolResults,
     required List<ToolCallInfo> pendingToolCalls,
   }) {
-    final recoveryToolResults = <ToolResultInfo>[];
-    if (_toolResultsContainEditMismatch(currentToolResults)) {
-      final pendingPaths = pendingToolCalls
-          .map((toolCall) => _toolPathFromArguments(toolCall.arguments))
-          .whereType<String>()
-          .toSet();
-      if (pendingPaths.isNotEmpty) {
-        final seenPaths = <String>{};
-        for (final toolResult in executedToolResults.reversed) {
-          if (toolResult.name != 'read_file') {
-            continue;
-          }
-          final toolPath = _toolPathFromArguments(toolResult.arguments);
-          if (toolPath == null ||
-              !pendingPaths.contains(toolPath) ||
-              !seenPaths.add(toolPath)) {
-            continue;
-          }
-          recoveryToolResults.insert(0, toolResult);
-        }
-      }
-    }
-    recoveryToolResults.addAll(currentToolResults);
-    return _dedupeRecoveryToolResults(recoveryToolResults);
+    return _toolLoopRecoveryPolicy.buildRecoveryToolResults(
+      currentToolResults: currentToolResults,
+      executedToolResults: executedToolResults,
+      pendingToolCalls: pendingToolCalls,
+      pathFromArguments: _toolPathFromArguments,
+      toolResultKey: _toolResultDedupKey,
+    );
   }
 
   List<ToolResultInfo> _buildDuplicateRecoveryToolResults({
@@ -13060,15 +12998,10 @@ class ChatNotifier extends Notifier<ChatState> {
   List<ToolResultInfo> _dedupeRecoveryToolResults(
     List<ToolResultInfo> toolResults,
   ) {
-    final deduped = <ToolResultInfo>[];
-    final seenKeys = <String>{};
-    for (final toolResult in toolResults) {
-      final key = '${_toolResultDedupKey(toolResult)}:${toolResult.result}';
-      if (seenKeys.add(key)) {
-        deduped.add(toolResult);
-      }
-    }
-    return deduped;
+    return _toolLoopRecoveryPolicy.dedupeRecoveryToolResults(
+      toolResults,
+      toolResultKey: _toolResultDedupKey,
+    );
   }
 
   String _extractAssistantStreamDelta({
@@ -13366,11 +13299,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _toolResultsContainEditMismatch(List<ToolResultInfo> toolResults) {
-    return toolResults.any((toolResult) {
-      final normalized = toolResult.result.toLowerCase();
-      return normalized.contains('"code":"edit_mismatch"') ||
-          normalized.contains('old_text was not found in the target file');
-    });
+    return _toolLoopRecoveryPolicy.toolResultsContainEditMismatch(toolResults);
   }
 
   bool _toolResultsContainFailedCommandValidation(

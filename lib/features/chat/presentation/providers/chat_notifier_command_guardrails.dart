@@ -245,20 +245,11 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
     required List<ToolCallInfo> pendingToolCalls,
     required List<ToolResultInfo> currentToolResults,
   }) {
-    if (pendingToolCalls.isEmpty || currentToolResults.isEmpty) {
-      return false;
-    }
-    return !_containsWriteGitCommandToolCall(pendingToolCalls);
-  }
-
-  bool _containsWriteGitCommandToolCall(List<ToolCallInfo> toolCalls) {
-    return toolCalls.any((toolCall) {
-      if (toolCall.name.trim().toLowerCase() != 'git_execute_command') {
-        return false;
-      }
-      final command = _toolCommandArgument(toolCall.arguments);
-      return command != null && !GitTools.isReadOnly(command);
-    });
+    return _toolLoopRecoveryPolicy.shouldRequestExhaustionRecovery(
+      pendingToolCalls: pendingToolCalls,
+      currentToolResults: currentToolResults,
+      isWriteGitCommandToolCall: _isWriteGitCommandToolCall,
+    );
   }
 
   bool _isProductionReleaseCommandToolCall(ToolCallInfo toolCall) {
