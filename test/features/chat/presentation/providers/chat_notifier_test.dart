@@ -10810,6 +10810,197 @@ with open(path, "rb") as file:
     },
   );
 
+  test(
+    'sendMessage blocks process_start retry after command timeout',
+    () async {
+      const command = 'bash tool/deploy_production.sh --target app-store';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'deploy-command-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                'The command timed out; I will start it in the background.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'deploy-command-2',
+                name: 'process_start',
+                arguments: const {
+                  'command': command,
+                  'working_directory': '/tmp/project',
+                  'label': 'deployment',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The background retry was blocked until inspection.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'command': command,
+            'working_directory': '/tmp/project',
+            'error': 'Command timed out after 60 seconds.',
+            'timed_out': true,
+            'timeout_ms': 60000,
+            'process_terminated': true,
+          }),
+          'process_start': 'unexpected background retry',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Deploy Caverno');
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        final retryBlock =
+            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+                as Map<String, dynamic>;
+        expect(
+          retryBlock,
+          containsPair('code', 'command_retry_after_timeout_blocked'),
+        );
+        expect(retryBlock['command'], command);
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage blocks production release after dry run without approval',
+    () async {
+      const dryRunCommand =
+          'bash tool/release_ios_macos.sh --dry-run --macos-release-notes docs/releases/caverno-1.3.6.md';
+      const productionCommand =
+          'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.6.md';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'release-dry-run',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': dryRunCommand,
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                'Dry run succeeded. I will run the production release now.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'release-production',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': productionCommand,
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Production release is blocked until explicit approval.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'local_execute_command': 'unexpected production run'},
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': dryRunCommand,
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': 'Release workflow completed successfully.',
+              'stderr': '',
+            }),
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('continue');
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        final releaseBlock =
+            jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+                as Map<String, dynamic>;
+        expect(
+          releaseBlock,
+          containsPair('code', 'production_release_explicit_approval_required'),
+        );
+        expect(releaseBlock['command'], productionCommand);
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
   test('sendMessage blocks success claims after command timeout', () async {
     const command = 'fvm flutter test --no-pub';
     final toolDataSource = _QueuedToolLoopChatDataSource(

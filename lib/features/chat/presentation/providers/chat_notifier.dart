@@ -10745,6 +10745,14 @@ class ChatNotifier extends Notifier<ChatState> {
           if (timeoutRetryGuardResult != null) {
             return timeoutRetryGuardResult;
           }
+          final productionReleaseGuardResult =
+              _buildProductionReleaseApprovalGuardResult(
+                toolCall,
+                currentAssistantContent: currentAssistantContent,
+              );
+          if (productionReleaseGuardResult != null) {
+            return productionReleaseGuardResult;
+          }
           final unexecutedFileMutationGuardResult =
               _buildUnexecutedFileMutationBeforeCommandGuardResult(
                 toolCall,
@@ -11934,7 +11942,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final matchingTimedOutResult = executedToolResults.reversed
         .where(
           (result) =>
-              result.name == toolCall.name &&
+              _isCommandExecutionTool(result.name) &&
               _toolResultTimedOut(result) &&
               _toolResultCommandMatches(
                 result,
@@ -11957,6 +11965,38 @@ class ChatNotifier extends Notifier<ChatState> {
       'required_action':
           'Ask the user before retrying, or verify the previous process state '
           'with a read-only inspection command first.',
+    });
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: true,
+    );
+  }
+
+  McpToolResult? _buildProductionReleaseApprovalGuardResult(
+    ToolCallInfo toolCall, {
+    required String? currentAssistantContent,
+  }) {
+    if (!_isProductionReleaseCommandToolCall(toolCall)) {
+      return null;
+    }
+    if (_latestUserExplicitlyApprovedProductionRelease()) {
+      return null;
+    }
+
+    final command = _toolCommandArgument(toolCall.arguments) ?? '';
+    final payload = jsonEncode({
+      'ok': false,
+      'code': 'production_release_explicit_approval_required',
+      'error':
+          'A production release command was blocked because the latest user '
+          'message did not explicitly approve production release execution.',
+      'command': command,
+      if ((currentAssistantContent ?? '').trim().isNotEmpty)
+        'assistant_intent': _clipForDiagnostic(currentAssistantContent!.trim()),
+      'required_action':
+          'Ask the user to explicitly approve the production release command '
+          'after any dry run, then retry only after that user approval.',
     });
     return McpToolResult(
       toolName: toolCall.name,
@@ -13092,6 +13132,110 @@ class ChatNotifier extends Notifier<ChatState> {
       'git_execute_command' => GitTools.isReadOnly(command),
       _ => false,
     };
+  }
+
+  bool _isProductionReleaseCommandToolCall(ToolCallInfo toolCall) {
+    final toolName = toolCall.name.trim().toLowerCase();
+    if (toolName != 'local_execute_command' && toolName != 'process_start') {
+      return false;
+    }
+    if (_isReadOnlyCommandExecutionToolCall(toolCall)) {
+      return false;
+    }
+    final command = _toolCommandArgument(toolCall.arguments);
+    if (command == null) {
+      return false;
+    }
+    return _looksLikeProductionReleaseCommand(command);
+  }
+
+  bool _looksLikeProductionReleaseCommand(String command) {
+    final args = GitTools.splitArgs(command);
+    if (args.isEmpty) {
+      return false;
+    }
+    if (args.any((arg) {
+      final normalized = arg.trim().toLowerCase();
+      return normalized == '--dry-run' ||
+          normalized == '-n' ||
+          normalized == '--help' ||
+          normalized == '-h';
+    })) {
+      return false;
+    }
+    const releaseScripts = {
+      'release_ios_macos.sh',
+      'build_macos_sparkle_release.sh',
+      'publish_macos_sparkle_release.sh',
+    };
+    return args.any((arg) {
+      final normalized = arg.trim().toLowerCase();
+      if (normalized.isEmpty || normalized.startsWith('-')) {
+        return false;
+      }
+      final basename = normalized.split('/').last;
+      return releaseScripts.contains(basename);
+    });
+  }
+
+  bool _latestUserExplicitlyApprovedProductionRelease() {
+    for (final message in state.messages.reversed) {
+      if (message.role != MessageRole.user) {
+        continue;
+      }
+      final content = message.content.trim();
+      if (content.isEmpty) {
+        continue;
+      }
+      return _looksLikeExplicitProductionReleaseApproval(content);
+    }
+    return false;
+  }
+
+  bool _looksLikeExplicitProductionReleaseApproval(String content) {
+    final lowerContent = content.toLowerCase();
+    if (RegExp(r'^\s*(release|ship)\b').hasMatch(lowerContent)) {
+      return true;
+    }
+    final mentionsRelease =
+        _containsAny(lowerContent, const [
+          'release',
+          'publish',
+          'upload',
+          'app store connect',
+          'sparkle',
+          's3',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x30ea, 0x30ea, 0x30fc, 0x30b9],
+          [0x672c, 0x756a],
+          [0x516c, 0x958b],
+          [0x30a2, 0x30c3, 0x30d7, 0x30ed, 0x30fc, 0x30c9],
+        ]);
+    if (!mentionsRelease) {
+      return false;
+    }
+    return _containsAny(lowerContent, const [
+          'run',
+          'execute',
+          'start',
+          'publish',
+          'upload',
+          'ship',
+          'production',
+          'prod',
+          'go ahead',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x5b9f, 0x884c],
+          [0x9032, 0x3081],
+          [0x516c, 0x958b],
+          [0x30a2, 0x30c3, 0x30d7, 0x30ed, 0x30fc, 0x30c9],
+          [0x672c, 0x756a],
+          [0x3057, 0x3066],
+          [0x304a, 0x9858, 0x3044],
+          [0x3084, 0x3063, 0x3066],
+        ]);
   }
 
   bool _shouldBlockToolCallsForUserConfirmation({
