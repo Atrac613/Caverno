@@ -69,6 +69,7 @@ structurally unmotivated to build:
 | Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
 | Local LLM | LL14 | later | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
 | Local LLM | LL15 | later | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
+| Local LLM | LL16 | later | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
 
 Size legend: S = days, M = one to a few weeks of slices, L = multi-week.
 
@@ -108,7 +109,7 @@ existing read-only LM Studio / llama.cpp catalog integration
 (`model_remote_datasource.dart`) into management, sharing the
 model-registration touchpoint with LL3 probing.
 
-### Phase 3 — Capability and speed leap (LL4, LL6, LL14, LL15)
+### Phase 3 — Capability and speed leap (LL4, LL6, LL14, LL15, LL16)
 
 LL4 ships the repo map without waiting for embeddings: symbol outlines via
 ctags / LSP `documentSymbol` / Dart analyzer, ranked and compressed to a
@@ -119,7 +120,11 @@ moved to the message tail, with prefill latency measured before/after on a
 prefix stability pull in opposite directions: stale-result eviction must land
 only at compaction boundaries where the cache is already paid. LL15 follows
 LL3 directly, turning probe findings into grammar-constrained edit blocks and
-per-model few-shot exemplars.
+per-model few-shot exemplars. LL16 rides the same probe runs: temperature and
+sampler candidates are scored alongside edit formats, and its layer-1
+request-class temperature split can ship even earlier since it needs no
+profile. Once LL15 grammar enforcement lands, temperature stops being a
+correctness knob for tool calls and is tuned purely for exploration quality.
 
 ### Phase 4 — Storage, retrieval, and grounding (F4, then LL5, LL10, LL11)
 
@@ -456,12 +461,44 @@ Acceptance criteria:
   canaries.
 - Strong models skip the few-shot overhead entirely.
 
+### LL16: Sampler Auto-Calibration
+
+Temperature mistuning was a recurring source of live-harness instability:
+tool-loop iterations currently inherit the single user-facing temperature
+(default 0.7), while secondary calls hardcode 0.0-0.1. Three layers fix this.
+
+Scope:
+- Layer 1 (static request-class split, no probing): tool-loop iterations and
+  plan/edit requests run at a low default temperature distinct from the
+  final prose answer, which keeps the user-facing temperature. The
+  datasource already accepts per-request temperature, so this is wiring.
+- Layer 2 (probe calibration, LL3 machinery): on model registration, score a
+  small temperature matrix (roughly 0.0/0.2/0.4/0.7, repeated runs) on
+  tool-call validity, edit-block applicability, and repetition degeneration;
+  store the winning per-role sampler preset (temperature, and top_p / min_p
+  where the endpoint supports them) in the LL3 profile. Prefer known vendor
+  recommendations (Qwen, GLM, DeepSeek families publish them) as candidates
+  and use probes to verify rather than search blindly.
+- Layer 3 (runtime feedback): count JSON-repair events, malformed tool
+  calls, and repetition-loop detections per session; past a threshold,
+  step the tool-loop temperature down (never the prose temperature) and
+  record the adjustment in the profile.
+
+Acceptance criteria:
+- Tool-call validity rate at the calibrated preset matches or beats the
+  user-temperature baseline in live canaries.
+- Greedy-decoding repetition is detected and avoided (temp 0 is not chosen
+  when the probe shows degeneration).
+- The user-facing temperature setting keeps controlling final prose answers;
+  calibration never silently overrides explicit per-role user choices.
+
 ## Cross-Cutting Rules
 
 - All tracks obey the F1 ratchet: no milestone may push a budgeted file past
   its budget; extraction slices lower budgets in the same PR.
 - LL3 profiles are the single source of model-behavior tuning. LL4, LL6, LL7,
-  LL12, and LL15 read the profile rather than adding per-feature model flags.
+  LL12, LL15, and LL16 read the profile rather than adding per-feature model
+  flags.
 - Context mutation (LL14 eviction, compaction) happens only at compaction
   boundaries so LL6 prefix stability holds between them.
 - Anything that executes work on another machine (LL8, LL13) inherits the

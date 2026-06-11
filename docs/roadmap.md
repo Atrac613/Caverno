@@ -701,7 +701,7 @@ phase ordering live in `docs/local_llm_agent_roadmap.md`. Summary:
 - Phase 2: F3 (`openai_dart` 6.x and other major upgrades), LL3 (model
   capability profiles), LL9 (local stack manager).
 - Phase 3: LL4 (repo map v1), LL6 (KV-cache-friendly mode), LL14 (context
-  surgery), LL15 (weak-model edit harness).
+  surgery), LL15 (weak-model edit harness), LL16 (sampler auto-calibration).
 - Phase 4: F4 (Hive to drift/SQLite with FTS), then LL5 (local semantic
   search), LL10 (installed-dependency grounding), LL11 (LSP bridge).
 - Phase 5: LL7 (Best-of-N verification loop), LL8 (LAN inference mesh),
