@@ -11249,7 +11249,10 @@ class ChatNotifier extends Notifier<ChatState> {
         }
         if (iteration >= maxIterations &&
             !attemptedToolLoopExhaustionRecovery &&
-            batchToolResults.isNotEmpty) {
+            _shouldRequestToolLoopExhaustionRecovery(
+              pendingToolCalls: currentToolCalls,
+              currentToolResults: batchToolResults,
+            )) {
           attemptedToolLoopExhaustionRecovery = true;
           appLog(
             '[Tool] Tool loop exhausted with pending tool calls, requesting bounded recovery',
@@ -12586,6 +12589,26 @@ class ChatNotifier extends Notifier<ChatState> {
         commandRetryGeneration: commandRetryGeneration,
       );
       return !executedToolCallKeys.contains(toolCallKey);
+    });
+  }
+
+  bool _shouldRequestToolLoopExhaustionRecovery({
+    required List<ToolCallInfo> pendingToolCalls,
+    required List<ToolResultInfo> currentToolResults,
+  }) {
+    if (pendingToolCalls.isEmpty || currentToolResults.isEmpty) {
+      return false;
+    }
+    return !_containsWriteGitCommandToolCall(pendingToolCalls);
+  }
+
+  bool _containsWriteGitCommandToolCall(List<ToolCallInfo> toolCalls) {
+    return toolCalls.any((toolCall) {
+      if (toolCall.name.trim().toLowerCase() != 'git_execute_command') {
+        return false;
+      }
+      final command = _toolCommandArgument(toolCall.arguments);
+      return command != null && !GitTools.isReadOnly(command);
     });
   }
 

@@ -9852,6 +9852,119 @@ with open(path, "rb") as file:
     },
   );
 
+  test(
+    'sendMessage does not replace pending git write command at tool loop limit',
+    () async {
+      final toolLoopResponses = <ChatCompletionResult>[
+        for (var index = 0; index < 11; index += 1)
+          ChatCompletionResult(
+            content: 'Continue inspecting pubspec.yaml before committing.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-${index + 2}',
+                name: 'read_file',
+                arguments: const {'path': 'pubspec.yaml'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ChatCompletionResult(
+          content: 'Commit the selected version bump now.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-correct-commit',
+              name: 'git_execute_command',
+              arguments: const {
+                'command': 'commit -m "chore: bump version to 1.3.6+17"',
+                'reason': 'Commit version bump to 1.3.6+17',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Regenerated the pending command incorrectly.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-wrong-commit',
+              name: 'git_execute_command',
+              arguments: const {
+                'command': 'commit -m "chore: bump version to 1.2.0+1200"',
+                'reason': 'Commit version bump',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'The wrong commit should never run.',
+          finishReason: 'stop',
+        ),
+      ];
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'read_file',
+            arguments: const {'path': 'pubspec.yaml'},
+          ),
+        ],
+        toolLoopResponses: toolLoopResponses,
+        finalAnswerChunks: const [
+          'Final answer acknowledges the pending commit was not executed.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'read_file': '{"content":"version: 1.3.6+17"}',
+          'git_execute_command':
+              '{"command":"git commit","exit_code":0,"stdout":"committed\\n","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWith(
+            (ref) => _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Commit the selected version bump');
+
+        expect(toolService.executedToolNames, List.filled(12, 'read_file'));
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        final finalPrompt = toolDataSource.finalAnswerMessages
+            .map((message) => message.content)
+            .join('\n');
+        expect(finalPrompt, contains('chore: bump version to 1.3.6+17'));
+        expect(finalPrompt, isNot(contains('1.2.0+1200')));
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('pending commit was not executed'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
   test('sendMessage recovers from duplicate mutating follow-up loops', () async {
     final toolDataSource = _QueuedToolLoopChatDataSource(
       initialToolCalls: [
