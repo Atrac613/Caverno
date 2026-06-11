@@ -54,13 +54,13 @@ import '../providers/custom_slash_commands_notifier.dart';
 import '../slash_commands/slash_command.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
 import '../widgets/conversation_drawer.dart';
+import '../widgets/file_workspace_viewer_sheet.dart';
 import '../widgets/subagent_task_banner.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../widgets/token_usage_indicator.dart';
-import '../widgets/turn_diff_sheet.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
 import '../widgets/plan/plan_document_editor_sheet.dart';
 import '../widgets/plan/plan_hydrated_task_row.dart';
@@ -104,6 +104,8 @@ bool shouldShowContextStatusWidget(ChatState chatState) {
       chatState.estimatedPromptTokens > 0;
 }
 
+enum _RightSidebarTab { companion, files }
+
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
 
@@ -130,6 +132,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _isScrollToBottomScheduled = false;
   bool _scheduledScrollShouldAnimate = false;
   bool _autoFollowBottom = true;
+  FileWorkspaceViewerRequest? _fileWorkspaceViewerRequest;
+  _RightSidebarTab _rightSidebarTab = _RightSidebarTab.companion;
   int _droppedImageAttachmentId = 0;
   String? _switchingCompanionBranchName;
   MessageInputImageAttachment? _droppedImageAttachment;
@@ -142,6 +146,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   static const double _persistentDrawerWidth = 320;
   static const double _browserPanelBreakpoint = 1280;
   static const double _browserPanelWidth = 480;
+  static const double _fileWorkspacePanelMinWidth = 420;
+  static const double _fileWorkspacePanelMaxWidth = 720;
   static const double _compactBrowserPanelHeightFraction = 0.55;
   static const double _compactBrowserChatReserveHeight = 220;
 
@@ -193,6 +199,46 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     setState(() {
       _codingGoalSuggestionConversationId = conversationId;
+    });
+  }
+
+  void _openFileWorkspaceViewer(FileWorkspaceViewerRequest request) {
+    if (!mounted) {
+      _fileWorkspaceViewerRequest = request;
+      _rightSidebarTab = _RightSidebarTab.files;
+      _isCompanionSidebarVisible = true;
+      return;
+    }
+    final availableWidth = MediaQuery.maybeOf(context)?.size.width;
+    if (availableWidth != null &&
+        availableWidth < _companionSidebarBreakpoint) {
+      unawaited(
+        showFileWorkspaceViewerPanel(context: context, request: request),
+      );
+      return;
+    }
+    setState(() {
+      _fileWorkspaceViewerRequest = request;
+      _rightSidebarTab = _RightSidebarTab.files;
+      _isCompanionSidebarVisible = true;
+    });
+  }
+
+  void _closeFileWorkspaceViewer() {
+    if (!mounted) {
+      _fileWorkspaceViewerRequest = null;
+      _rightSidebarTab = _RightSidebarTab.companion;
+      return;
+    }
+    setState(() {
+      _fileWorkspaceViewerRequest = null;
+      _rightSidebarTab = _RightSidebarTab.companion;
+    });
+  }
+
+  void _toggleCompanionSidebar() {
+    setState(() {
+      _isCompanionSidebarVisible = !_isCompanionSidebarVisible;
     });
   }
 
@@ -260,6 +306,112 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return;
     }
     _scrollController.jumpTo(target);
+  }
+
+  Widget _buildRightSidebarPanel(
+    BuildContext context, {
+    required FileWorkspaceViewerRequest? request,
+    required double availableWidth,
+    required Conversation currentConversation,
+    required ChatState chatState,
+    required CodingProject activeProject,
+  }) {
+    final theme = Theme.of(context);
+    final hasFileWorkspaceViewer = request != null;
+    final panelWidth = hasFileWorkspaceViewer && availableWidth.isFinite
+        ? (availableWidth * 0.42)
+              .clamp(_fileWorkspacePanelMinWidth, _fileWorkspacePanelMaxWidth)
+              .toDouble()
+        : _companionSidebarWidth;
+    final companionPanel = _buildCompanionPanel(
+      context,
+      currentConversation: currentConversation,
+      chatState: chatState,
+      activeProject: activeProject,
+      showLeadingBorder: false,
+    );
+
+    if (!hasFileWorkspaceViewer) {
+      return SizedBox(width: panelWidth, child: companionPanel);
+    }
+
+    final selectedTab = _rightSidebarTab;
+
+    return SizedBox(
+      width: panelWidth,
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: theme.colorScheme.surface),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<_RightSidebarTab>(
+                  key: const ValueKey('right-sidebar-tabs'),
+                  showSelectedIcon: false,
+                  selected: {selectedTab},
+                  segments: const [
+                    ButtonSegment(
+                      value: _RightSidebarTab.companion,
+                      icon: Icon(Icons.view_sidebar_outlined, size: 18),
+                      label: Text('Companion'),
+                    ),
+                    ButtonSegment(
+                      value: _RightSidebarTab.files,
+                      icon: Icon(Icons.description_outlined, size: 18),
+                      label: Text('Files'),
+                    ),
+                  ],
+                  onSelectionChanged: (selection) {
+                    setState(() {
+                      _rightSidebarTab = selection.single;
+                    });
+                  },
+                ),
+              ),
+            ),
+            Divider(height: 1, thickness: 1, color: theme.dividerColor),
+            Expanded(
+              child: IndexedStack(
+                index: selectedTab == _RightSidebarTab.companion ? 0 : 1,
+                children: [
+                  companionPanel,
+                  request.buildViewer(onClose: _closeFileWorkspaceViewer),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _wrapWithRightSidebar(
+    BuildContext context,
+    Widget chatContent, {
+    required FileWorkspaceViewerRequest? request,
+    required double availableWidth,
+    required Conversation currentConversation,
+    required ChatState chatState,
+    required CodingProject activeProject,
+  }) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: chatContent),
+        VerticalDivider(width: 1, thickness: 1, color: theme.dividerColor),
+        _buildRightSidebarPanel(
+          context,
+          request: request,
+          availableWidth: availableWidth,
+          currentConversation: currentConversation,
+          chatState: chatState,
+          activeProject: activeProject,
+        ),
+      ],
+    );
   }
 
   void _showApprovalDialogOnce(String id, Future<void> Function() showDialog) {
@@ -1459,6 +1611,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                           context,
                                           chatState: chatState,
                                         ),
+                                        onOpenFileWorkspaceViewer:
+                                            _openFileWorkspaceViewer,
                                         onReselectProject: isCodingWorkspace
                                             ? _pickAndActivateProject
                                             : null,
@@ -1479,10 +1633,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       turnDiff: turnDiff,
                                       onOpenTurnDiff: turnDiff == null
                                           ? null
-                                          : () => showTurnDiffSheet(
-                                              context,
-                                              diff: turnDiff,
+                                          : () => _openFileWorkspaceViewer(
+                                              FileWorkspaceViewerRequest.diff(
+                                                diff: turnDiff,
+                                              ),
                                             ),
+                                      onOpenFileWorkspaceViewer:
+                                          _openFileWorkspaceViewer,
                                       canRewind: canRewind,
                                       onRewindToHere: canRewind
                                           ? () => _rewindConversationToMessage(
@@ -1525,20 +1682,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     ],
                   );
                   final coreBody = showCompanionSidebar
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(child: chatContent),
-                            SizedBox(
-                              width: _companionSidebarWidth,
-                              child: _buildCompanionPanel(
-                                context,
-                                currentConversation: currentConversation,
-                                chatState: chatState,
-                                activeProject: activeProject,
-                              ),
-                            ),
-                          ],
+                      ? _wrapWithRightSidebar(
+                          context,
+                          chatContent,
+                          request: _fileWorkspaceViewerRequest,
+                          availableWidth: constraints.maxWidth,
+                          currentConversation: currentConversation,
+                          chatState: chatState,
+                          activeProject: activeProject,
                         )
                       : chatContent;
                   return _wrapWithBrowserPane(
@@ -1851,9 +2002,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       actionButton(
         onPressed: () {
           if (isWideForCompanion) {
-            setState(() {
-              _isCompanionSidebarVisible = !_isCompanionSidebarVisible;
-            });
+            _toggleCompanionSidebar();
             return;
           }
           _showCompanionPanelSheet(

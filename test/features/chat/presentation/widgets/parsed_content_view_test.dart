@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart';
 import 'package:caverno/features/chat/presentation/widgets/parsed_content_view.dart';
 
 class _TestTranslationLoader extends AssetLoader {
@@ -26,6 +27,8 @@ Future<void> _pumpParsedContentView(
   WidgetTester tester, {
   required String content,
   required bool isStreaming,
+  String? fileReferenceRootPath,
+  ValueChanged<FileWorkspaceViewerRequest>? onOpenFileWorkspaceViewer,
 }) async {
   await tester.pumpWidget(
     EasyLocalization(
@@ -47,6 +50,8 @@ Future<void> _pumpParsedContentView(
                 content: content,
                 textColor: Colors.white,
                 isStreaming: isStreaming,
+                fileReferenceRootPath: fileReferenceRootPath,
+                onOpenFileWorkspaceViewer: onOpenFileWorkspaceViewer,
               ),
             ),
           );
@@ -98,5 +103,31 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('[broken\\'), findsOneWidget);
+  });
+
+  testWidgets('notifies parent when a file reference link is selected', (
+    tester,
+  ) async {
+    FileWorkspaceViewerRequest? openedRequest;
+
+    await _pumpParsedContentView(
+      tester,
+      content: 'Open lib/main.dart:12 for context.',
+      isStreaming: false,
+      fileReferenceRootPath: '/tmp/project',
+      onOpenFileWorkspaceViewer: (request) {
+        openedRequest = request;
+      },
+    );
+
+    await tester.tap(find.textContaining('lib/main.dart'));
+    await tester.pump();
+
+    expect(openedRequest, isNotNull);
+    expect(openedRequest!.rootPath, '/tmp/project');
+    expect(openedRequest!.initialPath, 'lib/main.dart');
+    expect(openedRequest!.references.map((reference) => reference.label), [
+      'lib/main.dart:12',
+    ]);
   });
 }

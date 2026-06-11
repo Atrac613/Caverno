@@ -308,5 +308,26 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     );
     expect(find.text('lib/parser.dart'), findsOneWidget);
     expect(find.text('test/parser_test.dart'), findsOneWidget);
+
+    await tester.tap(find.text('Uncommitted changes'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('right-sidebar-tabs')), findsOneWidget);
+    expect(find.text('Companion'), findsOneWidget);
+    expect(find.text('Files'), findsWidgets);
+    expect(find.text('Progress'), findsNothing);
+    expect(find.text('lib/parser.dart'), findsWidgets);
+
+    await tester.tap(find.text('Companion'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Progress'), findsOneWidget);
+    expect(find.text('Environment'), findsOneWidget);
+
+    await tester.tap(find.text('Files').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Progress'), findsNothing);
+    expect(find.text('Uncommitted changes'), findsOneWidget);
   });
 }

@@ -13,6 +13,8 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../../settings/presentation/pages/chat_settings_page.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
+import '../providers/coding_projects_notifier.dart';
+import 'file_workspace_viewer_sheet.dart';
 import 'parsed_content_view.dart';
 
 const double _messageImagePreviewWidth = 200;
@@ -26,6 +28,7 @@ class MessageBubble extends ConsumerStatefulWidget {
     this.onRewindToHere,
     this.turnDiff,
     this.onOpenTurnDiff,
+    this.onOpenFileWorkspaceViewer,
     this.canRewind = false,
   });
 
@@ -34,6 +37,7 @@ class MessageBubble extends ConsumerStatefulWidget {
   final VoidCallback? onRewindToHere;
   final TurnDiff? turnDiff;
   final VoidCallback? onOpenTurnDiff;
+  final ValueChanged<FileWorkspaceViewerRequest>? onOpenFileWorkspaceViewer;
   final bool canRewind;
 
   @override
@@ -141,6 +145,9 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     final isUser = message.role == MessageRole.user;
     final theme = Theme.of(context);
     final settings = ref.watch(settingsNotifierProvider);
+    final selectedProject = ref.watch(
+      codingProjectsNotifierProvider.select((state) => state.selectedProject),
+    );
     final tts = ref.read(ttsServiceProvider);
     final projectAccessIssue = !isUser
         ? _extractProjectAccessIssue(message.content)
@@ -236,6 +243,9 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
                     textColor: theme.colorScheme.onSurface,
                     isStreaming: message.isStreaming,
                     showMemoryUpdates: settings.showMemoryUpdates,
+                    fileReferenceRootPath: selectedProject?.normalizedRootPath,
+                    fileReferenceProjectName: selectedProject?.name,
+                    onOpenFileWorkspaceViewer: widget.onOpenFileWorkspaceViewer,
                     onReviewMemory: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(

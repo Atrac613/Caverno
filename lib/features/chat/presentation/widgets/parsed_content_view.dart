@@ -7,7 +7,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/markdown_render_sanitizer.dart';
+import '../../domain/services/file_reference_extractor.dart';
 import 'code_block_builder.dart';
+import 'file_workspace_viewer_sheet.dart';
 
 /// Renders parsed content segments.
 /// `<think>` tags are shown in muted gray and tool tags as compact status cards.
@@ -20,6 +22,9 @@ class ParsedContentView extends StatefulWidget {
     this.isStreaming = false,
     this.showMemoryUpdates = false,
     this.onReviewMemory,
+    this.fileReferenceRootPath,
+    this.fileReferenceProjectName,
+    this.onOpenFileWorkspaceViewer,
   });
 
   final String content;
@@ -27,6 +32,9 @@ class ParsedContentView extends StatefulWidget {
   final bool isStreaming;
   final bool showMemoryUpdates;
   final VoidCallback? onReviewMemory;
+  final String? fileReferenceRootPath;
+  final String? fileReferenceProjectName;
+  final ValueChanged<FileWorkspaceViewerRequest>? onOpenFileWorkspaceViewer;
 
   @override
   State<ParsedContentView> createState() => _ParsedContentViewState();
@@ -127,9 +135,10 @@ class _ParsedContentViewState extends State<ParsedContentView> {
 
     switch (segment.type) {
       case ContentType.text:
+        final markdownData = _markdownDataFor(segment.content);
         return SelectionArea(
           child: MarkdownBody(
-            data: MarkdownRenderSanitizer.sanitize(segment.content),
+            data: MarkdownRenderSanitizer.sanitize(markdownData),
             selectable: false,
             builders: {'pre': CodeBlockBuilder(theme: theme)},
             styleSheet: MarkdownStyleSheet(
@@ -215,8 +224,14 @@ class _ParsedContentViewState extends State<ParsedContentView> {
               ),
             ),
             onTapLink: (text, href, title) {
+              if (_openFileReference(context, href)) {
+                return;
+              }
               if (href != null) {
-                launchUrl(Uri.parse(href));
+                final uri = Uri.tryParse(href);
+                if (uri != null) {
+                  launchUrl(uri);
+                }
               }
             },
           ),
@@ -236,6 +251,47 @@ class _ParsedContentViewState extends State<ParsedContentView> {
   bool _isHiddenDebugSegment(ContentSegment segment) {
     final toolName = segment.toolCall?.name.toLowerCase();
     return toolName == 'memory_update';
+  }
+
+  String _markdownDataFor(String content) {
+    if (_fileReferenceRootPath == null) {
+      return content;
+    }
+    return FileReferenceMarkdownLinkifier.linkify(content);
+  }
+
+  bool _openFileReference(BuildContext context, String? href) {
+    final rootPath = _fileReferenceRootPath;
+    if (rootPath == null) {
+      return false;
+    }
+
+    final path = FileReferenceMarkdownLinkifier.decodeHref(href);
+    if (path == null || path.trim().isEmpty) {
+      return false;
+    }
+
+    final request = FileWorkspaceViewerRequest.files(
+      rootPath: rootPath,
+      projectName: widget.fileReferenceProjectName,
+      references: FileReferenceExtractor.extract(widget.content),
+      initialPath: path,
+    );
+    final onOpen = widget.onOpenFileWorkspaceViewer;
+    if (onOpen != null) {
+      onOpen(request);
+    } else {
+      showFileWorkspaceViewerPanel(context: context, request: request);
+    }
+    return true;
+  }
+
+  String? get _fileReferenceRootPath {
+    final rootPath = widget.fileReferenceRootPath?.trim();
+    if (rootPath == null || rootPath.isEmpty) {
+      return null;
+    }
+    return rootPath;
   }
 
   Widget _buildThinkingBlock(String content, ThemeData theme, int index) {

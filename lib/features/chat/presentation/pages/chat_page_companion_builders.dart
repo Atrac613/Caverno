@@ -36,6 +36,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
     required ChatState chatState,
     required CodingProject activeProject,
     bool inSheet = false,
+    bool showLeadingBorder = true,
   }) {
     final theme = Theme.of(context);
     final snapshotAsync = ref.watch(
@@ -53,7 +54,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
         color: theme.colorScheme.surfaceContainerHighest.withValues(
           alpha: inSheet ? 0 : 0.32,
         ),
-        border: inSheet
+        border: inSheet || !showLeadingBorder
             ? null
             : Border(
                 left: BorderSide(
@@ -655,7 +656,9 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: () => showTurnDiffSheet(context, diff: diff),
+        onTap: () => _openFileWorkspaceViewer(
+          FileWorkspaceViewerRequest.diff(diff: diff),
+        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(
