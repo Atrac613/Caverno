@@ -55,7 +55,7 @@ structurally unmotivated to build:
 | Foundation | F4 | later | L | — | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS history search. |
 | Foundation | F5 | later | ongoing | F2 | Continue large-file decomposition per `docs/large_file_refactor_plan.md` phases 2-4. |
 | Local LLM | LL1 | done | S | — | Per-role model routing (memory extraction, subagents, goal suggestions, approval auto-review on a small fast model). |
-| Local LLM | LL2 | current | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
+| Local LLM | LL2 | done | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
 | Local LLM | LL3 | later | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
 | Local LLM | LL4 | later | M | LL3 | Repo map v1: ranked, compressed symbol outline injected into the system prompt. |
 | Local LLM | LL5 | later | M | F4, LL4 | Local semantic code search via `/v1/embeddings`, stored in the drift database. |
@@ -201,6 +201,19 @@ Acceptance criteria:
   without fixture rewrites.
 - High-risk tool approval still routes through the same user approval gate.
 
+Next action:
+- Extract planning and dispatch policy from `ChatNotifier` into a focused
+  service while preserving the existing `ChatToolDispatcher` routing order and
+  approval-gated tool behavior.
+
+Current evidence:
+- `lib/features/chat/domain/services/tool_loop_recovery_policy.dart`
+- `lib/features/chat/presentation/providers/chat_tool_dispatcher.dart`
+- `test/features/chat/domain/services/tool_loop_recovery_policy_test.dart`
+- `test/features/chat/presentation/providers/chat_tool_dispatcher_test.dart`
+- Focused `chat_notifier_test.dart` tool-loop recovery cases pass through
+  `tool/codex_verify.sh`.
+
 ### LL1: Per-Role Model Routing
 
 Scope:
@@ -232,7 +245,7 @@ Evidence:
 
 ### LL2: Whole-Turn Checkpoints
 
-Status: `current`
+Status: `done`
 
 Scope:
 - Record a shadow checkpoint (per-session ref or stash-like snapshot) of files
@@ -243,6 +256,18 @@ Scope:
 Acceptance criteria:
 - A multi-file agent turn can be reverted in one action.
 - Reverting never touches files the agent did not modify.
+
+Evidence:
+- `lib/features/chat/data/datasources/file_rollback_checkpoint_store.dart`
+- `lib/features/chat/presentation/pages/chat_page_turn_rollback_support.dart`
+- `lib/features/chat/presentation/pages/chat_page_header_builders.dart`
+- `lib/features/chat/presentation/providers/chat_notifier_turn_rollback_handlers.dart`
+- `test/features/chat/data/datasources/file_rollback_checkpoint_store_test.dart`
+- `test/features/chat/data/datasources/mcp_tool_service_test.dart`
+- `test/features/chat/presentation/pages/chat_page_companion_panel_test.dart`
+- `test/features/chat/presentation/providers/chat_notifier_turn_rollback_part.dart`
+- `fvm flutter analyze`; focused LL2 and file-size ratchet tests pass through
+  `tool/codex_verify.sh`.
 
 ### LL3: Model Capability Profiles
 
