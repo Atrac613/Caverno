@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/system_prompt_builder.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 void main() {
   test('includes selected project context in coding mode prompts', () {
@@ -161,6 +162,31 @@ void main() {
       ),
     );
     expect(prompt, contains('After tool_search returns a match'));
+  });
+
+  test('includes model capability guidance for weak tool-call profiles', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.coding,
+      languageCode: 'en',
+      toolNames: const ['get_current_datetime', 'edit_file'],
+      modelCapabilityProfile: ModelCapabilityProfile(
+        id: '',
+        baseUrl: 'http://localhost:1234/v1',
+        model: 'weak-tool-model',
+        toolCallStyle: ModelToolCallStyle.embeddedToolTags,
+        structuredOutputSupport: ModelStructuredOutputSupport.none,
+        editFormatPreference: ModelEditFormatPreference.searchReplace,
+        usableContextTokens: 4096,
+      ).normalizedForPersistence(),
+    );
+
+    expect(prompt, contains('MODEL CAPABILITY PROFILE:'));
+    expect(prompt, contains('Caverno textual tool-call tags'));
+    expect(prompt, contains('<tool_call>{"name":"tool_name"'));
+    expect(prompt, contains('weak structured-output adherence'));
+    expect(prompt, contains('search-and-replace edit blocks'));
+    expect(prompt, contains('4096 usable context tokens'));
   });
 
   test('instructs browser tools to refresh refs before actions', () {

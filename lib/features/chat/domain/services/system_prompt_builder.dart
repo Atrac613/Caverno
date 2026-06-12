@@ -1,5 +1,6 @@
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
+import '../../../settings/domain/entities/app_settings.dart';
 import '../entities/conversation_goal.dart';
 import '../entities/conversation_plan_artifact.dart';
 import '../entities/conversation_workflow.dart';
@@ -33,6 +34,7 @@ class SystemPromptBuilder {
     String? agentsMarkdown,
     String? skillsContext,
     bool hasPythonInputAttachment = false,
+    ModelCapabilityProfile? modelCapabilityProfile,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
     final hasTools = uniqueToolNames.isNotEmpty;
@@ -111,6 +113,13 @@ class SystemPromptBuilder {
       ..writeln(SystemPromptConstants.communicationInstruction)
       ..writeln(SystemPromptConstants.oversightInstruction)
       ..writeln(SystemPromptConstants.languageInstruction(languageCode));
+
+    final modelCapabilityGuidance = _modelCapabilityGuidance(
+      modelCapabilityProfile,
+    );
+    if (modelCapabilityGuidance.isNotEmpty) {
+      buffer.writeln(modelCapabilityGuidance);
+    }
 
     // In voice mode, follow-up questions are handled by the voice mode instruction.
     if (!isVoiceMode) {
@@ -718,6 +727,67 @@ class SystemPromptBuilder {
     }
 
     return buffer.toString().trimRight();
+  }
+
+  static String _modelCapabilityGuidance(ModelCapabilityProfile? profile) {
+    if (profile == null) {
+      return '';
+    }
+    final lines = <String>[];
+    switch (profile.toolCallStyle) {
+      case ModelToolCallStyle.embeddedToolTags:
+        lines.add(
+          'MODEL CAPABILITY PROFILE: This model is more reliable with Caverno textual tool-call tags than native OpenAI tool calls. When a tool is required, emit exactly one complete <tool_call>{"name":"tool_name","arguments":{...}}</tool_call> block and no surrounding prose.',
+        );
+      case ModelToolCallStyle.none:
+        lines.add(
+          'MODEL CAPABILITY PROFILE: This model has not demonstrated reliable tool calling. Do not emit tool-call-shaped text unless the user request truly requires a tool and the available tool contract is clear.',
+        );
+      case ModelToolCallStyle.nativeToolCalls:
+        lines.add(
+          'MODEL CAPABILITY PROFILE: This model has demonstrated reliable native tool calls. Prefer native tool calls over textual tool-call tags.',
+        );
+      case ModelToolCallStyle.unknown:
+        break;
+    }
+    switch (profile.structuredOutputSupport) {
+      case ModelStructuredOutputSupport.none:
+        lines.add(
+          'MODEL CAPABILITY PROFILE: This model has weak structured-output adherence. Keep JSON and code blocks minimal, syntactically complete, and verify required keys before answering.',
+        );
+      case ModelStructuredOutputSupport.jsonObject:
+      case ModelStructuredOutputSupport.jsonSchema:
+        lines.add(
+          'MODEL CAPABILITY PROFILE: This model has demonstrated structured-output adherence. Use compact, valid JSON when a machine-readable response is requested.',
+        );
+      case ModelStructuredOutputSupport.unknown:
+        break;
+    }
+    switch (profile.editFormatPreference) {
+      case ModelEditFormatPreference.wholeFile:
+        lines.add(
+          'MODEL CAPABILITY PROFILE: Prefer whole-file edits when editing is required.',
+        );
+      case ModelEditFormatPreference.searchReplace:
+        lines.add(
+          'MODEL CAPABILITY PROFILE: Prefer small search-and-replace edit blocks with exact surrounding context.',
+        );
+      case ModelEditFormatPreference.unifiedDiff:
+        lines.add(
+          'MODEL CAPABILITY PROFILE: Prefer unified diffs for file edits when the tool accepts them.',
+        );
+      case ModelEditFormatPreference.unknown:
+        break;
+    }
+    if (profile.usableContextTokens > 0) {
+      lines.add(
+        'MODEL CAPABILITY PROFILE: Keep prompt construction within approximately ${profile.usableContextTokens} usable context tokens for this model.',
+      );
+    }
+    if (lines.isEmpty) {
+      return '';
+    }
+    return lines.join('\n');
   }
 
   static String _formatDate(DateTime value) {

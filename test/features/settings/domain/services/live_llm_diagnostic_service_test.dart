@@ -69,6 +69,41 @@ void main() {
     );
   });
 
+  test('runs a bounded model capability probe set', () async {
+    final dataSource = _FakeDiagnosticDataSource();
+    final service = LiveLlmDiagnosticService(
+      settings: _settings(mcpEnabled: false),
+      chatDataSource: dataSource,
+      mcpToolService: McpToolService(),
+    );
+
+    final report = await service.run(
+      probeIds: LiveLlmDiagnosticService.modelCapabilityProbeIds,
+    );
+
+    expect(dataSource.requestedModels, ['test-model']);
+    expect(
+      _result(report, 'instruction_echo').status,
+      LiveLlmDiagnosticStatus.passed,
+    );
+    expect(
+      _result(report, 'exact_preservation').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+    expect(
+      _result(report, 'narrow_tool_call').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+    expect(
+      _result(report, 'tool_result_integration').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+    expect(
+      _result(report, 'tool_search_catalog').status,
+      LiveLlmDiagnosticStatus.skipped,
+    );
+  });
+
   test(
     'uses textual tool calls for Apple Foundation Models diagnostics',
     () async {

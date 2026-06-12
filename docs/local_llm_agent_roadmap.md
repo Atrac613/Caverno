@@ -332,17 +332,30 @@ Current implementation evidence:
   normalized profile records.
 - `LiveLlmDiagnosticNotifier` stores an updated profile after a successful
   on-demand diagnostic run.
+- `ModelCapabilityAutoProbeNotifier` runs the bounded LL3 probe subset for
+  newly selected models, skips already-profiled models, and persists the
+  resulting profile.
+- `SystemPromptBuilder` reads the active profile and injects model-specific
+  guidance for tool-call style, structured output, edit format, and usable
+  context.
 
 Current verification:
 - `test/features/settings/domain/entities/app_settings_test.dart`
 - `test/features/settings/domain/services/model_capability_profile_builder_test.dart`
+- `test/features/settings/domain/services/live_llm_diagnostic_service_test.dart`
+- `test/features/settings/presentation/providers/model_capability_auto_probe_notifier_test.dart`
 - `test/features/settings/presentation/providers/settings_notifier_test.dart`
 - `test/features/settings/presentation/providers/live_llm_diagnostic_notifier_test.dart`
+- `test/features/chat/domain/services/system_prompt_builder_test.dart`
 
 Acceptance criteria:
 - Probes are non-destructive, bounded in time, and skippable.
 - A weak-model profile measurably reduces malformed tool calls in the
   existing live canary suite.
+
+Remaining evidence before `done`:
+- Run the existing live canary suite against a known weak-model profile and
+  record before/after malformed tool-call counts.
 
 ### LL4: Repo Map v1
 

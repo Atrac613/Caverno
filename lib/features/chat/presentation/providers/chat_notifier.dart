@@ -851,6 +851,7 @@ class ChatNotifier extends Notifier<ChatState> {
         hasPythonInputAttachment:
             toolNames.contains('run_python_script') &&
             _latestPythonInputMessage() != null,
+        modelCapabilityProfile: _settings.effectiveModelCapabilityProfile,
       ),
       role: MessageRole.system,
       timestamp: now,

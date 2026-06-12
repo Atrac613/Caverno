@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:easy_localization/easy_localization.dart';
@@ -11,6 +12,7 @@ import '../../../../core/services/google_chat_delivery_service.dart';
 import '../../../../core/utils/debouncer.dart';
 import '../../domain/entities/app_settings.dart';
 import '../providers/apple_foundation_models_availability_provider.dart';
+import '../providers/model_capability_auto_probe_notifier.dart';
 import '../providers/model_list_provider.dart';
 import '../providers/settings_notifier.dart';
 
@@ -168,6 +170,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     }
     await notifier.applyNvidiaNimCloudPreset();
     if (!mounted) return;
+    _runModelCapabilityAutoProbe();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('settings.nvidia_nim_preset_applied'.tr())),
     );
@@ -633,11 +636,13 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                 ),
               )
               .toList(),
-          onChanged: (value) {
+          onChanged: (value) async {
             if (value == null) return;
-            ref
+            await ref
                 .read(settingsNotifierProvider.notifier)
                 .updateModel(value.trim());
+            if (!mounted) return;
+            _runModelCapabilityAutoProbe();
           },
         );
       },
@@ -675,11 +680,13 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                 child: Text(selectedModel, overflow: TextOverflow.ellipsis),
               ),
             ],
-            onChanged: (value) {
+            onChanged: (value) async {
               if (value == null) return;
-              ref
+              await ref
                   .read(settingsNotifierProvider.notifier)
                   .updateModel(value.trim());
+              if (!mounted) return;
+              _runModelCapabilityAutoProbe();
             },
           ),
           const SizedBox(height: 8),
@@ -692,6 +699,14 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
           ),
         ],
       ),
+    );
+  }
+
+  void _runModelCapabilityAutoProbe() {
+    unawaited(
+      ref
+          .read(modelCapabilityAutoProbeNotifierProvider.notifier)
+          .runForCurrentModel(),
     );
   }
 
@@ -799,9 +814,11 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                           );
                         })
                         .toList(growable: false),
-                    onChanged: (provider) {
+                    onChanged: (provider) async {
                       if (provider == null) return;
-                      notifier.updateLlmProvider(provider);
+                      await notifier.updateLlmProvider(provider);
+                      if (!mounted) return;
+                      _runModelCapabilityAutoProbe();
                     },
                   ),
                   if (appleAvailability != null &&

@@ -87,6 +87,13 @@ class LiveLlmDiagnosticService {
   static const _subagentProbeId = 'subagent_recognition';
   static const _remoteMcpProbeId = 'remote_mcp_exposure';
 
+  static const modelCapabilityProbeIds = <String>{
+    _instructionProbeId,
+    _narrowToolCallProbeId,
+    _toolResultProbeId,
+    _initialHarnessProbeId,
+  };
+
   static const _marker = 'CAVERNO_LIVE_DIAGNOSTIC';
   static const _foundationModelsEnglishMarker = 'CAVERNO_FM_LANG_EN';
   static const _foundationModelsJapaneseMarker = 'CAVERNO_FM_LANG_JA';
@@ -102,7 +109,9 @@ class LiveLlmDiagnosticService {
 
   Future<LiveLlmDiagnosticReport> run({
     LiveLlmDiagnosticReportCallback? onReport,
+    Set<String>? probeIds,
   }) async {
+    final selectedProbeIds = probeIds == null ? null : Set<String>.of(probeIds);
     final startedAt = DateTime.now();
     var report = LiveLlmDiagnosticReport(
       startedAt: startedAt,
@@ -133,24 +142,27 @@ class LiveLlmDiagnosticService {
     }
 
     final capabilities = settings.llmCapabilities;
-    report = await _runProbe(
-      report,
-      _instructionProbeId,
-      onReport,
-      _runInstructionProbe,
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _instructionProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runInstructionProbe,
     );
-    report = await _runProbe(
-      report,
-      _exactPreservationProbeId,
-      onReport,
-      _runExactPreservationProbe,
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _exactPreservationProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: _runExactPreservationProbe,
     );
     if (settings.llmProvider == LlmProvider.appleFoundationModels) {
-      report = await _runProbe(
-        report,
-        _foundationModelsLanguageMatrixProbeId,
-        onReport,
-        _runFoundationModelsLanguageMatrixProbe,
+      report = await _runSelectedProbe(
+        report: report,
+        probeId: _foundationModelsLanguageMatrixProbeId,
+        selectedProbeIds: selectedProbeIds,
+        onReport: onReport,
+        run: _runFoundationModelsLanguageMatrixProbe,
       );
     } else {
       report = report.withProbeResult(
@@ -167,60 +179,111 @@ class LiveLlmDiagnosticService {
       report = _skipProviderUnsupportedToolProbes(
         report,
         _toolBridgeProbeDefinitions(),
+        selectedProbeIds: selectedProbeIds,
       );
       report = report.copyWith(finishedAt: DateTime.now());
       onReport?.call(report);
       return report;
     }
-    report = await _runProbe(
-      report,
-      _narrowToolCallProbeId,
-      onReport,
-      () => _runNarrowToolCallProbe(catalogContext),
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _narrowToolCallProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: () => _runNarrowToolCallProbe(catalogContext),
     );
     if (!capabilities.supportsAdvancedLiveToolDiagnostics) {
       report = _skipProviderUnsupportedToolProbes(
         report,
         _probeDefinitionsAfter(_narrowToolCallProbeId),
+        selectedProbeIds: selectedProbeIds,
       );
       report = report.copyWith(finishedAt: DateTime.now());
       onReport?.call(report);
       return report;
     }
-    report = await _runProbe(
-      report,
-      _toolResultProbeId,
-      onReport,
-      () => _runToolResultProbe(catalogContext),
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _toolResultProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: () => _runToolResultProbe(catalogContext),
     );
-    report = await _runProbe(
-      report,
-      _initialHarnessProbeId,
-      onReport,
-      () => _runInitialHarnessProbe(catalogContext),
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _initialHarnessProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: () => _runInitialHarnessProbe(catalogContext),
     );
-    report = await _runProbe(
-      report,
-      _toolSearchProbeId,
-      onReport,
-      () => _runToolSearchProbe(catalogContext),
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _toolSearchProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: () => _runToolSearchProbe(catalogContext),
     );
-    report = await _runProbe(
-      report,
-      _subagentProbeId,
-      onReport,
-      () => _runSubagentProbe(catalogContext),
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _subagentProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: () => _runSubagentProbe(catalogContext),
     );
-    report = await _runProbe(
-      report,
-      _remoteMcpProbeId,
-      onReport,
-      () => _runRemoteMcpProbe(catalogContext),
+    report = await _runSelectedProbe(
+      report: report,
+      probeId: _remoteMcpProbeId,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+      run: () => _runRemoteMcpProbe(catalogContext),
     );
 
     report = report.copyWith(finishedAt: DateTime.now());
     onReport?.call(report);
     return report;
+  }
+
+  Future<LiveLlmDiagnosticReport> _runSelectedProbe({
+    required LiveLlmDiagnosticReport report,
+    required String probeId,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+    required Future<LiveLlmDiagnosticProbeResult> Function() run,
+  }) {
+    if (!_shouldRunProbe(probeId, selectedProbeIds)) {
+      final updated = _skipProbe(
+        report,
+        probeId,
+        'Skipped because this bounded diagnostic run did not request this probe.',
+      );
+      onReport?.call(updated);
+      return Future.value(updated);
+    }
+    return _runProbe(report, probeId, onReport, run);
+  }
+
+  bool _shouldRunProbe(String probeId, Set<String>? selectedProbeIds) {
+    return selectedProbeIds == null || selectedProbeIds.contains(probeId);
+  }
+
+  LiveLlmDiagnosticReport _skipProbe(
+    LiveLlmDiagnosticReport report,
+    String probeId,
+    String summary, {
+    String details = '',
+  }) {
+    final existing = report.results.where((result) => result.id == probeId);
+    if (existing.isNotEmpty && existing.first.status.isTerminal) {
+      return report;
+    }
+    return report.withProbeResult(
+      LiveLlmDiagnosticProbeResult(
+        id: probeId,
+        status: LiveLlmDiagnosticStatus.skipped,
+        summary: summary,
+        details: details,
+      ),
+    );
   }
 
   Iterable<LiveLlmDiagnosticProbeDefinition> _toolBridgeProbeDefinitions() {
@@ -355,20 +418,21 @@ class LiveLlmDiagnosticService {
 
   LiveLlmDiagnosticReport _skipProviderUnsupportedToolProbes(
     LiveLlmDiagnosticReport report,
-    Iterable<LiveLlmDiagnosticProbeDefinition> definitions,
-  ) {
+    Iterable<LiveLlmDiagnosticProbeDefinition> definitions, {
+    Set<String>? selectedProbeIds,
+  }) {
     var updated = report;
     for (final definition in definitions) {
-      updated = updated.withProbeResult(
-        LiveLlmDiagnosticProbeResult(
-          id: definition.id,
-          status: LiveLlmDiagnosticStatus.skipped,
-          summary:
-              'Skipped because the selected provider does not support this diagnostic capability.',
-          details:
-              'Foundation Models currently supports only limited text responses '
-              'and an experimental single-step textual tool bridge in Caverno.',
-        ),
+      if (!_shouldRunProbe(definition.id, selectedProbeIds)) {
+        continue;
+      }
+      updated = _skipProbe(
+        updated,
+        definition.id,
+        'Skipped because the selected provider does not support this diagnostic capability.',
+        details:
+            'Foundation Models currently supports only limited text responses '
+            'and an experimental single-step textual tool bridge in Caverno.',
       );
     }
     return updated;
