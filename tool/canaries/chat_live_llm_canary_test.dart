@@ -1313,8 +1313,72 @@ class _LiveSettingsNotifier extends SettingsNotifier {
       maxTokens: env.maxTokens,
       mcpEnabled: mcpEnabled,
       demoMode: false,
+      modelCapabilityProfiles: _modelCapabilityProfilesFromEnvironment(env),
     );
   }
+}
+
+List<ModelCapabilityProfile> _modelCapabilityProfilesFromEnvironment(
+  _ChatLiveEnv env,
+) {
+  final toolCallStyle = _enumFromEnvironment(
+    'CAVERNO_LLM_MODEL_TOOL_CALL_STYLE',
+    ModelToolCallStyle.values,
+    ModelToolCallStyle.unknown,
+  );
+  final structuredOutputSupport = _enumFromEnvironment(
+    'CAVERNO_LLM_MODEL_STRUCTURED_OUTPUT',
+    ModelStructuredOutputSupport.values,
+    ModelStructuredOutputSupport.unknown,
+  );
+  final editFormatPreference = _enumFromEnvironment(
+    'CAVERNO_LLM_MODEL_EDIT_FORMAT',
+    ModelEditFormatPreference.values,
+    ModelEditFormatPreference.unknown,
+  );
+  final usableContextTokens =
+      int.tryParse(
+        Platform.environment['CAVERNO_LLM_MODEL_USABLE_CONTEXT_TOKENS'] ?? '',
+      ) ??
+      0;
+  if (toolCallStyle == ModelToolCallStyle.unknown &&
+      structuredOutputSupport == ModelStructuredOutputSupport.unknown &&
+      editFormatPreference == ModelEditFormatPreference.unknown &&
+      usableContextTokens <= 0) {
+    return const <ModelCapabilityProfile>[];
+  }
+  return [
+    ModelCapabilityProfile(
+      id: '',
+      provider: env.provider,
+      baseUrl: env.baseUrl,
+      model: env.model,
+      toolCallStyle: toolCallStyle,
+      structuredOutputSupport: structuredOutputSupport,
+      editFormatPreference: editFormatPreference,
+      usableContextTokens: usableContextTokens,
+      probedAt: DateTime.now(),
+      probeSummary: 'Injected by chat live canary environment.',
+      probeMetadata: const {'source': 'chat_live_canary_environment'},
+    ).normalizedForPersistence(),
+  ];
+}
+
+T _enumFromEnvironment<T extends Enum>(
+  String name,
+  List<T> values,
+  T fallback,
+) {
+  final raw = Platform.environment[name]?.trim();
+  if (raw == null || raw.isEmpty) {
+    return fallback;
+  }
+  for (final value in values) {
+    if (value.name == raw) {
+      return value;
+    }
+  }
+  throw StateError('Unsupported $name "$raw".');
 }
 
 class _LiveConversationsNotifier extends ConversationsNotifier {

@@ -338,6 +338,11 @@ Current implementation evidence:
 - `SystemPromptBuilder` reads the active profile and injects model-specific
   guidance for tool-call style, structured output, edit format, and usable
   context.
+- `tool/canaries/chat_live_llm_canary_test.dart` can inject a test profile from
+  `CAVERNO_LLM_MODEL_TOOL_CALL_STYLE`,
+  `CAVERNO_LLM_MODEL_STRUCTURED_OUTPUT`, `CAVERNO_LLM_MODEL_EDIT_FORMAT`, and
+  `CAVERNO_LLM_MODEL_USABLE_CONTEXT_TOKENS` for before/after live canary
+  comparisons.
 
 Current verification:
 - `test/features/settings/domain/entities/app_settings_test.dart`
@@ -347,6 +352,8 @@ Current verification:
 - `test/features/settings/presentation/providers/settings_notifier_test.dart`
 - `test/features/settings/presentation/providers/live_llm_diagnostic_notifier_test.dart`
 - `test/features/chat/domain/services/system_prompt_builder_test.dart`
+- `tool/canaries/chat_live_llm_canary_test.dart` (compile/skip check without
+  live env)
 
 Acceptance criteria:
 - Probes are non-destructive, bounded in time, and skippable.
@@ -355,7 +362,8 @@ Acceptance criteria:
 
 Remaining evidence before `done`:
 - Run the existing live canary suite against a known weak-model profile and
-  record before/after malformed tool-call counts.
+  record before/after malformed tool-call counts, especially
+  `incompleteContentToolRecoveryCount` in `canary_summary.json`.
 
 ### LL4: Repo Map v1
 
