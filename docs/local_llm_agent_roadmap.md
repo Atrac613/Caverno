@@ -51,7 +51,7 @@ structurally unmotivated to build:
 |-------|-----------|--------|------|------------|------|
 | Foundation | F1 | done | S | — | CI-enforced line-count ratchet for oversized files. |
 | Foundation | F2 | done | M | F1 | Extract the tool-call loop from `ChatNotifier` behind a handler registry. |
-| Foundation | F3 | later | M | — | Major dependency upgrades, `openai_dart` 6.x first. |
+| Foundation | F3 | current | M | — | Major dependency upgrades, `openai_dart` 6.x first. |
 | Foundation | F4 | later | L | — | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS history search. |
 | Foundation | F5 | later | ongoing | F2 | Continue large-file decomposition per `docs/large_file_refactor_plan.md` phases 2-4. |
 | Local LLM | LL1 | done | S | — | Per-role model routing (memory extraction, subagents, goal suggestions, approval auto-review on a small fast model). |
@@ -223,6 +223,35 @@ Evidence:
 - Focused chat notifier, routine, subagent, dispatcher, policy, and ratchet
   tests pass; generated-file checks and focused suites pass through
   `tool/codex_verify.sh`.
+
+### F3: Major Dependency Currency
+
+Status: `current`
+
+Scope:
+- Upgrade `openai_dart` from 4.x to 6.x first because Chat Completions request
+  shaping, structured-output probing, and future Responses API surfaces depend
+  on the API client baseline.
+- Keep each remaining major dependency upgrade in an isolated slice with
+  focused tests for the affected integration boundary.
+
+Acceptance criteria:
+- `openai_dart` is locked to the current 6.x line without Chat Completions
+  analyzer regressions.
+- Existing chat datasource, session logging, Plan Mode scenario spec, chat
+  notifier, and ratchet tests pass after the upgrade.
+- Remaining major upgrades are tracked as follow-up slices rather than mixed
+  into the API client upgrade.
+
+Current evidence:
+- `pubspec.yaml` depends on `openai_dart: ^6.2.0`.
+- `pubspec.lock` locks `openai_dart` to 6.2.0.
+- `test/features/chat/data/datasources/chat_remote_datasource_test.dart`
+- `test/features/chat/data/datasources/session_logging_chat_datasource_test.dart`
+- `test/integration/plan_mode_scenario_spec_test.dart`
+- `test/features/chat/presentation/providers/chat_notifier_test.dart`
+- `test/quality/file_size_ratchet_test.dart`
+- `fvm flutter analyze` passes with the upgraded client.
 
 ### LL1: Per-Role Model Routing
 
