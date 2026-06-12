@@ -64,6 +64,7 @@ import '../../domain/services/coding_verification_feedback_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
+import '../../domain/services/planning_tool_policy.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
@@ -253,6 +254,7 @@ class ChatNotifier extends Notifier<ChatState> {
   late BackgroundProcessMonitorService _backgroundProcessMonitorService;
   final ToolLoopRecoveryPolicy _toolLoopRecoveryPolicy =
       const ToolLoopRecoveryPolicy();
+  final PlanningToolPolicy _planningToolPolicy = const PlanningToolPolicy();
   String? conversationId;
   String _languageCode = 'en';
   String? _sessionMemoryContext;
@@ -13725,142 +13727,10 @@ class ChatNotifier extends Notifier<ChatState> {
     final currentConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
-    if (!(currentConversation?.isPlanningSession ?? false)) {
-      return null;
-    }
-
-    if (MacosComputerUseToolPolicy.isComputerUseTool(toolCall.name)) {
-      return MacosComputerUseToolPolicy.isAllowedInPlanning(toolCall.name)
-          ? null
-          : _buildPlanningToolDeniedResult(
-              toolCall,
-              detail:
-                  'Planning mode allows only macOS computer-use observation tools.',
-            );
-    }
-
-    switch (toolCall.name) {
-      case 'list_directory':
-      case 'read_file':
-      case 'inspect_file':
-      case 'find_files':
-      case 'search_files':
-      case ToolDefinitionSearchService.toolName:
-      case 'get_current_datetime':
-      case 'ask_user_question':
-      case 'os_get_system_info':
-      case 'process_status':
-      case 'process_tail':
-      case 'process_wait':
-      case 'search_past_conversations':
-      case 'recall_memory':
-      case 'ping':
-      case 'whois_lookup':
-      case 'dns_lookup':
-      case 'port_check':
-      case 'ssl_certificate':
-      case 'http_status':
-      case 'http_get':
-      case 'http_head':
-      case 'web_search':
-      case 'web_url_read':
-      case 'wifi_scan':
-      case 'wifi_get_scan_results':
-      case 'wifi_get_connection_info':
-      case 'os_log_read':
-      case 'lan_scan':
-      case 'lan_get_scan_results':
-        return null;
-      case 'local_execute_command':
-        final resolvedArguments = _resolveProjectScopedArguments(
-          toolCall.name,
-          toolCall.arguments,
-        );
-        final command = LocalShellTools.normalizeCommand(
-          (resolvedArguments['command'] as String?)?.trim() ?? '',
-        );
-        return LocalShellTools.isReadOnly(command)
-            ? null
-            : _buildPlanningToolDeniedResult(
-                toolCall,
-                detail: command.isEmpty
-                    ? 'Planning mode only allows read-only local commands.'
-                    : 'Planning mode blocked local command: $command',
-              );
-      case 'process_start':
-        return _buildPlanningToolDeniedResult(
-          toolCall,
-          detail: 'Planning mode cannot start background processes.',
-        );
-      case 'process_cancel':
-        return _buildPlanningToolDeniedResult(
-          toolCall,
-          detail: 'Planning mode cannot cancel background processes.',
-        );
-      case 'git_execute_command':
-        final resolvedArguments = _resolveProjectScopedArguments(
-          toolCall.name,
-          toolCall.arguments,
-        );
-        final command = GitTools.normalizeCommand(
-          (resolvedArguments['command'] as String?)?.trim() ?? '',
-        );
-        return GitTools.isReadOnly(command)
-            ? null
-            : _buildPlanningToolDeniedResult(
-                toolCall,
-                detail: command.isEmpty
-                    ? 'Planning mode only allows read-only git commands.'
-                    : 'Planning mode blocked git command: git $command',
-              );
-      default:
-        return _isPlanningDeniedToolName(toolCall.name)
-            ? _buildPlanningToolDeniedResult(toolCall)
-            : null;
-    }
-  }
-
-  bool _isPlanningDeniedToolName(String toolName) {
-    if (toolName.startsWith('ssh_') || toolName.startsWith('ble_')) {
-      return true;
-    }
-    if (toolName.startsWith('computer_')) {
-      return !MacosComputerUseToolPolicy.isAllowedInPlanning(toolName);
-    }
-
-    return switch (toolName) {
-      'write_file' ||
-      'edit_file' ||
-      'rollback_last_file_change' ||
-      'run_tests' ||
-      'http_post' ||
-      'http_put' ||
-      'http_patch' ||
-      'http_delete' => true,
-      _ => false,
-    };
-  }
-
-  McpToolResult _buildPlanningToolDeniedResult(
-    ToolCallInfo toolCall, {
-    String? detail,
-  }) {
-    final payload = jsonEncode({
-      'error':
-          'Planning mode allows only read-only tools. Approve the plan and '
-          'start implementation before retrying this action.',
-      'code': 'permission_denied',
-      'reason': 'planning_mode_requires_read_only_tools',
-      'tool': toolCall.name,
-      if (detail != null && detail.isNotEmpty) 'detail': detail,
-    });
-
-    return McpToolResult(
-      toolName: toolCall.name,
-      result: payload,
-      isSuccess: false,
-      errorMessage:
-          detail ?? 'Planning mode blocks non-read-only tool execution',
+    return _planningToolPolicy.enforce(
+      toolCall,
+      isPlanningSession: currentConversation?.isPlanningSession ?? false,
+      resolveArguments: _resolveProjectScopedArguments,
     );
   }
 
