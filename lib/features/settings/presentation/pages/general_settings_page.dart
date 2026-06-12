@@ -933,7 +933,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Text('Temperature: '),
+                      const Text('Chat temperature: '),
                       Expanded(
                         child: Slider(
                           value: settings.temperature,
@@ -951,6 +951,9 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                         child: Text(settings.temperature.toStringAsFixed(1)),
                       ),
                     ],
+                  ),
+                  const Text(
+                    'Tool loops, coding, plans, routines, and subagents use a managed low temperature.',
                   ),
                   const SizedBox(height: 8),
                   TextField(

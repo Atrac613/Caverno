@@ -1445,6 +1445,9 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
   final List<List<ToolResultInfo>> toolResultBatches = [];
   final List<Message> finalAnswerMessages = <Message>[];
   final List<String?> assistantContents = [];
+  double? initialToolTemperature;
+  final List<double?> toolLoopTemperatures = [];
+  final List<double?> finalAnswerTemperatures = [];
 
   @override
   Stream<String> streamChatCompletion({
@@ -1453,6 +1456,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async* {
+    finalAnswerTemperatures.add(temperature);
     finalAnswerMessages
       ..clear()
       ..addAll(List<Message>.from(messages));
@@ -1478,6 +1482,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
+    initialToolTemperature = temperature;
     return StreamWithToolsResult(
       stream: const Stream.empty(),
       completion: Future<ChatCompletionResult>.value(
@@ -1531,6 +1536,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
+    toolLoopTemperatures.add(temperature);
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
     assistantContents.add(assistantContent);
     return _toolLoopResponses.removeFirst();
@@ -1633,6 +1639,18 @@ class _ToolEnabledSettingsNotifier extends SettingsNotifier {
   AppSettings build() {
     return AppSettings.defaults().copyWith(
       assistantMode: AssistantMode.general,
+      mcpEnabled: true,
+      demoMode: false,
+    );
+  }
+}
+
+class _ToolEnabledHighTemperatureSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      temperature: 1.7,
       mcpEnabled: true,
       demoMode: false,
     );
@@ -4310,6 +4328,62 @@ void main() {
       );
     },
   );
+
+  test('sendMessage splits tool-loop and final prose temperatures', () async {
+    final dataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-read-pubspec',
+          name: 'read_file',
+          arguments: const {'path': 'pubspec.yaml'},
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ],
+      finalAnswerChunks: const ['Read completed.'],
+    );
+    final toolService = _FakeMcpToolService(
+      descriptions: const {'read_file': 'Read a file from the project.'},
+      results: const {'read_file': '{"content":"name: caverno"}'},
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final threadContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledHighTemperatureSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(threadContainer.dispose);
+
+    final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendMessage('Read pubspec.yaml');
+
+    expect(dataSource.initialToolTemperature, 0.2);
+    expect(dataSource.toolLoopTemperatures, [0.2]);
+    expect(dataSource.finalAnswerTemperatures, [1.7]);
+    expect(
+      chatNotifier.state.messages.last.content,
+      contains('Read completed.'),
+    );
+  });
 
   test(
     'sendMessage blocks command after unexecuted version file mutation claim',

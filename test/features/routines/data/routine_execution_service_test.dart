@@ -64,6 +64,26 @@ void main() {
       expect(toolService.executedCalls, isEmpty);
     });
 
+    test(
+      'uses the managed routine temperature instead of chat temperature',
+      () async {
+        final dataSource = _FakeChatDataSource(
+          plainResults: [
+            ChatCompletionResult(content: 'Plain answer', finishReason: 'stop'),
+          ],
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          settings: AppSettings.defaults().copyWith(temperature: 1.7),
+        );
+
+        final record = await service.execute(buildRoutine());
+
+        expect(record.isSuccessful, isTrue);
+        expect(dataSource.requestTemperatures, [0.2]);
+      },
+    );
+
     test('uses read-only tools when routine tools are enabled', () async {
       final dataSource = _FakeChatDataSource(
         initialToolAwareResult: ChatCompletionResult(
@@ -1687,6 +1707,7 @@ class _FakeChatDataSource implements ChatDataSource {
   List<Message> lastToolAwareMessages = const [];
   List<Map<String, dynamic>> lastToolDefinitions = const [];
   List<ToolResultInfo> lastToolResults = const [];
+  final requestTemperatures = <double?>[];
   final toolAwareMessageContents = <String>[];
   int createChatCompletionWithToolResultsCallCount = 0;
 
@@ -1698,6 +1719,7 @@ class _FakeChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
+    requestTemperatures.add(temperature);
     if (tools != null && tools.isNotEmpty) {
       lastToolDefinitions = tools;
       lastToolAwareMessages = messages;
@@ -1752,6 +1774,7 @@ class _FakeChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
+    requestTemperatures.add(temperature);
     createChatCompletionWithToolResultsCallCount += 1;
     lastToolResults = toolResults;
     if (_toolLoopResults.isNotEmpty) {

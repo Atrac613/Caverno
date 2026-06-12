@@ -22,6 +22,7 @@ import '../../chat/domain/services/system_prompt_builder.dart';
 import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../../settings/domain/entities/app_settings.dart';
+import '../../settings/domain/services/llm_request_temperature_policy.dart';
 import '../../settings/presentation/providers/settings_notifier.dart';
 import '../domain/entities/routine.dart';
 import '../domain/services/routine_computer_use_action_allowlist.dart';
@@ -152,6 +153,8 @@ class RoutineExecutionService {
   final AppSettings _settings;
   final AgentsMdLoader? _agentsMdLoader;
   final Uuid _uuid = const Uuid();
+  double get _routineRequestTemperature =>
+      LlmRequestTemperaturePolicy.forSettings(_settings).routineTemperature;
   static const int _maxStoredOutputLength = 24000;
   static const int _maxStoredToolArgumentsLength = 4000;
   static const int _maxStoredToolResultLength = 12000;
@@ -313,7 +316,7 @@ class RoutineExecutionService {
         final result = await _dataSource.createChatCompletion(
           messages: messages,
           model: _settings.model,
-          temperature: _settings.temperature,
+          temperature: _routineRequestTemperature,
           maxTokens: _settings.maxTokens,
         );
         final markdown = _textSegmentsOnly(result.content).trimRight();
@@ -544,7 +547,7 @@ class RoutineExecutionService {
       final result = await _dataSource.createChatCompletion(
         messages: messages,
         model: _settings.model,
-        temperature: _settings.temperature,
+        temperature: _routineRequestTemperature,
         maxTokens: _settings.maxTokens,
       );
       return RoutineToolExecutionResult(
@@ -563,7 +566,7 @@ class RoutineExecutionService {
         allowedToolNames: allowedToolNames,
       ),
       model: _settings.model,
-      temperature: _settings.temperature,
+      temperature: _routineRequestTemperature,
       maxTokens: _settings.maxTokens,
     );
   }

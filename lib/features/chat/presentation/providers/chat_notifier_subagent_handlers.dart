@@ -202,7 +202,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         interactionGeneration: interactionGeneration,
       ),
       model: _settings.effectiveSubagentModel,
-      temperature: _settings.temperature,
+      temperature: _agenticRequestTemperature,
       maxTokens: _settings.maxTokens,
       isBackground: isBackground,
     );

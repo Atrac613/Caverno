@@ -31,6 +31,7 @@ import '../../domain/services/session_memory_service.dart';
 import '../../domain/services/skill_prompt_index_builder.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_provider_capabilities.dart';
+import '../../../settings/domain/services/llm_request_temperature_policy.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/apple_foundation_models_datasource.dart';
 import '../../data/datasources/chat_datasource.dart';
@@ -273,6 +274,18 @@ class ChatNotifier extends Notifier<ChatState> {
   String? _latestHiddenAssistantResponse;
   String? _activeTurnUserPrompt;
   DateTime? _activeTurnStartedAt;
+  double get _agenticRequestTemperature =>
+      LlmRequestTemperaturePolicy.forSettings(_settings).agenticTemperature;
+  double get _assistantRequestTemperature =>
+      LlmRequestTemperaturePolicy.forSettings(
+        _settings,
+      ).temperatureForAssistantMode(
+        _resolveAssistantMode(
+          currentConversation: ref
+              .read(conversationsNotifierProvider)
+              .currentConversation,
+        ),
+      );
   static const Set<String> _planningResearchStopWords = {
     'about',
     'after',
@@ -8716,7 +8729,7 @@ class ChatNotifier extends Notifier<ChatState> {
         final stream = _dataSource.streamChatCompletion(
           messages: _prepareMessagesForLLM(interactionGeneration: generation),
           model: _settings.model,
-          temperature: _settings.temperature,
+          temperature: _assistantRequestTemperature,
           maxTokens: _settings.maxTokens,
         );
 
@@ -8864,7 +8877,7 @@ class ChatNotifier extends Notifier<ChatState> {
           assistantContent: assistantContent,
           tools: tools,
           model: _settings.model,
-          temperature: _settings.temperature,
+          temperature: _agenticRequestTemperature,
           maxTokens: _settings.maxTokens,
         ),
       );
@@ -8926,7 +8939,7 @@ class ChatNotifier extends Notifier<ChatState> {
           final stream = _dataSource.streamChatCompletion(
             messages: messagesForLLM,
             model: _settings.model,
-            temperature: _settings.temperature,
+            temperature: _assistantRequestTemperature,
             maxTokens: _settings.maxTokens,
           );
 
@@ -9079,7 +9092,7 @@ class ChatNotifier extends Notifier<ChatState> {
           ),
           tools: initialToolSelection.toolDefinitions,
           model: _settings.model,
-          temperature: _settings.temperature,
+          temperature: _agenticRequestTemperature,
           maxTokens: _settings.maxTokens,
         ),
       );
@@ -15050,7 +15063,7 @@ class ChatNotifier extends Notifier<ChatState> {
           ? _dataSource.streamChatCompletion(
               messages: messagesForLLM,
               model: _settings.model,
-              temperature: _settings.temperature,
+              temperature: _assistantRequestTemperature,
               maxTokens: _settings.maxTokens,
             )
           : _dataSource
@@ -15058,7 +15071,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   messages: messagesForLLM,
                   tools: continuationToolDefinitions,
                   model: _settings.model,
-                  temperature: _settings.temperature,
+                  temperature: _agenticRequestTemperature,
                   maxTokens: _settings.maxTokens,
                 )
                 .stream;
@@ -15144,7 +15157,7 @@ class ChatNotifier extends Notifier<ChatState> {
         () => _dataSource.createChatCompletion(
           messages: messagesForLLM,
           model: _settings.model,
-          temperature: _settings.temperature,
+          temperature: _assistantRequestTemperature,
           maxTokens: _settings.maxTokens,
         ),
       );
