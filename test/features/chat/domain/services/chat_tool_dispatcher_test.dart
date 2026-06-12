@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
-import 'package:caverno/features/chat/presentation/providers/chat_tool_dispatcher.dart';
+import 'package:caverno/features/chat/domain/services/chat_tool_dispatcher.dart';
 
 void main() {
   group('ChatToolDispatcher', () {
