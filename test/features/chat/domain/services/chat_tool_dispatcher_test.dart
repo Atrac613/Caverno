@@ -101,6 +101,24 @@ void main() {
       expect(events, ['registry']);
     });
 
+    test('builds a registry from handler modules', () async {
+      final registry = ChatToolHandlerRegistry.fromModules([
+        _TestHandlerModule({
+          'read_file': (_) async => _result('first'),
+          'write_file': (_) async => _result('write'),
+        }),
+        _TestHandlerModule({'read_file': (_) async => _result('second')}),
+      ]);
+
+      final readResult = await registry.dispatch(_toolCall('read_file'));
+      final writeResult = await registry.dispatch(_toolCall('write_file'));
+      final missingResult = await registry.dispatch(_toolCall('edit_file'));
+
+      expect(readResult?.toolName, 'second');
+      expect(writeResult?.toolName, 'write');
+      expect(missingResult, isNull);
+    });
+
     test(
       'falls back to generic tool execution when no handler matches',
       () async {
@@ -153,4 +171,11 @@ ToolCallInfo _toolCall(String name) {
 
 McpToolResult _result(String toolName) {
   return McpToolResult(toolName: toolName, result: toolName, isSuccess: true);
+}
+
+final class _TestHandlerModule implements ChatToolHandlerModule {
+  const _TestHandlerModule(this.handlers);
+
+  @override
+  final Map<String, ChatToolHandler> handlers;
 }

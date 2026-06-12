@@ -4,7 +4,29 @@ extension ChatNotifierToolHandlerRegistry on ChatNotifier {
   ChatToolHandlerRegistry _buildToolHandlerRegistry({
     int? interactionGeneration,
   }) {
-    return ChatToolHandlerRegistry({
+    return ChatToolHandlerRegistry.fromModules([
+      _ProjectScopedToolHandlerModule(this),
+      _LocalFileToolHandlerModule(this),
+      _PythonToolHandlerModule(this),
+      _SshToolHandlerModule(this),
+      _GitToolHandlerModule(this),
+      _DeviceToolHandlerModule(this),
+      _ConversationToolHandlerModule(
+        this,
+        interactionGeneration: interactionGeneration,
+      ),
+    ]);
+  }
+}
+
+final class _ProjectScopedToolHandlerModule implements ChatToolHandlerModule {
+  const _ProjectScopedToolHandlerModule(this._notifier);
+
+  final ChatNotifier _notifier;
+
+  @override
+  Map<String, ChatToolHandler> get handlers {
+    return {
       for (final toolName in const [
         'list_directory',
         'read_file',
@@ -15,29 +37,101 @@ extension ChatNotifierToolHandlerRegistry on ChatNotifier {
         'process_tail',
         'process_wait',
       ])
-        toolName: _handleProjectScopedTool,
-      'write_file': _handleWriteFile,
-      'edit_file': _handleEditFile,
-      'rollback_last_file_change': _handleRollbackLastFileChange,
-      'local_execute_command': _handleLocalExecuteCommand,
-      'process_start': _handleProcessStart,
-      'process_cancel': _handleProcessCancel,
-      'run_python_script': _handlePythonScript,
-      'run_tests': _handleRunTests,
-      'ssh_connect': _handleSshConnect,
-      'ssh_execute_command': _handleSshExecuteCommand,
-      'git_execute_command': _handleGitExecuteCommand,
-      'ble_connect': _handleBleConnect,
-      'serial_open': _handleSerialOpen,
-      'ask_user_question': (toolCall) => _handleAskUserQuestion(
+        toolName: _notifier._handleProjectScopedTool,
+    };
+  }
+}
+
+final class _LocalFileToolHandlerModule implements ChatToolHandlerModule {
+  const _LocalFileToolHandlerModule(this._notifier);
+
+  final ChatNotifier _notifier;
+
+  @override
+  Map<String, ChatToolHandler> get handlers {
+    return {
+      'write_file': _notifier._handleWriteFile,
+      'edit_file': _notifier._handleEditFile,
+      'rollback_last_file_change': _notifier._handleRollbackLastFileChange,
+      'local_execute_command': _notifier._handleLocalExecuteCommand,
+      'process_start': _notifier._handleProcessStart,
+      'process_cancel': _notifier._handleProcessCancel,
+      'run_tests': _notifier._handleRunTests,
+    };
+  }
+}
+
+final class _PythonToolHandlerModule implements ChatToolHandlerModule {
+  const _PythonToolHandlerModule(this._notifier);
+
+  final ChatNotifier _notifier;
+
+  @override
+  Map<String, ChatToolHandler> get handlers {
+    return {'run_python_script': _notifier._handlePythonScript};
+  }
+}
+
+final class _SshToolHandlerModule implements ChatToolHandlerModule {
+  const _SshToolHandlerModule(this._notifier);
+
+  final ChatNotifier _notifier;
+
+  @override
+  Map<String, ChatToolHandler> get handlers {
+    return {
+      'ssh_connect': _notifier._handleSshConnect,
+      'ssh_execute_command': _notifier._handleSshExecuteCommand,
+    };
+  }
+}
+
+final class _GitToolHandlerModule implements ChatToolHandlerModule {
+  const _GitToolHandlerModule(this._notifier);
+
+  final ChatNotifier _notifier;
+
+  @override
+  Map<String, ChatToolHandler> get handlers {
+    return {'git_execute_command': _notifier._handleGitExecuteCommand};
+  }
+}
+
+final class _DeviceToolHandlerModule implements ChatToolHandlerModule {
+  const _DeviceToolHandlerModule(this._notifier);
+
+  final ChatNotifier _notifier;
+
+  @override
+  Map<String, ChatToolHandler> get handlers {
+    return {
+      'ble_connect': _notifier._handleBleConnect,
+      'serial_open': _notifier._handleSerialOpen,
+    };
+  }
+}
+
+final class _ConversationToolHandlerModule implements ChatToolHandlerModule {
+  const _ConversationToolHandlerModule(
+    this._notifier, {
+    required this.interactionGeneration,
+  });
+
+  final ChatNotifier _notifier;
+  final int? interactionGeneration;
+
+  @override
+  Map<String, ChatToolHandler> get handlers {
+    return {
+      'ask_user_question': (toolCall) => _notifier._handleAskUserQuestion(
         toolCall,
         interactionGeneration: interactionGeneration,
       ),
-      'spawn_subagent': (toolCall) => _handleSpawnSubagent(
+      'spawn_subagent': (toolCall) => _notifier._handleSpawnSubagent(
         toolCall,
         interactionGeneration: interactionGeneration,
       ),
-      'get_subagent_result': _handleGetSubagentResult,
-    });
+      'get_subagent_result': _notifier._handleGetSubagentResult,
+    };
   }
 }

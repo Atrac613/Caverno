@@ -1,13 +1,25 @@
 import '../../../../core/services/browser_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
-import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/entities/tool_call_info.dart';
+import '../entities/mcp_tool_entity.dart';
+import '../entities/tool_call_info.dart';
 
 typedef ChatToolHandler = Future<McpToolResult> Function(ToolCallInfo toolCall);
 typedef ChatToolPlanningPolicy = McpToolResult? Function(ToolCallInfo toolCall);
 
+abstract interface class ChatToolHandlerModule {
+  Map<String, ChatToolHandler> get handlers;
+}
+
 final class ChatToolHandlerRegistry {
   const ChatToolHandlerRegistry(this._handlers);
+
+  factory ChatToolHandlerRegistry.fromModules(
+    Iterable<ChatToolHandlerModule> modules,
+  ) {
+    return ChatToolHandlerRegistry({
+      for (final module in modules) ...module.handlers,
+    });
+  }
 
   final Map<String, ChatToolHandler> _handlers;
 
