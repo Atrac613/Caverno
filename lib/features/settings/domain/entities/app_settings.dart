@@ -32,6 +32,17 @@ enum ReasoningEffortPreference { automatic, low, medium, high }
 
 enum LlmProvider { openAiCompatible, appleFoundationModels }
 
+enum ModelToolCallStyle { unknown, nativeToolCalls, embeddedToolTags, none }
+
+enum ModelStructuredOutputSupport { unknown, jsonSchema, jsonObject, none }
+
+enum ModelEditFormatPreference {
+  unknown,
+  wholeFile,
+  searchReplace,
+  unifiedDiff,
+}
+
 extension ReasoningEffortPreferenceApi on ReasoningEffortPreference {
   String? get apiValue => switch (this) {
     ReasoningEffortPreference.automatic => null,
@@ -170,6 +181,106 @@ abstract class McpServerConfig with _$McpServerConfig {
 }
 
 @freezed
+abstract class ModelCapabilityProfile with _$ModelCapabilityProfile {
+  const ModelCapabilityProfile._();
+
+  const factory ModelCapabilityProfile({
+    required String id,
+    @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)
+    @Default(LlmProvider.openAiCompatible)
+    LlmProvider provider,
+    @Default('') String baseUrl,
+    required String model,
+    @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)
+    @Default(ModelToolCallStyle.unknown)
+    ModelToolCallStyle toolCallStyle,
+    @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)
+    @Default(ModelStructuredOutputSupport.unknown)
+    ModelStructuredOutputSupport structuredOutputSupport,
+    @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)
+    @Default(ModelEditFormatPreference.unknown)
+    ModelEditFormatPreference editFormatPreference,
+    @Default(0) int usableContextTokens,
+    DateTime? probedAt,
+    @Default('') String probeSummary,
+    @Default(<String, String>{}) Map<String, String> probeMetadata,
+  }) = _ModelCapabilityProfile;
+
+  factory ModelCapabilityProfile.fromJson(Map<String, dynamic> json) =>
+      _$ModelCapabilityProfileFromJson(json);
+
+  static String buildId({
+    required LlmProvider provider,
+    required String baseUrl,
+    required String model,
+  }) {
+    final endpoint = provider == LlmProvider.appleFoundationModels
+        ? 'apple-foundation-models://local'
+        : baseUrl.trim().toLowerCase();
+    return '${provider.name}|$endpoint|${model.trim()}';
+  }
+
+  String get normalizedBaseUrl => baseUrl.trim();
+
+  String get normalizedModel => model.trim();
+
+  String get computedId => buildId(
+    provider: provider,
+    baseUrl: normalizedBaseUrl,
+    model: normalizedModel,
+  );
+
+  ModelCapabilityProfile normalizedForPersistence() {
+    return copyWith(
+      id: computedId,
+      baseUrl: normalizedBaseUrl,
+      model: normalizedModel,
+      usableContextTokens: usableContextTokens < 0 ? 0 : usableContextTokens,
+      probeSummary: probeSummary.trim(),
+      probeMetadata: Map<String, String>.from(probeMetadata),
+    );
+  }
+
+  bool matches({
+    required LlmProvider provider,
+    required String baseUrl,
+    required String model,
+  }) {
+    final targetId = buildId(
+      provider: provider,
+      baseUrl: baseUrl,
+      model: model,
+    );
+    return id == targetId || computedId == targetId;
+  }
+}
+
+List<ModelCapabilityProfile> _modelCapabilityProfilesFromJson(
+  List<dynamic>? json,
+) {
+  if (json == null) {
+    return const <ModelCapabilityProfile>[];
+  }
+  return json
+      .whereType<Map>()
+      .map(
+        (item) => ModelCapabilityProfile.fromJson(
+          Map<String, dynamic>.from(item),
+        ).normalizedForPersistence(),
+      )
+      .where((profile) => profile.normalizedModel.isNotEmpty)
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _modelCapabilityProfilesToJson(
+  List<ModelCapabilityProfile> profiles,
+) {
+  return profiles
+      .map((profile) => profile.normalizedForPersistence().toJson())
+      .toList(growable: false);
+}
+
+@freezed
 abstract class AppSettings with _$AppSettings {
   const AppSettings._();
 
@@ -240,6 +351,12 @@ abstract class AppSettings with _$AppSettings {
     @Default(<RoutineComputerUseActionAllowlistEntry>[])
     List<RoutineComputerUseActionAllowlistEntry>
     routineComputerUseActionAllowlist,
+    @JsonKey(
+      fromJson: _modelCapabilityProfilesFromJson,
+      toJson: _modelCapabilityProfilesToJson,
+    )
+    @Default(<ModelCapabilityProfile>[])
+    List<ModelCapabilityProfile> modelCapabilityProfiles,
   }) = _AppSettings;
 
   factory AppSettings.defaults() => const AppSettings(
@@ -280,6 +397,27 @@ abstract class AppSettings with _$AppSettings {
 
   String get effectiveApprovalAutoReviewModel =>
       _resolveRoleModel(approvalAutoReviewModel);
+
+  ModelCapabilityProfile? get effectiveModelCapabilityProfile {
+    return modelCapabilityProfileFor(
+      provider: llmProvider,
+      baseUrl: baseUrl,
+      model: effectiveModel,
+    );
+  }
+
+  ModelCapabilityProfile? modelCapabilityProfileFor({
+    required LlmProvider provider,
+    required String baseUrl,
+    required String model,
+  }) {
+    for (final profile in modelCapabilityProfiles.reversed) {
+      if (profile.matches(provider: provider, baseUrl: baseUrl, model: model)) {
+        return profile.normalizedForPersistence();
+      }
+    }
+    return null;
+  }
 
   /// Role models only apply to OpenAI-compatible endpoints; the Apple
   /// Foundation Models provider has a single on-device model.

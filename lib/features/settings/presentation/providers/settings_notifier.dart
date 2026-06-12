@@ -83,6 +83,39 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> upsertModelCapabilityProfile(
+    ModelCapabilityProfile profile,
+  ) async {
+    final normalized = profile.normalizedForPersistence();
+    if (normalized.normalizedModel.isEmpty) {
+      throw ArgumentError('Model capability profile model is required');
+    }
+
+    final profiles = List<ModelCapabilityProfile>.from(
+      state.modelCapabilityProfiles,
+    );
+    final index = profiles.indexWhere((item) => item.id == normalized.id);
+    if (index == -1) {
+      profiles.add(normalized);
+    } else {
+      profiles[index] = normalized;
+    }
+    state = state.copyWith(modelCapabilityProfiles: profiles);
+    await _repository.save(state);
+  }
+
+  Future<void> removeModelCapabilityProfile(String profileId) async {
+    final normalizedId = profileId.trim();
+    if (normalizedId.isEmpty) {
+      return;
+    }
+    final profiles = state.modelCapabilityProfiles
+        .where((profile) => profile.id != normalizedId)
+        .toList(growable: false);
+    state = state.copyWith(modelCapabilityProfiles: profiles);
+    await _repository.save(state);
+  }
+
   Future<void> updateTemperature(double temperature) async {
     state = state.copyWith(temperature: temperature);
     await _repository.save(state);

@@ -97,6 +97,78 @@ void main() {
     expect(decoded.effectiveModel, AppSettings.appleFoundationModelsModelId);
   });
 
+  test('persists and resolves model capability profiles', () {
+    final profile = ModelCapabilityProfile(
+      id: 'stale-profile-id',
+      baseUrl: ' HTTP://LOCALHOST:1234/v1 ',
+      model: ' qwen-test ',
+      toolCallStyle: ModelToolCallStyle.nativeToolCalls,
+      structuredOutputSupport: ModelStructuredOutputSupport.jsonSchema,
+      editFormatPreference: ModelEditFormatPreference.searchReplace,
+      usableContextTokens: -1,
+      probedAt: DateTime.utc(2026, 6, 12),
+      probeSummary: ' Probe completed. ',
+      probeMetadata: const {'nativeToolCalls': 'passed'},
+    ).normalizedForPersistence();
+    final settings = AppSettings.defaults().copyWith(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'qwen-test',
+      modelCapabilityProfiles: [profile],
+    );
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.modelCapabilityProfiles, hasLength(1));
+    expect(decoded.modelCapabilityProfiles.single.id, profile.computedId);
+    expect(decoded.modelCapabilityProfiles.single.usableContextTokens, 0);
+    expect(
+      decoded.modelCapabilityProfiles.single.probeSummary,
+      'Probe completed.',
+    );
+    expect(
+      decoded.effectiveModelCapabilityProfile?.toolCallStyle,
+      ModelToolCallStyle.nativeToolCalls,
+    );
+    expect(
+      decoded.effectiveModelCapabilityProfile?.structuredOutputSupport,
+      ModelStructuredOutputSupport.jsonSchema,
+    );
+  });
+
+  test('unknown model capability enum values fall back safely', () {
+    final json =
+        jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
+              as Map<String, dynamic>
+          ..['modelCapabilityProfiles'] = [
+            {
+              'id': ModelCapabilityProfile.buildId(
+                provider: LlmProvider.openAiCompatible,
+                baseUrl: AppSettings.defaults().baseUrl,
+                model: AppSettings.defaults().model,
+              ),
+              'provider': 'openAiCompatible',
+              'baseUrl': AppSettings.defaults().baseUrl,
+              'model': AppSettings.defaults().model,
+              'toolCallStyle': 'futureStyle',
+              'structuredOutputSupport': 'futureStructuredOutput',
+              'editFormatPreference': 'futureEditFormat',
+            },
+          ];
+
+    final decoded = AppSettings.fromJson(json);
+    final profile = decoded.effectiveModelCapabilityProfile;
+
+    expect(profile, isNotNull);
+    expect(profile!.toolCallStyle, ModelToolCallStyle.unknown);
+    expect(
+      profile.structuredOutputSupport,
+      ModelStructuredOutputSupport.unknown,
+    );
+    expect(profile.editFormatPreference, ModelEditFormatPreference.unknown);
+  });
+
   test('persists coding approval mode', () {
     final settings = AppSettings.defaults().copyWith(
       codingApprovalMode: ToolApprovalMode.autoReview,

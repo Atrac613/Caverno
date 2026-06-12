@@ -6,6 +6,7 @@ import '../../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
+import '../../domain/services/model_capability_profile_builder.dart';
 import 'settings_notifier.dart';
 
 final liveLlmDiagnosticNotifierProvider =
@@ -40,6 +41,17 @@ class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
           state = state.copyWith(report: report, clearError: true);
         },
       );
+      if (!ref.mounted || generation != _generation) {
+        return;
+      }
+      await ref
+          .read(settingsNotifierProvider.notifier)
+          .upsertModelCapabilityProfile(
+            ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+              report: report,
+              provider: settings.llmProvider,
+            ),
+          );
       if (!ref.mounted || generation != _generation) {
         return;
       }

@@ -142,6 +142,96 @@ const _$McpServerTrustStateEnumMap = {
   McpServerTrustState.blocked: 'blocked',
 };
 
+_ModelCapabilityProfile _$ModelCapabilityProfileFromJson(
+  Map<String, dynamic> json,
+) => _ModelCapabilityProfile(
+  id: json['id'] as String,
+  provider:
+      $enumDecodeNullable(
+        _$LlmProviderEnumMap,
+        json['provider'],
+        unknownValue: LlmProvider.openAiCompatible,
+      ) ??
+      LlmProvider.openAiCompatible,
+  baseUrl: json['baseUrl'] as String? ?? '',
+  model: json['model'] as String,
+  toolCallStyle:
+      $enumDecodeNullable(
+        _$ModelToolCallStyleEnumMap,
+        json['toolCallStyle'],
+        unknownValue: ModelToolCallStyle.unknown,
+      ) ??
+      ModelToolCallStyle.unknown,
+  structuredOutputSupport:
+      $enumDecodeNullable(
+        _$ModelStructuredOutputSupportEnumMap,
+        json['structuredOutputSupport'],
+        unknownValue: ModelStructuredOutputSupport.unknown,
+      ) ??
+      ModelStructuredOutputSupport.unknown,
+  editFormatPreference:
+      $enumDecodeNullable(
+        _$ModelEditFormatPreferenceEnumMap,
+        json['editFormatPreference'],
+        unknownValue: ModelEditFormatPreference.unknown,
+      ) ??
+      ModelEditFormatPreference.unknown,
+  usableContextTokens: (json['usableContextTokens'] as num?)?.toInt() ?? 0,
+  probedAt: json['probedAt'] == null
+      ? null
+      : DateTime.parse(json['probedAt'] as String),
+  probeSummary: json['probeSummary'] as String? ?? '',
+  probeMetadata:
+      (json['probeMetadata'] as Map<String, dynamic>?)?.map(
+        (k, e) => MapEntry(k, e as String),
+      ) ??
+      const <String, String>{},
+);
+
+Map<String, dynamic> _$ModelCapabilityProfileToJson(
+  _ModelCapabilityProfile instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'provider': _$LlmProviderEnumMap[instance.provider]!,
+  'baseUrl': instance.baseUrl,
+  'model': instance.model,
+  'toolCallStyle': _$ModelToolCallStyleEnumMap[instance.toolCallStyle]!,
+  'structuredOutputSupport':
+      _$ModelStructuredOutputSupportEnumMap[instance.structuredOutputSupport]!,
+  'editFormatPreference':
+      _$ModelEditFormatPreferenceEnumMap[instance.editFormatPreference]!,
+  'usableContextTokens': instance.usableContextTokens,
+  'probedAt': instance.probedAt?.toIso8601String(),
+  'probeSummary': instance.probeSummary,
+  'probeMetadata': instance.probeMetadata,
+};
+
+const _$LlmProviderEnumMap = {
+  LlmProvider.openAiCompatible: 'openAiCompatible',
+  LlmProvider.appleFoundationModels: 'appleFoundationModels',
+};
+
+const _$ModelToolCallStyleEnumMap = {
+  ModelToolCallStyle.unknown: 'unknown',
+  ModelToolCallStyle.nativeToolCalls: 'nativeToolCalls',
+  ModelToolCallStyle.embeddedToolTags: 'embeddedToolTags',
+  ModelToolCallStyle.none: 'none',
+};
+
+const _$ModelStructuredOutputSupportEnumMap = {
+  ModelStructuredOutputSupport.unknown: 'unknown',
+  ModelStructuredOutputSupport.jsonSchema: 'jsonSchema',
+  ModelStructuredOutputSupport.jsonObject: 'jsonObject',
+  ModelStructuredOutputSupport.none: 'none',
+};
+
+const _$ModelEditFormatPreferenceEnumMap = {
+  ModelEditFormatPreference.unknown: 'unknown',
+  ModelEditFormatPreference.wholeFile: 'wholeFile',
+  ModelEditFormatPreference.searchReplace: 'searchReplace',
+  ModelEditFormatPreference.unifiedDiff: 'unifiedDiff',
+};
+
 _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   llmProvider:
       $enumDecodeNullable(
@@ -250,6 +340,11 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
           )
           .toList() ??
       const <RoutineComputerUseActionAllowlistEntry>[],
+  modelCapabilityProfiles: json['modelCapabilityProfiles'] == null
+      ? const <ModelCapabilityProfile>[]
+      : _modelCapabilityProfilesFromJson(
+          json['modelCapabilityProfiles'] as List?,
+        ),
 );
 
 Map<String, dynamic> _$AppSettingsToJson(
@@ -302,11 +397,9 @@ Map<String, dynamic> _$AppSettingsToJson(
   'localCommandPermissionRules': instance.localCommandPermissionRules,
   'routineComputerUseActionAllowlist':
       instance.routineComputerUseActionAllowlist,
-};
-
-const _$LlmProviderEnumMap = {
-  LlmProvider.openAiCompatible: 'openAiCompatible',
-  LlmProvider.appleFoundationModels: 'appleFoundationModels',
+  'modelCapabilityProfiles': _modelCapabilityProfilesToJson(
+    instance.modelCapabilityProfiles,
+  ),
 };
 
 const _$ReasoningEffortPreferenceEnumMap = {

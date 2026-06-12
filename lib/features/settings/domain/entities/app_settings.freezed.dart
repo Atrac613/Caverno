@@ -883,6 +883,305 @@ as DateTime?,
 
 
 /// @nodoc
+mixin _$ModelCapabilityProfile {
+
+ String get id;@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider get provider; String get baseUrl; String get model;@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle get toolCallStyle;@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport get structuredOutputSupport;@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference get editFormatPreference; int get usableContextTokens; DateTime? get probedAt; String get probeSummary; Map<String, String> get probeMetadata;
+/// Create a copy of ModelCapabilityProfile
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ModelCapabilityProfileCopyWith<ModelCapabilityProfile> get copyWith => _$ModelCapabilityProfileCopyWithImpl<ModelCapabilityProfile>(this as ModelCapabilityProfile, _$identity);
+
+  /// Serializes this ModelCapabilityProfile to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other.probeMetadata, probeMetadata));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,editFormatPreference,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(probeMetadata));
+
+@override
+String toString() {
+  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, editFormatPreference: $editFormatPreference, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ModelCapabilityProfileCopyWith<$Res>  {
+  factory $ModelCapabilityProfileCopyWith(ModelCapabilityProfile value, $Res Function(ModelCapabilityProfile) _then) = _$ModelCapabilityProfileCopyWithImpl;
+@useResult
+$Res call({
+ String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
+});
+
+
+
+
+}
+/// @nodoc
+class _$ModelCapabilityProfileCopyWithImpl<$Res>
+    implements $ModelCapabilityProfileCopyWith<$Res> {
+  _$ModelCapabilityProfileCopyWithImpl(this._self, this._then);
+
+  final ModelCapabilityProfile _self;
+  final $Res Function(ModelCapabilityProfile) _then;
+
+/// Create a copy of ModelCapabilityProfile
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? editFormatPreference = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
+as LlmProvider,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
+as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
+as String,toolCallStyle: null == toolCallStyle ? _self.toolCallStyle : toolCallStyle // ignore: cast_nullable_to_non_nullable
+as ModelToolCallStyle,structuredOutputSupport: null == structuredOutputSupport ? _self.structuredOutputSupport : structuredOutputSupport // ignore: cast_nullable_to_non_nullable
+as ModelStructuredOutputSupport,editFormatPreference: null == editFormatPreference ? _self.editFormatPreference : editFormatPreference // ignore: cast_nullable_to_non_nullable
+as ModelEditFormatPreference,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
+as int,probedAt: freezed == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
+as String,probeMetadata: null == probeMetadata ? _self.probeMetadata : probeMetadata // ignore: cast_nullable_to_non_nullable
+as Map<String, String>,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ModelCapabilityProfile].
+extension ModelCapabilityProfilePatterns on ModelCapabilityProfile {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ModelCapabilityProfile value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ModelCapabilityProfile() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ModelCapabilityProfile value)  $default,){
+final _that = this;
+switch (_that) {
+case _ModelCapabilityProfile():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ModelCapabilityProfile value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ModelCapabilityProfile() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ModelCapabilityProfile() when $default != null:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.editFormatPreference,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)  $default,) {final _that = this;
+switch (_that) {
+case _ModelCapabilityProfile():
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.editFormatPreference,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider provider,  String baseUrl,  String model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)  ModelToolCallStyle toolCallStyle, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)  ModelStructuredOutputSupport structuredOutputSupport, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)  ModelEditFormatPreference editFormatPreference,  int usableContextTokens,  DateTime? probedAt,  String probeSummary,  Map<String, String> probeMetadata)?  $default,) {final _that = this;
+switch (_that) {
+case _ModelCapabilityProfile() when $default != null:
+return $default(_that.id,_that.provider,_that.baseUrl,_that.model,_that.toolCallStyle,_that.structuredOutputSupport,_that.editFormatPreference,_that.usableContextTokens,_that.probedAt,_that.probeSummary,_that.probeMetadata);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ModelCapabilityProfile extends ModelCapabilityProfile {
+  const _ModelCapabilityProfile({required this.id, @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.provider = LlmProvider.openAiCompatible, this.baseUrl = '', required this.model, @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) this.toolCallStyle = ModelToolCallStyle.unknown, @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) this.structuredOutputSupport = ModelStructuredOutputSupport.unknown, @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) this.editFormatPreference = ModelEditFormatPreference.unknown, this.usableContextTokens = 0, this.probedAt, this.probeSummary = '', final  Map<String, String> probeMetadata = const <String, String>{}}): _probeMetadata = probeMetadata,super._();
+  factory _ModelCapabilityProfile.fromJson(Map<String, dynamic> json) => _$ModelCapabilityProfileFromJson(json);
+
+@override final  String id;
+@override@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) final  LlmProvider provider;
+@override@JsonKey() final  String baseUrl;
+@override final  String model;
+@override@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) final  ModelToolCallStyle toolCallStyle;
+@override@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) final  ModelStructuredOutputSupport structuredOutputSupport;
+@override@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) final  ModelEditFormatPreference editFormatPreference;
+@override@JsonKey() final  int usableContextTokens;
+@override final  DateTime? probedAt;
+@override@JsonKey() final  String probeSummary;
+ final  Map<String, String> _probeMetadata;
+@override@JsonKey() Map<String, String> get probeMetadata {
+  if (_probeMetadata is EqualUnmodifiableMapView) return _probeMetadata;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_probeMetadata);
+}
+
+
+/// Create a copy of ModelCapabilityProfile
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ModelCapabilityProfileCopyWith<_ModelCapabilityProfile> get copyWith => __$ModelCapabilityProfileCopyWithImpl<_ModelCapabilityProfile>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ModelCapabilityProfileToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ModelCapabilityProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.provider, provider) || other.provider == provider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolCallStyle, toolCallStyle) || other.toolCallStyle == toolCallStyle)&&(identical(other.structuredOutputSupport, structuredOutputSupport) || other.structuredOutputSupport == structuredOutputSupport)&&(identical(other.editFormatPreference, editFormatPreference) || other.editFormatPreference == editFormatPreference)&&(identical(other.usableContextTokens, usableContextTokens) || other.usableContextTokens == usableContextTokens)&&(identical(other.probedAt, probedAt) || other.probedAt == probedAt)&&(identical(other.probeSummary, probeSummary) || other.probeSummary == probeSummary)&&const DeepCollectionEquality().equals(other._probeMetadata, _probeMetadata));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,provider,baseUrl,model,toolCallStyle,structuredOutputSupport,editFormatPreference,usableContextTokens,probedAt,probeSummary,const DeepCollectionEquality().hash(_probeMetadata));
+
+@override
+String toString() {
+  return 'ModelCapabilityProfile(id: $id, provider: $provider, baseUrl: $baseUrl, model: $model, toolCallStyle: $toolCallStyle, structuredOutputSupport: $structuredOutputSupport, editFormatPreference: $editFormatPreference, usableContextTokens: $usableContextTokens, probedAt: $probedAt, probeSummary: $probeSummary, probeMetadata: $probeMetadata)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ModelCapabilityProfileCopyWith<$Res> implements $ModelCapabilityProfileCopyWith<$Res> {
+  factory _$ModelCapabilityProfileCopyWith(_ModelCapabilityProfile value, $Res Function(_ModelCapabilityProfile) _then) = __$ModelCapabilityProfileCopyWithImpl;
+@override @useResult
+$Res call({
+ String id,@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider provider, String baseUrl, String model,@JsonKey(unknownEnumValue: ModelToolCallStyle.unknown) ModelToolCallStyle toolCallStyle,@JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown) ModelStructuredOutputSupport structuredOutputSupport,@JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown) ModelEditFormatPreference editFormatPreference, int usableContextTokens, DateTime? probedAt, String probeSummary, Map<String, String> probeMetadata
+});
+
+
+
+
+}
+/// @nodoc
+class __$ModelCapabilityProfileCopyWithImpl<$Res>
+    implements _$ModelCapabilityProfileCopyWith<$Res> {
+  __$ModelCapabilityProfileCopyWithImpl(this._self, this._then);
+
+  final _ModelCapabilityProfile _self;
+  final $Res Function(_ModelCapabilityProfile) _then;
+
+/// Create a copy of ModelCapabilityProfile
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? provider = null,Object? baseUrl = null,Object? model = null,Object? toolCallStyle = null,Object? structuredOutputSupport = null,Object? editFormatPreference = null,Object? usableContextTokens = null,Object? probedAt = freezed,Object? probeSummary = null,Object? probeMetadata = null,}) {
+  return _then(_ModelCapabilityProfile(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,provider: null == provider ? _self.provider : provider // ignore: cast_nullable_to_non_nullable
+as LlmProvider,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
+as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
+as String,toolCallStyle: null == toolCallStyle ? _self.toolCallStyle : toolCallStyle // ignore: cast_nullable_to_non_nullable
+as ModelToolCallStyle,structuredOutputSupport: null == structuredOutputSupport ? _self.structuredOutputSupport : structuredOutputSupport // ignore: cast_nullable_to_non_nullable
+as ModelStructuredOutputSupport,editFormatPreference: null == editFormatPreference ? _self.editFormatPreference : editFormatPreference // ignore: cast_nullable_to_non_nullable
+as ModelEditFormatPreference,usableContextTokens: null == usableContextTokens ? _self.usableContextTokens : usableContextTokens // ignore: cast_nullable_to_non_nullable
+as int,probedAt: freezed == probedAt ? _self.probedAt : probedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,probeSummary: null == probeSummary ? _self.probeSummary : probeSummary // ignore: cast_nullable_to_non_nullable
+as String,probeMetadata: null == probeMetadata ? _self._probeMetadata : probeMetadata // ignore: cast_nullable_to_non_nullable
+as Map<String, String>,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$AppSettings {
 
 @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider get llmProvider; String get baseUrl; String get model; String get apiKey; double get temperature; int get maxTokens;@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference get reasoningEffort;// Per-role model routing (LL1). Empty string means "use the main model".
@@ -891,7 +1190,7 @@ mixin _$AppSettings {
  bool get ttsEnabled; bool get autoReadEnabled; double get speechRate;// Voice mode (Whisper + VOICEVOX)
  bool get voiceModeAutoStop; String get whisperUrl; String get voicevoxUrl; int get voicevoxSpeakerId; String get language;@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode get assistantMode;@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode get codingApprovalMode;// Approval policy for chat-mode built-in browser automation. Reuses the
 // shared [ToolApprovalMode] levels but is independent from coding writes.
-@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode get chatApprovalMode; bool get confirmFileMutations; bool get confirmLocalCommands; bool get confirmGitWrites; bool get enableCodingVerificationFeedback;@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy get codingVerificationTriggerPolicy; int get codingVerificationTimeoutSeconds; int get codingVerificationMaxFailures; bool get enableAgentsMd; bool get showMemoryUpdates; bool get enableLlmSessionLogs; bool get demoMode; bool get onboardingCompleted; bool get browserToolsEnabled; List<String> get disabledBuiltInTools; List<LocalCommandPermissionRule> get localCommandPermissionRules; List<RoutineComputerUseActionAllowlistEntry> get routineComputerUseActionAllowlist;
+@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode get chatApprovalMode; bool get confirmFileMutations; bool get confirmLocalCommands; bool get confirmGitWrites; bool get enableCodingVerificationFeedback;@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy get codingVerificationTriggerPolicy; int get codingVerificationTimeoutSeconds; int get codingVerificationMaxFailures; bool get enableAgentsMd; bool get showMemoryUpdates; bool get enableLlmSessionLogs; bool get demoMode; bool get onboardingCompleted; bool get browserToolsEnabled; List<String> get disabledBuiltInTools; List<LocalCommandPermissionRule> get localCommandPermissionRules; List<RoutineComputerUseActionAllowlistEntry> get routineComputerUseActionAllowlist;@JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) List<ModelCapabilityProfile> get modelCapabilityProfiles;
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -904,16 +1203,16 @@ $AppSettingsCopyWith<AppSettings> get copyWith => _$AppSettingsCopyWithImpl<AppS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.llmProvider, llmProvider) || other.llmProvider == llmProvider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.reasoningEffort, reasoningEffort) || other.reasoningEffort == reasoningEffort)&&(identical(other.memoryExtractionModel, memoryExtractionModel) || other.memoryExtractionModel == memoryExtractionModel)&&(identical(other.subagentModel, subagentModel) || other.subagentModel == subagentModel)&&(identical(other.goalSuggestionModel, goalSuggestionModel) || other.goalSuggestionModel == goalSuggestionModel)&&(identical(other.approvalAutoReviewModel, approvalAutoReviewModel) || other.approvalAutoReviewModel == approvalAutoReviewModel)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other.mcpUrls, mcpUrls)&&const DeepCollectionEquality().equals(other.mcpServers, mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.codingApprovalMode, codingApprovalMode) || other.codingApprovalMode == codingApprovalMode)&&(identical(other.chatApprovalMode, chatApprovalMode) || other.chatApprovalMode == chatApprovalMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.enableCodingVerificationFeedback, enableCodingVerificationFeedback) || other.enableCodingVerificationFeedback == enableCodingVerificationFeedback)&&(identical(other.codingVerificationTriggerPolicy, codingVerificationTriggerPolicy) || other.codingVerificationTriggerPolicy == codingVerificationTriggerPolicy)&&(identical(other.codingVerificationTimeoutSeconds, codingVerificationTimeoutSeconds) || other.codingVerificationTimeoutSeconds == codingVerificationTimeoutSeconds)&&(identical(other.codingVerificationMaxFailures, codingVerificationMaxFailures) || other.codingVerificationMaxFailures == codingVerificationMaxFailures)&&(identical(other.enableAgentsMd, enableAgentsMd) || other.enableAgentsMd == enableAgentsMd)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.enableLlmSessionLogs, enableLlmSessionLogs) || other.enableLlmSessionLogs == enableLlmSessionLogs)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&(identical(other.onboardingCompleted, onboardingCompleted) || other.onboardingCompleted == onboardingCompleted)&&(identical(other.browserToolsEnabled, browserToolsEnabled) || other.browserToolsEnabled == browserToolsEnabled)&&const DeepCollectionEquality().equals(other.disabledBuiltInTools, disabledBuiltInTools)&&const DeepCollectionEquality().equals(other.localCommandPermissionRules, localCommandPermissionRules)&&const DeepCollectionEquality().equals(other.routineComputerUseActionAllowlist, routineComputerUseActionAllowlist));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.llmProvider, llmProvider) || other.llmProvider == llmProvider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.reasoningEffort, reasoningEffort) || other.reasoningEffort == reasoningEffort)&&(identical(other.memoryExtractionModel, memoryExtractionModel) || other.memoryExtractionModel == memoryExtractionModel)&&(identical(other.subagentModel, subagentModel) || other.subagentModel == subagentModel)&&(identical(other.goalSuggestionModel, goalSuggestionModel) || other.goalSuggestionModel == goalSuggestionModel)&&(identical(other.approvalAutoReviewModel, approvalAutoReviewModel) || other.approvalAutoReviewModel == approvalAutoReviewModel)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other.mcpUrls, mcpUrls)&&const DeepCollectionEquality().equals(other.mcpServers, mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.codingApprovalMode, codingApprovalMode) || other.codingApprovalMode == codingApprovalMode)&&(identical(other.chatApprovalMode, chatApprovalMode) || other.chatApprovalMode == chatApprovalMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.enableCodingVerificationFeedback, enableCodingVerificationFeedback) || other.enableCodingVerificationFeedback == enableCodingVerificationFeedback)&&(identical(other.codingVerificationTriggerPolicy, codingVerificationTriggerPolicy) || other.codingVerificationTriggerPolicy == codingVerificationTriggerPolicy)&&(identical(other.codingVerificationTimeoutSeconds, codingVerificationTimeoutSeconds) || other.codingVerificationTimeoutSeconds == codingVerificationTimeoutSeconds)&&(identical(other.codingVerificationMaxFailures, codingVerificationMaxFailures) || other.codingVerificationMaxFailures == codingVerificationMaxFailures)&&(identical(other.enableAgentsMd, enableAgentsMd) || other.enableAgentsMd == enableAgentsMd)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.enableLlmSessionLogs, enableLlmSessionLogs) || other.enableLlmSessionLogs == enableLlmSessionLogs)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&(identical(other.onboardingCompleted, onboardingCompleted) || other.onboardingCompleted == onboardingCompleted)&&(identical(other.browserToolsEnabled, browserToolsEnabled) || other.browserToolsEnabled == browserToolsEnabled)&&const DeepCollectionEquality().equals(other.disabledBuiltInTools, disabledBuiltInTools)&&const DeepCollectionEquality().equals(other.localCommandPermissionRules, localCommandPermissionRules)&&const DeepCollectionEquality().equals(other.routineComputerUseActionAllowlist, routineComputerUseActionAllowlist)&&const DeepCollectionEquality().equals(other.modelCapabilityProfiles, modelCapabilityProfiles));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,llmProvider,baseUrl,model,apiKey,temperature,maxTokens,reasoningEffort,memoryExtractionModel,subagentModel,goalSuggestionModel,approvalAutoReviewModel,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(mcpUrls),const DeepCollectionEquality().hash(mcpServers),mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,codingApprovalMode,chatApprovalMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,enableCodingVerificationFeedback,codingVerificationTriggerPolicy,codingVerificationTimeoutSeconds,codingVerificationMaxFailures,enableAgentsMd,showMemoryUpdates,enableLlmSessionLogs,demoMode,onboardingCompleted,browserToolsEnabled,const DeepCollectionEquality().hash(disabledBuiltInTools),const DeepCollectionEquality().hash(localCommandPermissionRules),const DeepCollectionEquality().hash(routineComputerUseActionAllowlist)]);
+int get hashCode => Object.hashAll([runtimeType,llmProvider,baseUrl,model,apiKey,temperature,maxTokens,reasoningEffort,memoryExtractionModel,subagentModel,goalSuggestionModel,approvalAutoReviewModel,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(mcpUrls),const DeepCollectionEquality().hash(mcpServers),mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,codingApprovalMode,chatApprovalMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,enableCodingVerificationFeedback,codingVerificationTriggerPolicy,codingVerificationTimeoutSeconds,codingVerificationMaxFailures,enableAgentsMd,showMemoryUpdates,enableLlmSessionLogs,demoMode,onboardingCompleted,browserToolsEnabled,const DeepCollectionEquality().hash(disabledBuiltInTools),const DeepCollectionEquality().hash(localCommandPermissionRules),const DeepCollectionEquality().hash(routineComputerUseActionAllowlist),const DeepCollectionEquality().hash(modelCapabilityProfiles)]);
 
 @override
 String toString() {
-  return 'AppSettings(llmProvider: $llmProvider, baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, reasoningEffort: $reasoningEffort, memoryExtractionModel: $memoryExtractionModel, subagentModel: $subagentModel, goalSuggestionModel: $goalSuggestionModel, approvalAutoReviewModel: $approvalAutoReviewModel, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, codingApprovalMode: $codingApprovalMode, chatApprovalMode: $chatApprovalMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, enableCodingVerificationFeedback: $enableCodingVerificationFeedback, codingVerificationTriggerPolicy: $codingVerificationTriggerPolicy, codingVerificationTimeoutSeconds: $codingVerificationTimeoutSeconds, codingVerificationMaxFailures: $codingVerificationMaxFailures, enableAgentsMd: $enableAgentsMd, showMemoryUpdates: $showMemoryUpdates, enableLlmSessionLogs: $enableLlmSessionLogs, demoMode: $demoMode, onboardingCompleted: $onboardingCompleted, browserToolsEnabled: $browserToolsEnabled, disabledBuiltInTools: $disabledBuiltInTools, localCommandPermissionRules: $localCommandPermissionRules, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist)';
+  return 'AppSettings(llmProvider: $llmProvider, baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, reasoningEffort: $reasoningEffort, memoryExtractionModel: $memoryExtractionModel, subagentModel: $subagentModel, goalSuggestionModel: $goalSuggestionModel, approvalAutoReviewModel: $approvalAutoReviewModel, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, codingApprovalMode: $codingApprovalMode, chatApprovalMode: $chatApprovalMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, enableCodingVerificationFeedback: $enableCodingVerificationFeedback, codingVerificationTriggerPolicy: $codingVerificationTriggerPolicy, codingVerificationTimeoutSeconds: $codingVerificationTimeoutSeconds, codingVerificationMaxFailures: $codingVerificationMaxFailures, enableAgentsMd: $enableAgentsMd, showMemoryUpdates: $showMemoryUpdates, enableLlmSessionLogs: $enableLlmSessionLogs, demoMode: $demoMode, onboardingCompleted: $onboardingCompleted, browserToolsEnabled: $browserToolsEnabled, disabledBuiltInTools: $disabledBuiltInTools, localCommandPermissionRules: $localCommandPermissionRules, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist, modelCapabilityProfiles: $modelCapabilityProfiles)';
 }
 
 
@@ -924,7 +1223,7 @@ abstract mixin class $AppSettingsCopyWith<$Res>  {
   factory $AppSettingsCopyWith(AppSettings value, $Res Function(AppSettings) _then) = _$AppSettingsCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider llmProvider, String baseUrl, String model, String apiKey, double temperature, int maxTokens,@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference reasoningEffort, String memoryExtractionModel, String subagentModel, String goalSuggestionModel, String approvalAutoReviewModel, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode codingApprovalMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode chatApprovalMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool enableCodingVerificationFeedback,@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy codingVerificationTriggerPolicy, int codingVerificationTimeoutSeconds, int codingVerificationMaxFailures, bool enableAgentsMd, bool showMemoryUpdates, bool enableLlmSessionLogs, bool demoMode, bool onboardingCompleted, bool browserToolsEnabled, List<String> disabledBuiltInTools, List<LocalCommandPermissionRule> localCommandPermissionRules, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist
+@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider llmProvider, String baseUrl, String model, String apiKey, double temperature, int maxTokens,@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference reasoningEffort, String memoryExtractionModel, String subagentModel, String goalSuggestionModel, String approvalAutoReviewModel, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode codingApprovalMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode chatApprovalMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool enableCodingVerificationFeedback,@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy codingVerificationTriggerPolicy, int codingVerificationTimeoutSeconds, int codingVerificationMaxFailures, bool enableAgentsMd, bool showMemoryUpdates, bool enableLlmSessionLogs, bool demoMode, bool onboardingCompleted, bool browserToolsEnabled, List<String> disabledBuiltInTools, List<LocalCommandPermissionRule> localCommandPermissionRules, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist,@JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) List<ModelCapabilityProfile> modelCapabilityProfiles
 });
 
 
@@ -941,7 +1240,7 @@ class _$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? llmProvider = null,Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? reasoningEffort = null,Object? memoryExtractionModel = null,Object? subagentModel = null,Object? goalSuggestionModel = null,Object? approvalAutoReviewModel = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? codingApprovalMode = null,Object? chatApprovalMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? enableCodingVerificationFeedback = null,Object? codingVerificationTriggerPolicy = null,Object? codingVerificationTimeoutSeconds = null,Object? codingVerificationMaxFailures = null,Object? enableAgentsMd = null,Object? showMemoryUpdates = null,Object? enableLlmSessionLogs = null,Object? demoMode = null,Object? onboardingCompleted = null,Object? browserToolsEnabled = null,Object? disabledBuiltInTools = null,Object? localCommandPermissionRules = null,Object? routineComputerUseActionAllowlist = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? llmProvider = null,Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? reasoningEffort = null,Object? memoryExtractionModel = null,Object? subagentModel = null,Object? goalSuggestionModel = null,Object? approvalAutoReviewModel = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? codingApprovalMode = null,Object? chatApprovalMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? enableCodingVerificationFeedback = null,Object? codingVerificationTriggerPolicy = null,Object? codingVerificationTimeoutSeconds = null,Object? codingVerificationMaxFailures = null,Object? enableAgentsMd = null,Object? showMemoryUpdates = null,Object? enableLlmSessionLogs = null,Object? demoMode = null,Object? onboardingCompleted = null,Object? browserToolsEnabled = null,Object? disabledBuiltInTools = null,Object? localCommandPermissionRules = null,Object? routineComputerUseActionAllowlist = null,Object? modelCapabilityProfiles = null,}) {
   return _then(_self.copyWith(
 llmProvider: null == llmProvider ? _self.llmProvider : llmProvider // ignore: cast_nullable_to_non_nullable
 as LlmProvider,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
@@ -986,7 +1285,8 @@ as bool,browserToolsEnabled: null == browserToolsEnabled ? _self.browserToolsEna
 as bool,disabledBuiltInTools: null == disabledBuiltInTools ? _self.disabledBuiltInTools : disabledBuiltInTools // ignore: cast_nullable_to_non_nullable
 as List<String>,localCommandPermissionRules: null == localCommandPermissionRules ? _self.localCommandPermissionRules : localCommandPermissionRules // ignore: cast_nullable_to_non_nullable
 as List<LocalCommandPermissionRule>,routineComputerUseActionAllowlist: null == routineComputerUseActionAllowlist ? _self.routineComputerUseActionAllowlist : routineComputerUseActionAllowlist // ignore: cast_nullable_to_non_nullable
-as List<RoutineComputerUseActionAllowlistEntry>,
+as List<RoutineComputerUseActionAllowlistEntry>,modelCapabilityProfiles: null == modelCapabilityProfiles ? _self.modelCapabilityProfiles : modelCapabilityProfiles // ignore: cast_nullable_to_non_nullable
+as List<ModelCapabilityProfile>,
   ));
 }
 
@@ -1071,10 +1371,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist, @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson)  List<ModelCapabilityProfile> modelCapabilityProfiles)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist);case _:
+return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist,_that.modelCapabilityProfiles);case _:
   return orElse();
 
 }
@@ -1092,10 +1392,10 @@ return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist, @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson)  List<ModelCapabilityProfile> modelCapabilityProfiles)  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings():
-return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist);case _:
+return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist,_that.modelCapabilityProfiles);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1112,10 +1412,10 @@ return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist, @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson)  List<ModelCapabilityProfile> modelCapabilityProfiles)?  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist);case _:
+return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist,_that.modelCapabilityProfiles);case _:
   return null;
 
 }
@@ -1127,7 +1427,7 @@ return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.t
 @JsonSerializable()
 
 class _AppSettings extends AppSettings {
-  const _AppSettings({@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.llmProvider = LlmProvider.openAiCompatible, required this.baseUrl, required this.model, required this.apiKey, required this.temperature, required this.maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) this.reasoningEffort = ReasoningEffortPreference.automatic, this.memoryExtractionModel = '', this.subagentModel = '', this.goalSuggestionModel = '', this.approvalAutoReviewModel = '', this.googleChatWebhookUrl = '', this.mcpUrl = '', final  List<String> mcpUrls = const <String>[], final  List<McpServerConfig> mcpServers = const <McpServerConfig>[], this.mcpEnabled = false, this.ttsEnabled = true, this.autoReadEnabled = false, this.speechRate = 0.5, this.voiceModeAutoStop = true, this.whisperUrl = 'http://localhost:8080', this.voicevoxUrl = 'http://localhost:50021', this.voicevoxSpeakerId = 0, this.language = 'system', @JsonKey(unknownEnumValue: AssistantMode.general) this.assistantMode = AssistantMode.general, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) this.codingApprovalMode = ToolApprovalMode.defaultPermissions, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) this.chatApprovalMode = ToolApprovalMode.defaultPermissions, this.confirmFileMutations = true, this.confirmLocalCommands = true, this.confirmGitWrites = true, this.enableCodingVerificationFeedback = true, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) this.codingVerificationTriggerPolicy = CodingVerificationTriggerPolicy.onCompletionClaim, this.codingVerificationTimeoutSeconds = 90, this.codingVerificationMaxFailures = 5, this.enableAgentsMd = true, this.showMemoryUpdates = false, this.enableLlmSessionLogs = false, this.demoMode = false, this.onboardingCompleted = false, this.browserToolsEnabled = false, final  List<String> disabledBuiltInTools = const <String>[], final  List<LocalCommandPermissionRule> localCommandPermissionRules = const <LocalCommandPermissionRule>[], final  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist = const <RoutineComputerUseActionAllowlistEntry>[]}): _mcpUrls = mcpUrls,_mcpServers = mcpServers,_disabledBuiltInTools = disabledBuiltInTools,_localCommandPermissionRules = localCommandPermissionRules,_routineComputerUseActionAllowlist = routineComputerUseActionAllowlist,super._();
+  const _AppSettings({@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.llmProvider = LlmProvider.openAiCompatible, required this.baseUrl, required this.model, required this.apiKey, required this.temperature, required this.maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) this.reasoningEffort = ReasoningEffortPreference.automatic, this.memoryExtractionModel = '', this.subagentModel = '', this.goalSuggestionModel = '', this.approvalAutoReviewModel = '', this.googleChatWebhookUrl = '', this.mcpUrl = '', final  List<String> mcpUrls = const <String>[], final  List<McpServerConfig> mcpServers = const <McpServerConfig>[], this.mcpEnabled = false, this.ttsEnabled = true, this.autoReadEnabled = false, this.speechRate = 0.5, this.voiceModeAutoStop = true, this.whisperUrl = 'http://localhost:8080', this.voicevoxUrl = 'http://localhost:50021', this.voicevoxSpeakerId = 0, this.language = 'system', @JsonKey(unknownEnumValue: AssistantMode.general) this.assistantMode = AssistantMode.general, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) this.codingApprovalMode = ToolApprovalMode.defaultPermissions, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) this.chatApprovalMode = ToolApprovalMode.defaultPermissions, this.confirmFileMutations = true, this.confirmLocalCommands = true, this.confirmGitWrites = true, this.enableCodingVerificationFeedback = true, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) this.codingVerificationTriggerPolicy = CodingVerificationTriggerPolicy.onCompletionClaim, this.codingVerificationTimeoutSeconds = 90, this.codingVerificationMaxFailures = 5, this.enableAgentsMd = true, this.showMemoryUpdates = false, this.enableLlmSessionLogs = false, this.demoMode = false, this.onboardingCompleted = false, this.browserToolsEnabled = false, final  List<String> disabledBuiltInTools = const <String>[], final  List<LocalCommandPermissionRule> localCommandPermissionRules = const <LocalCommandPermissionRule>[], final  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist = const <RoutineComputerUseActionAllowlistEntry>[], @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) final  List<ModelCapabilityProfile> modelCapabilityProfiles = const <ModelCapabilityProfile>[]}): _mcpUrls = mcpUrls,_mcpServers = mcpServers,_disabledBuiltInTools = disabledBuiltInTools,_localCommandPermissionRules = localCommandPermissionRules,_routineComputerUseActionAllowlist = routineComputerUseActionAllowlist,_modelCapabilityProfiles = modelCapabilityProfiles,super._();
   factory _AppSettings.fromJson(Map<String, dynamic> json) => _$AppSettingsFromJson(json);
 
 @override@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) final  LlmProvider llmProvider;
@@ -1209,6 +1509,13 @@ class _AppSettings extends AppSettings {
   return EqualUnmodifiableListView(_routineComputerUseActionAllowlist);
 }
 
+ final  List<ModelCapabilityProfile> _modelCapabilityProfiles;
+@override@JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) List<ModelCapabilityProfile> get modelCapabilityProfiles {
+  if (_modelCapabilityProfiles is EqualUnmodifiableListView) return _modelCapabilityProfiles;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_modelCapabilityProfiles);
+}
+
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
@@ -1223,16 +1530,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.llmProvider, llmProvider) || other.llmProvider == llmProvider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.reasoningEffort, reasoningEffort) || other.reasoningEffort == reasoningEffort)&&(identical(other.memoryExtractionModel, memoryExtractionModel) || other.memoryExtractionModel == memoryExtractionModel)&&(identical(other.subagentModel, subagentModel) || other.subagentModel == subagentModel)&&(identical(other.goalSuggestionModel, goalSuggestionModel) || other.goalSuggestionModel == goalSuggestionModel)&&(identical(other.approvalAutoReviewModel, approvalAutoReviewModel) || other.approvalAutoReviewModel == approvalAutoReviewModel)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other._mcpUrls, _mcpUrls)&&const DeepCollectionEquality().equals(other._mcpServers, _mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.codingApprovalMode, codingApprovalMode) || other.codingApprovalMode == codingApprovalMode)&&(identical(other.chatApprovalMode, chatApprovalMode) || other.chatApprovalMode == chatApprovalMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.enableCodingVerificationFeedback, enableCodingVerificationFeedback) || other.enableCodingVerificationFeedback == enableCodingVerificationFeedback)&&(identical(other.codingVerificationTriggerPolicy, codingVerificationTriggerPolicy) || other.codingVerificationTriggerPolicy == codingVerificationTriggerPolicy)&&(identical(other.codingVerificationTimeoutSeconds, codingVerificationTimeoutSeconds) || other.codingVerificationTimeoutSeconds == codingVerificationTimeoutSeconds)&&(identical(other.codingVerificationMaxFailures, codingVerificationMaxFailures) || other.codingVerificationMaxFailures == codingVerificationMaxFailures)&&(identical(other.enableAgentsMd, enableAgentsMd) || other.enableAgentsMd == enableAgentsMd)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.enableLlmSessionLogs, enableLlmSessionLogs) || other.enableLlmSessionLogs == enableLlmSessionLogs)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&(identical(other.onboardingCompleted, onboardingCompleted) || other.onboardingCompleted == onboardingCompleted)&&(identical(other.browserToolsEnabled, browserToolsEnabled) || other.browserToolsEnabled == browserToolsEnabled)&&const DeepCollectionEquality().equals(other._disabledBuiltInTools, _disabledBuiltInTools)&&const DeepCollectionEquality().equals(other._localCommandPermissionRules, _localCommandPermissionRules)&&const DeepCollectionEquality().equals(other._routineComputerUseActionAllowlist, _routineComputerUseActionAllowlist));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.llmProvider, llmProvider) || other.llmProvider == llmProvider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.reasoningEffort, reasoningEffort) || other.reasoningEffort == reasoningEffort)&&(identical(other.memoryExtractionModel, memoryExtractionModel) || other.memoryExtractionModel == memoryExtractionModel)&&(identical(other.subagentModel, subagentModel) || other.subagentModel == subagentModel)&&(identical(other.goalSuggestionModel, goalSuggestionModel) || other.goalSuggestionModel == goalSuggestionModel)&&(identical(other.approvalAutoReviewModel, approvalAutoReviewModel) || other.approvalAutoReviewModel == approvalAutoReviewModel)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other._mcpUrls, _mcpUrls)&&const DeepCollectionEquality().equals(other._mcpServers, _mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.codingApprovalMode, codingApprovalMode) || other.codingApprovalMode == codingApprovalMode)&&(identical(other.chatApprovalMode, chatApprovalMode) || other.chatApprovalMode == chatApprovalMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.enableCodingVerificationFeedback, enableCodingVerificationFeedback) || other.enableCodingVerificationFeedback == enableCodingVerificationFeedback)&&(identical(other.codingVerificationTriggerPolicy, codingVerificationTriggerPolicy) || other.codingVerificationTriggerPolicy == codingVerificationTriggerPolicy)&&(identical(other.codingVerificationTimeoutSeconds, codingVerificationTimeoutSeconds) || other.codingVerificationTimeoutSeconds == codingVerificationTimeoutSeconds)&&(identical(other.codingVerificationMaxFailures, codingVerificationMaxFailures) || other.codingVerificationMaxFailures == codingVerificationMaxFailures)&&(identical(other.enableAgentsMd, enableAgentsMd) || other.enableAgentsMd == enableAgentsMd)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.enableLlmSessionLogs, enableLlmSessionLogs) || other.enableLlmSessionLogs == enableLlmSessionLogs)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&(identical(other.onboardingCompleted, onboardingCompleted) || other.onboardingCompleted == onboardingCompleted)&&(identical(other.browserToolsEnabled, browserToolsEnabled) || other.browserToolsEnabled == browserToolsEnabled)&&const DeepCollectionEquality().equals(other._disabledBuiltInTools, _disabledBuiltInTools)&&const DeepCollectionEquality().equals(other._localCommandPermissionRules, _localCommandPermissionRules)&&const DeepCollectionEquality().equals(other._routineComputerUseActionAllowlist, _routineComputerUseActionAllowlist)&&const DeepCollectionEquality().equals(other._modelCapabilityProfiles, _modelCapabilityProfiles));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,llmProvider,baseUrl,model,apiKey,temperature,maxTokens,reasoningEffort,memoryExtractionModel,subagentModel,goalSuggestionModel,approvalAutoReviewModel,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(_mcpUrls),const DeepCollectionEquality().hash(_mcpServers),mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,codingApprovalMode,chatApprovalMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,enableCodingVerificationFeedback,codingVerificationTriggerPolicy,codingVerificationTimeoutSeconds,codingVerificationMaxFailures,enableAgentsMd,showMemoryUpdates,enableLlmSessionLogs,demoMode,onboardingCompleted,browserToolsEnabled,const DeepCollectionEquality().hash(_disabledBuiltInTools),const DeepCollectionEquality().hash(_localCommandPermissionRules),const DeepCollectionEquality().hash(_routineComputerUseActionAllowlist)]);
+int get hashCode => Object.hashAll([runtimeType,llmProvider,baseUrl,model,apiKey,temperature,maxTokens,reasoningEffort,memoryExtractionModel,subagentModel,goalSuggestionModel,approvalAutoReviewModel,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(_mcpUrls),const DeepCollectionEquality().hash(_mcpServers),mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,codingApprovalMode,chatApprovalMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,enableCodingVerificationFeedback,codingVerificationTriggerPolicy,codingVerificationTimeoutSeconds,codingVerificationMaxFailures,enableAgentsMd,showMemoryUpdates,enableLlmSessionLogs,demoMode,onboardingCompleted,browserToolsEnabled,const DeepCollectionEquality().hash(_disabledBuiltInTools),const DeepCollectionEquality().hash(_localCommandPermissionRules),const DeepCollectionEquality().hash(_routineComputerUseActionAllowlist),const DeepCollectionEquality().hash(_modelCapabilityProfiles)]);
 
 @override
 String toString() {
-  return 'AppSettings(llmProvider: $llmProvider, baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, reasoningEffort: $reasoningEffort, memoryExtractionModel: $memoryExtractionModel, subagentModel: $subagentModel, goalSuggestionModel: $goalSuggestionModel, approvalAutoReviewModel: $approvalAutoReviewModel, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, codingApprovalMode: $codingApprovalMode, chatApprovalMode: $chatApprovalMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, enableCodingVerificationFeedback: $enableCodingVerificationFeedback, codingVerificationTriggerPolicy: $codingVerificationTriggerPolicy, codingVerificationTimeoutSeconds: $codingVerificationTimeoutSeconds, codingVerificationMaxFailures: $codingVerificationMaxFailures, enableAgentsMd: $enableAgentsMd, showMemoryUpdates: $showMemoryUpdates, enableLlmSessionLogs: $enableLlmSessionLogs, demoMode: $demoMode, onboardingCompleted: $onboardingCompleted, browserToolsEnabled: $browserToolsEnabled, disabledBuiltInTools: $disabledBuiltInTools, localCommandPermissionRules: $localCommandPermissionRules, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist)';
+  return 'AppSettings(llmProvider: $llmProvider, baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, reasoningEffort: $reasoningEffort, memoryExtractionModel: $memoryExtractionModel, subagentModel: $subagentModel, goalSuggestionModel: $goalSuggestionModel, approvalAutoReviewModel: $approvalAutoReviewModel, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, codingApprovalMode: $codingApprovalMode, chatApprovalMode: $chatApprovalMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, enableCodingVerificationFeedback: $enableCodingVerificationFeedback, codingVerificationTriggerPolicy: $codingVerificationTriggerPolicy, codingVerificationTimeoutSeconds: $codingVerificationTimeoutSeconds, codingVerificationMaxFailures: $codingVerificationMaxFailures, enableAgentsMd: $enableAgentsMd, showMemoryUpdates: $showMemoryUpdates, enableLlmSessionLogs: $enableLlmSessionLogs, demoMode: $demoMode, onboardingCompleted: $onboardingCompleted, browserToolsEnabled: $browserToolsEnabled, disabledBuiltInTools: $disabledBuiltInTools, localCommandPermissionRules: $localCommandPermissionRules, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist, modelCapabilityProfiles: $modelCapabilityProfiles)';
 }
 
 
@@ -1243,7 +1550,7 @@ abstract mixin class _$AppSettingsCopyWith<$Res> implements $AppSettingsCopyWith
   factory _$AppSettingsCopyWith(_AppSettings value, $Res Function(_AppSettings) _then) = __$AppSettingsCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider llmProvider, String baseUrl, String model, String apiKey, double temperature, int maxTokens,@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference reasoningEffort, String memoryExtractionModel, String subagentModel, String goalSuggestionModel, String approvalAutoReviewModel, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode codingApprovalMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode chatApprovalMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool enableCodingVerificationFeedback,@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy codingVerificationTriggerPolicy, int codingVerificationTimeoutSeconds, int codingVerificationMaxFailures, bool enableAgentsMd, bool showMemoryUpdates, bool enableLlmSessionLogs, bool demoMode, bool onboardingCompleted, bool browserToolsEnabled, List<String> disabledBuiltInTools, List<LocalCommandPermissionRule> localCommandPermissionRules, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist
+@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider llmProvider, String baseUrl, String model, String apiKey, double temperature, int maxTokens,@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference reasoningEffort, String memoryExtractionModel, String subagentModel, String goalSuggestionModel, String approvalAutoReviewModel, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode codingApprovalMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode chatApprovalMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool enableCodingVerificationFeedback,@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy codingVerificationTriggerPolicy, int codingVerificationTimeoutSeconds, int codingVerificationMaxFailures, bool enableAgentsMd, bool showMemoryUpdates, bool enableLlmSessionLogs, bool demoMode, bool onboardingCompleted, bool browserToolsEnabled, List<String> disabledBuiltInTools, List<LocalCommandPermissionRule> localCommandPermissionRules, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist,@JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) List<ModelCapabilityProfile> modelCapabilityProfiles
 });
 
 
@@ -1260,7 +1567,7 @@ class __$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? llmProvider = null,Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? reasoningEffort = null,Object? memoryExtractionModel = null,Object? subagentModel = null,Object? goalSuggestionModel = null,Object? approvalAutoReviewModel = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? codingApprovalMode = null,Object? chatApprovalMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? enableCodingVerificationFeedback = null,Object? codingVerificationTriggerPolicy = null,Object? codingVerificationTimeoutSeconds = null,Object? codingVerificationMaxFailures = null,Object? enableAgentsMd = null,Object? showMemoryUpdates = null,Object? enableLlmSessionLogs = null,Object? demoMode = null,Object? onboardingCompleted = null,Object? browserToolsEnabled = null,Object? disabledBuiltInTools = null,Object? localCommandPermissionRules = null,Object? routineComputerUseActionAllowlist = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? llmProvider = null,Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? reasoningEffort = null,Object? memoryExtractionModel = null,Object? subagentModel = null,Object? goalSuggestionModel = null,Object? approvalAutoReviewModel = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? codingApprovalMode = null,Object? chatApprovalMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? enableCodingVerificationFeedback = null,Object? codingVerificationTriggerPolicy = null,Object? codingVerificationTimeoutSeconds = null,Object? codingVerificationMaxFailures = null,Object? enableAgentsMd = null,Object? showMemoryUpdates = null,Object? enableLlmSessionLogs = null,Object? demoMode = null,Object? onboardingCompleted = null,Object? browserToolsEnabled = null,Object? disabledBuiltInTools = null,Object? localCommandPermissionRules = null,Object? routineComputerUseActionAllowlist = null,Object? modelCapabilityProfiles = null,}) {
   return _then(_AppSettings(
 llmProvider: null == llmProvider ? _self.llmProvider : llmProvider // ignore: cast_nullable_to_non_nullable
 as LlmProvider,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
@@ -1305,7 +1612,8 @@ as bool,browserToolsEnabled: null == browserToolsEnabled ? _self.browserToolsEna
 as bool,disabledBuiltInTools: null == disabledBuiltInTools ? _self._disabledBuiltInTools : disabledBuiltInTools // ignore: cast_nullable_to_non_nullable
 as List<String>,localCommandPermissionRules: null == localCommandPermissionRules ? _self._localCommandPermissionRules : localCommandPermissionRules // ignore: cast_nullable_to_non_nullable
 as List<LocalCommandPermissionRule>,routineComputerUseActionAllowlist: null == routineComputerUseActionAllowlist ? _self._routineComputerUseActionAllowlist : routineComputerUseActionAllowlist // ignore: cast_nullable_to_non_nullable
-as List<RoutineComputerUseActionAllowlistEntry>,
+as List<RoutineComputerUseActionAllowlistEntry>,modelCapabilityProfiles: null == modelCapabilityProfiles ? _self._modelCapabilityProfiles : modelCapabilityProfiles // ignore: cast_nullable_to_non_nullable
+as List<ModelCapabilityProfile>,
   ));
 }
 

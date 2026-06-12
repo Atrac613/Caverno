@@ -240,4 +240,65 @@ void main() {
       container.read(settingsNotifierProvider).model,
     );
   });
+
+  test(
+    'model capability profile updates persist through the repository',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(settingsNotifierProvider.notifier);
+      final profile = ModelCapabilityProfile(
+        id: '',
+        baseUrl: container.read(settingsNotifierProvider).baseUrl,
+        model: container.read(settingsNotifierProvider).model,
+        toolCallStyle: ModelToolCallStyle.embeddedToolTags,
+        structuredOutputSupport: ModelStructuredOutputSupport.jsonObject,
+        editFormatPreference: ModelEditFormatPreference.wholeFile,
+        usableContextTokens: 8192,
+        probedAt: DateTime.utc(2026, 6, 12),
+        probeSummary: 'Manual diagnostic completed.',
+      );
+
+      await notifier.upsertModelCapabilityProfile(profile);
+
+      var settings = container.read(settingsNotifierProvider);
+      final persistedProfile = settings.effectiveModelCapabilityProfile;
+      expect(persistedProfile, isNotNull);
+      expect(
+        persistedProfile!.toolCallStyle,
+        ModelToolCallStyle.embeddedToolTags,
+      );
+      expect(persistedProfile.usableContextTokens, 8192);
+
+      var reloaded = SettingsRepository(prefs).load();
+      expect(
+        reloaded.effectiveModelCapabilityProfile?.structuredOutputSupport,
+        ModelStructuredOutputSupport.jsonObject,
+      );
+
+      await notifier.upsertModelCapabilityProfile(
+        persistedProfile.copyWith(
+          toolCallStyle: ModelToolCallStyle.nativeToolCalls,
+        ),
+      );
+      settings = container.read(settingsNotifierProvider);
+      expect(settings.modelCapabilityProfiles, hasLength(1));
+      expect(
+        settings.effectiveModelCapabilityProfile?.toolCallStyle,
+        ModelToolCallStyle.nativeToolCalls,
+      );
+
+      await notifier.removeModelCapabilityProfile(persistedProfile.id);
+
+      settings = container.read(settingsNotifierProvider);
+      expect(settings.modelCapabilityProfiles, isEmpty);
+      reloaded = SettingsRepository(prefs).load();
+      expect(reloaded.modelCapabilityProfiles, isEmpty);
+    },
+  );
 }

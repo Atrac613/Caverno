@@ -56,7 +56,7 @@ structurally unmotivated to build:
 | Foundation | F5 | later | ongoing | F2 | Continue large-file decomposition per `docs/large_file_refactor_plan.md` phases 2-4. |
 | Local LLM | LL1 | done | S | — | Per-role model routing (memory extraction, subagents, goal suggestions, approval auto-review on a small fast model). |
 | Local LLM | LL2 | done | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
-| Local LLM | LL3 | later | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
+| Local LLM | LL3 | current | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
 | Local LLM | LL4 | later | M | LL3 | Repo map v1: ranked, compressed symbol outline injected into the system prompt. |
 | Local LLM | LL5 | later | M | F4, LL4 | Local semantic code search via `/v1/embeddings`, stored in the drift database. |
 | Local LLM | LL6 | later | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
@@ -313,6 +313,8 @@ Evidence:
 
 ### LL3: Model Capability Profiles
 
+Status: `current`
+
 Scope:
 - On model registration (and on demand), run a bounded probe suite: native
   tool calls vs `<tool_call>` tags, `response_format: json_schema` / grammar
@@ -320,6 +322,22 @@ Scope:
   context estimate.
 - Persist a per-model profile; agent behavior (tool-call style, edit format,
   context budget) reads the profile with safe defaults when absent.
+
+Current implementation evidence:
+- `AppSettings` persists per-model `ModelCapabilityProfile` values with safe
+  unknown enum fallbacks and an effective profile lookup for the active model.
+- `SettingsNotifier` can upsert and remove stored profiles through the existing
+  settings repository.
+- `ModelCapabilityProfileBuilder` converts bounded live diagnostic reports into
+  normalized profile records.
+- `LiveLlmDiagnosticNotifier` stores an updated profile after a successful
+  on-demand diagnostic run.
+
+Current verification:
+- `test/features/settings/domain/entities/app_settings_test.dart`
+- `test/features/settings/domain/services/model_capability_profile_builder_test.dart`
+- `test/features/settings/presentation/providers/settings_notifier_test.dart`
+- `test/features/settings/presentation/providers/live_llm_diagnostic_notifier_test.dart`
 
 Acceptance criteria:
 - Probes are non-destructive, bounded in time, and skippable.
