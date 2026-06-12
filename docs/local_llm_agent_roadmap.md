@@ -56,7 +56,7 @@ structurally unmotivated to build:
 | Foundation | F5 | later | ongoing | F2 | Continue large-file decomposition per `docs/large_file_refactor_plan.md` phases 2-4. |
 | Local LLM | LL1 | done | S | — | Per-role model routing (memory extraction, subagents, goal suggestions, approval auto-review on a small fast model). |
 | Local LLM | LL2 | done | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
-| Local LLM | LL3 | current | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
+| Local LLM | LL3 | done | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
 | Local LLM | LL4 | later | M | LL3 | Repo map v1: ranked, compressed symbol outline injected into the system prompt. |
 | Local LLM | LL5 | later | M | F4, LL4 | Local semantic code search via `/v1/embeddings`, stored in the drift database. |
 | Local LLM | LL6 | later | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
@@ -226,7 +226,7 @@ Evidence:
 
 ### F3: Major Dependency Currency
 
-Status: `current`
+Status: `done`
 
 Scope:
 - Upgrade `openai_dart` from 4.x to 6.x first because Chat Completions request
@@ -313,7 +313,7 @@ Evidence:
 
 ### LL3: Model Capability Profiles
 
-Status: `current`
+Status: `done`
 
 Scope:
 - On model registration (and on demand), run a bounded probe suite: native
@@ -323,7 +323,7 @@ Scope:
 - Persist a per-model profile; agent behavior (tool-call style, edit format,
   context budget) reads the profile with safe defaults when absent.
 
-Current implementation evidence:
+Implementation evidence:
 - `AppSettings` persists per-model `ModelCapabilityProfile` values with safe
   unknown enum fallbacks and an effective profile lookup for the active model.
 - `SettingsNotifier` can upsert and remove stored profiles through the existing
@@ -344,7 +344,7 @@ Current implementation evidence:
   `CAVERNO_LLM_MODEL_USABLE_CONTEXT_TOKENS` for before/after live canary
   comparisons.
 
-Current verification:
+Verification:
 - `test/features/settings/domain/entities/app_settings_test.dart`
 - `test/features/settings/domain/services/model_capability_profile_builder_test.dart`
 - `test/features/settings/domain/services/live_llm_diagnostic_service_test.dart`
@@ -360,10 +360,26 @@ Acceptance criteria:
 - A weak-model profile measurably reduces malformed tool calls in the
   existing live canary suite.
 
-Remaining evidence before `done`:
-- Run the existing live canary suite against a known weak-model profile and
-  record before/after malformed tool-call counts, especially
-  `incompleteContentToolRecoveryCount` in `canary_summary.json`.
+Live canary evidence:
+- Baseline weak-model run:
+  `build/integration_test_reports/chat_live_llm_canary_ll3_baseline_1781232440/canary_summary.json`
+  against `qwen3.6-27b-mtp-vision` failed with 10/11 tests passing, one blocker
+  failure, `transportDisconnectCount=1`, `incompleteContentToolRecoveryCount=1`,
+  and `ignoredAssistantToolResultCount=2`.
+- Textual-tag profile run:
+  `build/integration_test_reports/chat_live_llm_canary_ll3_profiled_1781232505/canary_summary.json`
+  improved main readiness from `inconclusive` to `usable_with_warnings`, removed
+  the blocker failure, and cleared `transportDisconnectCount`, but still had one
+  warning failure.
+- Native-tool profile run:
+  `build/integration_test_reports/chat_live_llm_canary_ll3_native_profiled_1781232567/canary_summary.json`
+  passed 11/11 with main readiness `ready`, zero blocker or warning failures,
+  and `transportDisconnectCount=0`.
+- `incompleteContentToolRecoveryCount=1` and
+  `ignoredAssistantToolResultCount=2` remained unchanged because the existing
+  chat canary intentionally exercises those recovery paths. No
+  `assistantAuthoredToolBlockCount` was observed in either baseline or profiled
+  runs.
 
 ### LL4: Repo Map v1
 

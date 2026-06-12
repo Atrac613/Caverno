@@ -52,7 +52,7 @@ handoffs can refer to the same unit of work over time.
 | Foundation | F3 | current | Keep major dependencies current, starting with `openai_dart` 6.x. | Continue remaining major upgrades as isolated slices after the `openai_dart` 6.2.0 baseline. |
 | Local LLM | LL1 | done | Route secondary LLM calls (memory extraction, subagents, goal suggestions, approval auto-review) to a configurable small model. | Surface the routing settings in user docs when LL9 model guidance lands. |
 | Local LLM | LL2 | done | Whole-turn file-change checkpoints with one-action revert. | Keep checkpoint store and UI rollback coverage green while using LL2 as the safety net for later agent changes. |
-| Local LLM | LL3 | current | Persist model capability profiles, run bounded probes on model selection, and feed profile guidance into agent prompts. | Capture weak-model live canary evidence before marking LL3 done. |
+| Local LLM | LL3 | done | Persist model capability profiles, run bounded probes on model selection, and feed profile guidance into agent prompts. | Use the LL3 profile-injection canary evidence as the baseline for LL4, LL6, LL7, and LL15. |
 
 ## Plan Mode Track
 
