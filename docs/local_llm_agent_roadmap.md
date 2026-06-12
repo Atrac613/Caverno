@@ -273,6 +273,9 @@ Evidence:
 - `lib/features/chat/presentation/pages/chat_page_header_builders.dart`
 - `lib/features/chat/presentation/providers/chat_notifier_turn_rollback_handlers.dart`
 - `test/features/chat/data/datasources/file_rollback_checkpoint_store_test.dart`
+  covers untouched-file safety, repeated edits to the same file, individual
+  rollback stack eviction, turn checkpoint retention, active turn switching,
+  and failed rollback retry.
 - `test/features/chat/data/datasources/mcp_tool_service_test.dart`
 - `test/features/chat/presentation/pages/chat_page_companion_panel_test.dart`
 - `test/features/chat/presentation/providers/chat_notifier_turn_rollback_part.dart`
