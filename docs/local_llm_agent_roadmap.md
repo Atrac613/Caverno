@@ -50,7 +50,7 @@ structurally unmotivated to build:
 | Track | Milestone | Status | Size | Depends on | Goal |
 |-------|-----------|--------|------|------------|------|
 | Foundation | F1 | done | S | — | CI-enforced line-count ratchet for oversized files. |
-| Foundation | F2 | current | M | F1 | Extract the tool-call loop from `ChatNotifier` behind a handler registry. |
+| Foundation | F2 | done | M | F1 | Extract the tool-call loop from `ChatNotifier` behind a handler registry. |
 | Foundation | F3 | later | M | — | Major dependency upgrades, `openai_dart` 6.x first. |
 | Foundation | F4 | later | L | — | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS history search. |
 | Foundation | F5 | later | ongoing | F2 | Continue large-file decomposition per `docs/large_file_refactor_plan.md` phases 2-4. |
@@ -185,13 +185,16 @@ Evidence:
 
 ### F2: Tool Loop Extraction
 
-Status: `current`
+Status: `done`
 
 Scope:
 - Extract tool-call dispatch and loop orchestration from `ChatNotifier` into a
-  domain service with a tool-handler registry interface.
-- Convert `chat_notifier_*_handlers.dart` part files into classes implementing
-  the handler interface; preserve provider names and tool names/JSON shapes.
+  set of domain services with a tool-handler registry interface. `ChatNotifier`
+  remains the UI/state adapter for streaming, message mutation, approval
+  surfaces, and repair prompts.
+- Convert the handler registry assembly into handler-module classes backed by
+  the existing `chat_notifier_*_handlers.dart` implementations; preserve
+  provider names and tool names/JSON shapes.
 - Reuse the extracted loop from `RoutineToolRunner` and
   `SubagentExecutionService` where semantics already match.
 
@@ -201,17 +204,24 @@ Acceptance criteria:
   without fixture rewrites.
 - High-risk tool approval still routes through the same user approval gate.
 
-Next action:
-- Extract planning and dispatch policy from `ChatNotifier` into a focused
-  service while preserving the existing `ChatToolDispatcher` routing order and
-  approval-gated tool behavior.
-
-Current evidence:
+Evidence:
+- `lib/features/chat/domain/services/chat_tool_dispatcher.dart`
+- `lib/features/chat/domain/services/planning_tool_policy.dart`
+- `lib/features/chat/domain/services/tool_call_batch_executor.dart`
+- `lib/features/chat/domain/services/tool_call_execution_policy.dart`
 - `lib/features/chat/domain/services/tool_loop_recovery_policy.dart`
-- `lib/features/chat/presentation/providers/chat_tool_dispatcher.dart`
+- `lib/features/chat/presentation/providers/chat_notifier_tool_handler_registry.dart`
+- `lib/features/routines/data/routine_tool_runner.dart`
+- `lib/features/chat/domain/services/subagent_execution_service.dart`
+- `test/features/chat/domain/services/chat_tool_dispatcher_test.dart`
+- `test/features/chat/domain/services/planning_tool_policy_test.dart`
+- `test/features/chat/domain/services/tool_call_batch_executor_test.dart`
+- `test/features/chat/domain/services/tool_call_execution_policy_test.dart`
 - `test/features/chat/domain/services/tool_loop_recovery_policy_test.dart`
-- `test/features/chat/presentation/providers/chat_tool_dispatcher_test.dart`
-- Focused `chat_notifier_test.dart` tool-loop recovery cases pass through
+- `test/features/routines/data/routine_execution_service_test.dart`
+- `chat_notifier.dart` is ratcheted down to 15,500 lines.
+- Focused chat notifier, routine, subagent, dispatcher, policy, and ratchet
+  tests pass; generated-file checks and focused suites pass through
   `tool/codex_verify.sh`.
 
 ### LL1: Per-Role Model Routing
