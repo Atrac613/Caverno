@@ -3,6 +3,7 @@ import '../../chat/data/datasources/chat_datasource.dart';
 import '../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../chat/domain/entities/message.dart';
+import '../../chat/domain/services/tool_call_batch_executor.dart';
 import '../../chat/domain/services/tool_call_execution_policy.dart';
 import '../../chat/domain/services/tool_result_prompt_builder.dart';
 
@@ -23,8 +24,14 @@ class RoutineToolRunner {
     required ChatDataSource dataSource,
     ToolCallExecutionPolicy toolCallExecutionPolicy =
         const ToolCallExecutionPolicy(),
+    ToolCallBatchExecutor? toolCallBatchExecutor,
   }) : _dataSource = dataSource,
-       _toolCallExecutionPolicy = toolCallExecutionPolicy;
+       _toolCallExecutionPolicy = toolCallExecutionPolicy,
+       _toolCallBatchExecutor =
+           toolCallBatchExecutor ??
+           ToolCallBatchExecutor(
+             toolCallExecutionPolicy: toolCallExecutionPolicy,
+           );
 
   static const int _maxToolLoopIterations = 5;
   static const int _maxFinalToolIterations = 3;
@@ -32,6 +39,7 @@ class RoutineToolRunner {
 
   final ChatDataSource _dataSource;
   final ToolCallExecutionPolicy _toolCallExecutionPolicy;
+  final ToolCallBatchExecutor _toolCallBatchExecutor;
 
   Future<RoutineToolExecutionResult> execute({
     required List<Message> messages,
@@ -73,7 +81,7 @@ class RoutineToolRunner {
 
     while (currentToolCalls.isNotEmpty && iteration < _maxToolLoopIterations) {
       iteration += 1;
-      final batchResult = await _executeToolCallBatch(
+      final batchResult = await _toolCallBatchExecutor.execute(
         toolCalls: currentToolCalls,
         dispatchToolCall: dispatchToolCall,
         executedToolCallKeys: executedToolCallKeys,
@@ -191,7 +199,7 @@ class RoutineToolRunner {
       }
 
       finalIteration += 1;
-      final batchResult = await _executeToolCallBatch(
+      final batchResult = await _toolCallBatchExecutor.execute(
         toolCalls: finalToolCalls,
         dispatchToolCall: dispatchToolCall,
         executedToolCallKeys: executedToolCallKeys,
@@ -240,57 +248,6 @@ class RoutineToolRunner {
                           : '')),
       toolResults: List<ToolResultInfo>.unmodifiable(executedToolResults),
       wasTruncated: wasTruncated,
-    );
-  }
-
-  Future<_RoutineToolBatchResult> _executeToolCallBatch({
-    required List<ToolCallInfo> toolCalls,
-    required Future<McpToolResult> Function(ToolCallInfo toolCall)
-    dispatchToolCall,
-    required Set<String> executedToolCallKeys,
-    required Map<String, int> toolFailureCounts,
-  }) async {
-    final toolResults = <ToolResultInfo>[];
-    var abortLoop = false;
-
-    for (final toolCall in toolCalls) {
-      final toolCallKey = _toolExecutionKey(toolCall);
-      if (executedToolCallKeys.contains(toolCallKey)) {
-        continue;
-      }
-
-      final result = await dispatchToolCall(toolCall);
-      final toolResultText = result.isSuccess
-          ? result.result
-          : (result.result.trim().isNotEmpty
-                ? result.result
-                : 'Error: ${result.errorMessage ?? 'Tool execution failed'}');
-
-      toolResults.add(
-        ToolResultInfo(
-          id: toolCall.id,
-          name: toolCall.name,
-          arguments: toolCall.arguments,
-          result: toolResultText,
-        ),
-      );
-
-      if (result.isSuccess) {
-        executedToolCallKeys.add(toolCallKey);
-        toolFailureCounts.remove(toolCallKey);
-      } else {
-        final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
-        toolFailureCounts[toolCallKey] = failureCount;
-        if (failureCount >= 2) {
-          abortLoop = true;
-          break;
-        }
-      }
-    }
-
-    return _RoutineToolBatchResult(
-      toolResults: toolResults,
-      abortLoop: abortLoop,
     );
   }
 
@@ -472,14 +429,4 @@ class RoutineToolRunner {
           text.contains('"ip"');
     });
   }
-}
-
-class _RoutineToolBatchResult {
-  const _RoutineToolBatchResult({
-    required this.toolResults,
-    required this.abortLoop,
-  });
-
-  final List<ToolResultInfo> toolResults;
-  final bool abortLoop;
 }

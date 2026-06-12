@@ -1,0 +1,114 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/tool_call_batch_executor.dart';
+import 'package:caverno/features/chat/domain/services/tool_call_execution_policy.dart';
+
+void main() {
+  const executor = ToolCallBatchExecutor();
+  const policy = ToolCallExecutionPolicy();
+
+  group('ToolCallBatchExecutor', () {
+    test('executes fresh tool calls and records successful keys', () async {
+      final executedKeys = <String>{};
+      final failures = <String, int>{};
+      final calls = [
+        _toolCall('read_file', {'path': 'README.md'}),
+      ];
+
+      final result = await executor.execute(
+        toolCalls: calls,
+        dispatchToolCall: (toolCall) async => _success(toolCall, 'contents'),
+        executedToolCallKeys: executedKeys,
+        toolFailureCounts: failures,
+      );
+
+      expect(result.abortLoop, isFalse);
+      expect(result.toolResults.single.result, 'contents');
+      expect(executedKeys, contains(policy.toolExecutionKey(calls.single)));
+      expect(failures, isEmpty);
+    });
+
+    test('skips duplicate tool calls before dispatch', () async {
+      final call = _toolCall('read_file', {'path': 'README.md'});
+      final executedKeys = {policy.toolExecutionKey(call)};
+      var dispatchCount = 0;
+
+      final result = await executor.execute(
+        toolCalls: [call],
+        dispatchToolCall: (toolCall) async {
+          dispatchCount += 1;
+          return _success(toolCall, 'contents');
+        },
+        executedToolCallKeys: executedKeys,
+        toolFailureCounts: <String, int>{},
+      );
+
+      expect(result.toolResults, isEmpty);
+      expect(dispatchCount, 0);
+    });
+
+    test('uses error text when a failed tool result has no payload', () async {
+      final call = _toolCall('external_tool');
+
+      final result = await executor.execute(
+        toolCalls: [call],
+        dispatchToolCall: (_) async => McpToolResult(
+          toolName: call.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'No server',
+        ),
+        executedToolCallKeys: <String>{},
+        toolFailureCounts: <String, int>{},
+      );
+
+      expect(result.abortLoop, isFalse);
+      expect(result.toolResults.single.result, 'Error: No server');
+    });
+
+    test('aborts after the same tool call fails twice', () async {
+      final call = _toolCall('external_tool');
+      final key = policy.toolExecutionKey(call);
+      final failures = {key: 1};
+      final secondCall = _toolCall('read_file', {'path': 'README.md'});
+      var dispatchCount = 0;
+
+      final result = await executor.execute(
+        toolCalls: [call, secondCall],
+        dispatchToolCall: (toolCall) async {
+          dispatchCount += 1;
+          return McpToolResult(
+            toolName: toolCall.name,
+            result: 'failure',
+            isSuccess: false,
+            errorMessage: 'failed',
+          );
+        },
+        executedToolCallKeys: <String>{},
+        toolFailureCounts: failures,
+      );
+
+      expect(result.abortLoop, isTrue);
+      expect(result.toolResults.single.name, 'external_tool');
+      expect(dispatchCount, 1);
+      expect(failures[key], 2);
+    });
+  });
+}
+
+ToolCallInfo _toolCall(
+  String name, [
+  Map<String, dynamic> arguments = const {},
+]) {
+  return ToolCallInfo(id: 'tool-$name', name: name, arguments: arguments);
+}
+
+McpToolResult _success(ToolCallInfo toolCall, String result) {
+  return McpToolResult(
+    toolName: toolCall.name,
+    result: result,
+    isSuccess: true,
+  );
+}
