@@ -598,11 +598,10 @@ Scope:
   temperature slider is rescoped to chat prose only. Agentic surfaces get a
   managed low default (0.1-0.2, never 0.0) instead of inheriting it:
   tool-loop iterations in any mode, coding/plan mode requests, routine
-  executions (`routine_execution_service.dart` currently passes
-  `_settings.temperature` unattended), and subagent runs. The settings UI
-  relabels the slider as chat temperature with helper text explaining the
-  split. The datasource already accepts per-request temperature, so this is
-  wiring.
+  executions (which previously inherited `_settings.temperature` unattended),
+  and subagent runs. The settings UI relabels the slider as chat temperature
+  with helper text explaining the split. The datasource already accepts
+  per-request temperature, so this is wiring.
 - Layer 2 (probe calibration, LL3 machinery): on model registration, score a
   small temperature matrix (roughly 0.0/0.2/0.4/0.7, repeated runs) on
   tool-call validity, edit-block applicability, and repetition degeneration;
@@ -625,6 +624,26 @@ Acceptance criteria:
 - Routines and coding tool loops no longer read the chat temperature; their
   managed defaults are visible in diagnostics so a support report shows
   which temperature actually served each request.
+
+Implementation status:
+- Layer 1 shipped in `8d52063f` with `LlmRequestTemperaturePolicy`.
+  Chat prose keeps the user-facing temperature, while tool-loop iterations,
+  coding/plan mode requests, routine executions, and subagents use the managed
+  agentic default `0.2`.
+- Deterministic verification covered the request-class split with
+  `test/features/settings/domain/services/llm_request_temperature_policy_test.dart`,
+  the chat tool-loop/final prose routing test in
+  `test/features/chat/presentation/providers/chat_notifier_test.dart`, and
+  the routine routing test in
+  `test/features/routines/data/routine_execution_service_test.dart`.
+- Live canary evidence:
+  `build/integration_test_reports/chat_live_llm_canary_ll16_temp_split_1781261229/canary_summary.json`
+  passed 11/11 against `qwen3.6-27b-mtp-vision` with injected native-tool LL3
+  profile metadata and `CAVERNO_CHAT_LIVE_CANARY_TEMPERATURE=1.7`.
+  The Flutter JSON log recorded 10 requests at `temperature: 1.7`, 10
+  agentic/tool requests at `temperature: 0.2`, and one bounded memory
+  extraction request at `temperature: 0.1`; readiness was `ready`, with zero
+  blocker or warning failures and `transportDisconnectCount=0`.
 
 ### LL17: Self-Improving Harness Loop
 
