@@ -58,6 +58,7 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../domain/services/tool_approval_gate.dart';
+import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/coding_command_output_guardrail_service.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
 import '../../domain/services/coding_verification_feedback_service.dart';
@@ -254,6 +255,8 @@ class ChatNotifier extends Notifier<ChatState> {
   late BackgroundProcessMonitorService _backgroundProcessMonitorService;
   final ToolLoopRecoveryPolicy _toolLoopRecoveryPolicy =
       const ToolLoopRecoveryPolicy();
+  final ToolCallExecutionPolicy _toolCallExecutionPolicy =
+      const ToolCallExecutionPolicy();
   final PlanningToolPolicy _planningToolPolicy = const PlanningToolPolicy();
   String? conversationId;
   String _languageCode = 'en';
@@ -12350,45 +12353,15 @@ class ChatNotifier extends Notifier<ChatState> {
     ToolCallInfo toolCall, {
     int commandRetryGeneration = 0,
   }) {
-    final baseKey = _toolCallDedupKey(toolCall.name, toolCall.arguments);
-    if (_isRepeatableCommandTool(toolCall)) {
-      return '$baseKey#commandRetryGeneration=$commandRetryGeneration';
-    }
-    return baseKey;
+    return _toolCallExecutionPolicy.toolExecutionKey(
+      toolCall,
+      commandRetryGeneration: commandRetryGeneration,
+      resolveProjectPath: _normalizeToolPathForDedup,
+    );
   }
 
   bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {
-    // Exact repeated shell/git commands without an intervening file mutation are
-    // usually loop noise. Legitimate validation retries get a fresh dedup key
-    // through commandRetryGeneration after the task edits a file.
-    return toolCall.name == 'read_file' ||
-        _isRepeatableBackgroundProcessInspectionTool(toolCall) ||
-        _isRepeatableProcessMonitorToolCall(toolCall);
-  }
-
-  bool _isRepeatableBackgroundProcessInspectionTool(ToolCallInfo toolCall) {
-    switch (toolCall.name.trim().toLowerCase()) {
-      case 'process_status':
-      case 'process_tail':
-      case 'process_wait':
-      case 'process_list':
-        return true;
-    }
-    return false;
-  }
-
-  bool _isRepeatableProcessMonitorToolCall(ToolCallInfo toolCall) {
-    if (toolCall.name.trim().toLowerCase() != 'local_execute_command') {
-      return false;
-    }
-    final command = _toolCommandArgument(toolCall.arguments);
-    if (command == null) {
-      return false;
-    }
-    final normalized = command.trim().toLowerCase();
-    return RegExp(
-      r'^sleep\s+\d+(?:\.\d+)?\s*(?:&&|;)\s*(?:ps|pgrep)\b',
-    ).hasMatch(normalized);
+    return _toolCallExecutionPolicy.shouldAllowRepeatedToolExecution(toolCall);
   }
 
   bool _containsOnlyReadOnlyInspectionToolCalls(List<ToolCallInfo> toolCalls) {
@@ -12590,62 +12563,19 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _isCommandExecutionTool(String toolName) {
-    switch (toolName.trim().toLowerCase()) {
-      case 'local_execute_command':
-      case 'process_start':
-      case 'process_status':
-      case 'process_wait':
-      case 'run_tests':
-      case 'git_execute_command':
-      case 'ssh_execute_command':
-        return true;
-    }
-    return false;
+    return _toolCallExecutionPolicy.isCommandExecutionTool(toolName);
   }
 
   String? _toolCommandArgument(Map<String, dynamic> arguments) {
-    final command = arguments['command']?.toString().trim();
-    return command == null || command.isEmpty ? null : command;
+    return _toolCallExecutionPolicy.toolCommandArgument(arguments);
   }
 
   bool _toolResultHasSuccessfulExit(ToolResultInfo result) {
-    if (!_isCommandExecutionTool(result.name)) {
-      return false;
-    }
-    final name = result.name.trim().toLowerCase();
-    if (name == 'process_start' ||
-        name == 'process_status' ||
-        name == 'process_wait') {
-      final decoded = _tryDecodeMap(result.result);
-      return decoded?['ok'] == true &&
-          decoded?['status'] == 'exited' &&
-          _exitCodeValue(decoded?['exit_code']) == 0;
-    }
-    if (_toolResultTimedOut(result)) {
-      return false;
-    }
-    final decoded = _tryDecodeMap(result.result);
-    final exitCode = decoded?['exit_code'];
-    if (exitCode is num) {
-      return exitCode == 0;
-    }
-    if (exitCode is String) {
-      return int.tryParse(exitCode.trim()) == 0;
-    }
-    return RegExp(
-      r'^exit_code:\s*0\s*$',
-      multiLine: true,
-    ).hasMatch(result.result);
+    return _toolCallExecutionPolicy.toolResultHasSuccessfulExit(result);
   }
 
   int? _exitCodeValue(Object? value) {
-    if (value is num) {
-      return value.toInt();
-    }
-    if (value is String) {
-      return int.tryParse(value.trim());
-    }
-    return null;
+    return _toolCallExecutionPolicy.exitCodeValue(value);
   }
 
   void _recordBackgroundProcessStartResult(ToolResultInfo result) {
@@ -12687,37 +12617,21 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _toolResultTimedOut(ToolResultInfo result) {
-    if (!_isCommandExecutionTool(result.name)) {
-      return false;
-    }
-    final decoded = _tryDecodeMap(result.result);
-    if (decoded?['timed_out'] == true) {
-      return true;
-    }
-    final error = decoded?['error']?.toString().toLowerCase() ?? '';
-    return error.contains('timed out');
+    return _toolCallExecutionPolicy.toolResultTimedOut(result);
   }
 
   String? _toolResultErrorText(ToolResultInfo result) {
-    final decoded = _tryDecodeMap(result.result);
-    return decoded?['error']?.toString();
+    return _toolCallExecutionPolicy.toolResultErrorText(result);
   }
 
   bool _toolResultCommandMatches(
     ToolResultInfo result, {
     required String normalizedCommand,
   }) {
-    final argumentCommand = _toolCommandArgument(result.arguments);
-    if (argumentCommand != null &&
-        _normalizeToolCommandForComparison(argumentCommand) ==
-            normalizedCommand) {
-      return true;
-    }
-    final decoded = _tryDecodeMap(result.result);
-    final resultCommand = decoded?['command']?.toString().trim();
-    return resultCommand != null &&
-        resultCommand.isNotEmpty &&
-        _normalizeToolCommandForComparison(resultCommand) == normalizedCommand;
+    return _toolCallExecutionPolicy.toolResultCommandMatches(
+      result,
+      normalizedCommand: normalizedCommand,
+    );
   }
 
   bool _toolResultsContainSuccessfulCurrentSavedValidation(
@@ -12757,40 +12671,15 @@ class ChatNotifier extends Notifier<ChatState> {
     required String command,
     required String normalizedValidationCommand,
   }) {
-    final normalizedCommand = _normalizeToolCommandForComparison(command);
-    if (normalizedCommand == normalizedValidationCommand) {
-      return true;
-    }
-    final isValidationWrapper = normalizedCommand.startsWith(
-      '$normalizedValidationCommand && ',
+    return _toolCallExecutionPolicy.toolCommandMatchesSavedValidation(
+      result: result,
+      command: command,
+      normalizedValidationCommand: normalizedValidationCommand,
     );
-    if (!isValidationWrapper) {
-      return false;
-    }
-    if (_toolResultOutputSuggestsValidationFailure(result)) {
-      return false;
-    }
-    if (!normalizedCommand.contains(' || ')) {
-      return true;
-    }
-    if (_toolResultOutputText(result).trim().isEmpty) {
-      return false;
-    }
-    return !_toolResultOutputSuggestsValidationFailure(result);
-  }
-
-  bool _toolResultOutputSuggestsValidationFailure(ToolResultInfo result) {
-    final output = _toolResultOutputText(result).toLowerCase();
-    return output.contains('validation failed') ||
-        output.contains('validation failure');
   }
 
   String _toolResultOutputText(ToolResultInfo result) {
-    final decoded = _tryDecodeMap(result.result);
-    return [
-      decoded?['stdout']?.toString(),
-      decoded?['stderr']?.toString(),
-    ].whereType<String>().join('\n');
+    return _toolCallExecutionPolicy.toolResultOutputText(result);
   }
 
   String? _currentSavedValidationCommandForToolLoop() {
@@ -12806,80 +12695,31 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   String _normalizeToolCommandForComparison(String command) {
-    return LocalShellTools.normalizeCommand(
-      command,
-    ).replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
+    return _toolCallExecutionPolicy.normalizeToolCommandForComparison(command);
   }
 
   String? _runTestsPathArgument(Map<String, dynamic> arguments) {
-    final testPath = arguments['test_path']?.toString().trim();
-    if (testPath != null && testPath.isNotEmpty) {
-      return testPath;
-    }
-    final path = arguments['path']?.toString().trim();
-    return path == null || path.isEmpty ? null : path;
+    return _toolCallExecutionPolicy.runTestsPathArgument(arguments);
   }
 
   bool _runTestsMatchesSavedValidation({
     required Map<String, dynamic> arguments,
     required String normalizedValidationCommand,
   }) {
-    final normalizedValidation = normalizedValidationCommand.replaceAll(
-      RegExp("[\"']"),
-      '',
+    return _toolCallExecutionPolicy.runTestsMatchesSavedValidation(
+      arguments: arguments,
+      normalizedValidationCommand: normalizedValidationCommand,
     );
-    final testPath = _runTestsPathArgument(arguments);
-    if (testPath == null) {
-      return normalizedValidation.contains('run_tests') ||
-          normalizedValidation.contains('flutter test') ||
-          normalizedValidation.contains('dart test');
-    }
-
-    final normalizedPath = _normalizeToolCommandForComparison(
-      testPath,
-    ).replaceAll(RegExp("[\"']"), '');
-    return normalizedPath.isNotEmpty &&
-        (normalizedValidation.contains(normalizedPath) ||
-            normalizedValidation.contains('run_tests'));
-  }
-
-  bool _isReadOnlyInspectionTool(String toolName) {
-    switch (toolName.trim().toLowerCase()) {
-      case 'list_directory':
-      case 'read_file':
-      case 'inspect_file':
-      case 'find_files':
-      case 'search_files':
-      case 'process_status':
-      case 'process_tail':
-      case 'process_wait':
-      case 'process_list':
-        return true;
-    }
-    return false;
   }
 
   bool _isReadOnlyInspectionToolCall(ToolCallInfo toolCall) {
-    if (_isReadOnlyInspectionTool(toolCall.name)) {
-      return true;
-    }
-    if (toolCall.name.trim().toLowerCase() != 'local_execute_command') {
-      return false;
-    }
-    final command = _toolCommandArgument(toolCall.arguments);
-    return command != null && LocalShellTools.isReadOnly(command);
+    return _toolCallExecutionPolicy.isReadOnlyInspectionToolCall(toolCall);
   }
 
   bool _isReadOnlyCommandExecutionToolCall(ToolCallInfo toolCall) {
-    final command = _toolCommandArgument(toolCall.arguments);
-    if (command == null) {
-      return false;
-    }
-    return switch (toolCall.name.trim().toLowerCase()) {
-      'local_execute_command' => LocalShellTools.isReadOnly(command),
-      'git_execute_command' => GitTools.isReadOnly(command),
-      _ => false,
-    };
+    return _toolCallExecutionPolicy.isReadOnlyCommandExecutionToolCall(
+      toolCall,
+    );
   }
 
   List<ToolResultInfo> _buildUnexecutedPendingToolResults({
@@ -13046,75 +12886,40 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _isRepeatableCommandTool(ToolCallInfo toolCall) {
-    return toolCall.name == 'local_execute_command' ||
-        toolCall.name == 'run_tests' ||
-        toolCall.name == 'git_execute_command';
+    return _toolCallExecutionPolicy.isRepeatableCommandTool(toolCall);
   }
 
   bool _advancesCommandRetryGeneration(ToolCallInfo toolCall) {
-    final normalizedName = toolCall.name.trim().toLowerCase();
-    return normalizedName == 'write_file' ||
-        normalizedName == 'edit_file' ||
-        normalizedName == 'rollback_last_file_change' ||
-        normalizedName.startsWith('write_') ||
-        normalizedName.startsWith('edit_');
+    return _toolCallExecutionPolicy.advancesCommandRetryGeneration(toolCall);
   }
 
   String _toolCallDedupKey(String name, Object? arguments) {
-    final normalizedName = name.trim().toLowerCase();
-    final normalizedArguments = _normalizeToolArgumentsForDedup(
-      normalizedName,
+    return _toolCallExecutionPolicy.toolCallDedupKey(
+      name,
       arguments,
+      resolveProjectPath: _normalizeToolPathForDedup,
     );
-    return '$normalizedName:${_normalizeToolExecutionValue(normalizedArguments)}';
   }
 
   String _toolResultDedupKey(ToolResultInfo toolResult) {
-    return _toolCallDedupKey(toolResult.name, toolResult.arguments);
+    return _toolCallExecutionPolicy.toolResultDedupKey(
+      toolResult,
+      resolveProjectPath: _normalizeToolPathForDedup,
+    );
   }
 
   bool _toolResultMatchesToolCall(
     ToolResultInfo toolResult,
     ToolCallInfo toolCall,
   ) {
-    return _toolResultDedupKey(toolResult) ==
-        _toolCallDedupKey(toolCall.name, toolCall.arguments);
+    return _toolCallExecutionPolicy.toolResultMatchesToolCall(
+      toolResult,
+      toolCall,
+      resolveProjectPath: _normalizeToolPathForDedup,
+    );
   }
 
-  Object? _normalizeToolArgumentsForDedup(String toolName, Object? arguments) {
-    if (arguments is! Map) {
-      return arguments;
-    }
-    final normalized = <String, dynamic>{...arguments};
-    if (_usesProjectScopedPathArgument(toolName)) {
-      final normalizedPath = _normalizeToolPathForDedup(normalized['path']);
-      if (normalizedPath != null) {
-        normalized['path'] = normalizedPath;
-      }
-    }
-    return normalized;
-  }
-
-  bool _usesProjectScopedPathArgument(String toolName) {
-    switch (toolName.trim().toLowerCase()) {
-      case 'list_directory':
-      case 'read_file':
-      case 'inspect_file':
-      case 'find_files':
-      case 'search_files':
-      case 'write_file':
-      case 'edit_file':
-      case 'rollback_last_file_change':
-        return true;
-    }
-    return false;
-  }
-
-  String? _normalizeToolPathForDedup(Object? rawPath) {
-    if (rawPath is! String) {
-      return null;
-    }
-    final trimmed = rawPath.trim();
+  String? _normalizeToolPathForDedup(String trimmed) {
     final resolved = FilesystemTools.resolvePath(
       trimmed,
       defaultRoot: _getActiveProjectRootPath(),
@@ -13134,28 +12939,6 @@ class ChatNotifier extends Notifier<ChatState> {
 
   void _markToolCallSeenForContentDedup(String name, Object? arguments) {
     _seenContentToolCallHashes.add(_toolCallDedupKey(name, arguments));
-  }
-
-  String _normalizeToolExecutionValue(Object? value) {
-    if (value is Map) {
-      final entries = value.entries.toList()
-        ..sort((a, b) => a.key.toString().compareTo(b.key.toString()));
-      final normalized = <String, String>{};
-      for (final entry in entries) {
-        normalized[entry.key.toString()] = _normalizeToolExecutionValue(
-          entry.value,
-        );
-      }
-      return jsonEncode(normalized);
-    }
-
-    if (value is List) {
-      return jsonEncode(
-        value.map(_normalizeToolExecutionValue).toList(growable: false),
-      );
-    }
-
-    return jsonEncode(value);
   }
 
   /// Executes a `tool_call` detected from message content.

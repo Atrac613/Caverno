@@ -1,10 +1,9 @@
-import 'dart:convert';
-
 import '../../../core/utils/content_parser.dart';
 import '../../chat/data/datasources/chat_datasource.dart';
 import '../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../chat/domain/entities/message.dart';
+import '../../chat/domain/services/tool_call_execution_policy.dart';
 import '../../chat/domain/services/tool_result_prompt_builder.dart';
 
 class RoutineToolExecutionResult {
@@ -20,14 +19,19 @@ class RoutineToolExecutionResult {
 }
 
 class RoutineToolRunner {
-  RoutineToolRunner({required ChatDataSource dataSource})
-    : _dataSource = dataSource;
+  RoutineToolRunner({
+    required ChatDataSource dataSource,
+    ToolCallExecutionPolicy toolCallExecutionPolicy =
+        const ToolCallExecutionPolicy(),
+  }) : _dataSource = dataSource,
+       _toolCallExecutionPolicy = toolCallExecutionPolicy;
 
   static const int _maxToolLoopIterations = 5;
   static const int _maxFinalToolIterations = 3;
   static const int _maxMissingActionRetries = 2;
 
   final ChatDataSource _dataSource;
+  final ToolCallExecutionPolicy _toolCallExecutionPolicy;
 
   Future<RoutineToolExecutionResult> execute({
     required List<Message> messages,
@@ -319,13 +323,7 @@ class RoutineToolRunner {
   }
 
   String _toolExecutionKey(ToolCallInfo toolCall) {
-    return '${toolCall.name}:${_normalizeArguments(toolCall.arguments)}';
-  }
-
-  String _normalizeArguments(Map<String, dynamic> arguments) {
-    final sortedEntries = arguments.entries.toList(growable: false)
-      ..sort((left, right) => left.key.compareTo(right.key));
-    return jsonEncode(Map<String, dynamic>.fromEntries(sortedEntries));
+    return _toolCallExecutionPolicy.toolExecutionKey(toolCall);
   }
 
   bool _hasVisibleOutput(String content) {
