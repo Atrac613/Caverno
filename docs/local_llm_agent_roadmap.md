@@ -59,7 +59,7 @@ structurally unmotivated to build:
 | Local LLM | LL3 | done | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
 | Local LLM | LL4 | done | M | LL3 | Repo map v1: ranked, compressed symbol outline injected into the system prompt. |
 | Local LLM | LL5 | later | M | F4, LL4 | Local semantic code search via `/v1/embeddings`, stored in the drift database. |
-| Local LLM | LL6 | later | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
+| Local LLM | LL6 | current | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
 | Local LLM | LL7 | later | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
 | Local LLM | LL8 | later | M | LL1 | LAN inference mesh: discover and route across multiple OpenAI-compatible endpoints. |
 | Local LLM | LL9 | later | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
@@ -462,6 +462,15 @@ Scope:
 - Measure cache effectiveness directly from response `timings` fields
   (`cache_n`, `prompt_n`, `prompt_ms`) instead of wall-clock estimates; show
   prefill progress in the UI via `return_progress` during long prompts.
+
+Initial implementation slice:
+- `ChatRequestPrefixStabilityService` builds a canonical prompt-prefix JSON
+  from the stable leading messages and tool definitions, normalizing nested
+  JSON map key order so request-construction tests can compare prefixes
+  deterministically.
+- `ChatRemoteDataSource` exposes the same prefix construction behind
+  `visibleForTesting` helpers, giving the LL6 mode a focused regression target
+  before the runtime setting and llama.cpp timing instrumentation land.
 
 Acceptance criteria:
 - Prompt prefix is byte-identical across consecutive turn requests in the

@@ -10,6 +10,7 @@ import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
+import '../../domain/services/chat_request_prefix_stability_service.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import 'chat_datasource.dart';
 
@@ -231,6 +232,30 @@ class ChatRemoteDataSource implements ChatDataSource {
   @visibleForTesting
   String formatToolLogSummaryForTest(List<Map<String, dynamic>> tools) {
     return _formatToolLogSummary(tools);
+  }
+
+  @visibleForTesting
+  String buildPromptPrefixJsonForTest({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    required int stableMessageCount,
+  }) {
+    return ChatRequestPrefixStabilityService.buildPromptPrefixJson(
+      messages: messages,
+      tools: tools,
+      stableMessageCount: stableMessageCount,
+    );
+  }
+
+  @visibleForTesting
+  int commonLeadingPromptMessageCountForTest(
+    List<Message> first,
+    List<Message> second,
+  ) {
+    return ChatRequestPrefixStabilityService.commonLeadingPromptMessageCount(
+      first,
+      second,
+    );
   }
 
   /// Build a list of [Tool] objects from the tool definition maps.

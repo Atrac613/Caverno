@@ -244,6 +244,68 @@ void main() {
     );
   });
 
+  test('builds stable prompt prefixes for tool-result follow-ups', () {
+    final now = DateTime(2026, 6, 13, 10);
+    final initialMessages = [
+      Message(
+        id: 'system-1',
+        content: 'Stable coding system prompt.',
+        role: MessageRole.system,
+        timestamp: now,
+      ),
+      Message(
+        id: 'user-1',
+        content: 'Update the CLI.',
+        role: MessageRole.user,
+        timestamp: now,
+      ),
+    ];
+    final followUpMessages = [
+      ...initialMessages,
+      Message(
+        id: 'assistant-1',
+        content: 'I will inspect the file.',
+        role: MessageRole.assistant,
+        timestamp: now,
+      ),
+    ];
+    const tools = [
+      {
+        'type': 'function',
+        'function': {
+          'name': 'read_file',
+          'description': 'Read a file.',
+          'parameters': {
+            'type': 'object',
+            'properties': {
+              'path': {'type': 'string'},
+            },
+            'required': ['path'],
+          },
+        },
+      },
+    ];
+
+    final stableMessageCount = dataSource
+        .commonLeadingPromptMessageCountForTest(
+          initialMessages,
+          followUpMessages,
+        );
+    final initialPrefix = dataSource.buildPromptPrefixJsonForTest(
+      messages: initialMessages,
+      tools: tools,
+      stableMessageCount: stableMessageCount,
+    );
+    final followUpPrefix = dataSource.buildPromptPrefixJsonForTest(
+      messages: followUpMessages,
+      tools: tools,
+      stableMessageCount: stableMessageCount,
+    );
+
+    expect(stableMessageCount, 2);
+    expect(followUpPrefix, initialPrefix);
+  });
+
   test('retries without reasoning effort after HTTP 400', () async {
     final requestBodies = <Map<String, dynamic>>[];
     final client = MockClient((request) async {
