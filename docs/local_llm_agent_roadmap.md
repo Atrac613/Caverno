@@ -478,6 +478,14 @@ Initial implementation slice:
   and exposed in General Settings. When enabled, chat tool loops send one fixed
   full tool list from the first request through follow-up requests; the existing
   dynamic tool-search selection remains the default when the setting is off.
+- `tool/ll6_prefix_stability_measurement.dart` measures llama.cpp-compatible
+  `timings.cache_n`, `prompt_n`, and `prompt_ms` with raw HTTP so provider
+  extension fields are preserved even when the typed OpenAI SDK omits them.
+- Live LAN evidence on 2026-06-14 with
+  `gemma-4-26B-A4B-it-Q4_K_M.gguf` showed default follow-up
+  `cache_n=0, prompt_n=374, prompt_ms=255.571`, while prefix-stable follow-up
+  produced `cache_n=2279, prompt_n=88, prompt_ms=128.025` with a 96.3% cached
+  prompt share. See `docs/ll6_prefix_stability_live_measurement_2026-06-14.md`.
 
 Acceptance criteria:
 - Prompt prefix is byte-identical across consecutive turn requests in the
