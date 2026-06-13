@@ -59,7 +59,7 @@ structurally unmotivated to build:
 | Local LLM | LL3 | done | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
 | Local LLM | LL4 | done | M | LL3 | Repo map v1: ranked, compressed symbol outline injected into the system prompt. |
 | Local LLM | LL5 | later | M | F4, LL4 | Local semantic code search via `/v1/embeddings`, stored in the drift database. |
-| Local LLM | LL6 | current | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
+| Local LLM | LL6 | done | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
 | Local LLM | LL7 | later | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
 | Local LLM | LL8 | later | M | LL1 | LAN inference mesh: discover and route across multiple OpenAI-compatible endpoints. |
 | Local LLM | LL9 | later | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
@@ -67,7 +67,7 @@ structurally unmotivated to build:
 | Local LLM | LL11 | later | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
 | Local LLM | LL12 | later | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
 | Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
-| Local LLM | LL14 | later | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
+| Local LLM | LL14 | current | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
 | Local LLM | LL15 | later | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
 | Local LLM | LL16 | later | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
 | Local LLM | LL17 | later | L | LL3, LL12 | Self-improving harness loop: mine failure traces, propose profile mutations, adopt only on eval non-regression. |
@@ -452,6 +452,8 @@ Acceptance criteria:
 
 ### LL6: KV-Cache-Friendly Mode
 
+Status: `done`
+
 Scope:
 - Optional request mode: byte-stable system prompt and tool list across loop
   iterations, append-only message history, volatile context (temporal,
@@ -486,6 +488,14 @@ Initial implementation slice:
   `cache_n=0, prompt_n=374, prompt_ms=255.571`, while prefix-stable follow-up
   produced `cache_n=2279, prompt_n=88, prompt_ms=128.025` with a 96.3% cached
   prompt share. See `docs/ll6_prefix_stability_live_measurement_2026-06-14.md`.
+
+Deferred follow-up:
+- Runtime `id_slot` pinning in the app transport remains an LL6 extension or
+  LL7 slot-isolation slice because `openai_dart` does not currently preserve
+  provider-specific request and response extension fields.
+- `return_progress` prefill UI remains grouped with LL14 context surgery, where
+  long-prompt progress and context compaction boundaries can be designed
+  together.
 
 Acceptance criteria:
 - Prompt prefix is byte-identical across consecutive turn requests in the
