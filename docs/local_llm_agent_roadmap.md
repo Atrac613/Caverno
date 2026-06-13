@@ -631,6 +631,8 @@ Acceptance criteria:
 
 ### LL14: Context Surgery
 
+Status: `current`
+
 Scope:
 - Evict stale tool results and deduplicate repeated file reads (keep the
   newest copy, replace older ones with a one-line stub) — applied only at
@@ -640,6 +642,16 @@ Scope:
   history into the new model's cold cache.
 - Extend the token usage indicator with a per-section budget breakdown
   (system prompt, repo map, memory, tools, history).
+
+Initial implementation slice:
+- `ContextSurgeryObservationService` classifies coarse system-prompt sections
+  and tool-result blocks so LL14 can report prompt pressure before mutating
+  conversation history.
+- The first stale-result heuristic is observation-only: older duplicate
+  `read_file` / `inspect_file` results for the same path and repeated file
+  search results with the same arguments are marked as would-evict candidates.
+- Protected paths keep their prior reads intact, and command or side-effect
+  tool results are never proposed for eviction in this slice.
 
 Acceptance criteria:
 - Eviction never removes results the current task still references (guarded
