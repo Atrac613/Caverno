@@ -26,6 +26,7 @@ class SystemPromptBuilder {
     String? sessionMemoryContext,
     String? projectName,
     String? projectRootPath,
+    String? repoMapContext,
     ConversationGoal? goal,
     ConversationWorkflowStage workflowStage = ConversationWorkflowStage.idle,
     ConversationWorkflowSpec? workflowSpec,
@@ -147,6 +148,18 @@ class SystemPromptBuilder {
             projectRootPath: normalizedProjectRootPath,
           ),
         );
+      }
+      final normalizedRepoMapContext = repoMapContext?.trim();
+      if (normalizedRepoMapContext != null &&
+          normalizedRepoMapContext.isNotEmpty) {
+        buffer.writeln(
+          'Repository map for the active project. Treat this as bounded, '
+          'read-only orientation and verify current file contents with tools '
+          'before editing.',
+        );
+        buffer.writeln('<repo_map>');
+        buffer.writeln(normalizedRepoMapContext);
+        buffer.writeln('</repo_map>');
       }
       final normalizedAgentsMarkdown = agentsMarkdown?.trim();
       if (normalizedAgentsMarkdown != null &&

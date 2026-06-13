@@ -68,6 +68,7 @@ import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/planning_tool_policy.dart';
+import '../../domain/services/repo_map_service.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
@@ -97,6 +98,7 @@ part 'chat_notifier_serial_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
 part 'chat_notifier_python_handlers.dart';
+part 'chat_notifier_prompt_context.dart';
 part 'chat_notifier_tool_handler_registry.dart';
 part 'chat_notifier_turn_rollback_handlers.dart';
 
@@ -834,14 +836,6 @@ class ChatNotifier extends Notifier<ChatState> {
     final resolvedAssistantMode = _resolveAssistantMode(
       currentConversation: currentConversation,
     );
-    final agentsMarkdown =
-        (_settings.enableAgentsMd &&
-            resolvedAssistantMode != AssistantMode.general)
-        ? ref
-              .read(agentsMdLoaderProvider)
-              .loadForProject(activeCodingProject?.rootPath)
-        : null;
-
     return Message(
       id: 'system',
       content: SystemPromptBuilder.build(
@@ -852,6 +846,7 @@ class ChatNotifier extends Notifier<ChatState> {
         sessionMemoryContext: _sessionMemoryContext,
         projectName: activeCodingProject?.name,
         projectRootPath: activeCodingProject?.rootPath,
+        repoMapContext: _repoMap(resolvedAssistantMode, activeCodingProject),
         goal: currentConversation?.goal,
         workflowStage:
             currentConversation?.workflowStage ??
@@ -859,7 +854,10 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowSpec: currentConversation?.workflowSpec,
         planArtifact: currentConversation?.planArtifact,
         isVoiceMode: _isVoiceMode,
-        agentsMarkdown: agentsMarkdown,
+        agentsMarkdown: _loadAgentsMd(
+          resolvedAssistantMode,
+          activeCodingProject,
+        ),
         skillsContext: _buildSkillsPromptContext(toolNames),
         hasPythonInputAttachment:
             toolNames.contains('run_python_script') &&

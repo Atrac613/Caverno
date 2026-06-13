@@ -116,6 +116,45 @@ void main() {
     expect(prompt, isNot(contains('Project name: "caverno".')));
   });
 
+  test('includes repository map context in coding mode prompts', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.coding,
+      languageCode: 'en',
+      projectName: 'caverno',
+      projectRootPath: '/workspace/caverno',
+      repoMapContext: '''
+Root: /workspace/caverno
+Key files:
+- lib/main.dart
+Dart symbols:
+- lib/main.dart: class AppRoot, function bootstrap
+''',
+    );
+
+    expect(prompt, contains('Repository map for the active project.'));
+    expect(prompt, contains('<repo_map>'));
+    expect(prompt, contains('Root: /workspace/caverno'));
+    expect(prompt, contains('class AppRoot'));
+    expect(prompt, contains('</repo_map>'));
+    expect(
+      prompt,
+      contains('verify current file contents with tools before editing'),
+    );
+  });
+
+  test('does not include repository map context in general mode prompts', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      repoMapContext: 'Root: /workspace/caverno',
+    );
+
+    expect(prompt, isNot(contains('<repo_map>')));
+    expect(prompt, isNot(contains('Root: /workspace/caverno')));
+  });
+
   test('includes exact preservation guidance in normal text prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 6, 10, 10, 30),

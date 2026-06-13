@@ -383,11 +383,30 @@ Live canary evidence:
 
 ### LL4: Repo Map v1
 
+Status: `in_progress`
+
 Scope:
 - Symbol outline per coding project via ctags / LSP `documentSymbol` / Dart
   analyzer, refreshed incrementally.
 - Ranked compression to a token budget from the model profile; injected into
   the system prompt for coding mode.
+
+Implementation evidence:
+- `RepoMapService` builds a bounded repository map from the active coding
+  project root, skips generated and transient directories, extracts compact Dart
+  symbol outlines, and trims output to the active model context profile.
+- `SystemPromptBuilder` injects the map as a read-only `<repo_map>` orientation
+  block in coding and plan modes, with explicit guidance to verify file
+  contents before editing.
+- `ChatNotifierPromptContext` wires the active project and effective model
+  profile into the prompt without growing the `ChatNotifier` line-count
+  ratchet.
+
+Verification:
+- `test/features/chat/domain/services/repo_map_service_test.dart`
+- `test/features/chat/domain/services/system_prompt_builder_test.dart`
+- `test/quality/file_size_ratchet_test.dart`
+- `tool/codex_verify.sh`
 
 Acceptance criteria:
 - Map generation is incremental and bounded on large repos.
