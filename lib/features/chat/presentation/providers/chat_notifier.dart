@@ -10920,24 +10920,35 @@ class ChatNotifier extends Notifier<ChatState> {
                 executedToolResults: executedToolResults,
                 fallbackToolResults: lastNonEmptyBatchToolResults,
               );
+          if (_containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(
+            currentToolCalls,
+            executedToolResults,
+          )) {
+            appLog(
+              '[Tool] Duplicate saved validation command already succeeded',
+            );
+            const fallbackResponse =
+                'The saved validation command already succeeded for the current saved task, so the current saved task is complete.';
+            currentToolCalls = [];
+            _recordHiddenAssistantResponse(fallbackResponse);
+            _appendRecoveredAssistantResponse(
+              fallbackResponse,
+              interactionGeneration: interactionGeneration,
+            );
+            currentAssistantContent = fallbackResponse;
+            hasTextResponse = true;
+            break;
+          }
           if (_containsOnlyPreviouslySuccessfulCommandToolCalls(
             currentToolCalls,
             executedToolResults,
           )) {
             appLog(
-              '[Tool] Duplicate command follow-up already has a successful result',
+              '[Tool] Duplicate command follow-up already has a successful result; requesting next-step recovery',
             );
-            if ((currentAssistantContent?.trim().isEmpty ?? true) &&
-                duplicateRecoveryToolResults.isNotEmpty) {
-              batchToolResults.addAll(duplicateRecoveryToolResults);
-              currentToolCalls = [];
-            } else {
-              final fallbackResponse =
-                  _buildDuplicateSuccessfulCommandFallbackResponse(
-                    toolCalls: currentToolCalls,
-                    previousToolResults: executedToolResults,
-                    currentAssistantContent: currentAssistantContent,
-                  );
+            final fallbackResponse = currentAssistantContent?.trim() ?? '';
+            if (fallbackResponse.isNotEmpty &&
+                !_looksLikePendingToolActionResponse(fallbackResponse)) {
               currentToolCalls = [];
               _recordHiddenAssistantResponse(fallbackResponse);
               _appendRecoveredAssistantResponse(
@@ -11185,6 +11196,12 @@ class ChatNotifier extends Notifier<ChatState> {
       if (savedValidationSucceeded) {
         appLog('[Tool] Saved validation command succeeded');
       }
+      final gitLifecycleSucceeded = _toolResultsSatisfyCurrentGoalGitLifecycle(
+        executedToolResults,
+      );
+      if (gitLifecycleSucceeded) {
+        appLog('[Tool] Current git lifecycle goal already succeeded');
+      }
 
       // Continue looping if the LLM asks for another tool call.
       if (nextResult.hasToolCalls) {
@@ -11198,6 +11215,24 @@ class ChatNotifier extends Notifier<ChatState> {
           final completionResponse = fallbackResponse.isNotEmpty
               ? fallbackResponse
               : 'The saved validation command succeeded for the current saved task, so the current saved task is complete.';
+          _recordHiddenAssistantResponse(completionResponse);
+          _appendRecoveredAssistantResponse(
+            completionResponse,
+            interactionGeneration: interactionGeneration,
+          );
+          currentAssistantContent = completionResponse;
+          hasTextResponse = true;
+          break;
+        }
+        if (gitLifecycleSucceeded) {
+          appLog(
+            '[Tool] Ignoring follow-up tool calls after git lifecycle success',
+          );
+          currentToolCalls = [];
+          final completionResponse =
+              _shouldAcceptRecoveryFinalTextResponse(fallbackResponse)
+              ? fallbackResponse
+              : _buildGitLifecycleCompletionResponse(executedToolResults);
           _recordHiddenAssistantResponse(completionResponse);
           _appendRecoveredAssistantResponse(
             completionResponse,
@@ -12431,89 +12466,11 @@ class ChatNotifier extends Notifier<ChatState> {
     });
   }
 
-  String _buildDuplicateSuccessfulCommandFallbackResponse({
-    required List<ToolCallInfo> toolCalls,
-    required List<ToolResultInfo> previousToolResults,
-    required String? currentAssistantContent,
-  }) {
-    if (_containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(
-      toolCalls,
-      previousToolResults,
-    )) {
-      return 'The saved validation command already succeeded for the current saved task, so the current saved task is complete.';
-    }
-
-    final candidate = currentAssistantContent?.trim() ?? '';
-    if (candidate.isNotEmpty &&
-        !_looksLikePendingToolActionResponse(candidate)) {
-      return candidate;
-    }
-
-    final repeatedCommands = toolCalls
-        .map((toolCall) => _toolCommandArgument(toolCall.arguments))
-        .whereType<String>()
-        .toSet()
-        .join(', ');
-    final previousOutput = _successfulCommandOutputForRepeatedCalls(
-      toolCalls: toolCalls,
-      previousToolResults: previousToolResults,
-    );
-    if (previousOutput != null) {
-      final commandLabel = repeatedCommands.isEmpty
-          ? 'the repeated command'
-          : repeatedCommands;
-      return 'The repeated command already succeeded ($commandLabel), so I used the previous successful result:\n\n```text\n$previousOutput\n```';
-    }
-    if (repeatedCommands.isEmpty) {
-      return 'The repeated command already succeeded, so I used the previous result and stopped the duplicate command loop.';
-    }
-    return 'The repeated command already succeeded ($repeatedCommands), so I used the previous result and stopped the duplicate command loop.';
-  }
-
   bool _looksLikePendingToolActionResponse(String response) {
     final normalized = response.toLowerCase();
     return RegExp(
       r"\b(?:now\s+)?let me\b|\bi (?:will|need to|should|am going to)\b|\bi(?:'ll| will)\b",
     ).hasMatch(normalized);
-  }
-
-  String? _successfulCommandOutputForRepeatedCalls({
-    required List<ToolCallInfo> toolCalls,
-    required List<ToolResultInfo> previousToolResults,
-  }) {
-    for (final toolCall in toolCalls) {
-      final matchingResult = previousToolResults.reversed.where((result) {
-        if (result.name != toolCall.name ||
-            !_toolResultHasSuccessfulExit(result)) {
-          return false;
-        }
-        if (toolCall.name == 'run_tests') {
-          return _runTestsPathArgument(result.arguments) ==
-              _runTestsPathArgument(toolCall.arguments);
-        }
-        final command = _toolCommandArgument(toolCall.arguments);
-        if (command == null) {
-          return false;
-        }
-        final resultCommand = _toolCommandArgument(result.arguments);
-        return resultCommand != null &&
-            _normalizeToolCommandForComparison(resultCommand) ==
-                _normalizeToolCommandForComparison(command);
-      }).firstOrNull;
-      if (matchingResult == null) {
-        continue;
-      }
-      final output = _toolResultOutputText(matchingResult).trim();
-      if (output.isEmpty) {
-        continue;
-      }
-      const maxOutputLength = 2000;
-      if (output.length <= maxOutputLength) {
-        return output;
-      }
-      return '${output.substring(0, maxOutputLength).trimRight()}\n...[truncated]';
-    }
-    return null;
   }
 
   bool _containsOnlyPreviouslySuccessfulCurrentSavedValidationToolCalls(
@@ -12688,10 +12645,6 @@ class ChatNotifier extends Notifier<ChatState> {
       command: command,
       normalizedValidationCommand: normalizedValidationCommand,
     );
-  }
-
-  String _toolResultOutputText(ToolResultInfo result) {
-    return _toolCallExecutionPolicy.toolResultOutputText(result);
   }
 
   String? _currentSavedValidationCommandForToolLoop() {

@@ -104,6 +104,121 @@ extension ChatNotifierGitHandlers on ChatNotifier {
         : _rememberToolApprovalResult(toolCall.name, gitArguments, result);
   }
 
+  bool _toolResultsSatisfyCurrentGoalGitLifecycle(
+    List<ToolResultInfo> toolResults,
+  ) {
+    if (toolResults.isEmpty) {
+      return false;
+    }
+    final goal = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    final objective = goal?.normalizedObjective?.toLowerCase() ?? '';
+    if (!(goal?.isActive ?? false) ||
+        !objective.contains('git') ||
+        !objective.contains('revert')) {
+      return false;
+    }
+
+    var hasInit = false;
+    var hasAdd = false;
+    var hasCommit = false;
+    var hasRevert = false;
+    var hasFileCreation = false;
+    var lastRevertIndex = -1;
+    var lastCleanStatusIndex = -1;
+
+    for (var index = 0; index < toolResults.length; index++) {
+      final result = toolResults[index];
+      final name = result.name.trim().toLowerCase();
+      if (name == 'write_file' && _isSuccessfulFileMutationToolResult(result)) {
+        hasFileCreation = true;
+        continue;
+      }
+      if (name != 'git_execute_command' ||
+          !_toolResultHasSuccessfulExit(result)) {
+        continue;
+      }
+      final command = _normalizedGitSubcommand(result);
+      if (command == null) {
+        continue;
+      }
+      if (command == 'init') {
+        hasInit = true;
+      } else if (command.startsWith('add ')) {
+        hasAdd = true;
+      } else if (command.startsWith('commit ')) {
+        hasCommit = true;
+      } else if (command == 'revert --no-edit head') {
+        hasRevert = true;
+        lastRevertIndex = index;
+      } else if (command == 'status' || command == 'status --short') {
+        if (lastRevertIndex >= 0 && _gitStatusResultIsClean(result)) {
+          lastCleanStatusIndex = index;
+        }
+      }
+    }
+
+    return hasInit &&
+        hasFileCreation &&
+        hasAdd &&
+        hasCommit &&
+        hasRevert &&
+        lastCleanStatusIndex > lastRevertIndex;
+  }
+
+  String _buildGitLifecycleCompletionResponse(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final marker = _firstCodingGoalMarker(toolResults);
+    final markerText = marker == null ? '' : ' Marker: $marker.';
+    return 'The Git lifecycle completed successfully: git init, file creation, '
+        'git add, git commit, git revert, and the final git status all '
+        'succeeded with a clean working tree.$markerText Goal complete. '
+        'Tests passed.';
+  }
+
+  String? _normalizedGitSubcommand(ToolResultInfo result) {
+    var command = _toolCommandArgument(result.arguments);
+    final decoded = _tryDecodeMap(result.result);
+    final decodedCommand = decoded?['command'];
+    if ((command == null || command.trim().isEmpty) &&
+        decodedCommand is String) {
+      command = decodedCommand;
+    }
+    if (command == null) {
+      return null;
+    }
+    var normalized = _normalizeToolCommandForComparison(command);
+    if (normalized.startsWith('git ')) {
+      normalized = normalized.substring(4).trim();
+    }
+    return normalized;
+  }
+
+  bool _gitStatusResultIsClean(ToolResultInfo result) {
+    final decoded = _tryDecodeMap(result.result);
+    final stdout = decoded?['stdout']?.toString().trim().toLowerCase() ?? '';
+    final stderr = decoded?['stderr']?.toString().trim().toLowerCase() ?? '';
+    return stderr.isEmpty &&
+        (stdout.isEmpty || stdout.contains('working tree clean'));
+  }
+
+  String? _firstCodingGoalMarker(List<ToolResultInfo> toolResults) {
+    final markerPattern = RegExp(r'\bCODING_GOAL_[A-Z0-9_]+\b');
+    for (final result in toolResults) {
+      final candidates = [jsonEncode(result.arguments), result.result];
+      for (final candidate in candidates) {
+        final match = markerPattern.firstMatch(candidate);
+        if (match != null) {
+          return match.group(0);
+        }
+      }
+    }
+    return null;
+  }
+
   /// Puts a pending git command into state and returns a future that
   /// completes with `true` (approve) or `false` (deny).
   Future<bool> requestGitCommand({

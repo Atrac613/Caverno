@@ -25,6 +25,10 @@ Exploration before first mutation counts `list_directory`, `read_file`,
   `/tmp/ll4_repo_map_measurement/current/coding_goal_live_edit_canary_1781325566/canary_summary.json`
 - Repo map log:
   `/tmp/ll4_repo_map_measurement/current/coding_goal_live_edit_canary_1781325566/flutter_test.jsonl`
+- Post-fix summary:
+  `/tmp/ll4_repo_map_measurement/recovery3/coding_goal_live_edit_canary_1781327553/canary_summary.json`
+- Post-fix log:
+  `/tmp/ll4_repo_map_measurement/recovery3/coding_goal_live_edit_canary_1781327553/flutter_test.jsonl`
 
 ## Summary
 
@@ -43,6 +47,27 @@ successful `git config user.email` command and stopped before `git add`,
 `git commit`, and `git revert`. The measurement is still useful for LL4 because
 the code-editing cases showed fewer tool calls and improved pass rate under the
 same model and endpoint.
+
+## Post-Fix Recovery Run
+
+After the repo map measurement, the tool loop was updated to recover from
+duplicate successful command calls, avoid false incomplete-goal detection from
+benign `remaining arguments` narration, and stop extra follow-up tool calls once
+the active git lifecycle goal has successful `init`, file creation, `add`,
+`commit`, `revert`, and clean final `status` tool results.
+
+| Metric | Post-fix run |
+| --- | ---: |
+| Passed tests | 6/6 |
+| Blocker failures | 0 |
+| Canary duration | 78,696 ms |
+| Total tool calls | 44 |
+| Main readiness | ready |
+
+The post-fix run passed every visible live coding canary. Its git lifecycle log
+shows `Current git lifecycle goal already succeeded` followed by
+`Ignoring follow-up tool calls after git lifecycle success`, preventing the
+model from re-opening the sequence after the clean final status.
 
 ## Per-Test Tool Metrics
 
@@ -63,5 +88,6 @@ same model and endpoint.
   tool calls from 11 to 6 by avoiding repeated read/edit cycles.
 - The file lifecycle case moved from a failed 14-tool run to a passing 6-tool
   run.
-- The remaining git lifecycle failure is not a repo map orientation issue; it
-  is a command progression stall after successful git configuration.
+- The initial git lifecycle failure was not a repo map orientation issue; it was
+  a command progression stall after successful git configuration. The post-fix
+  run validates that the stalled and over-eager follow-up paths are now covered.

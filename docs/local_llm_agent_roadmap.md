@@ -383,7 +383,7 @@ Live canary evidence:
 
 ### LL4: Repo Map v1
 
-Status: `in_progress`
+Status: `done`
 
 Scope:
 - Symbol outline per coding project via ctags / LSP `documentSymbol` / Dart
@@ -417,13 +417,19 @@ Live canary evidence:
   `/tmp/ll4_repo_map_measurement/current/coding_goal_live_edit_canary_1781325566/canary_summary.json`
   passed 5/6 tests, reduced blocker failures to 1, took 56,739 ms, and used 29
   total tool calls.
+- Post-fix repo map run:
+  `/tmp/ll4_repo_map_measurement/recovery3/coding_goal_live_edit_canary_1781327553/canary_summary.json`
+  passed 6/6 tests, had 0 blocker failures, took 78,696 ms, used 44 total tool
+  calls, and reported main readiness `ready`.
 - Parsed tool-call logs show exploration calls before first mutation dropped
   from 10 to 8 overall and from 4 to 2 in the direct first-edit case. Average
   first mutation index improved from 3.00 to 2.67.
 - Full measurement notes are in
   `docs/ll4_repo_map_live_measurement_2026-06-13.md`.
-- LL4 remains open because the repo map run still blocked on the git lifecycle
-  canary after repeating a completed `git config user.email` step.
+- The post-fix run also validates the git lifecycle recovery path: duplicate
+  successful command calls recover to the next step, benign completion summaries
+  containing `remaining arguments` still close the goal, and extra follow-up
+  tools are ignored once the git lifecycle has clean final status evidence.
 
 Acceptance criteria:
 - Map generation is incremental and bounded on large repos.

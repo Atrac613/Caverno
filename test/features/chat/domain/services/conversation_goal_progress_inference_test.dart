@@ -80,6 +80,20 @@ void main() {
     expect(result.hasCompletion, isTrue);
   });
 
+  test('completes when summary mentions remaining parsed arguments', () {
+    final result = ConversationGoalProgressInference.infer(
+      assistantResponse:
+          'The test passed successfully. Here is a summary of what was done:\n\n'
+          'Added logic to collect any remaining arguments after flag parsing '
+          'as positional arguments.\n\n'
+          'Goal complete. Tests passed.',
+      tasks: const [],
+    );
+
+    expect(result.status, ConversationGoalStatus.completed);
+    expect(result.hasCompletion, isTrue);
+  });
+
   test('completes on Japanese saved report narration', () {
     final result = ConversationGoalProgressInference.infer(
       assistantResponse:

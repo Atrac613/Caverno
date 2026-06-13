@@ -30,6 +30,7 @@ import 'package:caverno/features/chat/data/repositories/conversation_repository.
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
@@ -146,6 +147,73 @@ class _TestConversationsNotifier extends ConversationsNotifier {
 
   @override
   Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+}
+
+class _GitLifecycleGoalConversationsNotifier
+    extends _TestConversationsNotifier {
+  @override
+  ConversationsState build() {
+    final now = DateTime(2026, 5, 25, 10);
+    final conversation = Conversation(
+      id: 'git-lifecycle-conversation',
+      title: 'Git lifecycle',
+      messages: const <Message>[],
+      createdAt: now,
+      updatedAt: now,
+      workspaceMode: WorkspaceMode.chat,
+      goal: ConversationGoal(
+        id: 'goal-1',
+        objective:
+            'Perform a safe Git lifecycle. Initialize the repository, create '
+            'lib/git_lifecycle_note.txt containing '
+            'CODING_GOAL_GIT_LIFECYCLE_OK, commit it, revert the commit with '
+            'revert --no-edit HEAD, and finish only after the final git status '
+            'is clean.',
+        status: ConversationGoalStatus.active,
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+    return ConversationsState(
+      conversations: [conversation],
+      currentConversationId: conversation.id,
+      activeWorkspaceMode: WorkspaceMode.chat,
+      activeProjectId: null,
+    );
+  }
+
+  @override
+  Future<void> recordCurrentGoalTurn({
+    required String assistantResponse,
+    required int tokenUsageDelta,
+  }) async {
+    final current = state.currentConversation;
+    final goal = current?.goal;
+    if (current == null || goal == null) {
+      return;
+    }
+    final now = DateTime(2026, 5, 25, 10, goal.turnsUsed + 1);
+    final normalized = assistantResponse.toLowerCase();
+    final completed =
+        normalized.contains('goal complete') &&
+        normalized.contains('tests passed');
+    final updatedGoal = goal.copyWith(
+      turnsUsed: goal.turnsUsed + 1,
+      tokenUsage: goal.tokenUsage + tokenUsageDelta,
+      status: completed ? ConversationGoalStatus.completed : goal.status,
+      completionSummary: completed
+          ? 'The git lifecycle completed successfully.'
+          : goal.completionSummary,
+      completedAt: completed ? now : goal.completedAt,
+      updatedAt: now,
+    );
+    final updated = current.copyWith(goal: updatedGoal, updatedAt: now);
+    state = state.copyWith(
+      conversations: state.conversations
+          .map((item) => item.id == updated.id ? updated : item)
+          .toList(growable: false),
+    );
+  }
 }
 
 class _DivergingSaveConversationsNotifier extends ConversationsNotifier {
@@ -10548,6 +10616,344 @@ with open(path, "rb") as file:
       }
     },
   );
+
+  test(
+    'sendMessage recovers next command after duplicate successful command',
+    () async {
+      const configEmailArgs = {
+        'command': 'config user.email canary@example.com',
+        'working_directory': '/tmp/project',
+      };
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'git-config-email',
+            name: 'git_execute_command',
+            arguments: configEmailArgs,
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Now I will set the git user email again.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'git-config-email-duplicate',
+                name: 'git_execute_command',
+                arguments: configEmailArgs,
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The email already succeeded. Continuing with git add.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'git-add',
+                name: 'git_execute_command',
+                arguments: const {
+                  'command': 'add lib/git_lifecycle_note.txt',
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content:
+                'Added the file after reusing the previous git config result.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Recovered command progression.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'git_execute_command': ''},
+        queuedResults: const {
+          'git_execute_command': [
+            '{"command":"git config user.email canary@example.com","exit_code":0,"stdout":"","stderr":""}',
+            '{"command":"git add lib/git_lifecycle_note.txt","exit_code":0,"stdout":"","stderr":""}',
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Continue the git lifecycle');
+
+        expect(toolService.executedToolNames, [
+          'git_execute_command',
+          'git_execute_command',
+        ]);
+        expect(
+          toolService.executedToolArguments.map((args) => args['command']),
+          [
+            'config user.email canary@example.com',
+            'add lib/git_lifecycle_note.txt',
+          ],
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        expect(
+          toolDataSource.toolResultBatches[1].single.name,
+          'git_execute_command',
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Recovered command progression.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('sendMessage stops follow-up tools after git lifecycle succeeds', () async {
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'git-init',
+          name: 'git_execute_command',
+          arguments: const {
+            'command': 'init',
+            'working_directory': '/tmp/project',
+          },
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: 'Repository initialized. Now create the lifecycle file.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'write-note',
+              name: 'write_file',
+              arguments: const {
+                'path': '/tmp/project/lib/git_lifecycle_note.txt',
+                'content': 'CODING_GOAL_GIT_LIFECYCLE_OK',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'File created. Now configure git email.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'git-email',
+              name: 'git_execute_command',
+              arguments: const {
+                'command': 'config user.email canary@example.com',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Email configured. Now configure git name.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'git-name',
+              name: 'git_execute_command',
+              arguments: const {
+                'command': 'config user.name "Canary Bot"',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Name configured. Now add the lifecycle file.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'git-add',
+              name: 'git_execute_command',
+              arguments: const {
+                'command': 'add lib/git_lifecycle_note.txt',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'File staged. Now commit it.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'git-commit',
+              name: 'git_execute_command',
+              arguments: const {
+                'command': 'commit -m "Add git lifecycle canary"',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Commit succeeded. Now inspect status.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'git-status-after-commit',
+              name: 'git_execute_command',
+              arguments: const {
+                'command': 'status',
+                'working_directory': '/tmp/project',
+                'reason': 'Inspect status after commit.',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Status is clean. Now revert the commit.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'git-revert',
+              name: 'git_execute_command',
+              arguments: const {
+                'command': 'revert --no-edit HEAD',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Revert succeeded. Now inspect final status.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'git-status-after-revert',
+              name: 'git_execute_command',
+              arguments: const {
+                'command': 'status',
+                'working_directory': '/tmp/project',
+                'reason': 'Inspect final status after revert.',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Now let me run the test to confirm everything passes.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'wrong-extra-test',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'dart lib/canary_greeting_test.dart',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      ],
+      finalAnswerChunks: const ['This final answer should never be requested.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'git_execute_command': '',
+        'write_file': '',
+        'local_execute_command': '',
+      },
+      queuedResults: const {
+        'git_execute_command': [
+          '{"command":"git init","exit_code":0,"stdout":"Initialized empty Git repository\\n","stderr":""}',
+          '{"command":"git config user.email canary@example.com","exit_code":0,"stdout":"","stderr":""}',
+          '{"command":"git config user.name \\"Canary Bot\\"","exit_code":0,"stdout":"","stderr":""}',
+          '{"command":"git add lib/git_lifecycle_note.txt","exit_code":0,"stdout":"","stderr":""}',
+          '{"command":"git commit -m \\"Add git lifecycle canary\\"","exit_code":0,"stdout":"[main abc123] Add git lifecycle canary\\n","stderr":""}',
+          '{"command":"git status","exit_code":0,"stdout":"On branch main\\nnothing to commit, working tree clean\\n","stderr":""}',
+          '{"command":"git revert --no-edit HEAD","exit_code":0,"stdout":"[main def456] Revert \\"Add git lifecycle canary\\"\\n","stderr":""}',
+          '{"command":"git status","exit_code":0,"stdout":"On branch main\\nnothing to commit, working tree clean\\n","stderr":""}',
+        ],
+        'write_file': [
+          '{"path":"/tmp/project/lib/git_lifecycle_note.txt","bytes_written":28,"created":true}',
+        ],
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _GitLifecycleGoalConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Complete the git lifecycle');
+
+      expect(toolService.executedToolNames, [
+        'git_execute_command',
+        'write_file',
+        'git_execute_command',
+        'git_execute_command',
+        'git_execute_command',
+        'git_execute_command',
+        'git_execute_command',
+        'git_execute_command',
+        'git_execute_command',
+      ]);
+      expect(
+        toolService.executedToolNames,
+        isNot(contains('local_execute_command')),
+      );
+      expect(toolDataSource.finalAnswerMessages, isEmpty);
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('CODING_GOAL_GIT_LIFECYCLE_OK'),
+      );
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('Goal complete. Tests passed.'),
+      );
+      final goal = toolContainer
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal;
+      expect(goal?.status, ConversationGoalStatus.completed);
+    } finally {
+      toolContainer.dispose();
+    }
+  });
 
   test('sendMessage blocks success claims after command timeout', () async {
     const command = 'fvm flutter test --no-pub';
