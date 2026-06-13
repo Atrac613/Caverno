@@ -43,6 +43,7 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_projecti
 import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_verification_feedback_service.dart';
+import 'package:caverno/features/chat/domain/services/chat_request_prefix_stability_service.dart';
 import 'package:caverno/features/chat/domain/services/conversation_goal_suggestion_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
@@ -6626,6 +6627,75 @@ void main() {
         toolNotifier.state.messages.last.content,
         contains('Combined tool summary'),
       );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test('sendMessage keeps tool-loop request prefix stable', () async {
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'read_alpha',
+          arguments: const {'path': 'alpha.txt'},
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'read_alpha': 'alpha result'},
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Inspect alpha');
+
+      expect(toolDataSource.initialRequestMessages, hasLength(1));
+      expect(toolDataSource.toolResultRequestMessages, hasLength(1));
+      expect(toolDataSource.initialToolDefinitionBatches, hasLength(1));
+      expect(toolDataSource.followUpToolDefinitionBatches, hasLength(1));
+      final initialMessages = toolDataSource.initialRequestMessages.single;
+      final followUpMessages = toolDataSource.toolResultRequestMessages.single;
+      final stableMessageCount =
+          ChatRequestPrefixStabilityService.commonLeadingPromptMessageCount(
+            initialMessages,
+            followUpMessages,
+          );
+      final initialPrefix =
+          ChatRequestPrefixStabilityService.buildPromptPrefixJson(
+            messages: initialMessages,
+            tools: toolDataSource.initialToolDefinitionBatches.single,
+            stableMessageCount: stableMessageCount,
+          );
+      final followUpPrefix =
+          ChatRequestPrefixStabilityService.buildPromptPrefixJson(
+            messages: followUpMessages,
+            tools: toolDataSource.followUpToolDefinitionBatches.single,
+            stableMessageCount: stableMessageCount,
+          );
+
+      expect(stableMessageCount, greaterThan(0));
+      expect(followUpPrefix, initialPrefix);
     } finally {
       toolContainer.dispose();
     }

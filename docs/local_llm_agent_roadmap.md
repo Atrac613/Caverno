@@ -471,6 +471,9 @@ Initial implementation slice:
 - `ChatRemoteDataSource` exposes the same prefix construction behind
   `visibleForTesting` helpers, giving the LL6 mode a focused regression target
   before the runtime setting and llama.cpp timing instrumentation land.
+- A focused `ChatNotifier` tool-loop test now verifies that the initial
+  tool-aware request and the first tool-result follow-up share the same
+  canonical prompt prefix when the stable leading messages and tools match.
 
 Acceptance criteria:
 - Prompt prefix is byte-identical across consecutive turn requests in the
