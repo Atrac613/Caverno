@@ -408,6 +408,23 @@ Verification:
 - `test/quality/file_size_ratchet_test.dart`
 - `tool/codex_verify.sh`
 
+Live canary evidence:
+- Baseline live edit run without repo map:
+  `/tmp/ll4_repo_map_measurement/baseline/coding_goal_live_edit_canary_1781325422/canary_summary.json`
+  against `qwen3.6-27b-mtp-vision` passed 3/6 tests, had 3 blocker
+  failures, took 113,094 ms, and used 56 total tool calls.
+- Repo map run:
+  `/tmp/ll4_repo_map_measurement/current/coding_goal_live_edit_canary_1781325566/canary_summary.json`
+  passed 5/6 tests, reduced blocker failures to 1, took 56,739 ms, and used 29
+  total tool calls.
+- Parsed tool-call logs show exploration calls before first mutation dropped
+  from 10 to 8 overall and from 4 to 2 in the direct first-edit case. Average
+  first mutation index improved from 3.00 to 2.67.
+- Full measurement notes are in
+  `docs/ll4_repo_map_live_measurement_2026-06-13.md`.
+- LL4 remains open because the repo map run still blocked on the git lifecycle
+  canary after repeating a completed `git config user.email` step.
+
 Acceptance criteria:
 - Map generation is incremental and bounded on large repos.
 - Live coding canaries show fewer exploration tool calls to reach a correct
