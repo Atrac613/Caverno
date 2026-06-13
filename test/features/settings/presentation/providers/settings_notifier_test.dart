@@ -242,6 +242,33 @@ void main() {
   });
 
   test(
+    'prefix-stable tool loop setting persists through the repository',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      expect(
+        container.read(settingsNotifierProvider).enablePrefixStableToolLoop,
+        isFalse,
+      );
+
+      await notifier.updateEnablePrefixStableToolLoop(true);
+
+      final settings = container.read(settingsNotifierProvider);
+      expect(settings.enablePrefixStableToolLoop, isTrue);
+
+      final reloaded = SettingsRepository(prefs).load();
+      expect(reloaded.enablePrefixStableToolLoop, isTrue);
+    },
+  );
+
+  test(
     'model capability profile updates persist through the repository',
     () async {
       SharedPreferences.setMockInitialValues({});

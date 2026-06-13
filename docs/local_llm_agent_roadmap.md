@@ -474,6 +474,10 @@ Initial implementation slice:
 - A focused `ChatNotifier` tool-loop test now verifies that the initial
   tool-aware request and the first tool-result follow-up share the same
   canonical prompt prefix when the stable leading messages and tools match.
+- The optional prefix-stable tool-loop setting is persisted in `AppSettings`
+  and exposed in General Settings. When enabled, chat tool loops send one fixed
+  full tool list from the first request through follow-up requests; the existing
+  dynamic tool-search selection remains the default when the setting is off.
 
 Acceptance criteria:
 - Prompt prefix is byte-identical across consecutive turn requests in the

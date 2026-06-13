@@ -579,6 +579,8 @@
     "reasoning_effort_low": "Low",
     "reasoning_effort_medium": "Medium",
     "reasoning_effort_high": "High",
+    "prefix_stable_tool_loop": "Prefix-stable tool loop",
+    "prefix_stable_tool_loop_desc": "Send a stable full tool list across tool-loop requests to improve local KV-cache reuse. Dynamic tool search remains the default when this is off.",
     "google_chat_section": "Google Chat",
     "google_chat_webhook_label": "Webhook URL",
     "google_chat_webhook_helper": "Incoming webhook used for routine delivery and test posts.",

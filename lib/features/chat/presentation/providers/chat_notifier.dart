@@ -9064,8 +9064,22 @@ class ChatNotifier extends Notifier<ChatState> {
         '[Tool] Tool definitions: ${allTools.map((t) => (t['function'] as Map?)?['name']).toList()}',
       );
 
-      final initialToolSelection =
-          ToolDefinitionSearchService.buildInitialSelection(allTools);
+      final prefixStableToolLoop = _settings.enablePrefixStableToolLoop;
+      final initialToolSelection = prefixStableToolLoop
+          ? ToolDefinitionSearchSelection(
+              toolSearchEnabled: false,
+              toolDefinitions: allTools,
+              selectedToolNames:
+                  ToolDefinitionSearchService.toolNamesFromDefinitions(
+                    allTools,
+                  ),
+            )
+          : ToolDefinitionSearchService.buildInitialSelection(allTools);
+      if (prefixStableToolLoop) {
+        appLog(
+          '[Tool] Prefix-stable tool loop enabled; using a fixed full tool list',
+        );
+      }
       if (initialToolSelection.toolSearchEnabled) {
         appLog(
           '[ToolSearch] Enabled dynamic tool loading. Initial tools: '
@@ -9121,6 +9135,9 @@ class ChatNotifier extends Notifier<ChatState> {
           assistantContent: result.content.isNotEmpty ? result.content : null,
           toolSearchEnabled: initialToolSelection.toolSearchEnabled,
           selectedToolNames: initialToolSelection.selectedToolNames,
+          stableToolDefinitions: prefixStableToolLoop
+              ? initialToolSelection.toolDefinitions
+              : null,
           interactionGeneration: generation,
         );
       } else {
@@ -9147,6 +9164,9 @@ class ChatNotifier extends Notifier<ChatState> {
               ...initialToolSelection.selectedToolNames,
               'load_skill',
             },
+            stableToolDefinitions: prefixStableToolLoop
+                ? initialToolSelection.toolDefinitions
+                : null,
             interactionGeneration: generation,
           );
           return;
@@ -9173,6 +9193,9 @@ class ChatNotifier extends Notifier<ChatState> {
               ...initialToolSelection.selectedToolNames,
               ..._browserToolNamesFromDefinitions(allTools),
             },
+            stableToolDefinitions: prefixStableToolLoop
+                ? initialToolSelection.toolDefinitions
+                : null,
             interactionGeneration: generation,
           );
           return;
@@ -10646,6 +10669,7 @@ class ChatNotifier extends Notifier<ChatState> {
     String? assistantContent,
     bool toolSearchEnabled = false,
     Set<String> selectedToolNames = const <String>{},
+    List<Map<String, dynamic>>? stableToolDefinitions,
     Map<String, int>? completionVerificationFailureCounts,
     required int interactionGeneration,
   }) async {
@@ -10676,6 +10700,10 @@ class ChatNotifier extends Notifier<ChatState> {
     List<Map<String, dynamic>> selectedDefinitionsFor(
       McpToolService mcpToolService,
     ) {
+      final stableDefinitions = stableToolDefinitions;
+      if (stableDefinitions != null) {
+        return stableDefinitions;
+      }
       return ToolDefinitionSearchService.definitionsForSelectedTools(
         mcpToolService.getOpenAiToolDefinitions(),
         selectedToolNames: activeToolNames,
@@ -11817,6 +11845,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   : streamedFinalAnswer,
               toolSearchEnabled: toolSearchEnabled,
               selectedToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
               completionVerificationFailureCounts: verificationFailureCounts,
               interactionGeneration: interactionGeneration,
             );
@@ -11841,6 +11870,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   : streamedFinalAnswer,
               toolSearchEnabled: toolSearchEnabled,
               selectedToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
               completionVerificationFailureCounts: verificationFailureCounts,
               interactionGeneration: interactionGeneration,
             );
@@ -11887,6 +11917,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   : streamedFinalAnswer,
               toolSearchEnabled: toolSearchEnabled,
               selectedToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
               completionVerificationFailureCounts: verificationFailureCounts,
               interactionGeneration: interactionGeneration,
             );

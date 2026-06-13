@@ -579,6 +579,8 @@
     "reasoning_effort_low": "Low",
     "reasoning_effort_medium": "Medium",
     "reasoning_effort_high": "High",
+    "prefix_stable_tool_loop": "Prefix-stable tool loop",
+    "prefix_stable_tool_loop_desc": "ローカル KV cache の再利用を高めるため、tool loop のリクエスト間で完全な tool list を固定して送ります。OFF の場合は従来どおり dynamic tool search を使います。",
     "google_chat_section": "Google Chat",
     "google_chat_webhook_label": "Webhook URL",
     "google_chat_webhook_helper": "Routine の投稿先とテスト送信に使う incoming webhook です。",

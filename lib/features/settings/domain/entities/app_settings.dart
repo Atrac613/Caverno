@@ -340,6 +340,7 @@ abstract class AppSettings with _$AppSettings {
     @Default(90) int codingVerificationTimeoutSeconds,
     @Default(5) int codingVerificationMaxFailures,
     @Default(true) bool enableAgentsMd,
+    @Default(false) bool enablePrefixStableToolLoop,
     @Default(false) bool showMemoryUpdates,
     @Default(false) bool enableLlmSessionLogs,
     @Default(false) bool demoMode,

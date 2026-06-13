@@ -313,6 +313,8 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   codingVerificationMaxFailures:
       (json['codingVerificationMaxFailures'] as num?)?.toInt() ?? 5,
   enableAgentsMd: json['enableAgentsMd'] as bool? ?? true,
+  enablePrefixStableToolLoop:
+      json['enablePrefixStableToolLoop'] as bool? ?? false,
   showMemoryUpdates: json['showMemoryUpdates'] as bool? ?? false,
   enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? false,
   demoMode: json['demoMode'] as bool? ?? false,
@@ -388,6 +390,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'codingVerificationTimeoutSeconds': instance.codingVerificationTimeoutSeconds,
   'codingVerificationMaxFailures': instance.codingVerificationMaxFailures,
   'enableAgentsMd': instance.enableAgentsMd,
+  'enablePrefixStableToolLoop': instance.enablePrefixStableToolLoop,
   'showMemoryUpdates': instance.showMemoryUpdates,
   'enableLlmSessionLogs': instance.enableLlmSessionLogs,
   'demoMode': instance.demoMode,

@@ -956,6 +956,17 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                     'Tool loops, coding, plans, routines, and subagents use a managed low temperature.',
                   ),
                   const SizedBox(height: 8),
+                  SwitchListTile(
+                    key: const ValueKey('settings-prefix-stable-tool-loop'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('settings.prefix_stable_tool_loop'.tr()),
+                    subtitle: Text(
+                      'settings.prefix_stable_tool_loop_desc'.tr(),
+                    ),
+                    value: settings.enablePrefixStableToolLoop,
+                    onChanged: notifier.updateEnablePrefixStableToolLoop,
+                  ),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: _maxTokensController,
                     decoration: InputDecoration(
