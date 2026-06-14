@@ -788,6 +788,8 @@ Implementation status:
 - Native OpenAI-compatible live diagnostics now record repeated `toolLoop`
   sampler calibration trials for the `0.0`, `0.2`, `0.4`, and `0.7`
   temperature candidates.
+- Routine-style sampler calibration now records the same repeated temperature
+  matrix and persists selected `routine` sampler metadata into the LL3 profile.
 - Diagnostic support JSON and the live diagnostics page now summarize sampler
   trial counts, candidate temperatures, pass counts, and quality flags.
 - `LiveLlmDiagnosticNotifier` coverage now verifies that live sampler trials

@@ -101,19 +101,15 @@ class LiveLlmDiagnosticService {
   static const _foundationModelsToolBridgeMarker = 'CAVERNO_FM_LANG_TOOL';
   static const _toolResultMarker = 'CAVERNO_TOOL_RESULT_OK';
   static const _subagentMarker = 'CAVERNO_SUBAGENT_DIAGNOSTIC';
+  static const _routineSamplerMarker = 'CAVERNO_ROUTINE_SAMPLER_OK';
   static const _exactDirectEchoValue = '12 GiB, \u00a53,980';
   static const _exactToolResultValue = 'ZX-900_\u03b1 2026-06-12';
   static const _exactUrlValue =
       'https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def';
   static const _diagnosticTemperature = 0.0;
   static const _diagnosticMaxTokens = 512;
-  static const _toolLoopSamplerCalibrationTemperatures = <double>[
-    0.0,
-    0.2,
-    0.4,
-    0.7,
-  ];
-  static const _toolLoopSamplerCalibrationRepeatCount = 2;
+  static const _samplerCalibrationTemperatures = <double>[0.0, 0.2, 0.4, 0.7];
+  static const _samplerCalibrationRepeatCount = 2;
 
   Future<LiveLlmDiagnosticReport> run({
     LiveLlmDiagnosticReportCallback? onReport,
@@ -156,6 +152,12 @@ class LiveLlmDiagnosticService {
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
       run: _runInstructionProbe,
+    );
+    report = await _appendRoutineSamplerCalibrationTrials(
+      report: report,
+      capabilities: capabilities,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
     );
     report = await _runSelectedProbe(
       report: report,
@@ -843,12 +845,8 @@ class LiveLlmDiagnosticService {
     }
 
     final trials = <LiveLlmDiagnosticSamplerTrial>[];
-    for (
-      var repeat = 0;
-      repeat < _toolLoopSamplerCalibrationRepeatCount;
-      repeat += 1
-    ) {
-      for (final temperature in _toolLoopSamplerCalibrationTemperatures) {
+    for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
+      for (final temperature in _samplerCalibrationTemperatures) {
         trials.add(
           await _runToolLoopSamplerCalibrationTrial(
             dateTool: dateTool,
@@ -901,6 +899,77 @@ class LiveLlmDiagnosticService {
         temperature: temperature,
         passed: false,
         malformedToolCallCount: 1,
+      );
+    }
+  }
+
+  Future<LiveLlmDiagnosticReport> _appendRoutineSamplerCalibrationTrials({
+    required LiveLlmDiagnosticReport report,
+    required LlmProviderCapabilities capabilities,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    if (!capabilities.supportsLlmMemoryExtraction ||
+        !_shouldRunProbe(_instructionProbeId, selectedProbeIds)) {
+      return report;
+    }
+
+    final trials = <LiveLlmDiagnosticSamplerTrial>[];
+    for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
+      for (final temperature in _samplerCalibrationTemperatures) {
+        trials.add(
+          await _runRoutineSamplerCalibrationTrial(temperature: temperature),
+        );
+      }
+    }
+    if (trials.isEmpty) {
+      return report;
+    }
+
+    final updated = report.copyWith(
+      samplerCalibrationTrials: [...report.samplerCalibrationTrials, ...trials],
+    );
+    onReport?.call(updated);
+    return updated;
+  }
+
+  Future<LiveLlmDiagnosticSamplerTrial> _runRoutineSamplerCalibrationTrial({
+    required double temperature,
+  }) async {
+    try {
+      final result = await chatDataSource.createChatCompletion(
+        messages: _messages(
+          user:
+              'Return exactly this routine sampler JSON object and no markdown:\n'
+              '{"routine":"sampler_calibration","status":"ok","marker":"$_routineSamplerMarker","nextAction":"post_summary"}',
+        ),
+        model: _diagnosticModel,
+        temperature: temperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      final content = result.content.trim();
+      final decoded = _tryDecodeJsonObject(content);
+      final passed =
+          decoded?['routine'] == 'sampler_calibration' &&
+          decoded?['status'] == 'ok' &&
+          decoded?['marker'] == _routineSamplerMarker &&
+          decoded?['nextAction'] == 'post_summary';
+      final hasUnexpectedToolCalls = _toolCallsFromResult(result).isNotEmpty;
+      final hasMarker = content.contains(_routineSamplerMarker);
+      return LiveLlmDiagnosticSamplerTrial(
+        requestClass: LlmSamplerRequestClass.routine.metadataName,
+        temperature: temperature,
+        passed: passed && !hasUnexpectedToolCalls,
+        jsonRepairEventCount: !passed && hasMarker ? 1 : 0,
+        malformedToolCallCount: hasUnexpectedToolCalls ? 1 : 0,
+        repetitionDetected: _looksRepetitive(result.content),
+      );
+    } catch (_) {
+      return LiveLlmDiagnosticSamplerTrial(
+        requestClass: LlmSamplerRequestClass.routine.metadataName,
+        temperature: temperature,
+        passed: false,
+        jsonRepairEventCount: 1,
       );
     }
   }

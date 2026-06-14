@@ -27,8 +27,16 @@ void main() {
     expect(report.toolCatalog.totalToolCount, greaterThan(0));
     expect(report.toolCatalog.toolSearchEnabled, isTrue);
     expect(dataSource.toolResultFollowUpCount, 1);
-    expect(report.samplerCalibrationTrials, hasLength(8));
-    expect(report.samplerCalibrationTrials.map((trial) => trial.temperature), [
+    final routineTrials = report.samplerCalibrationTrials
+        .where((trial) => trial.requestClass == 'routine')
+        .toList(growable: false);
+    final toolLoopTrials = report.samplerCalibrationTrials
+        .where((trial) => trial.requestClass == 'toolLoop')
+        .toList(growable: false);
+    expect(report.samplerCalibrationTrials, hasLength(16));
+    expect(routineTrials, hasLength(8));
+    expect(toolLoopTrials, hasLength(8));
+    expect(routineTrials.map((trial) => trial.temperature), [
       0.0,
       0.2,
       0.4,
@@ -38,14 +46,18 @@ void main() {
       0.4,
       0.7,
     ]);
-    expect(
-      report.samplerCalibrationTrials.map((trial) => trial.requestClass),
-      everyElement('toolLoop'),
-    );
-    expect(
-      report.samplerCalibrationTrials.map((trial) => trial.passed),
-      everyElement(true),
-    );
+    expect(toolLoopTrials.map((trial) => trial.temperature), [
+      0.0,
+      0.2,
+      0.4,
+      0.7,
+      0.0,
+      0.2,
+      0.4,
+      0.7,
+    ]);
+    expect(routineTrials.map((trial) => trial.passed), everyElement(true));
+    expect(toolLoopTrials.map((trial) => trial.passed), everyElement(true));
     expect(
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
@@ -100,7 +112,13 @@ void main() {
       probeIds: LiveLlmDiagnosticService.modelCapabilityProbeIds,
     );
 
-    expect(dataSource.requestedModels, ['test-model']);
+    expect(dataSource.requestedModels, List.filled(9, 'test-model'));
+    expect(
+      report.samplerCalibrationTrials
+          .map((trial) => trial.requestClass)
+          .toSet(),
+      {'routine'},
+    );
     expect(
       _result(report, 'instruction_echo').status,
       LiveLlmDiagnosticStatus.passed,
@@ -324,6 +342,13 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
       return ChatCompletionResult(
         content:
             '{"probe":"instruction_echo","status":"ok","marker":"CAVERNO_LIVE_DIAGNOSTIC"}',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('routine sampler JSON object')) {
+      return ChatCompletionResult(
+        content:
+            '{"routine":"sampler_calibration","status":"ok","marker":"CAVERNO_ROUTINE_SAMPLER_OK","nextAction":"post_summary"}',
         finishReason: 'stop',
       );
     }

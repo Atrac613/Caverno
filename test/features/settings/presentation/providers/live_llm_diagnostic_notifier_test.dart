@@ -89,7 +89,7 @@ void main() {
 
     final diagnosticState = container.read(liveLlmDiagnosticNotifierProvider);
     expect(diagnosticState.isRunning, isFalse);
-    expect(diagnosticState.report?.samplerCalibrationTrials, hasLength(8));
+    expect(diagnosticState.report?.samplerCalibrationTrials, hasLength(16));
 
     final settings = SettingsRepository(prefs).load();
     final profile = settings.effectiveModelCapabilityProfile;
@@ -120,6 +120,24 @@ void main() {
       )],
       'probe',
     );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.routine,
+      )],
+      '0.2',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.scoreKey(
+        LlmSamplerRequestClass.routine,
+      )],
+      '1.000',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.trialCountKey(
+        LlmSamplerRequestClass.routine,
+      )],
+      '2',
+    );
   });
 }
 
@@ -149,6 +167,13 @@ class _TextOnlyDiagnosticDataSource implements ChatDataSource {
     if (user.contains('12 GiB')) {
       return ChatCompletionResult(
         content: '12 GiB, \u00a53,980',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('routine sampler JSON object')) {
+      return ChatCompletionResult(
+        content:
+            '{"routine":"sampler_calibration","status":"ok","marker":"CAVERNO_ROUTINE_SAMPLER_OK","nextAction":"post_summary"}',
         finishReason: 'stop',
       );
     }
