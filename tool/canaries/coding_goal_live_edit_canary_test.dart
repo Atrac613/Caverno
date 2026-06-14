@@ -1299,6 +1299,27 @@ class _LiveSettingsNotifier extends SettingsNotifier {
       modelCapabilityProfiles: _modelCapabilityProfilesFromEnvironment(env),
     );
   }
+
+  @override
+  Future<void> upsertModelCapabilityProfile(
+    ModelCapabilityProfile profile,
+  ) async {
+    final normalized = profile.normalizedForPersistence();
+    if (normalized.normalizedModel.isEmpty) {
+      throw ArgumentError('Model capability profile model is required');
+    }
+
+    final profiles = List<ModelCapabilityProfile>.from(
+      state.modelCapabilityProfiles,
+    );
+    final index = profiles.indexWhere((item) => item.id == normalized.id);
+    if (index == -1) {
+      profiles.add(normalized);
+    } else {
+      profiles[index] = normalized;
+    }
+    state = state.copyWith(modelCapabilityProfiles: profiles);
+  }
 }
 
 List<ModelCapabilityProfile> _modelCapabilityProfilesFromEnvironment(

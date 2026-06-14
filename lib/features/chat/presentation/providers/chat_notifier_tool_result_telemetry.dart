@@ -23,9 +23,13 @@ extension ChatNotifierToolResultTelemetry on ChatNotifier {
     if (updatedProfile == null || !ref.mounted) {
       return;
     }
-    await ref
-        .read(settingsNotifierProvider.notifier)
-        .upsertModelCapabilityProfile(updatedProfile);
+    try {
+      await ref
+          .read(settingsNotifierProvider.notifier)
+          .upsertModelCapabilityProfile(updatedProfile);
+    } catch (_) {
+      // Edit telemetry should never interrupt the primary chat/tool loop.
+    }
   }
 
   void _recordContentToolResult({
