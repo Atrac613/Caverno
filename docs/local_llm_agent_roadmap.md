@@ -640,6 +640,10 @@ Implementation status:
   `tool/run_personal_eval_suite_pipeline.sh`, which standardizes the default
   artifact directory under `build/integration_test_reports/` while preserving
   the deterministic Dart pipeline as the source of comparison logic.
+- LL3 profile handoff started with `tool/personal_eval_profile_handoff.dart`.
+  It consumes the suite comparison report and emits a local audit artifact with
+  a candidate profile target, adoption blockers, and a `probeMetadata` patch
+  that can be applied only when the candidate has no LL12 regressions.
 
 ### LL13: Parallel Agents In Worktrees
 
