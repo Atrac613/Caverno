@@ -67,7 +67,7 @@ structurally unmotivated to build:
 | Local LLM | LL11 | later | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
 | Local LLM | LL12 | later | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
 | Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
-| Local LLM | LL14 | current | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
+| Local LLM | LL14 | done | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
 | Local LLM | LL15 | later | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
 | Local LLM | LL16 | later | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
 | Local LLM | LL17 | later | L | LL3, LL12 | Self-improving harness loop: mine failure traces, propose profile mutations, adopt only on eval non-regression. |
@@ -631,7 +631,7 @@ Acceptance criteria:
 
 ### LL14: Context Surgery
 
-Status: `current`
+Status: `done`
 
 Scope:
 - Evict stale tool results and deduplicate repeated file reads (keep the
@@ -664,12 +664,18 @@ Initial implementation slice:
 - `tool/ll14_model_switch_handoff_measurement.dart` compares full-history
   replay against the model-switch handoff fixture, reporting estimated prompt
   token reduction and live `timings.prompt_ms` as the first-token proxy.
+- Live measurement on 2026-06-14 against `qwen3.6-35b-a3b-vision` reduced the
+  long-conversation fixture from 66 messages / 7291 estimated prompt tokens /
+  `prompt_ms=2045.685` to 12 messages / 2253 estimated prompt tokens /
+  `prompt_ms=586.408`. See
+  `docs/ll14_model_switch_handoff_live_measurement_2026-06-14.md`.
 
 Acceptance criteria:
 - Eviction never removes results the current task still references (guarded
-  by the same heuristics as compaction's recent-message floor).
+  by protected-path tests and compact-boundary-only mutation).
 - A model switch on a long conversation reaches first token measurably
-  faster than full-history replay.
+  faster than full-history replay (`timings.prompt_ms` improved by 71.3% in
+  the live measurement).
 
 ### LL15: Weak-Model Edit Harness
 
