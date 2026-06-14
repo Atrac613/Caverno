@@ -19,11 +19,17 @@ extension ChatNotifierContextSurgery on ChatNotifier {
         nextSettings: settings,
       );
     }
-    _settings = settings;
-    _dataSource = _withChatSessionLogging(
-      _buildChatDataSource(settings),
+    final shouldRebuildDataSource = _shouldRebuildChatDataSource(
+      previousSettings,
       settings,
     );
+    _settings = settings;
+    if (shouldRebuildDataSource) {
+      _dataSource = _withChatSessionLogging(
+        ref.read(chatRemoteDataSourceProvider),
+        settings,
+      );
+    }
   }
 
   @visibleForTesting
@@ -43,6 +49,19 @@ extension ChatNotifierContextSurgery on ChatNotifier {
       baseUrl: settings.baseUrl,
       model: settings.effectiveModel,
     );
+  }
+
+  bool _shouldRebuildChatDataSource(
+    AppSettings previousSettings,
+    AppSettings nextSettings,
+  ) {
+    return previousSettings.demoMode != nextSettings.demoMode ||
+        previousSettings.llmProvider != nextSettings.llmProvider ||
+        previousSettings.baseUrl != nextSettings.baseUrl ||
+        previousSettings.apiKey != nextSettings.apiKey ||
+        previousSettings.reasoningEffort != nextSettings.reasoningEffort ||
+        previousSettings.enableLlmSessionLogs !=
+            nextSettings.enableLlmSessionLogs;
   }
 
   void _scheduleModelSwitchHandoff({

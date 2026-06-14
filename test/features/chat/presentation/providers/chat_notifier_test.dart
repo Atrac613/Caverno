@@ -60,6 +60,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 part 'chat_notifier_persistence_part.dart';
 part 'chat_notifier_git_guardrails_part.dart';
 part 'chat_notifier_turn_rollback_part.dart';
+part 'chat_notifier_context_surgery_part.dart';
 
 class _TestSettingsNotifier extends SettingsNotifier {
   @override
@@ -2691,6 +2692,7 @@ void main() {
   registerChatNotifierPersistenceTests();
   registerChatNotifierGitGuardrailTests();
   registerChatNotifierTurnRollbackTests();
+  registerChatNotifierContextSurgeryTests();
 
   test('sendMessage marks regular streaming requests as loading', () async {
     await notifier.sendMessage('Inspect the workspace');

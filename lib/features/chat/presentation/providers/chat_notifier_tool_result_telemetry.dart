@@ -8,6 +8,9 @@ part of 'chat_notifier.dart';
 
 extension ChatNotifierToolResultTelemetry on ChatNotifier {
   Future<void> _recordModelEditApplyTelemetry(ToolResultInfo toolResult) async {
+    final editObservation = ModelEditApplyTelemetryService.classifyToolResult(
+      toolResult,
+    );
     final baselineProfile =
         _settings.effectiveModelCapabilityProfile ??
         ModelCapabilityProfile(
@@ -27,8 +30,72 @@ extension ChatNotifierToolResultTelemetry on ChatNotifier {
       await ref
           .read(settingsNotifierProvider.notifier)
           .upsertModelCapabilityProfile(updatedProfile);
+      if (ref.mounted) {
+        _settings = ref.read(settingsNotifierProvider);
+      }
+      if (editObservation?.isFailure ?? false) {
+        await _recordRuntimeSamplerFeedback(
+          const LlmSamplerRuntimeFeedbackSignal(
+            requestClass: LlmSamplerRequestClass.toolLoop,
+            editApplyFailureCount: 1,
+          ),
+        );
+      }
     } catch (_) {
       // Edit telemetry should never interrupt the primary chat/tool loop.
+    }
+  }
+
+  Future<void> _recordMalformedToolCallRuntimeFeedback(String message) {
+    if (!LlmSamplerRuntimeFeedbackService.looksLikeMalformedToolCallFailure(
+      message,
+    )) {
+      return Future<void>.value();
+    }
+    return _recordRuntimeSamplerFeedback(
+      const LlmSamplerRuntimeFeedbackSignal(
+        requestClass: LlmSamplerRequestClass.toolLoop,
+        malformedToolCallCount: 1,
+      ),
+    );
+  }
+
+  Future<void> _recordToolLoopRepetitionRuntimeFeedback() {
+    return _recordRuntimeSamplerFeedback(
+      const LlmSamplerRuntimeFeedbackSignal(
+        requestClass: LlmSamplerRequestClass.toolLoop,
+        repetitionDetected: true,
+      ),
+    );
+  }
+
+  Future<void> _recordRuntimeSamplerFeedback(
+    LlmSamplerRuntimeFeedbackSignal signal,
+  ) async {
+    final baselineProfile =
+        _settings.effectiveModelCapabilityProfile ??
+        ModelCapabilityProfile(
+          id: '',
+          provider: _settings.llmProvider,
+          baseUrl: _settings.baseUrl,
+          model: _settings.effectiveModel,
+        ).normalizedForPersistence();
+    final result = const LlmSamplerRuntimeFeedbackService().recordSignal(
+      profile: baselineProfile,
+      signal: signal,
+    );
+    if (result == null || !ref.mounted) {
+      return;
+    }
+    try {
+      await ref
+          .read(settingsNotifierProvider.notifier)
+          .upsertModelCapabilityProfile(result.profile);
+      if (ref.mounted) {
+        _settings = ref.read(settingsNotifierProvider);
+      }
+    } catch (_) {
+      // Runtime feedback must never interrupt the primary chat/tool loop.
     }
   }
 

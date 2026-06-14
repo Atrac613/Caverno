@@ -797,6 +797,10 @@ Implementation status:
   trial counts, candidate temperatures, pass counts, and quality flags.
 - `LiveLlmDiagnosticNotifier` coverage now verifies that live sampler trials
   persist selected `toolLoop` sampler metadata into the saved LL3 profile.
+- Layer 3 started with runtime feedback metadata: malformed tool-call style
+  failures, duplicate tool-loop repetitions, and `edit_file` apply failures
+  increment per-role counters and can step `toolLoop` temperature down one
+  candidate at a time without changing the chat prose temperature.
 
 ### LL17: Self-Improving Harness Loop
 

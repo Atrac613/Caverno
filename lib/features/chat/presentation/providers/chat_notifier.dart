@@ -32,6 +32,8 @@ import '../../domain/services/skill_prompt_index_builder.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_provider_capabilities.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';
+import '../../../settings/domain/services/llm_sampler_preset_profile.dart';
+import '../../../settings/domain/services/llm_sampler_runtime_feedback_service.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/apple_foundation_models_datasource.dart';
 import '../../data/datasources/chat_datasource.dart';
@@ -584,22 +586,6 @@ class ChatNotifier extends Notifier<ChatState> {
     return LlmSessionLogContext.run(
       _llmSessionLogContextForGeneration(generation),
       body,
-    );
-  }
-
-  ChatDataSource _buildChatDataSource(AppSettings settings) {
-    if (settings.demoMode) {
-      return DemoDataSource();
-    }
-
-    if (settings.llmProvider == LlmProvider.appleFoundationModels) {
-      return AppleFoundationModelsDataSource(enableSafePromptRetry: true);
-    }
-
-    return ChatRemoteDataSource(
-      baseUrl: settings.baseUrl,
-      apiKey: settings.apiKey,
-      reasoningEffort: settings.reasoningEffort.apiValue,
     );
   }
 
@@ -10778,6 +10764,7 @@ class ChatNotifier extends Notifier<ChatState> {
             resultStatus: 'skipped',
             skipReason: 'duplicate_tool_call',
           );
+          await _recordToolLoopRepetitionRuntimeFeedback();
           continue;
         }
 
@@ -10902,6 +10889,9 @@ class ChatNotifier extends Notifier<ChatState> {
             commandRetryGeneration += 1;
           }
         } else {
+          await _recordMalformedToolCallRuntimeFeedback(
+            '${result.errorMessage ?? ''}\n${result.result}',
+          );
           final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
           toolFailureCounts[toolCallKey] = failureCount;
           if (failureCount >= 2) {
