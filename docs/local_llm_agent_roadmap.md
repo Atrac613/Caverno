@@ -627,6 +627,11 @@ Implementation status:
   tool-call-count fidelity against the original session-log summary. Candidate
   reports with verification regressions or missing cases are rejected before
   LL17 can adopt profile mutations.
+- Replay-run artifact generation started with
+  `tool/personal_eval_replay_run.dart`. The tool consumes LL12 manifests plus
+  per-case replay session logs and explicit verification results, summarizes
+  the replay logs through the existing session-log summary parser, and writes
+  `caverno_personal_eval_replay_run` JSON that the suite comparison can consume.
 
 ### LL13: Parallel Agents In Worktrees
 
