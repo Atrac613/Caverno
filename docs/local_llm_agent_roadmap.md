@@ -780,6 +780,9 @@ Implementation status:
   repeated probe trials, penalizes JSON repair, malformed tool calls, edit
   apply failures, and repetition, then writes the selected per-role preset back
   into LL3 profile metadata with score and trial-count evidence.
+- `ModelCapabilityProfileBuilder` can now accept sampler calibration trials and
+  persist the selected per-role presets into the generated LL3 profile without
+  changing existing diagnostic callers that do not provide calibration data.
 
 ### LL17: Self-Improving Harness Loop
 

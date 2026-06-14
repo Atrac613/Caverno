@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
+import 'package:caverno/features/settings/domain/services/llm_sampler_calibration_service.dart';
+import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
 import 'package:caverno/features/settings/domain/services/model_capability_profile_builder.dart';
 
 void main() {
@@ -114,5 +116,72 @@ void main() {
       profile.structuredOutputSupport,
       ModelStructuredOutputSupport.unknown,
     );
+  });
+
+  test('stores sampler calibration selections in profile metadata', () {
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 6, 12),
+      finishedAt: DateTime.utc(2026, 6, 12, 0, 0, 3),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'sampler-model',
+      demoMode: false,
+      mcpEnabled: true,
+      results: const [
+        LiveLlmDiagnosticProbeResult(
+          id: 'instruction_echo',
+          status: LiveLlmDiagnosticStatus.passed,
+          summary: 'JSON ok.',
+        ),
+      ],
+    );
+
+    final profile = ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+      report: report,
+      provider: LlmProvider.openAiCompatible,
+      samplerTrials: const [
+        LlmSamplerCalibrationTrial(
+          requestClass: LlmSamplerRequestClass.toolLoop,
+          temperature: 0.0,
+          passed: true,
+          repetitionDetected: true,
+        ),
+        LlmSamplerCalibrationTrial(
+          requestClass: LlmSamplerRequestClass.toolLoop,
+          temperature: 0.2,
+          passed: true,
+        ),
+        LlmSamplerCalibrationTrial(
+          requestClass: LlmSamplerRequestClass.routine,
+          temperature: 0.4,
+          passed: true,
+        ),
+      ],
+    );
+
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      '0.2',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.scoreKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      '1.000',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.trialCountKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      '1',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.routine,
+      )],
+      '0.4',
+    );
+    expect(profile.probeMetadata['probe.instruction_echo.status'], 'passed');
   });
 }

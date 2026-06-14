@@ -1,5 +1,7 @@
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
+import 'llm_sampler_calibration_service.dart';
+import 'llm_sampler_preset_profile.dart';
 
 class ModelCapabilityProfileBuilder {
   const ModelCapabilityProfileBuilder._();
@@ -7,6 +9,7 @@ class ModelCapabilityProfileBuilder {
   static ModelCapabilityProfile fromLiveDiagnosticReport({
     required LiveLlmDiagnosticReport report,
     required LlmProvider provider,
+    Iterable<LlmSamplerCalibrationTrial> samplerTrials = const [],
   }) {
     final metadata = <String, String>{
       'overallStatus': report.overallStatus.name,
@@ -33,7 +36,36 @@ class ModelCapabilityProfileBuilder {
           '${report.passedProbeCount}/${report.scoredProbeCount} probes passed.',
       probeMetadata: metadata,
     );
-    return profile.normalizedForPersistence();
+    return _applySamplerCalibration(
+      profile.normalizedForPersistence(),
+      samplerTrials,
+    );
+  }
+
+  static ModelCapabilityProfile _applySamplerCalibration(
+    ModelCapabilityProfile profile,
+    Iterable<LlmSamplerCalibrationTrial> samplerTrials,
+  ) {
+    final trials = samplerTrials.toList(growable: false);
+    if (trials.isEmpty) {
+      return profile;
+    }
+    const calibrationService = LlmSamplerCalibrationService();
+    var updatedProfile = profile;
+    for (final requestClass in LlmSamplerRequestClass.values) {
+      final selection = calibrationService.selectTemperature(
+        requestClass: requestClass,
+        trials: trials,
+      );
+      if (selection == null) {
+        continue;
+      }
+      updatedProfile = calibrationService.applySelectionToProfile(
+        profile: updatedProfile,
+        selection: selection,
+      );
+    }
+    return updatedProfile;
   }
 
   static ModelToolCallStyle _toolCallStyle(
