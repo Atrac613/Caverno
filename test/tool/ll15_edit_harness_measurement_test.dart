@@ -87,14 +87,70 @@ void main() {
       measurement.toJson()['schemaName'],
       'caverno_ll15_edit_harness_measurement',
     );
+    expect(measurement.toJson()['schemaVersion'], 2);
     expect(measurement.toMarkdown(), contains('LL15 Weak-Model Edit Harness'));
     expect(measurement.toMarkdown(), contains('Failure rate reduced: `true`'));
+  });
+
+  test('classifies failed canary tests by failure mode', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'll15-edit-harness-failure-class-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final log = File('${directory.path}/current.jsonl');
+    await log.writeAsString(
+      '[LL15] edit_harness_snapshot ${jsonEncode(_snapshot(attempts: 2, failures: 0, harnessPrompted: true))}\n',
+    );
+    final summary = File('${directory.path}/current_summary.json');
+    await summary.writeAsString(
+      jsonEncode(
+        _summary(
+          logPath: log.path,
+          passedCount: 2,
+          failedTests: [
+            _failedTest(
+              name: 'live LLM edits code',
+              message:
+                  'Expected: contains CODING_GOAL_EDIT_TEST_OK\n'
+                  'toolCalls={"name":"read_file"}',
+            ),
+            _failedTest(
+              name: 'live LLM initializes git',
+              message:
+                  'Expected: contains all of [revert --no-edit HEAD]\n'
+                  'Actual: successfulGitCommands missing revert',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final run = await loadLl15CanaryRunSummary(summaryPath: summary.path);
+
+    expect(run.failedTests, hasLength(2));
+    expect(run.failureClassCounts, {
+      'no_edit': 1,
+      'git_lifecycle_incomplete': 1,
+    });
+    expect(run.toJson()['failureClasses'], {
+      'no_edit': 1,
+      'git_lifecycle_incomplete': 1,
+    });
+    expect(
+      Ll15EditHarnessMeasurementSummary(
+        generatedAt: DateTime.utc(2026, 6, 14),
+        baseline: run,
+        current: run,
+      ).toMarkdown(),
+      contains('Failure classes: `no_edit:1, git_lifecycle_incomplete:1`'),
+    );
   });
 }
 
 Map<String, dynamic> _summary({
   required String logPath,
   required int passedCount,
+  List<Map<String, dynamic>> failedTests = const [],
 }) {
   return {
     'schemaName': 'live_llm_canary_summary',
@@ -104,9 +160,17 @@ Map<String, dynamic> _summary({
     'runnerSuccess': passedCount == 4,
     'testCount': 4,
     'passedCount': passedCount,
-    'failedCount': 4 - passedCount,
+    'failedCount': failedTests.isEmpty ? 4 - passedCount : failedTests.length,
     'skippedCount': 0,
+    'tests': failedTests,
   };
+}
+
+Map<String, dynamic> _failedTest({
+  required String name,
+  required String message,
+}) {
+  return {'name': name, 'result': 'failed', 'failureMessage': message};
 }
 
 Map<String, dynamic> _snapshot({

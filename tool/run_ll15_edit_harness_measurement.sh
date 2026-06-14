@@ -22,6 +22,7 @@ run_phase() {
   local tool_call_style="$2"
   local structured_output="$3"
   local edit_format="$4"
+  local suppress_edit_harness="$5"
   local phase_root="${REPORT_ROOT}/${phase}"
 
   mkdir -p "${phase_root}"
@@ -29,6 +30,7 @@ run_phase() {
   echo "  Tool call style: ${tool_call_style}"
   echo "  Structured output: ${structured_output}"
   echo "  Edit format: ${edit_format}"
+  echo "  Suppress LL15 edit harness: ${suppress_edit_harness}"
   echo "  Report root: ${phase_root}"
 
   set +e
@@ -37,6 +39,7 @@ run_phase() {
   CAVERNO_LLM_MODEL_TOOL_CALL_STYLE="${tool_call_style}" \
   CAVERNO_LLM_MODEL_STRUCTURED_OUTPUT="${structured_output}" \
   CAVERNO_LLM_MODEL_EDIT_FORMAT="${edit_format}" \
+  CAVERNO_CODING_GOAL_LIVE_EDIT_SUPPRESS_LL15_HARNESS="${suppress_edit_harness}" \
   "${ROOT_DIR}/tool/run_coding_goal_live_edit_canary.sh"
   local status=$?
   set -e
@@ -56,9 +59,10 @@ mkdir -p "${REPORT_ROOT}"
 
 run_phase \
   baseline \
-  "${CAVERNO_LL15_BASELINE_TOOL_CALL_STYLE:-nativeToolCalls}" \
-  "${CAVERNO_LL15_BASELINE_STRUCTURED_OUTPUT:-jsonSchema}" \
-  "${CAVERNO_LL15_BASELINE_EDIT_FORMAT:-wholeFile}"
+  "${CAVERNO_LL15_BASELINE_TOOL_CALL_STYLE:-embeddedToolTags}" \
+  "${CAVERNO_LL15_BASELINE_STRUCTURED_OUTPUT:-none}" \
+  "${CAVERNO_LL15_BASELINE_EDIT_FORMAT:-searchReplace}" \
+  "${CAVERNO_LL15_BASELINE_SUPPRESS_EDIT_HARNESS:-1}"
 BASELINE_STATUS="$(cat "${REPORT_ROOT}/baseline/exit_status.txt")"
 BASELINE_SUMMARY="$(cat "${REPORT_ROOT}/baseline/latest_summary_path.txt")"
 
@@ -66,7 +70,8 @@ run_phase \
   current \
   "${CAVERNO_LL15_CURRENT_TOOL_CALL_STYLE:-embeddedToolTags}" \
   "${CAVERNO_LL15_CURRENT_STRUCTURED_OUTPUT:-none}" \
-  "${CAVERNO_LL15_CURRENT_EDIT_FORMAT:-searchReplace}"
+  "${CAVERNO_LL15_CURRENT_EDIT_FORMAT:-searchReplace}" \
+  "${CAVERNO_LL15_CURRENT_SUPPRESS_EDIT_HARNESS:-0}"
 CURRENT_STATUS="$(cat "${REPORT_ROOT}/current/exit_status.txt")"
 CURRENT_SUMMARY="$(cat "${REPORT_ROOT}/current/latest_summary_path.txt")"
 

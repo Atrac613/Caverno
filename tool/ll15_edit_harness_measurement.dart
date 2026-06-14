@@ -125,7 +125,7 @@ class Ll15EditHarnessMeasurementSummary {
   Map<String, dynamic> toJson() {
     return {
       'schemaName': 'caverno_ll15_edit_harness_measurement',
-      'schemaVersion': 1,
+      'schemaVersion': 2,
       'generatedAt': generatedAt.toUtc().toIso8601String(),
       'baseline': baseline.toJson(),
       'current': current.toJson(),
@@ -179,9 +179,41 @@ class Ll15EditHarnessMeasurementSummary {
             '- edit_file failure rate: `${run.failureRate.toStringAsFixed(3)}`',
           )
           ..writeln('- edit_file tool calls: `${run.editToolCallCount}`')
-          ..writeln('- write_file tool calls: `${run.writeToolCallCount}`'))
+          ..writeln('- write_file tool calls: `${run.writeToolCallCount}`')
+          ..writeln(
+            '- Failure classes: `${_formatFailureClassCounts(run.failureClassCounts)}`',
+          )
+          ..write(_failedTestsMarkdown(run.failedTests)))
         .toString()
         .trimRight();
+  }
+
+  static String _failedTestsMarkdown(List<Ll15CanaryFailedTest> failedTests) {
+    if (failedTests.isEmpty) {
+      return '';
+    }
+    final buffer = StringBuffer()
+      ..writeln()
+      ..writeln()
+      ..writeln('| Failed test | Failure class | Preview |')
+      ..writeln('|-------------|---------------|---------|');
+    for (final failedTest in failedTests) {
+      buffer.writeln(
+        '| ${_tableCell(failedTest.name)} | '
+        '`${failedTest.failureClass}` | '
+        '${_tableCell(failedTest.failurePreview)} |',
+      );
+    }
+    return buffer.toString().trimRight();
+  }
+
+  static String _formatFailureClassCounts(Map<String, int> counts) {
+    if (counts.isEmpty) {
+      return '(none)';
+    }
+    return counts.entries
+        .map((entry) => '${entry.key}:${entry.value}')
+        .join(', ');
   }
 }
 
@@ -202,6 +234,7 @@ class Ll15CanaryRunSummary {
     required this.failures,
     required this.editToolCallCount,
     required this.writeToolCallCount,
+    required this.failedTests,
   });
 
   final String summaryPath;
@@ -219,10 +252,23 @@ class Ll15CanaryRunSummary {
   final int failures;
   final int editToolCallCount;
   final int writeToolCallCount;
+  final List<Ll15CanaryFailedTest> failedTests;
 
   double get passRate => testCount == 0 ? 0 : passedCount / testCount;
 
   double get failureRate => attempts == 0 ? 0 : failures / attempts;
+
+  Map<String, int> get failureClassCounts {
+    final counts = <String, int>{};
+    for (final failedTest in failedTests) {
+      counts.update(
+        failedTest.failureClass,
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    return counts;
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -245,6 +291,30 @@ class Ll15CanaryRunSummary {
         'toolCallCount': editToolCallCount,
       },
       'writeFile': {'toolCallCount': writeToolCallCount},
+      'failureClasses': failureClassCounts,
+      'failedTests': failedTests
+          .map((failedTest) => failedTest.toJson())
+          .toList(growable: false),
+    };
+  }
+}
+
+class Ll15CanaryFailedTest {
+  const Ll15CanaryFailedTest({
+    required this.name,
+    required this.failureClass,
+    required this.failurePreview,
+  });
+
+  final String name;
+  final String failureClass;
+  final String failurePreview;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'failureClass': failureClass,
+      'failurePreview': failurePreview,
     };
   }
 }
@@ -285,6 +355,7 @@ Future<Ll15CanaryRunSummary> loadLl15CanaryRunSummary({
   final attempts = snapshots.fold<int>(0, (sum, item) => sum + item.attempts);
   final successes = snapshots.fold<int>(0, (sum, item) => sum + item.successes);
   final failures = snapshots.fold<int>(0, (sum, item) => sum + item.failures);
+  final failedTests = _failedTestsFromSummary(summaryJson);
 
   return Ll15CanaryRunSummary(
     summaryPath: summaryFile.path,
@@ -310,7 +381,90 @@ Future<Ll15CanaryRunSummary> loadLl15CanaryRunSummary({
       0,
       (sum, item) => sum + item.writeToolCallCount,
     ),
+    failedTests: failedTests,
   );
+}
+
+List<Ll15CanaryFailedTest> _failedTestsFromSummary(
+  Map<String, dynamic> summaryJson,
+) {
+  final tests = summaryJson['tests'];
+  if (tests is! List) {
+    return const <Ll15CanaryFailedTest>[];
+  }
+  final failedTests = <Ll15CanaryFailedTest>[];
+  for (final item in tests) {
+    if (item is! Map) {
+      continue;
+    }
+    final test = Map<String, dynamic>.from(item);
+    final failureMessage = _stringValue(test['failureMessage']);
+    if (test['result'] != 'failed' && failureMessage.isEmpty) {
+      continue;
+    }
+    final name = _stringValue(test['name']);
+    failedTests.add(
+      Ll15CanaryFailedTest(
+        name: name.isEmpty ? '(unnamed test)' : name,
+        failureClass: _classifyFailure(failureMessage),
+        failurePreview: _failurePreview(failureMessage),
+      ),
+    );
+  }
+  return failedTests;
+}
+
+String _classifyFailure(String message) {
+  final normalized = message.toLowerCase();
+  if (normalized.contains('lateinitializationerror') ||
+      normalized.contains('has not been initialized')) {
+    return 'harness_error';
+  }
+  if (normalized.contains('old_text was not found') ||
+      normalized.contains('matched multiple locations') ||
+      normalized.contains('old_text must not be empty') ||
+      normalized.contains('path is required')) {
+    return 'edit_apply';
+  }
+  if (normalized.contains('a value greater than or equal to <1>') ||
+      normalized.contains('a value greater than or equal to <2>')) {
+    return 'verification_missing';
+  }
+  if (_hasNoMutationToolCall(normalized)) {
+    return 'no_edit';
+  }
+  if (normalized.contains('revert --no-edit head') ||
+      normalized.contains('successfulgitcommands')) {
+    return 'git_lifecycle_incomplete';
+  }
+  if (normalized.contains('conversationgoalstatus.active')) {
+    return 'completion_missing';
+  }
+  if (normalized.contains('does not contain') ||
+      normalized.contains('expected:')) {
+    return 'output_mismatch';
+  }
+  return 'unknown';
+}
+
+bool _hasNoMutationToolCall(String normalizedFailureMessage) {
+  if (!normalizedFailureMessage.contains('toolcalls=')) {
+    return false;
+  }
+  return !normalizedFailureMessage.contains('"name":"edit_file"') &&
+      !normalizedFailureMessage.contains('"name":"write_file"');
+}
+
+String _failurePreview(String message) {
+  final collapsed = message
+      .replaceAll('\r', ' ')
+      .replaceAll('\n', ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (collapsed.length <= 220) {
+    return collapsed;
+  }
+  return '${collapsed.substring(0, 217)}...';
 }
 
 class Ll15EditHarnessSnapshot {
@@ -401,6 +555,10 @@ String? _printedMessage(String line) {
 }
 
 String _stringValue(Object? value) => value is String ? value : '';
+
+String _tableCell(String value) {
+  return value.replaceAll('|', r'\|').replaceAll('\n', '<br>');
+}
 
 int _intValue(Object? value) {
   if (value is int) return value;

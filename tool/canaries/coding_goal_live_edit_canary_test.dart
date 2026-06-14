@@ -58,6 +58,47 @@ void main() {
       ? ''
       : '[$runLabel] ';
 
+  test('suppresses LL15 harness prompt for measurement controls', () {
+    final dataSource = _CodingGoalLiveEditDataSource(
+      ChatRemoteDataSource(
+        baseUrl: 'http://localhost:1234/v1',
+        apiKey: 'no-key',
+      ),
+      suppressEditHarnessPrompt: true,
+    );
+    dataSource.streamChatCompletion(
+      messages: [
+        Message(
+          id: 'system',
+          role: MessageRole.system,
+          timestamp: DateTime.utc(2026, 6, 14),
+          content: [
+            'Current local date and time: 2026-06-14 12:00',
+            'For file changes, prefer edit_file for targeted replacements.',
+            'LL15 WEAK-MODEL EDIT HARNESS:',
+            'When editing existing files, use edit_file with one valid JSON tool call.',
+            'Required edit_file arguments: path, old_text, new_text. Optional arguments: replace_all, reason.',
+            'Use JSON with double-quoted keys and strings, no comments, and no trailing commas.',
+            'Set old_text to exact current text copied from the latest read_file or inspect_file result; include enough surrounding context to match one location.',
+            'Set replace_all=false unless every occurrence should change.',
+            'If old_text was not found, is stale, or matches multiple locations, read the current file again and retry with exact current content; do not guess.',
+            'Example edit_file arguments: {"path":"lib/example.dart","old_text":"final enabled = false;","new_text":"final enabled = true;","replace_all":false,"reason":"Enable the feature flag."}',
+            'If a recent file mutation needs to be undone, use rollback_last_file_change.',
+          ].join('\n'),
+        ),
+      ],
+    );
+
+    expect(
+      dataSource.firstSystemPrompt,
+      isNot(contains('LL15 WEAK-MODEL EDIT HARNESS')),
+    );
+    expect(
+      dataSource.firstSystemPrompt,
+      contains('If a recent file mutation needs to be undone'),
+    );
+  });
+
   test(
     '${testNamePrefix}live LLM edits code and runs the fixture test for an active coding goal',
     () async {
@@ -66,6 +107,7 @@ void main() {
       final project = fixture.project;
       final dataSource = _CodingGoalLiveEditDataSource(
         ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+        suppressEditHarnessPrompt: env.suppressEditHarnessPrompt,
       );
       final toolService = _SandboxCodingToolService(fixture.root);
       final container = _buildCodingGoalLiveEditContainer(
@@ -174,6 +216,7 @@ void main() {
       final project = fixture.project;
       final dataSource = _CodingGoalLiveEditDataSource(
         ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+        suppressEditHarnessPrompt: env.suppressEditHarnessPrompt,
       );
       final toolService = _SandboxCodingToolService(fixture.root);
       final container = _buildCodingGoalLiveEditContainer(
@@ -314,6 +357,7 @@ void main() {
       final project = fixture.project;
       final dataSource = _CodingGoalLiveEditDataSource(
         ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+        suppressEditHarnessPrompt: env.suppressEditHarnessPrompt,
       );
       final toolService = _SandboxCodingToolService(fixture.root);
       final container = _buildCodingGoalLiveEditContainer(
@@ -434,6 +478,7 @@ void main() {
       final project = fixture.project;
       final dataSource = _CodingGoalLiveEditDataSource(
         ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+        suppressEditHarnessPrompt: env.suppressEditHarnessPrompt,
       );
       final toolService = _SandboxCodingToolService(fixture.root);
       final container = _buildCodingGoalLiveEditContainer(
@@ -566,6 +611,7 @@ void main() {
       final project = fixture.project;
       final dataSource = _CodingGoalLiveEditDataSource(
         ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+        suppressEditHarnessPrompt: env.suppressEditHarnessPrompt,
       );
       final toolService = _SandboxCodingToolService(
         fixture.root,
@@ -706,6 +752,7 @@ void main() {
       final project = fixture.project;
       final dataSource = _CodingGoalLiveEditDataSource(
         ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+        suppressEditHarnessPrompt: env.suppressEditHarnessPrompt,
       );
       final toolService = _SandboxCodingToolService(
         fixture.root,
@@ -1235,6 +1282,7 @@ class _CodingGoalLiveEditEnv {
     required this.model,
     required this.maxTokens,
     required this.temperature,
+    required this.suppressEditHarnessPrompt,
     required this.workspaceRoot,
   });
 
@@ -1243,6 +1291,7 @@ class _CodingGoalLiveEditEnv {
   final String model;
   final int maxTokens;
   final double temperature;
+  final bool suppressEditHarnessPrompt;
   final String? workspaceRoot;
 
   static _CodingGoalLiveEditEnv fromEnvironment() {
@@ -1262,6 +1311,10 @@ class _CodingGoalLiveEditEnv {
                 '',
           ) ??
           0.1,
+      suppressEditHarnessPrompt:
+          Platform.environment['CAVERNO_CODING_GOAL_LIVE_EDIT_SUPPRESS_LL15_HARNESS'] ==
+              '1' ||
+          Platform.environment['CAVERNO_LL15_SUPPRESS_EDIT_HARNESS'] == '1',
       workspaceRoot:
           Platform.environment['CAVERNO_CODING_GOAL_LIVE_EDIT_WORK_ROOT'],
     );
@@ -2109,9 +2162,13 @@ Map<String, dynamic> _tryDecodeObject(String value) {
 }
 
 class _CodingGoalLiveEditDataSource implements ChatDataSource {
-  _CodingGoalLiveEditDataSource(this.delegate);
+  _CodingGoalLiveEditDataSource(
+    this.delegate, {
+    required this.suppressEditHarnessPrompt,
+  });
 
   final ChatRemoteDataSource delegate;
+  final bool suppressEditHarnessPrompt;
   final List<List<Message>> streamRequests = [];
   final List<List<Message>> streamWithToolsRequests = [];
   final List<List<Message>> createWithToolResultRequests = [];
@@ -2143,9 +2200,10 @@ class _CodingGoalLiveEditDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    streamRequests.add(List<Message>.unmodifiable(messages));
+    final requestMessages = _requestMessages(messages);
+    streamRequests.add(requestMessages);
     return delegate.streamChatCompletion(
-      messages: messages,
+      messages: requestMessages,
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
@@ -2180,8 +2238,9 @@ class _CodingGoalLiveEditDataSource implements ChatDataSource {
         ),
       );
     }
+    final requestMessages = _requestMessages(messages);
     return delegate.createChatCompletion(
-      messages: messages,
+      messages: requestMessages,
       tools: tools,
       model: model,
       temperature: temperature,
@@ -2197,9 +2256,10 @@ class _CodingGoalLiveEditDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    streamWithToolsRequests.add(List<Message>.unmodifiable(messages));
+    final requestMessages = _requestMessages(messages);
+    streamWithToolsRequests.add(requestMessages);
     return delegate.streamChatCompletionWithTools(
-      messages: messages,
+      messages: requestMessages,
       tools: tools,
       model: model,
       temperature: temperature,
@@ -2217,9 +2277,10 @@ class _CodingGoalLiveEditDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    createWithToolResultRequests.add(List<Message>.unmodifiable(messages));
+    final requestMessages = _requestMessages(messages);
+    createWithToolResultRequests.add(requestMessages);
     return delegate.createChatCompletionWithToolResults(
-      messages: messages,
+      messages: requestMessages,
       toolResults: toolResults,
       assistantContent: assistantContent,
       tools: tools,
@@ -2242,9 +2303,10 @@ class _CodingGoalLiveEditDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    createWithToolResultRequests.add(List<Message>.unmodifiable(messages));
+    final requestMessages = _requestMessages(messages);
+    createWithToolResultRequests.add(requestMessages);
     return delegate.createChatCompletionWithToolResult(
-      messages: messages,
+      messages: requestMessages,
       toolCallId: toolCallId,
       toolName: toolName,
       toolArguments: toolArguments,
@@ -2269,9 +2331,10 @@ class _CodingGoalLiveEditDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    createWithToolResultRequests.add(List<Message>.unmodifiable(messages));
+    final requestMessages = _requestMessages(messages);
+    createWithToolResultRequests.add(requestMessages);
     return delegate.streamWithToolResult(
-      messages: messages,
+      messages: requestMessages,
       toolCallId: toolCallId,
       toolName: toolName,
       toolArguments: toolArguments,
@@ -2281,5 +2344,53 @@ class _CodingGoalLiveEditDataSource implements ChatDataSource {
       temperature: temperature,
       maxTokens: maxTokens,
     );
+  }
+
+  List<Message> _requestMessages(List<Message> messages) {
+    if (!suppressEditHarnessPrompt) {
+      return List<Message>.unmodifiable(messages);
+    }
+    return messages
+        .map((message) {
+          if (message.role != MessageRole.system ||
+              !message.content.contains('LL15 WEAK-MODEL EDIT HARNESS')) {
+            return message;
+          }
+          return message.copyWith(
+            content: _stripLl15EditHarness(message.content),
+          );
+        })
+        .toList(growable: false);
+  }
+
+  String _stripLl15EditHarness(String content) {
+    final lines = const LineSplitter().convert(content);
+    final retained = <String>[];
+    var skippingHarness = false;
+    for (final line in lines) {
+      if (line == 'LL15 WEAK-MODEL EDIT HARNESS:') {
+        skippingHarness = true;
+        continue;
+      }
+      if (skippingHarness) {
+        if (_isLl15HarnessLine(line)) {
+          continue;
+        }
+        skippingHarness = false;
+      }
+      retained.add(line);
+    }
+    return retained.join('\n');
+  }
+
+  bool _isLl15HarnessLine(String line) {
+    return line.startsWith('When editing existing files,') ||
+        line.startsWith('Required edit_file arguments:') ||
+        line.startsWith('Use JSON with double-quoted keys') ||
+        line.startsWith('Set old_text to exact current text') ||
+        line.startsWith('Set replace_all=false') ||
+        line.startsWith('If old_text was not found,') ||
+        line.startsWith('Example edit_file arguments:') ||
+        line.startsWith('Observed edit_file apply failure rate');
   }
 }

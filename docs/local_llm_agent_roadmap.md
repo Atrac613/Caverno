@@ -696,8 +696,10 @@ Implementation status:
   successes, failures, failure rate, and failure kind counters. Weak-profile
   prompts include the observed failure rate after multiple attempts.
 - `tool/run_ll15_edit_harness_measurement.sh` runs baseline/current coding
-  edit canaries and `tool/ll15_edit_harness_measurement.dart` compares LL15
-  snapshot logs so live runs can report pass-rate and edit failure-rate deltas.
+  edit canaries with the same weak profile while suppressing the LL15 prompt
+  block only for baseline. `tool/ll15_edit_harness_measurement.dart` compares
+  LL15 snapshot logs and failed-test classes so live runs can report pass-rate,
+  edit failure-rate, and failure-mode deltas.
 
 Acceptance criteria:
 - Edit-apply failure rate drops measurably on a weak-model profile in live
