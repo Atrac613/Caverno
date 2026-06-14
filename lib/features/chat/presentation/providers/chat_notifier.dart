@@ -9313,6 +9313,9 @@ class ChatNotifier extends Notifier<ChatState> {
     final budgetedToolResults = ToolResultPromptBuilder.budgetToolResults(
       toolResults,
       mode: mode,
+      protectedPaths: mode == ToolResultPromptBudgetMode.compact
+          ? _contextSurgeryProtectedPaths()
+          : const <String>{},
     );
     _updateContextSurgeryObservation(toolResults: budgetedToolResults);
     return budgetedToolResults;
@@ -9321,6 +9324,7 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _hasAdditionalCompactToolResultBudget(List<ToolResultInfo> toolResults) {
     return ToolResultPromptBuilder.hasAdditionalCompactBudgetReduction(
       toolResults,
+      protectedPaths: _contextSurgeryProtectedPaths(),
     );
   }
 

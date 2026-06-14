@@ -162,6 +162,88 @@ lib/main.dart
     expect(candidates, isEmpty);
   });
 
+  test('protects relative paths that match absolute tool arguments', () {
+    final candidates =
+        ContextSurgeryObservationService.findStaleToolResultCandidates(
+          [
+            _toolResult(
+              id: 'read-old',
+              name: 'read_file',
+              arguments: {'path': '/workspace/lib/main.dart'},
+            ),
+            _toolResult(
+              id: 'read-new',
+              name: 'read_file',
+              arguments: {'path': '/workspace/lib/main.dart'},
+            ),
+          ],
+          protectedPaths: {'lib/main.dart'},
+        );
+
+    expect(candidates, isEmpty);
+  });
+
+  test('applies stale result stubs while retaining the newest evidence', () {
+    final results = ContextSurgeryObservationService.applyStaleToolResultStubs([
+      _toolResult(
+        id: 'read-old',
+        name: 'read_file',
+        arguments: {'path': 'lib/main.dart'},
+        result: 'old content',
+      ),
+      _toolResult(
+        id: 'read-new',
+        name: 'read_file',
+        arguments: {'path': 'lib/main.dart'},
+        result: 'new content',
+      ),
+    ]);
+
+    expect(results, hasLength(2));
+    expect(results.first.id, 'read-old');
+    expect(results.first.name, 'read_file');
+    expect(results.first.arguments, {'path': 'lib/main.dart'});
+    expect(results.first.result, contains('stale tool result omitted'));
+    expect(results.first.result, contains('tool result index 1'));
+    expect(results.last.result, 'new content');
+  });
+
+  test('never stubs command or side-effect tool results', () {
+    final results = ContextSurgeryObservationService.applyStaleToolResultStubs([
+      _toolResult(
+        id: 'command-old',
+        name: 'local_execute_command',
+        arguments: {'command': 'flutter test'},
+        result: 'first command result',
+      ),
+      _toolResult(
+        id: 'command-new',
+        name: 'local_execute_command',
+        arguments: {'command': 'flutter test'},
+        result: 'second command result',
+      ),
+      _toolResult(
+        id: 'write-old',
+        name: 'write_file',
+        arguments: {'path': 'lib/main.dart'},
+        result: 'first write result',
+      ),
+      _toolResult(
+        id: 'write-new',
+        name: 'write_file',
+        arguments: {'path': 'lib/main.dart'},
+        result: 'second write result',
+      ),
+    ]);
+
+    expect(results.map((result) => result.result), [
+      'first command result',
+      'second command result',
+      'first write result',
+      'second write result',
+    ]);
+  });
+
   test('marks repeated search results but never side-effect evidence', () {
     final candidates =
         ContextSurgeryObservationService.findStaleToolResultCandidates([

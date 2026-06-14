@@ -261,8 +261,7 @@ class ContextSurgeryObservationService {
       final replacedByIndex = latestIndexByKey[key];
       if (replacedByIndex == null || replacedByIndex <= index) continue;
       final path = _primaryPath(toolResult);
-      if (path != null &&
-          normalizedProtectedPaths.contains(_normalizePath(path))) {
+      if (path != null && _pathIsProtected(path, normalizedProtectedPaths)) {
         continue;
       }
       final reason = _fileReadToolNames.contains(toolResult.name)
@@ -286,6 +285,34 @@ class ContextSurgeryObservationService {
       );
     }
     return candidates;
+  }
+
+  static List<ToolResultInfo> applyStaleToolResultStubs(
+    List<ToolResultInfo> toolResults, {
+    Set<String> protectedPaths = const {},
+  }) {
+    if (toolResults.isEmpty) return const [];
+    final candidates = findStaleToolResultCandidates(
+      toolResults,
+      protectedPaths: protectedPaths,
+    );
+    if (candidates.isEmpty) return toolResults;
+
+    final candidatesByIndex = {
+      for (final candidate in candidates) candidate.index: candidate,
+    };
+    return [
+      for (var index = 0; index < toolResults.length; index += 1)
+        if (candidatesByIndex[index] case final candidate?)
+          ToolResultInfo(
+            id: toolResults[index].id,
+            name: toolResults[index].name,
+            arguments: toolResults[index].arguments,
+            result: candidate.replacementStub,
+          )
+        else
+          toolResults[index],
+    ];
   }
 
   static ContextSurgeryObservationSnapshot buildSnapshot({
@@ -448,6 +475,20 @@ class ContextSurgeryObservationService {
 
   static String _normalizePath(String path) {
     return path.trim().replaceAll('\\', '/').replaceAll(RegExp(r'/+'), '/');
+  }
+
+  static bool _pathIsProtected(
+    String path,
+    Set<String> normalizedProtectedPaths,
+  ) {
+    final normalizedPath = _normalizePath(path);
+    if (normalizedProtectedPaths.contains(normalizedPath)) {
+      return true;
+    }
+    return normalizedProtectedPaths.any((protectedPath) {
+      return normalizedPath.endsWith('/$protectedPath') ||
+          protectedPath.endsWith('/$normalizedPath');
+    });
   }
 
   static String _replacementStub({

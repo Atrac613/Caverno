@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../entities/tool_call_info.dart';
+import 'context_surgery_observation_service.dart';
 
 enum ToolResultPromptBudgetMode { normal, compact }
 
@@ -72,15 +73,22 @@ class ToolResultPromptBuilder {
   static List<ToolResultInfo> budgetToolResults(
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
+    Set<String> protectedPaths = const {},
   }) {
     if (toolResults.isEmpty) {
       return const [];
     }
 
+    final sourceToolResults = mode == ToolResultPromptBudgetMode.compact
+        ? ContextSurgeryObservationService.applyStaleToolResultStubs(
+            toolResults,
+            protectedPaths: protectedPaths,
+          )
+        : toolResults;
     final budget = _budgetForMode(mode);
     final imageResultIndexes = <int>[];
-    for (var index = 0; index < toolResults.length; index += 1) {
-      final decoded = _tryDecodeJsonMap(toolResults[index].result);
+    for (var index = 0; index < sourceToolResults.length; index += 1) {
+      final decoded = _tryDecodeJsonMap(sourceToolResults[index].result);
       if (decoded?['imageBase64'] is String) {
         imageResultIndexes.add(index);
       }
@@ -92,8 +100,8 @@ class ToolResultPromptBuilder {
         .toSet();
 
     final budgeted = <ToolResultInfo>[];
-    for (var index = 0; index < toolResults.length; index += 1) {
-      final toolResult = toolResults[index];
+    for (var index = 0; index < sourceToolResults.length; index += 1) {
+      final toolResult = sourceToolResults[index];
       final result = _budgetToolResultPayload(
         toolResult,
         budget: budget,
@@ -139,12 +147,14 @@ class ToolResultPromptBuilder {
   }
 
   static bool hasAdditionalCompactBudgetReduction(
-    List<ToolResultInfo> toolResults,
-  ) {
+    List<ToolResultInfo> toolResults, {
+    Set<String> protectedPaths = const {},
+  }) {
     final normal = budgetToolResults(toolResults);
     final compact = budgetToolResults(
       toolResults,
       mode: ToolResultPromptBudgetMode.compact,
+      protectedPaths: protectedPaths,
     );
     if (normal.length != compact.length) {
       return true;

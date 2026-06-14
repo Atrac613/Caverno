@@ -655,6 +655,9 @@ Initial implementation slice:
 - The context window popover now surfaces the observation snapshot as
   per-section estimated token pressure plus stale tool-result candidate
   pressure, without mutating conversation history.
+- Compact tool-result budgeting now replaces stale duplicate read/search
+  results with one-line stubs only at compact context boundaries; normal tool
+  loop prompts keep the original evidence.
 
 Acceptance criteria:
 - Eviction never removes results the current task still references (guarded

@@ -7,6 +7,21 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierContextSurgery on ChatNotifier {
+  Set<String> _contextSurgeryProtectedPaths() {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null) return const <String>{};
+    final task = ConversationPlanExecutionCoordinator.executionFocusTask(
+      conversation,
+    );
+    if (task == null) return const <String>{};
+    return task.targetFiles
+        .map((path) => path.trim())
+        .where((path) => path.isNotEmpty)
+        .toSet();
+  }
+
   void _updateContextSurgeryObservation({
     String? systemPrompt,
     List<ToolResultInfo>? toolResults,

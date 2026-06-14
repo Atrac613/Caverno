@@ -310,6 +310,71 @@ void main() {
       );
     });
 
+    test('does not stub stale tool results in normal budget mode', () {
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        ToolResultInfo(
+          id: 'read-old',
+          name: 'read_file',
+          arguments: const {'path': 'lib/main.dart'},
+          result: 'old content',
+        ),
+        ToolResultInfo(
+          id: 'read-new',
+          name: 'read_file',
+          arguments: const {'path': 'lib/main.dart'},
+          result: 'new content',
+        ),
+      ]);
+
+      expect(budgeted.first.result, 'old content');
+      expect(budgeted.last.result, 'new content');
+    });
+
+    test('stubs stale tool results in compact budget mode', () {
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        ToolResultInfo(
+          id: 'read-old',
+          name: 'read_file',
+          arguments: const {'path': 'lib/main.dart'},
+          result: 'old content',
+        ),
+        ToolResultInfo(
+          id: 'read-new',
+          name: 'read_file',
+          arguments: const {'path': 'lib/main.dart'},
+          result: 'new content',
+        ),
+      ], mode: ToolResultPromptBudgetMode.compact);
+
+      expect(budgeted.first.result, contains('stale tool result omitted'));
+      expect(budgeted.first.result, contains('newer read_file'));
+      expect(budgeted.last.result, 'new content');
+    });
+
+    test('keeps protected stale tool results in compact budget mode', () {
+      final budgeted = ToolResultPromptBuilder.budgetToolResults(
+        [
+          ToolResultInfo(
+            id: 'read-old',
+            name: 'read_file',
+            arguments: const {'path': '/workspace/lib/main.dart'},
+            result: 'old content',
+          ),
+          ToolResultInfo(
+            id: 'read-new',
+            name: 'read_file',
+            arguments: const {'path': '/workspace/lib/main.dart'},
+            result: 'new content',
+          ),
+        ],
+        mode: ToolResultPromptBudgetMode.compact,
+        protectedPaths: const {'lib/main.dart'},
+      );
+
+      expect(budgeted.first.result, 'old content');
+      expect(budgeted.last.result, 'new content');
+    });
+
     test('reduces search result lists and exposes the next offset', () {
       final budgeted = ToolResultPromptBuilder.budgetToolResults([
         ToolResultInfo(
