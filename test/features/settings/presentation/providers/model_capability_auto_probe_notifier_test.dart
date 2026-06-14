@@ -11,6 +11,7 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/data/settings_repository.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
 import 'package:caverno/features/settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
@@ -45,7 +46,7 @@ void main() {
 
       final state = container.read(modelCapabilityAutoProbeNotifierProvider);
       expect(state.status, ModelCapabilityAutoProbeStatus.succeeded);
-      expect(dataSource.requestCount, 1);
+      expect(dataSource.requestCount, 25);
       expect(
         state.report?.results
             .singleWhere((result) => result.id == 'exact_preservation')
@@ -61,6 +62,24 @@ void main() {
       expect(
         profile.structuredOutputSupport,
         ModelStructuredOutputSupport.jsonObject,
+      );
+      expect(
+        profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+          LlmSamplerRequestClass.routine,
+        )],
+        '0.2',
+      );
+      expect(
+        profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+          LlmSamplerRequestClass.coding,
+        )],
+        '0.2',
+      );
+      expect(
+        profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+          LlmSamplerRequestClass.plan,
+        )],
+        '0.2',
       );
     },
   );
@@ -114,6 +133,28 @@ class _InstructionOnlyDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     requestCount += 1;
+    final user = messages.last.content;
+    if (user.contains('routine sampler JSON object')) {
+      return ChatCompletionResult(
+        content:
+            '{"routine":"sampler_calibration","status":"ok","marker":"CAVERNO_ROUTINE_SAMPLER_OK","nextAction":"post_summary"}',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('coding sampler JSON object')) {
+      return ChatCompletionResult(
+        content:
+            '{"coding":"sampler_calibration","status":"ok","marker":"CAVERNO_CODING_SAMPLER_OK","edit":["<<<<<<< SEARCH","return oldValue;","=======","return newValue;",">>>>>>> REPLACE"]}',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('plan sampler JSON object')) {
+      return ChatCompletionResult(
+        content:
+            '{"plan":"sampler_calibration","status":"ok","marker":"CAVERNO_PLAN_SAMPLER_OK","tasks":["inspect","edit","verify"]}',
+        finishReason: 'stop',
+      );
+    }
     return ChatCompletionResult(
       content:
           '{"probe":"instruction_echo","status":"ok","marker":"CAVERNO_LIVE_DIAGNOSTIC"}',

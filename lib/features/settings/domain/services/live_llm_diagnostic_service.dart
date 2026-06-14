@@ -102,6 +102,16 @@ class LiveLlmDiagnosticService {
   static const _toolResultMarker = 'CAVERNO_TOOL_RESULT_OK';
   static const _subagentMarker = 'CAVERNO_SUBAGENT_DIAGNOSTIC';
   static const _routineSamplerMarker = 'CAVERNO_ROUTINE_SAMPLER_OK';
+  static const _codingSamplerMarker = 'CAVERNO_CODING_SAMPLER_OK';
+  static const _planSamplerMarker = 'CAVERNO_PLAN_SAMPLER_OK';
+  static const _codingSamplerEditBlock = <String>[
+    '<<<<<<< SEARCH',
+    'return oldValue;',
+    '=======',
+    'return newValue;',
+    '>>>>>>> REPLACE',
+  ];
+  static const _planSamplerTasks = <String>['inspect', 'edit', 'verify'];
   static const _exactDirectEchoValue = '12 GiB, \u00a53,980';
   static const _exactToolResultValue = 'ZX-900_\u03b1 2026-06-12';
   static const _exactUrlValue =
@@ -154,6 +164,12 @@ class LiveLlmDiagnosticService {
       run: _runInstructionProbe,
     );
     report = await _appendRoutineSamplerCalibrationTrials(
+      report: report,
+      capabilities: capabilities,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
+    );
+    report = await _appendCodingPlanSamplerCalibrationTrials(
       report: report,
       capabilities: capabilities,
       selectedProbeIds: selectedProbeIds,
@@ -974,6 +990,127 @@ class LiveLlmDiagnosticService {
     }
   }
 
+  Future<LiveLlmDiagnosticReport> _appendCodingPlanSamplerCalibrationTrials({
+    required LiveLlmDiagnosticReport report,
+    required LlmProviderCapabilities capabilities,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    if (!capabilities.supportsLlmMemoryExtraction ||
+        !_shouldRunProbe(_instructionProbeId, selectedProbeIds)) {
+      return report;
+    }
+
+    final trials = <LiveLlmDiagnosticSamplerTrial>[];
+    for (var repeat = 0; repeat < _samplerCalibrationRepeatCount; repeat += 1) {
+      for (final temperature in _samplerCalibrationTemperatures) {
+        trials.add(
+          await _runCodingSamplerCalibrationTrial(temperature: temperature),
+        );
+        trials.add(
+          await _runPlanSamplerCalibrationTrial(temperature: temperature),
+        );
+      }
+    }
+    if (trials.isEmpty) {
+      return report;
+    }
+
+    final updated = report.copyWith(
+      samplerCalibrationTrials: [...report.samplerCalibrationTrials, ...trials],
+    );
+    onReport?.call(updated);
+    return updated;
+  }
+
+  Future<LiveLlmDiagnosticSamplerTrial> _runCodingSamplerCalibrationTrial({
+    required double temperature,
+  }) async {
+    try {
+      final result = await chatDataSource.createChatCompletion(
+        messages: _messages(
+          user:
+              'Return exactly this coding sampler JSON object and no markdown:\n'
+              '{"coding":"sampler_calibration","status":"ok","marker":"$_codingSamplerMarker","edit":["<<<<<<< SEARCH","return oldValue;","=======","return newValue;",">>>>>>> REPLACE"]}',
+        ),
+        model: _diagnosticModel,
+        temperature: temperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      final content = result.content.trim();
+      final decoded = _tryDecodeJsonObject(content);
+      final editBlockMatches = _stringListEquals(
+        decoded?['edit'],
+        _codingSamplerEditBlock,
+      );
+      final hasCodingEnvelope =
+          decoded?['coding'] == 'sampler_calibration' &&
+          decoded?['marker'] == _codingSamplerMarker;
+      final passed =
+          hasCodingEnvelope && decoded?['status'] == 'ok' && editBlockMatches;
+      final hasUnexpectedToolCalls = _toolCallsFromResult(result).isNotEmpty;
+      final hasMarker = content.contains(_codingSamplerMarker);
+      return LiveLlmDiagnosticSamplerTrial(
+        requestClass: LlmSamplerRequestClass.coding.metadataName,
+        temperature: temperature,
+        passed: passed && !hasUnexpectedToolCalls,
+        jsonRepairEventCount: decoded == null && hasMarker ? 1 : 0,
+        malformedToolCallCount: hasUnexpectedToolCalls ? 1 : 0,
+        editApplyFailureCount: hasCodingEnvelope && !editBlockMatches ? 1 : 0,
+        repetitionDetected: _looksRepetitive(result.content),
+      );
+    } catch (_) {
+      return LiveLlmDiagnosticSamplerTrial(
+        requestClass: LlmSamplerRequestClass.coding.metadataName,
+        temperature: temperature,
+        passed: false,
+        jsonRepairEventCount: 1,
+        editApplyFailureCount: 1,
+      );
+    }
+  }
+
+  Future<LiveLlmDiagnosticSamplerTrial> _runPlanSamplerCalibrationTrial({
+    required double temperature,
+  }) async {
+    try {
+      final result = await chatDataSource.createChatCompletion(
+        messages: _messages(
+          user:
+              'Return exactly this plan sampler JSON object and no markdown:\n'
+              '{"plan":"sampler_calibration","status":"ok","marker":"$_planSamplerMarker","tasks":["inspect","edit","verify"]}',
+        ),
+        model: _diagnosticModel,
+        temperature: temperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      final content = result.content.trim();
+      final decoded = _tryDecodeJsonObject(content);
+      final passed =
+          decoded?['plan'] == 'sampler_calibration' &&
+          decoded?['status'] == 'ok' &&
+          decoded?['marker'] == _planSamplerMarker &&
+          _stringListEquals(decoded?['tasks'], _planSamplerTasks);
+      final hasUnexpectedToolCalls = _toolCallsFromResult(result).isNotEmpty;
+      final hasMarker = content.contains(_planSamplerMarker);
+      return LiveLlmDiagnosticSamplerTrial(
+        requestClass: LlmSamplerRequestClass.plan.metadataName,
+        temperature: temperature,
+        passed: passed && !hasUnexpectedToolCalls,
+        jsonRepairEventCount: decoded == null && hasMarker ? 1 : 0,
+        malformedToolCallCount: hasUnexpectedToolCalls ? 1 : 0,
+        repetitionDetected: _looksRepetitive(result.content),
+      );
+    } catch (_) {
+      return LiveLlmDiagnosticSamplerTrial(
+        requestClass: LlmSamplerRequestClass.plan.metadataName,
+        temperature: temperature,
+        passed: false,
+        jsonRepairEventCount: 1,
+      );
+    }
+  }
+
   Future<LiveLlmDiagnosticProbeResult> _runToolResultProbe(
     _ToolCatalogContext catalog,
   ) async {
@@ -1461,6 +1598,18 @@ class LiveLlmDiagnosticService {
       }
     }
     return null;
+  }
+
+  bool _stringListEquals(Object? actual, List<String> expected) {
+    if (actual is! List || actual.length != expected.length) {
+      return false;
+    }
+    for (var index = 0; index < expected.length; index += 1) {
+      if (actual[index] != expected[index]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   String _preview(String value, {int maxChars = 2000}) {

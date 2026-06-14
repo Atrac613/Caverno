@@ -30,33 +30,37 @@ void main() {
     final routineTrials = report.samplerCalibrationTrials
         .where((trial) => trial.requestClass == 'routine')
         .toList(growable: false);
+    final codingTrials = report.samplerCalibrationTrials
+        .where((trial) => trial.requestClass == 'coding')
+        .toList(growable: false);
+    final planTrials = report.samplerCalibrationTrials
+        .where((trial) => trial.requestClass == 'plan')
+        .toList(growable: false);
     final toolLoopTrials = report.samplerCalibrationTrials
         .where((trial) => trial.requestClass == 'toolLoop')
         .toList(growable: false);
-    expect(report.samplerCalibrationTrials, hasLength(16));
+    final expectedTemperatures = [0.0, 0.2, 0.4, 0.7, 0.0, 0.2, 0.4, 0.7];
+    expect(report.samplerCalibrationTrials, hasLength(32));
     expect(routineTrials, hasLength(8));
+    expect(codingTrials, hasLength(8));
+    expect(planTrials, hasLength(8));
     expect(toolLoopTrials, hasLength(8));
-    expect(routineTrials.map((trial) => trial.temperature), [
-      0.0,
-      0.2,
-      0.4,
-      0.7,
-      0.0,
-      0.2,
-      0.4,
-      0.7,
-    ]);
-    expect(toolLoopTrials.map((trial) => trial.temperature), [
-      0.0,
-      0.2,
-      0.4,
-      0.7,
-      0.0,
-      0.2,
-      0.4,
-      0.7,
-    ]);
+    expect(
+      routineTrials.map((trial) => trial.temperature),
+      expectedTemperatures,
+    );
+    expect(
+      codingTrials.map((trial) => trial.temperature),
+      expectedTemperatures,
+    );
+    expect(planTrials.map((trial) => trial.temperature), expectedTemperatures);
+    expect(
+      toolLoopTrials.map((trial) => trial.temperature),
+      expectedTemperatures,
+    );
     expect(routineTrials.map((trial) => trial.passed), everyElement(true));
+    expect(codingTrials.map((trial) => trial.passed), everyElement(true));
+    expect(planTrials.map((trial) => trial.passed), everyElement(true));
     expect(toolLoopTrials.map((trial) => trial.passed), everyElement(true));
     expect(
       report.results
@@ -112,12 +116,12 @@ void main() {
       probeIds: LiveLlmDiagnosticService.modelCapabilityProbeIds,
     );
 
-    expect(dataSource.requestedModels, List.filled(9, 'test-model'));
+    expect(dataSource.requestedModels, List.filled(25, 'test-model'));
     expect(
       report.samplerCalibrationTrials
           .map((trial) => trial.requestClass)
           .toSet(),
-      {'routine'},
+      {'routine', 'coding', 'plan'},
     );
     expect(
       _result(report, 'instruction_echo').status,
@@ -349,6 +353,20 @@ class _FakeDiagnosticDataSource implements ChatDataSource {
       return ChatCompletionResult(
         content:
             '{"routine":"sampler_calibration","status":"ok","marker":"CAVERNO_ROUTINE_SAMPLER_OK","nextAction":"post_summary"}',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('coding sampler JSON object')) {
+      return ChatCompletionResult(
+        content:
+            '{"coding":"sampler_calibration","status":"ok","marker":"CAVERNO_CODING_SAMPLER_OK","edit":["<<<<<<< SEARCH","return oldValue;","=======","return newValue;",">>>>>>> REPLACE"]}',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('plan sampler JSON object')) {
+      return ChatCompletionResult(
+        content:
+            '{"plan":"sampler_calibration","status":"ok","marker":"CAVERNO_PLAN_SAMPLER_OK","tasks":["inspect","edit","verify"]}',
         finishReason: 'stop',
       );
     }

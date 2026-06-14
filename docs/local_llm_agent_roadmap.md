@@ -790,6 +790,9 @@ Implementation status:
   temperature candidates.
 - Routine-style sampler calibration now records the same repeated temperature
   matrix and persists selected `routine` sampler metadata into the LL3 profile.
+- Coding and plan sampler calibration now records repeated structured JSON
+  trials with edit-block and task evidence, then persists selected `coding` and
+  `plan` sampler metadata into the LL3 profile.
 - Diagnostic support JSON and the live diagnostics page now summarize sampler
   trial counts, candidate temperatures, pass counts, and quality flags.
 - `LiveLlmDiagnosticNotifier` coverage now verifies that live sampler trials

@@ -89,7 +89,7 @@ void main() {
 
     final diagnosticState = container.read(liveLlmDiagnosticNotifierProvider);
     expect(diagnosticState.isRunning, isFalse);
-    expect(diagnosticState.report?.samplerCalibrationTrials, hasLength(16));
+    expect(diagnosticState.report?.samplerCalibrationTrials, hasLength(32));
 
     final settings = SettingsRepository(prefs).load();
     final profile = settings.effectiveModelCapabilityProfile;
@@ -138,6 +138,42 @@ void main() {
       )],
       '2',
     );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.coding,
+      )],
+      '0.2',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.scoreKey(
+        LlmSamplerRequestClass.coding,
+      )],
+      '1.000',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.trialCountKey(
+        LlmSamplerRequestClass.coding,
+      )],
+      '2',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.plan,
+      )],
+      '0.2',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.scoreKey(
+        LlmSamplerRequestClass.plan,
+      )],
+      '1.000',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.trialCountKey(
+        LlmSamplerRequestClass.plan,
+      )],
+      '2',
+    );
   });
 }
 
@@ -174,6 +210,20 @@ class _TextOnlyDiagnosticDataSource implements ChatDataSource {
       return ChatCompletionResult(
         content:
             '{"routine":"sampler_calibration","status":"ok","marker":"CAVERNO_ROUTINE_SAMPLER_OK","nextAction":"post_summary"}',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('coding sampler JSON object')) {
+      return ChatCompletionResult(
+        content:
+            '{"coding":"sampler_calibration","status":"ok","marker":"CAVERNO_CODING_SAMPLER_OK","edit":["<<<<<<< SEARCH","return oldValue;","=======","return newValue;",">>>>>>> REPLACE"]}',
+        finishReason: 'stop',
+      );
+    }
+    if (user.contains('plan sampler JSON object')) {
+      return ChatCompletionResult(
+        content:
+            '{"plan":"sampler_calibration","status":"ok","marker":"CAVERNO_PLAN_SAMPLER_OK","tasks":["inspect","edit","verify"]}',
         finishReason: 'stop',
       );
     }
