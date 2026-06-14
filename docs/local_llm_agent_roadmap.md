@@ -69,7 +69,7 @@ structurally unmotivated to build:
 | Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
 | Local LLM | LL14 | done | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
 | Local LLM | LL15 | done | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
-| Local LLM | LL16 | later | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
+| Local LLM | LL16 | current | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
 | Local LLM | LL17 | later | L | LL3, LL12 | Self-improving harness loop: mine failure traces, propose profile mutations, adopt only on eval non-regression. |
 
 Size legend: S = days, M = one to a few weeks of slices, L = multi-week.
@@ -771,6 +771,11 @@ Implementation status:
   agentic/tool requests at `temperature: 0.2`, and one bounded memory
   extraction request at `temperature: 0.1`; readiness was `ready`, with zero
   blocker or warning failures and `transportDisconnectCount=0`.
+- Layer 2 started with metadata-backed sampler presets on the LL3 profile:
+  `ll16.sampler.agentic.temperature` provides the calibrated fallback, while
+  role-specific keys such as `ll16.sampler.toolLoop.temperature` and
+  `ll16.sampler.routine.temperature` can override individual agentic surfaces
+  without changing the user-facing chat prose temperature.
 
 ### LL17: Self-Improving Harness Loop
 
