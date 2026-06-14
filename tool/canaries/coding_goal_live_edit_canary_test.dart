@@ -58,46 +58,48 @@ void main() {
       ? ''
       : '[$runLabel] ';
 
-  test('suppresses LL15 harness prompt for measurement controls', () {
-    final dataSource = _CodingGoalLiveEditDataSource(
-      ChatRemoteDataSource(
-        baseUrl: 'http://localhost:1234/v1',
-        apiKey: 'no-key',
-      ),
-      suppressEditHarnessPrompt: true,
-    );
-    dataSource.streamChatCompletion(
-      messages: [
-        Message(
-          id: 'system',
-          role: MessageRole.system,
-          timestamp: DateTime.utc(2026, 6, 14),
-          content: [
-            'Current local date and time: 2026-06-14 12:00',
-            'For file changes, prefer edit_file for targeted replacements.',
-            'LL15 WEAK-MODEL EDIT HARNESS:',
-            'When editing existing files, use edit_file with one valid JSON tool call.',
-            'Required edit_file arguments: path, old_text, new_text. Optional arguments: replace_all, reason.',
-            'Use JSON with double-quoted keys and strings, no comments, and no trailing commas.',
-            'Set old_text to exact current text copied from the latest read_file or inspect_file result; include enough surrounding context to match one location.',
-            'Set replace_all=false unless every occurrence should change.',
-            'If old_text was not found, is stale, or matches multiple locations, read the current file again and retry with exact current content; do not guess.',
-            'Example edit_file arguments: {"path":"lib/example.dart","old_text":"final enabled = false;","new_text":"final enabled = true;","replace_all":false,"reason":"Enable the feature flag."}',
-            'If a recent file mutation needs to be undone, use rollback_last_file_change.',
-          ].join('\n'),
+  if (!liveEnabled) {
+    test('suppresses LL15 harness prompt for measurement controls', () {
+      final dataSource = _CodingGoalLiveEditDataSource(
+        ChatRemoteDataSource(
+          baseUrl: 'http://localhost:1234/v1',
+          apiKey: 'no-key',
         ),
-      ],
-    );
+        suppressEditHarnessPrompt: true,
+      );
+      dataSource.streamChatCompletion(
+        messages: [
+          Message(
+            id: 'system',
+            role: MessageRole.system,
+            timestamp: DateTime.utc(2026, 6, 14),
+            content: [
+              'Current local date and time: 2026-06-14 12:00',
+              'For file changes, prefer edit_file for targeted replacements.',
+              'LL15 WEAK-MODEL EDIT HARNESS:',
+              'When editing existing files, use edit_file with one valid JSON tool call.',
+              'Required edit_file arguments: path, old_text, new_text. Optional arguments: replace_all, reason.',
+              'Use JSON with double-quoted keys and strings, no comments, and no trailing commas.',
+              'Set old_text to exact current text copied from the latest read_file or inspect_file result; include enough surrounding context to match one location.',
+              'Set replace_all=false unless every occurrence should change.',
+              'If old_text was not found, is stale, or matches multiple locations, read the current file again and retry with exact current content; do not guess.',
+              'Example edit_file arguments: {"path":"lib/example.dart","old_text":"final enabled = false;","new_text":"final enabled = true;","replace_all":false,"reason":"Enable the feature flag."}',
+              'If a recent file mutation needs to be undone, use rollback_last_file_change.',
+            ].join('\n'),
+          ),
+        ],
+      );
 
-    expect(
-      dataSource.firstSystemPrompt,
-      isNot(contains('LL15 WEAK-MODEL EDIT HARNESS')),
-    );
-    expect(
-      dataSource.firstSystemPrompt,
-      contains('If a recent file mutation needs to be undone'),
-    );
-  });
+      expect(
+        dataSource.firstSystemPrompt,
+        isNot(contains('LL15 WEAK-MODEL EDIT HARNESS')),
+      );
+      expect(
+        dataSource.firstSystemPrompt,
+        contains('If a recent file mutation needs to be undone'),
+      );
+    });
+  }
 
   test(
     '${testNamePrefix}live LLM edits code and runs the fixture test for an active coding goal',
