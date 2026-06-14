@@ -636,6 +636,10 @@ Implementation status:
   `tool/personal_eval_suite_pipeline.dart`. It writes incumbent and candidate
   replay-run artifacts, then immediately produces the single comparison report
   required for model-swap decisions from deterministic local inputs.
+- Repeatable local execution started with
+  `tool/run_personal_eval_suite_pipeline.sh`, which standardizes the default
+  artifact directory under `build/integration_test_reports/` while preserving
+  the deterministic Dart pipeline as the source of comparison logic.
 
 ### LL13: Parallel Agents In Worktrees
 
