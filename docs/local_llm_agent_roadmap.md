@@ -695,6 +695,9 @@ Implementation status:
 - Runtime `edit_file` outcomes now update LL15 profile metadata with attempts,
   successes, failures, failure rate, and failure kind counters. Weak-profile
   prompts include the observed failure rate after multiple attempts.
+- `tool/run_ll15_edit_harness_measurement.sh` runs baseline/current coding
+  edit canaries and `tool/ll15_edit_harness_measurement.dart` compares LL15
+  snapshot logs so live runs can report pass-rate and edit failure-rate deltas.
 
 Acceptance criteria:
 - Edit-apply failure rate drops measurably on a weak-model profile in live

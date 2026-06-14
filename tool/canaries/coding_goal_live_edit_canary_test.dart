@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -26,6 +27,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
+import 'package:caverno/features/chat/domain/services/model_edit_apply_telemetry_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
@@ -104,6 +106,7 @@ void main() {
           bypassPlanMode: true,
         );
         await _waitForChatIdle(container);
+        _printLl15EditHarnessSnapshot(container, dataSource, toolService);
 
         final testResult = await fixture.runTest();
         final goal = _currentGoal(container);
@@ -215,6 +218,7 @@ void main() {
           bypassPlanMode: true,
         );
         await _waitForChatIdle(container);
+        _printLl15EditHarnessSnapshot(container, dataSource, toolService);
 
         final testResult = await fixture.runTest();
         final goal = _currentGoal(container);
@@ -354,6 +358,7 @@ void main() {
           bypassPlanMode: true,
         );
         await _waitForChatIdle(container);
+        _printLl15EditHarnessSnapshot(container, dataSource, toolService);
 
         final testResult = await fixture.runTest();
         final goal = _currentGoal(container);
@@ -475,6 +480,7 @@ void main() {
           bypassPlanMode: true,
         );
         await _waitForChatIdle(container);
+        _printLl15EditHarnessSnapshot(container, dataSource, toolService);
 
         final testResult = await fixture.runTest();
         final goal = _currentGoal(container);
@@ -613,6 +619,7 @@ void main() {
           bypassPlanMode: true,
         );
         await _waitForChatIdle(container);
+        _printLl15EditHarnessSnapshot(container, dataSource, toolService);
 
         final goal = _currentGoal(container);
         final finalContent = _lastAssistantContent(container);
@@ -749,6 +756,7 @@ void main() {
           bypassPlanMode: true,
         );
         await _waitForChatIdle(container, timeout: const Duration(minutes: 8));
+        _printLl15EditHarnessSnapshot(container, dataSource, toolService);
 
         final goal = _currentGoal(container);
         final finalContent = _lastAssistantContent(container);
@@ -880,6 +888,53 @@ ConversationGoal? _currentGoal(ProviderContainer container) {
       .read(conversationsNotifierProvider)
       .currentConversation
       ?.goal;
+}
+
+void _printLl15EditHarnessSnapshot(
+  ProviderContainer container,
+  _CodingGoalLiveEditDataSource dataSource,
+  _SandboxCodingToolService toolService,
+) {
+  final profile = container
+      .read(settingsNotifierProvider)
+      .effectiveModelCapabilityProfile;
+  final metadata = profile?.probeMetadata ?? const <String, String>{};
+  final payload = {
+    'schemaName': 'll15_edit_harness_canary_snapshot',
+    'schemaVersion': 1,
+    'harnessPrompted': dataSource.firstSystemPrompt.contains(
+      'LL15 WEAK-MODEL EDIT HARNESS',
+    ),
+    'attempts':
+        int.tryParse(
+          metadata[ModelEditApplyTelemetryService.attemptsKey] ?? '',
+        ) ??
+        0,
+    'successes':
+        int.tryParse(
+          metadata[ModelEditApplyTelemetryService.successesKey] ?? '',
+        ) ??
+        0,
+    'failures':
+        int.tryParse(
+          metadata[ModelEditApplyTelemetryService.failuresKey] ?? '',
+        ) ??
+        0,
+    'failureRate':
+        double.tryParse(
+          metadata[ModelEditApplyTelemetryService.failureRateKey] ?? '',
+        ) ??
+        0.0,
+    'lastOutcome':
+        metadata[ModelEditApplyTelemetryService.lastOutcomeKey] ?? '',
+    'editToolCallCount': toolService.executedCalls
+        .where((call) => call.name == 'edit_file')
+        .length,
+    'writeToolCallCount': toolService.executedCalls
+        .where((call) => call.name == 'write_file')
+        .length,
+  };
+  debugPrint('[LL15] edit_harness_snapshot ${jsonEncode(payload)}');
 }
 
 String _diagnostic(
@@ -1241,8 +1296,71 @@ class _LiveSettingsNotifier extends SettingsNotifier {
       confirmLocalCommands: false,
       confirmGitWrites: false,
       demoMode: false,
+      modelCapabilityProfiles: _modelCapabilityProfilesFromEnvironment(env),
     );
   }
+}
+
+List<ModelCapabilityProfile> _modelCapabilityProfilesFromEnvironment(
+  _CodingGoalLiveEditEnv env,
+) {
+  final toolCallStyle = _enumFromEnvironment(
+    'CAVERNO_LLM_MODEL_TOOL_CALL_STYLE',
+    ModelToolCallStyle.values,
+    ModelToolCallStyle.unknown,
+  );
+  final structuredOutputSupport = _enumFromEnvironment(
+    'CAVERNO_LLM_MODEL_STRUCTURED_OUTPUT',
+    ModelStructuredOutputSupport.values,
+    ModelStructuredOutputSupport.unknown,
+  );
+  final editFormatPreference = _enumFromEnvironment(
+    'CAVERNO_LLM_MODEL_EDIT_FORMAT',
+    ModelEditFormatPreference.values,
+    ModelEditFormatPreference.unknown,
+  );
+  final usableContextTokens =
+      int.tryParse(
+        Platform.environment['CAVERNO_LLM_MODEL_USABLE_CONTEXT_TOKENS'] ?? '',
+      ) ??
+      0;
+  if (toolCallStyle == ModelToolCallStyle.unknown &&
+      structuredOutputSupport == ModelStructuredOutputSupport.unknown &&
+      editFormatPreference == ModelEditFormatPreference.unknown &&
+      usableContextTokens <= 0) {
+    return const <ModelCapabilityProfile>[];
+  }
+  return [
+    ModelCapabilityProfile(
+      id: '',
+      baseUrl: env.baseUrl,
+      model: env.model,
+      toolCallStyle: toolCallStyle,
+      structuredOutputSupport: structuredOutputSupport,
+      editFormatPreference: editFormatPreference,
+      usableContextTokens: usableContextTokens,
+      probedAt: DateTime.now(),
+      probeSummary: 'Injected by coding goal live edit canary environment.',
+      probeMetadata: const {'source': 'coding_goal_live_edit_canary'},
+    ).normalizedForPersistence(),
+  ];
+}
+
+T _enumFromEnvironment<T extends Enum>(
+  String name,
+  List<T> values,
+  T fallback,
+) {
+  final raw = Platform.environment[name]?.trim();
+  if (raw == null || raw.isEmpty) {
+    return fallback;
+  }
+  for (final value in values) {
+    if (value.name == raw) {
+      return value;
+    }
+  }
+  throw StateError('Unsupported $name "$raw".');
 }
 
 class _FakeConversationRepository extends ConversationRepository {
