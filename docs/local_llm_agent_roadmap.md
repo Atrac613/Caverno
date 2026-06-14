@@ -68,7 +68,7 @@ structurally unmotivated to build:
 | Local LLM | LL12 | later | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
 | Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
 | Local LLM | LL14 | done | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
-| Local LLM | LL15 | current | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
+| Local LLM | LL15 | done | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
 | Local LLM | LL16 | later | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
 | Local LLM | LL17 | later | L | LL3, LL12 | Self-improving harness loop: mine failure traces, propose profile mutations, adopt only on eval non-regression. |
 
@@ -705,6 +705,9 @@ Implementation status:
   complete `write_file` only for small inspected fixture files. Live snapshots
   expose edit failure-kind counters so regressions can distinguish stale text,
   multiple matches, malformed requests, missing files, and other failures.
+- LAN live confirmation on `gemma-4-26B-A4B-it-Q4_K_M.gguf` showed the recovery
+  harness improving the weak-profile edit canary from `3/6` to `5/6`, with
+  `edit_file` failure rate dropping from `0.111` to `0.000`.
 
 Acceptance criteria:
 - Edit-apply failure rate drops measurably on a weak-model profile in live
