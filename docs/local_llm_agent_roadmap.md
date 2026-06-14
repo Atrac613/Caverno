@@ -783,6 +783,8 @@ Implementation status:
 - `ModelCapabilityProfileBuilder` can now accept sampler calibration trials and
   persist the selected per-role presets into the generated LL3 profile without
   changing existing diagnostic callers that do not provide calibration data.
+- Live diagnostic reports can now carry sampler calibration trial evidence, and
+  profile building consumes those report trials automatically.
 
 ### LL17: Self-Improving Harness Loop
 

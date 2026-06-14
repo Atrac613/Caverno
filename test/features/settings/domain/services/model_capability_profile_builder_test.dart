@@ -184,4 +184,71 @@ void main() {
     );
     expect(profile.probeMetadata['probe.instruction_echo.status'], 'passed');
   });
+
+  test('stores report sampler trials in profile metadata', () {
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 6, 12),
+      finishedAt: DateTime.utc(2026, 6, 12, 0, 0, 3),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'sampler-model',
+      demoMode: false,
+      mcpEnabled: true,
+      results: const [
+        LiveLlmDiagnosticProbeResult(
+          id: 'instruction_echo',
+          status: LiveLlmDiagnosticStatus.passed,
+          summary: 'JSON ok.',
+        ),
+      ],
+      samplerCalibrationTrials: const [
+        LiveLlmDiagnosticSamplerTrial(
+          requestClass: 'toolLoop',
+          temperature: 0.0,
+          passed: true,
+          repetitionDetected: true,
+        ),
+        LiveLlmDiagnosticSamplerTrial(
+          requestClass: 'toolLoop',
+          temperature: 0.2,
+          passed: true,
+        ),
+        LiveLlmDiagnosticSamplerTrial(
+          requestClass: 'unknown',
+          temperature: 0.1,
+          passed: true,
+        ),
+      ],
+    );
+
+    final profile = ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+      report: report,
+      provider: LlmProvider.openAiCompatible,
+    );
+
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      '0.2',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.scoreKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      '1.000',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.trialCountKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      '1',
+    );
+    expect(
+      profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.agentic,
+      )],
+      isNull,
+    );
+    expect(profile.probeMetadata['probe.instruction_echo.status'], 'passed');
+  });
 }

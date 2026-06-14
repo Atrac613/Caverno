@@ -11,6 +11,12 @@ class ModelCapabilityProfileBuilder {
     required LlmProvider provider,
     Iterable<LlmSamplerCalibrationTrial> samplerTrials = const [],
   }) {
+    final effectiveSamplerTrials = [
+      ...report.samplerCalibrationTrials
+          .map(_samplerTrialFromDiagnostic)
+          .whereType<LlmSamplerCalibrationTrial>(),
+      ...samplerTrials,
+    ];
     final metadata = <String, String>{
       'overallStatus': report.overallStatus.name,
       'score': report.score.toStringAsFixed(3),
@@ -38,7 +44,7 @@ class ModelCapabilityProfileBuilder {
     );
     return _applySamplerCalibration(
       profile.normalizedForPersistence(),
-      samplerTrials,
+      effectiveSamplerTrials,
     );
   }
 
@@ -66,6 +72,37 @@ class ModelCapabilityProfileBuilder {
       );
     }
     return updatedProfile;
+  }
+
+  static LlmSamplerCalibrationTrial? _samplerTrialFromDiagnostic(
+    LiveLlmDiagnosticSamplerTrial trial,
+  ) {
+    final requestClass = _samplerRequestClassByMetadataName(trial.requestClass);
+    if (requestClass == null) {
+      return null;
+    }
+    return LlmSamplerCalibrationTrial(
+      requestClass: requestClass,
+      temperature: trial.temperature,
+      passed: trial.passed,
+      jsonRepairEventCount: trial.jsonRepairEventCount,
+      malformedToolCallCount: trial.malformedToolCallCount,
+      editApplyFailureCount: trial.editApplyFailureCount,
+      repetitionDetected: trial.repetitionDetected,
+    );
+  }
+
+  static LlmSamplerRequestClass? _samplerRequestClassByMetadataName(
+    String value,
+  ) {
+    final normalized = value.trim();
+    for (final requestClass in LlmSamplerRequestClass.values) {
+      if (requestClass.metadataName == normalized ||
+          requestClass.name == normalized) {
+        return requestClass;
+      }
+    }
+    return null;
   }
 
   static ModelToolCallStyle _toolCallStyle(

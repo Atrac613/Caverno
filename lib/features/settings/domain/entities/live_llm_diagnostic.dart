@@ -153,6 +153,38 @@ class LiveLlmDiagnosticToolCatalog {
   };
 }
 
+class LiveLlmDiagnosticSamplerTrial {
+  const LiveLlmDiagnosticSamplerTrial({
+    required this.requestClass,
+    required this.temperature,
+    required this.passed,
+    this.jsonRepairEventCount = 0,
+    this.malformedToolCallCount = 0,
+    this.editApplyFailureCount = 0,
+    this.repetitionDetected = false,
+  });
+
+  final String requestClass;
+  final double temperature;
+  final bool passed;
+  final int jsonRepairEventCount;
+  final int malformedToolCallCount;
+  final int editApplyFailureCount;
+  final bool repetitionDetected;
+
+  Map<String, dynamic> toJson() => {
+    'requestClass': requestClass,
+    'temperature': temperature,
+    'passed': passed,
+    if (jsonRepairEventCount != 0) 'jsonRepairEventCount': jsonRepairEventCount,
+    if (malformedToolCallCount != 0)
+      'malformedToolCallCount': malformedToolCallCount,
+    if (editApplyFailureCount != 0)
+      'editApplyFailureCount': editApplyFailureCount,
+    if (repetitionDetected) 'repetitionDetected': true,
+  };
+}
+
 class LiveLlmDiagnosticReport {
   const LiveLlmDiagnosticReport({
     required this.startedAt,
@@ -163,6 +195,7 @@ class LiveLlmDiagnosticReport {
     required this.mcpEnabled,
     this.toolCatalog = LiveLlmDiagnosticToolCatalog.empty,
     this.results = const <LiveLlmDiagnosticProbeResult>[],
+    this.samplerCalibrationTrials = const <LiveLlmDiagnosticSamplerTrial>[],
   });
 
   final DateTime startedAt;
@@ -173,11 +206,13 @@ class LiveLlmDiagnosticReport {
   final bool mcpEnabled;
   final LiveLlmDiagnosticToolCatalog toolCatalog;
   final List<LiveLlmDiagnosticProbeResult> results;
+  final List<LiveLlmDiagnosticSamplerTrial> samplerCalibrationTrials;
 
   LiveLlmDiagnosticReport copyWith({
     DateTime? finishedAt,
     LiveLlmDiagnosticToolCatalog? toolCatalog,
     List<LiveLlmDiagnosticProbeResult>? results,
+    List<LiveLlmDiagnosticSamplerTrial>? samplerCalibrationTrials,
   }) {
     return LiveLlmDiagnosticReport(
       startedAt: startedAt,
@@ -188,6 +223,8 @@ class LiveLlmDiagnosticReport {
       mcpEnabled: mcpEnabled,
       toolCatalog: toolCatalog ?? this.toolCatalog,
       results: results ?? this.results,
+      samplerCalibrationTrials:
+          samplerCalibrationTrials ?? this.samplerCalibrationTrials,
     );
   }
 
@@ -259,6 +296,10 @@ class LiveLlmDiagnosticReport {
     'score': score,
     'toolCatalog': toolCatalog.toJson(),
     'results': results.map((result) => result.toJson()).toList(),
+    if (samplerCalibrationTrials.isNotEmpty)
+      'samplerCalibrationTrials': samplerCalibrationTrials
+          .map((trial) => trial.toJson())
+          .toList(),
   };
 }
 
