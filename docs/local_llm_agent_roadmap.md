@@ -644,6 +644,9 @@ Implementation status:
   It consumes the suite comparison report and emits a local audit artifact with
   a candidate profile target, adoption blockers, and a `probeMetadata` patch
   that can be applied only when the candidate has no LL12 regressions.
+- The suite pipeline now emits the profile handoff artifacts next to the replay
+  runs and suite report, so a deterministic LL12 run produces the complete
+  model-swap evidence bundle without a second command.
 
 ### LL13: Parallel Agents In Worktrees
 

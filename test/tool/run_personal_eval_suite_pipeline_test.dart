@@ -31,6 +31,7 @@ void main() {
       expect(result.stdout, contains('Running personal eval suite pipeline'));
       expect(result.stdout, contains('Report label: candidate-rollout'));
       expect(result.stdout, contains(fixture.outDir.path));
+      expect(result.stdout, contains('personal_eval_profile_handoff.json'));
       expect(fixture.outDir.existsSync(), isTrue);
       expect(
         fixture.loggedArgs(),

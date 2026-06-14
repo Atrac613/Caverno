@@ -140,12 +140,19 @@ void main() {
     expect(result.candidateRunFile.existsSync(), isTrue);
     expect(result.reportJsonFile.existsSync(), isTrue);
     expect(result.reportMarkdownFile.existsSync(), isTrue);
+    expect(result.profileHandoffJsonFile.existsSync(), isTrue);
+    expect(result.profileHandoffMarkdownFile.existsSync(), isTrue);
     expect(result.incumbentRun.totalDurationMs, 5000);
     expect(result.candidateRun.totalDurationMs, 2200);
     expect(result.report.result, 'passed');
     expect(result.report.recommendation, 'candidate_ready');
     expect(result.report.hardRegressionCount, 0);
     expect(result.report.improvementCount, greaterThan(0));
+    expect(result.profileHandoff.readyForProfileUpdate, isTrue);
+    expect(
+      result.profileHandoff.target.profileId,
+      'openAiCompatible|http://localhost:1235/v1|candidate-model',
+    );
 
     final incumbentJson = _readJson(result.incumbentRunFile);
     expect(incumbentJson['schemaName'], 'caverno_personal_eval_replay_run');
@@ -157,9 +164,19 @@ void main() {
     expect(reportJson['generatedAt'], '2026-06-14T04:05:06.000Z');
     expect(reportJson['label'], 'incumbent vs candidate');
     expect(reportJson['result'], 'passed');
+    final profileHandoffJson = _readJson(result.profileHandoffJsonFile);
+    expect(
+      profileHandoffJson['schemaName'],
+      'caverno_personal_eval_profile_handoff',
+    );
+    expect(profileHandoffJson['readyForProfileUpdate'], isTrue);
     expect(
       result.reportMarkdownFile.readAsStringSync(),
       contains('Personal Eval Suite Report'),
+    );
+    expect(
+      result.profileHandoffMarkdownFile.readAsStringSync(),
+      contains('Personal Eval Profile Handoff'),
     );
   });
 

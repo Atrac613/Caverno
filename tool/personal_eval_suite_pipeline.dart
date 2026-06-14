@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'personal_eval_case_manifest.dart';
+import 'personal_eval_profile_handoff.dart' as profile;
 import 'personal_eval_replay_run.dart' as replay;
 import 'personal_eval_suite_report.dart' as suite;
 
@@ -65,6 +66,10 @@ Future<void> main(List<String> args) async {
   stdout.writeln(
     'Personal eval suite pipeline written to ${result.reportJsonFile.path}',
   );
+  stdout.writeln(
+    'Personal eval profile handoff written to '
+    '${result.profileHandoffJsonFile.path}',
+  );
   stdout.writeln(result.report.toMarkdown());
 
   if (!result.report.isSuccessful) {
@@ -124,14 +129,30 @@ Future<PersonalEvalSuitePipelineResult> runPersonalEvalSuitePipeline({
   await _writeJsonFile(reportJsonFile, report.toJson());
   await reportMarkdownFile.writeAsString(report.toMarkdown());
 
+  final profileHandoff = await profile.buildPersonalEvalProfileHandoff(
+    suiteReportFile: reportJsonFile,
+    generatedAt: timestamp,
+  );
+  final profileHandoffJsonFile = File(
+    '${outDir.path}/personal_eval_profile_handoff.json',
+  );
+  final profileHandoffMarkdownFile = File(
+    '${outDir.path}/personal_eval_profile_handoff.md',
+  );
+  await _writeJsonFile(profileHandoffJsonFile, profileHandoff.toJson());
+  await profileHandoffMarkdownFile.writeAsString(profileHandoff.toMarkdown());
+
   return PersonalEvalSuitePipelineResult(
     incumbentRun: incumbentRun,
     candidateRun: candidateRun,
     report: report,
+    profileHandoff: profileHandoff,
     incumbentRunFile: incumbentRunFile,
     candidateRunFile: candidateRunFile,
     reportJsonFile: reportJsonFile,
     reportMarkdownFile: reportMarkdownFile,
+    profileHandoffJsonFile: profileHandoffJsonFile,
+    profileHandoffMarkdownFile: profileHandoffMarkdownFile,
   );
 }
 
@@ -162,19 +183,25 @@ final class PersonalEvalSuitePipelineResult {
     required this.incumbentRun,
     required this.candidateRun,
     required this.report,
+    required this.profileHandoff,
     required this.incumbentRunFile,
     required this.candidateRunFile,
     required this.reportJsonFile,
     required this.reportMarkdownFile,
+    required this.profileHandoffJsonFile,
+    required this.profileHandoffMarkdownFile,
   });
 
   final replay.PersonalEvalReplayRunArtifact incumbentRun;
   final replay.PersonalEvalReplayRunArtifact candidateRun;
   final suite.PersonalEvalSuiteReport report;
+  final profile.PersonalEvalProfileHandoff profileHandoff;
   final File incumbentRunFile;
   final File candidateRunFile;
   final File reportJsonFile;
   final File reportMarkdownFile;
+  final File profileHandoffJsonFile;
+  final File profileHandoffMarkdownFile;
 }
 
 final class PersonalEvalSuitePipelineOptions {
