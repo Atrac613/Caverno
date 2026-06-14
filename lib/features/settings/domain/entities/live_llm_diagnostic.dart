@@ -176,10 +176,10 @@ class LiveLlmDiagnosticSamplerTrial {
     'requestClass': requestClass,
     'temperature': temperature,
     'passed': passed,
-    if (jsonRepairEventCount != 0) 'jsonRepairEventCount': jsonRepairEventCount,
-    if (malformedToolCallCount != 0)
+    if (jsonRepairEventCount > 0) 'jsonRepairEventCount': jsonRepairEventCount,
+    if (malformedToolCallCount > 0)
       'malformedToolCallCount': malformedToolCallCount,
-    if (editApplyFailureCount != 0)
+    if (editApplyFailureCount > 0)
       'editApplyFailureCount': editApplyFailureCount,
     if (repetitionDetected) 'repetitionDetected': true,
   };
@@ -252,6 +252,22 @@ class LiveLlmDiagnosticReport {
       .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
       .length;
 
+  List<LiveLlmDiagnosticSamplerTrialSummary> get samplerCalibrationSummaries {
+    final summaries = <String, LiveLlmDiagnosticSamplerTrialSummary>{};
+    for (final trial in samplerCalibrationTrials) {
+      summaries
+          .putIfAbsent(
+            trial.requestClass,
+            () => LiveLlmDiagnosticSamplerTrialSummary(
+              requestClass: trial.requestClass,
+            ),
+          )
+          .add(trial);
+    }
+    return summaries.values.toList(growable: false)
+      ..sort((left, right) => left.requestClass.compareTo(right.requestClass));
+  }
+
   double get score {
     final scored = scoredProbeCount;
     if (scored == 0) {
@@ -300,7 +316,69 @@ class LiveLlmDiagnosticReport {
       'samplerCalibrationTrials': samplerCalibrationTrials
           .map((trial) => trial.toJson())
           .toList(),
+    if (samplerCalibrationTrials.isNotEmpty)
+      'samplerCalibrationSummary': _samplerCalibrationSummaryToJson(),
   };
+
+  Map<String, dynamic> _samplerCalibrationSummaryToJson() {
+    return {
+      for (final summary in samplerCalibrationSummaries)
+        summary.requestClass: summary.toJson(),
+    };
+  }
+}
+
+class LiveLlmDiagnosticSamplerTrialSummary {
+  LiveLlmDiagnosticSamplerTrialSummary({required this.requestClass});
+
+  final String requestClass;
+  final candidateTemperatures = <double>{};
+  int trialCount = 0;
+  int passedCount = 0;
+  int jsonRepairEventCount = 0;
+  int malformedToolCallCount = 0;
+  int editApplyFailureCount = 0;
+  int repetitionCount = 0;
+
+  List<double> get sortedCandidateTemperatures =>
+      candidateTemperatures.toList(growable: false)..sort();
+
+  bool get hasQualityFlags =>
+      jsonRepairEventCount != 0 ||
+      malformedToolCallCount != 0 ||
+      editApplyFailureCount != 0 ||
+      repetitionCount != 0;
+
+  void add(LiveLlmDiagnosticSamplerTrial trial) {
+    trialCount += 1;
+    candidateTemperatures.add(trial.temperature);
+    if (trial.passed) {
+      passedCount += 1;
+    }
+    jsonRepairEventCount += _positiveCount(trial.jsonRepairEventCount);
+    malformedToolCallCount += _positiveCount(trial.malformedToolCallCount);
+    editApplyFailureCount += _positiveCount(trial.editApplyFailureCount);
+    if (trial.repetitionDetected) {
+      repetitionCount += 1;
+    }
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'trialCount': trialCount,
+      'passedCount': passedCount,
+      'candidateTemperatures': sortedCandidateTemperatures,
+      if (jsonRepairEventCount != 0)
+        'jsonRepairEventCount': jsonRepairEventCount,
+      if (malformedToolCallCount != 0)
+        'malformedToolCallCount': malformedToolCallCount,
+      if (editApplyFailureCount != 0)
+        'editApplyFailureCount': editApplyFailureCount,
+      if (repetitionCount != 0) 'repetitionCount': repetitionCount,
+    };
+  }
+
+  int _positiveCount(int value) => value < 0 ? 0 : value;
 }
 
 class LiveLlmDiagnosticState {

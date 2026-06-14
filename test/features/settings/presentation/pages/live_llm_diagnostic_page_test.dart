@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/domain/entities/live_llm_diagnostic.dart';
 import 'package:caverno/features/settings/presentation/pages/live_llm_diagnostic_page.dart';
+import 'package:caverno/features/settings/presentation/providers/live_llm_diagnostic_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
@@ -107,11 +109,66 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     }
   });
+
+  testWidgets('shows sampler calibration trial summaries', (tester) async {
+    await _pumpPage(
+      tester,
+      settings: AppSettings.defaults(),
+      diagnosticState: LiveLlmDiagnosticState(
+        report: LiveLlmDiagnosticReport(
+          startedAt: DateTime.utc(2026, 6, 12),
+          finishedAt: DateTime.utc(2026, 6, 12, 0, 0, 2),
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'sampler-model',
+          demoMode: false,
+          mcpEnabled: true,
+          samplerCalibrationTrials: const [
+            LiveLlmDiagnosticSamplerTrial(
+              requestClass: 'toolLoop',
+              temperature: 0.0,
+              passed: true,
+              repetitionDetected: true,
+            ),
+            LiveLlmDiagnosticSamplerTrial(
+              requestClass: 'toolLoop',
+              temperature: 0.2,
+              passed: true,
+            ),
+            LiveLlmDiagnosticSamplerTrial(
+              requestClass: 'toolLoop',
+              temperature: 0.4,
+              passed: false,
+              malformedToolCallCount: 1,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Sampler Calibration'),
+      400,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('Sampler Calibration'), findsOneWidget);
+    expect(find.text('toolLoop'), findsOneWidget);
+    expect(find.text('Trials: 3'), findsOneWidget);
+    expect(find.text('Passed: 2/3'), findsOneWidget);
+    expect(find.text('Candidates: 0.0, 0.2, 0.4'), findsOneWidget);
+    expect(
+      find.text(
+        'JSON repairs: 0 • Malformed calls: 1 • Edit failures: 0 • Repetitions: 1',
+      ),
+      findsOneWidget,
+    );
+  });
 }
 
 Future<void> _pumpPage(
   WidgetTester tester, {
   required AppSettings settings,
+  LiveLlmDiagnosticState diagnosticState = LiveLlmDiagnosticState.initial,
 }) async {
   await tester.pumpWidget(
     EasyLocalization(
@@ -128,6 +185,9 @@ Future<void> _pumpPage(
             overrides: [
               settingsNotifierProvider.overrideWith(
                 () => _FixedSettingsNotifier(settings),
+              ),
+              liveLlmDiagnosticNotifierProvider.overrideWith(
+                () => _FixedLiveLlmDiagnosticNotifier(diagnosticState),
               ),
             ],
             child: MaterialApp(
@@ -151,4 +211,16 @@ class _FixedSettingsNotifier extends SettingsNotifier {
 
   @override
   AppSettings build() => settings;
+}
+
+class _FixedLiveLlmDiagnosticNotifier extends LiveLlmDiagnosticNotifier {
+  _FixedLiveLlmDiagnosticNotifier(this.fixedState);
+
+  final LiveLlmDiagnosticState fixedState;
+
+  @override
+  LiveLlmDiagnosticState build() => fixedState;
+
+  @override
+  Future<void> run() async {}
 }

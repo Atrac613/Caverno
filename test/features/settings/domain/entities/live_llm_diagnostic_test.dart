@@ -20,6 +20,12 @@ void main() {
           editApplyFailureCount: 3,
           repetitionDetected: true,
         ),
+        LiveLlmDiagnosticSamplerTrial(
+          requestClass: 'toolLoop',
+          temperature: 0.4,
+          passed: false,
+          malformedToolCallCount: -5,
+        ),
       ],
     );
 
@@ -32,7 +38,7 @@ void main() {
     );
     final json = updated.toJson();
 
-    expect(updated.samplerCalibrationTrials, hasLength(1));
+    expect(updated.samplerCalibrationTrials, hasLength(2));
     expect(json['samplerCalibrationTrials'], [
       {
         'requestClass': 'toolLoop',
@@ -43,6 +49,18 @@ void main() {
         'editApplyFailureCount': 3,
         'repetitionDetected': true,
       },
+      {'requestClass': 'toolLoop', 'temperature': 0.4, 'passed': false},
     ]);
+    expect(json['samplerCalibrationSummary'], {
+      'toolLoop': {
+        'trialCount': 2,
+        'passedCount': 1,
+        'candidateTemperatures': [0.2, 0.4],
+        'jsonRepairEventCount': 1,
+        'malformedToolCallCount': 2,
+        'editApplyFailureCount': 3,
+        'repetitionCount': 1,
+      },
+    });
   });
 }

@@ -66,6 +66,10 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
             _SummarySection(report: report),
             const SizedBox(height: 16),
             _ToolCatalogSection(report: report),
+            if (report.samplerCalibrationSummaries.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _SamplerCalibrationSection(report: report),
+            ],
             const SizedBox(height: 16),
             _ProbeResultsSection(report: report),
           ],
@@ -448,6 +452,110 @@ class _ToolCatalogSection extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _SamplerCalibrationSection extends StatelessWidget {
+  const _SamplerCalibrationSection({required this.report});
+
+  final LiveLlmDiagnosticReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final summaries = report.samplerCalibrationSummaries;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(label: 'settings.live_llm_diag_sampler_calibration'.tr()),
+        const SizedBox(height: 8),
+        for (final summary in summaries)
+          _SamplerCalibrationSummaryCard(summary: summary),
+      ],
+    );
+  }
+}
+
+class _SamplerCalibrationSummaryCard extends StatelessWidget {
+  const _SamplerCalibrationSummaryCard({required this.summary});
+
+  final LiveLlmDiagnosticSamplerTrialSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final candidateTemperatures = summary.sortedCandidateTemperatures;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.tune_outlined, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    summary.requestClass,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _SamplerInfoChip(
+                  label: 'settings.live_llm_diag_sampler_trials'.tr(),
+                  value: '${summary.trialCount}',
+                ),
+                _SamplerInfoChip(
+                  label: 'settings.live_llm_diag_sampler_passed'.tr(),
+                  value: '${summary.passedCount}/${summary.trialCount}',
+                ),
+                _SamplerInfoChip(
+                  label: 'settings.live_llm_diag_sampler_candidates'.tr(),
+                  value: candidateTemperatures
+                      .map((temperature) => temperature.toString())
+                      .join(', '),
+                ),
+              ],
+            ),
+            if (summary.hasQualityFlags) ...[
+              const SizedBox(height: 8),
+              Text(
+                [
+                  '${'settings.live_llm_diag_sampler_json_repairs'.tr()}: ${summary.jsonRepairEventCount}',
+                  '${'settings.live_llm_diag_sampler_malformed'.tr()}: ${summary.malformedToolCallCount}',
+                  '${'settings.live_llm_diag_sampler_edit_failures'.tr()}: ${summary.editApplyFailureCount}',
+                  '${'settings.live_llm_diag_sampler_repetitions'.tr()}: ${summary.repetitionCount}',
+                ].join(' • '),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SamplerInfoChip extends StatelessWidget {
+  const _SamplerInfoChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      visualDensity: VisualDensity.compact,
+      label: Text('$label: $value'),
     );
   }
 }

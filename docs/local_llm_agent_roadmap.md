@@ -788,6 +788,8 @@ Implementation status:
 - Native OpenAI-compatible live diagnostics now record repeated `toolLoop`
   sampler calibration trials for the `0.0`, `0.2`, `0.4`, and `0.7`
   temperature candidates.
+- Diagnostic support JSON and the live diagnostics page now summarize sampler
+  trial counts, candidate temperatures, pass counts, and quality flags.
 
 ### LL17: Self-Improving Harness Loop
 
