@@ -4,6 +4,7 @@ import '../../../settings/domain/entities/app_settings.dart';
 import '../entities/conversation_goal.dart';
 import '../entities/conversation_plan_artifact.dart';
 import '../entities/conversation_workflow.dart';
+import 'weak_model_edit_harness_service.dart';
 
 class SystemPromptBuilder {
   SystemPromptBuilder._();
@@ -237,6 +238,15 @@ class SystemPromptBuilder {
           'or deleted unless an application-executed tool result confirms '
           'the successful operation.',
         );
+        final weakModelEditHarnessGuidance =
+            WeakModelEditHarnessService.buildPromptContext(
+              profile: modelCapabilityProfile,
+              toolNames: uniqueToolNames,
+              assistantMode: assistantMode,
+            );
+        if (weakModelEditHarnessGuidance.isNotEmpty) {
+          buffer.writeln(weakModelEditHarnessGuidance);
+        }
       }
       if (hasRollbackTool) {
         buffer.writeln(

@@ -68,7 +68,7 @@ structurally unmotivated to build:
 | Local LLM | LL12 | later | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
 | Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
 | Local LLM | LL14 | done | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
-| Local LLM | LL15 | later | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
+| Local LLM | LL15 | current | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
 | Local LLM | LL16 | later | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
 | Local LLM | LL17 | later | L | LL3, LL12 | Self-improving harness loop: mine failure traces, propose profile mutations, adopt only on eval non-regression. |
 
@@ -687,6 +687,11 @@ Scope:
   threshold.
 - Track edit-apply failure rates per model and feed them back into the
   profile.
+
+Implementation status:
+- Initial deterministic guidance injects an `edit_file` exemplar only for
+  weak or uncertain coding profiles when `edit_file` is available. Strong
+  native structured profiles skip the extra prompt overhead.
 
 Acceptance criteria:
 - Edit-apply failure rate drops measurably on a weak-model profile in live

@@ -226,6 +226,30 @@ Dart symbols:
     expect(prompt, contains('weak structured-output adherence'));
     expect(prompt, contains('search-and-replace edit blocks'));
     expect(prompt, contains('4096 usable context tokens'));
+    expect(prompt, contains('LL15 WEAK-MODEL EDIT HARNESS'));
+    expect(prompt, contains('Example edit_file arguments'));
+  });
+
+  test('skips weak-model edit harness for strong structured profiles', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.coding,
+      languageCode: 'en',
+      toolNames: const ['read_file', 'edit_file'],
+      modelCapabilityProfile: ModelCapabilityProfile(
+        id: '',
+        baseUrl: 'http://localhost:1234/v1',
+        model: 'strong-tool-model',
+        toolCallStyle: ModelToolCallStyle.nativeToolCalls,
+        structuredOutputSupport: ModelStructuredOutputSupport.jsonSchema,
+        editFormatPreference: ModelEditFormatPreference.searchReplace,
+        usableContextTokens: 32768,
+      ).normalizedForPersistence(),
+    );
+
+    expect(prompt, contains('MODEL CAPABILITY PROFILE:'));
+    expect(prompt, contains('reliable native tool calls'));
+    expect(prompt, isNot(contains('LL15 WEAK-MODEL EDIT HARNESS')));
   });
 
   test('instructs browser tools to refresh refs before actions', () {
