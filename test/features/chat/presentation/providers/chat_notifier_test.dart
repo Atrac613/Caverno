@@ -7982,6 +7982,86 @@ with open(path, "rb") as file:
     },
   );
 
+  test('sendMessage injects one-shot model switch handoff brief', () async {
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: const [],
+      initialCompletionContent: 'Ready on the new model',
+      initialFinishReason: 'stop',
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(
+          _FakeMcpToolService(results: const {'noop_tool': 'ok'}),
+        ),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      final conversation = toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .ensureCurrentConversation();
+      final previousMessages = List<Message>.generate(10, (index) {
+        return Message(
+          id: 'history-$index',
+          content:
+              'Previous conversation turn $index with enough detail to summarize.',
+          role: index.isEven ? MessageRole.user : MessageRole.assistant,
+          timestamp: DateTime(2026, 1, 1).add(Duration(minutes: index)),
+        );
+      });
+      toolNotifier.syncConversation(
+        conversationId: conversation?.id,
+        messages: previousMessages,
+      );
+      toolNotifier.scheduleModelSwitchHandoffForTest(
+        previousSettings: AppSettings.defaults(),
+        nextSettings: AppSettings.defaults().copyWith(model: 'new-model'),
+      );
+
+      await toolNotifier.sendMessage('Continue after model switch');
+      await _waitForCondition(() => !toolNotifier.state.isLoading);
+      await toolNotifier.sendMessage('Continue again');
+      await _waitForCondition(() => !toolNotifier.state.isLoading);
+
+      expect(toolDataSource.initialRequestMessages, hasLength(2));
+      expect(
+        toolDataSource.initialRequestMessages.first.any(
+          (message) => message.id == 'system_model_handoff',
+        ),
+        isTrue,
+      );
+      expect(
+        toolDataSource.initialRequestMessages.first.any(
+          (message) => message.id == 'system_compaction',
+        ),
+        isTrue,
+      );
+      expect(
+        toolDataSource.initialRequestMessages.last.any(
+          (message) => message.id == 'system_model_handoff',
+        ),
+        isFalse,
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
   test(
     'sendMessage retries final tool-result answer with forced prompt compaction',
     () async {

@@ -7,6 +7,108 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierContextSurgery on ChatNotifier {
+  void updateConnectionSettings(AppSettings settings) =>
+      _updateConnectionSettings(settings);
+
+  void _updateConnectionSettings(AppSettings settings) {
+    final previousSettings = _settings;
+    if (_modelSwitchRouteKey(previousSettings) !=
+        _modelSwitchRouteKey(settings)) {
+      _scheduleModelSwitchHandoff(
+        previousSettings: previousSettings,
+        nextSettings: settings,
+      );
+    }
+    _settings = settings;
+    _dataSource = _withChatSessionLogging(
+      _buildChatDataSource(settings),
+      settings,
+    );
+  }
+
+  @visibleForTesting
+  void scheduleModelSwitchHandoffForTest({
+    required AppSettings previousSettings,
+    required AppSettings nextSettings,
+  }) {
+    _scheduleModelSwitchHandoff(
+      previousSettings: previousSettings,
+      nextSettings: nextSettings,
+    );
+  }
+
+  String _modelSwitchRouteKey(AppSettings settings) {
+    return ModelCapabilityProfile.buildId(
+      provider: settings.llmProvider,
+      baseUrl: settings.baseUrl,
+      model: settings.effectiveModel,
+    );
+  }
+
+  void _scheduleModelSwitchHandoff({
+    required AppSettings previousSettings,
+    required AppSettings nextSettings,
+  }) {
+    final conversationsState = ref.read(conversationsNotifierProvider);
+    final conversation = conversationsState.currentConversation;
+    final messages = state.messages.isNotEmpty
+        ? state.messages
+        : (conversation?.messages ?? const <Message>[]);
+    final brief = ModelSwitchHandoffBriefService.build(
+      conversation: conversation,
+      messages: messages,
+      previousModel: previousSettings.effectiveModel,
+      nextModel: nextSettings.effectiveModel,
+    );
+    _modelSwitchHandoffBrief = brief;
+    _modelSwitchHandoffConversationId = brief == null ? null : conversation?.id;
+  }
+
+  String? _takePendingModelSwitchHandoffBrief(String? conversationId) {
+    final brief = _modelSwitchHandoffBrief;
+    if (brief == null) return null;
+    final expectedConversationId = _modelSwitchHandoffConversationId;
+    if (expectedConversationId != null &&
+        expectedConversationId != conversationId) {
+      return null;
+    }
+    _modelSwitchHandoffBrief = null;
+    _modelSwitchHandoffConversationId = null;
+    return brief;
+  }
+
+  void _clearPendingModelSwitchHandoff() {
+    _modelSwitchHandoffBrief = null;
+    _modelSwitchHandoffConversationId = null;
+  }
+
+  bool _consumeForcePromptCompactionFlag({
+    required bool forceCompaction,
+    required bool hasModelSwitchHandoff,
+  }) {
+    final shouldForceCompaction =
+        forceCompaction ||
+        _forcePromptCompactionForNextRequest ||
+        hasModelSwitchHandoff;
+    _forcePromptCompactionForNextRequest = false;
+    return shouldForceCompaction;
+  }
+
+  void _addModelSwitchHandoffPromptMessage(
+    List<Message> promptMessages,
+    String? brief,
+  ) {
+    if (brief == null) return;
+    promptMessages.add(
+      Message(
+        id: 'system_model_handoff',
+        content: brief,
+        role: MessageRole.system,
+        timestamp: DateTime.now(),
+      ),
+    );
+  }
+
   Set<String> _contextSurgeryProtectedPaths() {
     final conversation = ref
         .read(conversationsNotifierProvider)

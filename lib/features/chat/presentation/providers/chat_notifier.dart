@@ -68,6 +68,7 @@ import '../../domain/services/chat_tool_dispatcher.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
+import '../../domain/services/model_switch_handoff_brief_service.dart';
 import '../../domain/services/planning_tool_policy.dart';
 import '../../domain/services/repo_map_service.dart';
 import '../../domain/services/temporal_context_builder.dart';
@@ -274,6 +275,7 @@ class ChatNotifier extends Notifier<ChatState> {
   List<ToolResultInfo> _latestCompletedToolResults = const [];
   String? _latestObservedSystemPrompt;
   List<ToolResultInfo> _latestObservedToolResults = const [];
+  String? _modelSwitchHandoffBrief, _modelSwitchHandoffConversationId;
   final List<ToolResultInfo> _latestContentToolResults = [];
   final List<TurnDiffFile> _pendingTurnDiffFiles = [];
   late ToolResultArtifactStore _toolResultArtifactStore;
@@ -359,7 +361,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // React to settings changes.
     ref.listen<AppSettings>(settingsNotifierProvider, (previous, next) {
-      updateConnectionSettings(next);
+      _updateConnectionSettings(next);
     });
 
     // React to MCP tool service changes.
@@ -517,14 +519,6 @@ class ChatNotifier extends Notifier<ChatState> {
     ref
         .read(notificationServiceProvider)
         .showResponseCompleteNotification(title, body);
-  }
-
-  void updateConnectionSettings(AppSettings settings) {
-    _settings = settings;
-    _dataSource = _withChatSessionLogging(
-      _buildChatDataSource(settings),
-      settings,
-    );
   }
 
   LlmSessionLogContext _buildLlmSessionLogContext({
@@ -686,6 +680,7 @@ class ChatNotifier extends Notifier<ChatState> {
         _latestCompletedToolResults = const [];
         _latestObservedSystemPrompt = null;
         _latestObservedToolResults = const [];
+        _clearPendingModelSwitchHandoff();
       }
       _clearTurnDiffCapture();
       _contentToolContinuationCount = 0;
@@ -6839,9 +6834,13 @@ class ChatNotifier extends Notifier<ChatState> {
         .map(_sanitizeMessageForModelHistory)
         .where(_shouldKeepMessageForModelHistory)
         .toList();
-    final shouldForceCompaction =
-        forceCompaction || _forcePromptCompactionForNextRequest;
-    _forcePromptCompactionForNextRequest = false;
+    final modelSwitchHandoffBrief = _takePendingModelSwitchHandoffBrief(
+      currentConversation?.id,
+    );
+    final shouldForceCompaction = _consumeForcePromptCompactionFlag(
+      forceCompaction: forceCompaction,
+      hasModelSwitchHandoff: modelSwitchHandoffBrief != null,
+    );
     final promptMessages = <Message>[
       _createSystemMessage(
         toolNamesOverride: toolDefinitionsOverride == null
@@ -6861,6 +6860,10 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
       );
     }
+    _addModelSwitchHandoffPromptMessage(
+      promptMessages,
+      modelSwitchHandoffBrief,
+    );
     final compactionArtifact = _resolvePromptCompactionArtifact(
       currentConversation: currentConversation,
       messages: messages,

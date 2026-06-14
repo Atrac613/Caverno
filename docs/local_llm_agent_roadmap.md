@@ -658,6 +658,9 @@ Initial implementation slice:
 - Compact tool-result budgeting now replaces stale duplicate read/search
   results with one-line stubs only at compact context boundaries; normal tool
   loop prompts keep the original evidence.
+- Model changes now schedule a one-shot deterministic handoff brief for the
+  next request, forcing prompt compaction when possible so long conversations
+  avoid replaying full history into the new model.
 
 Acceptance criteria:
 - Eviction never removes results the current task still references (guarded
