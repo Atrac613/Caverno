@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/features/chat/domain/services/model_edit_apply_telemetry_service.dart';
 import 'package:caverno/features/chat/domain/services/weak_model_edit_harness_service.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
@@ -83,5 +84,25 @@ void main() {
     );
 
     expect(context, isEmpty);
+  });
+
+  test('includes observed edit failure rate for weak profiles', () {
+    final context = WeakModelEditHarnessService.buildPromptContext(
+      assistantMode: AssistantMode.coding,
+      toolNames: const ['read_file', 'edit_file'],
+      profile: const ModelCapabilityProfile(
+        id: 'profile-1',
+        baseUrl: 'http://localhost:1234/v1',
+        model: 'weak-model',
+        toolCallStyle: ModelToolCallStyle.embeddedToolTags,
+        structuredOutputSupport: ModelStructuredOutputSupport.none,
+        probeMetadata: {
+          ModelEditApplyTelemetryService.attemptsKey: '4',
+          ModelEditApplyTelemetryService.failureRateKey: '0.500',
+        },
+      ),
+    );
+
+    expect(context, contains('50.0% over 4 attempts'));
   });
 }

@@ -692,6 +692,9 @@ Implementation status:
 - Initial deterministic guidance injects an `edit_file` exemplar only for
   weak or uncertain coding profiles when `edit_file` is available. Strong
   native structured profiles skip the extra prompt overhead.
+- Runtime `edit_file` outcomes now update LL15 profile metadata with attempts,
+  successes, failures, failure rate, and failure kind counters. Weak-profile
+  prompts include the observed failure rate after multiple attempts.
 
 Acceptance criteria:
 - Edit-apply failure rate drops measurably on a weak-model profile in live

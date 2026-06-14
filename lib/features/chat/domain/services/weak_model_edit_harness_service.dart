@@ -1,5 +1,6 @@
 import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import 'model_edit_apply_telemetry_service.dart';
 
 class WeakModelEditHarnessService {
   WeakModelEditHarnessService._();
@@ -17,7 +18,7 @@ class WeakModelEditHarnessService {
       return '';
     }
 
-    return const [
+    final lines = [
       'LL15 WEAK-MODEL EDIT HARNESS:',
       'When editing existing files, use edit_file with one valid JSON tool call.',
       'Required edit_file arguments: path, old_text, new_text. Optional arguments: replace_all, reason.',
@@ -26,7 +27,13 @@ class WeakModelEditHarnessService {
       'Set replace_all=false unless every occurrence should change.',
       'If old_text was not found, is stale, or matches multiple locations, read the current file again and retry with exact current content; do not guess.',
       'Example edit_file arguments: {"path":"lib/example.dart","old_text":"final enabled = false;","new_text":"final enabled = true;","replace_all":false,"reason":"Enable the feature flag."}',
-    ].join('\n');
+    ];
+    final failureRateLine =
+        ModelEditApplyTelemetryService.promptFailureRateLine(profile);
+    if (failureRateLine != null) {
+      lines.add(failureRateLine);
+    }
+    return lines.join('\n');
   }
 
   static bool shouldInject({

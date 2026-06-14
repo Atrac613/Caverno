@@ -68,6 +68,7 @@ import '../../domain/services/chat_tool_dispatcher.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
+import '../../domain/services/model_edit_apply_telemetry_service.dart';
 import '../../domain/services/model_switch_handoff_brief_service.dart';
 import '../../domain/services/planning_tool_policy.dart';
 import '../../domain/services/repo_map_service.dart';
@@ -102,6 +103,7 @@ part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
 part 'chat_notifier_python_handlers.dart';
 part 'chat_notifier_prompt_context.dart';
+part 'chat_notifier_tool_result_telemetry.dart';
 part 'chat_notifier_tool_handler_registry.dart';
 part 'chat_notifier_turn_rollback_handlers.dart';
 
@@ -10891,6 +10893,7 @@ class ChatNotifier extends Notifier<ChatState> {
         batchToolResults.add(promptToolResult);
         executedToolResults.add(batchToolResults.last);
         _recordBackgroundProcessStartResult(promptToolResult);
+        await _recordModelEditApplyTelemetry(promptToolResult);
 
         if (result.isSuccess) {
           executedToolCallKeys.add(toolCallKey);
@@ -13016,6 +13019,7 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       _recordContentToolResultInfo(contentToolResult);
+      await _recordModelEditApplyTelemetry(contentToolResult);
       final promptResult = contentToolResult.result;
 
       // Append results without triggering recursive tool-call checks.
@@ -13054,47 +13058,6 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       _pendingContentToolResults.add('[Result of ${tc.name}]\n$failureResult');
     }
-  }
-
-  void _recordContentToolResult({
-    required ToolCallInfo toolCall,
-    required String result,
-  }) {
-    _recordContentToolResultInfo(
-      ToolResultInfo(
-        id: toolCall.id,
-        name: toolCall.name,
-        arguments: Map<String, dynamic>.unmodifiable(toolCall.arguments),
-        result: result,
-      ),
-    );
-  }
-
-  void _recordContentToolResultInfo(ToolResultInfo toolResult) {
-    _latestContentToolResults.add(toolResult);
-  }
-
-  String _buildContentToolFailureResult(String toolName, String? errorMessage) {
-    final error = (errorMessage ?? 'Tool execution failed').trim();
-    final code = _contentToolFailureCode(error);
-    return jsonEncode({'toolName': toolName, 'error': error, 'code': code});
-  }
-
-  String _contentToolFailureCode(String errorMessage) {
-    final normalized = errorMessage.toLowerCase();
-    if (normalized.contains('no matching tool available')) {
-      return 'tool_not_available';
-    }
-    if (normalized.contains('old_text was not found in the target file')) {
-      return 'edit_mismatch';
-    }
-    if (normalized.contains('permission_denied')) {
-      return 'permission_denied';
-    }
-    if (normalized.contains('timeout')) {
-      return 'timeout';
-    }
-    return 'tool_execution_failed';
   }
 
   bool _toolResultsContainEditMismatch(List<ToolResultInfo> toolResults) {
