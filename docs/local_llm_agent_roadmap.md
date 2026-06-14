@@ -621,6 +621,12 @@ Implementation status:
   state reference, verification command/result, session-log summary metrics,
   and export policy `excluded_by_default`. This establishes the stable case
   schema before adding replay execution and candidate-model comparison.
+- Suite comparison support started with `tool/personal_eval_suite_report.dart`.
+  It consumes one or more eval case manifests plus incumbent/candidate replay
+  result files, then scores pass rate, wall-clock duration, turns, and
+  tool-call-count fidelity against the original session-log summary. Candidate
+  reports with verification regressions or missing cases are rejected before
+  LL17 can adopt profile mutations.
 
 ### LL13: Parallel Agents In Worktrees
 
