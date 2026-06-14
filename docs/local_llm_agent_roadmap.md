@@ -661,6 +661,9 @@ Initial implementation slice:
 - Model changes now schedule a one-shot deterministic handoff brief for the
   next request, forcing prompt compaction when possible so long conversations
   avoid replaying full history into the new model.
+- `tool/ll14_model_switch_handoff_measurement.dart` compares full-history
+  replay against the model-switch handoff fixture, reporting estimated prompt
+  token reduction and live `timings.prompt_ms` as the first-token proxy.
 
 Acceptance criteria:
 - Eviction never removes results the current task still references (guarded

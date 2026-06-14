@@ -183,6 +183,47 @@ lib/main.dart
     expect(candidates, isEmpty);
   });
 
+  test(
+    'only stubs unprotected duplicates when protected evidence is mixed',
+    () {
+      final results =
+          ContextSurgeryObservationService.applyStaleToolResultStubs(
+            [
+              _toolResult(
+                id: 'protected-old',
+                name: 'read_file',
+                arguments: {'path': '/workspace/lib/main.dart'},
+                result: 'protected old content',
+              ),
+              _toolResult(
+                id: 'unprotected-old',
+                name: 'read_file',
+                arguments: {'path': '/workspace/lib/old.dart'},
+                result: 'unprotected old content',
+              ),
+              _toolResult(
+                id: 'protected-new',
+                name: 'read_file',
+                arguments: {'path': '/workspace/lib/main.dart'},
+                result: 'protected new content',
+              ),
+              _toolResult(
+                id: 'unprotected-new',
+                name: 'read_file',
+                arguments: {'path': '/workspace/lib/old.dart'},
+                result: 'unprotected new content',
+              ),
+            ],
+            protectedPaths: {'lib/main.dart'},
+          );
+
+      expect(results[0].result, 'protected old content');
+      expect(results[1].result, contains('stale tool result omitted'));
+      expect(results[2].result, 'protected new content');
+      expect(results[3].result, 'unprotected new content');
+    },
+  );
+
   test('applies stale result stubs while retaining the newest evidence', () {
     final results = ContextSurgeryObservationService.applyStaleToolResultStubs([
       _toolResult(
