@@ -632,6 +632,10 @@ Implementation status:
   per-case replay session logs and explicit verification results, summarizes
   the replay logs through the existing session-log summary parser, and writes
   `caverno_personal_eval_replay_run` JSON that the suite comparison can consume.
+- Suite pipeline orchestration started with
+  `tool/personal_eval_suite_pipeline.dart`. It writes incumbent and candidate
+  replay-run artifacts, then immediately produces the single comparison report
+  required for model-swap decisions from deterministic local inputs.
 
 ### LL13: Parallel Agents In Worktrees
 
