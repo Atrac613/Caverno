@@ -771,6 +771,12 @@ Implementation status:
   agentic/tool requests at `temperature: 0.2`, and one bounded memory
   extraction request at `temperature: 0.1`; readiness was `ready`, with zero
   blocker or warning failures and `transportDisconnectCount=0`.
+- Final LL16 live evidence with summary-level request-temperature aggregation:
+  `build/integration_test_reports/chat_live_llm_canary_ll16_final_1781440073/canary_summary.json`
+  passed 11/11 against `qwen3.6-27b-mtp-vision` with readiness `ready`.
+  `signals.requestTemperatures` recorded 21 LLM requests split across 10
+  chat prose requests at `1.7`, 10 managed agentic requests at `0.2`, and one
+  bounded memory extraction request at `0.1`.
 - Layer 2 started with metadata-backed sampler presets on the LL3 profile:
   `ll16.sampler.agentic.temperature` provides the calibrated fallback, while
   role-specific keys such as `ll16.sampler.toolLoop.temperature` and

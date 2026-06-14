@@ -65,6 +65,20 @@ void main() {
         jsonEncode({
           'testID': 2,
           'message':
+              '[LLM] model: test-model, temperature: 1.7, maxTokens: 2048',
+          'type': 'print',
+          'time': 32,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[LLM] model: test-model, temperature: 0.2, maxTokens: 2048',
+          'type': 'print',
+          'time': 32,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
               'assistant: I can fix it now.\n\n[Tool: edit_file]\nArguments: {"path":"lib/src/ping_command.dart"}',
           'type': 'print',
           'time': 33,
@@ -171,6 +185,13 @@ void main() {
         }),
         jsonEncode({
           'testID': 3,
+          'message':
+              '[LLM] model: test-model, temperature: 0.2, maxTokens: 2048',
+          'type': 'print',
+          'time': 136,
+        }),
+        jsonEncode({
+          'testID': 3,
           'result': 'success',
           'skipped': false,
           'hidden': false,
@@ -239,6 +260,15 @@ void main() {
     expect(summary.signals.backgroundProcessCompletedCount, 1);
     expect(summary.signals.backgroundProcessFailedCount, 0);
     expect(summary.signals.backgroundProcessStatusUnverifiedCount, 1);
+    expect(summary.signals.requestTemperatures.totalRequestCount, 3);
+    expect(summary.signals.requestTemperatures.distinctTemperatures, [
+      '0.2',
+      '1.7',
+    ]);
+    expect(summary.signals.requestTemperatures.countsByTemperature, {
+      '0.2': 2,
+      '1.7': 1,
+    });
 
     final json = summary.toJson();
     expect(json['schemaName'], 'live_llm_canary_summary');
@@ -286,6 +316,15 @@ void main() {
       (json['signals'] as Map<String, dynamic>),
       containsPair('backgroundProcessStatusUnverifiedCount', 1),
     );
+    expect(
+      (json['signals'] as Map<String, dynamic>)['requestTemperatures'],
+      containsPair('totalRequestCount', 3),
+    );
+    expect(
+      ((json['signals'] as Map<String, dynamic>)['requestTemperatures']
+          as Map<String, dynamic>)['countsByTemperature'],
+      {'0.2': 2, '1.7': 1},
+    );
     expect(summary.toMarkdown(), contains('Live LLM Canary Summary'));
     expect(summary.toMarkdown(), contains('Main readiness: `ready`'));
     expect(summary.toMarkdown(), contains('## Main Readiness'));
@@ -301,6 +340,8 @@ void main() {
       summary.toMarkdown(),
       contains('Background process still-running count'),
     );
+    expect(summary.toMarkdown(), contains('## Request Temperatures'));
+    expect(summary.toMarkdown(), contains('Requests at `0.2`: `2`'));
     expect(
       summary.toMarkdown(),
       contains('Dart analyzer feedback observed: `yes`'),

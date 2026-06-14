@@ -279,6 +279,22 @@ class LiveLlmCanarySummary {
         '`${signals.backgroundProcessStatusUnverifiedCount}`',
       )
       ..writeln()
+      ..writeln('## Request Temperatures')
+      ..writeln()
+      ..writeln(
+        '- Observed LLM request count: '
+        '`${signals.requestTemperatures.totalRequestCount}`',
+      )
+      ..writeln(
+        '- Distinct temperatures: '
+        '`${signals.requestTemperatures.distinctTemperatures.isEmpty ? '(none)' : signals.requestTemperatures.distinctTemperatures.join(', ')}`',
+      );
+    for (final entry
+        in signals.requestTemperatures.countsByTemperature.entries) {
+      buffer.writeln('- Requests at `${entry.key}`: `${entry.value}`');
+    }
+    buffer
+      ..writeln()
       ..writeln('## Coding Diagnostic Feedback')
       ..writeln()
       ..writeln(
@@ -528,6 +544,7 @@ class LiveLlmCanarySignals {
     required this.dartAnalyzeFeedback,
     required this.dartTestFeedback,
     required this.codingOutputFeedback,
+    required this.requestTemperatures,
   });
 
   final int recoveredStreamFallbackCount;
@@ -546,11 +563,13 @@ class LiveLlmCanarySignals {
   final LiveLlmCanaryDartAnalyzeFeedbackSignals dartAnalyzeFeedback;
   final LiveLlmCanaryDartTestFeedbackSignals dartTestFeedback;
   final LiveLlmCanaryCodingOutputFeedbackSignals codingOutputFeedback;
+  final LiveLlmCanaryRequestTemperatureSignals requestTemperatures;
 
   static LiveLlmCanarySignals fromLog(String rawLog) {
     final dartAnalyzeFeedback = _extractDartAnalyzeFeedbackSignals(rawLog);
     final dartTestFeedback = _extractDartTestFeedbackSignals(rawLog);
     final codingOutputFeedback = _extractCodingOutputFeedbackSignals(rawLog);
+    final requestTemperatures = _extractRequestTemperatureSignals(rawLog);
     return LiveLlmCanarySignals(
       recoveredStreamFallbackCount: _countMatches(
         rawLog,
@@ -608,6 +627,7 @@ class LiveLlmCanarySignals {
       dartAnalyzeFeedback: dartAnalyzeFeedback,
       dartTestFeedback: dartTestFeedback,
       codingOutputFeedback: codingOutputFeedback,
+      requestTemperatures: requestTemperatures,
     );
   }
 
@@ -630,6 +650,29 @@ class LiveLlmCanarySignals {
       'dartAnalyzeFeedback': dartAnalyzeFeedback.toJson(),
       'dartTestFeedback': dartTestFeedback.toJson(),
       'codingOutputFeedback': codingOutputFeedback.toJson(),
+      'requestTemperatures': requestTemperatures.toJson(),
+    };
+  }
+}
+
+class LiveLlmCanaryRequestTemperatureSignals {
+  const LiveLlmCanaryRequestTemperatureSignals({
+    required this.countsByTemperature,
+  });
+
+  final Map<String, int> countsByTemperature;
+
+  int get totalRequestCount =>
+      countsByTemperature.values.fold(0, (total, count) => total + count);
+
+  List<String> get distinctTemperatures =>
+      countsByTemperature.keys.toList(growable: false);
+
+  Map<String, dynamic> toJson() {
+    return {
+      'totalRequestCount': totalRequestCount,
+      'distinctTemperatures': distinctTemperatures,
+      'countsByTemperature': countsByTemperature,
     };
   }
 }
@@ -1019,6 +1062,37 @@ int _countToolExecutionMessages(String rawLog, String toolName) {
     }
   }
   return count;
+}
+
+LiveLlmCanaryRequestTemperatureSignals _extractRequestTemperatureSignals(
+  String rawLog,
+) {
+  final counts = <double, int>{};
+  final temperaturePattern = RegExp(
+    r'\[LLM\]\s+model:\s+.*?,\s+temperature:\s+([-+]?\d+(?:\.\d+)?),',
+  );
+
+  for (final line in const LineSplitter().convert(rawLog)) {
+    for (final message in _messagesFromLogLine(line)) {
+      final match = temperaturePattern.firstMatch(message);
+      if (match == null) {
+        continue;
+      }
+      final value = double.tryParse(match.group(1)!);
+      if (value == null || value.isNaN || value.isInfinite) {
+        continue;
+      }
+      counts[value] = (counts[value] ?? 0) + 1;
+    }
+  }
+
+  final sortedCounts = counts.entries.toList(growable: false)
+    ..sort((left, right) => left.key.compareTo(right.key));
+  return LiveLlmCanaryRequestTemperatureSignals(
+    countsByTemperature: {
+      for (final entry in sortedCounts) entry.key.toString(): entry.value,
+    },
+  );
 }
 
 LiveLlmCanaryDartAnalyzeFeedbackSignals _extractDartAnalyzeFeedbackSignals(
