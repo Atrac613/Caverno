@@ -69,6 +69,30 @@ extension ChatNotifierToolResultTelemetry on ChatNotifier {
     );
   }
 
+  void _recordPlanningJsonRepairRuntimeFeedback() {
+    if (!_hasLoadedSettings) {
+      return;
+    }
+    unawaited(
+      _recordJsonRepairRuntimeFeedback(switch (_settings.assistantMode) {
+        AssistantMode.coding => LlmSamplerRequestClass.coding,
+        AssistantMode.plan => LlmSamplerRequestClass.plan,
+        AssistantMode.general => LlmSamplerRequestClass.toolLoop,
+      }),
+    );
+  }
+
+  Future<void> _recordJsonRepairRuntimeFeedback(
+    LlmSamplerRequestClass requestClass,
+  ) {
+    return _recordRuntimeSamplerFeedback(
+      LlmSamplerRuntimeFeedbackSignal(
+        requestClass: requestClass,
+        jsonRepairEventCount: 1,
+      ),
+    );
+  }
+
   Future<void> _recordRuntimeSamplerFeedback(
     LlmSamplerRuntimeFeedbackSignal signal,
   ) async {

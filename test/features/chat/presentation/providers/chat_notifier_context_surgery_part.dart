@@ -19,6 +19,13 @@ class _MutableContextSurgerySettingsNotifier extends _TestSettingsNotifier {
   }
 }
 
+class _PlanModeContextSurgerySettingsNotifier
+    extends _MutableContextSurgerySettingsNotifier {
+  @override
+  AppSettings build() =>
+      super.build().copyWith(assistantMode: AssistantMode.plan);
+}
+
 void registerChatNotifierContextSurgeryTests() {
   test('model profile updates keep the current chat data source', () async {
     final dataSource = _ToolBatchChatDataSource(
@@ -78,6 +85,61 @@ void registerChatNotifierContextSurgeryTests() {
         notifier.state.messages.map((message) => message.content),
         contains('Profile feedback preserved the data source'),
       );
+    } finally {
+      container.dispose();
+    }
+  });
+
+  test('json proposal repairs record runtime sampler feedback', () async {
+    final dataSource = _ToolBatchChatDataSource(
+      initialToolCalls: const [],
+      finalAnswerChunks: const ['unused'],
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _PlanModeContextSurgerySettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final notifier = container.read(chatNotifierProvider.notifier);
+      const rawContent = '''
+{"workflowStage":"plan","goal":"Ship repaired JSON feedback","constraints":["Keep parsing resilient"],"acceptanceCriteria":["The sampler feedback count updates"],"openQuestions":[]
+''';
+
+      final proposal = notifier.parseWorkflowProposalForTest(rawContent);
+
+      expect(proposal, isNotNull);
+      expect(proposal!.workflowSpec.goal, 'Ship repaired JSON feedback');
+      await _waitForCondition(() {
+        final metadata = container
+            .read(settingsNotifierProvider)
+            .effectiveModelCapabilityProfile
+            ?.probeMetadata;
+        return metadata?['ll16.sampler.plan.runtime.jsonRepairCount'] == '1';
+      });
+      final metadata = container
+          .read(settingsNotifierProvider)
+          .effectiveModelCapabilityProfile!
+          .probeMetadata;
+      expect(metadata['ll16.sampler.plan.runtime.jsonRepairCount'], '1');
+      expect(metadata['ll16.sampler.toolLoop.runtime.jsonRepairCount'], isNull);
     } finally {
       container.dispose();
     }

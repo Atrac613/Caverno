@@ -801,6 +801,9 @@ Implementation status:
   failures, duplicate tool-loop repetitions, and `edit_file` apply failures
   increment per-role counters and can step `toolLoop` temperature down one
   candidate at a time without changing the chat prose temperature.
+- Successful workflow/task proposal JSON repairs now record runtime sampler
+  feedback for the active planning request class, so repaired planning output
+  contributes to LL16 profile calibration without blocking proposal parsing.
 
 ### LL17: Self-Improving Harness Loop
 

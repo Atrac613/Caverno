@@ -260,6 +260,7 @@ class ChatNotifier extends Notifier<ChatState> {
   McpToolService? _mcpToolService;
   late SessionMemoryService _memoryService;
   late AppSettings _settings;
+  bool _hasLoadedSettings = false;
   late CodingDiagnosticFeedbackService _codingDiagnosticFeedbackService;
   late CodingVerificationFeedbackService _codingVerificationFeedbackService;
   late BackgroundProcessMonitorService _backgroundProcessMonitorService;
@@ -337,6 +338,7 @@ class ChatNotifier extends Notifier<ChatState> {
   @override
   ChatState build() {
     _settings = ref.read(settingsNotifierProvider);
+    _hasLoadedSettings = true;
     _dataSource = _withChatSessionLogging(
       ref.read(chatRemoteDataSourceProvider),
       _settings,
@@ -3698,7 +3700,10 @@ class ChatNotifier extends Notifier<ChatState> {
     final direct = _tryDecodeMap(candidate);
     if (direct != null) return direct;
     final repairedDirect = _tryRepairAndDecodeMap(candidate);
-    if (repairedDirect != null) return repairedDirect;
+    if (repairedDirect != null) {
+      _recordPlanningJsonRepairRuntimeFeedback();
+      return repairedDirect;
+    }
 
     final firstBrace = candidate.indexOf('{');
     final lastBrace = candidate.lastIndexOf('}');
@@ -3709,9 +3714,19 @@ class ChatNotifier extends Notifier<ChatState> {
       final sliced = candidate.substring(firstBrace, lastBrace + 1).trim();
       final slicedDirect = _tryDecodeMap(sliced);
       if (slicedDirect != null) return slicedDirect;
-      return _tryRepairAndDecodeMap(sliced);
+      final repairedSliced = _tryRepairAndDecodeMap(sliced);
+      if (repairedSliced != null) {
+        _recordPlanningJsonRepairRuntimeFeedback();
+      }
+      return repairedSliced;
     }
-    return _tryRepairAndDecodeMap(candidate.substring(firstBrace).trim());
+    final repairedTrailing = _tryRepairAndDecodeMap(
+      candidate.substring(firstBrace).trim(),
+    );
+    if (repairedTrailing != null) {
+      _recordPlanningJsonRepairRuntimeFeedback();
+    }
+    return repairedTrailing;
   }
 
   Map<String, dynamic>? _tryDecodeMap(String value) {
