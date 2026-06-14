@@ -111,7 +111,9 @@ class LiveLlmDiagnosticService {
     0.0,
     0.2,
     0.4,
+    0.7,
   ];
+  static const _toolLoopSamplerCalibrationRepeatCount = 2;
 
   Future<LiveLlmDiagnosticReport> run({
     LiveLlmDiagnosticReportCallback? onReport,
@@ -841,13 +843,19 @@ class LiveLlmDiagnosticService {
     }
 
     final trials = <LiveLlmDiagnosticSamplerTrial>[];
-    for (final temperature in _toolLoopSamplerCalibrationTemperatures) {
-      trials.add(
-        await _runToolLoopSamplerCalibrationTrial(
-          dateTool: dateTool,
-          temperature: temperature,
-        ),
-      );
+    for (
+      var repeat = 0;
+      repeat < _toolLoopSamplerCalibrationRepeatCount;
+      repeat += 1
+    ) {
+      for (final temperature in _toolLoopSamplerCalibrationTemperatures) {
+        trials.add(
+          await _runToolLoopSamplerCalibrationTrial(
+            dateTool: dateTool,
+            temperature: temperature,
+          ),
+        );
+      }
     }
     if (trials.isEmpty) {
       return report;

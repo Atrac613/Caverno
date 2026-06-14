@@ -27,21 +27,25 @@ void main() {
     expect(report.toolCatalog.totalToolCount, greaterThan(0));
     expect(report.toolCatalog.toolSearchEnabled, isTrue);
     expect(dataSource.toolResultFollowUpCount, 1);
+    expect(report.samplerCalibrationTrials, hasLength(8));
     expect(report.samplerCalibrationTrials.map((trial) => trial.temperature), [
       0.0,
       0.2,
       0.4,
+      0.7,
+      0.0,
+      0.2,
+      0.4,
+      0.7,
     ]);
-    expect(report.samplerCalibrationTrials.map((trial) => trial.requestClass), [
-      'toolLoop',
-      'toolLoop',
-      'toolLoop',
-    ]);
-    expect(report.samplerCalibrationTrials.map((trial) => trial.passed), [
-      true,
-      true,
-      true,
-    ]);
+    expect(
+      report.samplerCalibrationTrials.map((trial) => trial.requestClass),
+      everyElement('toolLoop'),
+    );
+    expect(
+      report.samplerCalibrationTrials.map((trial) => trial.passed),
+      everyElement(true),
+    );
     expect(
       report.results
           .where((result) => result.status == LiveLlmDiagnosticStatus.passed)
