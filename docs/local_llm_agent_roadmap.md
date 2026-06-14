@@ -790,6 +790,8 @@ Implementation status:
   temperature candidates.
 - Diagnostic support JSON and the live diagnostics page now summarize sampler
   trial counts, candidate temperatures, pass counts, and quality flags.
+- `LiveLlmDiagnosticNotifier` coverage now verifies that live sampler trials
+  persist selected `toolLoop` sampler metadata into the saved LL3 profile.
 
 ### LL17: Self-Improving Harness Loop
 
