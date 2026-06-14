@@ -1,6 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
+const _editFailureKindNames = [
+  'editMismatch',
+  'multipleMatches',
+  'malformedRequest',
+  'missingFile',
+  'other',
+];
+
 Future<void> main(List<String> args) async {
   final options = Ll15EditHarnessMeasurementOptions.parse(args);
   if (options == null) {
@@ -125,7 +133,7 @@ class Ll15EditHarnessMeasurementSummary {
   Map<String, dynamic> toJson() {
     return {
       'schemaName': 'caverno_ll15_edit_harness_measurement',
-      'schemaVersion': 2,
+      'schemaVersion': 3,
       'generatedAt': generatedAt.toUtc().toIso8601String(),
       'baseline': baseline.toJson(),
       'current': current.toJson(),
@@ -179,6 +187,9 @@ class Ll15EditHarnessMeasurementSummary {
             '- edit_file failure rate: `${run.failureRate.toStringAsFixed(3)}`',
           )
           ..writeln('- edit_file tool calls: `${run.editToolCallCount}`')
+          ..writeln(
+            '- edit_file failure kinds: `${_formatFailureClassCounts(run.editFailureKindCounts)}`',
+          )
           ..writeln('- write_file tool calls: `${run.writeToolCallCount}`')
           ..writeln(
             '- Failure classes: `${_formatFailureClassCounts(run.failureClassCounts)}`',
@@ -208,10 +219,13 @@ class Ll15EditHarnessMeasurementSummary {
   }
 
   static String _formatFailureClassCounts(Map<String, int> counts) {
-    if (counts.isEmpty) {
+    final nonZeroCounts = counts.entries
+        .where((entry) => entry.value != 0)
+        .toList(growable: false);
+    if (nonZeroCounts.isEmpty) {
       return '(none)';
     }
-    return counts.entries
+    return nonZeroCounts
         .map((entry) => '${entry.key}:${entry.value}')
         .join(', ');
   }
@@ -232,6 +246,7 @@ class Ll15CanaryRunSummary {
     required this.attempts,
     required this.successes,
     required this.failures,
+    required this.editFailureKindCounts,
     required this.editToolCallCount,
     required this.writeToolCallCount,
     required this.failedTests,
@@ -250,6 +265,7 @@ class Ll15CanaryRunSummary {
   final int attempts;
   final int successes;
   final int failures;
+  final Map<String, int> editFailureKindCounts;
   final int editToolCallCount;
   final int writeToolCallCount;
   final List<Ll15CanaryFailedTest> failedTests;
@@ -288,6 +304,7 @@ class Ll15CanaryRunSummary {
         'successes': successes,
         'failures': failures,
         'failureRate': failureRate,
+        'failureKinds': editFailureKindCounts,
         'toolCallCount': editToolCallCount,
       },
       'writeFile': {'toolCallCount': writeToolCallCount},
@@ -355,6 +372,7 @@ Future<Ll15CanaryRunSummary> loadLl15CanaryRunSummary({
   final attempts = snapshots.fold<int>(0, (sum, item) => sum + item.attempts);
   final successes = snapshots.fold<int>(0, (sum, item) => sum + item.successes);
   final failures = snapshots.fold<int>(0, (sum, item) => sum + item.failures);
+  final editFailureKindCounts = _sumEditFailureKindCounts(snapshots);
   final failedTests = _failedTestsFromSummary(summaryJson);
 
   return Ll15CanaryRunSummary(
@@ -373,6 +391,7 @@ Future<Ll15CanaryRunSummary> loadLl15CanaryRunSummary({
     attempts: attempts,
     successes: successes,
     failures: failures,
+    editFailureKindCounts: editFailureKindCounts,
     editToolCallCount: snapshots.fold<int>(
       0,
       (sum, item) => sum + item.editToolCallCount,
@@ -383,6 +402,22 @@ Future<Ll15CanaryRunSummary> loadLl15CanaryRunSummary({
     ),
     failedTests: failedTests,
   );
+}
+
+Map<String, int> _sumEditFailureKindCounts(
+  List<Ll15EditHarnessSnapshot> snapshots,
+) {
+  final counts = {for (final name in _editFailureKindNames) name: 0};
+  for (final snapshot in snapshots) {
+    for (final entry in snapshot.editFailureKindCounts.entries) {
+      counts.update(
+        entry.key,
+        (value) => value + entry.value,
+        ifAbsent: () => entry.value,
+      );
+    }
+  }
+  return Map.unmodifiable(counts);
 }
 
 List<Ll15CanaryFailedTest> _failedTestsFromSummary(
@@ -473,6 +508,7 @@ class Ll15EditHarnessSnapshot {
     required this.attempts,
     required this.successes,
     required this.failures,
+    required this.editFailureKindCounts,
     required this.editToolCallCount,
     required this.writeToolCallCount,
   });
@@ -481,6 +517,7 @@ class Ll15EditHarnessSnapshot {
   final int attempts;
   final int successes;
   final int failures;
+  final Map<String, int> editFailureKindCounts;
   final int editToolCallCount;
   final int writeToolCallCount;
 
@@ -490,10 +527,30 @@ class Ll15EditHarnessSnapshot {
       attempts: _intValue(json['attempts']),
       successes: _intValue(json['successes']),
       failures: _intValue(json['failures']),
+      editFailureKindCounts: _editFailureKindCountsFromJson(
+        json['failureKinds'],
+      ),
       editToolCallCount: _intValue(json['editToolCallCount']),
       writeToolCallCount: _intValue(json['writeToolCallCount']),
     );
   }
+}
+
+Map<String, int> _editFailureKindCountsFromJson(Object? value) {
+  final counts = {for (final name in _editFailureKindNames) name: 0};
+  if (value is Map<String, dynamic>) {
+    for (final entry in value.entries) {
+      counts[entry.key] = _intValue(entry.value);
+    }
+  } else if (value is Map) {
+    for (final entry in value.entries) {
+      final key = entry.key;
+      if (key is String) {
+        counts[key] = _intValue(entry.value);
+      }
+    }
+  }
+  return Map.unmodifiable(counts);
 }
 
 Future<List<Ll15EditHarnessSnapshot>> loadLl15EditHarnessSnapshots(

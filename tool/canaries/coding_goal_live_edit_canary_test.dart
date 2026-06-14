@@ -82,7 +82,9 @@ void main() {
               'Use JSON with double-quoted keys and strings, no comments, and no trailing commas.',
               'Set old_text to exact current text copied from the latest read_file or inspect_file result; include enough surrounding context to match one location.',
               'Set replace_all=false unless every occurrence should change.',
+              'After edit_file or write_file succeeds, read_file the edited path and verify the exact changed text before running tests or claiming completion.',
               'If old_text was not found, is stale, or matches multiple locations, read the current file again and retry with exact current content; do not guess.',
+              'If a retry still cannot target a small fixture file safely, use write_file with the complete current file content plus the minimal intended change; do not use write_file for large or uninspected files.',
               'Example edit_file arguments: {"path":"lib/example.dart","old_text":"final enabled = false;","new_text":"final enabled = true;","replace_all":false,"reason":"Enable the feature flag."}',
               'If a recent file mutation needs to be undone, use rollback_last_file_change.',
             ].join('\n'),
@@ -976,6 +978,7 @@ void _printLl15EditHarnessSnapshot(
         0.0,
     'lastOutcome':
         metadata[ModelEditApplyTelemetryService.lastOutcomeKey] ?? '',
+    'failureKinds': _ll15EditFailureKindCounts(metadata),
     'editToolCallCount': toolService.executedCalls
         .where((call) => call.name == 'edit_file')
         .length,
@@ -984,6 +987,40 @@ void _printLl15EditHarnessSnapshot(
         .length,
   };
   debugPrint('[LL15] edit_harness_snapshot ${jsonEncode(payload)}');
+}
+
+Map<String, int> _ll15EditFailureKindCounts(Map<String, String> metadata) {
+  return {
+    'editMismatch':
+        int.tryParse(
+          metadata[ModelEditApplyTelemetryService.editMismatchFailuresKey] ??
+              '',
+        ) ??
+        0,
+    'multipleMatches':
+        int.tryParse(
+          metadata[ModelEditApplyTelemetryService.multipleMatchFailuresKey] ??
+              '',
+        ) ??
+        0,
+    'malformedRequest':
+        int.tryParse(
+          metadata[ModelEditApplyTelemetryService
+                  .malformedRequestFailuresKey] ??
+              '',
+        ) ??
+        0,
+    'missingFile':
+        int.tryParse(
+          metadata[ModelEditApplyTelemetryService.missingFileFailuresKey] ?? '',
+        ) ??
+        0,
+    'other':
+        int.tryParse(
+          metadata[ModelEditApplyTelemetryService.otherFailuresKey] ?? '',
+        ) ??
+        0,
+  };
 }
 
 String _diagnostic(
@@ -2391,7 +2428,9 @@ class _CodingGoalLiveEditDataSource implements ChatDataSource {
         line.startsWith('Use JSON with double-quoted keys') ||
         line.startsWith('Set old_text to exact current text') ||
         line.startsWith('Set replace_all=false') ||
+        line.startsWith('After edit_file or write_file succeeds,') ||
         line.startsWith('If old_text was not found,') ||
+        line.startsWith('If a retry still cannot target') ||
         line.startsWith('Example edit_file arguments:') ||
         line.startsWith('Observed edit_file apply failure rate');
   }

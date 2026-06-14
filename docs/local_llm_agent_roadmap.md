@@ -700,6 +700,11 @@ Implementation status:
   block only for baseline. `tool/ll15_edit_harness_measurement.dart` compares
   LL15 snapshot logs and failed-test classes so live runs can report pass-rate,
   edit failure-rate, and failure-mode deltas.
+- LL15 guidance now emphasizes edit recovery: re-read before retrying stale
+  `old_text`, verify successful mutations with `read_file`, and fall back to a
+  complete `write_file` only for small inspected fixture files. Live snapshots
+  expose edit failure-kind counters so regressions can distinguish stale text,
+  multiple matches, malformed requests, missing files, and other failures.
 
 Acceptance criteria:
 - Edit-apply failure rate drops measurably on a weak-model profile in live

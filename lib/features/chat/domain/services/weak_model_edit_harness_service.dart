@@ -18,6 +18,7 @@ class WeakModelEditHarnessService {
       return '';
     }
 
+    final hasWriteFileTool = _hasWriteFileTool(toolNames);
     final lines = [
       'LL15 WEAK-MODEL EDIT HARNESS:',
       'When editing existing files, use edit_file with one valid JSON tool call.',
@@ -25,9 +26,15 @@ class WeakModelEditHarnessService {
       'Use JSON with double-quoted keys and strings, no comments, and no trailing commas.',
       'Set old_text to exact current text copied from the latest read_file or inspect_file result; include enough surrounding context to match one location.',
       'Set replace_all=false unless every occurrence should change.',
-      'If old_text was not found, is stale, or matches multiple locations, read the current file again and retry with exact current content; do not guess.',
+      'After edit_file or write_file succeeds, read_file the edited path and verify the exact changed text before running tests or claiming completion.',
+      'If old_text was not found, is stale, or matches multiple locations, read the current file again and retry once with exact current content; do not guess.',
       'Example edit_file arguments: {"path":"lib/example.dart","old_text":"final enabled = false;","new_text":"final enabled = true;","replace_all":false,"reason":"Enable the feature flag."}',
     ];
+    if (hasWriteFileTool) {
+      lines.add(
+        'If a retry still cannot target a small fixture file safely, use write_file with the complete current file content plus the minimal intended change; do not use write_file for large or uninspected files.',
+      );
+    }
     final failureRateLine =
         ModelEditApplyTelemetryService.promptFailureRateLine(profile);
     if (failureRateLine != null) {
@@ -57,6 +64,10 @@ class WeakModelEditHarnessService {
 
   static bool _hasEditFileTool(Iterable<String> toolNames) {
     return toolNames.any((name) => name.trim() == 'edit_file');
+  }
+
+  static bool _hasWriteFileTool(Iterable<String> toolNames) {
+    return toolNames.any((name) => name.trim() == 'write_file');
   }
 
   static bool _isWeakOrUncertainProfile(ModelCapabilityProfile? profile) {

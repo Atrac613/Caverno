@@ -47,6 +47,7 @@ void main() {
     expect(snapshots.first.harnessPrompted, isTrue);
     expect(snapshots.first.attempts, 2);
     expect(snapshots.first.failures, 1);
+    expect(snapshots.first.editFailureKindCounts['editMismatch'], 1);
     expect(snapshots.last.harnessPrompted, isFalse);
   });
 
@@ -87,9 +88,17 @@ void main() {
       measurement.toJson()['schemaName'],
       'caverno_ll15_edit_harness_measurement',
     );
-    expect(measurement.toJson()['schemaVersion'], 2);
+    expect(measurement.toJson()['schemaVersion'], 3);
+    expect(
+      measurement.current.toJson()['editFile']['failureKinds'],
+      containsPair('editMismatch', 1),
+    );
     expect(measurement.toMarkdown(), contains('LL15 Weak-Model Edit Harness'));
     expect(measurement.toMarkdown(), contains('Failure rate reduced: `true`'));
+    expect(
+      measurement.toMarkdown(),
+      contains('edit_file failure kinds: `editMismatch:1'),
+    );
   });
 
   test('classifies failed canary tests by failure mode', () async {
@@ -187,6 +196,13 @@ Map<String, dynamic> _snapshot({
     'failures': failures,
     'failureRate': attempts == 0 ? 0 : failures / attempts,
     'lastOutcome': failures > 0 ? 'editMismatch' : 'success',
+    'failureKinds': {
+      'editMismatch': failures,
+      'multipleMatches': 0,
+      'malformedRequest': 0,
+      'missingFile': 0,
+      'other': 0,
+    },
     'editToolCallCount': attempts,
     'writeToolCallCount': 0,
   };

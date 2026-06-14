@@ -9,7 +9,7 @@ void main() {
   test('injects edit_file guidance for weak coding profiles', () {
     final context = WeakModelEditHarnessService.buildPromptContext(
       assistantMode: AssistantMode.coding,
-      toolNames: const ['read_file', 'edit_file'],
+      toolNames: const ['read_file', 'edit_file', 'write_file'],
       profile: const ModelCapabilityProfile(
         id: 'profile-1',
         baseUrl: 'http://localhost:1234/v1',
@@ -26,7 +26,30 @@ void main() {
     expect(context, contains('new_text'));
     expect(context, contains('replace_all=false'));
     expect(context, contains('old_text was not found'));
+    expect(context, contains('read_file the edited path'));
+    expect(context, contains('retry once with exact current content'));
+    expect(context, contains('use write_file with the complete current file'));
     expect(context, contains('"path":"lib/example.dart"'));
+  });
+
+  test('omits write_file fallback when write_file is unavailable', () {
+    final context = WeakModelEditHarnessService.buildPromptContext(
+      assistantMode: AssistantMode.coding,
+      toolNames: const ['read_file', 'edit_file'],
+      profile: const ModelCapabilityProfile(
+        id: 'profile-1',
+        baseUrl: 'http://localhost:1234/v1',
+        model: 'weak-model',
+        toolCallStyle: ModelToolCallStyle.embeddedToolTags,
+        structuredOutputSupport: ModelStructuredOutputSupport.none,
+      ),
+    );
+
+    expect(context, contains('read_file the edited path'));
+    expect(
+      context,
+      isNot(contains('use write_file with the complete current file')),
+    );
   });
 
   test('injects for unknown profiles when edit_file is available', () {
