@@ -90,6 +90,11 @@ class LlmSamplerCalibrationService {
     required ModelCapabilityProfile profile,
     required LlmSamplerCalibrationSelection selection,
   }) {
+    if (LlmSamplerPresetProfile.fromModelProfile(
+      profile,
+    ).hasUserConfiguredTemperatureFor(selection.requestClass)) {
+      return profile.normalizedForPersistence();
+    }
     return profile
         .copyWith(
           probeMetadata: selection.applyToMetadata(profile.probeMetadata),

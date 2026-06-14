@@ -804,6 +804,9 @@ Implementation status:
 - Successful workflow/task proposal JSON repairs now record runtime sampler
   feedback for the active planning request class, so repaired planning output
   contributes to LL16 profile calibration without blocking proposal parsing.
+- Probe calibration and runtime feedback now preserve sampler presets marked
+  as user-configured, including the shared `agentic` fallback, so LL16
+  adjustments cannot silently overwrite explicit per-role choices.
 
 ### LL17: Self-Improving Harness Loop
 

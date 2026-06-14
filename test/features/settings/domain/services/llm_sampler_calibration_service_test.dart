@@ -172,4 +172,50 @@ void main() {
       'probe',
     );
   });
+
+  test('does not overwrite user-configured sampler presets', () {
+    final profile = ModelCapabilityProfile(
+      id: '',
+      baseUrl: 'HTTP://LOCALHOST:1234/v1',
+      model: ' qwen-test ',
+      probeMetadata: {
+        LlmSamplerPresetProfile.temperatureKey(LlmSamplerRequestClass.plan):
+            '0.6',
+        LlmSamplerPresetProfile.sourceKey(LlmSamplerRequestClass.plan):
+            LlmSamplerPresetProfile.userSource,
+      },
+    );
+    final selection = const LlmSamplerCalibrationSelection(
+      requestClass: LlmSamplerRequestClass.plan,
+      temperature: 0.2,
+      score: 0.96,
+      trialCount: 4,
+      successCount: 4,
+      repetitionCount: 0,
+    );
+
+    final updated = service.applySelectionToProfile(
+      profile: profile,
+      selection: selection,
+    );
+
+    expect(
+      updated.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.plan,
+      )],
+      '0.6',
+    );
+    expect(
+      updated.probeMetadata[LlmSamplerPresetProfile.sourceKey(
+        LlmSamplerRequestClass.plan,
+      )],
+      LlmSamplerPresetProfile.userSource,
+    );
+    expect(
+      updated.probeMetadata[LlmSamplerPresetProfile.scoreKey(
+        LlmSamplerRequestClass.plan,
+      )],
+      isNull,
+    );
+  });
 }

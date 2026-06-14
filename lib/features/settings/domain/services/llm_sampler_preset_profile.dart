@@ -19,15 +19,22 @@ class LlmSamplerPresetProfile {
   factory LlmSamplerPresetProfile.fromModelProfile(
     ModelCapabilityProfile? profile,
   ) {
-    return LlmSamplerPresetProfile._(
+    return LlmSamplerPresetProfile.fromMetadata(
       profile == null
           ? const <String, String>{}
           : Map<String, String>.from(profile.probeMetadata),
     );
   }
 
+  factory LlmSamplerPresetProfile.fromMetadata(Map<String, String> metadata) {
+    return LlmSamplerPresetProfile._(Map<String, String>.from(metadata));
+  }
+
   static const String metadataPrefix = 'll16.sampler';
   static const double maxSupportedTemperature = 2.0;
+  static const String probeSource = 'probe';
+  static const String runtimeFeedbackSource = 'runtimeFeedback';
+  static const String userSource = 'user';
 
   final Map<String, String> _metadata;
 
@@ -52,6 +59,28 @@ class LlmSamplerPresetProfile {
     return '$metadataPrefix.${requestClass.metadataName}.source';
   }
 
+  String? sourceFor(LlmSamplerRequestClass requestClass) {
+    final source = _metadata[sourceKey(requestClass)]?.trim();
+    return source == null || source.isEmpty ? null : source;
+  }
+
+  bool hasUserConfiguredTemperatureFor(LlmSamplerRequestClass requestClass) {
+    if (isUserConfiguredSource(sourceFor(requestClass))) {
+      return true;
+    }
+    if (_temperatureFor(requestClass) != null) {
+      return false;
+    }
+    return isUserConfiguredSource(sourceFor(LlmSamplerRequestClass.agentic));
+  }
+
+  static bool isUserConfiguredSource(String? source) {
+    final normalized = source?.trim().toLowerCase();
+    return normalized == userSource ||
+        normalized == 'manual' ||
+        normalized == 'explicit';
+  }
+
   static Map<String, String> withTemperature({
     required Map<String, String> metadata,
     required LlmSamplerRequestClass requestClass,
@@ -69,7 +98,7 @@ class LlmSamplerPresetProfile {
     required double temperature,
     required double score,
     required int trialCount,
-    String source = 'probe',
+    String source = probeSource,
   }) {
     return <String, String>{
       ...metadata,

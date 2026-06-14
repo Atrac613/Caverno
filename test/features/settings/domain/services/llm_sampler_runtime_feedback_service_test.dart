@@ -117,6 +117,103 @@ void main() {
     );
   });
 
+  test('preserves user-configured request-class temperatures', () {
+    const service = LlmSamplerRuntimeFeedbackService();
+    final profile = profileWithMetadata({
+      LlmSamplerPresetProfile.temperatureKey(LlmSamplerRequestClass.toolLoop):
+          '0.7',
+      LlmSamplerPresetProfile.sourceKey(LlmSamplerRequestClass.toolLoop):
+          LlmSamplerPresetProfile.userSource,
+      LlmSamplerRuntimeFeedbackService.malformedToolCallCountKey(
+        LlmSamplerRequestClass.toolLoop,
+      ): '1',
+    });
+
+    final result = service.recordSignal(
+      profile: profile,
+      signal: const LlmSamplerRuntimeFeedbackSignal(
+        requestClass: LlmSamplerRequestClass.toolLoop,
+        malformedToolCallCount: 1,
+      ),
+      observedAt: DateTime.utc(2026, 6, 14, 1, 2, 3),
+    );
+
+    expect(result, isNotNull);
+    expect(result!.temperatureAdjusted, isFalse);
+    expect(
+      result.profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      '0.7',
+    );
+    expect(
+      result.profile.probeMetadata[LlmSamplerPresetProfile.sourceKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      LlmSamplerPresetProfile.userSource,
+    );
+    expect(
+      result
+          .profile
+          .probeMetadata[LlmSamplerRuntimeFeedbackService.malformedToolCallCountKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      '2',
+    );
+    expect(
+      result
+          .profile
+          .probeMetadata[LlmSamplerRuntimeFeedbackService.previousTemperatureKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      isNull,
+    );
+  });
+
+  test('preserves user-configured agentic fallback temperatures', () {
+    const service = LlmSamplerRuntimeFeedbackService();
+    final profile = profileWithMetadata({
+      LlmSamplerPresetProfile.temperatureKey(LlmSamplerRequestClass.agentic):
+          '0.7',
+      LlmSamplerPresetProfile.sourceKey(LlmSamplerRequestClass.agentic):
+          LlmSamplerPresetProfile.userSource,
+      LlmSamplerRuntimeFeedbackService.malformedToolCallCountKey(
+        LlmSamplerRequestClass.toolLoop,
+      ): '1',
+    });
+
+    final result = service.recordSignal(
+      profile: profile,
+      signal: const LlmSamplerRuntimeFeedbackSignal(
+        requestClass: LlmSamplerRequestClass.toolLoop,
+        malformedToolCallCount: 1,
+      ),
+    );
+
+    expect(result, isNotNull);
+    expect(result!.temperatureAdjusted, isFalse);
+    expect(
+      result.profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.agentic,
+      )],
+      '0.7',
+    );
+    expect(
+      result.profile.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      isNull,
+    );
+    expect(
+      result
+          .profile
+          .probeMetadata[LlmSamplerRuntimeFeedbackService.malformedToolCallCountKey(
+        LlmSamplerRequestClass.toolLoop,
+      )],
+      '2',
+    );
+  });
+
   test('lowers immediately on repetition but never below the floor', () {
     const service = LlmSamplerRuntimeFeedbackService();
     final profile = profileWithMetadata(

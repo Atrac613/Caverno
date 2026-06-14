@@ -45,7 +45,8 @@ class LlmSamplerRuntimeFeedbackService {
   static const int malformedToolCallAdjustmentThreshold = 2;
   static const int editApplyFailureAdjustmentThreshold = 2;
   static const int repetitionAdjustmentThreshold = 1;
-  static const String runtimeSource = 'runtimeFeedback';
+  static const String runtimeSource =
+      LlmSamplerPresetProfile.runtimeFeedbackSource;
   static const _temperatureCandidates = <double>[0.7, 0.4, 0.2, 0.1];
 
   static String jsonRepairCountKey(LlmSamplerRequestClass requestClass) {
@@ -128,7 +129,11 @@ class LlmSamplerRuntimeFeedbackService {
         .toIso8601String();
 
     final currentTemperature = _currentTemperature(profile, requestClass);
-    final adjustedTemperature = _shouldAdjust(metadata, requestClass)
+    final adjustedTemperature =
+        _shouldAdjust(metadata, requestClass) &&
+            !LlmSamplerPresetProfile.fromMetadata(
+              metadata,
+            ).hasUserConfiguredTemperatureFor(requestClass)
         ? _nextLowerTemperature(currentTemperature)
         : currentTemperature;
     final temperatureAdjusted = adjustedTemperature < currentTemperature;
