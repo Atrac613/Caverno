@@ -785,6 +785,8 @@ Implementation status:
   changing existing diagnostic callers that do not provide calibration data.
 - Live diagnostic reports can now carry sampler calibration trial evidence, and
   profile building consumes those report trials automatically.
+- Native OpenAI-compatible live diagnostics now record `toolLoop` sampler
+  calibration trials for the `0.0`, `0.2`, and `0.4` temperature candidates.
 
 ### LL17: Self-Improving Harness Loop
 

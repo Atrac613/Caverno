@@ -13,6 +13,7 @@ import '../../../chat/domain/services/tool_result_prompt_builder.dart';
 import '../entities/app_settings.dart';
 import '../entities/live_llm_diagnostic.dart';
 import 'llm_provider_capabilities.dart';
+import 'llm_sampler_preset_profile.dart';
 
 typedef LiveLlmDiagnosticReportCallback =
     void Function(LiveLlmDiagnosticReport report);
@@ -106,6 +107,11 @@ class LiveLlmDiagnosticService {
       'https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def';
   static const _diagnosticTemperature = 0.0;
   static const _diagnosticMaxTokens = 512;
+  static const _toolLoopSamplerCalibrationTemperatures = <double>[
+    0.0,
+    0.2,
+    0.4,
+  ];
 
   Future<LiveLlmDiagnosticReport> run({
     LiveLlmDiagnosticReportCallback? onReport,
@@ -191,6 +197,13 @@ class LiveLlmDiagnosticService {
       selectedProbeIds: selectedProbeIds,
       onReport: onReport,
       run: () => _runNarrowToolCallProbe(catalogContext),
+    );
+    report = await _appendToolLoopSamplerCalibrationTrials(
+      report: report,
+      catalog: catalogContext,
+      capabilities: capabilities,
+      selectedProbeIds: selectedProbeIds,
+      onReport: onReport,
     );
     if (!capabilities.supportsAdvancedLiveToolDiagnostics) {
       report = _skipProviderUnsupportedToolProbes(
@@ -811,6 +824,79 @@ class LiveLlmDiagnosticService {
     );
   }
 
+  Future<LiveLlmDiagnosticReport> _appendToolLoopSamplerCalibrationTrials({
+    required LiveLlmDiagnosticReport report,
+    required _ToolCatalogContext catalog,
+    required LlmProviderCapabilities capabilities,
+    required Set<String>? selectedProbeIds,
+    required LiveLlmDiagnosticReportCallback? onReport,
+  }) async {
+    if (!capabilities.supportsNativeToolCalls ||
+        !_shouldRunProbe(_narrowToolCallProbeId, selectedProbeIds)) {
+      return report;
+    }
+    final dateTool = _singleTool(catalog.definitions, 'get_current_datetime');
+    if (dateTool == null) {
+      return report;
+    }
+
+    final trials = <LiveLlmDiagnosticSamplerTrial>[];
+    for (final temperature in _toolLoopSamplerCalibrationTemperatures) {
+      trials.add(
+        await _runToolLoopSamplerCalibrationTrial(
+          dateTool: dateTool,
+          temperature: temperature,
+        ),
+      );
+    }
+    if (trials.isEmpty) {
+      return report;
+    }
+
+    final updated = report.copyWith(
+      samplerCalibrationTrials: [...report.samplerCalibrationTrials, ...trials],
+    );
+    onReport?.call(updated);
+    return updated;
+  }
+
+  Future<LiveLlmDiagnosticSamplerTrial> _runToolLoopSamplerCalibrationTrial({
+    required Map<String, dynamic> dateTool,
+    required double temperature,
+  }) async {
+    try {
+      final result = await chatDataSource.createChatCompletion(
+        messages: _messages(
+          user:
+              'Call the get_current_datetime tool now. Do not answer in text '
+              'before using the tool.',
+        ),
+        tools: [dateTool],
+        model: _diagnosticModel,
+        temperature: temperature,
+        maxTokens: _diagnosticMaxTokens,
+      );
+      final toolCalls = _toolCallsFromResult(result);
+      final passed = toolCalls.any(
+        (call) => call.name == 'get_current_datetime',
+      );
+      return LiveLlmDiagnosticSamplerTrial(
+        requestClass: LlmSamplerRequestClass.toolLoop.metadataName,
+        temperature: temperature,
+        passed: passed,
+        malformedToolCallCount: passed ? 0 : 1,
+        repetitionDetected: _looksRepetitive(result.content),
+      );
+    } catch (_) {
+      return LiveLlmDiagnosticSamplerTrial(
+        requestClass: LlmSamplerRequestClass.toolLoop.metadataName,
+        temperature: temperature,
+        passed: false,
+        malformedToolCallCount: 1,
+      );
+    }
+  }
+
   Future<LiveLlmDiagnosticProbeResult> _runToolResultProbe(
     _ToolCatalogContext catalog,
   ) async {
@@ -1306,6 +1392,33 @@ class LiveLlmDiagnosticService {
       return trimmed;
     }
     return '${trimmed.substring(0, maxChars)}...';
+  }
+
+  bool _looksRepetitive(String value) {
+    final normalized = value
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (normalized.length < 24) {
+      return false;
+    }
+    final words = normalized
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .toList(growable: false);
+    if (words.length < 8) {
+      return false;
+    }
+    final windowCounts = <String, int>{};
+    for (var index = 0; index <= words.length - 4; index += 1) {
+      final window = words.sublist(index, index + 4).join(' ');
+      final count = (windowCounts[window] ?? 0) + 1;
+      if (count >= 3) {
+        return true;
+      }
+      windowCounts[window] = count;
+    }
+    return false;
   }
 }
 
