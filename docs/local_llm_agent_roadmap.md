@@ -65,11 +65,11 @@ structurally unmotivated to build:
 | Local LLM | LL9 | later | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
 | Local LLM | LL10 | later | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
 | Local LLM | LL11 | later | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
-| Local LLM | LL12 | later | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
+| Local LLM | LL12 | current | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
 | Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
 | Local LLM | LL14 | done | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
 | Local LLM | LL15 | done | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
-| Local LLM | LL16 | current | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
+| Local LLM | LL16 | done | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
 | Local LLM | LL17 | later | L | LL3, LL12 | Self-improving harness loop: mine failure traces, propose profile mutations, adopt only on eval non-regression. |
 
 Size legend: S = days, M = one to a few weeks of slices, L = multi-week.
@@ -613,6 +613,14 @@ Acceptance criteria:
   but excluded from any export by default.
 - A replay run produces a single comparison report usable for a model swap
   decision.
+
+Implementation status:
+- Seed manifest support started with `tool/personal_eval_case_manifest.dart`.
+  The tool converts a completed LLM session log into a local-only personal eval
+  case manifest only when `--consent` is provided, capturing the prompt, repo
+  state reference, verification command/result, session-log summary metrics,
+  and export policy `excluded_by_default`. This establishes the stable case
+  schema before adding replay execution and candidate-model comparison.
 
 ### LL13: Parallel Agents In Worktrees
 
