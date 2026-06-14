@@ -647,6 +647,10 @@ Implementation status:
 - The suite pipeline now emits the profile handoff artifacts next to the replay
   runs and suite report, so a deterministic LL12 run produces the complete
   model-swap evidence bundle without a second command.
+- Profile handoff application started with
+  `tool/personal_eval_profile_handoff_apply.dart`. It dry-runs by default,
+  refuses blocked handoffs, and only writes an updated settings JSON when the
+  operator explicitly chooses `--apply --out` or `--apply --in-place`.
 
 ### LL13: Parallel Agents In Worktrees
 
