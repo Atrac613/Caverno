@@ -776,6 +776,10 @@ Implementation status:
   role-specific keys such as `ll16.sampler.toolLoop.temperature` and
   `ll16.sampler.routine.temperature` can override individual agentic surfaces
   without changing the user-facing chat prose temperature.
+- Layer 2 now has a deterministic sampler calibration scorer that aggregates
+  repeated probe trials, penalizes JSON repair, malformed tool calls, edit
+  apply failures, and repetition, then writes the selected per-role preset back
+  into LL3 profile metadata with score and trial-count evidence.
 
 ### LL17: Self-Improving Harness Loop
 

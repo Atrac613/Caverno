@@ -40,6 +40,18 @@ class LlmSamplerPresetProfile {
     return '$metadataPrefix.${requestClass.metadataName}.temperature';
   }
 
+  static String scoreKey(LlmSamplerRequestClass requestClass) {
+    return '$metadataPrefix.${requestClass.metadataName}.score';
+  }
+
+  static String trialCountKey(LlmSamplerRequestClass requestClass) {
+    return '$metadataPrefix.${requestClass.metadataName}.trialCount';
+  }
+
+  static String sourceKey(LlmSamplerRequestClass requestClass) {
+    return '$metadataPrefix.${requestClass.metadataName}.source';
+  }
+
   static Map<String, String> withTemperature({
     required Map<String, String> metadata,
     required LlmSamplerRequestClass requestClass,
@@ -48,6 +60,23 @@ class LlmSamplerPresetProfile {
     return <String, String>{
       ...metadata,
       temperatureKey(requestClass): temperature.toString(),
+    };
+  }
+
+  static Map<String, String> withCalibration({
+    required Map<String, String> metadata,
+    required LlmSamplerRequestClass requestClass,
+    required double temperature,
+    required double score,
+    required int trialCount,
+    String source = 'probe',
+  }) {
+    return <String, String>{
+      ...metadata,
+      temperatureKey(requestClass): temperature.toString(),
+      scoreKey(requestClass): score.toStringAsFixed(3),
+      trialCountKey(requestClass): trialCount.toString(),
+      sourceKey(requestClass): source,
     };
   }
 
