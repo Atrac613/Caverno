@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/context_surgery_observation_service.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 
@@ -39,6 +40,28 @@ void main() {
     expect(
       shouldShowContextStatusWidget(
         const ChatState(messages: [], isLoading: false, promptTokens: 1200),
+      ),
+      isTrue,
+    );
+  });
+
+  test('shows the context status widget when LL14 snapshot is available', () {
+    expect(
+      shouldShowContextStatusWidget(
+        const ChatState(
+          messages: [],
+          isLoading: false,
+          contextSurgerySnapshot: ContextSurgeryObservationSnapshot(
+            sections: [
+              ContextSurgerySectionSummary(
+                kind: ContextSurgeryBlockKind.systemPrompt,
+                label: 'System prompt',
+                blockCount: 1,
+                charCount: 400,
+              ),
+            ],
+          ),
+        ),
       ),
       isTrue,
     );

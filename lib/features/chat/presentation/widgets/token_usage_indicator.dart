@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/services/conversation_compaction_service.dart';
+import '../../domain/services/context_surgery_observation_service.dart';
 import '../providers/chat_state.dart';
 
 class TokenUsageIndicator extends StatelessWidget {
@@ -313,6 +314,41 @@ class _ContextWindowPopover extends StatelessWidget {
                 label: 'Total',
                 value: formatTokenCount(chatState.totalTokens),
               ),
+              if (chatState.contextSurgerySnapshot.hasData) ...[
+                const SizedBox(height: 12),
+                Divider(color: colorScheme.outlineVariant, height: 1),
+                const SizedBox(height: 10),
+                Text(
+                  'Context sections',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (final section
+                    in chatState.contextSurgerySnapshot.sections) ...[
+                  _TokenDetailRow(
+                    label: _contextSectionLabel(section),
+                    value: formatTokenCount(section.estimatedTokens),
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                if (chatState
+                        .contextSurgerySnapshot
+                        .staleToolResultCandidateCount >
+                    0)
+                  _TokenDetailRow(
+                    label:
+                        'Stale tool candidates '
+                        '(${chatState.contextSurgerySnapshot.staleToolResultCandidateCount})',
+                    value: formatTokenCount(
+                      chatState
+                          .contextSurgerySnapshot
+                          .staleToolResultEstimatedTokens,
+                    ),
+                  ),
+              ],
               if (chatState.promptCompactionActive) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -328,6 +364,13 @@ class _ContextWindowPopover extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _contextSectionLabel(ContextSurgerySectionSummary section) {
+    if (section.blockCount <= 1) {
+      return section.label;
+    }
+    return '${section.label} (${section.blockCount})';
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/context_surgery_observation_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/widgets/token_usage_indicator.dart';
 
@@ -87,6 +88,68 @@ void main() {
     expect(find.text('Prompt'), findsOneWidget);
     expect(find.text('Completion'), findsOneWidget);
     expect(find.text('Total'), findsOneWidget);
+  });
+
+  testWidgets('shows LL14 context section breakdown in the popover', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: TokenUsageIndicator(
+              chatState: const ChatState(
+                messages: [],
+                isLoading: false,
+                promptTokens: 1200,
+                completionTokens: 300,
+                totalTokens: 1500,
+                contextSurgerySnapshot: ContextSurgeryObservationSnapshot(
+                  sections: [
+                    ContextSurgerySectionSummary(
+                      kind: ContextSurgeryBlockKind.systemPrompt,
+                      label: 'System prompt',
+                      blockCount: 1,
+                      charCount: 400,
+                    ),
+                    ContextSurgerySectionSummary(
+                      kind: ContextSurgeryBlockKind.repoMap,
+                      label: 'Repo map',
+                      blockCount: 1,
+                      charCount: 160,
+                    ),
+                    ContextSurgerySectionSummary(
+                      kind: ContextSurgeryBlockKind.fileReadToolResult,
+                      label: 'File reads',
+                      blockCount: 2,
+                      charCount: 240,
+                    ),
+                  ],
+                  staleToolResultCandidateCount: 1,
+                  staleToolResultEstimatedTokens: 30,
+                ),
+              ),
+              model: 'anthropic/claude-opus-4.7',
+              contextWindowTokens: 6000,
+              formatTokenCount: formatTokenCount,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(CircularProgressIndicator));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Context sections'), findsOneWidget);
+    expect(find.text('System prompt'), findsOneWidget);
+    expect(find.text('Repo map'), findsOneWidget);
+    expect(find.text('File reads (2)'), findsOneWidget);
+    expect(find.text('Stale tool candidates (1)'), findsOneWidget);
+    expect(find.text('100'), findsOneWidget);
+    expect(find.text('40'), findsOneWidget);
+    expect(find.text('60'), findsOneWidget);
+    expect(find.text('30'), findsOneWidget);
   });
 
   testWidgets(

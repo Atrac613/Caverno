@@ -69,6 +69,44 @@ Use the following context from past conversations to maintain continuity when he
     expect(observations.first.identifier, 'lib/main.dart');
   });
 
+  test('builds a section snapshot with stale candidate pressure', () {
+    final snapshot = ContextSurgeryObservationService.buildSnapshot(
+      systemPrompt: '''
+System rules.
+<repo_map>
+lib/main.dart
+</repo_map>
+''',
+      toolResults: [
+        _toolResult(
+          id: 'read-old',
+          name: 'read_file',
+          arguments: {'path': 'lib/main.dart'},
+          result: 'old content',
+        ),
+        _toolResult(
+          id: 'read-new',
+          name: 'read_file',
+          arguments: {'path': 'lib/main.dart'},
+          result: 'new content',
+        ),
+      ],
+    );
+
+    expect(snapshot.hasData, isTrue);
+    expect(
+      snapshot.section(ContextSurgeryBlockKind.systemPrompt)?.blockCount,
+      1,
+    );
+    expect(snapshot.section(ContextSurgeryBlockKind.repoMap)?.charCount, 13);
+    expect(
+      snapshot.section(ContextSurgeryBlockKind.fileReadToolResult)?.blockCount,
+      2,
+    );
+    expect(snapshot.staleToolResultCandidateCount, 1);
+    expect(snapshot.staleToolResultEstimatedTokens, 3);
+  });
+
   test('marks older duplicate file reads as stale candidates', () {
     final candidates =
         ContextSurgeryObservationService.findStaleToolResultCandidates([

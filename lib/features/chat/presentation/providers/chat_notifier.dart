@@ -57,6 +57,7 @@ import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
+import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../domain/services/tool_approval_gate.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
@@ -92,6 +93,7 @@ part 'chat_notifier_ble_handlers.dart';
 part 'chat_notifier_browser_handlers.dart';
 part 'chat_notifier_command_guardrails.dart';
 part 'chat_notifier_computer_use_handlers.dart';
+part 'chat_notifier_context_surgery.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
 part 'chat_notifier_serial_handlers.dart';
@@ -270,6 +272,8 @@ class ChatNotifier extends Notifier<ChatState> {
   TokenUsage _accumulatedTokenUsage = TokenUsage.zero;
   AssistantMode? _assistantModeOverride;
   List<ToolResultInfo> _latestCompletedToolResults = const [];
+  String? _latestObservedSystemPrompt;
+  List<ToolResultInfo> _latestObservedToolResults = const [];
   final List<ToolResultInfo> _latestContentToolResults = [];
   final List<TurnDiffFile> _pendingTurnDiffFiles = [];
   late ToolResultArtifactStore _toolResultArtifactStore;
@@ -680,6 +684,8 @@ class ChatNotifier extends Notifier<ChatState> {
         _queuedChatMessages.clear();
         _latestContentToolResults.clear();
         _latestCompletedToolResults = const [];
+        _latestObservedSystemPrompt = null;
+        _latestObservedToolResults = const [];
       }
       _clearTurnDiffCapture();
       _contentToolContinuationCount = 0;
@@ -836,34 +842,32 @@ class ChatNotifier extends Notifier<ChatState> {
     final resolvedAssistantMode = _resolveAssistantMode(
       currentConversation: currentConversation,
     );
+    final content = SystemPromptBuilder.build(
+      now: now,
+      assistantMode: resolvedAssistantMode,
+      languageCode: resolvedLanguage,
+      toolNames: toolNames,
+      sessionMemoryContext: _sessionMemoryContext,
+      projectName: activeCodingProject?.name,
+      projectRootPath: activeCodingProject?.rootPath,
+      repoMapContext: _repoMap(resolvedAssistantMode, activeCodingProject),
+      goal: currentConversation?.goal,
+      workflowStage:
+          currentConversation?.workflowStage ?? ConversationWorkflowStage.idle,
+      workflowSpec: currentConversation?.workflowSpec,
+      planArtifact: currentConversation?.planArtifact,
+      isVoiceMode: _isVoiceMode,
+      agentsMarkdown: _loadAgentsMd(resolvedAssistantMode, activeCodingProject),
+      skillsContext: _buildSkillsPromptContext(toolNames),
+      hasPythonInputAttachment:
+          toolNames.contains('run_python_script') &&
+          _latestPythonInputMessage() != null,
+      modelCapabilityProfile: _settings.effectiveModelCapabilityProfile,
+    );
+    _updateContextSurgeryObservation(systemPrompt: content);
     return Message(
       id: 'system',
-      content: SystemPromptBuilder.build(
-        now: now,
-        assistantMode: resolvedAssistantMode,
-        languageCode: resolvedLanguage,
-        toolNames: toolNames,
-        sessionMemoryContext: _sessionMemoryContext,
-        projectName: activeCodingProject?.name,
-        projectRootPath: activeCodingProject?.rootPath,
-        repoMapContext: _repoMap(resolvedAssistantMode, activeCodingProject),
-        goal: currentConversation?.goal,
-        workflowStage:
-            currentConversation?.workflowStage ??
-            ConversationWorkflowStage.idle,
-        workflowSpec: currentConversation?.workflowSpec,
-        planArtifact: currentConversation?.planArtifact,
-        isVoiceMode: _isVoiceMode,
-        agentsMarkdown: _loadAgentsMd(
-          resolvedAssistantMode,
-          activeCodingProject,
-        ),
-        skillsContext: _buildSkillsPromptContext(toolNames),
-        hasPythonInputAttachment:
-            toolNames.contains('run_python_script') &&
-            _latestPythonInputMessage() != null,
-        modelCapabilityProfile: _settings.effectiveModelCapabilityProfile,
-      ),
+      content: content,
       role: MessageRole.system,
       timestamp: now,
     );
@@ -7194,9 +7198,11 @@ class ChatNotifier extends Notifier<ChatState> {
     _pendingContentToolContinuationFallback = null;
     _pendingToolExecutions.clear();
     _latestContentToolResults.clear();
+    _latestCompletedToolResults = const [];
+    _latestObservedSystemPrompt = null;
+    _latestObservedToolResults = const [];
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
-    _latestCompletedToolResults = const [];
     _latestHiddenAssistantResponse = null;
     _beginTurnDiffCapture(content);
 
@@ -9304,7 +9310,12 @@ class ChatNotifier extends Notifier<ChatState> {
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
   }) {
-    return ToolResultPromptBuilder.budgetToolResults(toolResults, mode: mode);
+    final budgetedToolResults = ToolResultPromptBuilder.budgetToolResults(
+      toolResults,
+      mode: mode,
+    );
+    _updateContextSurgeryObservation(toolResults: budgetedToolResults);
+    return budgetedToolResults;
   }
 
   bool _hasAdditionalCompactToolResultBudget(List<ToolResultInfo> toolResults) {

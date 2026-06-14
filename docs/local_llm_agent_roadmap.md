@@ -652,6 +652,9 @@ Initial implementation slice:
   search results with the same arguments are marked as would-evict candidates.
 - Protected paths keep their prior reads intact, and command or side-effect
   tool results are never proposed for eviction in this slice.
+- The context window popover now surfaces the observation snapshot as
+  per-section estimated token pressure plus stale tool-result candidate
+  pressure, without mutating conversation history.
 
 Acceptance criteria:
 - Eviction never removes results the current task still references (guarded

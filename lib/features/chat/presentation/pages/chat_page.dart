@@ -104,7 +104,8 @@ bool shouldShowContextStatusWidget(ChatState chatState) {
       chatState.promptTokens > 0 ||
       chatState.completionTokens > 0 ||
       chatState.totalTokens > 0 ||
-      chatState.estimatedPromptTokens > 0;
+      chatState.estimatedPromptTokens > 0 ||
+      chatState.contextSurgerySnapshot.hasData;
 }
 
 enum _RightSidebarTab { companion, files }

@@ -5,6 +5,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/services/context_surgery_observation_service.dart';
 
 part 'chat_state.freezed.dart';
 
@@ -513,6 +514,8 @@ abstract class ChatState with _$ChatState {
     @Default(ContextTokenPressureLevel.normal)
     ContextTokenPressureLevel contextTokenPressureLevel,
     @Default(false) bool promptCompactionActive,
+    @Default(ContextSurgeryObservationSnapshot.empty)
+    ContextSurgeryObservationSnapshot contextSurgerySnapshot,
     // SSH tool UI flow — holders contain Completers so they live outside
     // the freezed equality graph.
     PendingSshConnect? pendingSshConnect,
