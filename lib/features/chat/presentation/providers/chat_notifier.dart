@@ -10993,9 +10993,27 @@ class ChatNotifier extends Notifier<ChatState> {
             executedToolResults,
           )) {
             appLog(
-              '[Tool] Duplicate command follow-up already has a successful result; requesting next-step recovery',
+              '[Tool] Duplicate command follow-up already has a successful result',
             );
             final fallbackResponse = currentAssistantContent?.trim() ?? '';
+            final previousOutput = duplicateRecoveryToolResults
+                .map(_toolCallExecutionPolicy.toolResultOutputText)
+                .map((output) => output.trim())
+                .where((output) => output.isNotEmpty)
+                .join('\n');
+            if (previousOutput.isNotEmpty &&
+                fallbackResponse.isNotEmpty &&
+                _looksLikePendingToolActionResponse(fallbackResponse)) {
+              currentToolCalls = [];
+              _recordHiddenAssistantResponse(previousOutput);
+              _appendRecoveredAssistantResponse(
+                previousOutput,
+                interactionGeneration: interactionGeneration,
+              );
+              currentAssistantContent = previousOutput;
+              hasTextResponse = true;
+              break;
+            }
             if (fallbackResponse.isNotEmpty &&
                 !_looksLikePendingToolActionResponse(fallbackResponse)) {
               currentToolCalls = [];
