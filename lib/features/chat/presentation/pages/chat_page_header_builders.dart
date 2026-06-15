@@ -44,6 +44,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
           ..._buildWorkspaceHeaderActions(
             context,
             activeProject: activeProject,
+            settings: settings,
             canShowCompanionPanel: canShowCompanionPanel,
             isWideForCompanion: isWideForCompanion,
             currentConversation: currentConversation,
@@ -130,6 +131,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
   List<Widget> _buildWorkspaceHeaderActions(
     BuildContext context, {
     required CodingProject? activeProject,
+    required AppSettings settings,
     required bool canShowCompanionPanel,
     required bool isWideForCompanion,
     required Conversation? currentConversation,
@@ -156,6 +158,12 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
 
     final companionConversation = currentConversation;
     final companionProject = activeProject;
+    final latestUserPrompt = _latestUserPrompt(currentConversation);
+    final sessionLoggingEnabled =
+        LlmSessionLogStore.isEnabled(
+          settingsEnabled: settings.enableLlmSessionLogs,
+        ) &&
+        !settings.demoMode;
     final revertableTurnDiff = activeProject == null
         ? null
         : _latestRevertableTurnDiff(
@@ -173,6 +181,27 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
           ),
           icon: Icons.restore_rounded,
           tooltip: 'Revert last turn changes',
+        ),
+      );
+    }
+
+    if (currentConversation != null && latestUserPrompt != null) {
+      actions.add(
+        actionButton(
+          key: const ValueKey('record-personal-eval-case-action'),
+          onPressed: sessionLoggingEnabled
+              ? () => unawaited(
+                  _openPersonalEvalRecordPage(
+                    context,
+                    conversation: currentConversation,
+                    initialPrompt: latestUserPrompt,
+                  ),
+                )
+              : null,
+          icon: Icons.fact_check_outlined,
+          tooltip: sessionLoggingEnabled
+              ? 'chat.record_personal_eval_case'.tr()
+              : 'chat.record_personal_eval_case_requires_logs'.tr(),
         ),
       );
     }
@@ -201,6 +230,42 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
     }
 
     return actions;
+  }
+
+  String? _latestUserPrompt(Conversation? conversation) {
+    if (conversation == null) {
+      return null;
+    }
+    for (final message in conversation.messages.reversed) {
+      final content = message.content.trim();
+      if (message.role == MessageRole.user && content.isNotEmpty) {
+        return content;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _openPersonalEvalRecordPage(
+    BuildContext context, {
+    required Conversation conversation,
+    required String initialPrompt,
+  }) async {
+    final sessionContext = LlmSessionLogContext(
+      workspaceMode: conversation.workspaceMode,
+      sessionId: conversation.id,
+      sessionTitle: conversation.title,
+      conversationId: conversation.id,
+      phase: 'chat_turn',
+    );
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => PersonalEvalRecordPage(
+          sessionContext: sessionContext,
+          initialPrompt: initialPrompt,
+          initialTitle: conversation.title,
+        ),
+      ),
+    );
   }
 
   Widget _buildTokenUsageBar(

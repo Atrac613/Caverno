@@ -56,6 +56,8 @@
     "projects": "プロジェクト",
     "add_project": "プロジェクトを追加",
     "companion_panel_toggle": "コーディング補助パネルを切り替え",
+    "record_personal_eval_case": "このセッションを eval case として記録",
+    "record_personal_eval_case_requires_logs": "Eval case を記録するには LLM セッションログを有効にしてください",
     "companion_progress": "進捗",
     "companion_progress_empty": "保存済みタスクはまだありません。",
     "companion_progress_summary": "{completed}/{total} 完了",

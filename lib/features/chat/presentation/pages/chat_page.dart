@@ -23,12 +23,14 @@ import '../../../routines/presentation/providers/routine_scheduler.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
 import '../../../routines/presentation/widgets/routine_editor_launcher.dart';
 import '../../../remote_coding/presentation/remote_coding_page.dart';
+import '../../../personal_eval/presentation/pages/personal_eval_record_page.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/providers/model_list_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/file_rollback_checkpoint_store.dart';
 import '../../data/datasources/git_tools.dart';
+import '../../data/datasources/llm_session_log_store.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
@@ -1778,6 +1780,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               actions: _buildWorkspaceHeaderActions(
                 context,
                 activeProject: activeProject,
+                settings: settings,
                 canShowCompanionPanel: canShowCompanionPanel,
                 isWideForCompanion: isWideForCompanion,
                 currentConversation: currentConversation,
