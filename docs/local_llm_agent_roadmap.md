@@ -65,7 +65,7 @@ structurally unmotivated to build:
 | Local LLM | LL9 | later | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
 | Local LLM | LL10 | later | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
 | Local LLM | LL11 | later | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
-| Local LLM | LL12 | current | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
+| Local LLM | LL12 | done | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
 | Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
 | Local LLM | LL14 | done | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
 | Local LLM | LL15 | done | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
@@ -598,6 +598,8 @@ Acceptance criteria:
   blocking edits.
 
 ### LL12: Personal Eval Harness
+
+Status: `done`
 
 Scope:
 - Record completed real agent sessions (prompt, repo state reference, final
