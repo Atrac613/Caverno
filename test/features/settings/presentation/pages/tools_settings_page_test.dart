@@ -192,6 +192,14 @@ void main() {
 
     expect(find.text('Verify coding completion with tests'), findsOneWidget);
 
+    // scrollUntilVisible may stop with the target at the bottom edge of the
+    // 800x600 test viewport on Linux font metrics. ensureVisible centers the
+    // tile enough for the tap hit test to remain stable across runners.
+    await tester.ensureVisible(
+      find.text('Verify coding completion with tests'),
+    );
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('Verify coding completion with tests'));
     await tester.pumpAndSettle();
 

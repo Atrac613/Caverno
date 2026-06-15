@@ -35,12 +35,16 @@ void main() {
       fixture.writeFvmWithIosExportFailure();
 
       final result = await fixture.runReleaseScript(
-        arguments: const [
+        arguments: [
           '--only',
           'ios',
           '--ios-signing-style',
           'automatic',
           '--no-pub-get',
+          // Use a fixture-owned export root so Linux CI can exercise the
+          // failure-marker path without depending on macOS temp directories.
+          '--ios-export-root',
+          '${fixture.root.path}/ios-export',
         ],
       );
 
