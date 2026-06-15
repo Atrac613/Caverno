@@ -205,6 +205,73 @@ class ToolCallExecutionPolicy {
         normalizeToolCommandForComparison(resultCommand) == normalizedCommand;
   }
 
+  bool containsOnlyPreviouslySuccessfulCommandToolCalls(
+    List<ToolCallInfo> toolCalls,
+    List<ToolResultInfo> previousToolResults,
+  ) {
+    if (toolCalls.isEmpty || previousToolResults.isEmpty) {
+      return false;
+    }
+    return toolCalls.every((toolCall) {
+      return previousToolResults.any(
+        (result) => _successfulCommandResultMatchesToolCall(result, toolCall),
+      );
+    });
+  }
+
+  String previousSuccessfulCommandOutputForDuplicateCalls(
+    List<ToolCallInfo> toolCalls,
+    List<ToolResultInfo> previousToolResults,
+  ) {
+    final outputs = <String>[];
+    for (final toolCall in toolCalls) {
+      for (final result in previousToolResults.reversed) {
+        if (!_successfulCommandResultMatchesToolCall(result, toolCall)) {
+          continue;
+        }
+        final output = toolResultOutputText(result).trim();
+        if (output.isNotEmpty) {
+          outputs.add(output);
+        }
+        break;
+      }
+    }
+    return outputs.join('\n');
+  }
+
+  bool shouldUsePreviousOutputForDuplicateCommandCalls(
+    List<ToolCallInfo> toolCalls,
+  ) {
+    return toolCalls.every((toolCall) {
+      return switch (toolCall.name.trim().toLowerCase()) {
+        'local_execute_command' || 'run_tests' => true,
+        _ => false,
+      };
+    });
+  }
+
+  bool _successfulCommandResultMatchesToolCall(
+    ToolResultInfo result,
+    ToolCallInfo toolCall,
+  ) {
+    if (toolCall.name == 'run_tests') {
+      final testPath = runTestsPathArgument(toolCall.arguments);
+      return result.name == toolCall.name &&
+          runTestsPathArgument(result.arguments) == testPath &&
+          toolResultHasSuccessfulExit(result);
+    }
+    if (!isCommandExecutionTool(toolCall.name)) {
+      return false;
+    }
+    final command = toolCommandArgument(toolCall.arguments);
+    if (command == null) {
+      return false;
+    }
+    return result.name == toolCall.name &&
+        toolCommandArgument(result.arguments) == command &&
+        toolResultHasSuccessfulExit(result);
+  }
+
   bool toolCommandMatchesSavedValidation({
     required ToolResultInfo result,
     required String command,

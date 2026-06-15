@@ -11001,24 +11001,26 @@ class ChatNotifier extends Notifier<ChatState> {
             hasTextResponse = true;
             break;
           }
-          if (_containsOnlyPreviouslySuccessfulCommandToolCalls(
-            currentToolCalls,
-            executedToolResults,
-          )) {
+          if (_toolCallExecutionPolicy
+              .containsOnlyPreviouslySuccessfulCommandToolCalls(
+                currentToolCalls,
+                executedToolResults,
+              )) {
             appLog(
               '[Tool] Duplicate command follow-up already has a successful result',
             );
             final fallbackResponse = currentAssistantContent?.trim() ?? '';
-            final previousOutput =
-                _previousSuccessfulCommandOutputForDuplicateCalls(
+            final previousOutput = _toolCallExecutionPolicy
+                .previousSuccessfulCommandOutputForDuplicateCalls(
                   currentToolCalls,
                   duplicateRecoveryToolResults.isNotEmpty
                       ? duplicateRecoveryToolResults
                       : executedToolResults,
                 );
-            if (_shouldUsePreviousOutputForDuplicateCommandCalls(
-                  currentToolCalls,
-                ) &&
+            if (_toolCallExecutionPolicy
+                    .shouldUsePreviousOutputForDuplicateCommandCalls(
+                      currentToolCalls,
+                    ) &&
                 previousOutput.isNotEmpty &&
                 (fallbackResponse.isEmpty ||
                     _looksLikePendingToolActionResponse(fallbackResponse))) {
@@ -12519,97 +12521,6 @@ class ChatNotifier extends Notifier<ChatState> {
       toolCallKey: (toolCall, generation) =>
           _toolExecutionKey(toolCall, commandRetryGeneration: generation),
     );
-  }
-
-  bool _containsOnlyPreviouslySuccessfulCommandToolCalls(
-    List<ToolCallInfo> toolCalls,
-    List<ToolResultInfo> previousToolResults,
-  ) {
-    if (toolCalls.isEmpty || previousToolResults.isEmpty) {
-      return false;
-    }
-    return toolCalls.every((toolCall) {
-      if (toolCall.name == 'run_tests') {
-        final testPath = _runTestsPathArgument(toolCall.arguments);
-        return previousToolResults.any(
-          (result) =>
-              result.name == toolCall.name &&
-              _runTestsPathArgument(result.arguments) == testPath &&
-              _toolResultHasSuccessfulExit(result),
-        );
-      }
-      if (!_isCommandExecutionTool(toolCall.name)) {
-        return false;
-      }
-      final command = _toolCommandArgument(toolCall.arguments);
-      if (command == null) {
-        return false;
-      }
-      return previousToolResults.any(
-        (result) =>
-            result.name == toolCall.name &&
-            _toolCommandArgument(result.arguments) == command &&
-            _toolResultHasSuccessfulExit(result),
-      );
-    });
-  }
-
-  String _previousSuccessfulCommandOutputForDuplicateCalls(
-    List<ToolCallInfo> toolCalls,
-    List<ToolResultInfo> previousToolResults,
-  ) {
-    final outputs = <String>[];
-    for (final toolCall in toolCalls) {
-      final matchingResult = previousToolResults.reversed
-          .where(
-            (result) =>
-                _successfulCommandResultMatchesToolCall(result, toolCall),
-          )
-          .firstOrNull;
-      if (matchingResult == null) {
-        continue;
-      }
-      final output = _toolCallExecutionPolicy
-          .toolResultOutputText(matchingResult)
-          .trim();
-      if (output.isNotEmpty) {
-        outputs.add(output);
-      }
-    }
-    return outputs.join('\n');
-  }
-
-  bool _shouldUsePreviousOutputForDuplicateCommandCalls(
-    List<ToolCallInfo> toolCalls,
-  ) {
-    return toolCalls.every((toolCall) {
-      return switch (toolCall.name.trim().toLowerCase()) {
-        'local_execute_command' || 'run_tests' => true,
-        _ => false,
-      };
-    });
-  }
-
-  bool _successfulCommandResultMatchesToolCall(
-    ToolResultInfo result,
-    ToolCallInfo toolCall,
-  ) {
-    if (toolCall.name == 'run_tests') {
-      final testPath = _runTestsPathArgument(toolCall.arguments);
-      return result.name == toolCall.name &&
-          _runTestsPathArgument(result.arguments) == testPath &&
-          _toolResultHasSuccessfulExit(result);
-    }
-    if (!_isCommandExecutionTool(toolCall.name)) {
-      return false;
-    }
-    final command = _toolCommandArgument(toolCall.arguments);
-    if (command == null) {
-      return false;
-    }
-    return result.name == toolCall.name &&
-        _toolCommandArgument(result.arguments) == command &&
-        _toolResultHasSuccessfulExit(result);
   }
 
   bool _looksLikePendingToolActionResponse(String response) {
