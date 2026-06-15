@@ -79,7 +79,7 @@ structurally unmotivated to build:
 | Local LLM | LL16 | done | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
 | Local LLM | LL17 | later | L | LL3, LL19, LL23 | Self-improving harness loop: cluster failure traces by verifier-grounded signature, propose minimal harness-config edits, adopt only on held-in/held-out non-regression. |
 | Local LLM | LL18 | later | L | LL3, LL12, LL16, LL19 | Idle/overnight maintenance orchestrator: detect idle + AC power + night window, then chain probe → calibrate → eval → mine → eval-gated adopt and emit a morning report. |
-| Local LLM | LL19 | later | M | LL12 | In-app personal eval recorder and replay executor: record sessions to eval cases and drive a candidate model through them end-to-end. |
+| Local LLM | LL19 | done | M | LL12 | In-app personal eval recorder and replay executor: record sessions to eval cases and drive a candidate model through them end-to-end. |
 | Local LLM | LL20 | later | M | F3, LL6 | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, and run `--parallel N` candidates concurrently. Unblocks LL7/LL13. |
 | Local LLM | LL21 | later | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
 | Local LLM | LL22 | later | M | LL4, LL6, LL18 | Idle warm-up and precompute: precompute repo map / embeddings and warm the KV cache so the first morning turn is instant. |
@@ -981,7 +981,7 @@ Acceptance criteria:
 
 ### LL19: In-App Personal Eval Recorder & Replay Executor
 
-Status: `later`
+Status: `done`
 
 Context:
 - LL12 shipped as offline CLI tooling with zero `lib/` integration: it scores
@@ -1011,6 +1011,47 @@ Acceptance criteria:
 - A bake-off produces a single model-swap recommendation usable without the CLI.
 - Held-in and held-out scores are reported separately so an LL17 adoption can be
   gated on non-regression of both.
+
+Implementation evidence:
+- Recorder: `PersonalEvalCaseRecorder` (pure) + `PersonalEvalCaseRecordingService`
+  read the session log through `LlmSessionLogStore` and build an LL12 case
+  manifest only with explicit consent; cases are `excludedFromExport`. The chat
+  page exposes a record entry point, wired through
+  `PersonalEvalCasesNotifier.recordFromSession`.
+- Replay executor: `PersonalEvalReplayOrchestrator` (pure) assembles a
+  `PersonalEvalReplayRun` (the `caverno_personal_eval_replay_run` schema the
+  offline tools consume) from a `PersonalEvalCaseRunner`.
+  `LivePersonalEvalCaseRunner` composes a `PersonalEvalReplayTurnDriver` with a
+  `PersonalEvalVerificationRunner` (`ProcessPersonalEvalVerificationRunner` runs
+  the recorded command through the platform shell; exit 0 -> passed, non-zero ->
+  failed, timeout/launch failure -> inconclusive).
+  `PersonalEvalChatReplayTurnDriver` drives the candidate through the real
+  non-interactive agent loop (via `RoutineToolRunner` dispatching through the raw
+  `McpToolService`, obeying the RoutineToolPolicy trust model) and captures the
+  scoped session log; it falls back to a single logged completion when no tool
+  service is available.
+- Bake-off: `PersonalEvalBakeOffService` compares incumbent vs candidate replay
+  runs into a `PersonalEvalBakeOffReport` (mirroring the offline
+  `personal_eval_suite_report` thresholds), recommending the candidate only when
+  no case hard-regresses. `PersonalEvalCasesNotifier.runBakeOff` replays the
+  suite through both models; the cases page surfaces the verdict.
+- Held-in / held-out split: `PersonalEvalCaseSplit` on the case entity, managed
+  on the cases page; `PersonalEvalBakeOffReport.heldIn` / `.heldOut` report each
+  split's pass rates and hard-regression count separately.
+
+Verification:
+- `test/features/personal_eval/domain/services/personal_eval_replay_orchestrator_test.dart`
+- `test/features/personal_eval/domain/services/live_personal_eval_case_runner_test.dart`
+- `test/features/personal_eval/domain/services/personal_eval_verification_runner_test.dart`
+- `test/features/personal_eval/domain/services/personal_eval_bake_off_service_test.dart`
+- `test/features/personal_eval/data/personal_eval_chat_replay_turn_driver_test.dart`
+- `test/features/personal_eval/presentation/pages/personal_eval_cases_page_test.dart`
+
+Follow-up:
+- Replay currently runs in the active coding project directory; checking out the
+  recorded `repoStateRef` into an isolated worktree before each replay (so a case
+  always replays against its recorded state) is deferred to a later slice,
+  designed together with LL13 worktree isolation.
 
 ### LL20: Parallel Slot Execution Substrate
 
