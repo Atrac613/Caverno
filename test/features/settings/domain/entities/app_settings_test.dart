@@ -169,6 +169,127 @@ void main() {
     expect(profile.editFormatPreference, ModelEditFormatPreference.unknown);
   });
 
+  test('defaults to no model harness config', () {
+    final defaults = AppSettings.defaults();
+
+    expect(defaults.modelHarnessConfigs, isEmpty);
+    expect(defaults.effectiveModelHarnessConfig, isNull);
+  });
+
+  test('persists and resolves model harness configs', () {
+    final config = ModelHarnessConfig(
+      id: 'stale-config-id',
+      baseUrl: ' HTTP://LOCALHOST:1234/v1 ',
+      model: ' qwen-test ',
+      bootstrapInstruction: ' Create the answer file first. ',
+      failureRecoveryInstruction: ' Re-read before retrying. ',
+      toolLoopMaxIterations: -5,
+      recoveryMiddlewareEnabled: true,
+      explorationToEditNudgeEnabled: true,
+    ).normalizedForPersistence();
+    final settings = AppSettings.defaults().copyWith(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'qwen-test',
+      modelHarnessConfigs: [config],
+    );
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.modelHarnessConfigs, hasLength(1));
+    final stored = decoded.modelHarnessConfigs.single;
+    expect(stored.id, config.computedId);
+    // Normalization trims instructions and clamps a negative cap to zero.
+    expect(stored.bootstrapInstruction, 'Create the answer file first.');
+    expect(stored.failureRecoveryInstruction, 'Re-read before retrying.');
+    expect(stored.toolLoopMaxIterations, 0);
+
+    final effective = decoded.effectiveModelHarnessConfig;
+    expect(effective, isNotNull);
+    expect(effective!.recoveryMiddlewareEnabled, isTrue);
+    expect(effective.explorationToEditNudgeEnabled, isTrue);
+    expect(effective.hasInstructionOverrides, isTrue);
+    expect(effective.hasControlPolicyOverrides, isTrue);
+    expect(effective.isEmpty, isFalse);
+  });
+
+  test('reports an override-free harness config as empty', () {
+    const config = ModelHarnessConfig(id: 'x', model: 'qwen-test');
+
+    expect(config.isEmpty, isTrue);
+    expect(config.hasInstructionOverrides, isFalse);
+    expect(config.hasControlPolicyOverrides, isFalse);
+    expect(config.copyWith(toolLoopMaxIterations: 12).isEmpty, isFalse);
+    expect(
+      config.copyWith(verificationInstruction: 'Verify tests pass.').isEmpty,
+      isFalse,
+    );
+  });
+
+  test('resolves the tool-loop cap with fallback and ceiling', () {
+    const noOverride = ModelHarnessConfig(id: 'x', model: 'm');
+    const lowCap = ModelHarnessConfig(
+      id: 'x',
+      model: 'm',
+      toolLoopMaxIterations: 4,
+    );
+    const hugeCap = ModelHarnessConfig(
+      id: 'x',
+      model: 'm',
+      toolLoopMaxIterations: 100000,
+    );
+
+    expect(noOverride.resolveToolLoopMaxIterations(12), 12);
+    expect(lowCap.resolveToolLoopMaxIterations(12), 4);
+    // A runaway value is clamped to the defensive ceiling.
+    expect(
+      hugeCap.resolveToolLoopMaxIterations(12),
+      ModelHarnessConfig.maxToolLoopIterations,
+    );
+    // Negative values normalize to zero and fall back.
+    expect(
+      const ModelHarnessConfig(
+        id: 'x',
+        model: 'm',
+        toolLoopMaxIterations: -3,
+      ).resolveToolLoopMaxIterations(12),
+      12,
+    );
+  });
+
+  test('drops unknown harness config keys on parse (closed schema)', () {
+    final json =
+        jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
+              as Map<String, dynamic>
+          ..['modelHarnessConfigs'] = [
+            {
+              'id': ModelHarnessConfig.buildId(
+                provider: LlmProvider.openAiCompatible,
+                baseUrl: AppSettings.defaults().baseUrl,
+                model: AppSettings.defaults().model,
+              ),
+              'provider': 'openAiCompatible',
+              'baseUrl': AppSettings.defaults().baseUrl,
+              'model': AppSettings.defaults().model,
+              'bootstrapInstruction': 'Start here.',
+              // Not part of the declared schema; must be ignored, not persisted.
+              'selfModifyingCode': 'rm -rf /',
+              'unknownFutureField': 'ignored',
+            },
+          ];
+
+    final decoded = AppSettings.fromJson(json);
+    final config = decoded.effectiveModelHarnessConfig;
+
+    expect(config, isNotNull);
+    expect(config!.bootstrapInstruction, 'Start here.');
+    // The reserialized config never carries the unknown keys.
+    final reserialized = jsonEncode(config.toJson());
+    expect(reserialized, isNot(contains('selfModifyingCode')));
+    expect(reserialized, isNot(contains('unknownFutureField')));
+  });
+
   test('persists coding approval mode', () {
     final settings = AppSettings.defaults().copyWith(
       codingApprovalMode: ToolApprovalMode.autoReview,

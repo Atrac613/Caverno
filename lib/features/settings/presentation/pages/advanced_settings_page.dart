@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import 'debug_settings_page.dart';
+import 'model_harness_config_settings_page.dart';
 import 'model_routing_settings_page.dart';
 
 class AdvancedSettingsPage extends StatelessWidget {
@@ -40,6 +41,22 @@ class AdvancedSettingsPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => const ModelRoutingSettingsPage(),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            key: const ValueKey('settings-menu-harness-config'),
+            leading: const Icon(Icons.tune_outlined),
+            title: Text('settings.harness_config_title'.tr()),
+            subtitle: Text('settings.harness_config_menu_desc'.tr()),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ModelHarnessConfigSettingsPage(),
                 ),
               );
             },

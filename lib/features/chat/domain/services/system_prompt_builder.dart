@@ -37,6 +37,7 @@ class SystemPromptBuilder {
     String? skillsContext,
     bool hasPythonInputAttachment = false,
     ModelCapabilityProfile? modelCapabilityProfile,
+    ModelHarnessConfig? modelHarnessConfig,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
     final hasTools = uniqueToolNames.isNotEmpty;
@@ -121,6 +122,11 @@ class SystemPromptBuilder {
     );
     if (modelCapabilityGuidance.isNotEmpty) {
       buffer.writeln(modelCapabilityGuidance);
+    }
+
+    final modelHarnessGuidance = _modelHarnessGuidance(modelHarnessConfig);
+    if (modelHarnessGuidance.isNotEmpty) {
+      buffer.writeln(modelHarnessGuidance);
     }
 
     // In voice mode, follow-up questions are handled by the voice mode instruction.
@@ -805,6 +811,48 @@ class SystemPromptBuilder {
     if (profile.usableContextTokens > 0) {
       lines.add(
         'MODEL CAPABILITY PROFILE: Keep prompt construction within approximately ${profile.usableContextTokens} usable context tokens for this model.',
+      );
+    }
+    if (lines.isEmpty) {
+      return '';
+    }
+    return lines.join('\n');
+  }
+
+  /// LL23: renders the prompt-level surfaces of the per-model harness config.
+  ///
+  /// Only the instruction surfaces and the exploration-to-edit nudge are
+  /// rendered here; runtime control policy (tool-loop cap, recovery middleware)
+  /// is applied by the tool loop, not the prompt. Empty surfaces fall back to
+  /// the built-in guidance, so a config with no overrides emits nothing.
+  static String _modelHarnessGuidance(ModelHarnessConfig? config) {
+    if (config == null) {
+      return '';
+    }
+    final lines = <String>[];
+    void addSurface(String label, String value) {
+      final normalized = value.trim();
+      if (normalized.isNotEmpty) {
+        lines.add('MODEL HARNESS GUIDANCE ($label): $normalized');
+      }
+    }
+
+    addSurface('bootstrap', config.bootstrapInstruction);
+    addSurface('execution', config.executionInstruction);
+    addSurface('verification', config.verificationInstruction);
+    addSurface('failure recovery', config.failureRecoveryInstruction);
+    if (config.explorationToEditNudgeEnabled) {
+      lines.add(
+        'MODEL HARNESS GUIDANCE (exploration): Once you understand the task, '
+        'transition from exploration to implementation and make the change '
+        'instead of continuing to read or search.',
+      );
+    }
+    if (config.recoveryMiddlewareEnabled) {
+      lines.add(
+        'MODEL HARNESS GUIDANCE (recovery): When a tool call fails, do not '
+        'blindly retry the same call. Diagnose the error, re-read the relevant '
+        'file or state, recreate any missing required artifacts, then proceed.',
       );
     }
     if (lines.isEmpty) {

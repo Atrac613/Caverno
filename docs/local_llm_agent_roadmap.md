@@ -44,6 +44,13 @@ structurally unmotivated to build:
    users swap GGUFs constantly. Grounding answers in the project's actually
    installed dependency versions, and replaying the user's own recorded tasks
    as a personal eval suite, beat both problems offline.
+7. **Idle local hardware is a scheduled compute budget.** A desktop that sits
+   idle overnight with a warm GPU is a recurring, zero-token compute budget no
+   cloud-billed agent can assume. The measurement and self-improvement pieces
+   above (LL3, LL12, LL16, LL17) only pay off if something schedules them while
+   the machine is free; an idle/overnight orchestrator turns that budget into
+   continuous model re-measurement, eval-gated self-improvement, Best-of-N
+   quality, and pre-warmed caches.
 
 ## Milestone Index
 
@@ -70,7 +77,13 @@ structurally unmotivated to build:
 | Local LLM | LL14 | done | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
 | Local LLM | LL15 | done | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
 | Local LLM | LL16 | done | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
-| Local LLM | LL17 | later | L | LL3, LL12 | Self-improving harness loop: mine failure traces, propose profile mutations, adopt only on eval non-regression. |
+| Local LLM | LL17 | later | L | LL3, LL19, LL23 | Self-improving harness loop: cluster failure traces by verifier-grounded signature, propose minimal harness-config edits, adopt only on held-in/held-out non-regression. |
+| Local LLM | LL18 | later | L | LL3, LL12, LL16, LL19 | Idle/overnight maintenance orchestrator: detect idle + AC power + night window, then chain probe → calibrate → eval → mine → eval-gated adopt and emit a morning report. |
+| Local LLM | LL19 | later | M | LL12 | In-app personal eval recorder and replay executor: record sessions to eval cases and drive a candidate model through them end-to-end. |
+| Local LLM | LL20 | later | M | F3, LL6 | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, and run `--parallel N` candidates concurrently. Unblocks LL7/LL13. |
+| Local LLM | LL21 | later | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
+| Local LLM | LL22 | later | M | LL4, LL6, LL18 | Idle warm-up and precompute: precompute repo map / embeddings and warm the KV cache so the first morning turn is instant. |
+| Local LLM | LL23 | done | M | LL3, LL6 | Declared per-model harness config: instruction surfaces (bootstrap/verify/recovery) and runtime control policy (loop caps, recovery middleware) as a mutable schema LL17 edits. |
 
 Size legend: S = days, M = one to a few weeks of slices, L = multi-week.
 
@@ -158,7 +171,24 @@ different LL8 mesh endpoints. This is the capstone: a home lab running several
 unattended coding tasks overnight, each verified green before merge. LL17 is
 the other capstone, closing the loop the profile thread opened: instead of
 hand-tuning harness behavior per model, the app mines its own failure traces
-and adapts the LL3 profile under the LL12 regression gate.
+and adapts the per-model harness under the eval regression gate. Following the
+Self-Harness analysis, LL17 mutates the declared per-model harness config
+(LL23) — instruction surfaces and runtime control policy, not just LL3 profile
+fields — and gates adoption on an LL19 held-in/held-out eval split.
+
+### Phase 7 — Idle-time autonomy (LL18-LL22)
+
+This phase exists because Phases 2-6 built the measurement and self-improvement
+pieces (LL3, LL12, LL15, LL16, LL17) but left them as islands with no scheduler:
+probing is reactive, eval is offline-only, and nothing exploits the idle machine.
+LL18 is the keystone — the idle/overnight orchestrator that finally runs that
+machinery when the machine is free. LL19 moves the LL12 eval loop in-app so LL18
+and LL17 can run it unattended. LL20 builds the slot-execution substrate LL7 and
+LL13 need for concurrent local candidates. LL21 turns idle time into full
+re-probing with profile history and a recovery path for runtime-lowered samplers.
+LL22 spends idle cycles warming caches and precomputing the repo map/embeddings
+so the first interactive turn each morning is instant. None of these add a token
+cost; they convert otherwise wasted local compute into quality and speed.
 
 ## Milestone Notes
 
@@ -654,6 +684,12 @@ Implementation status:
   refuses blocked handoffs, and only writes an updated settings JSON when the
   operator explicitly chooses `--apply --out` or `--apply --in-place`.
 
+Follow-up (Self-Harness alignment):
+- The current tooling treats the eval suite as a single set. LL19 adds a
+  held-in / held-out split so LL17 can mine failures from held-in cases while
+  validating proposals against an unseen held-out split, matching the paper's
+  regression-gate protocol and reducing overfitting on small personal suites.
+
 ### LL13: Parallel Agents In Worktrees
 
 Scope:
@@ -858,34 +894,250 @@ Implementation status:
 
 Inspired by Self-Harness (arXiv:2606.09498), which showed agents can improve
 their own model-specific harnesses by mining failure traces and validating
-proposals with regression tests (Terminal-Bench-2.0 pass rates improved by
-14-21 points from a minimal baseline harness). Caverno already detects the
-relevant failures and plans the validation gate, so this milestone composes
-existing pieces rather than building new machinery.
+proposals with regression tests (Terminal-Bench-2.0 held-out pass rates
+improved by 14-21 points across MiniMax M2.5, Qwen3.5, and GLM-5). Caverno
+already records the relevant failures; this milestone adopts the paper's
+three-stage loop on top of the LL23 editable harness surface and the LL19
+in-app eval split.
 
 Scope:
-- Mine model-specific failure patterns from traces the app already records:
-  malformed tool calls, JSON repairs, edit-apply failures, repetition-loop
-  detections, and context-length errors. Run the mining pass as a scheduled
-  Routine, routed to the strongest available local model (LL1 / LL8).
-- Generate proposals strictly as LL3 profile mutations (few-shot exemplars,
-  tool-call style, edit format, sampler preset, prompt phrasing variants) —
-  a declared schema of tunable fields, never self-modifying code.
-- Validate every proposal against the LL12 personal eval suite; adopt only
-  on non-regression, with an audit trail linking each adopted change to the
-  failure evidence that motivated it and the eval run that validated it.
+- Weakness Mining: cluster recorded failure traces by a verifier-grounded
+  failure signature `(terminal cause, causal status, abstract agent mechanism)`,
+  following Self-Harness. The substrate already exists: `ModelEditApplyOutcome`
+  is a failure taxonomy, `coding_verification_feedback_service` is the verifier,
+  and session logs are the traces. Emit one evidence bundle per cluster (size,
+  representative cases, shared symptoms, verifier evidence, inferred mechanism),
+  ordered by support x estimated actionability.
+- Harness Proposal: generate K mutually distinct candidate edits per round
+  against the declared per-model harness config (LL23) — instruction surfaces
+  (bootstrap / execution / verification / failure-recovery), runtime control
+  policy (tool-loop caps, recovery-middleware toggles), and LL3 profile fields
+  (few-shot exemplars, tool-call style, edit format, sampler preset). Edits are
+  Grounded (tied to a mined mechanism and a concrete surface), Distinct, and
+  Minimal (touch only the needed surface, preserve unrelated behavior, no broad
+  rewrites, never self-modifying code). The K candidates evaluate in parallel
+  via LL20 slots.
+- Proposal Validation: evaluate each candidate against the LL19 eval suite split
+  into held-in (the cases that produced the mined failures, shown to the
+  proposer) and held-out (never shown to the proposer). Accept only when both
+  splits are non-regressing and at least one strictly improves
+  (`d_in >= 0 and d_ho >= 0 and max(d_in, d_ho) > 0`); repeat runs and aggregate
+  pass counts when evaluation is stochastic. Keep an audit trail and proposal
+  lineage (LL21 history) recording both discarded branches and adopted edits.
+- Run the mine-propose-validate loop as an LL18 idle/overnight pass, routed to
+  the strongest available local model (LL1 / LL8).
 
 Acceptance criteria:
-- Proposals outside the declared profile-field schema are rejected.
-- A regressing proposal is never adopted, and adoption history supports
-  one-tap revert to any previous profile revision.
-- A weak-model profile shows a measurable failure-rate reduction in live
+- Proposals outside the declared harness-config schema, or that fail to modify
+  any editable surface, are rejected.
+- A proposal that regresses either the held-in or the held-out split is never
+  adopted; adoption history supports one-tap revert to any previous revision.
+- Edits touching high-stakes surfaces (tool execution, approval, shell/file
+  write) require a stronger gate than pass-rate non-regression alone (explicit
+  user review), per the paper's own caution that "higher-stakes harness changes
+  would require stronger acceptance gates than pass-rate non-regression alone".
+- A weak-model harness shows a measurable failure-rate reduction in live
   canaries after one mining-adoption cycle.
 
 Risks:
-- Gains over Caverno's already-hardened harness will be smaller than the
-  paper's minimal-baseline numbers; treat LL12 coverage quality as the
-  binding constraint before trusting automated adoption.
+- Personal eval suites are small, so overfitting risk is higher than the paper's
+  Terminal-Bench setting; the held-in/held-out split is necessary but not
+  sufficient — treat LL19 coverage quality as the binding constraint and gate
+  high-stakes edits manually.
+- Accepted edits may encode personal-suite-specific patterns; periodic full
+  re-probing (LL21) guards against silent drift.
+
+### LL18: Idle/Overnight Maintenance Orchestrator
+
+Status: `later`
+
+Context:
+- Caverno already measures models (LL3 probes, LL16 calibration plus runtime
+  feedback, LL15 edit telemetry) and can score them (LL12), but each piece is an
+  island: probing is reactive (only on model selection, bounded, skipped when a
+  profile already exists), eval is offline CLI-only, and no scheduler ties them
+  together. The local thesis — idle hardware at night is a recurring zero-token
+  compute budget — has no enabling primitive.
+
+Scope:
+- An idle/overnight orchestrator that fires when the machine is idle, on AC
+  power (laptops), and within a user-configured maintenance window, reusing the
+  desktop platforms (macOS / Windows / Linux) Caverno already runs on.
+- A configurable maintenance pipeline that chains existing services: full LL3
+  re-probe (LL21) -> LL16 sampler calibration -> LL12 eval replay (LL19) -> LL17
+  failure-trace mining and profile-mutation proposals -> eval-gated adoption ->
+  a single morning report of what changed and why.
+- Runs entirely on local endpoints (zero marginal token cost), under a
+  RoutineToolPolicy-equivalent constraint with no interactive approval; never
+  adopts a mutation that fails the LL12 non-regression gate.
+
+Acceptance criteria:
+- The orchestrator never runs while the user is actively working (idle / power /
+  window gates verified) and is fully cancelable.
+- A maintenance run is atomic per stage: a crash mid-run leaves the profile and
+  conversation store consistent and the next run resumes cleanly.
+- Every adopted change links to the failure evidence and the eval run that
+  validated it; the morning report is produced even when nothing is adopted.
+
+### LL19: In-App Personal Eval Recorder & Replay Executor
+
+Status: `later`
+
+Context:
+- LL12 shipped as offline CLI tooling with zero `lib/` integration: it scores
+  and compares replay artifacts but cannot record a session as a case or drive a
+  candidate model through a case from inside the app. LL17 and LL18 both need the
+  suite to be runnable unattended, so the eval loop must move in-app.
+
+Scope:
+- An in-app recorder that turns a completed agent session into an LL12 case
+  manifest (prompt, repo state reference, verification command/result) with
+  explicit per-recording consent, reusing the existing session-log store.
+- A replay executor that drives a candidate model/endpoint through a recorded
+  case end-to-end via the chat datasource (mirroring the canary harness),
+  capturing the replay session log and verification result the LL12 tools
+  already consume.
+- A one-tap "bake-off": when a new model/GGUF is registered, queue an eval run
+  against the incumbent and present the comparison verdict.
+- A held-in / held-out case split (per Self-Harness): the suite is partitioned
+  so LL17 mines failures only from held-in cases while held-out cases stay
+  hidden from the proposer and serve as the regression gate. The split is
+  stable across runs and recorded in the case manifests.
+
+Acceptance criteria:
+- Recordings stay local-only and excluded from export by default.
+- A replay run is reproducible and produces the same artifact bundle the offline
+  `tool/personal_eval_*` pipeline emits today.
+- A bake-off produces a single model-swap recommendation usable without the CLI.
+- Held-in and held-out scores are reported separately so an LL17 adoption can be
+  gated on non-regression of both.
+
+### LL20: Parallel Slot Execution Substrate
+
+Status: `later`
+
+Context:
+- LL6 explicitly deferred runtime `id_slot` pinning because `openai_dart` does
+  not preserve provider-specific request/response extension fields. LL7
+  (Best-of-N) and LL13 (parallel worktrees) both need concurrent isolated
+  inference on one machine, which llama.cpp exposes via `--parallel N` slots and
+  per-request `id_slot`. This milestone builds that transport substrate once.
+
+Scope:
+- Preserve provider extension fields end-to-end in the app transport so
+  `id_slot`, `cache_prompt`, and `timings` survive the request/response round
+  trip (the typed SDK currently drops them).
+- Pin a conversation/candidate to a server slot and monitor progress via
+  `GET /slots`; run N candidates concurrently against `--parallel N`.
+- Expose the substrate to LL7 Best-of-N and (later) LL13 distribution; degrade
+  to sequential single-slot execution when the endpoint lacks slot support.
+
+Acceptance criteria:
+- Provider extension fields round-trip without loss on llama.cpp endpoints,
+  verified by a focused transport test.
+- Concurrent candidates run on isolated slots without cross-contamination, and a
+  non-slot endpoint transparently falls back to sequential execution.
+
+### LL21: Continuous Idle Re-Probing & Profile History
+
+Status: `later`
+
+Context:
+- The auto-probe runs a bounded subset once per model and skips any model that
+  already has a profile, so a model is never re-measured as runtime evidence
+  accumulates and a swapped GGUF quantization (same model id) is never
+  re-profiled. Idle time is exactly when the full, expensive probe suite should
+  run.
+
+Scope:
+- On idle (via LL18), run the full (non-bounded) probe suite rather than the 45s
+  registration subset, and re-probe models that already have a profile.
+- Store profile revisions as a time series so drift and regressions are visible
+  across re-probes; detect quantization/weights swaps behind a stable model id.
+- Fold accumulated LL15/LL16 runtime feedback into the re-probe so heuristic
+  runtime adjustments are validated (or reverted) against fresh measurements,
+  giving the one-directional LL16 temperature step-down a recovery path.
+
+Acceptance criteria:
+- A re-probe produces a new profile revision without losing prior history.
+- A changed quantization behind the same model id is detected and re-profiled.
+- A runtime-lowered sampler preset can recover when a fresh probe shows the
+  lower temperature is no longer warranted.
+
+### LL22: Idle Warm-Up & Precompute
+
+Status: `later`
+
+Context:
+- Prefill latency is the local UX killer (LL6 thesis). Idle time can pay that
+  cost in advance: precompute the repo map and embeddings, and warm the KV cache
+  for the stable system-prompt prefix so the first morning turn is instant.
+
+Scope:
+- During an idle window (via LL18), precompute and cache the LL4 repo map and
+  (when LL5 lands) embedding vectors for the active coding project.
+- Warm the llama.cpp KV cache for the LL6 prefix-stable system prompt plus tool
+  list so the first interactive turn reuses cache instead of cold prefill.
+- Invalidate precomputed artifacts when their inputs change (repo edits, model
+  swap, settings) so warm-up never serves stale context.
+
+Acceptance criteria:
+- The first interactive turn after a warm-up window reaches first token
+  measurably faster than a cold start, recorded as evidence.
+- Precompute is fully incremental and bounded, and is skipped/invalidated when
+  inputs changed since the last run.
+
+### LL23: Declared Per-Model Harness Config
+
+Status: `done`
+
+Context:
+- The Self-Harness analysis (LL17) found that the highest-impact edits are not
+  capability flags but harness *instruction surfaces* and *runtime control
+  policy*: MiniMax M2.5 gained from early-artifact-creation bootstrap text and a
+  `max_total_tool_messages` loop cap; Qwen3.5 from dependency-precheck and
+  no-blind-retry instructions plus tool-error recovery middleware; GLM-5 from a
+  persistent shell environment and an explicit exploration-to-implementation
+  transition. Caverno's per-model tuning today is the LL3 `ModelCapabilityProfile`
+  (measurements + sampler), and bootstrap/verification/recovery guidance lives
+  in `SystemPromptBuilder` at mode granularity — there is no declared,
+  per-model, mutable harness surface for LL17 to edit.
+
+Scope:
+- A declared per-model harness config schema: instruction-surface fragments
+  (bootstrap, execution, verification, failure-recovery) and a runtime control
+  policy (tool-loop cap, recovery-middleware toggles, exploration-to-edit nudge).
+  Stored alongside the LL3 profile, with safe defaults when absent.
+- `SystemPromptBuilder` and the tool loop read the config so an edit changes
+  real behavior without touching code; changes respect LL6 prefix stability
+  (config is part of the stable prefix and only mutates at compaction
+  boundaries).
+- The schema is the exclusive set of fields LL17 may mutate — a closed
+  allow-list, never free-form code, so every proposal is auditable and
+  revertible.
+
+Acceptance criteria:
+- Every config field has a safe default; a model with no config behaves exactly
+  as today.
+- An edited instruction surface or control-policy flag changes the live request
+  deterministically, verified by a focused prompt/tool-loop test.
+- The schema is closed: a proposed field outside it is rejected before any eval.
+
+Implementation status:
+- `ModelHarnessConfig` is a Freezed entity stored per model on `AppSettings`
+  (keyed by the shared LL3 profile id), with safe no-op defaults, a closed
+  allow-list `fromJson` (unknown keys dropped), and an `effectiveModelHarnessConfig`
+  lookup. Covered by `app_settings_test.dart`.
+- `SystemPromptBuilder` injects the four instruction surfaces, the
+  exploration-to-edit nudge, and a built-in recovery directive
+  (`recoveryMiddlewareEnabled`) as `MODEL HARNESS GUIDANCE` lines, wired live via
+  `ChatNotifier`. Covered by `system_prompt_builder_test.dart`.
+- The tool loop resolves its base iteration cap from `toolLoopMaxIterations`
+  (`resolveToolLoopMaxIterations`, clamped to a defensive ceiling).
+- Follow-up: `recoveryMiddlewareEnabled` currently primes recovery at the prompt
+  level. Upgrading it to true on-failure dynamic injection (re-sending a
+  targeted recovery message when a tool actually fails) needs deeper tool-loop
+  machinery and live-canary coverage, deferred to a later slice.
 
 ## Cross-Cutting Rules
 
@@ -899,6 +1151,9 @@ Risks:
 - Anything that executes work on another machine (LL8, LL13) inherits the
   existing tool-approval and Remote Coding pairing trust model; no implicit
   remote execution.
+- Idle/overnight autonomy (LL18, LL21, LL22) runs only behind idle + power +
+  window gates, never requires interactive approval, obeys the RoutineToolPolicy
+  trust model, and adopts profile mutations only through the LL12 eval gate.
 
 ## Appendix: llama.cpp Server Capability Reference
 

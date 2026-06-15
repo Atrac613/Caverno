@@ -848,6 +848,7 @@ class ChatNotifier extends Notifier<ChatState> {
           toolNames.contains('run_python_script') &&
           _latestPythonInputMessage() != null,
       modelCapabilityProfile: _settings.effectiveModelCapabilityProfile,
+      modelHarnessConfig: _settings.effectiveModelHarnessConfig,
     );
     _updateContextSurgeryObservation(systemPrompt: content);
     return Message(
@@ -10699,7 +10700,14 @@ class ChatNotifier extends Notifier<ChatState> {
     // Allow longer implementation and validation repair loops before falling
     // back to a final answer request. Live runs regularly need more than
     // eight bounded tool turns to converge on a validated saved task.
-    var maxIterations = 12;
+    // LL23: a per-model harness config may override this base cap (e.g. a low
+    // cap to break over-exploring models); the dynamic recovery extensions
+    // below still apply on top of the resolved base.
+    var maxIterations =
+        _settings.effectiveModelHarnessConfig?.resolveToolLoopMaxIterations(
+          12,
+        ) ??
+        12;
     var iteration = 0;
     var hasTextResponse = false;
     final executedToolCallKeys = <String>{};

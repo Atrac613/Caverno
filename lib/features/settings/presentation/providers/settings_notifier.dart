@@ -116,6 +116,46 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  /// LL23: store the per-model harness config. An override-free config is
+  /// dropped instead of persisted, so it never shadows a future config or
+  /// changes behaviour.
+  Future<void> upsertModelHarnessConfig(ModelHarnessConfig config) async {
+    final normalized = config.normalizedForPersistence();
+    if (normalized.normalizedModel.isEmpty) {
+      throw ArgumentError('Model harness config model is required');
+    }
+
+    final configs = List<ModelHarnessConfig>.from(state.modelHarnessConfigs);
+    final index = configs.indexWhere((item) => item.id == normalized.id);
+    if (normalized.isEmpty) {
+      if (index != -1) {
+        configs.removeAt(index);
+        state = state.copyWith(modelHarnessConfigs: configs);
+        await _repository.save(state);
+      }
+      return;
+    }
+    if (index == -1) {
+      configs.add(normalized);
+    } else {
+      configs[index] = normalized;
+    }
+    state = state.copyWith(modelHarnessConfigs: configs);
+    await _repository.save(state);
+  }
+
+  Future<void> removeModelHarnessConfig(String configId) async {
+    final normalizedId = configId.trim();
+    if (normalizedId.isEmpty) {
+      return;
+    }
+    final configs = state.modelHarnessConfigs
+        .where((config) => config.id != normalizedId)
+        .toList(growable: false);
+    state = state.copyWith(modelHarnessConfigs: configs);
+    await _repository.save(state);
+  }
+
   Future<void> updateTemperature(double temperature) async {
     state = state.copyWith(temperature: temperature);
     await _repository.save(state);

@@ -328,4 +328,79 @@ void main() {
       expect(reloaded.modelCapabilityProfiles, isEmpty);
     },
   );
+
+  test('model harness config updates persist through the repository', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(settingsNotifierProvider.notifier);
+    final settingsBefore = container.read(settingsNotifierProvider);
+    final config = ModelHarnessConfig(
+      id: '',
+      baseUrl: settingsBefore.baseUrl,
+      model: settingsBefore.model,
+      bootstrapInstruction: 'Create the answer file early.',
+      toolLoopMaxIterations: 6,
+    );
+
+    await notifier.upsertModelHarnessConfig(config);
+
+    var settings = container.read(settingsNotifierProvider);
+    final persisted = settings.effectiveModelHarnessConfig;
+    expect(persisted, isNotNull);
+    expect(persisted!.bootstrapInstruction, 'Create the answer file early.');
+    expect(persisted.toolLoopMaxIterations, 6);
+
+    var reloaded = SettingsRepository(prefs).load();
+    expect(
+      reloaded.effectiveModelHarnessConfig?.bootstrapInstruction,
+      'Create the answer file early.',
+    );
+
+    // Editing the stored config to clear every override removes the entry.
+    await notifier.upsertModelHarnessConfig(
+      persisted.copyWith(bootstrapInstruction: '', toolLoopMaxIterations: 0),
+    );
+    settings = container.read(settingsNotifierProvider);
+    expect(settings.modelHarnessConfigs, isEmpty);
+    reloaded = SettingsRepository(prefs).load();
+    expect(reloaded.modelHarnessConfigs, isEmpty);
+  });
+
+  test('removeModelHarnessConfig drops a stored config by id', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(settingsNotifierProvider.notifier);
+    final settingsBefore = container.read(settingsNotifierProvider);
+    await notifier.upsertModelHarnessConfig(
+      ModelHarnessConfig(
+        id: '',
+        baseUrl: settingsBefore.baseUrl,
+        model: settingsBefore.model,
+        recoveryMiddlewareEnabled: true,
+      ),
+    );
+
+    final stored = container
+        .read(settingsNotifierProvider)
+        .effectiveModelHarnessConfig;
+    expect(stored, isNotNull);
+
+    await notifier.removeModelHarnessConfig(stored!.id);
+
+    expect(
+      container.read(settingsNotifierProvider).modelHarnessConfigs,
+      isEmpty,
+    );
+    expect(SettingsRepository(prefs).load().modelHarnessConfigs, isEmpty);
+  });
 }

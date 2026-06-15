@@ -232,6 +232,46 @@ const _$ModelEditFormatPreferenceEnumMap = {
   ModelEditFormatPreference.unifiedDiff: 'unifiedDiff',
 };
 
+_ModelHarnessConfig _$ModelHarnessConfigFromJson(Map<String, dynamic> json) =>
+    _ModelHarnessConfig(
+      id: json['id'] as String,
+      provider:
+          $enumDecodeNullable(
+            _$LlmProviderEnumMap,
+            json['provider'],
+            unknownValue: LlmProvider.openAiCompatible,
+          ) ??
+          LlmProvider.openAiCompatible,
+      baseUrl: json['baseUrl'] as String? ?? '',
+      model: json['model'] as String,
+      bootstrapInstruction: json['bootstrapInstruction'] as String? ?? '',
+      executionInstruction: json['executionInstruction'] as String? ?? '',
+      verificationInstruction: json['verificationInstruction'] as String? ?? '',
+      failureRecoveryInstruction:
+          json['failureRecoveryInstruction'] as String? ?? '',
+      toolLoopMaxIterations:
+          (json['toolLoopMaxIterations'] as num?)?.toInt() ?? 0,
+      recoveryMiddlewareEnabled:
+          json['recoveryMiddlewareEnabled'] as bool? ?? false,
+      explorationToEditNudgeEnabled:
+          json['explorationToEditNudgeEnabled'] as bool? ?? false,
+    );
+
+Map<String, dynamic> _$ModelHarnessConfigToJson(_ModelHarnessConfig instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'provider': _$LlmProviderEnumMap[instance.provider]!,
+      'baseUrl': instance.baseUrl,
+      'model': instance.model,
+      'bootstrapInstruction': instance.bootstrapInstruction,
+      'executionInstruction': instance.executionInstruction,
+      'verificationInstruction': instance.verificationInstruction,
+      'failureRecoveryInstruction': instance.failureRecoveryInstruction,
+      'toolLoopMaxIterations': instance.toolLoopMaxIterations,
+      'recoveryMiddlewareEnabled': instance.recoveryMiddlewareEnabled,
+      'explorationToEditNudgeEnabled': instance.explorationToEditNudgeEnabled,
+    };
+
 _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   llmProvider:
       $enumDecodeNullable(
@@ -347,6 +387,9 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
       : _modelCapabilityProfilesFromJson(
           json['modelCapabilityProfiles'] as List?,
         ),
+  modelHarnessConfigs: json['modelHarnessConfigs'] == null
+      ? const <ModelHarnessConfig>[]
+      : _modelHarnessConfigsFromJson(json['modelHarnessConfigs'] as List?),
 );
 
 Map<String, dynamic> _$AppSettingsToJson(
@@ -402,6 +445,9 @@ Map<String, dynamic> _$AppSettingsToJson(
       instance.routineComputerUseActionAllowlist,
   'modelCapabilityProfiles': _modelCapabilityProfilesToJson(
     instance.modelCapabilityProfiles,
+  ),
+  'modelHarnessConfigs': _modelHarnessConfigsToJson(
+    instance.modelHarnessConfigs,
   ),
 };
 

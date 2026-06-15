@@ -280,6 +280,148 @@ List<Map<String, dynamic>> _modelCapabilityProfilesToJson(
       .toList(growable: false);
 }
 
+/// LL23: a declared, per-model harness configuration.
+///
+/// This is the closed allow-list of harness surfaces the LL17 self-improving
+/// loop is permitted to mutate. The schema is intentionally small and
+/// behaviour-preserving by default: every field has a safe default that means
+/// "use the built-in harness behaviour", so a model with no stored config
+/// behaves exactly as it does today. Unknown JSON keys are dropped on parse,
+/// keeping the persisted surface closed.
+@freezed
+abstract class ModelHarnessConfig with _$ModelHarnessConfig {
+  const ModelHarnessConfig._();
+
+  /// Defensive ceiling on the configurable tool-loop cap so a stored or
+  /// proposed value can never trigger a runaway loop.
+  static const int maxToolLoopIterations = 100;
+
+  const factory ModelHarnessConfig({
+    required String id,
+    @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)
+    @Default(LlmProvider.openAiCompatible)
+    LlmProvider provider,
+    @Default('') String baseUrl,
+    required String model,
+    // Instruction surfaces. An empty string falls back to the built-in
+    // SystemPromptBuilder guidance for that surface.
+    @Default('') String bootstrapInstruction,
+    @Default('') String executionInstruction,
+    @Default('') String verificationInstruction,
+    @Default('') String failureRecoveryInstruction,
+    // Runtime control policy. Zero / false means "use the existing harness
+    // default" so the config never silently weakens current behaviour.
+    @Default(0) int toolLoopMaxIterations,
+    @Default(false) bool recoveryMiddlewareEnabled,
+    @Default(false) bool explorationToEditNudgeEnabled,
+  }) = _ModelHarnessConfig;
+
+  factory ModelHarnessConfig.fromJson(Map<String, dynamic> json) =>
+      _$ModelHarnessConfigFromJson(json);
+
+  /// Shares the LL3 profile keying scheme so a model resolves to one
+  /// capability profile and one harness config under the same id.
+  static String buildId({
+    required LlmProvider provider,
+    required String baseUrl,
+    required String model,
+  }) {
+    return ModelCapabilityProfile.buildId(
+      provider: provider,
+      baseUrl: baseUrl,
+      model: model,
+    );
+  }
+
+  String get normalizedBaseUrl => baseUrl.trim();
+
+  String get normalizedModel => model.trim();
+
+  String get computedId => buildId(
+    provider: provider,
+    baseUrl: normalizedBaseUrl,
+    model: normalizedModel,
+  );
+
+  bool get hasInstructionOverrides =>
+      bootstrapInstruction.trim().isNotEmpty ||
+      executionInstruction.trim().isNotEmpty ||
+      verificationInstruction.trim().isNotEmpty ||
+      failureRecoveryInstruction.trim().isNotEmpty;
+
+  bool get hasControlPolicyOverrides =>
+      toolLoopMaxIterations > 0 ||
+      recoveryMiddlewareEnabled ||
+      explorationToEditNudgeEnabled;
+
+  /// True when the config carries no overrides, i.e. it is equivalent to having
+  /// no stored config at all.
+  bool get isEmpty => !hasInstructionOverrides && !hasControlPolicyOverrides;
+
+  ModelHarnessConfig normalizedForPersistence() {
+    return copyWith(
+      id: computedId,
+      baseUrl: normalizedBaseUrl,
+      model: normalizedModel,
+      bootstrapInstruction: bootstrapInstruction.trim(),
+      executionInstruction: executionInstruction.trim(),
+      verificationInstruction: verificationInstruction.trim(),
+      failureRecoveryInstruction: failureRecoveryInstruction.trim(),
+      toolLoopMaxIterations: toolLoopMaxIterations < 0
+          ? 0
+          : toolLoopMaxIterations,
+    );
+  }
+
+  /// Resolves the tool-loop iteration cap for this model, falling back to
+  /// [fallback] when no override is configured. Clamped to
+  /// [maxToolLoopIterations] so a stored value can never exceed the ceiling.
+  int resolveToolLoopMaxIterations(int fallback) {
+    if (toolLoopMaxIterations <= 0) {
+      return fallback;
+    }
+    return toolLoopMaxIterations > maxToolLoopIterations
+        ? maxToolLoopIterations
+        : toolLoopMaxIterations;
+  }
+
+  bool matches({
+    required LlmProvider provider,
+    required String baseUrl,
+    required String model,
+  }) {
+    final targetId = buildId(
+      provider: provider,
+      baseUrl: baseUrl,
+      model: model,
+    );
+    return id == targetId || computedId == targetId;
+  }
+}
+
+List<ModelHarnessConfig> _modelHarnessConfigsFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const <ModelHarnessConfig>[];
+  }
+  return json
+      .whereType<Map>()
+      .map(
+        (item) => ModelHarnessConfig.fromJson(
+          Map<String, dynamic>.from(item),
+        ).normalizedForPersistence(),
+      )
+      .where((config) => config.normalizedModel.isNotEmpty)
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _modelHarnessConfigsToJson(
+  List<ModelHarnessConfig> configs,
+) {
+  return configs
+      .map((config) => config.normalizedForPersistence().toJson())
+      .toList(growable: false);
+}
+
 @freezed
 abstract class AppSettings with _$AppSettings {
   const AppSettings._();
@@ -358,6 +500,12 @@ abstract class AppSettings with _$AppSettings {
     )
     @Default(<ModelCapabilityProfile>[])
     List<ModelCapabilityProfile> modelCapabilityProfiles,
+    @JsonKey(
+      fromJson: _modelHarnessConfigsFromJson,
+      toJson: _modelHarnessConfigsToJson,
+    )
+    @Default(<ModelHarnessConfig>[])
+    List<ModelHarnessConfig> modelHarnessConfigs,
   }) = _AppSettings;
 
   factory AppSettings.defaults() => const AppSettings(
@@ -415,6 +563,29 @@ abstract class AppSettings with _$AppSettings {
     for (final profile in modelCapabilityProfiles.reversed) {
       if (profile.matches(provider: provider, baseUrl: baseUrl, model: model)) {
         return profile.normalizedForPersistence();
+      }
+    }
+    return null;
+  }
+
+  /// LL23: the harness config for the active model, or null when none is
+  /// stored. A null result means "use the built-in harness behaviour".
+  ModelHarnessConfig? get effectiveModelHarnessConfig {
+    return modelHarnessConfigFor(
+      provider: llmProvider,
+      baseUrl: baseUrl,
+      model: effectiveModel,
+    );
+  }
+
+  ModelHarnessConfig? modelHarnessConfigFor({
+    required LlmProvider provider,
+    required String baseUrl,
+    required String model,
+  }) {
+    for (final config in modelHarnessConfigs.reversed) {
+      if (config.matches(provider: provider, baseUrl: baseUrl, model: model)) {
+        return config.normalizedForPersistence();
       }
     }
     return null;

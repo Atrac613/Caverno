@@ -651,4 +651,75 @@ Dart symbols:
     expect(prompt, isNot(contains('Active coding goal for this thread:')));
     expect(prompt, isNot(contains('Fix the login crash')));
   });
+
+  test('injects model harness config instruction surfaces', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 5, 25, 10, 30),
+      assistantMode: AssistantMode.coding,
+      modelHarnessConfig: const ModelHarnessConfig(
+        id: 'cfg',
+        model: 'qwen-test',
+        bootstrapInstruction: 'Identify the required output artifact first.',
+        failureRecoveryInstruction: 'Re-read the file before retrying an edit.',
+        explorationToEditNudgeEnabled: true,
+      ),
+    );
+
+    expect(
+      prompt,
+      contains(
+        'MODEL HARNESS GUIDANCE (bootstrap): '
+        'Identify the required output artifact first.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'MODEL HARNESS GUIDANCE (failure recovery): '
+        'Re-read the file before retrying an edit.',
+      ),
+    );
+    expect(prompt, contains('MODEL HARNESS GUIDANCE (exploration):'));
+    // Surfaces left empty fall back to built-in guidance and emit nothing.
+    expect(prompt, isNot(contains('MODEL HARNESS GUIDANCE (execution)')));
+    expect(prompt, isNot(contains('MODEL HARNESS GUIDANCE (verification)')));
+    // The recovery directive is gated on its own toggle.
+    expect(prompt, isNot(contains('MODEL HARNESS GUIDANCE (recovery)')));
+  });
+
+  test('emits the recovery directive only when the toggle is enabled', () {
+    final enabled = SystemPromptBuilder.build(
+      now: DateTime(2026, 5, 25, 10, 30),
+      assistantMode: AssistantMode.coding,
+      modelHarnessConfig: const ModelHarnessConfig(
+        id: 'cfg',
+        model: 'm',
+        recoveryMiddlewareEnabled: true,
+      ),
+    );
+    final disabled = SystemPromptBuilder.build(
+      now: DateTime(2026, 5, 25, 10, 30),
+      assistantMode: AssistantMode.coding,
+      modelHarnessConfig: const ModelHarnessConfig(id: 'cfg', model: 'm'),
+    );
+
+    expect(enabled, contains('MODEL HARNESS GUIDANCE (recovery):'));
+    expect(enabled, contains('do not '));
+    expect(disabled, isNot(contains('MODEL HARNESS GUIDANCE')));
+  });
+
+  test('omits harness guidance when config is absent or override-free', () {
+    final withoutConfig = SystemPromptBuilder.build(
+      now: DateTime(2026, 5, 25, 10, 30),
+      assistantMode: AssistantMode.coding,
+    );
+    final overrideFree = SystemPromptBuilder.build(
+      now: DateTime(2026, 5, 25, 10, 30),
+      assistantMode: AssistantMode.coding,
+      modelHarnessConfig: const ModelHarnessConfig(id: 'cfg', model: 'm'),
+    );
+
+    expect(withoutConfig, isNot(contains('MODEL HARNESS GUIDANCE')));
+    expect(overrideFree, isNot(contains('MODEL HARNESS GUIDANCE')));
+  });
 }
