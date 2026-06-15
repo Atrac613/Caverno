@@ -10,9 +10,11 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/personal_eval_case_recording_service.dart';
 import '../../data/personal_eval_case_repository.dart';
 import '../../data/personal_eval_chat_replay_turn_driver.dart';
+import '../../domain/entities/personal_eval_bake_off_report.dart';
 import '../../domain/entities/personal_eval_case.dart';
 import '../../domain/entities/personal_eval_replay_run.dart';
 import '../../domain/services/live_personal_eval_case_runner.dart';
+import '../../domain/services/personal_eval_bake_off_service.dart';
 import '../../domain/services/personal_eval_replay_orchestrator.dart';
 import '../../domain/services/personal_eval_verification_runner.dart';
 
@@ -21,11 +23,12 @@ final personalEvalCaseRepositoryProvider = Provider<PersonalEvalCaseRepository>(
   (ref) => PersonalEvalCaseRepository(),
 );
 
-/// Drives a candidate model through a recorded case (LL19). Reuses the active
-/// model/endpoint and the session-logging chat datasource so the replay log is
-/// captured the same way a real turn is.
-final personalEvalReplayTurnDriverProvider =
-    Provider<PersonalEvalReplayTurnDriver>((ref) {
+/// Builds a replay turn driver for a given candidate model (LL19). A bake-off
+/// needs drivers for two different models, so the model is a parameter rather
+/// than baked into the provider. Reuses the active endpoint, session-logging
+/// chat datasource, and tool service so each replay matches a real turn.
+final personalEvalReplayTurnDriverFactoryProvider =
+    Provider<PersonalEvalReplayTurnDriver Function(String model)>((ref) {
       final settings = ref.watch(settingsNotifierProvider);
       final rawDataSource = ref.watch(chatRemoteDataSourceProvider);
       final logStore = ref.watch(llmSessionLogStoreProvider);
@@ -48,10 +51,10 @@ final personalEvalReplayTurnDriverProvider =
       // candidate executes tools non-interactively through the raw
       // McpToolService, the same execution path routines use.
       final toolService = ref.watch(mcpToolServiceProvider);
-      return PersonalEvalChatReplayTurnDriver(
+      return (model) => PersonalEvalChatReplayTurnDriver(
         dataSource: dataSource,
         sessionLogStore: logStore,
-        model: settings.model,
+        model: model,
         workingDirectory: workingDirectory,
         maxTokens: settings.maxTokens,
         toolDefinitions: toolService?.getOpenAiToolDefinitions,
@@ -70,14 +73,21 @@ final personalEvalVerificationRunnerProvider =
       (ref) => ProcessPersonalEvalVerificationRunner(),
     );
 
-/// The live [PersonalEvalCaseRunner] used by replay runs. Override in tests to
-/// inject a fake runner without touching the network or the filesystem.
-final personalEvalCaseRunnerProvider = Provider<PersonalEvalCaseRunner>((ref) {
-  return LivePersonalEvalCaseRunner(
-    turnDriver: ref.watch(personalEvalReplayTurnDriverProvider),
-    verificationRunner: ref.watch(personalEvalVerificationRunnerProvider),
-  );
-});
+/// Builds a live [PersonalEvalCaseRunner] for a given candidate model. Override
+/// in tests to inject fake runners without touching the network or filesystem.
+final personalEvalCaseRunnerFactoryProvider =
+    Provider<PersonalEvalCaseRunner Function(String model)>((ref) {
+      final driverFactory = ref.watch(
+        personalEvalReplayTurnDriverFactoryProvider,
+      );
+      final verificationRunner = ref.watch(
+        personalEvalVerificationRunnerProvider,
+      );
+      return (model) => LivePersonalEvalCaseRunner(
+        turnDriver: driverFactory(model),
+        verificationRunner: verificationRunner,
+      );
+    });
 
 /// Records a completed session as a personal eval case, reading the session
 /// log through the shared [LlmSessionLogStore].
@@ -104,6 +114,9 @@ class PersonalEvalCasesNotifier extends AsyncNotifier<List<PersonalEvalCase>> {
 
   static const PersonalEvalReplayOrchestrator _orchestrator =
       PersonalEvalReplayOrchestrator();
+
+  static const PersonalEvalBakeOffService _bakeOffService =
+      PersonalEvalBakeOffService();
 
   @override
   Future<List<PersonalEvalCase>> build() => _repository.loadAll();
@@ -171,12 +184,48 @@ class PersonalEvalCasesNotifier extends AsyncNotifier<List<PersonalEvalCase>> {
     final cases = state.value ?? await _repository.loadAll();
     final evalCase = cases.firstWhere((item) => item.caseId == caseId);
     final settings = ref.read(settingsNotifierProvider);
+    final runnerFor = ref.read(personalEvalCaseRunnerFactoryProvider);
     return _orchestrator.run(
       label: 'replay',
       model: settings.model,
       baseUrl: settings.baseUrl.trim(),
       cases: [evalCase],
-      runner: ref.read(personalEvalCaseRunnerProvider),
+      runner: runnerFor(settings.model),
+    );
+  }
+
+  /// Runs a bake-off: replays the whole suite through the incumbent (active)
+  /// model and the [candidateModel], then compares them into a single
+  /// model-swap recommendation. Held-in / held-out scores are reported
+  /// separately so an LL17 adoption can gate on non-regression of both.
+  Future<PersonalEvalBakeOffReport> runBakeOff({
+    required String candidateModel,
+  }) async {
+    final cases = state.value ?? await _repository.loadAll();
+    final settings = ref.read(settingsNotifierProvider);
+    final incumbentModel = settings.model;
+    final baseUrl = settings.baseUrl.trim();
+    final runnerFor = ref.read(personalEvalCaseRunnerFactoryProvider);
+
+    final incumbentRun = await _orchestrator.run(
+      label: 'incumbent',
+      model: incumbentModel,
+      baseUrl: baseUrl,
+      cases: cases,
+      runner: runnerFor(incumbentModel),
+    );
+    final candidateRun = await _orchestrator.run(
+      label: 'candidate',
+      model: candidateModel,
+      baseUrl: baseUrl,
+      cases: cases,
+      runner: runnerFor(candidateModel),
+    );
+
+    return _bakeOffService.compare(
+      incumbent: incumbentRun,
+      candidate: candidateRun,
+      cases: cases,
     );
   }
 }

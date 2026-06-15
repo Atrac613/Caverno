@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/personal_eval/domain/entities/personal_eval_bake_off_report.dart';
 import 'package:caverno/features/personal_eval/domain/entities/personal_eval_case.dart';
 import 'package:caverno/features/personal_eval/domain/entities/personal_eval_replay_run.dart';
 import 'package:caverno/features/personal_eval/domain/entities/personal_eval_session_log_summary.dart';
@@ -26,11 +27,13 @@ class _TestTranslationLoader extends AssetLoader {
 /// on the async loading state (real file IO + a progress indicator would make
 /// pumpAndSettle time out). The repository is covered by its own tests.
 class _FakeCasesNotifier extends PersonalEvalCasesNotifier {
-  _FakeCasesNotifier(this._cases, {this.replayResult});
+  _FakeCasesNotifier(this._cases, {this.replayResult, this.bakeOffResult});
 
   List<PersonalEvalCase> _cases;
   final PersonalEvalReplayRun? replayResult;
+  final PersonalEvalBakeOffReport? bakeOffResult;
   final List<String> replayedCaseIds = [];
+  final List<String> bakeOffCandidates = [];
 
   @override
   Future<List<PersonalEvalCase>> build() => SynchronousFuture(_cases);
@@ -40,6 +43,15 @@ class _FakeCasesNotifier extends PersonalEvalCasesNotifier {
     replayedCaseIds.add(caseId);
     return replayResult ??
         PersonalEvalReplayRun(label: 'replay', cases: const []);
+  }
+
+  @override
+  Future<PersonalEvalBakeOffReport> runBakeOff({
+    required String candidateModel,
+  }) async {
+    bakeOffCandidates.add(candidateModel);
+    return bakeOffResult ??
+        const PersonalEvalBakeOffReport(label: 'bake-off', entries: []);
   }
 
   @override
@@ -184,5 +196,43 @@ void main() {
 
     expect(notifier.replayedCaseIds, ['a']);
     expect(find.text('Replay finished: Passed (90 ms)'), findsOneWidget);
+  });
+
+  testWidgets('runs a bake-off and shows the recommendation', (tester) async {
+    final notifier = _FakeCasesNotifier(
+      [caseWith('a', title: 'Login crash')],
+      bakeOffResult: const PersonalEvalBakeOffReport(
+        label: 'bake-off',
+        incumbentModel: 'old',
+        candidateModel: 'new',
+        entries: [
+          PersonalEvalBakeOffCaseEntry(
+            caseId: 'a',
+            title: 'Login crash',
+            split: PersonalEvalCaseSplit.heldIn,
+            status: PersonalEvalBakeOffStatus.improved,
+            expectedToolCallCount: 0,
+            improvements: ['verification result improved failed->passed'],
+          ),
+        ],
+      ),
+    );
+    await pumpPage(tester, const [], notifier: notifier);
+
+    await tester.tap(find.byKey(const ValueKey('personal-eval-bake-off')));
+    await tester.pumpAndSettle();
+
+    // Candidate model prompt.
+    await tester.enterText(find.byType(TextField), 'new-model');
+    await tester.tap(find.text('Run'));
+    await tester.pumpAndSettle();
+
+    expect(notifier.bakeOffCandidates, ['new-model']);
+    // The verdict dialog shows the recommendation.
+    expect(
+      find.byKey(const ValueKey('personal-eval-bake-off-report')),
+      findsOneWidget,
+    );
+    expect(find.text('Adopt candidate'), findsOneWidget);
   });
 }
