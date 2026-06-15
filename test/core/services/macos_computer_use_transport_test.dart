@@ -1,3 +1,10 @@
+// The transport short-circuits with an `unsupported_platform` fallback when
+// `Platform.isMacOS` is false, so these assertions (which expect the native
+// method channel to be invoked) only hold on macOS. Restrict the suite to
+// macOS so Linux CI runners do not report a deterministic failure.
+@TestOn('mac-os')
+library;
+
 import 'dart:convert';
 
 import 'package:caverno/core/services/macos_computer_use_transport.dart';

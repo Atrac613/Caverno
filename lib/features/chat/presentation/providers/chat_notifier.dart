@@ -11001,22 +11001,29 @@ class ChatNotifier extends Notifier<ChatState> {
             hasTextResponse = true;
             break;
           }
-          if (_containsOnlyPreviouslySuccessfulCommandToolCalls(
-            currentToolCalls,
-            executedToolResults,
-          )) {
+          if (_toolCallExecutionPolicy
+              .containsOnlyPreviouslySuccessfulCommandToolCalls(
+                currentToolCalls,
+                executedToolResults,
+              )) {
             appLog(
               '[Tool] Duplicate command follow-up already has a successful result',
             );
             final fallbackResponse = currentAssistantContent?.trim() ?? '';
-            final previousOutput = duplicateRecoveryToolResults
-                .map(_toolCallExecutionPolicy.toolResultOutputText)
-                .map((output) => output.trim())
-                .where((output) => output.isNotEmpty)
-                .join('\n');
-            if (previousOutput.isNotEmpty &&
-                fallbackResponse.isNotEmpty &&
-                _looksLikePendingToolActionResponse(fallbackResponse)) {
+            final previousOutput = _toolCallExecutionPolicy
+                .previousSuccessfulCommandOutputForDuplicateCalls(
+                  currentToolCalls,
+                  duplicateRecoveryToolResults.isNotEmpty
+                      ? duplicateRecoveryToolResults
+                      : executedToolResults,
+                );
+            if (_toolCallExecutionPolicy
+                    .shouldUsePreviousOutputForDuplicateCommandCalls(
+                      currentToolCalls,
+                    ) &&
+                previousOutput.isNotEmpty &&
+                (fallbackResponse.isEmpty ||
+                    _looksLikePendingToolActionResponse(fallbackResponse))) {
               currentToolCalls = [];
               _recordHiddenAssistantResponse(previousOutput);
               _appendRecoveredAssistantResponse(
@@ -12514,39 +12521,6 @@ class ChatNotifier extends Notifier<ChatState> {
       toolCallKey: (toolCall, generation) =>
           _toolExecutionKey(toolCall, commandRetryGeneration: generation),
     );
-  }
-
-  bool _containsOnlyPreviouslySuccessfulCommandToolCalls(
-    List<ToolCallInfo> toolCalls,
-    List<ToolResultInfo> previousToolResults,
-  ) {
-    if (toolCalls.isEmpty || previousToolResults.isEmpty) {
-      return false;
-    }
-    return toolCalls.every((toolCall) {
-      if (toolCall.name == 'run_tests') {
-        final testPath = _runTestsPathArgument(toolCall.arguments);
-        return previousToolResults.any(
-          (result) =>
-              result.name == toolCall.name &&
-              _runTestsPathArgument(result.arguments) == testPath &&
-              _toolResultHasSuccessfulExit(result),
-        );
-      }
-      if (!_isCommandExecutionTool(toolCall.name)) {
-        return false;
-      }
-      final command = _toolCommandArgument(toolCall.arguments);
-      if (command == null) {
-        return false;
-      }
-      return previousToolResults.any(
-        (result) =>
-            result.name == toolCall.name &&
-            _toolCommandArgument(result.arguments) == command &&
-            _toolResultHasSuccessfulExit(result),
-      );
-    });
   }
 
   bool _looksLikePendingToolActionResponse(String response) {

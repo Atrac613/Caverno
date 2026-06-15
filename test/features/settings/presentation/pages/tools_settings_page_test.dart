@@ -154,6 +154,7 @@ void main() {
   testWidgets('toggles coding verification feedback from Tools settings', (
     tester,
   ) async {
+    _useLargeTestSurface(tester);
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final preferences = await SharedPreferences.getInstance();
 
@@ -191,6 +192,14 @@ void main() {
     );
 
     expect(find.text('Verify coding completion with tests'), findsOneWidget);
+
+    // scrollUntilVisible may stop with the target at the bottom edge of the
+    // 800x600 test viewport on Linux font metrics. ensureVisible centers the
+    // tile enough for the tap hit test to remain stable across runners.
+    await tester.ensureVisible(
+      find.text('Verify coding completion with tests'),
+    );
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Verify coding completion with tests'));
     await tester.pumpAndSettle();
@@ -259,4 +268,11 @@ void main() {
       expect(storedSettings.runsCodingVerificationOnCompletionClaim, isFalse);
     },
   );
+}
+
+void _useLargeTestSurface(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1200, 1600);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
 }
