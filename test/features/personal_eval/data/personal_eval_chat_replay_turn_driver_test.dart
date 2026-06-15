@@ -4,9 +4,11 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
+import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/personal_eval/data/personal_eval_chat_replay_turn_driver.dart';
 import 'package:caverno/features/personal_eval/domain/entities/personal_eval_case.dart';
+import 'package:caverno/features/routines/data/routine_tool_runner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Records the [createChatCompletion] call and returns a canned result (or
@@ -72,6 +74,32 @@ class _FakeChatDataSource extends ChatDataSource {
   }) => throw UnimplementedError();
 }
 
+/// Captures how the driver invoked the agent loop and lets the test exercise
+/// the dispatch callback the driver wired in.
+class _FakeToolRunner extends RoutineToolRunner {
+  _FakeToolRunner(ChatDataSource dataSource) : super(dataSource: dataSource);
+
+  List<Map<String, dynamic>>? capturedTools;
+  String? capturedModel;
+  Future<McpToolResult> Function(ToolCallInfo)? capturedDispatch;
+
+  @override
+  Future<RoutineToolExecutionResult> execute({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    required Future<McpToolResult> Function(ToolCallInfo toolCall)
+    dispatchToolCall,
+    required String model,
+    required double temperature,
+    required int maxTokens,
+  }) async {
+    capturedTools = tools;
+    capturedModel = model;
+    capturedDispatch = dispatchToolCall;
+    return const RoutineToolExecutionResult(output: 'done');
+  }
+}
+
 void main() {
   late Directory tempDir;
   late LlmSessionLogStore store;
@@ -131,6 +159,49 @@ void main() {
       expect(dataSource.lastMessages?.first.role, MessageRole.system);
     },
   );
+
+  test('runs the agent loop when tool capabilities are provided', () async {
+    final dataSource = _FakeChatDataSource();
+    final toolRunner = _FakeToolRunner(dataSource);
+    final dispatched = <String>[];
+
+    final driver = PersonalEvalChatReplayTurnDriver(
+      dataSource: dataSource,
+      sessionLogStore: store,
+      model: 'candidate-model',
+      workingDirectory: '/tmp/project',
+      toolRunner: toolRunner,
+      toolDefinitions: () => [
+        {
+          'type': 'function',
+          'function': {'name': 'read_file'},
+        },
+      ],
+      dispatchToolCall: (toolCall) async {
+        dispatched.add(toolCall.name);
+        return McpToolResult(
+          toolName: toolCall.name,
+          result: 'ok',
+          isSuccess: true,
+        );
+      },
+    );
+
+    final result = await driver.drive(evalCase());
+
+    // The agent loop ran with the candidate model and tools, not the
+    // single-completion fallback.
+    expect(toolRunner.capturedModel, 'candidate-model');
+    expect(toolRunner.capturedTools, isNotEmpty);
+    expect(dataSource.lastModel, isNull);
+    expect(result.workingDirectory, '/tmp/project');
+
+    // The wired dispatch routes tool calls to the injected executor.
+    await toolRunner.capturedDispatch!(
+      ToolCallInfo(id: 't1', name: 'read_file', arguments: const {}),
+    );
+    expect(dispatched, ['read_file']);
+  });
 
   test('a failed turn surfaces the error without aborting', () async {
     final dataSource = _FakeChatDataSource(error: StateError('endpoint down'));

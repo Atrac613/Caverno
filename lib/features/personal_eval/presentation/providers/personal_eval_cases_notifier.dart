@@ -5,6 +5,7 @@ import '../../../chat/data/datasources/llm_session_log_store.dart';
 import '../../../chat/data/datasources/session_logging_chat_datasource.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/coding_projects_notifier.dart';
+import '../../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/personal_eval_case_recording_service.dart';
 import '../../data/personal_eval_case_repository.dart';
@@ -43,13 +44,23 @@ final personalEvalReplayTurnDriverProvider =
       final workingDirectory =
           ref.watch(codingProjectsNotifierProvider).selectedProject?.rootPath ??
           '';
+      // Drive the real tool loop when a tool service is available: the
+      // candidate executes tools non-interactively through the raw
+      // McpToolService, the same execution path routines use.
+      final toolService = ref.watch(mcpToolServiceProvider);
       return PersonalEvalChatReplayTurnDriver(
         dataSource: dataSource,
         sessionLogStore: logStore,
         model: settings.model,
         workingDirectory: workingDirectory,
-        temperature: settings.temperature,
         maxTokens: settings.maxTokens,
+        toolDefinitions: toolService?.getOpenAiToolDefinitions,
+        dispatchToolCall: toolService == null
+            ? null
+            : (toolCall) => toolService.executeTool(
+                name: toolCall.name,
+                arguments: toolCall.arguments,
+              ),
       );
     });
 
