@@ -1,15 +1,72 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/data/datasources/llm_session_log_store.dart';
 import '../../../chat/data/datasources/session_logging_chat_datasource.dart';
+import '../../../chat/presentation/providers/chat_notifier.dart';
+import '../../../chat/presentation/providers/coding_projects_notifier.dart';
+import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/personal_eval_case_recording_service.dart';
 import '../../data/personal_eval_case_repository.dart';
+import '../../data/personal_eval_chat_replay_turn_driver.dart';
 import '../../domain/entities/personal_eval_case.dart';
+import '../../domain/entities/personal_eval_replay_run.dart';
+import '../../domain/services/live_personal_eval_case_runner.dart';
+import '../../domain/services/personal_eval_replay_orchestrator.dart';
+import '../../domain/services/personal_eval_verification_runner.dart';
 
 /// Local-only personal eval case store (LL19).
 final personalEvalCaseRepositoryProvider = Provider<PersonalEvalCaseRepository>(
   (ref) => PersonalEvalCaseRepository(),
 );
+
+/// Drives a candidate model through a recorded case (LL19). Reuses the active
+/// model/endpoint and the session-logging chat datasource so the replay log is
+/// captured the same way a real turn is.
+final personalEvalReplayTurnDriverProvider =
+    Provider<PersonalEvalReplayTurnDriver>((ref) {
+      final settings = ref.watch(settingsNotifierProvider);
+      final rawDataSource = ref.watch(chatRemoteDataSourceProvider);
+      final logStore = ref.watch(llmSessionLogStoreProvider);
+      final loggingEnabled = LlmSessionLogStore.isEnabled(
+        settingsEnabled: settings.enableLlmSessionLogs,
+      );
+      final dataSource =
+          !loggingEnabled ||
+              settings.demoMode ||
+              rawDataSource is! ChatRemoteDataSource
+          ? rawDataSource
+          : SessionLoggingChatDataSource(
+              delegate: rawDataSource,
+              logStore: logStore,
+            );
+      final workingDirectory =
+          ref.watch(codingProjectsNotifierProvider).selectedProject?.rootPath ??
+          '';
+      return PersonalEvalChatReplayTurnDriver(
+        dataSource: dataSource,
+        sessionLogStore: logStore,
+        model: settings.model,
+        workingDirectory: workingDirectory,
+        temperature: settings.temperature,
+        maxTokens: settings.maxTokens,
+      );
+    });
+
+/// Runs a recorded case's verification command (LL19).
+final personalEvalVerificationRunnerProvider =
+    Provider<PersonalEvalVerificationRunner>(
+      (ref) => ProcessPersonalEvalVerificationRunner(),
+    );
+
+/// The live [PersonalEvalCaseRunner] used by replay runs. Override in tests to
+/// inject a fake runner without touching the network or the filesystem.
+final personalEvalCaseRunnerProvider = Provider<PersonalEvalCaseRunner>((ref) {
+  return LivePersonalEvalCaseRunner(
+    turnDriver: ref.watch(personalEvalReplayTurnDriverProvider),
+    verificationRunner: ref.watch(personalEvalVerificationRunnerProvider),
+  );
+});
 
 /// Records a completed session as a personal eval case, reading the session
 /// log through the shared [LlmSessionLogStore].
@@ -33,6 +90,9 @@ class PersonalEvalCasesNotifier extends AsyncNotifier<List<PersonalEvalCase>> {
 
   PersonalEvalCaseRecordingService get _recordingService =>
       ref.read(personalEvalCaseRecordingServiceProvider);
+
+  static const PersonalEvalReplayOrchestrator _orchestrator =
+      PersonalEvalReplayOrchestrator();
 
   @override
   Future<List<PersonalEvalCase>> build() => _repository.loadAll();
@@ -91,5 +151,21 @@ class PersonalEvalCasesNotifier extends AsyncNotifier<List<PersonalEvalCase>> {
     await _repository.save(evalCase);
     await refresh();
     return evalCase;
+  }
+
+  /// Replays a single recorded case through the candidate model and returns a
+  /// one-case [PersonalEvalReplayRun]. The orchestrator never throws on a
+  /// broken case, so the caller always gets a result to display.
+  Future<PersonalEvalReplayRun> replayCase(String caseId) async {
+    final cases = state.value ?? await _repository.loadAll();
+    final evalCase = cases.firstWhere((item) => item.caseId == caseId);
+    final settings = ref.read(settingsNotifierProvider);
+    return _orchestrator.run(
+      label: 'replay',
+      model: settings.model,
+      baseUrl: settings.baseUrl.trim(),
+      cases: [evalCase],
+      runner: ref.read(personalEvalCaseRunnerProvider),
+    );
   }
 }

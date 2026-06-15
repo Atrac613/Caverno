@@ -127,6 +127,8 @@ class _CaseTile extends ConsumerWidget {
         key: ValueKey('personal-eval-case-menu-${evalCase.caseId}'),
         onSelected: (action) {
           switch (action) {
+            case 'replay':
+              _runReplay(context, notifier);
             case 'move':
               notifier.setSplit(
                 evalCase.caseId,
@@ -139,6 +141,10 @@ class _CaseTile extends ConsumerWidget {
           }
         },
         itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            value: 'replay',
+            child: Text('settings.personal_eval_cases_run_replay'.tr()),
+          ),
           PopupMenuItem<String>(
             value: 'move',
             child: Text(
@@ -154,5 +160,48 @@ class _CaseTile extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// Replays the case through the candidate model and reports the verdict via a
+  /// snackbar. The replay runs an LLM turn, so it can take a while; the running
+  /// snackbar stays until the result replaces it.
+  Future<void> _runReplay(
+    BuildContext context,
+    PersonalEvalCasesNotifier notifier,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('settings.personal_eval_cases_replay_running'.tr()),
+      ),
+    );
+    try {
+      final run = await notifier.replayCase(evalCase.caseId);
+      final result = run.cases.isEmpty ? null : run.cases.first;
+      final verdict = result == null
+          ? 'settings.personal_eval_cases_verification_inconclusive'.tr()
+          : 'settings.personal_eval_cases_verification_'
+                    '${result.verificationResult.name}'
+                .tr();
+      messenger.removeCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'settings.personal_eval_cases_replay_done'.tr(
+              args: [verdict, '${result?.durationMs ?? 0}'],
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      messenger.removeCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'settings.personal_eval_cases_replay_failed'.tr(args: ['$error']),
+          ),
+        ),
+      );
+    }
   }
 }

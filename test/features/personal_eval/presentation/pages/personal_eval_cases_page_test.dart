@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/personal_eval/domain/entities/personal_eval_case.dart';
+import 'package:caverno/features/personal_eval/domain/entities/personal_eval_replay_run.dart';
+import 'package:caverno/features/personal_eval/domain/entities/personal_eval_session_log_summary.dart';
 import 'package:caverno/features/personal_eval/presentation/pages/personal_eval_cases_page.dart';
 import 'package:caverno/features/personal_eval/presentation/providers/personal_eval_cases_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -24,12 +26,21 @@ class _TestTranslationLoader extends AssetLoader {
 /// on the async loading state (real file IO + a progress indicator would make
 /// pumpAndSettle time out). The repository is covered by its own tests.
 class _FakeCasesNotifier extends PersonalEvalCasesNotifier {
-  _FakeCasesNotifier(this._cases);
+  _FakeCasesNotifier(this._cases, {this.replayResult});
 
   List<PersonalEvalCase> _cases;
+  final PersonalEvalReplayRun? replayResult;
+  final List<String> replayedCaseIds = [];
 
   @override
   Future<List<PersonalEvalCase>> build() => SynchronousFuture(_cases);
+
+  @override
+  Future<PersonalEvalReplayRun> replayCase(String caseId) async {
+    replayedCaseIds.add(caseId);
+    return replayResult ??
+        PersonalEvalReplayRun(label: 'replay', cases: const []);
+  }
 
   @override
   Future<void> setSplit(String caseId, PersonalEvalCaseSplit split) async {
@@ -71,8 +82,9 @@ void main() {
 
   Future<void> pumpPage(
     WidgetTester tester,
-    List<PersonalEvalCase> cases,
-  ) async {
+    List<PersonalEvalCase> cases, {
+    _FakeCasesNotifier? notifier,
+  }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1200, 2000);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -92,7 +104,7 @@ void main() {
             return ProviderScope(
               overrides: [
                 personalEvalCasesNotifierProvider.overrideWith(
-                  () => _FakeCasesNotifier(cases),
+                  () => notifier ?? _FakeCasesNotifier(cases),
                 ),
               ],
               child: MaterialApp(
@@ -145,5 +157,32 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Login crash'), findsNothing);
+  });
+
+  testWidgets('runs a replay from the overflow menu and shows the verdict', (
+    tester,
+  ) async {
+    final notifier = _FakeCasesNotifier(
+      [caseWith('a', title: 'Login crash')],
+      replayResult: const PersonalEvalReplayRun(
+        label: 'replay',
+        cases: [
+          PersonalEvalReplayCaseResult(
+            caseId: 'a',
+            verificationResult: PersonalEvalVerificationResult.passed,
+            summary: PersonalEvalSessionLogSummary(totalDurationMs: 90),
+          ),
+        ],
+      ),
+    );
+    await pumpPage(tester, const [], notifier: notifier);
+
+    await tester.tap(find.byKey(const ValueKey('personal-eval-case-menu-a')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Run replay'));
+    await tester.pump();
+
+    expect(notifier.replayedCaseIds, ['a']);
+    expect(find.text('Replay finished: Passed (90 ms)'), findsOneWidget);
   });
 }
