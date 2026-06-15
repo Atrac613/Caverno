@@ -11016,9 +11016,12 @@ class ChatNotifier extends Notifier<ChatState> {
                       ? duplicateRecoveryToolResults
                       : executedToolResults,
                 );
-            if (previousOutput.isNotEmpty &&
-                fallbackResponse.isNotEmpty &&
-                _looksLikePendingToolActionResponse(fallbackResponse)) {
+            if (_shouldUsePreviousOutputForDuplicateCommandCalls(
+                  currentToolCalls,
+                ) &&
+                previousOutput.isNotEmpty &&
+                (fallbackResponse.isEmpty ||
+                    _looksLikePendingToolActionResponse(fallbackResponse))) {
               currentToolCalls = [];
               _recordHiddenAssistantResponse(previousOutput);
               _appendRecoveredAssistantResponse(
@@ -12574,6 +12577,17 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
     return outputs.join('\n');
+  }
+
+  bool _shouldUsePreviousOutputForDuplicateCommandCalls(
+    List<ToolCallInfo> toolCalls,
+  ) {
+    return toolCalls.every((toolCall) {
+      return switch (toolCall.name.trim().toLowerCase()) {
+        'local_execute_command' || 'run_tests' => true,
+        _ => false,
+      };
+    });
   }
 
   bool _successfulCommandResultMatchesToolCall(

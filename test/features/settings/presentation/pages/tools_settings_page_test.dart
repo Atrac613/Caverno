@@ -154,6 +154,7 @@ void main() {
   testWidgets('toggles coding verification feedback from Tools settings', (
     tester,
   ) async {
+    _useLargeTestSurface(tester);
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final preferences = await SharedPreferences.getInstance();
 
@@ -267,4 +268,11 @@ void main() {
       expect(storedSettings.runsCodingVerificationOnCompletionClaim, isFalse);
     },
   );
+}
+
+void _useLargeTestSurface(WidgetTester tester) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1200, 1600);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
 }

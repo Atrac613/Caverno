@@ -303,8 +303,29 @@ class _WorkflowTestConversationsNotifier extends ConversationsNotifier {
     if (current == null) {
       return;
     }
+    await updateConversationMessages(current.id, messages);
+  }
+
+  @override
+  Future<void> updateConversationMessages(
+    String conversationId,
+    List<Message> messages,
+  ) async {
+    final current = state.conversations
+        .where((conversation) => conversation.id == conversationId)
+        .firstOrNull;
+    if (current == null) {
+      return;
+    }
     final updated = current.copyWith(messages: messages);
-    state = state.copyWith(conversations: [updated]);
+    state = state.copyWith(
+      conversations: state.conversations
+          .map(
+            (conversation) =>
+                conversation.id == updated.id ? updated : conversation,
+          )
+          .toList(growable: false),
+    );
   }
 
   @override
