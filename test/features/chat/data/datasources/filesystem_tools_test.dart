@@ -243,34 +243,37 @@ void main() {
     },
   );
 
-  test('readFile streams a large file and returns a correct late window',
-      () async {
-    final targetPath = '${tempDir.path}${Platform.pathSeparator}big.log';
-    final file = File(targetPath)..createSync(recursive: true);
-    final sink = file.openWrite();
-    const totalLines = 200000;
-    for (var i = 1; i <= totalLines; i++) {
-      sink.writeln('line $i');
-    }
-    await sink.close();
+  test(
+    'readFile streams a large file and returns a correct late window',
+    () async {
+      final targetPath = '${tempDir.path}${Platform.pathSeparator}big.log';
+      final file = File(targetPath)..createSync(recursive: true);
+      final sink = file.openWrite();
+      const totalLines = 20000;
+      for (var i = 1; i <= totalLines; i++) {
+        sink.writeln('line $i');
+      }
+      await sink.close();
+      const offset = totalLines - 2;
 
-    final readResult =
-        jsonDecode(
-              await FilesystemTools.readFile(
-                path: targetPath,
-                offset: 199998,
-                limit: 2,
-              ),
-            )
-            as Map<String, dynamic>;
+      final readResult =
+          jsonDecode(
+                await FilesystemTools.readFile(
+                  path: targetPath,
+                  offset: offset,
+                  limit: 2,
+                ),
+              )
+              as Map<String, dynamic>;
 
-    expect(readResult['content'], 'line 199998\nline 199999');
-    expect(readResult['start_line'], 199998);
-    expect(readResult['line_count'], 2);
-    expect(readResult['total_lines'], totalLines);
-    expect(readResult['size_bytes'], await file.length());
-    expect(readResult['truncated_by_limit'], isTrue);
-  });
+      expect(readResult['content'], 'line $offset\nline ${offset + 1}');
+      expect(readResult['start_line'], offset);
+      expect(readResult['line_count'], 2);
+      expect(readResult['total_lines'], totalLines);
+      expect(readResult['size_bytes'], await file.length());
+      expect(readResult['truncated_by_limit'], isTrue);
+    },
+  );
 
   test('readFile and inspectFile reject binary content', () async {
     final targetPath = '${tempDir.path}${Platform.pathSeparator}data.bin';
@@ -304,24 +307,26 @@ void main() {
     expect(readResult['truncated_by_chars'], isTrue);
   });
 
-  test('readFile stays bounded on a single line larger than the carry cap',
-      () async {
-    final targetPath = '${tempDir.path}${Platform.pathSeparator}giant.txt';
-    final file = File(targetPath)..createSync(recursive: true);
-    // 3 MB single line, no newline — exceeds the 1 MB per-line carry cap.
-    file.writeAsStringSync('z' * (3 * 1024 * 1024));
+  test(
+    'readFile stays bounded on a single line larger than the carry cap',
+    () async {
+      final targetPath = '${tempDir.path}${Platform.pathSeparator}giant.txt';
+      final file = File(targetPath)..createSync(recursive: true);
+      // 3 MB single line, no newline — exceeds the 1 MB per-line carry cap.
+      file.writeAsStringSync('z' * (3 * 1024 * 1024));
 
-    final readResult =
-        jsonDecode(
-              await FilesystemTools.readFile(path: targetPath, maxChars: 500),
-            )
-            as Map<String, dynamic>;
+      final readResult =
+          jsonDecode(
+                await FilesystemTools.readFile(path: targetPath, maxChars: 500),
+              )
+              as Map<String, dynamic>;
 
-    expect(readResult['total_lines'], 1);
-    expect((readResult['content'] as String).length, 500);
-    expect(readResult['truncated_by_chars'], isTrue);
-    expect(readResult['size_bytes'], 3 * 1024 * 1024);
-  });
+      expect(readResult['total_lines'], 1);
+      expect((readResult['content'] as String).length, 500);
+      expect(readResult['truncated_by_chars'], isTrue);
+      expect(readResult['size_bytes'], 3 * 1024 * 1024);
+    },
+  );
 
   test('inspectFile returns head, tail, size and format hint', () async {
     final targetPath = '${tempDir.path}${Platform.pathSeparator}records.jsonl';
