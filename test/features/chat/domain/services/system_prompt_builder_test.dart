@@ -201,6 +201,68 @@ Dart symbols:
       ),
     );
     expect(prompt, contains('After tool_search returns a match'));
+    expect(prompt, contains('Treat tool_search as free'));
+    expect(
+      prompt,
+      contains('only state that something is unavailable after tool_search'),
+    );
+  });
+
+  test('omits proactive tool_search guidance without tool_search', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      toolNames: const ['web_search'],
+    );
+
+    expect(prompt, isNot(contains('Treat tool_search as free')));
+  });
+
+  test('includes knowledge-cutoff humility and self-reference ban', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 6, 10, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+    );
+
+    expect(
+      prompt,
+      contains('Your training knowledge may predate the current date above.'),
+    );
+    expect(
+      prompt,
+      contains('Mention your knowledge cutoff only when it is genuinely'),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not attribute your behavior to your system prompt or internal',
+      ),
+    );
+  });
+
+  test('includes formatting minimization in normal but not voice prompts', () {
+    final normal = SystemPromptBuilder.build(
+      now: DateTime(2026, 6, 10, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+    );
+    final voice = SystemPromptBuilder.build(
+      now: DateTime(2026, 6, 10, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      isVoiceMode: true,
+    );
+
+    expect(
+      normal,
+      contains('Use the minimum formatting needed for clarity.'),
+    );
+    expect(
+      voice,
+      isNot(contains('Use the minimum formatting needed for clarity.')),
+    );
   });
 
   test('includes model capability guidance for weak tool-call profiles', () {

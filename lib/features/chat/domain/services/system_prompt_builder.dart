@@ -110,10 +110,12 @@ class SystemPromptBuilder {
     }
 
     buffer
+      ..writeln(SystemPromptConstants.knowledgeCutoffHumilityInstruction)
       ..writeln(SystemPromptConstants.coreAssistantPrompt)
       ..writeln(SystemPromptConstants.priorityInstruction)
       ..writeln(SystemPromptConstants.judgmentInstruction)
       ..writeln(SystemPromptConstants.communicationInstruction)
+      ..writeln(SystemPromptConstants.noSystemPromptReferenceInstruction)
       ..writeln(SystemPromptConstants.oversightInstruction)
       ..writeln(SystemPromptConstants.languageInstruction(languageCode));
 
@@ -129,8 +131,11 @@ class SystemPromptBuilder {
       buffer.writeln(modelHarnessGuidance);
     }
 
-    // In voice mode, follow-up questions are handled by the voice mode instruction.
+    // In voice mode, follow-up questions are handled by the voice mode
+    // instruction, and the voice mode instruction already bans all formatting,
+    // so the formatting-minimization guidance is redundant there.
     if (!isVoiceMode) {
+      buffer.writeln(SystemPromptConstants.formattingMinimizationInstruction);
       buffer.writeln(SystemPromptConstants.optionalFollowUpQuestionInstruction);
       buffer.writeln(SystemPromptConstants.exactPreservationInstruction);
     }
@@ -530,6 +535,7 @@ class SystemPromptBuilder {
           'tool_search returns a match, call the discovered tool in the next '
           'tool-call turn.',
         );
+        buffer.writeln(SystemPromptConstants.toolSearchProactiveInstruction);
       }
       if (hasDatetimeTool) {
         buffer.writeln(
