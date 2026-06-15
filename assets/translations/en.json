@@ -958,7 +958,19 @@
     "harness_config_exploration_toggle_helper": "Push the model from exploring to implementing once it understands the task.",
     "harness_config_save": "Save",
     "harness_config_saved": "Harness config saved",
-    "harness_config_cleared": "Harness config cleared"
+    "harness_config_cleared": "Harness config cleared",
+    "personal_eval_cases_title": "Personal eval cases",
+    "personal_eval_cases_menu_desc": "Recorded tasks for scoring new models",
+    "personal_eval_cases_intro": "Recorded real tasks replayed to score candidate models. Held-out cases are kept hidden from the self-improving loop and used only as the regression gate. Cases are local-only and excluded from export.",
+    "personal_eval_cases_empty": "No recorded cases yet. Record a completed session to build your eval suite.",
+    "personal_eval_cases_section_held_in": "Held-in ({})",
+    "personal_eval_cases_section_held_out": "Held-out ({})",
+    "personal_eval_cases_move_to_held_in": "Move to held-in",
+    "personal_eval_cases_move_to_held_out": "Move to held-out",
+    "personal_eval_cases_delete": "Delete",
+    "personal_eval_cases_readiness_ready": "Ready",
+    "personal_eval_cases_readiness_reviewRecommended": "Review recommended",
+    "personal_eval_cases_readiness_blocked": "Blocked"
   },
   "routines": {
     "title": "Routines",

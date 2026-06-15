@@ -958,7 +958,19 @@
     "harness_config_exploration_toggle_helper": "タスクを把握したら探索から実装へ移行するよう促します。",
     "harness_config_save": "保存",
     "harness_config_saved": "ハーネス設定を保存しました",
-    "harness_config_cleared": "ハーネス設定をクリアしました"
+    "harness_config_cleared": "ハーネス設定をクリアしました",
+    "personal_eval_cases_title": "個人評価ケース",
+    "personal_eval_cases_menu_desc": "新モデル採点用の記録済みタスク",
+    "personal_eval_cases_intro": "記録した実タスクを再生して候補モデルを採点します。held-out のケースは自己改善ループから隠され、回帰ゲートとしてのみ使われます。ケースはローカル限定で、エクスポートから除外されます。",
+    "personal_eval_cases_empty": "記録済みのケースはまだありません。完了したセッションを記録して評価スイートを作成してください。",
+    "personal_eval_cases_section_held_in": "held-in ({})",
+    "personal_eval_cases_section_held_out": "held-out ({})",
+    "personal_eval_cases_move_to_held_in": "held-in に移動",
+    "personal_eval_cases_move_to_held_out": "held-out に移動",
+    "personal_eval_cases_delete": "削除",
+    "personal_eval_cases_readiness_ready": "準備完了",
+    "personal_eval_cases_readiness_reviewRecommended": "要確認",
+    "personal_eval_cases_readiness_blocked": "ブロック"
   },
   "routines": {
     "title": "Routines",
