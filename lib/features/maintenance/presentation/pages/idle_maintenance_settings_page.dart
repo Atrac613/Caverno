@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import 'idle_maintenance_debug_page.dart';
 
 /// LL18: lets the user configure the idle/overnight maintenance gate (enable,
 /// maintenance window, minimum idle, require AC power). The orchestrator and
@@ -111,6 +112,20 @@ class IdleMaintenanceSettingsPage extends ConsumerWidget {
                 ? (value) =>
                       notifier.updateIdleMaintenance(requireAcPower: value)
                 : null,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            key: const ValueKey('idle-maintenance-debug-run-now'),
+            leading: const Icon(Icons.science_outlined),
+            title: Text('settings.idle_maintenance_debug_menu'.tr()),
+            subtitle: Text('settings.idle_maintenance_debug_menu_desc'.tr()),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const IdleMaintenanceDebugPage(),
+              ),
+            ),
           ),
         ],
       ),

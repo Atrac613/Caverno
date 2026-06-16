@@ -159,4 +159,42 @@ void main() {
     expect(report.wasCancelled, isFalse);
     expect(report.hadFailures, isFalse);
   });
+
+  test('onStageResult fires live for each stage, including cancelled', () async {
+    final handle = IdleMaintenanceRunHandle();
+    final pipeline = MaintenancePipeline(
+      stages: [
+        _Stage('probe', (_) async {
+          return const MaintenanceStageOutcome.completed('ok');
+        }),
+        _Stage('calibrate', (_) async {
+          // Gate closes during this stage; the next stage must be cancelled.
+          handle.cancel();
+          return const MaintenanceStageOutcome.completed();
+        }),
+        _Stage('eval', (_) async {
+          return const MaintenanceStageOutcome.completed();
+        }),
+      ],
+    );
+
+    final observed = <String>[];
+    final report = await pipeline.run(
+      handle,
+      onStageResult: (result) =>
+          observed.add('${result.name}:${result.status.name}'),
+    );
+
+    // The callback observes results in order, one per stage, matching the
+    // final report exactly.
+    expect(observed, [
+      'probe:completed',
+      'calibrate:completed',
+      'eval:cancelled',
+    ]);
+    expect(
+      report.stages.map((s) => '${s.name}:${s.status.name}'),
+      observed,
+    );
+  });
 }

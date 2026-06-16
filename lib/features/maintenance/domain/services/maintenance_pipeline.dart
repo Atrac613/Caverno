@@ -121,7 +121,16 @@ class MaintenancePipeline {
   final List<MaintenanceStage> stages;
   final DateTime Function() _clock;
 
-  Future<MaintenanceRunReport> run(IdleMaintenanceRunHandle handle) async {
+  /// Runs the configured stages in order.
+  ///
+  /// [onStageResult] is invoked with each stage's result as soon as it is
+  /// recorded (completed/skipped/failed/cancelled). It lets a debug UI render
+  /// live per-stage progress without changing how the scheduler consumes the
+  /// final report; the scheduler omits it.
+  Future<MaintenanceRunReport> run(
+    IdleMaintenanceRunHandle handle, {
+    void Function(MaintenanceStageResult result)? onStageResult,
+  }) async {
     final startedAt = _clock();
     final context = MaintenanceStageContext(
       handle: handle,
@@ -131,9 +140,14 @@ class MaintenancePipeline {
     final results = <MaintenanceStageResult>[];
     var stopped = false;
 
+    void record(MaintenanceStageResult result) {
+      results.add(result);
+      onStageResult?.call(result);
+    }
+
     for (final stage in stages) {
       if (stopped || handle.isCancelled) {
-        results.add(
+        record(
           MaintenanceStageResult(
             name: stage.name,
             status: MaintenanceStageStatus.cancelled,
@@ -146,7 +160,7 @@ class MaintenancePipeline {
       final stageStart = _clock();
       try {
         final outcome = await stage.run(context);
-        results.add(
+        record(
           MaintenanceStageResult(
             name: stage.name,
             status: outcome.status,
@@ -155,7 +169,7 @@ class MaintenancePipeline {
           ),
         );
       } catch (error) {
-        results.add(
+        record(
           MaintenanceStageResult(
             name: stage.name,
             status: MaintenanceStageStatus.failed,
