@@ -1,6 +1,7 @@
 import 'package:caverno/features/maintenance/domain/services/failure_trace_miner.dart';
 import 'package:caverno/features/maintenance/domain/services/harness_proposal_service.dart';
 import 'package:caverno/features/maintenance/domain/services/idle_maintenance_scheduler.dart';
+import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/maintenance/domain/services/maintenance_pipeline.dart';
 import 'package:caverno/features/personal_eval/domain/entities/personal_eval_case.dart';
 import 'package:caverno/features/personal_eval/domain/services/personal_eval_replay_orchestrator.dart';
@@ -29,6 +30,14 @@ class _FakeCasesNotifier extends PersonalEvalCasesNotifier {
   Future<List<PersonalEvalCase>> build() async => _cases;
 }
 
+class _FakeCodingProjectsNotifier extends CodingProjectsNotifier {
+  _FakeCodingProjectsNotifier(this._state);
+  final CodingProjectsState _state;
+
+  @override
+  CodingProjectsState build() => _state;
+}
+
 void main() {
   // Building the provider only constructs the stage objects; the probe /
   // calibrate / eval bodies are lazy (they hit notifiers only when run), so the
@@ -45,8 +54,8 @@ void main() {
         shared: shared ?? <String, Object?>{},
       );
 
-  test('wires the probe -> calibrate -> eval -> mine -> propose -> adopt '
-      'stages', () {
+  test('wires probe -> calibrate -> eval -> mine -> propose -> adopt -> '
+      'precompute -> warm_cache, warm-up last', () {
     expect(stages().map((s) => s.name), [
       'probe',
       'calibrate',
@@ -54,8 +63,51 @@ void main() {
       'mine',
       'propose',
       'adopt',
+      'precompute',
+      'warm_cache',
     ]);
   });
+
+  test('precompute skips when there is no active coding project', () async {
+    final container = ProviderContainer(
+      overrides: [
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FakeCodingProjectsNotifier(
+            const CodingProjectsState(projects: [], selectedProjectId: null),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final precompute = container
+        .read(maintenanceStagesProvider)
+        .firstWhere((s) => s.name == 'precompute');
+    final outcome = await precompute.run(context());
+
+    expect(outcome.status, MaintenanceStageStatus.skipped);
+    expect(outcome.detail, contains('no active coding project'));
+  });
+
+  test(
+    'warm_cache skips when the prefix-stable tool loop is disabled',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+
+      final warm = container
+          .read(maintenanceStagesProvider)
+          .firstWhere((s) => s.name == 'warm_cache');
+      final outcome = await warm.run(context());
+
+      expect(outcome.status, MaintenanceStageStatus.skipped);
+      expect(outcome.detail, contains('prefix-stable tool loop disabled'));
+    },
+  );
 
   test('mine skips when there are no failure traces', () async {
     final container = ProviderContainer(

@@ -1,5 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/types/assistant_mode.dart';
+import '../../../chat/domain/services/kv_cache_warmup_service.dart';
+import '../../../chat/domain/services/repo_map_precompute_cache.dart';
+import '../../../chat/domain/services/system_prompt_builder.dart';
+import '../../../chat/presentation/providers/chat_notifier.dart';
+import '../../../chat/presentation/providers/coding_projects_notifier.dart';
+import '../../../chat/presentation/providers/mcp_tool_provider.dart';
+import '../../../chat/presentation/providers/repo_map_precompute_cache_provider.dart';
 import '../../../personal_eval/domain/services/personal_eval_replay_orchestrator.dart';
 import '../../../personal_eval/presentation/providers/personal_eval_cases_notifier.dart';
 import '../../../settings/domain/entities/app_settings.dart';
@@ -75,14 +83,18 @@ final maintenanceEvalRunnerFactoryProvider =
     });
 
 /// The ordered maintenance stages run on each idle window:
-/// probe -> calibrate -> eval -> mine -> propose -> adopt.
+/// probe -> calibrate -> eval -> mine -> propose -> adopt -> precompute ->
+/// warm_cache.
 ///
 /// Wired today: re-probe the active model (LL3/LL21), sampler calibration via
 /// the full diagnostic (LL16), a baseline eval over the recorded suite (LL19),
 /// LL17 weakness mining that clusters failure traces, and an LL17 propose stage
 /// that turns the top cluster into one minimal grounded harness edit. Adopt
 /// surfaces that edit as a recommendation; auto-applying it on candidate-applied
-/// held-in/held-out validation is the remaining LL17 piece.
+/// held-in/held-out validation is the remaining LL17 piece. The trailing LL22
+/// stages precompute the repo map and warm the server-side prefix KV cache so
+/// the morning's first interactive turn is fast — run last so earlier stages'
+/// requests do not evict the warmed prefix from the server slot.
 final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
   return [
     CallbackMaintenanceStage(
@@ -93,8 +105,9 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
             .runForCurrentModel(force: true, source: 'idle_re_probe');
         // LL21: report whether the re-probe detected a capability change vs
         // the previous revision (potential GGUF/model-weight swap).
-        final revisions =
-            ref.read(settingsNotifierProvider).effectiveModelProfileRevisions;
+        final revisions = ref
+            .read(settingsNotifierProvider)
+            .effectiveModelProfileRevisions;
         final latest = revisions.isNotEmpty ? revisions.first : null;
         if (latest != null && latest.capabilityChangeDetected) {
           return const MaintenanceStageOutcome.completed(
@@ -244,6 +257,140 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
             MaintenanceStageOutcome.completed(
               'manual review required: ${outcome.reason}',
             ),
+        };
+      },
+    ),
+    // LL22 idle warm-up runs last, after probe/calibrate/eval have sent their
+    // own requests, so the prefix this warms is the one left in the server slot
+    // for the morning's first interactive turn.
+    CallbackMaintenanceStage(
+      name: 'precompute',
+      body: (_) async {
+        // LL22: precompute the LL4 repo map so the first morning prompt build
+        // is a cache hit instead of a full symbol-extraction scan.
+        final project = ref
+            .read(codingProjectsNotifierProvider)
+            .selectedProject;
+        if (project == null) {
+          return const MaintenanceStageOutcome.skipped(
+            'no active coding project',
+          );
+        }
+        final settings = ref.read(settingsNotifierProvider);
+        final result = ref
+            .read(repoMapPrecomputeCacheProvider)
+            .precompute(
+              rootPath: project.rootPath,
+              usableContextTokens:
+                  settings.effectiveModelCapabilityProfile?.usableContextTokens,
+            );
+        return switch (result) {
+          RepoMapPrecomputeResult.computed =>
+            const MaintenanceStageOutcome.completed('precomputed repo map'),
+          RepoMapPrecomputeResult.alreadyWarm =>
+            const MaintenanceStageOutcome.completed('repo map already warm'),
+          RepoMapPrecomputeResult.noProject =>
+            const MaintenanceStageOutcome.skipped('no buildable repo map'),
+        };
+      },
+    ),
+    CallbackMaintenanceStage(
+      name: 'warm_cache',
+      body: (_) async {
+        // LL22 KV warm-up: prime the server-side prefix cache so the morning's
+        // first turn reuses it. Only meaningful for an OpenAI-compatible server
+        // running the LL6 prefix-stable tool loop.
+        final settings = ref.read(settingsNotifierProvider);
+        if (settings.llmProvider != LlmProvider.openAiCompatible) {
+          return const MaintenanceStageOutcome.skipped(
+            'on-device provider has no server cache to warm',
+          );
+        }
+        if (!settings.enablePrefixStableToolLoop) {
+          return const MaintenanceStageOutcome.skipped(
+            'prefix-stable tool loop disabled',
+          );
+        }
+        final mcpToolService = ref.read(mcpToolServiceProvider);
+        if (mcpToolService == null) {
+          return const MaintenanceStageOutcome.skipped(
+            'tool service unavailable',
+          );
+        }
+
+        final tools = mcpToolService.getOpenAiToolDefinitions();
+        final toolNames = <String>[];
+        for (final tool in tools) {
+          final function = tool['function'];
+          if (function is Map) {
+            final name = function['name'];
+            if (name is String && name.isNotEmpty) toolNames.add(name);
+          }
+        }
+
+        final project = ref
+            .read(codingProjectsNotifierProvider)
+            .selectedProject;
+        final repoMap = project == null
+            ? null
+            : ref
+                  .read(repoMapPrecomputeCacheProvider)
+                  .getOrBuild(
+                    rootPath: project.rootPath,
+                    usableContextTokens: settings
+                        .effectiveModelCapabilityProfile
+                        ?.usableContextTokens,
+                  );
+
+        final systemPrompt = SystemPromptBuilder.build(
+          now: DateTime.now(),
+          // Coding mode is the warm-up target: it carries the repo map and the
+          // full agentic tool guidance the first morning turn will send.
+          assistantMode: AssistantMode.coding,
+          languageCode: settings.language == 'system'
+              ? 'en'
+              : settings.language,
+          toolNames: toolNames,
+          projectName: project?.name,
+          projectRootPath: project?.rootPath,
+          repoMapContext: repoMap,
+          modelCapabilityProfile: settings.effectiveModelCapabilityProfile,
+          modelHarnessConfig: settings.effectiveModelHarnessConfig,
+        );
+
+        final dataSource = ref.read(chatRemoteDataSourceProvider);
+        final outcome = await const KvCacheWarmupService().warm(
+          systemPrompt: systemPrompt,
+          tools: tools,
+          send:
+              ({
+                required messages,
+                required tools,
+                required maxTokens,
+                required temperature,
+              }) async {
+                await dataSource.createChatCompletion(
+                  messages: messages,
+                  tools: tools,
+                  model: settings.effectiveModel,
+                  maxTokens: maxTokens,
+                  temperature: temperature,
+                );
+              },
+        );
+
+        return switch (outcome.status) {
+          KvCacheWarmupStatus.warmed => MaintenanceStageOutcome.completed(
+            outcome.detail,
+          ),
+          KvCacheWarmupStatus.skipped => MaintenanceStageOutcome.skipped(
+            outcome.detail,
+          ),
+          // Best-effort: an unreachable overnight endpoint is a soft skip, not a
+          // run failure that flags the morning report red.
+          KvCacheWarmupStatus.failed => MaintenanceStageOutcome.skipped(
+            'warm-up could not reach endpoint: ${outcome.detail}',
+          ),
         };
       },
     ),
