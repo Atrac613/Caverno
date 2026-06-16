@@ -160,6 +160,53 @@ class LlmSamplerRuntimeFeedbackService {
     );
   }
 
+  /// Restores runtime temperature step-downs after a fresh probe or calibration.
+  ///
+  /// For `'idle_re_probe'`: if a request class was stepped down by runtime
+  /// feedback (source == `runtimeFeedback`), restores the previous temperature
+  /// and resets all runtime counters so the model starts clean.
+  /// For `'calibrate'`: calibration already wrote the authoritative temperature;
+  /// only the runtime counters are cleared.
+  /// User-configured sources (`'user'` / `'manual'` / `'explicit'`) are never
+  /// touched regardless of [probeSource].
+  ModelCapabilityProfile recoverAfterReprobe({
+    required ModelCapabilityProfile profile,
+    required String probeSource,
+  }) {
+    final metadata = Map<String, String>.from(profile.probeMetadata);
+    for (final requestClass in LlmSamplerRequestClass.values) {
+      if (probeSource == 'idle_re_probe') {
+        final source =
+            metadata[LlmSamplerPresetProfile.sourceKey(requestClass)];
+        if (source == runtimeSource &&
+            !LlmSamplerPresetProfile.isUserConfiguredSource(source)) {
+          final prevTemp = metadata[previousTemperatureKey(requestClass)];
+          if (prevTemp != null) {
+            metadata[LlmSamplerPresetProfile.temperatureKey(requestClass)] =
+                prevTemp;
+            metadata[LlmSamplerPresetProfile.sourceKey(requestClass)] =
+                LlmSamplerPresetProfile.probeSource;
+          }
+        }
+      }
+      _clearRuntimeCounters(metadata, requestClass);
+    }
+    return profile.copyWith(probeMetadata: metadata).normalizedForPersistence();
+  }
+
+  static void _clearRuntimeCounters(
+    Map<String, String> metadata,
+    LlmSamplerRequestClass requestClass,
+  ) {
+    metadata.remove(jsonRepairCountKey(requestClass));
+    metadata.remove(malformedToolCallCountKey(requestClass));
+    metadata.remove(editApplyFailureCountKey(requestClass));
+    metadata.remove(repetitionCountKey(requestClass));
+    metadata.remove(adjustmentCountKey(requestClass));
+    metadata.remove(previousTemperatureKey(requestClass));
+    metadata.remove(lastAdjustmentReasonKey(requestClass));
+  }
+
   static String _runtimeKey(
     LlmSamplerRequestClass requestClass,
     String metric,

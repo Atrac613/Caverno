@@ -7,6 +7,7 @@ import '../../data/settings_file_service.dart';
 import '../../data/settings_qr_service.dart';
 import '../../data/settings_repository.dart';
 import '../../domain/entities/app_settings.dart';
+import '../../domain/services/llm_sampler_runtime_feedback_service.dart';
 import '../../domain/services/local_command_permission_service.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
@@ -87,7 +88,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
     ModelCapabilityProfile profile, {
     String source = 'probe',
   }) async {
-    final normalized = profile.normalizedForPersistence();
+    // LL16: reset runtime step-downs when a fresh probe or calibration result
+    // arrives — the model has been re-measured so stale counters are invalid.
+    final effective =
+        (source == 'idle_re_probe' || source == 'calibrate')
+            ? const LlmSamplerRuntimeFeedbackService().recoverAfterReprobe(
+                profile: profile,
+                probeSource: source,
+              )
+            : profile;
+    final normalized = effective.normalizedForPersistence();
     if (normalized.normalizedModel.isEmpty) {
       throw ArgumentError('Model capability profile model is required');
     }

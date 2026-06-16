@@ -250,6 +250,221 @@ void main() {
     );
   });
 
+  group('recoverAfterReprobe', () {
+    Map<String, String> steppedDownMetadata({
+      double probedTemp = 0.4,
+      double steppedTemp = 0.2,
+      LlmSamplerRequestClass requestClass = LlmSamplerRequestClass.toolLoop,
+    }) {
+      return {
+        LlmSamplerPresetProfile.temperatureKey(requestClass):
+            steppedTemp.toString(),
+        LlmSamplerPresetProfile.sourceKey(requestClass):
+            LlmSamplerRuntimeFeedbackService.runtimeSource,
+        LlmSamplerRuntimeFeedbackService.previousTemperatureKey(requestClass):
+            probedTemp.toString(),
+        LlmSamplerRuntimeFeedbackService.malformedToolCallCountKey(
+          requestClass,
+        ): '2',
+        LlmSamplerRuntimeFeedbackService.adjustmentCountKey(requestClass): '1',
+        LlmSamplerRuntimeFeedbackService.lastAdjustmentReasonKey(
+          requestClass,
+        ): 'malformedToolCall',
+      };
+    }
+
+    test('idle_re_probe restores stepped-down temperature and clears counters',
+        () {
+      const service = LlmSamplerRuntimeFeedbackService();
+      final profile = profileWithMetadata(steppedDownMetadata());
+      final recovered = service.recoverAfterReprobe(
+        profile: profile,
+        probeSource: 'idle_re_probe',
+      );
+
+      final meta = recovered.probeMetadata;
+      expect(
+        meta[LlmSamplerPresetProfile.temperatureKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        '0.4',
+      );
+      expect(
+        meta[LlmSamplerPresetProfile.sourceKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        LlmSamplerPresetProfile.probeSource,
+      );
+      expect(
+        meta[LlmSamplerRuntimeFeedbackService.malformedToolCallCountKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        isNull,
+      );
+      expect(
+        meta[LlmSamplerRuntimeFeedbackService.previousTemperatureKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        isNull,
+      );
+      expect(
+        meta[LlmSamplerRuntimeFeedbackService.adjustmentCountKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        isNull,
+      );
+    });
+
+    test('idle_re_probe is no-op when source is not runtimeFeedback', () {
+      const service = LlmSamplerRuntimeFeedbackService();
+      final meta = {
+        LlmSamplerPresetProfile.temperatureKey(LlmSamplerRequestClass.toolLoop):
+            '0.4',
+        LlmSamplerPresetProfile.sourceKey(LlmSamplerRequestClass.toolLoop):
+            LlmSamplerPresetProfile.probeSource,
+      };
+      final profile = profileWithMetadata(meta);
+      final recovered = service.recoverAfterReprobe(
+        profile: profile,
+        probeSource: 'idle_re_probe',
+      );
+
+      expect(
+        recovered.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        '0.4',
+      );
+      expect(
+        recovered.probeMetadata[LlmSamplerPresetProfile.sourceKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        LlmSamplerPresetProfile.probeSource,
+      );
+    });
+
+    test('calibrate clears counters without restoring previous temperature', () {
+      const service = LlmSamplerRuntimeFeedbackService();
+      // After calibration, the new temperature (0.35) is already written.
+      final meta = {
+        ...steppedDownMetadata(steppedTemp: 0.35),
+      };
+      final profile = profileWithMetadata(meta);
+      final recovered = service.recoverAfterReprobe(
+        profile: profile,
+        probeSource: 'calibrate',
+      );
+
+      // Temperature must stay at 0.35 (calibration result); not restored to 0.4.
+      expect(
+        recovered.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        '0.35',
+      );
+      // Runtime counters cleared.
+      expect(
+        recovered.probeMetadata[LlmSamplerRuntimeFeedbackService.malformedToolCallCountKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        isNull,
+      );
+      expect(
+        recovered.probeMetadata[LlmSamplerRuntimeFeedbackService.previousTemperatureKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        isNull,
+      );
+    });
+
+    test('user-configured temperature is never restored or touched', () {
+      const service = LlmSamplerRuntimeFeedbackService();
+      final meta = {
+        LlmSamplerPresetProfile.temperatureKey(LlmSamplerRequestClass.toolLoop):
+            '0.9',
+        LlmSamplerPresetProfile.sourceKey(LlmSamplerRequestClass.toolLoop):
+            LlmSamplerPresetProfile.userSource,
+        LlmSamplerRuntimeFeedbackService.malformedToolCallCountKey(
+          LlmSamplerRequestClass.toolLoop,
+        ): '3',
+      };
+      final profile = profileWithMetadata(meta);
+      final recovered = service.recoverAfterReprobe(
+        profile: profile,
+        probeSource: 'idle_re_probe',
+      );
+
+      expect(
+        recovered.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        '0.9',
+      );
+      expect(
+        recovered.probeMetadata[LlmSamplerPresetProfile.sourceKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        LlmSamplerPresetProfile.userSource,
+      );
+      // Counters are still cleared even for user-configured classes.
+      expect(
+        recovered.probeMetadata[LlmSamplerRuntimeFeedbackService.malformedToolCallCountKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        isNull,
+      );
+    });
+
+    test('handles multiple request classes independently', () {
+      const service = LlmSamplerRuntimeFeedbackService();
+      final meta = {
+        // toolLoop: stepped down by runtime feedback
+        ...steppedDownMetadata(
+          requestClass: LlmSamplerRequestClass.toolLoop,
+          probedTemp: 0.4,
+          steppedTemp: 0.2,
+        ),
+        // coding: user-configured, should not be touched
+        LlmSamplerPresetProfile.temperatureKey(LlmSamplerRequestClass.coding):
+            '0.6',
+        LlmSamplerPresetProfile.sourceKey(LlmSamplerRequestClass.coding):
+            LlmSamplerPresetProfile.userSource,
+      };
+      final profile = profileWithMetadata(meta);
+      final recovered = service.recoverAfterReprobe(
+        profile: profile,
+        probeSource: 'idle_re_probe',
+      );
+
+      // toolLoop restored
+      expect(
+        recovered.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        '0.4',
+      );
+      expect(
+        recovered.probeMetadata[LlmSamplerPresetProfile.sourceKey(
+          LlmSamplerRequestClass.toolLoop,
+        )],
+        LlmSamplerPresetProfile.probeSource,
+      );
+      // coding unchanged in temperature and source
+      expect(
+        recovered.probeMetadata[LlmSamplerPresetProfile.temperatureKey(
+          LlmSamplerRequestClass.coding,
+        )],
+        '0.6',
+      );
+      expect(
+        recovered.probeMetadata[LlmSamplerPresetProfile.sourceKey(
+          LlmSamplerRequestClass.coding,
+        )],
+        LlmSamplerPresetProfile.userSource,
+      );
+    });
+  });
+
   test('classifies malformed tool-call style failures', () {
     expect(
       LlmSamplerRuntimeFeedbackService.looksLikeMalformedToolCallFailure(
