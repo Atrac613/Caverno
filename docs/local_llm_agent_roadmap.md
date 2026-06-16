@@ -1243,10 +1243,15 @@ LL16 recovery path (implemented 2026-06-16):
   user-source preservation, multi-class independence). 214/214 settings tests
   passing.
 
-Deferred refinements:
-- Profile history UI: show the revision list in the model settings page so the
-  user can see when the last idle re-probe ran and whether a model swap was
-  detected.
+Profile history UI (implemented 2026-06-16):
+- `_ProfileHistorySection` / `_ProfileRevisionCard` in `live_llm_diagnostic_page.dart`
+  — render `AppSettings.effectiveModelProfileRevisions` newest-first, one card
+  per revision with the trigger source, probed timestamp, captured capability
+  fields, and a prominent error-colored warning when `capabilityChangeDetected`
+  is set (possible model swap). Empty state shown when no revisions exist.
+- en/ja translation keys under `settings.live_llm_diag_profile_*`.
+- 2 widget tests in `live_llm_diagnostic_page_test.dart` (empty state,
+  newest-first list with model-swap warning). 216/216 settings tests passing.
 
 ### LL22: Idle Warm-Up & Precompute
 
