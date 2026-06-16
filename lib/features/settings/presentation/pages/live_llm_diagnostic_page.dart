@@ -73,6 +73,10 @@ class LiveLlmDiagnosticPage extends ConsumerWidget {
             const SizedBox(height: 16),
             _ProbeResultsSection(report: report),
           ],
+          const SizedBox(height: 16),
+          _ProfileHistorySection(
+            revisions: settings.effectiveModelProfileRevisions,
+          ),
         ],
       ),
     );
@@ -558,6 +562,145 @@ class _SamplerInfoChip extends StatelessWidget {
       label: Text('$label: $value'),
     );
   }
+}
+
+/// LL21: shows the recorded capability-profile revisions for the active model,
+/// newest first, so the user can see when the last (idle) re-probe ran and
+/// whether a capability change (possible model swap) was detected.
+class _ProfileHistorySection extends StatelessWidget {
+  const _ProfileHistorySection({required this.revisions});
+
+  final List<ModelCapabilityProfileRevision> revisions;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(label: 'settings.live_llm_diag_profile_history'.tr()),
+        const SizedBox(height: 8),
+        if (revisions.isEmpty)
+          Text(
+            'settings.live_llm_diag_profile_history_empty'.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          for (final revision in revisions)
+            _ProfileRevisionCard(revision: revision),
+      ],
+    );
+  }
+}
+
+class _ProfileRevisionCard extends StatelessWidget {
+  const _ProfileRevisionCard({required this.revision});
+
+  final ModelCapabilityProfileRevision revision;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.history_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _profileSourceLabel(revision.source),
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
+                Text(
+                  _formatTimestamp(revision.probedAt),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            if (revision.capabilityChangeDetected) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.warning_amber_outlined,
+                    size: 18,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'settings.live_llm_diag_profile_capability_change'.tr(),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _SamplerInfoChip(
+                  label: 'settings.live_llm_diag_profile_tool_call_style'.tr(),
+                  value: _enumName(revision.toolCallStyle),
+                ),
+                _SamplerInfoChip(
+                  label: 'settings.live_llm_diag_profile_structured_output'.tr(),
+                  value: _enumName(revision.structuredOutputSupport),
+                ),
+                _SamplerInfoChip(
+                  label: 'settings.live_llm_diag_profile_edit_format'.tr(),
+                  value: _enumName(revision.editFormatPreference),
+                ),
+                if (revision.usableContextTokens > 0)
+                  _SamplerInfoChip(
+                    label:
+                        'settings.live_llm_diag_profile_context_tokens'.tr(),
+                    value: '${revision.usableContextTokens}',
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _profileSourceLabel(String source) {
+  return switch (source) {
+    'initial' => 'settings.live_llm_diag_profile_source_initial'.tr(),
+    'idle_re_probe' => 'settings.live_llm_diag_profile_source_idle_re_probe'.tr(),
+    'calibrate' => 'settings.live_llm_diag_profile_source_calibrate'.tr(),
+    'manual' => 'settings.live_llm_diag_profile_source_manual'.tr(),
+    _ => 'settings.live_llm_diag_profile_source_probe'.tr(),
+  };
+}
+
+String _enumName(Enum value) => value.name;
+
+String _formatTimestamp(DateTime time) {
+  final local = time.toLocal();
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${local.year}-${two(local.month)}-${two(local.day)} '
+      '${two(local.hour)}:${two(local.minute)}';
 }
 
 class _ProbeResultsSection extends StatelessWidget {

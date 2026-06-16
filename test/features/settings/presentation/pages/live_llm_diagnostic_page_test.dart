@@ -163,6 +163,73 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('shows profile history empty state when no revisions', (
+    tester,
+  ) async {
+    await _pumpPage(tester, settings: AppSettings.defaults());
+
+    await tester.scrollUntilVisible(
+      find.text('Profile History'),
+      400,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('Profile History'), findsOneWidget);
+    expect(
+      find.textContaining('No profile revisions recorded yet'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('lists profile revisions newest-first with model-swap warning', (
+    tester,
+  ) async {
+    final defaults = AppSettings.defaults();
+    final baseProfile = ModelCapabilityProfile(
+      id: ModelCapabilityProfile.buildId(
+        provider: defaults.llmProvider,
+        baseUrl: defaults.baseUrl,
+        model: defaults.effectiveModel,
+      ),
+      model: defaults.effectiveModel,
+      baseUrl: defaults.baseUrl,
+      toolCallStyle: ModelToolCallStyle.nativeToolCalls,
+      structuredOutputSupport: ModelStructuredOutputSupport.jsonSchema,
+      editFormatPreference: ModelEditFormatPreference.searchReplace,
+      usableContextTokens: 8192,
+    );
+    final older = ModelCapabilityProfileRevision.fromProfile(
+      baseProfile.copyWith(probedAt: DateTime.utc(2026, 1, 1, 9)),
+      source: 'probe',
+    );
+    final newer = ModelCapabilityProfileRevision.fromProfile(
+      baseProfile.copyWith(probedAt: DateTime.utc(2026, 6, 1, 9)),
+      source: 'idle_re_probe',
+      capabilityChangeDetected: true,
+    );
+
+    await _pumpPage(
+      tester,
+      settings: defaults.copyWith(
+        modelCapabilityProfileRevisions: [older, newer],
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Profile History'),
+      400,
+      scrollable: find.byType(Scrollable),
+    );
+
+    expect(find.text('Idle re-probe'), findsOneWidget);
+    expect(find.text('Probe'), findsOneWidget);
+    expect(
+      find.textContaining('Capability change detected'),
+      findsOneWidget,
+    );
+    expect(find.text('Usable context: 8192'), findsWidgets);
+  });
 }
 
 Future<void> _pumpPage(
