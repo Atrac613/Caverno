@@ -166,6 +166,29 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  /// Updates the LL18 idle/overnight maintenance gating settings. Only the
+  /// provided fields change; the rest are preserved.
+  Future<void> updateIdleMaintenance({
+    bool? enabled,
+    int? windowStartMinutes,
+    int? windowEndMinutes,
+    int? minIdleMinutes,
+    bool? requireAcPower,
+  }) async {
+    state = state.copyWith(
+      idleMaintenanceEnabled: enabled ?? state.idleMaintenanceEnabled,
+      idleMaintenanceWindowStartMinutes:
+          windowStartMinutes ?? state.idleMaintenanceWindowStartMinutes,
+      idleMaintenanceWindowEndMinutes:
+          windowEndMinutes ?? state.idleMaintenanceWindowEndMinutes,
+      idleMaintenanceMinIdleMinutes:
+          minIdleMinutes ?? state.idleMaintenanceMinIdleMinutes,
+      idleMaintenanceRequireAcPower:
+          requireAcPower ?? state.idleMaintenanceRequireAcPower,
+    );
+    await _repository.save(state);
+  }
+
   Future<void> updateReasoningEffort(
     ReasoningEffortPreference reasoningEffort,
   ) async {

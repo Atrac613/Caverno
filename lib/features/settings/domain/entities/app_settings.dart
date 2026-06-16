@@ -506,6 +506,13 @@ abstract class AppSettings with _$AppSettings {
     )
     @Default(<ModelHarnessConfig>[])
     List<ModelHarnessConfig> modelHarnessConfigs,
+    // LL18 idle/overnight maintenance gating (consumed via the maintenance
+    // feature's IdleMaintenanceConfig; minutes are since local midnight).
+    @Default(false) bool idleMaintenanceEnabled,
+    @Default(120) int idleMaintenanceWindowStartMinutes,
+    @Default(360) int idleMaintenanceWindowEndMinutes,
+    @Default(10) int idleMaintenanceMinIdleMinutes,
+    @Default(true) bool idleMaintenanceRequireAcPower,
   }) = _AppSettings;
 
   factory AppSettings.defaults() => const AppSettings(

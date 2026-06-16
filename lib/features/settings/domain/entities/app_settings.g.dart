@@ -390,6 +390,15 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   modelHarnessConfigs: json['modelHarnessConfigs'] == null
       ? const <ModelHarnessConfig>[]
       : _modelHarnessConfigsFromJson(json['modelHarnessConfigs'] as List?),
+  idleMaintenanceEnabled: json['idleMaintenanceEnabled'] as bool? ?? false,
+  idleMaintenanceWindowStartMinutes:
+      (json['idleMaintenanceWindowStartMinutes'] as num?)?.toInt() ?? 120,
+  idleMaintenanceWindowEndMinutes:
+      (json['idleMaintenanceWindowEndMinutes'] as num?)?.toInt() ?? 360,
+  idleMaintenanceMinIdleMinutes:
+      (json['idleMaintenanceMinIdleMinutes'] as num?)?.toInt() ?? 10,
+  idleMaintenanceRequireAcPower:
+      json['idleMaintenanceRequireAcPower'] as bool? ?? true,
 );
 
 Map<String, dynamic> _$AppSettingsToJson(
@@ -449,6 +458,12 @@ Map<String, dynamic> _$AppSettingsToJson(
   'modelHarnessConfigs': _modelHarnessConfigsToJson(
     instance.modelHarnessConfigs,
   ),
+  'idleMaintenanceEnabled': instance.idleMaintenanceEnabled,
+  'idleMaintenanceWindowStartMinutes':
+      instance.idleMaintenanceWindowStartMinutes,
+  'idleMaintenanceWindowEndMinutes': instance.idleMaintenanceWindowEndMinutes,
+  'idleMaintenanceMinIdleMinutes': instance.idleMaintenanceMinIdleMinutes,
+  'idleMaintenanceRequireAcPower': instance.idleMaintenanceRequireAcPower,
 };
 
 const _$ReasoningEffortPreferenceEnumMap = {
