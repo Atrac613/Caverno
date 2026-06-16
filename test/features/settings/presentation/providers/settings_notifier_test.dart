@@ -403,4 +403,155 @@ void main() {
     );
     expect(SettingsRepository(prefs).load().modelHarnessConfigs, isEmpty);
   });
+
+  group('LL21 profile revision history', () {
+    ProviderContainer _container(SharedPreferences prefs) {
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+      return container;
+    }
+
+    ModelCapabilityProfile _profile(String baseUrl, String model) =>
+        ModelCapabilityProfile(
+          id: ModelCapabilityProfile.buildId(
+            provider: LlmProvider.openAiCompatible,
+            baseUrl: baseUrl,
+            model: model,
+          ),
+          model: model,
+          baseUrl: baseUrl,
+          probedAt: DateTime(2026, 6, 16),
+          toolCallStyle: ModelToolCallStyle.nativeToolCalls,
+          structuredOutputSupport: ModelStructuredOutputSupport.jsonSchema,
+          editFormatPreference: ModelEditFormatPreference.searchReplace,
+          usableContextTokens: 8192,
+        );
+
+    List<ModelCapabilityProfileRevision> _revisionsFor(
+      ProviderContainer container,
+      String model,
+    ) =>
+        container.read(settingsNotifierProvider).capabilityProfileRevisionsFor(
+          provider: LlmProvider.openAiCompatible,
+          baseUrl: 'http://localhost:1234/v1',
+          model: model,
+        );
+
+    test('upsert appends a revision with the given source', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = _container(prefs);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      final profile = _profile('http://localhost:1234/v1', 'my-model');
+      await notifier.upsertModelCapabilityProfile(
+        profile,
+        source: 'idle_re_probe',
+      );
+
+      final revisions = _revisionsFor(container, 'my-model');
+      expect(revisions, hasLength(1));
+      expect(revisions.first.source, 'idle_re_probe');
+      expect(revisions.first.capabilityChangeDetected, isFalse);
+    });
+
+    test('second upsert sets capabilityChangeDetected when toolCallStyle changes',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = _container(prefs);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      final base = _profile('http://localhost:1234/v1', 'my-model');
+      await notifier.upsertModelCapabilityProfile(base, source: 'probe');
+
+      final changed = base.copyWith(
+        toolCallStyle: ModelToolCallStyle.embeddedToolTags,
+      );
+      await notifier.upsertModelCapabilityProfile(changed, source: 'idle_re_probe');
+
+      final revisions = _revisionsFor(container, 'my-model');
+      // Newest first: the idle_re_probe revision should be first.
+      expect(revisions, hasLength(2));
+      expect(revisions.first.source, 'idle_re_probe');
+      expect(revisions.first.capabilityChangeDetected, isTrue);
+    });
+
+    test('capabilityChangeDetected is false when profile is unchanged', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = _container(prefs);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      final profile = _profile('http://localhost:1234/v1', 'my-model');
+      await notifier.upsertModelCapabilityProfile(profile, source: 'probe');
+      await notifier.upsertModelCapabilityProfile(profile, source: 'idle_re_probe');
+
+      final revisions = _revisionsFor(container, 'my-model');
+      expect(revisions.first.capabilityChangeDetected, isFalse);
+    });
+
+    test('context-token drift > 20% triggers capabilityChangeDetected', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = _container(prefs);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      final base = _profile('http://localhost:1234/v1', 'my-model');
+      await notifier.upsertModelCapabilityProfile(base, source: 'probe');
+
+      final drifted = base.copyWith(usableContextTokens: 4096); // 50% drop
+      await notifier.upsertModelCapabilityProfile(drifted, source: 'idle_re_probe');
+
+      final revisions = _revisionsFor(container, 'my-model');
+      expect(revisions.first.capabilityChangeDetected, isTrue);
+    });
+
+    test('revisions are capped at maxPerProfile per model id', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = _container(prefs);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      final profile = _profile('http://localhost:1234/v1', 'my-model');
+      final cap = ModelCapabilityProfileRevision.maxPerProfile;
+
+      for (var i = 0; i < cap + 3; i++) {
+        await notifier.upsertModelCapabilityProfile(
+          profile.copyWith(
+            probedAt: DateTime(2026, 1, 1).add(Duration(days: i)),
+            probeSummary: 'run $i',
+          ),
+          source: 'idle_re_probe',
+        );
+      }
+
+      final revisions = _revisionsFor(container, 'my-model');
+      expect(revisions.length, cap);
+      // Newest is most recent; index 0 should be the last upserted.
+      expect(revisions.first.probeSummary, 'run ${cap + 2}');
+    });
+
+    test('revisions for different model ids do not interfere', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = _container(prefs);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      final profileA = _profile('http://localhost:1234/v1', 'model-a');
+      final profileB = _profile('http://localhost:1234/v1', 'model-b');
+
+      await notifier.upsertModelCapabilityProfile(profileA, source: 'probe');
+      await notifier.upsertModelCapabilityProfile(profileB, source: 'probe');
+      await notifier.upsertModelCapabilityProfile(
+        profileA.copyWith(toolCallStyle: ModelToolCallStyle.embeddedToolTags),
+        source: 'idle_re_probe',
+      );
+
+      expect(_revisionsFor(container, 'model-a'), hasLength(2));
+      expect(_revisionsFor(container, 'model-b'), hasLength(1));
+    });
+  });
 }

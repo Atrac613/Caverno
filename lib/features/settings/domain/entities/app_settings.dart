@@ -422,6 +422,84 @@ List<Map<String, dynamic>> _modelHarnessConfigsToJson(
       .toList(growable: false);
 }
 
+/// LL21: a lightweight snapshot of a [ModelCapabilityProfile] at a point in
+/// time.
+///
+/// Appended to [AppSettings.modelCapabilityProfileRevisions] on every
+/// [SettingsNotifier.upsertModelCapabilityProfile] call, capped at
+/// [ModelCapabilityProfileRevision.maxPerProfile] entries per profile id. Used
+/// to track capability drift across idle re-probes and detect GGUF/model-weight
+/// swaps behind a stable model id.
+@freezed
+abstract class ModelCapabilityProfileRevision
+    with _$ModelCapabilityProfileRevision {
+  const ModelCapabilityProfileRevision._();
+
+  const factory ModelCapabilityProfileRevision({
+    required String profileId,
+    required DateTime probedAt,
+    @JsonKey(unknownEnumValue: ModelToolCallStyle.unknown)
+    required ModelToolCallStyle toolCallStyle,
+    @JsonKey(unknownEnumValue: ModelStructuredOutputSupport.unknown)
+    required ModelStructuredOutputSupport structuredOutputSupport,
+    @JsonKey(unknownEnumValue: ModelEditFormatPreference.unknown)
+    required ModelEditFormatPreference editFormatPreference,
+    required int usableContextTokens,
+    @Default('') String probeSummary,
+    /// How this revision was triggered. Known values: 'initial', 'idle_re_probe',
+    /// 'calibrate', 'manual', 'probe'.
+    @Default('probe') String source,
+    /// True when any key capability field changed vs the immediately preceding
+    /// revision for the same [profileId] — a heuristic for GGUF/weight swaps.
+    @Default(false) bool capabilityChangeDetected,
+  }) = _ModelCapabilityProfileRevision;
+
+  factory ModelCapabilityProfileRevision.fromJson(Map<String, dynamic> json) =>
+      _$ModelCapabilityProfileRevisionFromJson(json);
+
+  factory ModelCapabilityProfileRevision.fromProfile(
+    ModelCapabilityProfile profile, {
+    String source = 'probe',
+    bool capabilityChangeDetected = false,
+  }) =>
+      ModelCapabilityProfileRevision(
+        profileId: profile.computedId,
+        probedAt: profile.probedAt ?? DateTime.now(),
+        toolCallStyle: profile.toolCallStyle,
+        structuredOutputSupport: profile.structuredOutputSupport,
+        editFormatPreference: profile.editFormatPreference,
+        usableContextTokens: profile.usableContextTokens,
+        probeSummary: profile.probeSummary,
+        source: source,
+        capabilityChangeDetected: capabilityChangeDetected,
+      );
+
+  /// Maximum revisions stored per profile id; oldest are dropped on overflow.
+  static const maxPerProfile = 10;
+}
+
+List<ModelCapabilityProfileRevision> _profileRevisionsFromJson(
+  List<dynamic>? json,
+) {
+  if (json == null) {
+    return const <ModelCapabilityProfileRevision>[];
+  }
+  return json
+      .whereType<Map>()
+      .map(
+        (item) => ModelCapabilityProfileRevision.fromJson(
+          Map<String, dynamic>.from(item),
+        ),
+      )
+      .where((r) => r.profileId.isNotEmpty)
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _profileRevisionsToJson(
+  List<ModelCapabilityProfileRevision> revisions,
+) =>
+    revisions.map((r) => r.toJson()).toList(growable: false);
+
 @freezed
 abstract class AppSettings with _$AppSettings {
   const AppSettings._();
@@ -506,6 +584,12 @@ abstract class AppSettings with _$AppSettings {
     )
     @Default(<ModelHarnessConfig>[])
     List<ModelHarnessConfig> modelHarnessConfigs,
+    @JsonKey(
+      fromJson: _profileRevisionsFromJson,
+      toJson: _profileRevisionsToJson,
+    )
+    @Default(<ModelCapabilityProfileRevision>[])
+    List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions,
     // LL18 idle/overnight maintenance gating (consumed via the maintenance
     // feature's IdleMaintenanceConfig; minutes are since local midnight).
     @Default(false) bool idleMaintenanceEnabled,
@@ -596,6 +680,35 @@ abstract class AppSettings with _$AppSettings {
       }
     }
     return null;
+  }
+
+  /// LL21: stored profile revisions for the active model, newest first.
+  List<ModelCapabilityProfileRevision> get effectiveModelProfileRevisions =>
+      capabilityProfileRevisionsFor(
+        provider: llmProvider,
+        baseUrl: baseUrl,
+        model: effectiveModel,
+      );
+
+  /// Returns stored profile revisions for the given model/endpoint, newest
+  /// first (most recent re-probe at index 0).
+  List<ModelCapabilityProfileRevision> capabilityProfileRevisionsFor({
+    required LlmProvider provider,
+    required String baseUrl,
+    required String model,
+  }) {
+    final targetId = ModelCapabilityProfile.buildId(
+      provider: provider,
+      baseUrl: baseUrl,
+      model: model,
+    );
+    final result = <ModelCapabilityProfileRevision>[];
+    for (var i = modelCapabilityProfileRevisions.length - 1; i >= 0; i--) {
+      if (modelCapabilityProfileRevisions[i].profileId == targetId) {
+        result.add(modelCapabilityProfileRevisions[i]);
+      }
+    }
+    return result;
   }
 
   /// Role models only apply to OpenAI-compatible endpoints; the Apple

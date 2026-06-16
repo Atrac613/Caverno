@@ -90,7 +90,18 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
       body: (_) async {
         await ref
             .read(modelCapabilityAutoProbeNotifierProvider.notifier)
-            .runForCurrentModel(force: true);
+            .runForCurrentModel(force: true, source: 'idle_re_probe');
+        // LL21: report whether the re-probe detected a capability change vs
+        // the previous revision (potential GGUF/model-weight swap).
+        final revisions =
+            ref.read(settingsNotifierProvider).effectiveModelProfileRevisions;
+        final latest = revisions.isNotEmpty ? revisions.first : null;
+        if (latest != null && latest.capabilityChangeDetected) {
+          return const MaintenanceStageOutcome.completed(
+            're-probed active model; capability change detected '
+            '(possible model swap)',
+          );
+        }
         return const MaintenanceStageOutcome.completed(
           're-probed active model',
         );

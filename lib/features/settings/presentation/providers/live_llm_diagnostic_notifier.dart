@@ -51,6 +51,7 @@ class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
               report: report,
               provider: settings.llmProvider,
             ),
+            source: 'calibrate',
           );
       if (!ref.mounted || generation != _generation) {
         return;

@@ -65,7 +65,10 @@ class ModelCapabilityAutoProbeNotifier
   ModelCapabilityAutoProbeState build() =>
       ModelCapabilityAutoProbeState.initial;
 
-  Future<void> runForCurrentModel({bool force = false}) async {
+  Future<void> runForCurrentModel({
+    bool force = false,
+    String source = 'probe',
+  }) async {
     final settings = ref.read(settingsNotifierProvider);
     final profileId = ModelCapabilityProfile.buildId(
       provider: settings.llmProvider,
@@ -117,6 +120,7 @@ class ModelCapabilityAutoProbeNotifier
               report: report,
               provider: settings.llmProvider,
             ),
+            source: source,
           );
       if (!ref.mounted) {
         return;

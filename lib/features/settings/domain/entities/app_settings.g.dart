@@ -272,6 +272,48 @@ Map<String, dynamic> _$ModelHarnessConfigToJson(_ModelHarnessConfig instance) =>
       'explorationToEditNudgeEnabled': instance.explorationToEditNudgeEnabled,
     };
 
+_ModelCapabilityProfileRevision _$ModelCapabilityProfileRevisionFromJson(
+  Map<String, dynamic> json,
+) => _ModelCapabilityProfileRevision(
+  profileId: json['profileId'] as String,
+  probedAt: DateTime.parse(json['probedAt'] as String),
+  toolCallStyle: $enumDecode(
+    _$ModelToolCallStyleEnumMap,
+    json['toolCallStyle'],
+    unknownValue: ModelToolCallStyle.unknown,
+  ),
+  structuredOutputSupport: $enumDecode(
+    _$ModelStructuredOutputSupportEnumMap,
+    json['structuredOutputSupport'],
+    unknownValue: ModelStructuredOutputSupport.unknown,
+  ),
+  editFormatPreference: $enumDecode(
+    _$ModelEditFormatPreferenceEnumMap,
+    json['editFormatPreference'],
+    unknownValue: ModelEditFormatPreference.unknown,
+  ),
+  usableContextTokens: (json['usableContextTokens'] as num).toInt(),
+  probeSummary: json['probeSummary'] as String? ?? '',
+  source: json['source'] as String? ?? 'probe',
+  capabilityChangeDetected: json['capabilityChangeDetected'] as bool? ?? false,
+);
+
+Map<String, dynamic> _$ModelCapabilityProfileRevisionToJson(
+  _ModelCapabilityProfileRevision instance,
+) => <String, dynamic>{
+  'profileId': instance.profileId,
+  'probedAt': instance.probedAt.toIso8601String(),
+  'toolCallStyle': _$ModelToolCallStyleEnumMap[instance.toolCallStyle]!,
+  'structuredOutputSupport':
+      _$ModelStructuredOutputSupportEnumMap[instance.structuredOutputSupport]!,
+  'editFormatPreference':
+      _$ModelEditFormatPreferenceEnumMap[instance.editFormatPreference]!,
+  'usableContextTokens': instance.usableContextTokens,
+  'probeSummary': instance.probeSummary,
+  'source': instance.source,
+  'capabilityChangeDetected': instance.capabilityChangeDetected,
+};
+
 _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   llmProvider:
       $enumDecodeNullable(
@@ -390,6 +432,12 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   modelHarnessConfigs: json['modelHarnessConfigs'] == null
       ? const <ModelHarnessConfig>[]
       : _modelHarnessConfigsFromJson(json['modelHarnessConfigs'] as List?),
+  modelCapabilityProfileRevisions:
+      json['modelCapabilityProfileRevisions'] == null
+      ? const <ModelCapabilityProfileRevision>[]
+      : _profileRevisionsFromJson(
+          json['modelCapabilityProfileRevisions'] as List?,
+        ),
   idleMaintenanceEnabled: json['idleMaintenanceEnabled'] as bool? ?? false,
   idleMaintenanceWindowStartMinutes:
       (json['idleMaintenanceWindowStartMinutes'] as num?)?.toInt() ?? 120,
@@ -457,6 +505,9 @@ Map<String, dynamic> _$AppSettingsToJson(
   ),
   'modelHarnessConfigs': _modelHarnessConfigsToJson(
     instance.modelHarnessConfigs,
+  ),
+  'modelCapabilityProfileRevisions': _profileRevisionsToJson(
+    instance.modelCapabilityProfileRevisions,
   ),
   'idleMaintenanceEnabled': instance.idleMaintenanceEnabled,
   'idleMaintenanceWindowStartMinutes':

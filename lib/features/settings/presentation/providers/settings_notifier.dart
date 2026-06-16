@@ -84,8 +84,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> upsertModelCapabilityProfile(
-    ModelCapabilityProfile profile,
-  ) async {
+    ModelCapabilityProfile profile, {
+    String source = 'probe',
+  }) async {
     final normalized = profile.normalizedForPersistence();
     if (normalized.normalizedModel.isEmpty) {
       throw ArgumentError('Model capability profile model is required');
@@ -100,8 +101,78 @@ class SettingsNotifier extends Notifier<AppSettings> {
     } else {
       profiles[index] = normalized;
     }
-    state = state.copyWith(modelCapabilityProfiles: profiles);
+
+    // LL21: append a revision snapshot for history and model-swap detection.
+    final revisions = _buildUpdatedRevisions(
+      normalized,
+      source: source,
+      existing: state.modelCapabilityProfileRevisions,
+    );
+
+    state = state.copyWith(
+      modelCapabilityProfiles: profiles,
+      modelCapabilityProfileRevisions: revisions,
+    );
     await _repository.save(state);
+  }
+
+  static List<ModelCapabilityProfileRevision> _buildUpdatedRevisions(
+    ModelCapabilityProfile profile, {
+    required String source,
+    required List<ModelCapabilityProfileRevision> existing,
+  }) {
+    // Find the most recent previous revision for this profile id.
+    ModelCapabilityProfileRevision? prev;
+    for (var i = existing.length - 1; i >= 0; i--) {
+      if (existing[i].profileId == profile.computedId) {
+        prev = existing[i];
+        break;
+      }
+    }
+
+    final capabilityChangeDetected =
+        prev != null && _hasCapabilityChanged(profile, prev);
+
+    final newRevision = ModelCapabilityProfileRevision.fromProfile(
+      profile,
+      source: source,
+      capabilityChangeDetected: capabilityChangeDetected,
+    );
+
+    // Partition: revisions for this profile vs all others.
+    final thisProfile = existing
+        .where((r) => r.profileId == profile.computedId)
+        .toList(growable: true);
+    final others = existing
+        .where((r) => r.profileId != profile.computedId)
+        .toList(growable: false);
+
+    thisProfile.add(newRevision);
+    if (thisProfile.length > ModelCapabilityProfileRevision.maxPerProfile) {
+      thisProfile.removeRange(
+        0,
+        thisProfile.length - ModelCapabilityProfileRevision.maxPerProfile,
+      );
+    }
+
+    return [...others, ...thisProfile];
+  }
+
+  static bool _hasCapabilityChanged(
+    ModelCapabilityProfile profile,
+    ModelCapabilityProfileRevision prev,
+  ) {
+    if (profile.toolCallStyle != prev.toolCallStyle) return true;
+    if (profile.structuredOutputSupport != prev.structuredOutputSupport) {
+      return true;
+    }
+    if (profile.editFormatPreference != prev.editFormatPreference) return true;
+    // Flag context-token drift beyond 20% in either direction.
+    if (prev.usableContextTokens > 0 && profile.usableContextTokens > 0) {
+      final ratio = profile.usableContextTokens / prev.usableContextTokens;
+      if (ratio < 0.8 || ratio > 1.25) return true;
+    }
+    return false;
   }
 
   Future<void> removeModelCapabilityProfile(String profileId) async {
