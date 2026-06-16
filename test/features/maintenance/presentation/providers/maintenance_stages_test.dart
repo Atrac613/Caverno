@@ -2,10 +2,32 @@ import 'package:caverno/features/maintenance/domain/services/failure_trace_miner
 import 'package:caverno/features/maintenance/domain/services/harness_proposal_service.dart';
 import 'package:caverno/features/maintenance/domain/services/idle_maintenance_scheduler.dart';
 import 'package:caverno/features/maintenance/domain/services/maintenance_pipeline.dart';
+import 'package:caverno/features/personal_eval/domain/entities/personal_eval_case.dart';
+import 'package:caverno/features/personal_eval/domain/services/personal_eval_replay_orchestrator.dart';
+import 'package:caverno/features/personal_eval/presentation/providers/personal_eval_cases_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno/features/maintenance/presentation/providers/maintenance_scheduler_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class _PassingRunner implements PersonalEvalCaseRunner {
+  @override
+  Future<PersonalEvalCaseRunOutcome> run(PersonalEvalCase evalCase) async {
+    return const PersonalEvalCaseRunOutcome(
+      verificationResult: PersonalEvalVerificationResult.passed,
+    );
+  }
+}
+
+class _FakeCasesNotifier extends PersonalEvalCasesNotifier {
+  _FakeCasesNotifier(this._cases);
+  final List<PersonalEvalCase> _cases;
+
+  @override
+  Future<List<PersonalEvalCase>> build() async => _cases;
+}
 
 void main() {
   // Building the provider only constructs the stage objects; the probe /
@@ -94,7 +116,9 @@ void main() {
     expect(outcome.detail, contains('no candidate proposed'));
   });
 
-  test('adopt recommends a proposed harness edit (manual review)', () async {
+  test('adopt skips when eval cases are not available', () async {
+    // The bare container has no eval cases loaded, so adopt falls through to
+    // the eval-gated path and skips because there is nothing to validate against.
     final adopt = stages().firstWhere((s) => s.name == 'adopt');
     final outcome = await adopt.run(
       context({
@@ -106,8 +130,76 @@ void main() {
         ),
       }),
     );
+    expect(outcome.status, MaintenanceStageStatus.skipped);
+    expect(outcome.detail, contains('no recorded eval cases'));
+  });
+
+  test(
+    'adopt surfaces manual-review when proposal touches a high-risk surface',
+    () async {
+      // A high-risk surface is blocked even when eval cases would be available.
+      final adopt = stages().firstWhere((s) => s.name == 'adopt');
+      final outcome = await adopt.run(
+        context({
+          maintenanceProposedCandidateKey: const HarnessConfigProposal(
+            mechanism: 'some_mechanism',
+            surface: 'approvalMode',
+            rationale: 'r',
+            proposedConfig: ModelHarnessConfig(id: 'p', model: 'm'),
+          ),
+        }),
+      );
+      expect(outcome.status, MaintenanceStageStatus.completed);
+      expect(outcome.detail, contains('manual review required'));
+      expect(outcome.detail, contains('approvalMode'));
+    },
+  );
+
+  test('adopt auto-adopts when eval passes on both splits', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    const proposal = HarnessConfigProposal(
+      mechanism: 'stale_old_text',
+      surface: 'failureRecoveryInstruction',
+      rationale: 'r',
+      proposedConfig: ModelHarnessConfig(
+        id: 'p',
+        model: 'm',
+        failureRecoveryInstruction: 're-read before retry',
+      ),
+    );
+    final evalCase = PersonalEvalCase(
+      caseId: 'c1',
+      prompt: 'p',
+      repoStateRef: 'r',
+      consentGranted: true,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        // Inject a runner factory that always passes so no live providers needed.
+        maintenanceEvalRunnerFactoryProvider.overrideWithValue(
+          (_) => _PassingRunner(),
+        ),
+        personalEvalCasesNotifierProvider.overrideWith(
+          () => _FakeCasesNotifier([evalCase]),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    // Wait for the cases notifier to finish loading.
+    await container.read(personalEvalCasesNotifierProvider.future);
+
+    final adopt = container
+        .read(maintenanceStagesProvider)
+        .firstWhere((s) => s.name == 'adopt');
+    final outcome = await adopt.run(
+      context({maintenanceProposedCandidateKey: proposal}),
+    );
+    // Eval passes → adopted, not just recommended.
     expect(outcome.status, MaintenanceStageStatus.completed);
-    expect(outcome.detail, contains('recommended harness edit'));
-    expect(outcome.detail, contains('stale_old_text'));
+    expect(outcome.detail, contains('adopted'));
+    expect(outcome.detail, contains('failureRecoveryInstruction'));
   });
 }

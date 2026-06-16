@@ -67,6 +67,59 @@ final personalEvalReplayTurnDriverFactoryProvider =
       );
     });
 
+/// Builds a [PersonalEvalCaseRunner] with the given system-prompt suffix
+/// appended to the replay base prompt. Used by the LL17 adopt stage to compare
+/// incumbent vs candidate harness configs without mutating live settings.
+///
+/// A suffix that is empty or whitespace-only is treated as no suffix, so the
+/// runner behaves identically to one built by [personalEvalCaseRunnerFactoryProvider].
+final personalEvalRunnerWithSuffixFactoryProvider =
+    Provider<PersonalEvalCaseRunner Function(String systemPromptSuffix)>((ref) {
+      final settings = ref.watch(settingsNotifierProvider);
+      final rawDataSource = ref.watch(chatRemoteDataSourceProvider);
+      final logStore = ref.watch(llmSessionLogStoreProvider);
+      final loggingEnabled = LlmSessionLogStore.isEnabled(
+        settingsEnabled: settings.enableLlmSessionLogs,
+      );
+      final dataSource =
+          !loggingEnabled ||
+              settings.demoMode ||
+              rawDataSource is! ChatRemoteDataSource
+          ? rawDataSource
+          : SessionLoggingChatDataSource(
+              delegate: rawDataSource,
+              logStore: logStore,
+            );
+      final workingDirectory =
+          ref.watch(codingProjectsNotifierProvider).selectedProject?.rootPath ??
+          '';
+      final toolService = ref.watch(mcpToolServiceProvider);
+      final verificationRunner = ref.watch(
+        personalEvalVerificationRunnerProvider,
+      );
+      return (suffix) {
+        final driver = PersonalEvalChatReplayTurnDriver(
+          dataSource: dataSource,
+          sessionLogStore: logStore,
+          model: settings.model,
+          workingDirectory: workingDirectory,
+          maxTokens: settings.maxTokens,
+          toolDefinitions: toolService?.getOpenAiToolDefinitions,
+          dispatchToolCall: toolService == null
+              ? null
+              : (toolCall) => toolService.executeTool(
+                  name: toolCall.name,
+                  arguments: toolCall.arguments,
+                ),
+          systemPromptSuffix: suffix,
+        );
+        return LivePersonalEvalCaseRunner(
+          turnDriver: driver,
+          verificationRunner: verificationRunner,
+        );
+      };
+    });
+
 /// Runs a recorded case's verification command (LL19).
 final personalEvalVerificationRunnerProvider =
     Provider<PersonalEvalVerificationRunner>(

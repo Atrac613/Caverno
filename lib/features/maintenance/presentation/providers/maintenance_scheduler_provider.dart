@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../personal_eval/domain/services/personal_eval_replay_orchestrator.dart';
 import '../../../personal_eval/presentation/providers/personal_eval_cases_notifier.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/live_llm_diagnostic_notifier.dart';
@@ -7,6 +8,7 @@ import '../../../settings/presentation/providers/model_capability_auto_probe_not
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/model_edit_failure_trace_extractor.dart';
 import '../../domain/services/callback_maintenance_stage.dart';
+import '../../domain/services/candidate_adoption_service.dart';
 import '../../domain/services/failure_trace_miner.dart';
 import '../../domain/services/harness_proposal_service.dart';
 import '../../domain/services/idle_maintenance_scheduler.dart';
@@ -22,6 +24,21 @@ const maintenanceProposedCandidateKey = 'maintenance.proposedCandidate';
 /// Shared-context key the mine stage sets with the top [FailureCluster] for the
 /// propose stage to turn into a candidate edit.
 const maintenanceTopClusterKey = 'maintenance.topCluster';
+
+/// Extracts the instruction overrides from a [ModelHarnessConfig] as a single
+/// suffix suitable for appending to the replay system prompt. Used by the
+/// adoption eval runners to inject the candidate's instruction changes without
+/// mutating live settings.
+String _harnessSystemPromptSuffix(ModelHarnessConfig? config) {
+  if (config == null) return '';
+  final parts = [
+    config.bootstrapInstruction.trim(),
+    config.executionInstruction.trim(),
+    config.verificationInstruction.trim(),
+    config.failureRecoveryInstruction.trim(),
+  ].where((p) => p.isNotEmpty).toList();
+  return parts.join('\n\n');
+}
 
 /// Supplies recorded failure traces to the LL17 mine stage. Extracts the active
 /// model's LL15 edit-apply failure-kind counters; empty when the model has no
@@ -39,6 +56,22 @@ final maintenanceFailureTraceSourceProvider =
           profileMetadata: profile.probeMetadata,
         );
       };
+    });
+
+/// Builds a [PersonalEvalCaseRunner] with the instruction overrides of the
+/// given [ModelHarnessConfig] injected into the replay system prompt. Used by
+/// the LL17 adopt stage to compare incumbent vs candidate harness configs
+/// without mutating live settings.
+///
+/// Override in tests to inject fake runners.
+final maintenanceEvalRunnerFactoryProvider =
+    Provider<PersonalEvalCaseRunner Function(ModelHarnessConfig? config)>((
+      ref,
+    ) {
+      final runnerWithSuffix = ref.read(
+        personalEvalRunnerWithSuffixFactoryProvider,
+      );
+      return (config) => runnerWithSuffix(_harnessSystemPromptSuffix(config));
     });
 
 /// The ordered maintenance stages run on each idle window:
@@ -150,14 +183,57 @@ final maintenanceStagesProvider = Provider<List<MaintenanceStage>>((ref) {
         if (proposal is! HarnessConfigProposal) {
           return const MaintenanceStageOutcome.skipped('no candidate proposed');
         }
-        // Auto-applying a harness edit requires candidate-applied
-        // held-in/held-out validation (the remaining LL17 piece) and manual
-        // review for high-stakes surfaces, so surface a recommendation rather
-        // than silently persisting the edit.
-        return MaintenanceStageOutcome.completed(
-          'recommended harness edit for ${proposal.mechanism}: '
-          '${proposal.surface} (manual review)',
+        // High-risk surfaces are blocked immediately, before touching any live
+        // providers, so this check works even in restricted test containers.
+        if (CandidateAdoptionService.highRiskSurfaces.contains(
+          proposal.surface,
+        )) {
+          return MaintenanceStageOutcome.completed(
+            'manual review required: surface ${proposal.surface} '
+            'requires manual review before adoption',
+          );
+        }
+        // Check for eval cases before building the runner factory: reading
+        // maintenanceEvalRunnerFactoryProvider cascades into settings providers
+        // that need SharedPreferences, so we skip early when there's nothing
+        // to run against.
+        final cases =
+            ref.read(personalEvalCasesNotifierProvider).value ?? const [];
+        if (cases.isEmpty) {
+          return const MaintenanceStageOutcome.skipped(
+            'no recorded eval cases to validate against',
+          );
+        }
+        final runnerFactory = ref.read(maintenanceEvalRunnerFactoryProvider);
+        final incumbentConfig = ref
+            .read(settingsNotifierProvider)
+            .effectiveModelHarnessConfig;
+        final outcome = await const CandidateAdoptionService().evaluate(
+          proposal: proposal,
+          cases: cases,
+          incumbentRunner: runnerFactory(incumbentConfig),
+          candidateRunner: runnerFactory(proposal.proposedConfig),
+          persist: ref
+              .read(settingsNotifierProvider.notifier)
+              .upsertModelHarnessConfig,
         );
+        return switch (outcome.status) {
+          CandidateAdoptionStatus.adopted => MaintenanceStageOutcome.completed(
+            'adopted ${proposal.surface} for ${proposal.mechanism}: '
+            '${outcome.reason}',
+          ),
+          CandidateAdoptionStatus.rejected => MaintenanceStageOutcome.completed(
+            'rejected ${proposal.surface} for ${proposal.mechanism}: '
+            '${outcome.reason}',
+          ),
+          CandidateAdoptionStatus.skipped => MaintenanceStageOutcome.skipped(
+            outcome.reason,
+          ),
+          CandidateAdoptionStatus.manualReview =>
+            MaintenanceStageOutcome.completed(
+              'manual review required: ${outcome.reason}',
+            ),
+        };
       },
     ),
   ];

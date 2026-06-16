@@ -33,6 +33,7 @@ class PersonalEvalChatReplayTurnDriver implements PersonalEvalReplayTurnDriver {
     String runId = '',
     double temperature = 0.2,
     int maxTokens = 4096,
+    String systemPromptSuffix = '',
     DateTime Function() now = DateTime.now,
   }) : _dataSource = dataSource,
        _sessionLogStore = sessionLogStore,
@@ -44,9 +45,10 @@ class PersonalEvalChatReplayTurnDriver implements PersonalEvalReplayTurnDriver {
        _runId = runId,
        _temperature = temperature,
        _maxTokens = maxTokens,
+       _systemPromptSuffix = systemPromptSuffix,
        _now = now;
 
-  static const _systemPrompt =
+  static const _baseSystemPrompt =
       'You are replaying a recorded coding task to evaluate a model. Complete '
       'the task described by the user exactly as you normally would.';
 
@@ -61,6 +63,7 @@ class PersonalEvalChatReplayTurnDriver implements PersonalEvalReplayTurnDriver {
   final String _runId;
   final double _temperature;
   final int _maxTokens;
+  final String _systemPromptSuffix;
   final DateTime Function() _now;
 
   @override
@@ -123,6 +126,10 @@ class PersonalEvalChatReplayTurnDriver implements PersonalEvalReplayTurnDriver {
       maxTokens: _maxTokens,
     );
   }
+
+  String get _systemPrompt => _systemPromptSuffix.trim().isEmpty
+      ? _baseSystemPrompt
+      : '$_baseSystemPrompt\n\n${_systemPromptSuffix.trim()}';
 
   List<Message> _buildMessages(PersonalEvalCase evalCase) {
     final startedAt = _now();
