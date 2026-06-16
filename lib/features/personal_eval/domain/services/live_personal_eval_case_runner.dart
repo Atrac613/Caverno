@@ -1,6 +1,7 @@
 import '../entities/personal_eval_case.dart';
 import 'personal_eval_replay_orchestrator.dart';
 import 'personal_eval_verification_runner.dart';
+import '../../../../core/types/workspace_mode.dart';
 
 /// Result of driving a candidate model through one recorded case: where the
 /// replay session log was written, its contents (for summary parsing), the
@@ -63,8 +64,21 @@ class LivePersonalEvalCaseRunner implements PersonalEvalCaseRunner {
       );
     }
 
+    final command = evalCase.verificationCommand!.trim();
+    if (_isCodingWorkspace(evalCase.workspaceMode) &&
+        _isAndroidVerificationCommand(command)) {
+      return PersonalEvalCaseRunOutcome(
+        verificationResult: PersonalEvalVerificationResult.inconclusive,
+        sessionLogContents: turn.logContents,
+        logPath: turn.logPath,
+        error:
+            'verification command was skipped for coding workspace mode: '
+            'android target detected.',
+      );
+    }
+
     final verification = await _verificationRunner.run(
-      command: evalCase.verificationCommand!.trim(),
+      command: command,
       workingDirectory: turn.workingDirectory,
     );
 
@@ -77,5 +91,20 @@ class LivePersonalEvalCaseRunner implements PersonalEvalCaseRunner {
       // a case landed inconclusive.
       error: turn.error ?? verification.error,
     );
+  }
+
+  bool _isCodingWorkspace(String? workspaceMode) {
+    return workspaceMode?.trim().toLowerCase() == WorkspaceMode.coding.name;
+  }
+
+  bool _isAndroidVerificationCommand(String command) {
+    final normalized = command.toLowerCase();
+    return normalized.contains('flutter build apk') ||
+        normalized.contains('flutter build appbundle') ||
+        (normalized.contains('flutter run -d') &&
+            normalized.contains('android')) ||
+        normalized.contains('gradlew') ||
+        normalized.contains('/android/') ||
+        normalized.contains('adb ');
   }
 }

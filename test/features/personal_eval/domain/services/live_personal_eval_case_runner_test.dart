@@ -1,4 +1,5 @@
 import 'package:caverno/features/personal_eval/domain/entities/personal_eval_case.dart';
+import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/personal_eval/domain/services/live_personal_eval_case_runner.dart';
 import 'package:caverno/features/personal_eval/domain/services/personal_eval_replay_orchestrator.dart';
 import 'package:caverno/features/personal_eval/domain/services/personal_eval_verification_runner.dart';
@@ -143,6 +144,63 @@ void main() {
       expect(outcome.error, 'transport disconnected');
     },
   );
+
+  test('skips Android verification commands in coding workspace mode', () async {
+    final driver = _FakeTurnDriver(
+      const PersonalEvalReplayTurnResult(
+        logPath: '/replay/c1.jsonl',
+        workingDirectory: '/tmp/project',
+      ),
+    );
+    final verification = _RecordingVerificationRunner(
+      const PersonalEvalVerificationOutcome(
+        result: PersonalEvalVerificationResult.passed,
+      ),
+    );
+    final runner = LivePersonalEvalCaseRunner(
+      turnDriver: driver,
+      verificationRunner: verification,
+    );
+
+    final outcome = await runner.run(
+      evalCase(
+        verificationCommand:
+            'flutter build apk --release --dart-define=FLAVOR=production',
+      ).copyWith(workspaceMode: WorkspaceMode.coding.name),
+    );
+
+    expect(outcome.verificationResult, PersonalEvalVerificationResult.inconclusive);
+    expect(verification.ranCommand, isNull);
+    expect(outcome.error, contains('android target detected'));
+  });
+
+  test('runs non-Android verification commands in coding workspace mode', () async {
+    final driver = _FakeTurnDriver(
+      const PersonalEvalReplayTurnResult(
+        logPath: '/replay/c1.jsonl',
+        workingDirectory: '/tmp/project',
+      ),
+    );
+    final verification = _RecordingVerificationRunner(
+      const PersonalEvalVerificationOutcome(
+        result: PersonalEvalVerificationResult.passed,
+        exitCode: 0,
+      ),
+    );
+    final runner = LivePersonalEvalCaseRunner(
+      turnDriver: driver,
+      verificationRunner: verification,
+    );
+
+    final outcome = await runner.run(
+      evalCase(verificationCommand: 'npm test').copyWith(
+        workspaceMode: WorkspaceMode.coding.name,
+      ),
+    );
+
+    expect(outcome.verificationResult, PersonalEvalVerificationResult.passed);
+    expect(verification.ranCommand, 'npm test');
+  });
 
   test('connects to the orchestrator to assemble a replay run', () async {
     final driver = _FakeTurnDriver(
