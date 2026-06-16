@@ -81,7 +81,7 @@ structurally unmotivated to build:
 | Local LLM | LL18 | done | L | LL3, LL12, LL16, LL19 | Idle/overnight maintenance orchestrator: detect idle + AC power + night window, then chain probe → calibrate → eval → mine → eval-gated adopt and emit a morning report. |
 | Local LLM | LL19 | done | M | LL12 | In-app personal eval recorder and replay executor: record sessions to eval cases and drive a candidate model through them end-to-end. |
 | Local LLM | LL20 | later | M | F3, LL6 | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, and run `--parallel N` candidates concurrently. Unblocks LL7/LL13. |
-| Local LLM | LL21 | later | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
+| Local LLM | LL21 | done | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
 | Local LLM | LL22 | later | M | LL4, LL6, LL18 | Idle warm-up and precompute: precompute repo map / embeddings and warm the KV cache so the first morning turn is instant. |
 | Local LLM | LL23 | done | M | LL3, LL6 | Declared per-model harness config: instruction surfaces (bootstrap/verify/recovery) and runtime control policy (loop caps, recovery middleware) as a mutable schema LL17 edits. |
 
@@ -1171,7 +1171,7 @@ Acceptance criteria:
 
 ### LL21: Continuous Idle Re-Probing & Profile History
 
-Status: `later`
+Status: `done`
 
 Context:
 - The auto-probe runs a bounded subset once per model and skips any model that
@@ -1194,6 +1194,49 @@ Acceptance criteria:
 - A changed quantization behind the same model id is detected and re-profiled.
 - A runtime-lowered sampler preset can recover when a fresh probe shows the
   lower temperature is no longer warranted.
+
+Implementation evidence:
+- `ModelCapabilityProfileRevision` — Freezed entity that snapshots key
+  capability fields (`toolCallStyle`, `structuredOutputSupport`,
+  `editFormatPreference`, `usableContextTokens`, `probeSummary`) plus a
+  `source` tag (`'initial'`, `'idle_re_probe'`, `'calibrate'`, `'probe'`) and
+  `capabilityChangeDetected` flag.
+- `AppSettings.modelCapabilityProfileRevisions` — capped list of revisions
+  (max 10 per profile id, oldest trimmed on overflow); serialized as a JSON
+  array alongside the existing `modelCapabilityProfiles` list.
+- `AppSettings.effectiveModelProfileRevisions` / `capabilityProfileRevisionsFor`
+  — return revisions for a given model/endpoint, newest first.
+- `SettingsNotifier.upsertModelCapabilityProfile({String source = 'probe'})`
+  — accepts a `source` label and appends a revision snapshot on every call,
+  comparing against the previous revision for `capabilityChangeDetected`
+  (fires when `toolCallStyle`, `structuredOutputSupport`, or `editFormatPreference`
+  changes, or when usable context tokens drift beyond ±20%).
+- `ModelCapabilityAutoProbeNotifier.runForCurrentModel({..., String source = 'probe'})`
+  — threads the source through to `upsertModelCapabilityProfile`.
+- `LiveLlmDiagnosticNotifier` passes `source: 'calibrate'` so LL16 calibration
+  runs are distinguishable from bounded LL3 probes in the history.
+- LL18 probe stage now passes `source: 'idle_re_probe'` and reports
+  `'capability change detected (possible model swap)'` in the stage outcome
+  when the latest revision has `capabilityChangeDetected = true`.
+
+Verification:
+- `test/features/settings/domain/services/model_capability_profile_revision_test.dart`
+  (entity construction, JSON round-trip, unknown enum fallback,
+  `effectiveModelProfileRevisions` ordering and filtering, cap constant)
+- `test/features/settings/presentation/providers/settings_notifier_test.dart`
+  (6 new LL21 tests: source tagging, change detection on `toolCallStyle` flip,
+  no-change detection, 50% context-token drift, cap enforcement at 10,
+  multi-model isolation)
+- 285/285 tests passing across settings + maintenance suites.
+
+Deferred refinements:
+- LL16 recovery path: when a fresh probe shows tool-loop performance is healthy
+  at a higher temperature than the runtime step-down level, revert the
+  step-down. Requires wiring the sampler calibration outcome back through
+  `probeMetadata` comparison logic. Deferred to a later slice.
+- Profile history UI: show the revision list in the model settings page so the
+  user can see when the last idle re-probe ran and whether a model swap was
+  detected.
 
 ### LL22: Idle Warm-Up & Precompute
 
