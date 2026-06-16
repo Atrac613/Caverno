@@ -14,10 +14,14 @@ extension ChatNotifierPromptContext on ChatNotifier {
 
   String? _repoMap(AssistantMode assistantMode, CodingProject? project) {
     if (assistantMode == AssistantMode.general) return null;
-    return RepoMapService.buildForProject(
-      rootPath: project?.rootPath,
-      usableContextTokens:
-          _settings.effectiveModelCapabilityProfile?.usableContextTokens,
-    );
+    // LL22: serve from the precompute cache when the project signature is
+    // unchanged; otherwise this rebuilds and stores it (a cold first turn).
+    return ref
+        .read(repoMapPrecomputeCacheProvider)
+        .getOrBuild(
+          rootPath: project?.rootPath,
+          usableContextTokens:
+              _settings.effectiveModelCapabilityProfile?.usableContextTokens,
+        );
   }
 }

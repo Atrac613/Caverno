@@ -78,6 +78,60 @@ class RepoMapService {
     );
   }
 
+  /// Cheap fingerprint of every input that affects [buildForProject] output, so
+  /// a precompute cache (LL22) can tell whether a stored map is still valid
+  /// without re-running the expensive symbol extraction.
+  ///
+  /// The signature folds in the effective character budget (not the raw token
+  /// count, since two token counts that clamp to the same budget produce an
+  /// identical map), the file limits, and a `path:size:mtime` triple for each
+  /// selected file. It is a stat-only walk: directory ranking/skip rules are
+  /// shared with [buildForProject], but no file contents are read.
+  ///
+  /// Returns null when there is no buildable map (no root, missing directory,
+  /// or no ranked files), matching [buildForProject].
+  static String? computeSignatureForProject({
+    required String? rootPath,
+    int? usableContextTokens,
+    int maxFiles = defaultMaxFiles,
+    int maxSymbols = defaultMaxSymbols,
+  }) {
+    final normalizedRootPath = rootPath?.trim();
+    if (normalizedRootPath == null || normalizedRootPath.isEmpty) return null;
+
+    final root = Directory(normalizedRootPath);
+    if (!root.existsSync()) return null;
+
+    final files = _scanFiles(root)..sort(_compareFiles);
+    if (files.isEmpty) return null;
+
+    final fileLimit = maxFiles.clamp(1, defaultMaxFiles).toInt();
+    final symbolLimit = maxSymbols.clamp(0, defaultMaxSymbols).toInt();
+    final selectedFiles = files.take(fileLimit);
+
+    final buffer = StringBuffer()
+      ..write('root=${_displayPath(root.path)}')
+      ..write(';budget=${_charBudgetForTokens(usableContextTokens)}')
+      ..write(';maxFiles=$fileLimit')
+      ..write(';maxSymbols=$symbolLimit');
+    for (final file in selectedFiles) {
+      final stat = _safeStat(file.file);
+      buffer.write(
+        ';${file.relativePath}:${stat?.size ?? -1}:'
+        '${stat?.modified.microsecondsSinceEpoch ?? -1}',
+      );
+    }
+    return buffer.toString();
+  }
+
+  static FileStat? _safeStat(File file) {
+    try {
+      return file.statSync();
+    } on FileSystemException {
+      return null;
+    }
+  }
+
   static List<_RepoMapFile> _scanFiles(Directory root) {
     final files = <_RepoMapFile>[];
     final pendingDirectories = <Directory>[root];
