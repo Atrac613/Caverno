@@ -170,6 +170,7 @@ void main() {
     );
 
     expect(outcome.verificationResult, PersonalEvalVerificationResult.inconclusive);
+    expect(outcome.skipped, isTrue);
     expect(verification.ranCommand, isNull);
     expect(outcome.error, contains('android target detected'));
   });

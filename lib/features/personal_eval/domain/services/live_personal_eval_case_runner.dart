@@ -71,6 +71,7 @@ class LivePersonalEvalCaseRunner implements PersonalEvalCaseRunner {
         verificationResult: PersonalEvalVerificationResult.inconclusive,
         sessionLogContents: turn.logContents,
         logPath: turn.logPath,
+        skipped: true,
         error:
             'verification command was skipped for coding workspace mode: '
             'android target detected.',

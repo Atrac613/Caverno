@@ -108,4 +108,30 @@ void main() {
       expect(run.passedCount, 1);
     },
   );
+
+  test('a skipped case is excluded from the replay results', () async {
+    final runner = _FakeRunner({
+      'a': PersonalEvalCaseRunOutcome(
+        verificationResult: PersonalEvalVerificationResult.passed,
+        sessionLogContents: completeLog(),
+        logPath: '/replay/a.jsonl',
+      ),
+      'skip': const PersonalEvalCaseRunOutcome(
+        verificationResult: PersonalEvalVerificationResult.inconclusive,
+        skipped: true,
+      ),
+    });
+
+    final run = await orchestrator.run(
+      label: 'candidate',
+      model: 'qwen-test',
+      cases: [evalCase('a'), evalCase('skip')],
+      runner: runner,
+    );
+
+    expect(runner.ranCaseIds, ['a', 'skip']);
+    expect(run.caseCount, 1);
+    expect(run.passedCount, 1);
+    expect(run.cases.single.caseId, 'a');
+  });
 }

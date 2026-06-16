@@ -11,12 +11,16 @@ class PersonalEvalCaseRunOutcome {
     this.sessionLogContents = '',
     this.logPath = '',
     this.error,
+    this.skipped = false,
+    this.skipReason,
   });
 
   final PersonalEvalVerificationResult verificationResult;
   final String sessionLogContents;
   final String logPath;
   final String? error;
+  final bool skipped;
+  final String? skipReason;
 }
 
 /// Drives a single case through a candidate model/endpoint. The live
@@ -46,7 +50,10 @@ class PersonalEvalReplayOrchestrator {
   }) async {
     final results = <PersonalEvalReplayCaseResult>[];
     for (final evalCase in cases) {
-      results.add(await _runCase(evalCase, runner));
+      final result = await _runCase(evalCase, runner);
+      if (result != null) {
+        results.add(result);
+      }
     }
     return PersonalEvalReplayRun(
       label: label,
@@ -58,12 +65,15 @@ class PersonalEvalReplayOrchestrator {
     );
   }
 
-  Future<PersonalEvalReplayCaseResult> _runCase(
+  Future<PersonalEvalReplayCaseResult?> _runCase(
     PersonalEvalCase evalCase,
     PersonalEvalCaseRunner runner,
   ) async {
     try {
       final outcome = await runner.run(evalCase);
+      if (outcome.skipped) {
+        return null;
+      }
       return PersonalEvalReplayCaseResult(
         caseId: evalCase.caseId,
         title: evalCase.title,
