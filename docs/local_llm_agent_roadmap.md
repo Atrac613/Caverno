@@ -82,7 +82,7 @@ structurally unmotivated to build:
 | Local LLM | LL19 | done | M | LL12 | In-app personal eval recorder and replay executor: record sessions to eval cases and drive a candidate model through them end-to-end. |
 | Local LLM | LL20 | later | M | F3, LL6 | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, and run `--parallel N` candidates concurrently. Unblocks LL7/LL13. |
 | Local LLM | LL21 | done | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
-| Local LLM | LL22 | later | M | LL4, LL6, LL18 | Idle warm-up and precompute: precompute repo map / embeddings and warm the KV cache so the first morning turn is instant. |
+| Local LLM | LL22 | done | M | LL4, LL6, LL18 | Idle warm-up and precompute: precompute repo map / embeddings and warm the KV cache so the first morning turn is instant. |
 | Local LLM | LL23 | done | M | LL3, LL6 | Declared per-model harness config: instruction surfaces (bootstrap/verify/recovery) and runtime control policy (loop caps, recovery middleware) as a mutable schema LL17 edits. |
 
 Size legend: S = days, M = one to a few weeks of slices, L = multi-week.
@@ -1255,7 +1255,7 @@ Profile history UI (implemented 2026-06-16):
 
 ### LL22: Idle Warm-Up & Precompute
 
-Status: `later`
+Status: `done`
 
 Context:
 - Prefill latency is the local UX killer (LL6 thesis). Idle time can pay that
@@ -1275,6 +1275,48 @@ Acceptance criteria:
   measurably faster than a cold start, recorded as evidence.
 - Precompute is fully incremental and bounded, and is skipped/invalidated when
   inputs changed since the last run.
+
+Implementation evidence:
+- Repo-map precompute cache: `RepoMapService.computeSignatureForProject` folds
+  the effective char budget, file limits, and a stat-only `path:size:mtime`
+  triple per selected file into a cheap fingerprint;
+  `RepoMapPrecomputeCache.getOrBuild` / `.precompute` serve the cached map when
+  the signature is unchanged and rebuild on a miss (file edit/add/remove or
+  context-budget change). The live prompt path reads it via
+  `repoMapPrecomputeCacheProvider` in `_repoMap`, so even a cold first turn
+  populates the cache lazily.
+- KV warm-up: `KvCacheWarmupService` issues one minimal completion (system +
+  user prefix, `max_tokens: 1`, greedy) through an injected sender and catches
+  errors so an unreachable overnight endpoint is reported, not thrown.
+- Pipeline wiring: `maintenanceStagesProvider` appends `precompute` (repo map)
+  and `warm_cache` (KV prime) as the final two stages — after
+  probe/calibrate/eval send their own requests — so the warmed prefix is the one
+  left in the server slot for the morning's first turn. `warm_cache` skips the
+  on-device Apple provider, a disabled LL6 prefix-stable tool loop, and a missing
+  tool service; warm failures degrade to a soft skip.
+- Measurement: `tool/ll22_warmup_measurement.dart` compares a cold first-turn
+  request against a warm-up-then-measured pair on a separate slot, reporting
+  `timings.prompt_ms`, `cache_n`, and cached share via raw HTTP so provider
+  extension fields survive. A per-run nonce at the prompt head keeps "cold"
+  genuinely cold and models the volatile temporal context.
+
+Verification:
+- `test/features/chat/domain/services/repo_map_precompute_cache_test.dart`
+- `test/features/chat/domain/services/kv_cache_warmup_service_test.dart`
+- `test/features/maintenance/presentation/providers/maintenance_stages_test.dart`
+  (stage order now ends `precompute -> warm_cache`; new skip-path tests)
+- `test/tool/ll22_warmup_measurement_test.dart`
+
+Known limitation:
+- The temporal header is the first line of the system prompt, so cross-session
+  (overnight -> morning) KV reuse relies on llama.cpp `--cache-reuse` recovering
+  the stable bulk (tools + repo map + harness guidance) after the timestamp
+  chunk; the measured warm benefit is the same-prefix upper bound. Runtime
+  `id_slot` pinning and KV-cache persistence across server restarts remain LL20
+  / an LL6 extension.
+
+Deferred (out of this milestone):
+- Embedding-vector precompute is gated on LL5 (semantic search), still `later`.
 
 ### LL23: Declared Per-Model Harness Config
 

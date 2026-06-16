@@ -49,10 +49,26 @@ handoffs can refer to the same unit of work over time.
 | Remote Coding | RC1 | later | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Keep light manual smoke as sufficient until P1 release evidence becomes a release priority. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
-| Foundation | F3 | current | Keep major dependencies current, starting with `openai_dart` 6.x. | Continue remaining major upgrades as isolated slices after the `openai_dart` 6.2.0 baseline. |
+| Foundation | F3 | done | Keep major dependencies current, starting with `openai_dart` 6.x. | `openai_dart` is on 6.2.0; remaining major upgrades (serious_python 2, etc.) are tracked as isolated follow-up slices. |
 | Local LLM | LL1 | done | Route secondary LLM calls (memory extraction, subagents, goal suggestions, approval auto-review) to a configurable small model. | Surface the routing settings in user docs when LL9 model guidance lands. |
 | Local LLM | LL2 | done | Whole-turn file-change checkpoints with one-action revert. | Keep checkpoint store and UI rollback coverage green while using LL2 as the safety net for later agent changes. |
 | Local LLM | LL3 | done | Persist model capability profiles, run bounded probes on model selection, and feed profile guidance into agent prompts. | Use the LL3 profile-injection canary evidence as the baseline for LL4, LL6, LL7, and LL15. |
+| Local LLM | LL4 | done | Repo map v1: ranked, compressed symbol outline injected into the coding-mode system prompt. | Now precomputed/cached during idle via LL22. |
+| Local LLM | LL6 | done | KV-cache-friendly prefix-stable request mode. | Stable tool list across loop iterations shipped; runtime `id_slot` pinning is deferred to LL20. |
+| Local LLM | LL12 | done | Personal eval harness (offline CLI) to score new models on recorded tasks. | In-app recorder/replay shipped in LL19. |
+| Local LLM | LL14 | done | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. | Eviction stays at compaction boundaries to preserve LL6 prefix stability. |
+| Local LLM | LL15 | done | Weak-model edit harness: grammar-constrained edit blocks and per-model exemplars. | Edit failure-rate telemetry feeds the LL3 profile. |
+| Local LLM | LL16 | done | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. | LL21 idle re-probe provides the recovery path for runtime step-downs. |
+| Local LLM | LL17 | done | Self-improving harness loop: mine failure traces, propose minimal harness edits, eval-gated adoption. | High-stakes surfaces require manual review; runs as an LL18 idle stage. |
+| Local LLM | LL18 | done | Idle/overnight maintenance orchestrator chaining probe -> calibrate -> eval -> mine -> propose -> adopt. | LL22 appends the trailing precompute/warm-up stages. |
+| Local LLM | LL19 | done | In-app personal eval recorder and replay executor with held-in/held-out split. | Bake-off verdict surfaced in the cases UI. |
+| Local LLM | LL21 | done | Continuous idle re-probing and profile history with model-drift detection. | Profile history UI lives in the live LLM diagnostic page. |
+| Local LLM | LL22 | done | Idle warm-up and precompute: cache the repo map and warm the prefix KV cache so the first morning turn is fast. | Use `tool/ll22_warmup_measurement.dart` to record cold-vs-warm `prompt_ms`. |
+| Local LLM | LL23 | done | Declared per-model harness config (instruction surfaces + runtime control policy) as the closed schema LL17 edits. | On-failure dynamic recovery injection is a deferred follow-up. |
+| Local LLM | LL20 | next | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, run `--parallel N` candidates. | Keystone that unblocks LL7 (Best-of-N) and LL13 (parallel worktrees). |
+
+Remaining `later` Local LLM milestones (LL5, LL7, LL8, LL9, LL10, LL11, LL13)
+and Foundation F4/F5 are detailed in `docs/local_llm_agent_roadmap.md`.
 
 ## Plan Mode Track
 
