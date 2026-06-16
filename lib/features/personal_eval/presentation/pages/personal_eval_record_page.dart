@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../chat/data/datasources/llm_session_log_store.dart';
+import '../../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../domain/entities/personal_eval_case.dart';
 import '../providers/personal_eval_cases_notifier.dart';
 
@@ -47,6 +50,42 @@ class _PersonalEvalRecordPageState
     _prompt = TextEditingController(text: widget.initialPrompt);
     _repoStateRef = TextEditingController();
     _verificationCommand = TextEditingController();
+    _prefillRepoStateRefFromGit();
+  }
+
+  Future<void> _prefillRepoStateRefFromGit() async {
+    final projectRoot = ref
+        .read(codingProjectsNotifierProvider)
+        .selectedProject
+        ?.normalizedRootPath
+        .trim();
+    if (projectRoot == null || projectRoot.isEmpty) {
+      return;
+    }
+
+    try {
+      final result = await Process.run(
+        'git',
+        const ['rev-parse', 'HEAD'],
+        workingDirectory: projectRoot,
+      );
+      if (!mounted || result.exitCode != 0) {
+        return;
+      }
+
+      final repoRef = result.stdout.toString().trim();
+      if (repoRef.isEmpty || _repoStateRef.text.trim().isNotEmpty) {
+        return;
+      }
+
+      setState(() {
+        if (_repoStateRef.text.trim().isEmpty) {
+          _repoStateRef.text = repoRef;
+        }
+      });
+    } catch (_) {
+      return;
+    }
   }
 
   @override
