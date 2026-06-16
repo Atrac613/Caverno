@@ -1229,11 +1229,21 @@ Verification:
   multi-model isolation)
 - 285/285 tests passing across settings + maintenance suites.
 
+LL16 recovery path (implemented 2026-06-16):
+- `LlmSamplerRuntimeFeedbackService.recoverAfterReprobe({required profile, required probeSource})`
+  — for `'idle_re_probe'`: restores the temperature recorded before the
+  step-down and resets all runtime counters for stepped-down request classes;
+  for `'calibrate'`: counters only (calibration already wrote the temperature);
+  user-configured sources (`'user'`/`'manual'`/`'explicit'`) are never modified.
+- Wired in `SettingsNotifier.upsertModelCapabilityProfile`: recovery runs
+  automatically when source is `'idle_re_probe'` or `'calibrate'`, before
+  the profile is persisted.
+- 5 new tests in `llm_sampler_runtime_feedback_service_test.dart` (restore on
+  re-probe, no-op when not stepped-down, counter-only clear on calibrate,
+  user-source preservation, multi-class independence). 214/214 settings tests
+  passing.
+
 Deferred refinements:
-- LL16 recovery path: when a fresh probe shows tool-loop performance is healthy
-  at a higher temperature than the runtime step-down level, revert the
-  step-down. Requires wiring the sampler calibration outcome back through
-  `probeMetadata` comparison logic. Deferred to a later slice.
 - Profile history UI: show the revision list in the model settings page so the
   user can see when the last idle re-probe ran and whether a model swap was
   detected.
