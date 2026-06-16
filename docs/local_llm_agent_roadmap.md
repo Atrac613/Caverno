@@ -1307,6 +1307,15 @@ Verification:
   (stage order now ends `precompute -> warm_cache`; new skip-path tests)
 - `test/tool/ll22_warmup_measurement_test.dart`
 
+Live measurement evidence:
+- 2026-06-16 against `qwen3.6-35b-a3b-vision` at
+  `http://192.168.100.241:1234/v1` (llama.cpp): the cold first turn prefilled
+  3482 prompt tokens at `prompt_ms=1373.3` with `cache_n=0`, while the warm
+  first turn (after a one-token warm-up of the same prefix) reused 3457 cached
+  tokens (cached share 99.3%) and reached first token at `prompt_ms=63.2` — a
+  1310.0 ms / 95.4% prefill reduction. Artifact:
+  `build/integration_test_reports/ll22_warmup_measurement_2026-06-16.json`.
+
 Known limitation:
 - The temporal header is the first line of the system prompt, so cross-session
   (overnight -> morning) KV reuse relies on llama.cpp `--cache-reuse` recovering
