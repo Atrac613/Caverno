@@ -65,10 +65,11 @@ handoffs can refer to the same unit of work over time.
 | Local LLM | LL21 | done | Continuous idle re-probing and profile history with model-drift detection. | Profile history UI lives in the live LLM diagnostic page. |
 | Local LLM | LL22 | done | Idle warm-up and precompute: cache the repo map and warm the prefix KV cache so the first morning turn is fast. | Use `tool/ll22_warmup_measurement.dart` to record cold-vs-warm `prompt_ms`. |
 | Local LLM | LL23 | done | Declared per-model harness config (instruction surfaces + runtime control policy) as the closed schema LL17 edits. | On-failure dynamic recovery injection is a deferred follow-up. |
-| Local LLM | LL20 | next | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, run `--parallel N` candidates. | Keystone that unblocks LL7 (Best-of-N) and LL13 (parallel worktrees). |
+| Local LLM | LL20 | done | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, run `--parallel N` candidates. | Unblocked LL7 (Best-of-N) and LL13 (parallel worktrees); compose the slot transport/discovery/executor providers. |
+| Local LLM | LL7 | next | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. | Now unblocked by the LL20 substrate. |
 
-Remaining `later` Local LLM milestones (LL5, LL7, LL8, LL9, LL10, LL11, LL13)
-and Foundation F4/F5 are detailed in `docs/local_llm_agent_roadmap.md`.
+Remaining `later` Local LLM milestones (LL5, LL8, LL9, LL10, LL11, LL13) and
+Foundation F4/F5 are detailed in `docs/local_llm_agent_roadmap.md`.
 
 ## Plan Mode Track
 

@@ -80,7 +80,7 @@ structurally unmotivated to build:
 | Local LLM | LL17 | done | L | LL3, LL19, LL23 | Self-improving harness loop: cluster failure traces by verifier-grounded signature, propose minimal harness-config edits, adopt only on held-in/held-out non-regression. |
 | Local LLM | LL18 | done | L | LL3, LL12, LL16, LL19 | Idle/overnight maintenance orchestrator: detect idle + AC power + night window, then chain probe → calibrate → eval → mine → eval-gated adopt and emit a morning report. |
 | Local LLM | LL19 | done | M | LL12 | In-app personal eval recorder and replay executor: record sessions to eval cases and drive a candidate model through them end-to-end. |
-| Local LLM | LL20 | later | M | F3, LL6 | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, and run `--parallel N` candidates concurrently. Unblocks LL7/LL13. |
+| Local LLM | LL20 | done | M | F3, LL6 | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, and run `--parallel N` candidates concurrently. Unblocks LL7/LL13. |
 | Local LLM | LL21 | done | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
 | Local LLM | LL22 | done | M | LL4, LL6, LL18 | Idle warm-up and precompute: precompute repo map / embeddings and warm the KV cache so the first morning turn is instant. |
 | Local LLM | LL23 | done | M | LL3, LL6 | Declared per-model harness config: instruction surfaces (bootstrap/verify/recovery) and runtime control policy (loop caps, recovery middleware) as a mutable schema LL17 edits. |
@@ -1145,7 +1145,7 @@ Follow-up:
 
 ### LL20: Parallel Slot Execution Substrate
 
-Status: `later`
+Status: `done`
 
 Context:
 - LL6 explicitly deferred runtime `id_slot` pinning because `openai_dart` does
@@ -1168,6 +1168,55 @@ Acceptance criteria:
   verified by a focused transport test.
 - Concurrent candidates run on isolated slots without cross-contamination, and a
   non-slot endpoint transparently falls back to sequential execution.
+
+Implementation evidence:
+- Transport: `LlamaCppSlotTransport` (`llama_cpp_slot_transport.dart`) sends a
+  raw-HTTP chat completion that injects `id_slot` and `cache_prompt` and parses
+  `timings`, the echoed `id_slot`, and usage into `SlotChatResult` /
+  `LlamaCppTimings`. It degrades to a plain completion when `idSlot` is omitted,
+  so non-slot endpoints behave as today.
+- Discovery: `LlamaCppSlotDiscovery` + `SlotInventory` / `ServerSlot`
+  (`llama_cpp_slot_discovery.dart`) probe `GET /slots` at the native root
+  (stripping `/v1`), parse slot ids and idle/processing state (`is_processing`
+  bool or `state` int), and report `unsupported` on a non-2xx (older servers /
+  `--no-slots` return 501), malformed body, empty list, or network error.
+- Executor: `ParallelSlotExecutor` (`parallel_slot_executor.dart`) runs candidate
+  runners through a worker pool — one worker per slot, so no two in-flight
+  candidates share a slot — preferring idle slots, bounding concurrency by slot
+  count and an optional `maxConcurrency`, preserving input order, and capturing a
+  failed candidate instead of aborting the batch. With fewer than two assignable
+  slots it runs sequentially (pinned to the one slot, or unpinned).
+- Wiring: `parallel_slot_substrate_provider.dart` exposes
+  `llamaCppSlotTransportProvider`, `llamaCppSlotDiscoveryProvider`, and
+  `parallelSlotExecutorProvider` (null transport/discovery for the on-device
+  Apple provider) for LL7 / LL13 to compose.
+
+Verification:
+- `test/features/chat/data/datasources/llama_cpp_slot_transport_test.dart`
+- `test/features/chat/data/datasources/llama_cpp_slot_discovery_test.dart`
+- `test/features/chat/data/datasources/parallel_slot_executor_test.dart`
+  (concurrency isolation: peak concurrency equals slot count, no slot collision;
+  slot reuse across waves; sequential fallback; per-candidate failure capture)
+- `test/features/chat/presentation/providers/parallel_slot_substrate_provider_test.dart`
+- `test/tool/ll20_parallel_slot_measurement_test.dart`
+
+Live evidence:
+- 2026-06-17 against `qwen3.6-35b-a3b-vision` at
+  `http://192.168.100.241:1234/v1` (llama.cpp, single slot, launched without
+  `--parallel N`): discovery reported `supported=true`, 1 slot (`id 0`), so the
+  substrate correctly degraded to sequential single-slot execution. All 3
+  candidates succeeded with the served `id_slot=0` round-tripped, and
+  `cache_prompt` reuse showed on the warm slot (`prompt_ms` 131.6 -> 59.1 ->
+  59.7). Artifact:
+  `build/integration_test_reports/ll20_parallel_slot_measurement_2026-06-17.json`.
+
+Known limitation:
+- A live multi-slot concurrency speedup was not captured because the available
+  server runs a single slot; concurrent isolation (peak concurrency == slot
+  count, no slot collision) is proven deterministically in the executor tests.
+  Re-run `tool/ll20_parallel_slot_measurement.dart` against a `--parallel N>1`
+  server to record a live speedup. `GET /slots` progress monitoring is parsed but
+  live slot-progress polling during a run is left to LL7 when it needs it.
 
 ### LL21: Continuous Idle Re-Probing & Profile History
 
