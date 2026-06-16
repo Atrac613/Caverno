@@ -67,7 +67,7 @@ structurally unmotivated to build:
 | Local LLM | LL4 | done | M | LL3 | Repo map v1: ranked, compressed symbol outline injected into the system prompt. |
 | Local LLM | LL5 | later | M | F4, LL4 | Local semantic code search via `/v1/embeddings`, stored in the drift database. |
 | Local LLM | LL6 | done | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
-| Local LLM | LL7 | later | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
+| Local LLM | LL7 | done | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
 | Local LLM | LL8 | later | M | LL1 | LAN inference mesh: discover and route across multiple OpenAI-compatible endpoints. |
 | Local LLM | LL9 | later | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
 | Local LLM | LL10 | later | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
@@ -537,6 +537,8 @@ Acceptance criteria:
 
 ### LL7: Best-of-N Verification Loop
 
+Status: `done`
+
 Scope:
 - Generate N candidate patches (sequential or parallel per endpoint slots),
   apply each in an isolated checkpoint (LL2), run
@@ -551,6 +553,50 @@ Acceptance criteria:
 - Failed candidates leave no residue in the working tree.
 - Overnight runs respect tool policy, never require interactive approval, and
   end with a single consolidated report.
+
+Implementation evidence:
+- Policy: `BestOfNCoordinator` (`best_of_n_coordinator.dart`) runs up to N
+  candidates through an injected `BestOfNRunner`, keeps the first that verifies
+  green, and discards every non-winner — including generation/verification
+  failures — so the tree never accumulates residue (acceptance #1, by
+  construction). A discard that itself fails is surfaced as
+  `BestOfNReport.hasResidueRisk`, never hidden.
+- Checkpoint + verification: `CheckpointVerificationBestOfNRunner`
+  (`best_of_n_runner.dart`) brackets each candidate in its own named LL2
+  file-turn checkpoint and discards non-winners with a turn-id-scoped rollback
+  (only reverts when the latest checkpoint is this candidate's), so a no-edit
+  candidate never reverts an unrelated/user checkpoint and a mid-edit throw is
+  still undone (`finally`-finalized). `CodingFeedbackBestOfNVerifier` wraps
+  `CodingVerificationFeedbackService` and maps a snapshot to green only when it
+  ran and passed (`unknown`/no test target is not green).
+- Generation: `AgentBestOfNGenerator` (`agent_best_of_n_generator.dart`)
+  produces the `BestOfNGenerationStep` by running one non-interactive agent
+  attempt per candidate (caller adapts `RoutineToolRunner.execute` under the
+  RoutineToolPolicy trust model — no approval prompts) and reporting the files
+  `GitChangedPathsService` (`git_changed_paths_service.dart`) says changed.
+- Overnight loop: `RetryUntilGreenCoordinator`
+  (`retry_until_green_coordinator.dart`) repeats Best-of-N rounds until green or
+  a bounded budget (round count + optional wall-clock deadline) is exhausted,
+  emitting one consolidated `RetryUntilGreenReport` (acceptance #2: bounded,
+  non-interactive, single report).
+
+Verification:
+- `test/features/chat/domain/services/best_of_n_coordinator_test.dart`
+- `test/features/chat/data/datasources/best_of_n_runner_test.dart`
+  (real on-disk checkpoint rollback restore; no-edit candidate safety; full
+  coordinator run leaving only the winner's edit)
+- `test/features/chat/data/datasources/agent_best_of_n_generator_test.dart`
+- `test/features/chat/data/datasources/git_changed_paths_service_test.dart`
+- `test/features/chat/domain/services/retry_until_green_coordinator_test.dart`
+
+Deferred follow-up:
+- A one-tap Routines UI preset (a saved Routine entity that launches the
+  retry-until-green run) is additive: the substrate (coordinator + report +
+  non-interactive generation through the existing RoutineToolRunner) is
+  complete, so the remaining work is wiring it into the Routine entity/scheduler
+  and surfacing the consolidated report through `RoutineCompletionActionService`.
+- Parallel candidate generation across LL20 slots needs isolated git worktrees
+  (LL13); v1 applies candidates sequentially with checkpoint/revert.
 
 ### LL8: LAN Inference Mesh
 
