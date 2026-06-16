@@ -19,6 +19,7 @@ import 'features/chat/data/repositories/conversation_repository.dart';
 import 'features/chat/data/repositories/skill_repository.dart';
 import 'features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'features/chat/presentation/pages/chat_page.dart';
+import 'features/maintenance/presentation/providers/maintenance_scheduler_provider.dart';
 import 'features/settings/data/settings_repository.dart';
 import 'features/settings/domain/services/app_language_resolver.dart';
 import 'features/settings/presentation/providers/settings_notifier.dart';
@@ -117,6 +118,13 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
       onOpenSettings: _handleOpenSettings,
       onQuit: _handleQuitShortcut,
     );
+
+    // LL18: poll the idle/overnight maintenance gate on desktop. The gate
+    // (disabled by default) decides whether anything actually runs; the
+    // scheduler is disposed with the provider container on app shutdown.
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      ref.read(idleMaintenanceSchedulerProvider).start();
+    }
   }
 
   @override

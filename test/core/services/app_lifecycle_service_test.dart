@@ -34,4 +34,25 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     expect(service.isInBackground, Platform.isMacOS);
   });
+
+  testWidgets('records backgroundSince when entering and clears on resume', (
+    tester,
+  ) async {
+    var now = DateTime(2026, 6, 16, 3);
+    final service = AppLifecycleService(clock: () => now);
+    addTearDown(service.dispose);
+
+    expect(service.backgroundSince, isNull);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    expect(service.backgroundSince, DateTime(2026, 6, 16, 3));
+
+    // The timestamp marks the *entry* instant; staying backgrounded keeps it.
+    now = DateTime(2026, 6, 16, 3, 30);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    expect(service.backgroundSince, DateTime(2026, 6, 16, 3));
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    expect(service.backgroundSince, isNull);
+  });
 }

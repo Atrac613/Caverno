@@ -194,6 +194,25 @@ class PersonalEvalCasesNotifier extends AsyncNotifier<List<PersonalEvalCase>> {
     );
   }
 
+  /// Replays the whole recorded suite through the active model and returns the
+  /// run. Used by the LL18 idle-maintenance eval stage as a baseline health
+  /// snapshot; returns an empty run when there are no recorded cases.
+  Future<PersonalEvalReplayRun> replayAllCases() async {
+    final cases = state.value ?? await _repository.loadAll();
+    if (cases.isEmpty) {
+      return const PersonalEvalReplayRun(label: 'eval', cases: []);
+    }
+    final settings = ref.read(settingsNotifierProvider);
+    final runnerFor = ref.read(personalEvalCaseRunnerFactoryProvider);
+    return _orchestrator.run(
+      label: 'eval',
+      model: settings.model,
+      baseUrl: settings.baseUrl.trim(),
+      cases: cases,
+      runner: runnerFor(settings.model),
+    );
+  }
+
   /// Runs a bake-off: replays the whole suite through the incumbent (active)
   /// model and the [candidateModel], then compares them into a single
   /// model-swap recommendation. Held-in / held-out scores are reported

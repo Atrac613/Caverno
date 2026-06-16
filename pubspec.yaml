@@ -101,6 +101,10 @@ dependencies:
   network_info_plus: ^7.0.0
   desktop_drop: ^0.7.1
 
+  # AC/battery power state for the LL18 idle-maintenance gate
+  # (macOS/Windows/Linux/iOS/Android)
+  battery_plus: ^6.2.1
+
   # Serial port tool (desktop only: macOS/Windows/Linux)
   flutter_libserialport: ^0.6.0
 

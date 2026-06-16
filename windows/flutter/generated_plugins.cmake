@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
+  battery_plus
   bluetooth_low_energy_windows
   desktop_drop
   file_selector_windows
