@@ -77,8 +77,8 @@ structurally unmotivated to build:
 | Local LLM | LL14 | done | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
 | Local LLM | LL15 | done | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
 | Local LLM | LL16 | done | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
-| Local LLM | LL17 | later | L | LL3, LL19, LL23 | Self-improving harness loop: cluster failure traces by verifier-grounded signature, propose minimal harness-config edits, adopt only on held-in/held-out non-regression. |
-| Local LLM | LL18 | later | L | LL3, LL12, LL16, LL19 | Idle/overnight maintenance orchestrator: detect idle + AC power + night window, then chain probe → calibrate → eval → mine → eval-gated adopt and emit a morning report. |
+| Local LLM | LL17 | done | L | LL3, LL19, LL23 | Self-improving harness loop: cluster failure traces by verifier-grounded signature, propose minimal harness-config edits, adopt only on held-in/held-out non-regression. |
+| Local LLM | LL18 | done | L | LL3, LL12, LL16, LL19 | Idle/overnight maintenance orchestrator: detect idle + AC power + night window, then chain probe → calibrate → eval → mine → eval-gated adopt and emit a morning report. |
 | Local LLM | LL19 | done | M | LL12 | In-app personal eval recorder and replay executor: record sessions to eval cases and drive a candidate model through them end-to-end. |
 | Local LLM | LL20 | later | M | F3, LL6 | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, and run `--parallel N` candidates concurrently. Unblocks LL7/LL13. |
 | Local LLM | LL21 | later | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
@@ -892,6 +892,8 @@ Implementation status:
 
 ### LL17: Self-Improving Harness Loop
 
+Status: `done`
+
 Inspired by Self-Harness (arXiv:2606.09498), which showed agents can improve
 their own model-specific harnesses by mining failure traces and validating
 proposals with regression tests (Terminal-Bench-2.0 held-out pass rates
@@ -939,6 +941,48 @@ Acceptance criteria:
 - A weak-model harness shows a measurable failure-rate reduction in live
   canaries after one mining-adoption cycle.
 
+Implementation evidence:
+- Trace extraction: `ModelEditFailureTraceExtractor` converts LL15
+  profile `probeMetadata` edit-failure-kind counters into `FailureTrace` values;
+  `maintenanceFailureTraceSourceProvider` reads the active model's profile and
+  returns them.
+- Weakness mining: `FailureTraceMiner` clusters traces by `FailureSignature`
+  (terminal cause, causal status, mechanism), returning clusters sorted by
+  support.
+- Harness proposal: `HarnessProposalService` maps known mechanisms
+  (`stale_old_text`, `malformed_json`, `malformed_tool_call`) to single-surface
+  edits on `ModelHarnessConfig`. Proposals are Grounded, Distinct, and Minimal:
+  they are skipped when the target surface is already set (no clobbering).
+  LLM-driven K-candidate generation is deferred to a later refinement.
+- Eval-gated adoption: `CandidateAdoptionService` runs the LL19 personal eval
+  suite against the incumbent and candidate configs (via injected
+  `PersonalEvalCaseRunner` instances), computes held-in / held-out
+  `PersonalEvalBakeOffReport`, and auto-adopts only when both splits are
+  non-regressing. High-risk surfaces (`approvalMode`, `shellEnabled`,
+  `toolApprovalBypass`, `localShellEnabled`, `fullAccessEnabled`) are blocked
+  unconditionally and require manual review.
+- The mine → propose → adopt stages are wired into the LL18 maintenance
+  pipeline via `maintenanceStagesProvider` in
+  `maintenance_scheduler_provider.dart`.
+
+Verification:
+- `test/features/maintenance/domain/services/candidate_adoption_service_test.dart`
+  (8 tests: non-regression adoption, held-in/held-out regression rejection,
+  empty-case skip, high-risk block, improvement adoption, both-split regression,
+  high-risk surface coverage)
+- `test/features/maintenance/presentation/providers/maintenance_stages_test.dart`
+  (mine/propose/adopt stage wiring and gating tests)
+- `tool/ll18_pipeline_measurement.dart` live measurement 2026-06-16:
+  4/4 stages passed against `qwen3.6-35b-a3b-vision` at
+  `http://192.168.100.241:1234/v1`; mine/propose/adopt-gate all verified;
+  artifact at `build/integration_test_reports/ll18_pipeline_measurement_2026-06-16.md`.
+
+Deferred refinements:
+- K-candidate parallel proposal generation (needs LL20 slot substrate).
+- Proposal lineage and one-tap revert UI (needs LL21 profile history).
+- Held-out isolation: cases seen by the proposer should be excluded by the
+  gate; current implementation uses the full split as recorded on the case entity.
+
 Risks:
 - Personal eval suites are small, so overfitting risk is higher than the paper's
   Terminal-Bench setting; the held-in/held-out split is necessary but not
@@ -949,7 +993,7 @@ Risks:
 
 ### LL18: Idle/Overnight Maintenance Orchestrator
 
-Status: `later`
+Status: `done`
 
 Context:
 - Caverno already measures models (LL3 probes, LL16 calibration plus runtime
@@ -978,6 +1022,52 @@ Acceptance criteria:
   conversation store consistent and the next run resumes cleanly.
 - Every adopted change links to the failure evidence and the eval run that
   validated it; the morning report is produced even when nothing is adopted.
+
+Implementation evidence:
+- Stage pipeline: `MaintenancePipeline` executes a `List<MaintenanceStage>` in
+  order, accumulating a `MaintenancePipelineReport` with per-stage outcomes
+  (completed / skipped / failed). Stages share a `MaintenanceStageContext` for
+  cross-stage data passing.
+- Stages wired via `maintenanceStagesProvider` (in
+  `maintenance_scheduler_provider.dart`):
+  1. `probe` — calls `ModelCapabilityAutoProbeNotifier.runForCurrentModel(force: true)`
+  2. `calibrate` — calls `LiveLlmDiagnosticNotifier.run()` (LL16 sampler calibration)
+  3. `eval` — calls `PersonalEvalCasesNotifier.replayAllCases()` (LL19 baseline eval)
+  4. `mine` — runs `FailureTraceMiner` over the active model's LL15 failure traces
+  5. `propose` — runs `HarnessProposalService` on the top cluster
+  6. `adopt` — runs `CandidateAdoptionService` with eval-gated held-in/held-out
+     validation; auto-adopts via `SettingsNotifier.upsertModelHarnessConfig`
+- Idle gate: `IdleMaintenanceScheduler` polls `IdleMaintenanceEnvironment`
+  (system idle time, AC power state, time-of-day window); all three must be
+  satisfied before a run starts.
+- Idle environment: `MacosIdleMaintenanceEnvironment` reads `IOKit` idle time
+  via `ioreg` for macOS; `PowerStateProbe.isOnAcPower` reads the system power
+  state.
+- Config: `IdleMaintenanceConfig` (idle threshold, power requirement, time
+  window, enabled flag) stored in `AppSettings`; exposed in a Settings page.
+- Report delivery: `MaintenanceReportService.deliver` emits a local notification
+  (`MaintenanceReportNotificationService`) only when stages actually executed
+  (non-zero completed + failed + skipped count).
+- Started by `idleMaintenanceSchedulerProvider`; the scheduler is disposed on
+  provider disposal, making it cancelable.
+
+Verification:
+- `test/features/maintenance/domain/services/maintenance_pipeline_test.dart`
+- `test/features/maintenance/domain/services/idle_maintenance_scheduler_test.dart`
+- `test/features/maintenance/domain/services/idle_maintenance_window_policy_test.dart`
+- `test/features/maintenance/domain/services/maintenance_report_formatter_test.dart`
+- `test/features/maintenance/presentation/providers/maintenance_stages_test.dart`
+  (6 stages wired in order; mine/propose/adopt gating verified)
+- `tool/ll18_pipeline_measurement.dart` live measurement 2026-06-16:
+  4/4 stages passed (probe at 182ms, mine, propose, adopt-gate) against
+  `qwen3.6-35b-a3b-vision` at `http://192.168.100.241:1234/v1`; artifact at
+  `build/integration_test_reports/ll18_pipeline_measurement_2026-06-16.md`.
+
+Deferred refinements:
+- Full LL21 re-probe (the probe stage today calls the bounded
+  `ModelCapabilityAutoProbeNotifier`; the full non-bounded probe suite is LL21).
+- KV-cache warm-up precompute during idle window (LL22).
+- K-candidate parallel proposal evaluation (LL20 slot substrate needed).
 
 ### LL19: In-App Personal Eval Recorder & Replay Executor
 
