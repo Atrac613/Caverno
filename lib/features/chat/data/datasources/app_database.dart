@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
@@ -56,6 +57,113 @@ class AppDatabase extends _$AppDatabase {
   /// In-memory database for tests.
   AppDatabase.memory() : super(NativeDatabase.memory());
 
+  /// FTS5 virtual table backing conversation history search (F4). It is not a
+  /// drift-managed table, so it is created and kept in sync with raw SQL.
+  static const _conversationSearchTable = 'conversation_search';
+
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) async {
+      await m.createAll();
+      await _createConversationSearchTable();
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await _createConversationSearchTable();
+        await rebuildConversationSearch();
+      }
+    },
+  );
+
+  Future<void> _createConversationSearchTable() async {
+    await customStatement(
+      'CREATE VIRTUAL TABLE IF NOT EXISTS $_conversationSearchTable '
+      "USING fts5(id UNINDEXED, title, body, tokenize='unicode61')",
+    );
+  }
+
+  /// Inserts or replaces the search index row for a conversation.
+  Future<void> indexConversationSearch({
+    required String id,
+    required String title,
+    required String body,
+  }) async {
+    await customStatement(
+      'DELETE FROM $_conversationSearchTable WHERE id = ?',
+      [id],
+    );
+    await customStatement(
+      'INSERT INTO $_conversationSearchTable(id, title, body) VALUES (?, ?, ?)',
+      [id, title, body],
+    );
+  }
+
+  Future<void> removeConversationSearch(String id) async {
+    await customStatement(
+      'DELETE FROM $_conversationSearchTable WHERE id = ?',
+      [id],
+    );
+  }
+
+  Future<void> clearConversationSearch() async {
+    await customStatement('DELETE FROM $_conversationSearchTable');
+  }
+
+  /// Rebuilds the entire search index from the conversations table. Used by the
+  /// v1->v2 upgrade and available as a repair path.
+  Future<void> rebuildConversationSearch() async {
+    await clearConversationSearch();
+    final rows = await select(conversations).get();
+    for (final row in rows) {
+      await indexConversationSearch(
+        id: row.id,
+        title: row.title,
+        body: _extractSearchBody(row.payload),
+      );
+    }
+  }
+
+  /// Returns conversation ids matching [query], ranked by FTS relevance.
+  Future<List<String>> searchConversationIds(String query) async {
+    final ftsQuery = _toFtsQuery(query);
+    if (ftsQuery.isEmpty) return const [];
+    final rows = await customSelect(
+      'SELECT id FROM $_conversationSearchTable '
+      'WHERE $_conversationSearchTable MATCH ? ORDER BY rank',
+      variables: [Variable<String>(ftsQuery)],
+      readsFrom: {conversations},
+    ).get();
+    return [for (final row in rows) row.read<String>('id')];
+  }
+
+  static String _extractSearchBody(String payload) {
+    try {
+      final data = jsonDecode(payload) as Map<String, dynamic>;
+      final messages = data['messages'];
+      if (messages is List) {
+        return messages
+            .whereType<Map>()
+            .map((message) => message['content'])
+            .whereType<String>()
+            .join('\n');
+      }
+    } catch (_) {
+      // Corrupt payloads are simply not indexed.
+    }
+    return '';
+  }
+
+  /// Turns free text into a safe FTS5 MATCH expression: each whitespace term is
+  /// quoted (and embedded quotes doubled) and AND-ed together.
+  static String _toFtsQuery(String query) {
+    final terms = query
+        .split(RegExp(r'\s+'))
+        .where((term) => term.trim().isNotEmpty)
+        .map((term) => '"${term.replaceAll('"', '""')}"')
+        .toList();
+    return terms.join(' ');
+  }
 }

@@ -36,16 +36,39 @@ class DriftConversationRepository implements ConversationStore {
     await _db
         .into(_db.conversations)
         .insertOnConflictUpdate(_toCompanion(conversation));
+    await _db.indexConversationSearch(
+      id: conversation.id,
+      title: conversation.title,
+      body: _searchBody(conversation),
+    );
   }
 
   @override
   Future<void> delete(String id) async {
     await (_db.delete(_db.conversations)..where((t) => t.id.equals(id))).go();
+    await _db.removeConversationSearch(id);
   }
 
   @override
   Future<void> deleteAll() async {
     await _db.delete(_db.conversations).go();
+    await _db.clearConversationSearch();
+  }
+
+  /// F4 history full-text search: returns conversations matching [query],
+  /// ranked by FTS relevance.
+  Future<List<Conversation>> search(String query) async {
+    final ids = await _db.searchConversationIds(query);
+    final results = <Conversation>[];
+    for (final id in ids) {
+      final conversation = await getById(id);
+      if (conversation != null) results.add(conversation);
+    }
+    return results;
+  }
+
+  String _searchBody(Conversation conversation) {
+    return conversation.messages.map((message) => message.content).join('\n');
   }
 
   ConversationsCompanion _toCompanion(Conversation conversation) {
