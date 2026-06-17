@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/conversation_repository.dart';
+import '../../data/repositories/conversation_repository_api.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation.dart';
@@ -105,7 +106,7 @@ const defaultConversationTitle = '__new_conversation__';
 class ConversationsNotifier extends Notifier<ConversationsState> {
   static const int _maxConversationCheckpoints = 80;
 
-  late final ConversationRepository _repository;
+  late final ConversationRepositoryApi _repository;
   late final ToolResultArtifactStore _toolResultArtifactStore;
   final _uuid = const Uuid();
   final Set<String> _freshConversationScopes = <String>{};
