@@ -13,6 +13,10 @@ class EmbeddingsResult {
   int get dimension => vectors.isEmpty ? 0 : vectors.first.length;
 }
 
+/// Embeds [inputs], returning null when embeddings are unavailable. Lets
+/// services depend on the capability without binding to the HTTP client.
+typedef EmbedTexts = Future<EmbeddingsResult?> Function(List<String> inputs);
+
 /// LL5 OpenAI-compatible embeddings client (`POST /v1/embeddings`).
 ///
 /// Used to embed conversation history and code chunks for local semantic
