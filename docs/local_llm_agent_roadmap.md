@@ -1663,6 +1663,15 @@ Acceptance criteria:
   generic OpenAI endpoints.
 - The event schema is versioned and supports forward-compatible unknown fields.
 
+Build-on and promotion note:
+- API1 extends the existing `ChatNotifier` streaming/tool-loop and
+  `ChatRemoteDataSource` paths rather than replacing them: adapters emit the
+  `AgentEvent` stream while the current request flow keeps working until callers
+  migrate.
+- This is the most invasive vision milestone — an F2-scale core refactor. Keep
+  the first slice schema + replay-fixture only, and gate promotion on the full
+  chat-notifier, tool-loop, and Plan Mode smoke suites passing unchanged.
+
 ### API2: Chat/Responses/Local-Provider Adapter Matrix
 
 Status: `later`
@@ -1798,6 +1807,12 @@ Acceptance criteria:
 - A Best-of-N run shows every candidate, verifier result, discard, and winner.
 - A maintenance run links adopted changes to failure evidence and eval gates.
 - Trace recording is bounded and does not store secrets in plaintext by default.
+
+Build-on note:
+- OBS1 extends the existing `LlmSessionLogStore` and maintenance reports into a
+  unified timeline rather than creating a parallel logging path: session logs,
+  maintenance stage outcomes, and (when present) API1 events feed the same
+  trace, so there is one source of truth for agent activity.
 
 ### OBS2: Redacted Trace Export
 
@@ -1994,6 +2009,12 @@ Acceptance criteria:
 - Evidence objects can be added, removed, redacted, and cited independently.
 - Untrusted visual/OCR content does not bypass SEC1 data classifications.
 - Evidence panels link to agent traces and verification artifacts.
+
+Build-on note:
+- MM1 unifies the multimodal surfaces Caverno already has — voice mode
+  (STT/TTS) and macOS Computer Use screenshots/observations — into one evidence
+  model rather than adding a parallel media pipeline. Existing capture paths
+  become evidence sources with provenance and trust attached.
 
 ### MM2: Screenshot-To-Issue Workflow
 
