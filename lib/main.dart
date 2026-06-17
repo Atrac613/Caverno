@@ -26,6 +26,7 @@ import 'features/chat/data/repositories/key_value_store.dart';
 import 'features/chat/data/repositories/skill_repository.dart';
 import 'features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'features/chat/presentation/pages/chat_page.dart';
+import 'features/chat/presentation/providers/semantic_search_provider.dart';
 import 'features/maintenance/presentation/providers/maintenance_scheduler_provider.dart';
 import 'features/settings/data/settings_repository.dart';
 import 'features/settings/domain/services/app_language_resolver.dart';
@@ -97,6 +98,7 @@ void main() async {
             chatMemoryRepositoryProvider.overrideWithValue(
               driftStorage.chatMemory,
             ),
+            appDatabaseProvider.overrideWithValue(driftStorage.database),
           ],
         ],
         child: MyApp(windowManagerService: windowService),
@@ -114,6 +116,7 @@ const _chatMemoryMigratedKey = 'f4_chat_memory_migrated_v1';
 /// (the migrations are idempotent and retry next launch).
 Future<
   ({
+    AppDatabase database,
     CachedDriftConversationRepository conversation,
     ChatMemoryRepository chatMemory,
   })?
@@ -156,6 +159,7 @@ _initDriftStorage({
     );
 
     return (
+      database: database,
       conversation: conversationRepository,
       chatMemory: ChatMemoryRepository(chatMemoryKv),
     );
