@@ -707,6 +707,74 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     );
   }
 
+  /// LL5: pick the embeddings model. Prefers a dropdown populated from the
+  /// endpoint's /v1/models list; while that is loading or unavailable it falls
+  /// back to a free-text field so a model id can still be entered by hand.
+  Widget _buildEmbeddingsModelField(
+    AsyncValue<List<String>> asyncModels,
+    AppSettings settings,
+  ) {
+    final enabled = settings.enableSemanticSearch;
+    final selected = settings.embeddingsModel;
+    return asyncModels.maybeWhen(
+      data: (models) {
+        if (models.isEmpty) return _embeddingsModelTextField(enabled);
+        final options = [...models];
+        if (selected.isNotEmpty && !options.contains(selected)) {
+          options.insert(0, selected);
+        }
+        return DropdownButtonFormField<String>(
+          key: const ValueKey('settings-embeddings-model'),
+          initialValue: selected.isEmpty ? null : selected,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: 'settings.embeddings_model_label'.tr(),
+            border: const OutlineInputBorder(),
+            helperText: 'settings.embeddings_model_helper'.tr(),
+          ),
+          items: options
+              .map(
+                (model) => DropdownMenuItem<String>(
+                  value: model,
+                  child: Text(model, overflow: TextOverflow.ellipsis),
+                ),
+              )
+              .toList(),
+          onChanged: enabled
+              ? (value) {
+                  if (value == null) return;
+                  _embeddingsModelController.text = value;
+                  ref
+                      .read(settingsNotifierProvider.notifier)
+                      .updateEmbeddingsModel(value);
+                }
+              : null,
+        );
+      },
+      orElse: () => _embeddingsModelTextField(enabled),
+    );
+  }
+
+  Widget _embeddingsModelTextField(bool enabled) {
+    return TextField(
+      controller: _embeddingsModelController,
+      enabled: enabled,
+      decoration: InputDecoration(
+        labelText: 'settings.embeddings_model_label'.tr(),
+        hintText: 'text-embedding-...',
+        border: const OutlineInputBorder(),
+        helperText: 'settings.embeddings_model_helper'.tr(),
+      ),
+      onChanged: (_) {
+        _embeddingsModelDebouncer.run(() {
+          ref
+              .read(settingsNotifierProvider.notifier)
+              .updateEmbeddingsModel(_embeddingsModelController.text);
+        });
+      },
+    );
+  }
+
   void _runModelCapabilityAutoProbe() {
     unawaited(
       ref
@@ -1001,23 +1069,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                     onChanged: notifier.updateEnableSemanticSearch,
                   ),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: _embeddingsModelController,
-                    enabled: settings.enableSemanticSearch,
-                    decoration: InputDecoration(
-                      labelText: 'settings.embeddings_model_label'.tr(),
-                      hintText: 'text-embedding-...',
-                      border: const OutlineInputBorder(),
-                      helperText: 'settings.embeddings_model_helper'.tr(),
-                    ),
-                    onChanged: (_) {
-                      _embeddingsModelDebouncer.run(() {
-                        notifier.updateEmbeddingsModel(
-                          _embeddingsModelController.text,
-                        );
-                      });
-                    },
-                  ),
+                  _buildEmbeddingsModelField(asyncModels, settings),
                   const SizedBox(height: 24),
                   _buildSectionHeader('settings.google_chat_section'.tr()),
                   const SizedBox(height: 8),
