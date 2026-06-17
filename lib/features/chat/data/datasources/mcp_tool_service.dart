@@ -15,7 +15,6 @@ import '../../../../core/services/wifi_service.dart';
 import '../../../../core/services/script_runtime/script_runtime.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
-import '../../domain/entities/message.dart';
 import '../../domain/entities/session_memory.dart';
 import '../../domain/entities/skill.dart';
 import '../../domain/services/tool_definition_search_service.dart';
@@ -26,6 +25,7 @@ import '../repositories/skill_repository.dart';
 import 'background_process_tools.dart';
 import 'background_process_monitor_service.dart';
 import 'ble_tools.dart';
+import 'conversation_search_tool.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'filesystem_tools.dart';
 import 'git_tools.dart';
@@ -48,7 +48,7 @@ class McpToolService {
   static const _maxToolNameLength = 64;
   static const Set<String> _reservedToolNames = {
     'get_current_datetime',
-    'search_past_conversations',
+    ConversationSearchTool.toolName,
     'recall_memory',
     'ask_user_question',
     'load_skill',
@@ -145,6 +145,7 @@ class McpToolService {
     this.scriptRuntimeRegistry,
     this.backgroundProcessTools,
     this.backgroundProcessMonitorService,
+    this.semanticConversationRanker,
     this.disabledBuiltInTools = const {},
   });
 
@@ -164,6 +165,12 @@ class McpToolService {
   final ScriptRuntimeRegistry? scriptRuntimeRegistry;
   final BackgroundProcessTools? backgroundProcessTools;
   final BackgroundProcessMonitorService? backgroundProcessMonitorService;
+
+  /// LL5: ranks conversation ids by semantic similarity for
+  /// `search_past_conversations`. Null when semantic search is disabled, in
+  /// which case the tool falls back to a keyword scan.
+  final SemanticConversationRanker? semanticConversationRanker;
+
   final Set<String> disabledBuiltInTools;
 
   List<McpToolEntity> _cachedTools = [];
@@ -505,7 +512,7 @@ class McpToolService {
 
     // Built-in memory tools (always available).
     if (conversationRepository != null) {
-      _addIfEnabled(toolDefinitions, _searchPastConversationsTool);
+      _addIfEnabled(toolDefinitions, ConversationSearchTool.definition);
     }
     if (memoryRepository != null) {
       _addIfEnabled(toolDefinitions, _recallMemoryTool);
@@ -732,8 +739,13 @@ class McpToolService {
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
-    if (name == 'search_past_conversations' && conversationRepository != null) {
-      final result = _searchConversations(arguments);
+    if (name == ConversationSearchTool.toolName &&
+        conversationRepository != null) {
+      final result = await const ConversationSearchTool().run(
+        arguments: arguments,
+        conversations: conversationRepository!.getAll(),
+        semanticRanker: semanticConversationRanker,
+      );
       appLog(
         '[McpToolService] Conversation search executed: ${result.length} chars',
       );
@@ -3344,91 +3356,6 @@ class McpToolService {
   }
 
   // ---------------------------------------------------------------------------
-  // Built-in tool: search_past_conversations
-  // ---------------------------------------------------------------------------
-
-  static Map<String, dynamic> get _searchPastConversationsTool => {
-    'type': 'function',
-    'function': {
-      'name': 'search_past_conversations',
-      'description':
-          'Search past conversation history for specific topics, facts, '
-          'or information the user discussed previously. Use this when the '
-          'user asks about something they mentioned in a past conversation.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'query': {
-            'type': 'string',
-            'description': 'Search keywords to find in past conversations',
-          },
-          'max_results': {
-            'type': 'integer',
-            'description':
-                'Maximum number of matching messages to return (default: 5, max: 10)',
-          },
-        },
-        'required': ['query'],
-      },
-    },
-  };
-
-  String _searchConversations(Map<String, dynamic> arguments) {
-    final query = (arguments['query'] as String?)?.trim() ?? '';
-    final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 5).clamp(
-      1,
-      10,
-    );
-    if (query.isEmpty) return 'Error: search query is empty';
-
-    final conversations = conversationRepository!.getAll();
-    final keywords = query
-        .toLowerCase()
-        .split(_whitespaceRun)
-        .where((k) => k.isNotEmpty)
-        .toList();
-    if (keywords.isEmpty) return 'Error: no valid search keywords';
-
-    final matches = <_ConversationMatch>[];
-    for (final conversation in conversations) {
-      for (final message in conversation.messages) {
-        if (message.role == MessageRole.system) continue;
-        final content = message.content.toLowerCase();
-        final matchCount = keywords.where((kw) => content.contains(kw)).length;
-        if (matchCount > 0) {
-          matches.add(
-            _ConversationMatch(
-              title: conversation.title,
-              date: message.timestamp,
-              conversationDate: conversation.updatedAt,
-              role: message.role.name,
-              content: message.content,
-              score: matchCount / keywords.length,
-            ),
-          );
-        }
-      }
-    }
-
-    matches.sort((a, b) => b.score.compareTo(a.score));
-    final topMatches = matches.take(maxResults);
-
-    if (topMatches.isEmpty) {
-      return 'No matching conversations found for: $query';
-    }
-
-    final buffer = StringBuffer();
-    for (final match in topMatches) {
-      buffer.writeln(
-        '--- [${_formatDate(match.conversationDate)}] ${match.title} ---',
-      );
-      buffer.writeln('${match.role}: ${_truncateText(match.content, 400)}');
-      buffer.writeln();
-    }
-    return buffer.toString();
-  }
-
-  // ---------------------------------------------------------------------------
   // Built-in tool: recall_memory
   // ---------------------------------------------------------------------------
 
@@ -5296,29 +5223,6 @@ class McpToolService {
     }
     return grams;
   }
-
-  String _truncateText(String text, int maxLength) {
-    if (text.length <= maxLength) return text;
-    return '${text.substring(0, maxLength)}...';
-  }
-}
-
-class _ConversationMatch {
-  _ConversationMatch({
-    required this.title,
-    required this.date,
-    required this.conversationDate,
-    required this.role,
-    required this.content,
-    required this.score,
-  });
-
-  final String title;
-  final DateTime date;
-  final DateTime conversationDate;
-  final String role;
-  final String content;
-  final double score;
 }
 
 class _RemoteToolBinding {

@@ -17,6 +17,8 @@ import '../../data/datasources/background_process_tools.dart';
 import '../../data/datasources/mcp_client.dart';
 import '../../data/datasources/mcp_stdio_client.dart';
 import '../../data/datasources/mcp_tool_service.dart';
+import '../../data/repositories/semantic_search_service.dart';
+import 'semantic_search_provider.dart';
 import '../../data/datasources/searxng_client.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/conversation_repository.dart';
@@ -115,6 +117,15 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     backgroundProcessMonitorServiceProvider,
   );
   final settings = ref.watch(settingsNotifierProvider);
+  // LL5: when semantic search is enabled, let search_past_conversations rank by
+  // embedding similarity. Guarded so an unwired provider chain (tests) is a
+  // no-op rather than an error.
+  SemanticSearchService? semanticSearch;
+  try {
+    semanticSearch = ref.watch(semanticSearchServiceProvider);
+  } catch (_) {
+    semanticSearch = null;
+  }
   // Keep the browser session's availability in sync with settings without
   // recreating the singleton (it owns the live webview controller). The
   // listener fires outside the build phase, avoiding notify-during-build.
@@ -140,6 +151,10 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     scriptRuntimeRegistry: scriptRuntimeRegistry,
     backgroundProcessTools: backgroundProcessTools,
     backgroundProcessMonitorService: backgroundProcessMonitorService,
+    semanticConversationRanker: semanticSearch == null
+        ? null
+        : (query, topK) async =>
+              (await semanticSearch!.search(query, topK: topK)).conversationIds,
     disabledBuiltInTools: settings.disabledBuiltInToolsSet,
   );
 });
