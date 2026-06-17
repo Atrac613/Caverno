@@ -12,6 +12,10 @@ handoffs can refer to the same unit of work over time.
 - Use `F<number>` for Foundation (refactoring, dependency currency, storage)
   milestones and `LL<number>` for Local LLM Agent milestones, both documented
   in `docs/local_llm_agent_roadmap.md`.
+- Use `API<number>`, `SEC<number>`, `MLIB<number>`, `OBS<number>`,
+  `COMPAT<number>`, `EDGE<number>`, `EVAL-MOBILE<number>`, `MM<number>`, and
+  `MCP-GOV<number>` for future platform vision milestones, also documented in
+  `docs/local_llm_agent_roadmap.md`.
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
 - Every active milestone should record scope, acceptance criteria, verification
   evidence, and the next action.
@@ -69,9 +73,19 @@ handoffs can refer to the same unit of work over time.
 | Local LLM | LL7 | done | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. | Sequential checkpoint/verify with a consolidated report; a one-tap Routines UI preset and LL13-parallel generation are deferred follow-ups. |
 | Foundation | F4 | done | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS5 history search. | Migration + drift backend + FTS history search UI shipped and verified; retiring Hive is a deferred follow-up. Branch `feature/f4-drift-migration` not yet merged. |
 | Local LLM | LL5 | next | Local semantic code/history search via `/v1/embeddings`, stored in the F4 drift database. | Unblocked by F4 + LL4; degrades to lexical FTS when no embeddings endpoint exists. |
+| Platform Vision | API1 | later | Normalize Chat Completions, Responses-style APIs, and local-provider extensions into one Agent Event Core. | Promote only after the current LL backlog is stable; first slice defines the event schema and replay fixture. |
+| Platform Vision | SEC1 | later | Define the Local Agent Data Perimeter for data classes, tool capabilities, and trust boundaries. | Start before expanding unattended or cross-machine tool execution beyond current approval gates. |
+| Platform Vision | OBS1 | later | Build an Agent Trace Timeline for model calls, tools, checkpoints, slots, evals, and maintenance runs. | Start before making LL13 parallel worktrees a product-facing agent-farm feature. |
+| Platform Vision | COMPAT1 | later | Add an OpenAI-compatible endpoint conformance suite for protocol and provider-behavior diagnostics. | Can start early as diagnostic tooling; keep model capability separate from endpoint protocol support. |
+| Platform Vision | MLIB1 | later | Store Local Model Pack manifests with provenance, checksum, quantization, license, and verified capability metadata. | Pair with LL9 model management and LL21 profile history when model-library UX becomes active. |
+| Platform Vision | EDGE1 | later | Add an embedded local runtime adapter for bounded on-device micro-model tasks. | Keep first tasks low-risk and advisory: routing, memory extraction, privacy screening, and offline fallback. |
+| Platform Vision | EVAL-MOBILE1 | later | Create a Flutter/mobile coding eval pack for Caverno-relevant app-development failures. | Start as local fixtures before UI productization; connect results to LL19 replay. |
+| Platform Vision | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as first-class multimodal evidence. | Land after SEC1/OBS1 so evidence inherits trust, redaction, and trace behavior. |
+| Platform Vision | MCP-GOV1 | later | Lint MCP tool contracts for schema clarity, dangerous capabilities, and weak-model tool-selection quality. | Start before SEC3 permission diff and MCP trust-registry UX. |
 
-Remaining `later` Local LLM milestones (LL8, LL9, LL10, LL11, LL13) and
-Foundation F5 are detailed in `docs/local_llm_agent_roadmap.md`.
+Remaining `later` Local LLM milestones (LL8, LL9, LL10, LL11, LL13), Foundation
+F5, and the future platform vision milestones are detailed in
+`docs/local_llm_agent_roadmap.md`.
 
 ## Plan Mode Track
 
@@ -712,10 +726,14 @@ intact and links them to MVP readiness.
 
 MVP ready criteria live in `docs/macos_computer_use_mvp_checklist.md`.
 
-## Foundation And Local LLM Agent Tracks
+## Foundation, Local LLM Agent, And Future Platform Vision Tracks
 
 The `F<number>` and `LL<number>` milestones, their dependency graph, and the
-phase ordering live in `docs/local_llm_agent_roadmap.md`. Summary:
+phase ordering live in `docs/local_llm_agent_roadmap.md`. That document also now
+contains a future platform vision layer for the control-plane work that should
+follow the current local-LLM execution arc.
+
+Implementation summary:
 
 - Phase 0: F1 (line-count ratchet), LL1 (per-role model routing).
 - Phase 1: F2 (tool loop extraction), LL2 (whole-turn checkpoints).
@@ -730,6 +748,25 @@ phase ordering live in `docs/local_llm_agent_roadmap.md`. Summary:
   `docs/large_file_refactor_plan.md`).
 - Phase 6: LL13 (parallel agents in isolated git worktrees over the mesh),
   LL17 (self-improving harness loop gated by the personal eval suite).
+- Phase 7: LL18-LL22 (idle-time autonomy: maintenance orchestration,
+  in-app eval, slot substrate, profile history, and warm-up/precompute).
+
+Future platform vision summary:
+
+| Prefix | Leading milestone | Status | Vision |
+|--------|-------------------|--------|--------|
+| API | API1 | later | Normalize provider APIs into a stable Agent Event Core before broader Responses-style migration. |
+| SEC | SEC1 | later | Make data classes, trust boundaries, and tool capabilities first-class policy inputs. |
+| OBS | OBS1 | later | Make agent work inspectable as a timeline of model calls, tools, checkpoints, evals, and maintenance decisions. |
+| COMPAT | COMPAT1 | later | Turn endpoint variance into a conformance report and compatibility badge. |
+| MLIB | MLIB1 | later | Treat local models as managed artifacts with provenance, checksum, license, and verified capabilities. |
+| MCP-GOV | MCP-GOV1 | later | Govern MCP tools through contract linting, trust levels, and model-specific prompt optimization. |
+| EDGE | EDGE1 | later | Use embedded on-device runtimes for bounded low-risk micro-tasks and offline fallback. |
+| EVAL-MOBILE | EVAL-MOBILE1 | later | Measure coding agents on Flutter/mobile failures that match Caverno's product domain. |
+| MM | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as traceable multimodal evidence. |
+
+These vision milestones should not displace the current `next` Local LLM
+milestone unless one is explicitly promoted through the normal operating loop.
 
 ## Operating Loop
 
@@ -740,3 +777,6 @@ phase ordering live in `docs/local_llm_agent_roadmap.md`. Summary:
 5. Commit with a Conventional Commits message.
 6. Move the milestone status only when acceptance criteria and evidence are
    complete.
+7. For future platform vision milestones, promote only one leading milestone at
+   a time from `later`; keep the first slice diagnostic or schema-only unless
+   the milestone already has a clear safety and verification gate.

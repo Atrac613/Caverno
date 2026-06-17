@@ -4,12 +4,32 @@ This document plans the next major Caverno arc: making Caverno the strongest
 coding agent specialized for local LLMs, while paying down the structural debt
 that would otherwise block that work.
 
-It introduces two tracks following the conventions in `docs/roadmap.md`:
+It introduces implementation tracks following the conventions in `docs/roadmap.md`:
 
 - `F<number>` — Foundation track: refactoring, dependency currency, storage.
 - `LL<number>` — Local LLM Agent track: features that attack local-LLM-specific
   constraints (small context, heterogeneous model capability, slow inference)
   and weaponize the one local asset: zero marginal token cost.
+
+It also records a future platform vision layer. These milestones are deliberately
+`later` until an implementation slice promotes one of them into active focus:
+
+- `API<number>` — Protocol and agent-event compatibility across Chat
+  Completions, Responses-style APIs, and local-provider extensions.
+- `SEC<number>` — Local agent data perimeter, permissioning, and prompt
+  injection resistance.
+- `MLIB<number>` — Local model library, provenance, licensing, and capability
+  badges.
+- `OBS<number>` — Agent trace observability and exportable support evidence.
+- `COMPAT<number>` — OpenAI-compatible endpoint conformance and provider
+  compatibility diagnostics.
+- `EDGE<number>` — Embedded on-device runtime adapters and offline fallback.
+- `EVAL-MOBILE<number>` — Flutter/mobile coding eval packs and visual
+  regression harnesses.
+- `MM<number>` — Multimodal evidence workflows for screenshots, voice, and
+  screen recordings.
+- `MCP-GOV<number>` — MCP tool contract governance, trust registry, and
+  model-specific tool-prompt optimization.
 
 ## Design Thesis
 
@@ -51,6 +71,30 @@ structurally unmotivated to build:
    the machine is free; an idle/overnight orchestrator turns that budget into
    continuous model re-measurement, eval-gated self-improvement, Best-of-N
    quality, and pre-warmed caches.
+8. **The OpenAI-compatible surface is a moving target.** Caverno should not bind
+   its internal agent model to one provider generation. Chat Completions,
+   Responses-style APIs, and provider extensions should all normalize into a
+   durable event stream before UI, tools, eval, and traces consume them.
+9. **Local-first agents need an explicit data perimeter.** MCP, Remote Coding,
+   file operations, memory writes, and retrieved documents must carry provenance
+   and permission context. Untrusted content can inform the model, but it should
+   not silently become an instruction with tool authority.
+10. **Local models are supply-chain artifacts.** A model name is not enough:
+    users swap GGUFs, quantizations, adapters, merges, and revisions. Caverno
+    should remember provenance, checksums, license assumptions, verified
+    capabilities, and eval history alongside the model profile.
+11. **Agent work must be observable.** Parallel candidates, overnight adoption,
+    worktree tasks, and model-specific harness edits become trustworthy only
+    when a user can inspect what happened, why it happened, and which evidence
+    justified the final state.
+12. **Flutter can be an edge runtime, not only a shell around localhost.** Small
+    on-device models should eventually handle low-risk micro-tasks such as
+    routing, memory extraction, privacy screening, and offline fallback while
+    large local endpoints keep the heavy reasoning role.
+13. **Multimodal inputs are evidence, not decoration.** Screenshots, voice,
+    accessibility output, and screen recordings should become first-class
+    evidence objects that can be cited, diffed, redacted, and routed through the
+    same trace and permission model as text and tool results.
 
 ## Milestone Index
 
@@ -84,6 +128,33 @@ structurally unmotivated to build:
 | Local LLM | LL21 | done | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
 | Local LLM | LL22 | done | M | LL4, LL6, LL18 | Idle warm-up and precompute: precompute repo map / embeddings and warm the KV cache so the first morning turn is instant. |
 | Local LLM | LL23 | done | M | LL3, LL6 | Declared per-model harness config: instruction surfaces (bootstrap/verify/recovery) and runtime control policy (loop caps, recovery middleware) as a mutable schema LL17 edits. |
+| API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
+| API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
+| Security | SEC1 | later | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
+| Security | SEC2 | later | M | SEC1, LL23 | Taint-aware tool execution: surface when untrusted evidence influences a privileged tool call. |
+| Security | SEC3 | later | S-M | SEC1, MCP-GOV2 | MCP permission diff and audit view for server/tool changes. |
+| Model Library | MLIB1 | later | M | LL3, LL9 | Local Model Pack Manifest: provenance, checksum, quantization, license, and verified capability metadata per local model artifact. |
+| Model Library | MLIB2 | later | M | MLIB1 | Model provenance and license registry with revision history and local-only export boundaries. |
+| Model Library | MLIB3 | later | S-M | MLIB1, LL12, LL19 | Verified capability/eval badges backed by probes and personal eval runs. |
+| Observability | OBS1 | later | M | LL7, LL18, LL20 | Agent Trace Timeline: inspect model calls, tools, checkpoints, evals, slot assignment, and verifier evidence as one run trace. |
+| Observability | OBS2 | later | S-M | OBS1, SEC1 | Redacted trace export for support reports without secrets or private project content by default. |
+| Observability | OBS3 | later | M | OBS1 | Local OpenTelemetry-compatible span model for agent work, async links, and maintenance runs. |
+| Compatibility | COMPAT1 | later | M | LL3, LL20 | OpenAI-compatible endpoint conformance suite for chat, streaming, tools, Responses-style APIs, embeddings, vision, and provider extensions. |
+| Compatibility | COMPAT2 | later | S | COMPAT1 | Provider compatibility badge surfaced in settings and diagnostics. |
+| Compatibility | COMPAT3 | later | M | COMPAT1, API2 | Streaming/tool-call fuzz tests for local endpoints and weak-model recovery paths. |
+| Edge | EDGE1 | later | L | F3, LL1 | Embedded local runtime adapter for on-device micro-model execution. |
+| Edge | EDGE2 | later | M | EDGE1, SEC1 | On-device micro-model tasks: routing, memory extraction, privacy screening, title/summary helpers, and prompt compression. |
+| Edge | EDGE3 | later | S-M | EDGE1, API1 | Offline fallback mode for selected low-risk app features when no endpoint is reachable. |
+| Mobile Eval | EVAL-MOBILE1 | later | M | LL11, LL19 | Flutter/mobile coding eval pack for widget fixes, build failures, permissions, localization, and platform-channel bugs. |
+| Mobile Eval | EVAL-MOBILE2 | later | M | EVAL-MOBILE1, MM3 | Golden test and screenshot regression harness for visual/mobile UI changes. |
+| Mobile Eval | EVAL-MOBILE3 | later | M | EVAL-MOBILE1 | Platform build failure corpus for Android Gradle, iOS signing, entitlements, and release build regressions. |
+| Multimodal | MM1 | later | M | API1, OBS1, SEC1 | Multimodal Evidence Panel: manage screenshots, audio, OCR, and screen-recording-derived facts as citeable evidence objects. |
+| Multimodal | MM2 | later | M | MM1, EVAL-MOBILE1 | Screenshot-to-issue workflow that turns UI evidence into reproduction steps and a coding task. |
+| Multimodal | MM3 | later | M | MM1, EVAL-MOBILE2 | Visual regression explanation for before/after screenshots and golden diffs. |
+| Multimodal | MM4 | later | S-M | MM1, EDGE2 | Voice-to-agent-task pipeline with transcript cleanup, intent extraction, and approval-aware task creation. |
+| MCP Governance | MCP-GOV1 | later | M | SEC1, LL3 | MCP tool contract linter for schema clarity, dangerous capability detection, and weak-model tool-selection quality. |
+| MCP Governance | MCP-GOV2 | later | M | MCP-GOV1, SEC1 | Tool trust registry with server trust levels, capability classes, and approval policy defaults. |
+| MCP Governance | MCP-GOV3 | later | S-M | MCP-GOV1, LL3 | Model-specific tool prompt optimizer for compressing and specializing tool descriptions per model profile. |
 
 Size legend: S = days, M = one to a few weeks of slices, L = multi-week.
 
@@ -189,6 +260,49 @@ re-probing with profile history and a recovery path for runtime-lowered samplers
 LL22 spends idle cycles warming caches and precomputing the repo map/embeddings
 so the first interactive turn each morning is instant. None of these add a token
 cost; they convert otherwise wasted local compute into quality and speed.
+
+### Phase 8 — Control-plane hardening (API, SEC, OBS, COMPAT)
+
+The LL track makes Caverno powerful; this phase makes that power durable and
+reviewable. API1/API2 decouple the app from any one OpenAI-compatible endpoint
+shape. SEC1-SEC3 define the local permission and data perimeter so retrieved
+content, MCP resources, Remote Coding state, and memory writes do not collapse
+into one undifferentiated prompt. OBS1-OBS3 make parallel candidates, overnight
+maintenance, eval adoption, and worktree execution inspectable as a single trace.
+COMPAT1-COMPAT3 turn endpoint variance into a visible compatibility result
+instead of a support mystery.
+
+Recommended ordering: COMPAT1 can start early because it is mostly diagnostic;
+API1 should land before any broad Responses-style API migration; SEC1 should
+land before expanding automatic tool execution; OBS1 should land before LL13
+becomes a product-facing parallel-agent feature.
+
+### Phase 9 — Local model/library operations (MLIB, MCP-GOV)
+
+Once users run many local models and MCP servers, Caverno needs an operations
+layer. MLIB1-MLIB3 record where a model came from, what artifact is currently
+loaded, which license and quantization assumptions apply, and which capabilities
+were verified locally. MCP-GOV1-MCP-GOV3 keep tool descriptions, trust levels,
+and model-specific tool prompts from becoming an unreviewed attack surface or a
+weak-model quality sink.
+
+Recommended ordering: MLIB1 pairs naturally with LL9 model management and LL21
+profile history. MCP-GOV1 should precede SEC3 because permission diffs are only
+useful when tool contracts have stable identities and capability classes.
+
+### Phase 10 — Edge and multimodal product expansion (EDGE, EVAL-MOBILE, MM)
+
+This phase moves Caverno beyond a localhost chat wrapper into a Flutter-native
+local AI workbench. EDGE1-EDGE3 add embedded micro-model execution for offline
+and low-risk helper tasks. EVAL-MOBILE1-EVAL-MOBILE3 make Caverno's own domain —
+Flutter and mobile app development — the standard eval target. MM1-MM4 unify
+screenshots, voice, OCR, and screen recordings as traceable evidence objects
+that feed coding, debugging, and visual-regression workflows.
+
+Recommended ordering: EVAL-MOBILE1 can start as data and fixtures before the
+UI is ambitious. MM1 should precede screenshot-to-issue and visual-regression
+features so multimodal artifacts inherit the same trace, redaction, and data
+perimeter rules from OBS1 and SEC1.
 
 ## Milestone Notes
 
@@ -1526,6 +1640,456 @@ Implementation status:
   targeted recovery message when a tool actually fails) needs deeper tool-loop
   machinery and live-canary coverage, deferred to a later slice.
 
+
+## Future Platform Vision Milestone Notes
+
+### API1: Responses-Compatible Agent Event Core
+
+Status: `later`
+
+Scope:
+- Introduce an internal `AgentEvent` stream that normalizes user input, model
+  deltas, reasoning deltas, tool-call requests, tool results, approvals,
+  patches, verifier results, memory reads/writes, and response completion.
+- Keep the existing Chat Completions path working while adapters translate into
+  the same internal event model.
+- Preserve provider extension metadata from LL20 as event attributes rather than
+  forcing every caller to understand raw provider JSON.
+
+Acceptance criteria:
+- Existing chat/tool-loop behavior can be replayed from the event stream in a
+  deterministic fixture.
+- Provider-specific fields survive as scoped attributes without leaking into
+  generic OpenAI endpoints.
+- The event schema is versioned and supports forward-compatible unknown fields.
+
+### API2: Chat/Responses/Local-Provider Adapter Matrix
+
+Status: `later`
+
+Scope:
+- Add adapters for Chat Completions, Responses-style APIs, llama.cpp raw
+  extensions, LM Studio/Ollama compatibility quirks, and on-device runtimes.
+- Define downgrade paths when an endpoint lacks Responses-style state,
+  streaming events, tool calls, structured output, or provider timings.
+- Maintain deterministic request/response fixtures for each adapter.
+
+Acceptance criteria:
+- A provider conformance result can select the safest adapter automatically.
+- Adapter behavior is covered by golden JSON fixtures and streaming delta tests.
+- Unsupported provider features degrade with clear diagnostics, not silent
+  behavioral changes.
+
+### SEC1: Local Agent Data Perimeter
+
+Status: `later`
+
+Scope:
+- Classify data sources such as user instructions, project source, dependency
+  source, generated summaries, remote web, MCP resources, untrusted documents,
+  credential-like strings, and executable instructions.
+- Classify tool capabilities such as file read/write, shell, network, git push,
+  SSH, memory write, clipboard, notifications, and Remote Coding actions.
+- Attach data-source and capability context to agent events, tool calls, memory
+  writes, and trace spans.
+
+Acceptance criteria:
+- High-risk tool calls display the relevant capability and data-source context.
+- Untrusted document content is never treated as equivalent to a user command.
+- Existing approval flows continue to work with no weaker default policy.
+
+### SEC2: Taint-Aware Tool Execution
+
+Status: `later`
+
+Scope:
+- Track whether a proposed tool call was influenced by untrusted or lower-trust
+  evidence.
+- Add policy hooks for warning, requiring approval, or blocking privileged calls
+  when tainted evidence affects the action.
+- Feed taint findings into OBS1 traces and SEC3 audit surfaces.
+
+Acceptance criteria:
+- A tool call derived from untrusted document instructions is flagged in tests.
+- Taint metadata survives compaction, model-switch handoff, and trace export.
+- Safe read-only actions can proceed while write/shell/network actions escalate.
+
+### SEC3: MCP Permission Diff And Audit View
+
+Status: `later`
+
+Scope:
+- Show a diff when an MCP server adds, removes, or changes tools, resources,
+  prompts, roots, or declared capabilities.
+- Record approvals and denials as local audit events.
+- Link permission changes to tool contract lint findings from MCP-GOV1.
+
+Acceptance criteria:
+- A changed MCP tool schema is visible before the tool is used by an agent.
+- Permission diffs never include secrets by default.
+- Audit records are searchable from support diagnostics.
+
+### MLIB1: Local Model Pack Manifest
+
+Status: `later`
+
+Scope:
+- Store a manifest per local model artifact: source, source repository, revision,
+  file checksum, format, quantization, base model, license, claimed context,
+  verified context, tool-calling status, structured-output status, and eval
+  baselines.
+- Connect the manifest to LL3 profiles, LL9 loading guidance, LL12/LL19 eval
+  reports, and LL21 profile history.
+- Keep manifests local-first and export-excluded unless the user explicitly
+  chooses to share them.
+
+Acceptance criteria:
+- Two GGUFs with the same display name but different checksums are distinct
+  artifacts.
+- Capability badges point to concrete probe/eval evidence.
+- Missing license/provenance data is visible rather than guessed.
+
+### MLIB2: Model Provenance And License Registry
+
+Status: `later`
+
+Scope:
+- Track model artifact lineage: base model, adapter, merge, quantization source,
+  local conversion, and revision history.
+- Store license assumptions separately from verified metadata.
+- Warn before using a model in a context whose policy conflicts with the stored
+  license/provenance state.
+
+Acceptance criteria:
+- Model lineage survives renaming or moving the local file.
+- Unknown license/provenance produces an explicit warning state.
+- Registry export is redacted and opt-in.
+
+### MLIB3: Verified Capability/Eval Badges
+
+Status: `later`
+
+Scope:
+- Surface badges for tool calling, JSON/structured output, edit format,
+  embeddings, reranking, vision, context length, sampler stability, and personal
+  eval performance.
+- Require every badge to link back to a probe, live diagnostic, or eval artifact.
+- Show drift when a new LL21 revision changes badge status.
+
+Acceptance criteria:
+- A badge cannot be shown as verified without evidence.
+- Badge regressions are visible in profile history.
+- Badges can be used as routing hints without becoming hard-coded model flags.
+
+### OBS1: Agent Trace Timeline
+
+Status: `later`
+
+Scope:
+- Record an inspectable trace for each agent run: model requests, adapter events,
+  tool calls, approvals, file checkpoints, slot assignments, worktree actions,
+  verification, eval decisions, memory writes, and maintenance stages.
+- Present traces as a timeline in the app with links to artifacts and local
+  files where safe.
+- Preserve enough detail to debug LL7 Best-of-N, LL13 worktrees, LL17 harness
+  adoption, and LL18 maintenance runs.
+
+Acceptance criteria:
+- A Best-of-N run shows every candidate, verifier result, discard, and winner.
+- A maintenance run links adopted changes to failure evidence and eval gates.
+- Trace recording is bounded and does not store secrets in plaintext by default.
+
+### OBS2: Redacted Trace Export
+
+Status: `later`
+
+Scope:
+- Export support traces with configurable redaction for API keys, credentials,
+  private file contents, project paths, model endpoints, and user memory.
+- Include enough non-secret metadata to reproduce provider and tool-loop issues.
+- Support local preview before export.
+
+Acceptance criteria:
+- Exported traces never include configured secret patterns in tests.
+- The user can inspect the exact export bundle before sharing.
+- App-side vs endpoint-side failures remain distinguishable after redaction.
+
+### OBS3: Local OpenTelemetry-Compatible Span Model
+
+Status: `later`
+
+Scope:
+- Model agent work as spans with IDs, timestamps, attributes, events, status,
+  and async links for parallel candidates and worktrees.
+- Keep the internal model export-compatible without requiring an external
+  collector.
+- Map API1 events and LL20 provider timings onto spans.
+
+Acceptance criteria:
+- Parallel candidate spans preserve causal links to the parent task.
+- Provider timings and token/cache metrics appear as span attributes.
+- The model can export to a local JSON file without network access.
+
+### COMPAT1: OpenAI-Compatible Endpoint Conformance Suite
+
+Status: `later`
+
+Scope:
+- Probe endpoint support for `/v1/models`, chat completions, streaming, tool
+  calls, structured output, Responses-style APIs, embeddings, reranking, vision,
+  logprobs, reasoning/thinking fields, cancellation, timeouts, unknown-field
+  behavior, and provider extension preservation.
+- Reuse LL3 model probes where possible but keep protocol compatibility separate
+  from model capability.
+- Save a compatibility report per endpoint/model pair.
+
+Acceptance criteria:
+- Endpoint incompatibility is visible before a user runs a long agent task.
+- Generic OpenAI endpoints are not sent provider-specific extension fields.
+- Reports clearly distinguish protocol failures from weak-model behavior.
+
+### COMPAT2: Provider Compatibility Badge
+
+Status: `later`
+
+Scope:
+- Surface conformance results in settings, diagnostics, and model/endpoint
+  selection UI.
+- Show supported, partial, unsupported, and unknown states for major surfaces.
+- Link each badge to the COMPAT1 report that produced it.
+
+Acceptance criteria:
+- A user can see why a provider was selected or downgraded.
+- Badge states update when the endpoint changes or is re-probed.
+- Unsupported features have a documented fallback or disabled UI path.
+
+### COMPAT3: Streaming/Tool-Call Fuzz Tests
+
+Status: `later`
+
+Scope:
+- Generate adversarial streaming chunks, partial tool calls, malformed JSON,
+  duplicate calls, cancellation races, and provider-specific unknown fields.
+- Run fixtures through API2 adapters and the existing tool-loop recovery policy.
+- Track regressions in support diagnostics.
+
+Acceptance criteria:
+- Known weak-model/tool-call recovery paths remain deterministic under fuzzed
+  streaming input.
+- Adapter crashes become fixture failures, not user-visible runtime exceptions.
+- COMPAT1 reports include a compact fuzz summary.
+
+### EDGE1: Embedded Local Runtime Adapter
+
+Status: `later`
+
+Scope:
+- Define a runtime adapter interface for embedded on-device models independent
+  of any single vendor runtime.
+- Support constrained local inference surfaces for short text classification,
+  extraction, summarization, routing, and privacy checks.
+- Integrate with LL1 role routing without making the embedded runtime the main
+  coding model.
+
+Acceptance criteria:
+- The app can route a low-risk helper task to an embedded runtime when present.
+- Missing runtime support degrades to the configured endpoint or a deterministic
+  fallback.
+- Runtime use is visible in traces and diagnostics.
+
+### EDGE2: On-Device Micro-Model Tasks
+
+Status: `later`
+
+Scope:
+- Add bounded micro-tasks such as memory extraction, prompt compression,
+  title/summary generation, private-data detection, voice transcript cleanup,
+  endpoint routing, and offline fallback classification.
+- Keep outputs advisory unless a task has an explicit approval or deterministic
+  validation path.
+- Prefer tasks that reduce calls to large local models without lowering quality.
+
+Acceptance criteria:
+- Micro-task outputs are bounded, typed, and testable.
+- A bad on-device result cannot directly execute a privileged tool action.
+- Routing decisions are visible to the user in diagnostics.
+
+### EDGE3: Offline Fallback Mode
+
+Status: `later`
+
+Scope:
+- Let selected app features continue when no OpenAI-compatible endpoint is
+  reachable: search, summarization, memory extraction, issue triage, or draft
+  task creation.
+- Clearly mark outputs as offline/limited.
+- Queue or defer tasks that require the main coding model.
+
+Acceptance criteria:
+- Offline mode never pretends to have run a full coding agent.
+- Deferred tasks resume only after endpoint health checks pass.
+- User-visible copy explains which capabilities are unavailable.
+
+### EVAL-MOBILE1: Flutter/Mobile Coding Eval Pack
+
+Status: `later`
+
+Scope:
+- Build eval cases for Flutter widget fixes, state-management migrations,
+  Android Gradle failures, iOS signing and entitlement issues, localization ARB
+  changes, accessibility labels, plugin permissions, platform channels, and
+  release build regressions.
+- Connect cases to LL19 in-app eval so candidate models can be scored on
+  Caverno-relevant mobile work.
+- Include both deterministic fixtures and live-project replay cases where safe.
+
+Acceptance criteria:
+- The pack can run locally without network access after fixtures are present.
+- Results separate fault localization, patch quality, and verifier success.
+- Cases can be tagged by platform, framework surface, and risk level.
+
+### EVAL-MOBILE2: Golden Test And Screenshot Regression Harness
+
+Status: `later`
+
+Scope:
+- Add visual regression cases that compare before/after screenshots or golden
+  test artifacts.
+- Feed diffs into MM3 for explanation and into OBS1 for traceability.
+- Keep image artifacts local and excluded from export by default.
+
+Acceptance criteria:
+- A visual regression can block adoption or merge just like a test failure.
+- Screenshot/golden diffs are trace-linked to the agent edit that caused them.
+- Exported artifacts follow OBS2 redaction rules.
+
+### EVAL-MOBILE3: Platform Build Failure Corpus
+
+Status: `later`
+
+Scope:
+- Curate replayable failures for Android Gradle, iOS CocoaPods/signing,
+  entitlements, Info.plist, permissions, simulator/device differences, and
+  release-build-only regressions.
+- Track which model profiles handle each failure family.
+- Feed successful repairs back into harness guidance only through LL17 gates.
+
+Acceptance criteria:
+- Build failures are reproducible from fixtures or recorded project state.
+- The corpus distinguishes environment blockers from app-code failures.
+- Reports show which dependency/tooling versions were used.
+
+### MM1: Multimodal Evidence Panel
+
+Status: `later`
+
+Scope:
+- Store screenshots, audio transcripts, OCR text, screen-recording summaries,
+  accessibility snapshots, and derived facts as evidence objects.
+- Attach provenance, trust level, redaction state, and trace links.
+- Let agent prompts cite evidence by compact IDs rather than dumping all media
+  content into context.
+
+Acceptance criteria:
+- Evidence objects can be added, removed, redacted, and cited independently.
+- Untrusted visual/OCR content does not bypass SEC1 data classifications.
+- Evidence panels link to agent traces and verification artifacts.
+
+### MM2: Screenshot-To-Issue Workflow
+
+Status: `later`
+
+Scope:
+- Convert UI screenshots into reproduction steps, suspected widget areas, and a
+  draft coding task.
+- Use the repo map, LSP bridge, and mobile eval tags to route the task.
+- Require user confirmation before turning inferred steps into an executable
+  agent task.
+
+Acceptance criteria:
+- The workflow separates observed facts from model guesses.
+- User confirmation is required before file edits or shell commands.
+- Generated tasks retain links to the original screenshot evidence.
+
+### MM3: Visual Regression Explanation
+
+Status: `later`
+
+Scope:
+- Explain before/after screenshot or golden diffs in natural language with links
+  to changed files, test artifacts, and trace spans.
+- Flag likely intentional vs accidental changes for user review.
+- Feed regression explanations into EVAL-MOBILE2 reports.
+
+Acceptance criteria:
+- Explanation output cites the exact visual artifacts it used.
+- False positives can be dismissed without deleting the original evidence.
+- A visual regression can be attached to a failed eval case.
+
+### MM4: Voice-To-Agent-Task Pipeline
+
+Status: `later`
+
+Scope:
+- Turn voice input into a structured task proposal with transcript cleanup,
+  ambiguity detection, risk classification, and approval prompts.
+- Use on-device micro-models from EDGE2 for lightweight transcript processing
+  when available.
+- Keep voice transcripts as evidence objects under MM1.
+
+Acceptance criteria:
+- The user can review and edit the task before agent execution.
+- Ambiguous or high-risk voice commands ask for confirmation.
+- Transcripts follow the same retention/export defaults as other evidence.
+
+### MCP-GOV1: MCP Tool Contract Linter
+
+Status: `later`
+
+Scope:
+- Lint MCP tool names, descriptions, schemas, examples, output shapes, and
+  declared risk/capability classes.
+- Detect vague descriptions, overlapping tools, dangerous capability exposure,
+  missing examples, and weak-model-unfriendly schemas.
+- Produce model-specific suggestions without auto-modifying external servers.
+
+Acceptance criteria:
+- Linter findings are deterministic and reviewable.
+- Dangerous or ambiguous tools can be marked as requiring stronger approval.
+- Findings are available to SEC3 permission diff and OBS1 traces.
+
+### MCP-GOV2: Tool Trust Registry
+
+Status: `later`
+
+Scope:
+- Store trust levels for MCP servers and tools, including local, paired remote,
+  third-party, experimental, and blocked states.
+- Map trust levels to default approval policy and data perimeter behavior.
+- Record changes as audit events.
+
+Acceptance criteria:
+- New or changed MCP tools default to a conservative trust state.
+- Trust changes require explicit user action.
+- Tool trust appears in tool selection diagnostics and traces.
+
+### MCP-GOV3: Model-Specific Tool Prompt Optimizer
+
+Status: `later`
+
+Scope:
+- Compress and specialize tool descriptions based on LL3 model profile, MCP-GOV1
+  lints, and live tool-selection outcomes.
+- Preserve canonical tool schemas while generating weak-model-friendly prompt
+  surfaces.
+- Evaluate prompt variants through COMPAT3 / LL19-style fixtures before adoption.
+
+Acceptance criteria:
+- Prompt optimization never changes executable tool schemas.
+- Weak-model tool-selection accuracy improves or remains non-regressing in
+  fixtures.
+- Adopted prompt variants are traceable and revertible.
+
 ## Cross-Cutting Rules
 
 - All tracks obey the F1 ratchet: no milestone may push a budgeted file past
@@ -1541,6 +2105,21 @@ Implementation status:
 - Idle/overnight autonomy (LL18, LL21, LL22) runs only behind idle + power +
   window gates, never requires interactive approval, obeys the RoutineToolPolicy
   trust model, and adopts profile mutations only through the LL12 eval gate.
+- Future platform milestones remain `later` until explicitly promoted; they are
+  a vision backlog, not a reason to interrupt the current `next` milestone.
+- API adapters must normalize into versioned agent events before UI, eval,
+  memory, trace, or tool policy adds provider-specific branches.
+- Security and MCP-governance milestones treat retrieved or external content as
+  lower-trust evidence unless the user explicitly elevates it to an instruction.
+- Trace export defaults to redaction and local preview; supportability must not
+  trade away private project contents or credentials.
+- Model-library records state what Caverno has verified locally and what remains
+  unknown; missing provenance, license, or checksum data is never guessed.
+- On-device runtime work starts with bounded, low-risk micro-tasks and cannot
+  execute privileged tools without the same approval and trace rules as the main
+  endpoint path.
+- Multimodal evidence inherits SEC1 data classifications and OBS1 trace links;
+  OCR or visual interpretation is evidence, not authority.
 
 ## Appendix: llama.cpp Server Capability Reference
 
