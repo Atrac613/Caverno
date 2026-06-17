@@ -22,7 +22,23 @@ class Conversations extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [Conversations])
+/// F4: chat memory as a key/value table.
+///
+/// The legacy Hive store kept the six chat-memory sections (profile, session
+/// summaries, memories, review queue, suppression rules, suppression hit count)
+/// as JSON-string blobs under fixed keys. Mirroring that as a KV table keeps the
+/// migration lossless and the rich repository logic (dedup, capping, sorting)
+/// unchanged; normalization into per-row tables can come later.
+@DataClassName('ChatMemoryEntryRow')
+class ChatMemoryEntries extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {key};
+}
+
+@DriftDatabase(tables: [Conversations, ChatMemoryEntries])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
