@@ -81,6 +81,22 @@ void main() {
     expect(ReasoningEffortPreference.automatic.apiValue, isNull);
   });
 
+  test('defaults and persists semantic search settings', () {
+    expect(AppSettings.defaults().enableSemanticSearch, isFalse);
+    expect(AppSettings.defaults().embeddingsModel, '');
+
+    final settings = AppSettings.defaults().copyWith(
+      enableSemanticSearch: true,
+      embeddingsModel: 'text-embedding-local',
+    );
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.enableSemanticSearch, isTrue);
+    expect(decoded.embeddingsModel, 'text-embedding-local');
+  });
+
   test('defaults and persists LLM provider selection', () {
     expect(AppSettings.defaults().llmProvider, LlmProvider.openAiCompatible);
     expect(AppSettings.defaults().effectiveModel, AppSettings.defaults().model);

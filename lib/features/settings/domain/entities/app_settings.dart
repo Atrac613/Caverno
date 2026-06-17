@@ -446,9 +446,11 @@ abstract class ModelCapabilityProfileRevision
     required ModelEditFormatPreference editFormatPreference,
     required int usableContextTokens,
     @Default('') String probeSummary,
+
     /// How this revision was triggered. Known values: 'initial', 'idle_re_probe',
     /// 'calibrate', 'manual', 'probe'.
     @Default('probe') String source,
+
     /// True when any key capability field changed vs the immediately preceding
     /// revision for the same [profileId] — a heuristic for GGUF/weight swaps.
     @Default(false) bool capabilityChangeDetected,
@@ -461,18 +463,17 @@ abstract class ModelCapabilityProfileRevision
     ModelCapabilityProfile profile, {
     String source = 'probe',
     bool capabilityChangeDetected = false,
-  }) =>
-      ModelCapabilityProfileRevision(
-        profileId: profile.computedId,
-        probedAt: profile.probedAt ?? DateTime.now(),
-        toolCallStyle: profile.toolCallStyle,
-        structuredOutputSupport: profile.structuredOutputSupport,
-        editFormatPreference: profile.editFormatPreference,
-        usableContextTokens: profile.usableContextTokens,
-        probeSummary: profile.probeSummary,
-        source: source,
-        capabilityChangeDetected: capabilityChangeDetected,
-      );
+  }) => ModelCapabilityProfileRevision(
+    profileId: profile.computedId,
+    probedAt: profile.probedAt ?? DateTime.now(),
+    toolCallStyle: profile.toolCallStyle,
+    structuredOutputSupport: profile.structuredOutputSupport,
+    editFormatPreference: profile.editFormatPreference,
+    usableContextTokens: profile.usableContextTokens,
+    probeSummary: profile.probeSummary,
+    source: source,
+    capabilityChangeDetected: capabilityChangeDetected,
+  );
 
   /// Maximum revisions stored per profile id; oldest are dropped on overflow.
   static const maxPerProfile = 10;
@@ -497,8 +498,7 @@ List<ModelCapabilityProfileRevision> _profileRevisionsFromJson(
 
 List<Map<String, dynamic>> _profileRevisionsToJson(
   List<ModelCapabilityProfileRevision> revisions,
-) =>
-    revisions.map((r) => r.toJson()).toList(growable: false);
+) => revisions.map((r) => r.toJson()).toList(growable: false);
 
 @freezed
 abstract class AppSettings with _$AppSettings {
@@ -561,6 +561,11 @@ abstract class AppSettings with _$AppSettings {
     @Default(5) int codingVerificationMaxFailures,
     @Default(true) bool enableAgentsMd,
     @Default(false) bool enablePrefixStableToolLoop,
+    // LL5: opt-in local semantic search. When enabled and an embeddings model
+    // is configured, conversation history is embedded for semantic search;
+    // otherwise search degrades to lexical FTS.
+    @Default(false) bool enableSemanticSearch,
+    @Default('') String embeddingsModel,
     @Default(false) bool showMemoryUpdates,
     @Default(false) bool enableLlmSessionLogs,
     @Default(false) bool demoMode,
