@@ -432,8 +432,9 @@ void main() {
     List<ModelCapabilityProfileRevision> _revisionsFor(
       ProviderContainer container,
       String model,
-    ) =>
-        container.read(settingsNotifierProvider).capabilityProfileRevisionsFor(
+    ) => container
+        .read(settingsNotifierProvider)
+        .capabilityProfileRevisionsFor(
           provider: LlmProvider.openAiCompatible,
           baseUrl: 'http://localhost:1234/v1',
           model: model,
@@ -457,57 +458,74 @@ void main() {
       expect(revisions.first.capabilityChangeDetected, isFalse);
     });
 
-    test('second upsert sets capabilityChangeDetected when toolCallStyle changes',
-        () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final container = _container(prefs);
-      final notifier = container.read(settingsNotifierProvider.notifier);
+    test(
+      'second upsert sets capabilityChangeDetected when toolCallStyle changes',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final container = _container(prefs);
+        final notifier = container.read(settingsNotifierProvider.notifier);
 
-      final base = _profile('http://localhost:1234/v1', 'my-model');
-      await notifier.upsertModelCapabilityProfile(base, source: 'probe');
+        final base = _profile('http://localhost:1234/v1', 'my-model');
+        await notifier.upsertModelCapabilityProfile(base, source: 'probe');
 
-      final changed = base.copyWith(
-        toolCallStyle: ModelToolCallStyle.embeddedToolTags,
-      );
-      await notifier.upsertModelCapabilityProfile(changed, source: 'idle_re_probe');
+        final changed = base.copyWith(
+          toolCallStyle: ModelToolCallStyle.embeddedToolTags,
+        );
+        await notifier.upsertModelCapabilityProfile(
+          changed,
+          source: 'idle_re_probe',
+        );
 
-      final revisions = _revisionsFor(container, 'my-model');
-      // Newest first: the idle_re_probe revision should be first.
-      expect(revisions, hasLength(2));
-      expect(revisions.first.source, 'idle_re_probe');
-      expect(revisions.first.capabilityChangeDetected, isTrue);
-    });
+        final revisions = _revisionsFor(container, 'my-model');
+        // Newest first: the idle_re_probe revision should be first.
+        expect(revisions, hasLength(2));
+        expect(revisions.first.source, 'idle_re_probe');
+        expect(revisions.first.capabilityChangeDetected, isTrue);
+      },
+    );
 
-    test('capabilityChangeDetected is false when profile is unchanged', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final container = _container(prefs);
-      final notifier = container.read(settingsNotifierProvider.notifier);
+    test(
+      'capabilityChangeDetected is false when profile is unchanged',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final container = _container(prefs);
+        final notifier = container.read(settingsNotifierProvider.notifier);
 
-      final profile = _profile('http://localhost:1234/v1', 'my-model');
-      await notifier.upsertModelCapabilityProfile(profile, source: 'probe');
-      await notifier.upsertModelCapabilityProfile(profile, source: 'idle_re_probe');
+        final profile = _profile('http://localhost:1234/v1', 'my-model');
+        await notifier.upsertModelCapabilityProfile(profile, source: 'probe');
+        await notifier.upsertModelCapabilityProfile(
+          profile,
+          source: 'idle_re_probe',
+        );
 
-      final revisions = _revisionsFor(container, 'my-model');
-      expect(revisions.first.capabilityChangeDetected, isFalse);
-    });
+        final revisions = _revisionsFor(container, 'my-model');
+        expect(revisions.first.capabilityChangeDetected, isFalse);
+      },
+    );
 
-    test('context-token drift > 20% triggers capabilityChangeDetected', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final container = _container(prefs);
-      final notifier = container.read(settingsNotifierProvider.notifier);
+    test(
+      'context-token drift > 20% triggers capabilityChangeDetected',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final container = _container(prefs);
+        final notifier = container.read(settingsNotifierProvider.notifier);
 
-      final base = _profile('http://localhost:1234/v1', 'my-model');
-      await notifier.upsertModelCapabilityProfile(base, source: 'probe');
+        final base = _profile('http://localhost:1234/v1', 'my-model');
+        await notifier.upsertModelCapabilityProfile(base, source: 'probe');
 
-      final drifted = base.copyWith(usableContextTokens: 4096); // 50% drop
-      await notifier.upsertModelCapabilityProfile(drifted, source: 'idle_re_probe');
+        final drifted = base.copyWith(usableContextTokens: 4096); // 50% drop
+        await notifier.upsertModelCapabilityProfile(
+          drifted,
+          source: 'idle_re_probe',
+        );
 
-      final revisions = _revisionsFor(container, 'my-model');
-      expect(revisions.first.capabilityChangeDetected, isTrue);
-    });
+        final revisions = _revisionsFor(container, 'my-model');
+        expect(revisions.first.capabilityChangeDetected, isTrue);
+      },
+    );
 
     test('revisions are capped at maxPerProfile per model id', () async {
       SharedPreferences.setMockInitialValues({});
@@ -552,6 +570,68 @@ void main() {
 
       expect(_revisionsFor(container, 'model-a'), hasLength(2));
       expect(_revisionsFor(container, 'model-b'), hasLength(1));
+    });
+  });
+
+  group('LL8 named endpoints', () {
+    test('upsert registers, dedupes by base URL, and remove deletes', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      await notifier.upsertNamedEndpoint(
+        const NamedEndpoint(
+          id: '',
+          label: 'Studio Box',
+          baseUrl: 'http://192.168.100.241:1234/v1',
+        ),
+      );
+      var settings = container.read(settingsNotifierProvider);
+      expect(settings.namedEndpoints, hasLength(1));
+      final firstCreatedAt = settings.namedEndpoints.single.createdAt;
+      expect(firstCreatedAt, isNotNull);
+
+      // Re-registering the same base URL (trailing slash) updates in place and
+      // preserves the original registration time.
+      await notifier.upsertNamedEndpoint(
+        const NamedEndpoint(
+          id: '',
+          label: 'Studio Box (renamed)',
+          baseUrl: 'http://192.168.100.241:1234/v1/',
+        ),
+      );
+      settings = container.read(settingsNotifierProvider);
+      expect(settings.namedEndpoints, hasLength(1));
+      expect(settings.namedEndpoints.single.label, 'Studio Box (renamed)');
+      expect(settings.namedEndpoints.single.createdAt, firstCreatedAt);
+
+      // Persisted across a reload.
+      final reloaded = SettingsRepository(prefs).load();
+      expect(reloaded.namedEndpoints, hasLength(1));
+
+      await notifier.removeNamedEndpoint(settings.namedEndpoints.single.id);
+      expect(container.read(settingsNotifierProvider).namedEndpoints, isEmpty);
+    });
+
+    test('upsert rejects an endpoint without a base URL', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+
+      expect(
+        () => notifier.upsertNamedEndpoint(
+          const NamedEndpoint(id: '', baseUrl: ' '),
+        ),
+        throwsArgumentError,
+      );
     });
   });
 }

@@ -97,6 +97,65 @@ void main() {
     expect(decoded.embeddingsModel, 'text-embedding-local');
   });
 
+  test('defaults to no named endpoints and persists registered ones', () {
+    expect(AppSettings.defaults().namedEndpoints, isEmpty);
+
+    final settings = AppSettings.defaults().copyWith(
+      namedEndpoints: [
+        const NamedEndpoint(
+          id: 'will-be-recomputed',
+          label: '  Studio Box  ',
+          baseUrl: 'http://192.168.100.241:1234/v1/',
+          apiKey: '  key  ',
+        ),
+        const NamedEndpoint(
+          id: 'disabled',
+          baseUrl: 'http://10.0.0.9:8080/v1',
+          enabled: false,
+        ),
+      ],
+    );
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.namedEndpoints, hasLength(2));
+    final first = decoded.namedEndpoints.first;
+    // normalizedForPersistence trims and strips the trailing slash, and the id
+    // is derived from the normalized base URL.
+    expect(first.baseUrl, 'http://192.168.100.241:1234/v1');
+    expect(first.label, 'Studio Box');
+    expect(first.apiKey, 'key');
+    expect(first.id, 'http://192.168.100.241:1234/v1');
+    expect(first.displayLabel, 'Studio Box');
+
+    // Only the enabled, valid endpoint is exposed for routing.
+    expect(decoded.enabledNamedEndpoints, hasLength(1));
+    expect(
+      decoded.enabledNamedEndpoints.single.baseUrl,
+      'http://192.168.100.241:1234/v1',
+    );
+
+    // Lookup by base URL tolerates a trailing slash / case differences.
+    expect(
+      decoded.namedEndpointForBaseUrl('HTTP://192.168.100.241:1234/v1')?.id,
+      'http://192.168.100.241:1234/v1',
+    );
+  });
+
+  test('drops invalid named endpoints on parse', () {
+    final json =
+        jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
+            as Map<String, dynamic>;
+    json['namedEndpoints'] = [
+      {'id': 'a', 'baseUrl': '   '},
+      {'id': 'b', 'baseUrl': 'http://10.0.0.5:1234/v1'},
+    ];
+    final decoded = AppSettings.fromJson(json);
+    expect(decoded.namedEndpoints, hasLength(1));
+    expect(decoded.namedEndpoints.single.baseUrl, 'http://10.0.0.5:1234/v1');
+  });
+
   test('defaults and persists LLM provider selection', () {
     expect(AppSettings.defaults().llmProvider, LlmProvider.openAiCompatible);
     expect(AppSettings.defaults().effectiveModel, AppSettings.defaults().model);

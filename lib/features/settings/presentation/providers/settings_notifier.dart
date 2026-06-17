@@ -236,6 +236,43 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  /// LL8: register or update a LAN mesh endpoint, keyed by its normalized base
+  /// URL so re-registering the same endpoint updates in place. Registration is
+  /// always explicit (called from user-confirmed UI), never from discovery.
+  Future<void> upsertNamedEndpoint(NamedEndpoint endpoint) async {
+    final normalized = endpoint
+        .copyWith(createdAt: endpoint.createdAt ?? DateTime.now())
+        .normalizedForPersistence();
+    if (!normalized.isValid) {
+      throw ArgumentError('NamedEndpoint base URL is required');
+    }
+    final endpoints = List<NamedEndpoint>.from(state.namedEndpoints);
+    final index = endpoints.indexWhere((item) => item.id == normalized.id);
+    if (index == -1) {
+      endpoints.add(normalized);
+    } else {
+      // Preserve the original registration time on update.
+      endpoints[index] = normalized.copyWith(
+        createdAt: endpoints[index].createdAt ?? normalized.createdAt,
+      );
+    }
+    state = state.copyWith(namedEndpoints: endpoints);
+    await _repository.save(state);
+  }
+
+  /// LL8: remove a registered LAN mesh endpoint by id.
+  Future<void> removeNamedEndpoint(String endpointId) async {
+    final normalizedId = endpointId.trim();
+    if (normalizedId.isEmpty) {
+      return;
+    }
+    final endpoints = state.namedEndpoints
+        .where((endpoint) => endpoint.id != normalizedId)
+        .toList(growable: false);
+    state = state.copyWith(namedEndpoints: endpoints);
+    await _repository.save(state);
+  }
+
   Future<void> updateTemperature(double temperature) async {
     state = state.copyWith(temperature: temperature);
     await _repository.save(state);
