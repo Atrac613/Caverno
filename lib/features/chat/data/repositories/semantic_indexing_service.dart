@@ -58,4 +58,12 @@ class SemanticIndexingService {
     );
     return true;
   }
+
+  /// Removes any stored vectors for a deleted conversation.
+  Future<void> deleteConversation(String conversationId) {
+    return store.deleteForSource(
+      sourceType: sourceType,
+      sourceId: conversationId,
+    );
+  }
 }

@@ -129,5 +129,22 @@ void main() {
       expect(ok, isTrue);
       expect(await store.count(), 0);
     });
+
+    test('deleteConversation removes only the given conversation', () async {
+      final svc = service(
+        (inputs) async => EmbeddingsResult(
+          vectors: [
+            for (var i = 0; i < inputs.length; i += 1) [i.toDouble(), 1],
+          ],
+          model: 'm',
+        ),
+      );
+      await svc.indexConversation(_conversation('a', title: 'A'));
+      await svc.indexConversation(_conversation('b', title: 'B'));
+      expect(await store.count(), 2);
+
+      await svc.deleteConversation('a');
+      expect(await store.count(), 1);
+    });
   });
 }

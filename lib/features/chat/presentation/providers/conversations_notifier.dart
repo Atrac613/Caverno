@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -5,7 +7,9 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../data/repositories/conversation_repository_api.dart';
+import '../../data/repositories/semantic_indexing_service.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
+import 'semantic_search_provider.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
@@ -110,6 +114,10 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   late final ToolResultArtifactStore _toolResultArtifactStore;
   final _uuid = const Uuid();
   final Set<String> _freshConversationScopes = <String>{};
+
+  /// LL5: per-conversation signature of the last text we sent to the semantic
+  /// index, so a turn embeds at most once even though saves fire repeatedly.
+  final Map<String, String> _lastIndexedSignatures = <String, String>{};
 
   @override
   ConversationsState build() {
@@ -501,6 +509,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   Future<void> deleteConversation(String id) async {
     await _repository.delete(id);
     await _deleteToolResultArtifactsForIds([id]);
+    _removeSemanticIndex([id]);
 
     final newConversations = state.conversations
         .where((c) => c.id != id)
@@ -525,6 +534,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       await _repository.delete(id);
     }
     await _deleteToolResultArtifactsForIds(visibleConversationIds);
+    _removeSemanticIndex(visibleConversationIds);
 
     final newConversations = state.conversations
         .where(
@@ -553,6 +563,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       await _repository.delete(id);
     }
     await _deleteToolResultArtifactsForIds(targetIds);
+    _removeSemanticIndex(targetIds);
 
     state = state.copyWith(
       conversations: state.conversations
@@ -595,6 +606,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
+    _scheduleSemanticIndex(updatedConversation);
   }
 
   Future<bool> rewindCurrentConversationToMessage(String messageId) async {
@@ -664,6 +676,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedConversation,
       recordCheckpoint: false,
     );
+    _scheduleSemanticIndex(updatedConversation);
     return true;
   }
 
@@ -717,6 +730,88 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         );
       }
     }
+  }
+
+  /// The semantic indexer, or null when semantic search is off or its provider
+  /// chain is unavailable (e.g. unit tests without a settings override). Never
+  /// throws — indexing is best-effort and must not break the chat loop.
+  SemanticIndexingService? get _semanticIndexer {
+    try {
+      return ref.read(semanticIndexingServiceProvider);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// LL5: keep the semantic index in sync with a conversation's searchable text.
+  ///
+  /// No-op when semantic search is disabled (the provider is null). Skipped
+  /// while a message is still streaming, and deduped by content signature so a
+  /// finished turn embeds at most once. Fire-and-forget: indexing failures never
+  /// block or fail the chat loop, and a failed turn is re-indexed next time.
+  void _scheduleSemanticIndex(Conversation conversation) {
+    final indexer = _semanticIndexer;
+    if (indexer == null) return;
+    if (conversation.messages.any((message) => message.isStreaming)) return;
+
+    final signature = _semanticIndexSignature(conversation);
+    if (_lastIndexedSignatures[conversation.id] == signature) return;
+    _lastIndexedSignatures[conversation.id] = signature;
+
+    unawaited(
+      indexer
+          .indexConversation(conversation)
+          .then((indexed) {
+            // Embeddings were unavailable: forget the signature so the next
+            // turn retries instead of treating this state as indexed.
+            if (!indexed) {
+              _lastIndexedSignatures.remove(conversation.id);
+            }
+          })
+          .catchError((Object error) {
+            _lastIndexedSignatures.remove(conversation.id);
+            appLog(
+              '[ConversationsNotifier] semantic index failed for '
+              '${conversation.id}: $error',
+            );
+          }),
+    );
+  }
+
+  /// Drops index entries (and the cached signature) for deleted conversations.
+  void _removeSemanticIndex(Iterable<String> ids) {
+    final indexer = _semanticIndexer;
+    for (final id in ids) {
+      _lastIndexedSignatures.remove(id);
+      if (indexer == null) continue;
+      unawaited(
+        indexer.deleteConversation(id).catchError((Object error) {
+          appLog(
+            '[ConversationsNotifier] semantic index delete failed for '
+            '$id: $error',
+          );
+        }),
+      );
+    }
+  }
+
+  /// A cheap fingerprint of the conversation's searchable text: title plus each
+  /// message's id and content length. Changes whenever a message is added,
+  /// edited, removed, or the title changes — which is exactly when re-indexing
+  /// is warranted.
+  String _semanticIndexSignature(Conversation conversation) {
+    final buffer = StringBuffer()
+      ..write(conversation.title)
+      ..write(' ')
+      ..write(conversation.messages.length);
+    for (final message in conversation.messages) {
+      buffer
+        ..write(' ')
+        ..write(message.id)
+        ..write(':')
+        ..write(message.content.length);
+    }
+    return buffer.toString();
   }
 
   String? _deriveDefaultTitle(List<Message> messages) {
