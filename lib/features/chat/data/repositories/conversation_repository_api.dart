@@ -19,4 +19,8 @@ abstract interface class ConversationRepositoryApi {
   Future<void> delete(String id);
 
   Future<void> deleteAll();
+
+  /// History search: conversations matching [query]. Drift uses FTS5 ranking;
+  /// the Hive fallback does an in-memory substring match.
+  Future<List<Conversation>> search(String query);
 }

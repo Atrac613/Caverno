@@ -80,4 +80,27 @@ class ConversationRepository implements ConversationRepositoryApi {
   Future<void> deleteAll() async {
     await _box.clear();
   }
+
+  /// In-memory fallback search (used only when drift is unavailable): a
+  /// case-insensitive AND match over each conversation's title and message
+  /// bodies, most recently updated first.
+  @override
+  Future<List<Conversation>> search(String query) async {
+    final terms = query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty)
+        .toList();
+    if (terms.isEmpty) return const [];
+    return [
+      for (final conversation in getAll())
+        if (terms.every(
+          '${conversation.title} '
+                  '${conversation.messages.map((m) => m.content).join(' ')}'
+              .toLowerCase()
+              .contains,
+        ))
+          conversation,
+    ];
+  }
 }

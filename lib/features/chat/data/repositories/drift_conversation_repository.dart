@@ -57,6 +57,7 @@ class DriftConversationRepository implements ConversationStore {
 
   /// F4 history full-text search: returns conversations matching [query],
   /// ranked by FTS relevance.
+  @override
   Future<List<Conversation>> search(String query) async {
     final ids = await _db.searchConversationIds(query);
     final results = <Conversation>[];

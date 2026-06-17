@@ -17,4 +17,8 @@ abstract interface class ConversationStore {
   Future<void> delete(String id);
 
   Future<void> deleteAll();
+
+  /// Full-text history search: conversations matching [query], ranked by
+  /// relevance.
+  Future<List<Conversation>> search(String query);
 }

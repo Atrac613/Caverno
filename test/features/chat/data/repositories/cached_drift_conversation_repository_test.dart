@@ -53,6 +53,15 @@ void main() {
     },
   );
 
+  test('search delegates to the drift store FTS index', () async {
+    final repo = await CachedDriftConversationRepository.hydrate(store);
+    await repo.save(_conversation('a', updatedAtMs: 1));
+
+    final results = await repo.search('Title a');
+    expect(results.map((c) => c.id), ['a']);
+    expect(await repo.search('nomatchxyz'), isEmpty);
+  });
+
   test('delete and deleteAll clear the cache and drift together', () async {
     final repo = await CachedDriftConversationRepository.hydrate(store);
     await repo.save(_conversation('a', updatedAtMs: 1));

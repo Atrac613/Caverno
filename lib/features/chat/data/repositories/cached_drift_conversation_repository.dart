@@ -53,4 +53,7 @@ class CachedDriftConversationRepository implements ConversationRepositoryApi {
     _cache.clear();
     await _store.deleteAll();
   }
+
+  @override
+  Future<List<Conversation>> search(String query) => _store.search(query);
 }
