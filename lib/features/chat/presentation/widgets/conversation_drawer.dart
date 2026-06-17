@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
+import '../../data/repositories/conversation_repository.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/domain/services/routine_schedule_service.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
@@ -13,6 +14,7 @@ import '../../../routines/presentation/widgets/routine_editor_launcher.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../../settings/presentation/widgets/settings_modal.dart';
+import 'conversation_search_delegate.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../providers/coding_projects_notifier.dart';
@@ -162,6 +164,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
               },
             ),
             const Divider(height: 1),
+            _SearchDrawerTile(onTap: () => _openSearch(context)),
             _SettingsDrawerTile(onTap: () => _openSettings(context)),
           ],
         ),
@@ -185,6 +188,16 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     await widget.onConversationSelected(conversationId);
     if (!context.mounted) return;
     _closeDrawerIfNeeded(context);
+  }
+
+  Future<void> _openSearch(BuildContext context) async {
+    final repository = ref.read(conversationRepositoryProvider);
+    final selectedId = await showSearch<String?>(
+      context: context,
+      delegate: ConversationSearchDelegate(search: repository.search),
+    );
+    if (selectedId == null || !context.mounted) return;
+    await _selectConversation(context, selectedId);
   }
 
   void _openSettings(BuildContext context) {
@@ -1144,6 +1157,23 @@ class _ConversationTile extends StatelessWidget {
         onPressed: onDelete,
         tooltip: 'drawer.delete_tooltip'.tr(),
       ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _SearchDrawerTile extends StatelessWidget {
+  const _SearchDrawerTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: const ValueKey('drawer-search'),
+      dense: true,
+      leading: const Icon(Icons.search),
+      title: Text('drawer.search_tooltip'.tr()),
       onTap: onTap,
     );
   }

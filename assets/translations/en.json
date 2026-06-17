@@ -368,6 +368,10 @@
   },
   "drawer": {
     "title": "Conversation History",
+    "search_tooltip": "Search history",
+    "search_hint": "Search conversations",
+    "search_no_results": "No matching conversations",
+    "search_untitled": "Untitled conversation",
     "coding_title": "Coding Workspace",
     "projects": "Projects",
     "delete_all_tooltip": "Delete all history",

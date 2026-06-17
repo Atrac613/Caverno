@@ -368,6 +368,10 @@
   },
   "drawer": {
     "title": "会話履歴",
+    "search_tooltip": "履歴を検索",
+    "search_hint": "会話を検索",
+    "search_no_results": "一致する会話がありません",
+    "search_untitled": "無題の会話",
     "coding_title": "コーディングワークスペース",
     "projects": "プロジェクト",
     "delete_all_tooltip": "履歴を一括削除",
