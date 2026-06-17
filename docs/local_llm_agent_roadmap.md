@@ -59,7 +59,7 @@ structurally unmotivated to build:
 | Foundation | F1 | done | S | — | CI-enforced line-count ratchet for oversized files. |
 | Foundation | F2 | done | M | F1 | Extract the tool-call loop from `ChatNotifier` behind a handler registry. |
 | Foundation | F3 | done | M | — | Major dependency upgrades, `openai_dart` 6.x first. |
-| Foundation | F4 | later | L | — | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS history search. |
+| Foundation | F4 | done | L | — | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS history search. |
 | Foundation | F5 | later | ongoing | F2 | Continue large-file decomposition per `docs/large_file_refactor_plan.md` phases 2-4. |
 | Local LLM | LL1 | done | S | — | Per-role model routing (memory extraction, subagents, goal suggestions, approval auto-review on a small fast model). |
 | Local LLM | LL2 | done | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
@@ -282,6 +282,58 @@ Current evidence:
 - `test/features/chat/presentation/providers/chat_notifier_test.dart`
 - `test/quality/file_size_ratchet_test.dart`
 - `fvm flutter analyze` passes with the upgraded client.
+
+### F4: Hive To Drift Migration With FTS Search
+
+Status: `done`
+
+Scope:
+- Migrate conversations and chat memory from Hive (JSON-string blobs) to
+  drift/SQLite, shipping conversation history full-text search (FTS5) as the
+  user-facing payoff.
+
+Acceptance criteria:
+- Conversations and chat memory persist to SQLite and survive a one-time,
+  idempotent migration from the existing Hive boxes (no data loss; safe to
+  retry).
+- History full-text search returns relevant past conversations.
+- A drift failure degrades to the existing Hive behavior.
+
+Implementation evidence:
+- `AppDatabase` (`app_database.dart`): drift database with `conversations`
+  (JSON payload + denormalized title/timestamps) and `chat_memory_entries`
+  (key/value) tables, plus an FTS5 `conversation_search` virtual table.
+  Schema v2 migration creates FTS on create and, on v1->v2 upgrade, creates and
+  backfills it. `openAppDatabase` opens a file in the app support directory.
+- Stores: `DriftConversationRepository` (lossless JSON round trip, FTS sync on
+  save/delete, FTS5-ranked `search`) and `DriftChatMemoryStore` (KV).
+- Interfaces/adapters: `ConversationStore` / `ConversationRepositoryApi` and the
+  `KeyValueStore` seam; `CachedDriftConversationRepository` and
+  `CachedDriftKeyValueStore` keep the synchronous read APIs via in-memory caches
+  hydrated from SQLite, writing through to drift. The Hive repositories
+  implement the same interfaces as the fallback.
+- Migrations: `ConversationMigrationService` and `ChatMemoryMigrationService`
+  import the legacy Hive data once, gated by SharedPreferences markers set only
+  after success (interrupted runs retry; upsert prevents duplicates).
+- Bootstrap: `main.dart._initDriftStorage` opens drift, runs both migrations,
+  and overrides the providers with drift-backed repositories; any failure
+  degrades to Hive.
+- UI: a "Search history" entry in the conversation drawer opens a
+  `ConversationSearchDelegate` over `ConversationRepositoryApi.search`.
+
+Verification:
+- `test/features/chat/data/repositories/` drift store, migration, cached
+  repository, KV store, and FTS `conversation_search` tests (incl. the v1->v2
+  backfill path); existing drawer/notifier/mcp suites stay green; `flutter
+  analyze` clean for F4 code.
+- Live: conversations load from SQLite in chat and coding modes, and the search
+  UI returns results (manually verified).
+
+Deferred follow-up:
+- Retire the Hive boxes for migrated data once drift has been confirmed across a
+  release; Hive is retained as the migration source and runtime fallback until
+  then.
+- LL5 stores embedding vectors in this same drift database.
 
 ### LL1: Per-Role Model Routing
 
