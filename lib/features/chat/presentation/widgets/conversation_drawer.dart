@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import '../../data/repositories/conversation_repository.dart';
+import '../../data/repositories/conversation_repository_api.dart';
+import '../../data/repositories/semantic_search_service.dart';
 import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/domain/services/routine_schedule_service.dart';
 import '../../../routines/presentation/providers/routines_notifier.dart';
@@ -19,6 +21,7 @@ import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../providers/conversations_notifier.dart';
+import '../providers/semantic_search_provider.dart';
 
 const _collapsedCodingProjectIdsPrefsKey =
     'conversationDrawer.collapsedCodingProjectIds';
@@ -194,10 +197,31 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     final repository = ref.read(conversationRepositoryProvider);
     final selectedId = await showSearch<String?>(
       context: context,
-      delegate: ConversationSearchDelegate(search: repository.search),
+      delegate: ConversationSearchDelegate(search: _historySearch(repository)),
     );
     if (selectedId == null || !context.mounted) return;
     await _selectConversation(context, selectedId);
+  }
+
+  /// LL5: when semantic search is enabled, rank history by embedding similarity
+  /// (the service falls back to lexical FTS internally) and hydrate the ranked
+  /// ids into conversations. Otherwise search the repository (FTS5) directly.
+  Future<List<Conversation>> Function(String query) _historySearch(
+    ConversationRepositoryApi repository,
+  ) {
+    SemanticSearchService? semantic;
+    try {
+      semantic = ref.read(semanticSearchServiceProvider);
+    } catch (_) {
+      semantic = null;
+    }
+    if (semantic == null) return repository.search;
+
+    final service = semantic;
+    return (String query) async {
+      final result = await service.search(query);
+      return [for (final id in result.conversationIds) ?repository.getById(id)];
+    };
   }
 
   void _openSettings(BuildContext context) {

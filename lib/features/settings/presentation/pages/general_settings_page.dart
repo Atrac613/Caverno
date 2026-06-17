@@ -29,11 +29,13 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   final _apiKeyController = TextEditingController();
   final _maxTokensController = TextEditingController();
   final _googleChatWebhookController = TextEditingController();
+  final _embeddingsModelController = TextEditingController();
 
   final _baseUrlDebouncer = Debouncer();
   final _apiKeyDebouncer = Debouncer();
   final _maxTokensDebouncer = Debouncer();
   final _googleChatWebhookDebouncer = Debouncer();
+  final _embeddingsModelDebouncer = Debouncer();
   bool _isSendingGoogleChatTest = false;
 
   @override
@@ -44,6 +46,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     _apiKeyController.text = settings.apiKey;
     _maxTokensController.text = settings.maxTokens.toString();
     _googleChatWebhookController.text = settings.googleChatWebhookUrl;
+    _embeddingsModelController.text = settings.embeddingsModel;
   }
 
   @override
@@ -52,10 +55,12 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     _apiKeyDebouncer.dispose();
     _maxTokensDebouncer.dispose();
     _googleChatWebhookDebouncer.dispose();
+    _embeddingsModelDebouncer.dispose();
     _baseUrlController.dispose();
     _apiKeyController.dispose();
     _maxTokensController.dispose();
     _googleChatWebhookController.dispose();
+    _embeddingsModelController.dispose();
     super.dispose();
   }
 
@@ -981,6 +986,35 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                         final value =
                             int.tryParse(_maxTokensController.text) ?? 4096;
                         notifier.updateMaxTokens(value);
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('settings.semantic_search_section'.tr()),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    key: const ValueKey('settings-enable-semantic-search'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('settings.semantic_search'.tr()),
+                    subtitle: Text('settings.semantic_search_desc'.tr()),
+                    value: settings.enableSemanticSearch,
+                    onChanged: notifier.updateEnableSemanticSearch,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _embeddingsModelController,
+                    enabled: settings.enableSemanticSearch,
+                    decoration: InputDecoration(
+                      labelText: 'settings.embeddings_model_label'.tr(),
+                      hintText: 'text-embedding-...',
+                      border: const OutlineInputBorder(),
+                      helperText: 'settings.embeddings_model_helper'.tr(),
+                    ),
+                    onChanged: (_) {
+                      _embeddingsModelDebouncer.run(() {
+                        notifier.updateEmbeddingsModel(
+                          _embeddingsModelController.text,
+                        );
                       });
                     },
                   ),
