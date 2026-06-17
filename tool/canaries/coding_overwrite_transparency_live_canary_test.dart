@@ -473,7 +473,8 @@ class _MockMemoryBox extends Mock implements Box<String> {}
 class _MockAppLifecycleService extends Mock implements AppLifecycleService {}
 
 class _NoopSessionMemoryService extends SessionMemoryService {
-  _NoopSessionMemoryService() : super(ChatMemoryRepository(_MockMemoryBox()));
+  _NoopSessionMemoryService()
+    : super(ChatMemoryRepository.fromBox(_MockMemoryBox()));
 
   @override
   String? buildPromptContext({

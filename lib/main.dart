@@ -14,8 +14,15 @@ import 'core/services/macos_app_menu_service.dart';
 import 'core/services/window_manager_service.dart';
 import 'core/services/window_settings_service.dart';
 import 'core/utils/logger.dart';
+import 'features/chat/data/datasources/app_database.dart';
+import 'features/chat/data/repositories/cached_drift_conversation_repository.dart';
+import 'features/chat/data/repositories/chat_memory_migration_service.dart';
 import 'features/chat/data/repositories/chat_memory_repository.dart';
+import 'features/chat/data/repositories/conversation_migration_service.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
+import 'features/chat/data/repositories/drift_chat_memory_store.dart';
+import 'features/chat/data/repositories/drift_conversation_repository.dart';
+import 'features/chat/data/repositories/key_value_store.dart';
 import 'features/chat/data/repositories/skill_repository.dart';
 import 'features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'features/chat/presentation/pages/chat_page.dart';
@@ -38,6 +45,17 @@ void main() async {
   final skillBox = await Hive.openBox<String>('skills');
 
   final prefs = await SharedPreferences.getInstance();
+
+  // F4: migrate conversations and chat memory from Hive to drift/SQLite and
+  // serve them from drift. Any failure degrades to the existing Hive path, so
+  // the app behaves exactly as before and the (idempotent) migration retries on
+  // the next launch.
+  final driftStorage = await _initDriftStorage(
+    prefs: prefs,
+    conversationBox: conversationBox,
+    memoryBox: memoryBox,
+  );
+
   final initialSettings = SettingsRepository(prefs).load();
   final systemLocale = WidgetsBinding.instance.platformDispatcher.locale;
   unawaited(_deleteExpiredToolResultArtifacts());
@@ -72,11 +90,80 @@ void main() async {
           conversationBoxProvider.overrideWithValue(conversationBox),
           chatMemoryBoxProvider.overrideWithValue(memoryBox),
           skillBoxProvider.overrideWithValue(skillBox),
+          if (driftStorage != null) ...[
+            conversationRepositoryProvider.overrideWithValue(
+              driftStorage.conversation,
+            ),
+            chatMemoryRepositoryProvider.overrideWithValue(
+              driftStorage.chatMemory,
+            ),
+          ],
         ],
         child: MyApp(windowManagerService: windowService),
       ),
     ),
   );
+}
+
+const _conversationsMigratedKey = 'f4_conversations_migrated_v1';
+const _chatMemoryMigratedKey = 'f4_chat_memory_migrated_v1';
+
+/// F4: open the drift database, run the one-time Hive->drift migrations, and
+/// return the drift-backed repositories to serve conversations and chat memory.
+/// On any failure returns null so the app keeps using the Hive-backed providers
+/// (the migrations are idempotent and retry next launch).
+Future<
+  ({
+    CachedDriftConversationRepository conversation,
+    ChatMemoryRepository chatMemory,
+  })?
+>
+_initDriftStorage({
+  required SharedPreferences prefs,
+  required Box<String> conversationBox,
+  required Box<String> memoryBox,
+}) async {
+  try {
+    final database = await openAppDatabase();
+
+    final conversationStore = DriftConversationRepository(database);
+    await const ConversationMigrationService().migrateIfNeeded(
+      alreadyMigrated: prefs.getBool(_conversationsMigratedKey) ?? false,
+      readLegacyConversations: () async =>
+          ConversationRepository(conversationBox).getAll(),
+      target: conversationStore,
+      markMigrated: () async {
+        await prefs.setBool(_conversationsMigratedKey, true);
+      },
+    );
+
+    final chatMemoryStore = DriftChatMemoryStore(database);
+    await const ChatMemoryMigrationService().migrateIfNeeded(
+      alreadyMigrated: prefs.getBool(_chatMemoryMigratedKey) ?? false,
+      readLegacyEntries: () async => {
+        for (final key in memoryBox.keys) key.toString(): ?memoryBox.get(key),
+      },
+      target: chatMemoryStore,
+      markMigrated: () async {
+        await prefs.setBool(_chatMemoryMigratedKey, true);
+      },
+    );
+
+    final conversationRepository =
+        await CachedDriftConversationRepository.hydrate(conversationStore);
+    final chatMemoryKv = await CachedDriftKeyValueStore.hydrate(
+      chatMemoryStore,
+    );
+
+    return (
+      conversation: conversationRepository,
+      chatMemory: ChatMemoryRepository(chatMemoryKv),
+    );
+  } catch (error, stackTrace) {
+    appLog('[F4] drift storage init failed; falling back to Hive: $error');
+    appLog('[F4] $stackTrace');
+    return null;
+  }
 }
 
 Future<void> _deleteExpiredToolResultArtifacts() async {

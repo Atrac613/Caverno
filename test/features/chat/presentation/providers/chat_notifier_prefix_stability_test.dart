@@ -275,7 +275,8 @@ class _TestConversationsNotifier extends ConversationsNotifier {
 class _MockMemoryBox extends Mock implements Box<String> {}
 
 class _TestSessionMemoryService extends SessionMemoryService {
-  _TestSessionMemoryService() : super(ChatMemoryRepository(_MockMemoryBox()));
+  _TestSessionMemoryService()
+    : super(ChatMemoryRepository.fromBox(_MockMemoryBox()));
 
   @override
   String? buildPromptContext({

@@ -115,6 +115,8 @@ dependencies:
   # (iOS/Android/macOS/Windows/Linux). Runs a long-lived worker that the Dart
   # side drives over a loopback channel; see core/services/script_runtime.
   serious_python: ^1.0.0
+  drift: ^2.34.0
+  sqlite3_flutter_libs: ^0.6.0+eol
 
 dev_dependencies:
   flutter_test:
@@ -137,6 +139,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.3
+  drift_dev: ^2.34.0
 
 flutter_launcher_icons:
   android: true

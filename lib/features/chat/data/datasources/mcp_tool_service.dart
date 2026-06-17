@@ -21,7 +21,7 @@ import '../../domain/entities/skill.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../repositories/chat_memory_repository.dart';
-import '../repositories/conversation_repository.dart';
+import '../repositories/conversation_repository_api.dart';
 import '../repositories/skill_repository.dart';
 import 'background_process_tools.dart';
 import 'background_process_monitor_service.dart';
@@ -150,7 +150,7 @@ class McpToolService {
 
   final List<McpClientBase> mcpClients;
   final SearxngClient? searxngClient;
-  final ConversationRepository? conversationRepository;
+  final ConversationRepositoryApi? conversationRepository;
   final ChatMemoryRepository? memoryRepository;
   final SkillRepository? skillRepository;
   final SshService? sshService;
