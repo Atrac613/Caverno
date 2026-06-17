@@ -397,6 +397,8 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   enableAgentsMd: json['enableAgentsMd'] as bool? ?? true,
   enablePrefixStableToolLoop:
       json['enablePrefixStableToolLoop'] as bool? ?? false,
+  enableSemanticSearch: json['enableSemanticSearch'] as bool? ?? false,
+  embeddingsModel: json['embeddingsModel'] as String? ?? '',
   showMemoryUpdates: json['showMemoryUpdates'] as bool? ?? false,
   enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? false,
   demoMode: json['demoMode'] as bool? ?? false,
@@ -491,6 +493,8 @@ Map<String, dynamic> _$AppSettingsToJson(
   'codingVerificationMaxFailures': instance.codingVerificationMaxFailures,
   'enableAgentsMd': instance.enableAgentsMd,
   'enablePrefixStableToolLoop': instance.enablePrefixStableToolLoop,
+  'enableSemanticSearch': instance.enableSemanticSearch,
+  'embeddingsModel': instance.embeddingsModel,
   'showMemoryUpdates': instance.showMemoryUpdates,
   'enableLlmSessionLogs': instance.enableLlmSessionLogs,
   'demoMode': instance.demoMode,

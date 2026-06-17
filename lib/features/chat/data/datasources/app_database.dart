@@ -50,7 +50,24 @@ class ChatMemoryEntries extends Table {
   Set<Column<Object>> get primaryKey => {key};
 }
 
-@DriftDatabase(tables: [Conversations, ChatMemoryEntries])
+/// LL5: stored embedding vectors for local semantic search. Each row is one
+/// embedded chunk of a source (e.g. a conversation), with the vector stored as
+/// packed Float32 bytes and a snippet for result display. Similarity ranking is
+/// computed in Dart (brute-force cosine) since SQLite has no native vector type.
+@DataClassName('EmbeddingRow')
+class Embeddings extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get sourceType => text()();
+  TextColumn get sourceId => text()();
+  IntColumn get chunkIndex => integer().withDefault(const Constant(0))();
+  TextColumn get model => text().withDefault(const Constant(''))();
+  IntColumn get dim => integer().withDefault(const Constant(0))();
+  BlobColumn get vector => blob()();
+  TextColumn get snippet => text().withDefault(const Constant(''))();
+  IntColumn get createdAtMs => integer().withDefault(const Constant(0))();
+}
+
+@DriftDatabase(tables: [Conversations, ChatMemoryEntries, Embeddings])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
@@ -62,7 +79,7 @@ class AppDatabase extends _$AppDatabase {
   static const _conversationSearchTable = 'conversation_search';
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -74,6 +91,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 2) {
         await _createConversationSearchTable();
         await rebuildConversationSearch();
+      }
+      if (from < 3) {
+        await m.createTable(embeddings);
       }
     },
   );

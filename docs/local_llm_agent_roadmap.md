@@ -109,7 +109,7 @@ structurally unmotivated to build:
 | Local LLM | LL2 | done | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
 | Local LLM | LL3 | done | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
 | Local LLM | LL4 | done | M | LL3 | Repo map v1: ranked, compressed symbol outline injected into the system prompt. |
-| Local LLM | LL5 | later | M | F4, LL4 | Local semantic code search via `/v1/embeddings`, stored in the drift database. |
+| Local LLM | LL5 | done | M | F4, LL4 | Local semantic history search via `/v1/embeddings`, stored in the drift database. Semantic *code* search is a deferred follow-up. |
 | Local LLM | LL6 | done | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
 | Local LLM | LL7 | done | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
 | Local LLM | LL8 | later | M | LL1 | LAN inference mesh: discover and route across multiple OpenAI-compatible endpoints. |
@@ -634,17 +634,41 @@ Acceptance criteria:
 
 ### LL5: Local Semantic Search
 
-Scope:
-- Embed code chunks and conversation history via the configured
-  OpenAI-compatible `/v1/embeddings` endpoint; store vectors in the drift
-  database from F4.
-- Expose a `semantic_search` built-in tool and wire history search UI.
-- Optional rerank stage via llama.cpp `POST /reranking` (reranker model with
-  `--pooling rank`) when the endpoint advertises it.
+Status: `done` (conversation history search; semantic *code* search deferred).
 
-Acceptance criteria:
+Scope (delivered):
+- Embed conversation history via the configured OpenAI-compatible
+  `/v1/embeddings` endpoint; store vectors in the drift database from F4.
+- Wire the history search UI to rank by embedding similarity, and make the
+  `search_past_conversations` built-in tool semantic-aware.
+- Settings expose an enable toggle and an embeddings-model picker populated
+  from the endpoint's `/v1/models` list.
+
+Acceptance criteria (met):
 - Works fully offline against LM Studio / llama.cpp embeddings endpoints.
 - Degrades gracefully (lexical FTS only) when no embeddings endpoint exists.
+
+Implementation slices:
+- `EmbeddingsClient` (raw-HTTP `POST /v1/embeddings`) + `EmbeddingsMath`
+  cosine similarity.
+- Drift `Embeddings` table (schema v3) + `DriftEmbeddingStore` (brute-force
+  cosine vector store), `ConversationChunker`, `SemanticIndexingService`, and
+  `SemanticSearchService` (semantic with lexical FTS fallback).
+- `enableSemanticSearch` + `embeddingsModel` settings, Riverpod provider
+  composition, index-on-save hook in `ConversationsNotifier`, hybrid drawer
+  history search, and `ConversationSearchTool` (extracted from
+  `McpToolService` to stay within the F1 line budget).
+
+Deferred follow-up:
+- Semantic *code* search (embedding workspace files) — see the cost/benefit
+  notes; lexical search-strengthening (ripgrep/symbol search) is the
+  recommended cheaper alternative.
+- Optional rerank stage via llama.cpp `POST /reranking` (reranker model with
+  `--pooling rank`) when the endpoint advertises it.
+- An ANN vector index (e.g. `sqlite-vec`) if the brute-force store ever needs
+  to scale beyond conversation history.
+- A separate embeddings base-URL/key (today embeddings reuse the chat
+  endpoint), to support a dedicated single-model llama.cpp embeddings server.
 
 ### LL6: KV-Cache-Friendly Mode
 
@@ -1586,7 +1610,9 @@ Known limitation:
   / an LL6 extension.
 
 Deferred (out of this milestone):
-- Embedding-vector precompute is gated on LL5 (semantic search), still `later`.
+- Embedding-vector precompute for the repo map is part of the deferred semantic
+  *code* search follow-up. LL5 shipped semantic search over conversation
+  history only; embedding workspace files remains future work.
 
 ### LL23: Declared Per-Model Harness Config
 

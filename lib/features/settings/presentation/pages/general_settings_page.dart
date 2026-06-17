@@ -29,11 +29,13 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   final _apiKeyController = TextEditingController();
   final _maxTokensController = TextEditingController();
   final _googleChatWebhookController = TextEditingController();
+  final _embeddingsModelController = TextEditingController();
 
   final _baseUrlDebouncer = Debouncer();
   final _apiKeyDebouncer = Debouncer();
   final _maxTokensDebouncer = Debouncer();
   final _googleChatWebhookDebouncer = Debouncer();
+  final _embeddingsModelDebouncer = Debouncer();
   bool _isSendingGoogleChatTest = false;
 
   @override
@@ -44,6 +46,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     _apiKeyController.text = settings.apiKey;
     _maxTokensController.text = settings.maxTokens.toString();
     _googleChatWebhookController.text = settings.googleChatWebhookUrl;
+    _embeddingsModelController.text = settings.embeddingsModel;
   }
 
   @override
@@ -52,10 +55,12 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     _apiKeyDebouncer.dispose();
     _maxTokensDebouncer.dispose();
     _googleChatWebhookDebouncer.dispose();
+    _embeddingsModelDebouncer.dispose();
     _baseUrlController.dispose();
     _apiKeyController.dispose();
     _maxTokensController.dispose();
     _googleChatWebhookController.dispose();
+    _embeddingsModelController.dispose();
     super.dispose();
   }
 
@@ -702,6 +707,74 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     );
   }
 
+  /// LL5: pick the embeddings model. Prefers a dropdown populated from the
+  /// endpoint's /v1/models list; while that is loading or unavailable it falls
+  /// back to a free-text field so a model id can still be entered by hand.
+  Widget _buildEmbeddingsModelField(
+    AsyncValue<List<String>> asyncModels,
+    AppSettings settings,
+  ) {
+    final enabled = settings.enableSemanticSearch;
+    final selected = settings.embeddingsModel;
+    return asyncModels.maybeWhen(
+      data: (models) {
+        if (models.isEmpty) return _embeddingsModelTextField(enabled);
+        final options = [...models];
+        if (selected.isNotEmpty && !options.contains(selected)) {
+          options.insert(0, selected);
+        }
+        return DropdownButtonFormField<String>(
+          key: const ValueKey('settings-embeddings-model'),
+          initialValue: selected.isEmpty ? null : selected,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: 'settings.embeddings_model_label'.tr(),
+            border: const OutlineInputBorder(),
+            helperText: 'settings.embeddings_model_helper'.tr(),
+          ),
+          items: options
+              .map(
+                (model) => DropdownMenuItem<String>(
+                  value: model,
+                  child: Text(model, overflow: TextOverflow.ellipsis),
+                ),
+              )
+              .toList(),
+          onChanged: enabled
+              ? (value) {
+                  if (value == null) return;
+                  _embeddingsModelController.text = value;
+                  ref
+                      .read(settingsNotifierProvider.notifier)
+                      .updateEmbeddingsModel(value);
+                }
+              : null,
+        );
+      },
+      orElse: () => _embeddingsModelTextField(enabled),
+    );
+  }
+
+  Widget _embeddingsModelTextField(bool enabled) {
+    return TextField(
+      controller: _embeddingsModelController,
+      enabled: enabled,
+      decoration: InputDecoration(
+        labelText: 'settings.embeddings_model_label'.tr(),
+        hintText: 'text-embedding-...',
+        border: const OutlineInputBorder(),
+        helperText: 'settings.embeddings_model_helper'.tr(),
+      ),
+      onChanged: (_) {
+        _embeddingsModelDebouncer.run(() {
+          ref
+              .read(settingsNotifierProvider.notifier)
+              .updateEmbeddingsModel(_embeddingsModelController.text);
+        });
+      },
+    );
+  }
+
   void _runModelCapabilityAutoProbe() {
     unawaited(
       ref
@@ -984,6 +1057,19 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                       });
                     },
                   ),
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('settings.semantic_search_section'.tr()),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    key: const ValueKey('settings-enable-semantic-search'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('settings.semantic_search'.tr()),
+                    subtitle: Text('settings.semantic_search_desc'.tr()),
+                    value: settings.enableSemanticSearch,
+                    onChanged: notifier.updateEnableSemanticSearch,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildEmbeddingsModelField(asyncModels, settings),
                   const SizedBox(height: 24),
                   _buildSectionHeader('settings.google_chat_section'.tr()),
                   const SizedBox(height: 8),

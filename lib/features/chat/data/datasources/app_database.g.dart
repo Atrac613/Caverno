@@ -576,12 +576,556 @@ class ChatMemoryEntriesCompanion extends UpdateCompanion<ChatMemoryEntryRow> {
   }
 }
 
+class $EmbeddingsTable extends Embeddings
+    with TableInfo<$EmbeddingsTable, EmbeddingRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EmbeddingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _sourceTypeMeta = const VerificationMeta(
+    'sourceType',
+  );
+  @override
+  late final GeneratedColumn<String> sourceType = GeneratedColumn<String>(
+    'source_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _chunkIndexMeta = const VerificationMeta(
+    'chunkIndex',
+  );
+  @override
+  late final GeneratedColumn<int> chunkIndex = GeneratedColumn<int>(
+    'chunk_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+    'model',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _dimMeta = const VerificationMeta('dim');
+  @override
+  late final GeneratedColumn<int> dim = GeneratedColumn<int>(
+    'dim',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _vectorMeta = const VerificationMeta('vector');
+  @override
+  late final GeneratedColumn<Uint8List> vector = GeneratedColumn<Uint8List>(
+    'vector',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _snippetMeta = const VerificationMeta(
+    'snippet',
+  );
+  @override
+  late final GeneratedColumn<String> snippet = GeneratedColumn<String>(
+    'snippet',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _createdAtMsMeta = const VerificationMeta(
+    'createdAtMs',
+  );
+  @override
+  late final GeneratedColumn<int> createdAtMs = GeneratedColumn<int>(
+    'created_at_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sourceType,
+    sourceId,
+    chunkIndex,
+    model,
+    dim,
+    vector,
+    snippet,
+    createdAtMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'embeddings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EmbeddingRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('source_type')) {
+      context.handle(
+        _sourceTypeMeta,
+        sourceType.isAcceptableOrUnknown(data['source_type']!, _sourceTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceTypeMeta);
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceIdMeta);
+    }
+    if (data.containsKey('chunk_index')) {
+      context.handle(
+        _chunkIndexMeta,
+        chunkIndex.isAcceptableOrUnknown(data['chunk_index']!, _chunkIndexMeta),
+      );
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+        _modelMeta,
+        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
+      );
+    }
+    if (data.containsKey('dim')) {
+      context.handle(
+        _dimMeta,
+        dim.isAcceptableOrUnknown(data['dim']!, _dimMeta),
+      );
+    }
+    if (data.containsKey('vector')) {
+      context.handle(
+        _vectorMeta,
+        vector.isAcceptableOrUnknown(data['vector']!, _vectorMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_vectorMeta);
+    }
+    if (data.containsKey('snippet')) {
+      context.handle(
+        _snippetMeta,
+        snippet.isAcceptableOrUnknown(data['snippet']!, _snippetMeta),
+      );
+    }
+    if (data.containsKey('created_at_ms')) {
+      context.handle(
+        _createdAtMsMeta,
+        createdAtMs.isAcceptableOrUnknown(
+          data['created_at_ms']!,
+          _createdAtMsMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EmbeddingRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EmbeddingRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      sourceType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_type'],
+      )!,
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      )!,
+      chunkIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chunk_index'],
+      )!,
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      )!,
+      dim: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}dim'],
+      )!,
+      vector: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}vector'],
+      )!,
+      snippet: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snippet'],
+      )!,
+      createdAtMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at_ms'],
+      )!,
+    );
+  }
+
+  @override
+  $EmbeddingsTable createAlias(String alias) {
+    return $EmbeddingsTable(attachedDatabase, alias);
+  }
+}
+
+class EmbeddingRow extends DataClass implements Insertable<EmbeddingRow> {
+  final int id;
+  final String sourceType;
+  final String sourceId;
+  final int chunkIndex;
+  final String model;
+  final int dim;
+  final Uint8List vector;
+  final String snippet;
+  final int createdAtMs;
+  const EmbeddingRow({
+    required this.id,
+    required this.sourceType,
+    required this.sourceId,
+    required this.chunkIndex,
+    required this.model,
+    required this.dim,
+    required this.vector,
+    required this.snippet,
+    required this.createdAtMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['source_type'] = Variable<String>(sourceType);
+    map['source_id'] = Variable<String>(sourceId);
+    map['chunk_index'] = Variable<int>(chunkIndex);
+    map['model'] = Variable<String>(model);
+    map['dim'] = Variable<int>(dim);
+    map['vector'] = Variable<Uint8List>(vector);
+    map['snippet'] = Variable<String>(snippet);
+    map['created_at_ms'] = Variable<int>(createdAtMs);
+    return map;
+  }
+
+  EmbeddingsCompanion toCompanion(bool nullToAbsent) {
+    return EmbeddingsCompanion(
+      id: Value(id),
+      sourceType: Value(sourceType),
+      sourceId: Value(sourceId),
+      chunkIndex: Value(chunkIndex),
+      model: Value(model),
+      dim: Value(dim),
+      vector: Value(vector),
+      snippet: Value(snippet),
+      createdAtMs: Value(createdAtMs),
+    );
+  }
+
+  factory EmbeddingRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EmbeddingRow(
+      id: serializer.fromJson<int>(json['id']),
+      sourceType: serializer.fromJson<String>(json['sourceType']),
+      sourceId: serializer.fromJson<String>(json['sourceId']),
+      chunkIndex: serializer.fromJson<int>(json['chunkIndex']),
+      model: serializer.fromJson<String>(json['model']),
+      dim: serializer.fromJson<int>(json['dim']),
+      vector: serializer.fromJson<Uint8List>(json['vector']),
+      snippet: serializer.fromJson<String>(json['snippet']),
+      createdAtMs: serializer.fromJson<int>(json['createdAtMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'sourceType': serializer.toJson<String>(sourceType),
+      'sourceId': serializer.toJson<String>(sourceId),
+      'chunkIndex': serializer.toJson<int>(chunkIndex),
+      'model': serializer.toJson<String>(model),
+      'dim': serializer.toJson<int>(dim),
+      'vector': serializer.toJson<Uint8List>(vector),
+      'snippet': serializer.toJson<String>(snippet),
+      'createdAtMs': serializer.toJson<int>(createdAtMs),
+    };
+  }
+
+  EmbeddingRow copyWith({
+    int? id,
+    String? sourceType,
+    String? sourceId,
+    int? chunkIndex,
+    String? model,
+    int? dim,
+    Uint8List? vector,
+    String? snippet,
+    int? createdAtMs,
+  }) => EmbeddingRow(
+    id: id ?? this.id,
+    sourceType: sourceType ?? this.sourceType,
+    sourceId: sourceId ?? this.sourceId,
+    chunkIndex: chunkIndex ?? this.chunkIndex,
+    model: model ?? this.model,
+    dim: dim ?? this.dim,
+    vector: vector ?? this.vector,
+    snippet: snippet ?? this.snippet,
+    createdAtMs: createdAtMs ?? this.createdAtMs,
+  );
+  EmbeddingRow copyWithCompanion(EmbeddingsCompanion data) {
+    return EmbeddingRow(
+      id: data.id.present ? data.id.value : this.id,
+      sourceType: data.sourceType.present
+          ? data.sourceType.value
+          : this.sourceType,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      chunkIndex: data.chunkIndex.present
+          ? data.chunkIndex.value
+          : this.chunkIndex,
+      model: data.model.present ? data.model.value : this.model,
+      dim: data.dim.present ? data.dim.value : this.dim,
+      vector: data.vector.present ? data.vector.value : this.vector,
+      snippet: data.snippet.present ? data.snippet.value : this.snippet,
+      createdAtMs: data.createdAtMs.present
+          ? data.createdAtMs.value
+          : this.createdAtMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EmbeddingRow(')
+          ..write('id: $id, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('chunkIndex: $chunkIndex, ')
+          ..write('model: $model, ')
+          ..write('dim: $dim, ')
+          ..write('vector: $vector, ')
+          ..write('snippet: $snippet, ')
+          ..write('createdAtMs: $createdAtMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    sourceType,
+    sourceId,
+    chunkIndex,
+    model,
+    dim,
+    $driftBlobEquality.hash(vector),
+    snippet,
+    createdAtMs,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EmbeddingRow &&
+          other.id == this.id &&
+          other.sourceType == this.sourceType &&
+          other.sourceId == this.sourceId &&
+          other.chunkIndex == this.chunkIndex &&
+          other.model == this.model &&
+          other.dim == this.dim &&
+          $driftBlobEquality.equals(other.vector, this.vector) &&
+          other.snippet == this.snippet &&
+          other.createdAtMs == this.createdAtMs);
+}
+
+class EmbeddingsCompanion extends UpdateCompanion<EmbeddingRow> {
+  final Value<int> id;
+  final Value<String> sourceType;
+  final Value<String> sourceId;
+  final Value<int> chunkIndex;
+  final Value<String> model;
+  final Value<int> dim;
+  final Value<Uint8List> vector;
+  final Value<String> snippet;
+  final Value<int> createdAtMs;
+  const EmbeddingsCompanion({
+    this.id = const Value.absent(),
+    this.sourceType = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.chunkIndex = const Value.absent(),
+    this.model = const Value.absent(),
+    this.dim = const Value.absent(),
+    this.vector = const Value.absent(),
+    this.snippet = const Value.absent(),
+    this.createdAtMs = const Value.absent(),
+  });
+  EmbeddingsCompanion.insert({
+    this.id = const Value.absent(),
+    required String sourceType,
+    required String sourceId,
+    this.chunkIndex = const Value.absent(),
+    this.model = const Value.absent(),
+    this.dim = const Value.absent(),
+    required Uint8List vector,
+    this.snippet = const Value.absent(),
+    this.createdAtMs = const Value.absent(),
+  }) : sourceType = Value(sourceType),
+       sourceId = Value(sourceId),
+       vector = Value(vector);
+  static Insertable<EmbeddingRow> custom({
+    Expression<int>? id,
+    Expression<String>? sourceType,
+    Expression<String>? sourceId,
+    Expression<int>? chunkIndex,
+    Expression<String>? model,
+    Expression<int>? dim,
+    Expression<Uint8List>? vector,
+    Expression<String>? snippet,
+    Expression<int>? createdAtMs,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sourceType != null) 'source_type': sourceType,
+      if (sourceId != null) 'source_id': sourceId,
+      if (chunkIndex != null) 'chunk_index': chunkIndex,
+      if (model != null) 'model': model,
+      if (dim != null) 'dim': dim,
+      if (vector != null) 'vector': vector,
+      if (snippet != null) 'snippet': snippet,
+      if (createdAtMs != null) 'created_at_ms': createdAtMs,
+    });
+  }
+
+  EmbeddingsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? sourceType,
+    Value<String>? sourceId,
+    Value<int>? chunkIndex,
+    Value<String>? model,
+    Value<int>? dim,
+    Value<Uint8List>? vector,
+    Value<String>? snippet,
+    Value<int>? createdAtMs,
+  }) {
+    return EmbeddingsCompanion(
+      id: id ?? this.id,
+      sourceType: sourceType ?? this.sourceType,
+      sourceId: sourceId ?? this.sourceId,
+      chunkIndex: chunkIndex ?? this.chunkIndex,
+      model: model ?? this.model,
+      dim: dim ?? this.dim,
+      vector: vector ?? this.vector,
+      snippet: snippet ?? this.snippet,
+      createdAtMs: createdAtMs ?? this.createdAtMs,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (sourceType.present) {
+      map['source_type'] = Variable<String>(sourceType.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (chunkIndex.present) {
+      map['chunk_index'] = Variable<int>(chunkIndex.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (dim.present) {
+      map['dim'] = Variable<int>(dim.value);
+    }
+    if (vector.present) {
+      map['vector'] = Variable<Uint8List>(vector.value);
+    }
+    if (snippet.present) {
+      map['snippet'] = Variable<String>(snippet.value);
+    }
+    if (createdAtMs.present) {
+      map['created_at_ms'] = Variable<int>(createdAtMs.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EmbeddingsCompanion(')
+          ..write('id: $id, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('chunkIndex: $chunkIndex, ')
+          ..write('model: $model, ')
+          ..write('dim: $dim, ')
+          ..write('vector: $vector, ')
+          ..write('snippet: $snippet, ')
+          ..write('createdAtMs: $createdAtMs')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ConversationsTable conversations = $ConversationsTable(this);
   late final $ChatMemoryEntriesTable chatMemoryEntries =
       $ChatMemoryEntriesTable(this);
+  late final $EmbeddingsTable embeddings = $EmbeddingsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -589,6 +1133,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     conversations,
     chatMemoryEntries,
+    embeddings,
   ];
 }
 
@@ -952,6 +1497,282 @@ typedef $$ChatMemoryEntriesTableProcessedTableManager =
       ChatMemoryEntryRow,
       PrefetchHooks Function()
     >;
+typedef $$EmbeddingsTableCreateCompanionBuilder =
+    EmbeddingsCompanion Function({
+      Value<int> id,
+      required String sourceType,
+      required String sourceId,
+      Value<int> chunkIndex,
+      Value<String> model,
+      Value<int> dim,
+      required Uint8List vector,
+      Value<String> snippet,
+      Value<int> createdAtMs,
+    });
+typedef $$EmbeddingsTableUpdateCompanionBuilder =
+    EmbeddingsCompanion Function({
+      Value<int> id,
+      Value<String> sourceType,
+      Value<String> sourceId,
+      Value<int> chunkIndex,
+      Value<String> model,
+      Value<int> dim,
+      Value<Uint8List> vector,
+      Value<String> snippet,
+      Value<int> createdAtMs,
+    });
+
+class $$EmbeddingsTableFilterComposer
+    extends Composer<_$AppDatabase, $EmbeddingsTable> {
+  $$EmbeddingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get chunkIndex => $composableBuilder(
+    column: $table.chunkIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get dim => $composableBuilder(
+    column: $table.dim,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get vector => $composableBuilder(
+    column: $table.vector,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snippet => $composableBuilder(
+    column: $table.snippet,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$EmbeddingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $EmbeddingsTable> {
+  $$EmbeddingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get chunkIndex => $composableBuilder(
+    column: $table.chunkIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get dim => $composableBuilder(
+    column: $table.dim,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get vector => $composableBuilder(
+    column: $table.vector,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snippet => $composableBuilder(
+    column: $table.snippet,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$EmbeddingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EmbeddingsTable> {
+  $$EmbeddingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<int> get chunkIndex => $composableBuilder(
+    column: $table.chunkIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<int> get dim =>
+      $composableBuilder(column: $table.dim, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get vector =>
+      $composableBuilder(column: $table.vector, builder: (column) => column);
+
+  GeneratedColumn<String> get snippet =>
+      $composableBuilder(column: $table.snippet, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAtMs => $composableBuilder(
+    column: $table.createdAtMs,
+    builder: (column) => column,
+  );
+}
+
+class $$EmbeddingsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $EmbeddingsTable,
+          EmbeddingRow,
+          $$EmbeddingsTableFilterComposer,
+          $$EmbeddingsTableOrderingComposer,
+          $$EmbeddingsTableAnnotationComposer,
+          $$EmbeddingsTableCreateCompanionBuilder,
+          $$EmbeddingsTableUpdateCompanionBuilder,
+          (
+            EmbeddingRow,
+            BaseReferences<_$AppDatabase, $EmbeddingsTable, EmbeddingRow>,
+          ),
+          EmbeddingRow,
+          PrefetchHooks Function()
+        > {
+  $$EmbeddingsTableTableManager(_$AppDatabase db, $EmbeddingsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EmbeddingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EmbeddingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EmbeddingsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> sourceType = const Value.absent(),
+                Value<String> sourceId = const Value.absent(),
+                Value<int> chunkIndex = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                Value<int> dim = const Value.absent(),
+                Value<Uint8List> vector = const Value.absent(),
+                Value<String> snippet = const Value.absent(),
+                Value<int> createdAtMs = const Value.absent(),
+              }) => EmbeddingsCompanion(
+                id: id,
+                sourceType: sourceType,
+                sourceId: sourceId,
+                chunkIndex: chunkIndex,
+                model: model,
+                dim: dim,
+                vector: vector,
+                snippet: snippet,
+                createdAtMs: createdAtMs,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String sourceType,
+                required String sourceId,
+                Value<int> chunkIndex = const Value.absent(),
+                Value<String> model = const Value.absent(),
+                Value<int> dim = const Value.absent(),
+                required Uint8List vector,
+                Value<String> snippet = const Value.absent(),
+                Value<int> createdAtMs = const Value.absent(),
+              }) => EmbeddingsCompanion.insert(
+                id: id,
+                sourceType: sourceType,
+                sourceId: sourceId,
+                chunkIndex: chunkIndex,
+                model: model,
+                dim: dim,
+                vector: vector,
+                snippet: snippet,
+                createdAtMs: createdAtMs,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$EmbeddingsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EmbeddingsTable,
+      EmbeddingRow,
+      $$EmbeddingsTableFilterComposer,
+      $$EmbeddingsTableOrderingComposer,
+      $$EmbeddingsTableAnnotationComposer,
+      $$EmbeddingsTableCreateCompanionBuilder,
+      $$EmbeddingsTableUpdateCompanionBuilder,
+      (
+        EmbeddingRow,
+        BaseReferences<_$AppDatabase, $EmbeddingsTable, EmbeddingRow>,
+      ),
+      EmbeddingRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -960,4 +1781,6 @@ class $AppDatabaseManager {
       $$ConversationsTableTableManager(_db, _db.conversations);
   $$ChatMemoryEntriesTableTableManager get chatMemoryEntries =>
       $$ChatMemoryEntriesTableTableManager(_db, _db.chatMemoryEntries);
+  $$EmbeddingsTableTableManager get embeddings =>
+      $$EmbeddingsTableTableManager(_db, _db.embeddings);
 }

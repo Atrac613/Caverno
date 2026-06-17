@@ -90,13 +90,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }) async {
     // LL16: reset runtime step-downs when a fresh probe or calibration result
     // arrives — the model has been re-measured so stale counters are invalid.
-    final effective =
-        (source == 'idle_re_probe' || source == 'calibrate')
-            ? const LlmSamplerRuntimeFeedbackService().recoverAfterReprobe(
-                profile: profile,
-                probeSource: source,
-              )
-            : profile;
+    final effective = (source == 'idle_re_probe' || source == 'calibrate')
+        ? const LlmSamplerRuntimeFeedbackService().recoverAfterReprobe(
+            profile: profile,
+            probeSource: source,
+          )
+        : profile;
     final normalized = effective.normalizedForPersistence();
     if (normalized.normalizedModel.isEmpty) {
       throw ArgumentError('Model capability profile model is required');
@@ -584,6 +583,18 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> updateEnablePrefixStableToolLoop(bool value) async {
     state = state.copyWith(enablePrefixStableToolLoop: value);
+    await _repository.save(state);
+  }
+
+  /// LL5: toggle local semantic search over conversation history.
+  Future<void> updateEnableSemanticSearch(bool value) async {
+    state = state.copyWith(enableSemanticSearch: value);
+    await _repository.save(state);
+  }
+
+  /// LL5: set the embeddings model used to index and search history.
+  Future<void> updateEmbeddingsModel(String value) async {
+    state = state.copyWith(embeddingsModel: value.trim());
     await _repository.save(state);
   }
 
