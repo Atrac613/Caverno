@@ -10,7 +10,7 @@ import 'package:caverno/features/chat/domain/services/session_memory_service.dar
 class _MockMemoryBox extends Mock implements Box<String> {}
 
 class _InMemoryChatMemoryRepository extends ChatMemoryRepository {
-  _InMemoryChatMemoryRepository() : super(_MockMemoryBox());
+  _InMemoryChatMemoryRepository() : super.fromBox(_MockMemoryBox());
 
   UserMemoryProfile profile = UserMemoryProfile.empty();
   final List<MemorySessionSummary> summaries = [];

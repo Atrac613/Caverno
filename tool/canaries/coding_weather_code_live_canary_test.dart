@@ -872,7 +872,7 @@ class _SeededSessionMemoryService extends SessionMemoryService {
 }
 
 class _SeededChatMemoryRepository extends ChatMemoryRepository {
-  _SeededChatMemoryRepository() : super(_MockMemoryBox());
+  _SeededChatMemoryRepository() : super.fromBox(_MockMemoryBox());
 
   @override
   UserMemoryProfile loadProfile() {
@@ -909,7 +909,7 @@ class _SeededChatMemoryRepository extends ChatMemoryRepository {
 }
 
 class _RecordingChatMemoryRepository extends ChatMemoryRepository {
-  _RecordingChatMemoryRepository() : super(_MockMemoryBox());
+  _RecordingChatMemoryRepository() : super.fromBox(_MockMemoryBox());
 
   UserMemoryProfile profile = UserMemoryProfile.empty();
   final List<MemorySessionSummary> summaries = [];
