@@ -9966,6 +9966,27 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
+  /// Run one authoritative analyzer pass over every changed file just before
+  /// composing the final answer.
+  ///
+  /// The per-batch [_buildCodingDiagnosticFeedbackToolResult] reports only
+  /// diagnostics that are new relative to that batch's pre-edit baseline, so an
+  /// error that survives a later successful-but-incorrect edit is silenced
+  /// (it is also present in the baseline) and the only analyzer feedback left
+  /// in the results is the stale pre-fix one. Re-running with no baseline
+  /// reports the absolute current state, so the final answer sees the real
+  /// post-edit analyzer result instead of a stale or missing one.
+  Future<ToolResultInfo?> _buildFinalCodingDiagnosticFeedbackToolResult(
+    List<ToolResultInfo> toolResults, {
+    required int interactionGeneration,
+  }) {
+    return _buildCodingDiagnosticFeedbackToolResult(
+      toolResults,
+      interactionGeneration: interactionGeneration,
+      baseline: null,
+    );
+  }
+
   Future<CodingDiagnosticFeedbackBaseline?>
   _captureCodingDiagnosticFeedbackBaseline(
     List<ToolCallInfo> toolCalls, {
@@ -12499,10 +12520,23 @@ class ChatNotifier extends Notifier<ChatState> {
       toolResults: [...executedToolResults, ...unexecutedPendingToolResults],
       interactionGeneration: interactionGeneration,
     );
+    // Re-run the analyzer once over every changed file so the final answer
+    // sees the true post-edit diagnostic state, not a stale pre-fix result.
+    final finalDiagnosticFeedback = hasTextResponse
+        ? null
+        : await _buildFinalCodingDiagnosticFeedbackToolResult(
+            executedToolResults,
+            interactionGeneration: interactionGeneration,
+          );
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+    if (finalDiagnosticFeedback != null) {
+      _logCodingDiagnosticFeedbackSummary(finalDiagnosticFeedback);
+    }
     final finalToolResults = <ToolResultInfo>[
       ...executedToolResults,
       ...unexecutedPendingToolResults,
       ?unexecutedFileSideEffect,
+      ?finalDiagnosticFeedback,
     ];
 
     // If tool results exist and no text response has been shown yet,

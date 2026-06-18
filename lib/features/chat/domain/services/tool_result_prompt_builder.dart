@@ -345,6 +345,7 @@ class ToolResultPromptBuilder {
 
     final unexecutedToolNames = <String>{};
     final unresolvedErrorPaths = <String>{};
+    final seenDiagnosticKeys = <String>{};
     var unresolvedErrorCount = 0;
 
     for (var index = 0; index < toolResults.length; index += 1) {
@@ -384,6 +385,18 @@ class ToolResultPromptBuilder {
             if (laterMutationIndex != null && laterMutationIndex > index) {
               continue;
             }
+          }
+          // Dedupe identical diagnostics so a stale per-batch result and the
+          // fresh final-pass result do not double-count the same error.
+          final diagnosticKey = [
+            absolutePath ?? '',
+            diagnostic['line']?.toString() ?? '',
+            diagnostic['column']?.toString() ?? '',
+            diagnostic['code']?.toString() ?? '',
+            diagnostic['message']?.toString() ?? '',
+          ].join('|');
+          if (!seenDiagnosticKeys.add(diagnosticKey)) {
+            continue;
           }
           unresolvedErrorCount += 1;
           final displayPath =

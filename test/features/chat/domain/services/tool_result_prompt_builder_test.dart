@@ -270,6 +270,67 @@ void main() {
     );
 
     test(
+      'counts a persistent error once across stale and fresh analyzer passes',
+      () {
+        const dartPath = '/Users/dev/tmp/primes.dart';
+        final diagnostic = {
+          'path': dartPath,
+          'relative_path': 'primes.dart',
+          'severity': 'Error',
+          'line': 46,
+          'column': 50,
+          'code': 'ARGUMENT_TYPE_NOT_ASSIGNABLE',
+          'message': "The argument type 'String' can't be assigned to the "
+              "parameter type 'num'.",
+        };
+        final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+          // Stale per-batch feedback (before the unrelated edit).
+          ToolResultInfo(
+            id: 'tool-1',
+            name: 'dart_analyze_feedback',
+            arguments: const {'project_root': '/Users/dev/tmp'},
+            result: jsonEncode({
+              'schema': 'caverno_dart_analyze_feedback',
+              'diagnostics': [diagnostic],
+            }),
+          ),
+          // A dropped edit does not resolve it, so the stale result is not
+          // superseded.
+          ToolResultInfo(
+            id: 'tool-2',
+            name: 'edit_file',
+            arguments: const {'path': dartPath},
+            result: jsonEncode({
+              'code': 'tool_call_not_executed',
+              'reason': 'bounded_tool_loop_exhausted',
+              'tool_name': 'edit_file',
+            }),
+          ),
+          // Fresh authoritative final pass reports the same persistent error.
+          ToolResultInfo(
+            id: 'tool-3',
+            name: 'dart_analyze_feedback',
+            arguments: const {'project_root': '/Users/dev/tmp'},
+            result: jsonEncode({
+              'schema': 'caverno_dart_analyze_feedback',
+              'diagnostics': [diagnostic],
+            }),
+          ),
+        ]);
+
+        expect(prompt, contains('TASK NOT COMPLETE:'));
+        expect(
+          prompt,
+          contains('1 unresolved Error-severity diagnostic(s)'),
+        );
+        expect(
+          prompt,
+          isNot(contains('2 unresolved Error-severity diagnostic(s)')),
+        );
+      },
+    );
+
+    test(
       'does not inject completion blockers for clean tool results',
       () {
         final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
