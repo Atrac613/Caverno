@@ -25,6 +25,9 @@ extension ChatNotifierMeshRouting on ChatNotifier {
       endpoints: _settings.namedEndpoints,
       endpointId: resolvedEndpointId,
       model: model,
+      // The assigned model lives on the mesh host; fall back to the primary's
+      // main model so a demotion never sends a mesh-only model to the primary.
+      fallbackModel: _settings.effectiveModel,
       call: call,
     );
   }

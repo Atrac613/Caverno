@@ -42,6 +42,7 @@ void main() {
     required List<NamedEndpoint> endpoints,
     required String endpointId,
     String model = 'role-model',
+    String fallbackModel = 'primary-model',
   }) {
     return runner.run<_Call>(
       primary: _FakeDataSource('primary'),
@@ -50,6 +51,7 @@ void main() {
       endpoints: endpoints,
       endpointId: endpointId,
       model: model,
+      fallbackModel: fallbackModel,
       call: (dataSource, model) async {
         if (dataSource.fail) throw StateError('mesh call failed');
         return _Call(dataSource.tag, model);
@@ -86,8 +88,10 @@ void main() {
       endpointId: endpoint.id,
     );
 
-    // The active turn still completed on the primary endpoint...
+    // The active turn still completed on the primary endpoint, using the
+    // primary-valid fallback model (not the mesh-only role model)...
     expect(result.tag, 'primary');
+    expect(result.model, 'primary-model');
     // ...and the endpoint is now demoted for the next call.
     expect(health.isUnhealthy(endpoint.id), isTrue);
   });
@@ -106,6 +110,8 @@ void main() {
     );
 
     expect(result.tag, 'primary');
+    // A pre-emptively demoted endpoint also uses the primary fallback model.
+    expect(result.model, 'primary-model');
     expect(builtBaseUrls, isEmpty);
   });
 

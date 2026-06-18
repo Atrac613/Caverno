@@ -48,6 +48,10 @@ class MeshSecondaryCompletionRunner<D> {
   ///
   /// - [primary] is the settings-bound data source used when the role targets
   ///   the primary endpoint or when a mesh endpoint is unavailable.
+  /// - [model] is the model to request on the assigned (mesh) endpoint.
+  /// - [fallbackModel] is the model to request when running on the primary
+  ///   endpoint (assigned models are usually specific to the mesh host, so the
+  ///   primary cannot serve them). Defaults to [model] when omitted.
   /// - [call] receives the resolved data source and the model to request.
   Future<T> run<T>({
     required D primary,
@@ -56,6 +60,7 @@ class MeshSecondaryCompletionRunner<D> {
     required List<NamedEndpoint> endpoints,
     required String endpointId,
     required String model,
+    String? fallbackModel,
     required Future<T> Function(D dataSource, String model) call,
   }) async {
     final resolved = resolve(
@@ -65,6 +70,7 @@ class MeshSecondaryCompletionRunner<D> {
       endpoints: endpoints,
       endpointId: endpointId,
       model: model,
+      fallbackModel: fallbackModel,
     );
 
     if (resolved.isPrimary) {
@@ -77,9 +83,9 @@ class MeshSecondaryCompletionRunner<D> {
       return result;
     } catch (_) {
       // The mesh endpoint failed mid-call: demote it for next time and retry on
-      // the primary so the active turn still completes.
+      // the primary (with a primary-valid model) so the active turn completes.
       health.recordFailure(resolved.endpointId);
-      return call(primary, model);
+      return call(primary, fallbackModel ?? model);
     }
   }
 
@@ -88,6 +94,10 @@ class MeshSecondaryCompletionRunner<D> {
   /// For multi-turn callers (e.g. subagents) that build their own execution
   /// loop: pick the data source here, run, then record the outcome via
   /// [health.recordSuccess] / [health.recordFailure] when not [isPrimary].
+  ///
+  /// When the request is demoted to the primary endpoint (missing/disabled/
+  /// unhealthy), the returned [ResolvedDataSource.model] is [fallbackModel] so a
+  /// mesh-only model is never sent to the primary host.
   ResolvedDataSource<D> resolve({
     required D primary,
     required String primaryBaseUrl,
@@ -95,6 +105,7 @@ class MeshSecondaryCompletionRunner<D> {
     required List<NamedEndpoint> endpoints,
     required String endpointId,
     required String model,
+    String? fallbackModel,
   }) {
     final target = router.resolve(
       primaryBaseUrl: primaryBaseUrl,
@@ -104,13 +115,21 @@ class MeshSecondaryCompletionRunner<D> {
       model: model,
       unhealthyEndpointIds: health.unhealthyEndpointIds,
     );
+    if (target.isPrimary) {
+      return ResolvedDataSource<D>(
+        dataSource: primary,
+        // Use the fallback model only when an assigned endpoint was demoted; an
+        // unassigned role keeps its own (primary) model.
+        model: target.demotedToPrimary ? (fallbackModel ?? model) : model,
+        endpointId: target.endpointId,
+        isPrimary: true,
+      );
+    }
     return ResolvedDataSource<D>(
-      dataSource: target.isPrimary
-          ? primary
-          : _dataSourceFor(target.baseUrl, target.apiKey),
+      dataSource: _dataSourceFor(target.baseUrl, target.apiKey),
       model: target.model,
       endpointId: target.endpointId,
-      isPrimary: target.isPrimary,
+      isPrimary: false,
     );
   }
 
