@@ -431,7 +431,50 @@ class ToolResultPromptBuilder {
         'Report the remaining errors and that they still need fixing.',
       );
     }
+    // Unverified change: the turn mutated a file but never ran or tested
+    // anything, so a "fixed"/"works"/"passes"/benchmark claim is unbacked by an
+    // execution result. Unlike the Dart analyzer (a safe static re-run) an
+    // arbitrary shell command may have side effects, so surface the gap as a
+    // caution instead of auto-running it. Kept conservative — a turn that did
+    // run at least once is left alone to avoid flagging cosmetic post-run edits.
+    // Skipped when an analyzer error already blocks completion above.
+    if (unresolvedErrorCount == 0 &&
+        lastMutationIndexByPath.isNotEmpty &&
+        !_hasAnyVerificationRun(toolResults)) {
+      lines.add(
+        'UNVERIFIED CHANGE: a file was edited but nothing was run or tested in '
+        'this turn, so there is no execution result behind it. Do not claim the '
+        'code is fixed, works, passes, runs, or produces specific output or '
+        'benchmark numbers — those are unverified. State that the change still '
+        'needs to be run or tested to confirm, or, if running does not apply '
+        '(for example a docs or config edit), describe only what was changed.',
+      );
+    }
     return lines;
+  }
+
+  /// Whether any command-execution or test run completed (has an `exit_code`)
+  /// in this turn, i.e. the edited code was exercised at least once.
+  static bool _hasAnyVerificationRun(List<ToolResultInfo> toolResults) {
+    for (final toolResult in toolResults) {
+      if (!_isVerificationRunToolName(toolResult.name)) {
+        continue;
+      }
+      final decoded = _tryDecodeJsonMap(toolResult.result);
+      if (decoded != null && decoded.containsKey('exit_code')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _isVerificationRunToolName(String toolName) {
+    switch (toolName.trim().toLowerCase()) {
+      case 'local_execute_command':
+      case 'run_tests':
+        return true;
+    }
+    return false;
   }
 
   /// Map each absolute file path to the index of the latest successful

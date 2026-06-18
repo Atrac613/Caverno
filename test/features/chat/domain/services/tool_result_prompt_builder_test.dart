@@ -331,18 +331,92 @@ void main() {
     );
 
     test(
-      'does not inject completion blockers for clean tool results',
+      'does not inject completion blockers for an edited-then-run change',
       () {
         final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
           ToolResultInfo(
             id: 'tool-1',
             name: 'write_file',
-            arguments: const {'path': '/tmp/ok.dart'},
-            result: '{"path":"/tmp/ok.dart","bytes_written":12,"created":true}',
+            arguments: const {'path': '/tmp/ok.py'},
+            result: '{"path":"/tmp/ok.py","bytes_written":12,"created":true}',
+          ),
+          // Running the change after the edit verifies it.
+          ToolResultInfo(
+            id: 'tool-2',
+            name: 'local_execute_command',
+            arguments: const {'command': 'python3 /tmp/ok.py'},
+            result: jsonEncode({
+              'command': 'python3 /tmp/ok.py',
+              'exit_code': 0,
+              'stdout': 'ok\n',
+              'stderr': '',
+            }),
           ),
         ]);
 
         expect(prompt, isNot(contains('TASK NOT COMPLETE:')));
+        expect(prompt, isNot(contains('UNVERIFIED CHANGE:')));
+      },
+    );
+
+    test(
+      'flags an edit that was never run or tested in the turn as unverified',
+      () {
+        final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+          // Mirrors the prime-benchmark log: a turn of read/edit cycles with no
+          // execution, yet the model claims it fixed the bug.
+          ToolResultInfo(
+            id: 'tool-1',
+            name: 'edit_file',
+            arguments: const {'path': '/tmp/prime_benchmark.py'},
+            result: jsonEncode({
+              'path': '/tmp/prime_benchmark.py',
+              'replacements': 1,
+              'replace_all': false,
+            }),
+          ),
+          ToolResultInfo(
+            id: 'tool-2',
+            name: 'read_file',
+            arguments: const {'path': '/tmp/prime_benchmark.py'},
+            result: jsonEncode({
+              'path': '/tmp/prime_benchmark.py',
+              'content': 'def f(): ...',
+            }),
+          ),
+        ]);
+
+        expect(prompt, contains('UNVERIFIED CHANGE:'));
+        expect(prompt, contains('nothing was run or tested in this turn'));
+      },
+    );
+
+    test(
+      'does not flag unverified when the turn ran at least once',
+      () {
+        // Mirrors the 5-algorithm Dart benchmark log: the turn ran the program,
+        // then made a cosmetic edit (unused-import removal) without re-running.
+        // The prior run still represents the code, so this must not be flagged.
+        final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+          ToolResultInfo(
+            id: 'tool-1',
+            name: 'local_execute_command',
+            arguments: const {'command': 'dart run bin/benchmark.dart'},
+            result: jsonEncode({
+              'command': 'dart run bin/benchmark.dart',
+              'exit_code': 0,
+              'stdout': '78498 primes\n',
+            }),
+          ),
+          ToolResultInfo(
+            id: 'tool-2',
+            name: 'edit_file',
+            arguments: const {'path': '/tmp/benchmark.dart'},
+            result: jsonEncode({'path': '/tmp/benchmark.dart', 'replacements': 1}),
+          ),
+        ]);
+
+        expect(prompt, isNot(contains('UNVERIFIED CHANGE:')));
       },
     );
 
