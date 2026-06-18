@@ -84,6 +84,28 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  /// LL8: assign a role's secondary calls to a registered mesh endpoint. An
+  /// empty id routes the role to the primary endpoint.
+  Future<void> updateMemoryExtractionEndpointId(String endpointId) async {
+    state = state.copyWith(memoryExtractionEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateSubagentEndpointId(String endpointId) async {
+    state = state.copyWith(subagentEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateGoalSuggestionEndpointId(String endpointId) async {
+    state = state.copyWith(goalSuggestionEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
+  Future<void> updateApprovalAutoReviewEndpointId(String endpointId) async {
+    state = state.copyWith(approvalAutoReviewEndpointId: endpointId.trim());
+    await _repository.save(state);
+  }
+
   Future<void> upsertModelCapabilityProfile(
     ModelCapabilityProfile profile, {
     String source = 'probe',
@@ -233,6 +255,43 @@ class SettingsNotifier extends Notifier<AppSettings> {
         .where((config) => config.id != normalizedId)
         .toList(growable: false);
     state = state.copyWith(modelHarnessConfigs: configs);
+    await _repository.save(state);
+  }
+
+  /// LL8: register or update a LAN mesh endpoint, keyed by its normalized base
+  /// URL so re-registering the same endpoint updates in place. Registration is
+  /// always explicit (called from user-confirmed UI), never from discovery.
+  Future<void> upsertNamedEndpoint(NamedEndpoint endpoint) async {
+    final normalized = endpoint
+        .copyWith(createdAt: endpoint.createdAt ?? DateTime.now())
+        .normalizedForPersistence();
+    if (!normalized.isValid) {
+      throw ArgumentError('NamedEndpoint base URL is required');
+    }
+    final endpoints = List<NamedEndpoint>.from(state.namedEndpoints);
+    final index = endpoints.indexWhere((item) => item.id == normalized.id);
+    if (index == -1) {
+      endpoints.add(normalized);
+    } else {
+      // Preserve the original registration time on update.
+      endpoints[index] = normalized.copyWith(
+        createdAt: endpoints[index].createdAt ?? normalized.createdAt,
+      );
+    }
+    state = state.copyWith(namedEndpoints: endpoints);
+    await _repository.save(state);
+  }
+
+  /// LL8: remove a registered LAN mesh endpoint by id.
+  Future<void> removeNamedEndpoint(String endpointId) async {
+    final normalizedId = endpointId.trim();
+    if (normalizedId.isEmpty) {
+      return;
+    }
+    final endpoints = state.namedEndpoints
+        .where((endpoint) => endpoint.id != normalizedId)
+        .toList(growable: false);
+    state = state.copyWith(namedEndpoints: endpoints);
     await _repository.save(state);
   }
 

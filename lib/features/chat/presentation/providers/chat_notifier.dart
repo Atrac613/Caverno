@@ -36,8 +36,10 @@ import '../../../settings/domain/services/llm_sampler_preset_profile.dart';
 import '../../../settings/domain/services/llm_sampler_runtime_feedback_service.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/apple_foundation_models_datasource.dart';
+import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
+import '../../data/datasources/mesh_secondary_completion_runner.dart';
 import '../../data/datasources/demo_datasource.dart';
 import '../../data/datasources/background_process_monitor_service.dart';
 import '../../data/datasources/file_rollback_checkpoint_store.dart';
@@ -100,6 +102,7 @@ part 'chat_notifier_computer_use_handlers.dart';
 part 'chat_notifier_context_surgery.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
+part 'chat_notifier_mesh_routing.dart';
 part 'chat_notifier_serial_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
@@ -257,6 +260,7 @@ final class _PlanningResearchContext {
 
 class ChatNotifier extends Notifier<ChatState> {
   late ChatDataSource _dataSource;
+  late MeshSecondaryCompletionRunner<ChatDataSource> _meshRunner;
   McpToolService? _mcpToolService;
   late SessionMemoryService _memoryService;
   late AppSettings _settings;
@@ -342,6 +346,18 @@ class ChatNotifier extends Notifier<ChatState> {
     _dataSource = _withChatSessionLogging(
       ref.read(chatRemoteDataSourceProvider),
       _settings,
+    );
+    _meshRunner = MeshSecondaryCompletionRunner<ChatDataSource>(
+      router: ref.read(meshEndpointRouterProvider),
+      health: ref.read(endpointHealthTrackerProvider),
+      buildEndpointDataSource: (baseUrl, apiKey) => _withChatSessionLogging(
+        ChatRemoteDataSource(
+          baseUrl: baseUrl,
+          apiKey: apiKey,
+          reasoningEffort: _settings.reasoningEffort.apiValue,
+        ),
+        _settings,
+      ),
     );
     _mcpToolService = ref.read(mcpToolServiceProvider);
     _memoryService = ref.read(sessionMemoryServiceProvider);
@@ -7524,17 +7540,21 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     try {
-      final result = await _dataSource.createChatCompletion(
-        messages: ConversationGoalSuggestionService.buildMessages(
-          conversation: currentConversation,
-          languageCode: languageCode,
-          pendingUserMessage: pendingUserMessage,
-          clarificationQuestion: clarificationQuestion,
-          clarificationAnswer: clarificationAnswer,
-        ),
+      final result = await _runSecondaryCompletion(
+        endpointId: _settings.goalSuggestionEndpointId,
         model: _settings.effectiveGoalSuggestionModel,
-        temperature: 0.1,
-        maxTokens: _settings.maxTokens > 600 ? 600 : _settings.maxTokens,
+        call: (dataSource, model) => dataSource.createChatCompletion(
+          messages: ConversationGoalSuggestionService.buildMessages(
+            conversation: currentConversation,
+            languageCode: languageCode,
+            pendingUserMessage: pendingUserMessage,
+            clarificationQuestion: clarificationQuestion,
+            clarificationAnswer: clarificationAnswer,
+          ),
+          model: model,
+          temperature: 0.1,
+          maxTokens: _settings.maxTokens > 600 ? 600 : _settings.maxTokens,
+        ),
       );
       final suggestion = ConversationGoalSuggestionService.parse(
         result.content,
@@ -13273,14 +13293,18 @@ class ChatNotifier extends Notifier<ChatState> {
     ToolApprovalAutoReviewDomain domain = ToolApprovalAutoReviewDomain.coding,
   }) async {
     try {
-      final response = await _dataSource.createChatCompletion(
-        messages: ToolApprovalAutoReviewService.buildMessages(
-          request,
-          domain: domain,
-        ),
+      final response = await _runSecondaryCompletion(
+        endpointId: _settings.approvalAutoReviewEndpointId,
         model: _settings.effectiveApprovalAutoReviewModel,
-        temperature: 0,
-        maxTokens: 512,
+        call: (dataSource, model) => dataSource.createChatCompletion(
+          messages: ToolApprovalAutoReviewService.buildMessages(
+            request,
+            domain: domain,
+          ),
+          model: model,
+          temperature: 0,
+          maxTokens: 512,
+        ),
       );
       final decision = ToolApprovalAutoReviewService.parseDecision(
         response.content,
@@ -15276,11 +15300,15 @@ class ChatNotifier extends Notifier<ChatState> {
     ];
 
     try {
-      final result = await _dataSource.createChatCompletion(
-        messages: extractionMessages,
+      final result = await _runSecondaryCompletion(
+        endpointId: _settings.memoryExtractionEndpointId,
         model: _settings.effectiveMemoryExtractionModel,
-        temperature: 0.1,
-        maxTokens: _settings.maxTokens > 1200 ? 1200 : _settings.maxTokens,
+        call: (dataSource, model) => dataSource.createChatCompletion(
+          messages: extractionMessages,
+          model: model,
+          temperature: 0.1,
+          maxTokens: _settings.maxTokens > 1200 ? 1200 : _settings.maxTokens,
+        ),
       );
 
       final draft = MemoryExtractionDraftService.parseDraft(

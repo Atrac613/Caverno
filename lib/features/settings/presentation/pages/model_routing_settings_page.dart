@@ -14,23 +14,41 @@ import '../providers/settings_notifier.dart';
 class ModelRoutingSettingsPage extends ConsumerWidget {
   const ModelRoutingSettingsPage({super.key});
 
+  /// Resolve the model-list config for a role: the assigned mesh endpoint's
+  /// base URL + key, or the primary endpoint when unassigned or not found.
+  /// Roles on the same endpoint share one fetch (a configured model not in the
+  /// catalog stays selectable via [_RoleModelDropdown]).
+  ModelListConfig _endpointConfig(AppSettings settings, String endpointId) {
+    if (endpointId.isNotEmpty) {
+      for (final endpoint in settings.namedEndpoints) {
+        if (endpoint.id == endpointId) {
+          return ModelListConfig(
+            baseUrl: endpoint.normalizedBaseUrl,
+            apiKey: endpoint.apiKey,
+          );
+        }
+      }
+    }
+    return ModelListConfig(baseUrl: settings.baseUrl, apiKey: settings.apiKey);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsNotifierProvider);
     final notifier = ref.read(settingsNotifierProvider.notifier);
     final isAppleProvider =
         settings.llmProvider == LlmProvider.appleFoundationModels;
-    final asyncModels = isAppleProvider
-        ? const AsyncValue<List<String>>.data(<String>[])
-        : ref.watch(
-            modelListProvider(
-              ModelListConfig(
-                baseUrl: settings.baseUrl,
-                apiKey: settings.apiKey,
-                selectedModelId: settings.model,
-              ),
-            ),
-          );
+
+    // LL8: each role lists models from its assigned endpoint (primary when
+    // unassigned), so picking a mesh endpoint surfaces that host's models.
+    AsyncValue<List<String>> modelsFor(String endpointId) {
+      if (isAppleProvider) {
+        return const AsyncValue<List<String>>.data(<String>[]);
+      }
+      return ref.watch(
+        modelListProvider(_endpointConfig(settings, endpointId)),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: Text('settings.model_routing_title'.tr())),
@@ -56,9 +74,16 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_memory_extraction'.tr(),
             helper: 'settings.model_routing_memory_extraction_desc'.tr(),
             value: settings.memoryExtractionModel,
-            asyncModels: asyncModels,
+            asyncModels: modelsFor(settings.memoryExtractionEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateMemoryExtractionModel,
+          ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-memory-extraction'),
+            value: settings.memoryExtractionEndpointId,
+            endpoints: settings.namedEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateMemoryExtractionEndpointId,
           ),
           const SizedBox(height: 16),
           _RoleModelDropdown(
@@ -66,9 +91,16 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_subagent'.tr(),
             helper: 'settings.model_routing_subagent_desc'.tr(),
             value: settings.subagentModel,
-            asyncModels: asyncModels,
+            asyncModels: modelsFor(settings.subagentEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateSubagentModel,
+          ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-subagent'),
+            value: settings.subagentEndpointId,
+            endpoints: settings.namedEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateSubagentEndpointId,
           ),
           const SizedBox(height: 16),
           _RoleModelDropdown(
@@ -76,9 +108,16 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_goal_suggestion'.tr(),
             helper: 'settings.model_routing_goal_suggestion_desc'.tr(),
             value: settings.goalSuggestionModel,
-            asyncModels: asyncModels,
+            asyncModels: modelsFor(settings.goalSuggestionEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateGoalSuggestionModel,
+          ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-goal-suggestion'),
+            value: settings.goalSuggestionEndpointId,
+            endpoints: settings.namedEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateGoalSuggestionEndpointId,
           ),
           const SizedBox(height: 16),
           _RoleModelDropdown(
@@ -86,11 +125,79 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_approval_auto_review'.tr(),
             helper: 'settings.model_routing_approval_auto_review_desc'.tr(),
             value: settings.approvalAutoReviewModel,
-            asyncModels: asyncModels,
+            asyncModels: modelsFor(settings.approvalAutoReviewEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateApprovalAutoReviewModel,
           ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-approval-auto-review'),
+            value: settings.approvalAutoReviewEndpointId,
+            endpoints: settings.namedEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateApprovalAutoReviewEndpointId,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// LL8: assigns a role's secondary calls to a registered mesh endpoint. Hidden
+/// when no endpoints are registered so the page is unchanged without a mesh.
+class _RoleEndpointDropdown extends StatelessWidget {
+  const _RoleEndpointDropdown({
+    required this.fieldKey,
+    required this.value,
+    required this.endpoints,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final Key fieldKey;
+  final String value;
+  final List<NamedEndpoint> endpoints;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (endpoints.isEmpty) return const SizedBox.shrink();
+
+    final ids = endpoints.map((endpoint) => endpoint.id).toList();
+    final options = <String>[
+      '',
+      ...ids,
+      // Keep a stale assignment selectable so it is not silently dropped.
+      if (value.isNotEmpty && !ids.contains(value)) value,
+    ];
+
+    String labelFor(String id) {
+      if (id.isEmpty) return 'settings.model_routing_endpoint_primary'.tr();
+      for (final endpoint in endpoints) {
+        if (endpoint.id == id) return endpoint.displayLabel;
+      }
+      return id;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: DropdownButtonFormField<String>(
+        key: fieldKey,
+        initialValue: value,
+        decoration: InputDecoration(
+          labelText: 'settings.model_routing_endpoint_label'.tr(),
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+        items: options
+            .map(
+              (id) => DropdownMenuItem<String>(
+                value: id,
+                child: Text(labelFor(id), overflow: TextOverflow.ellipsis),
+              ),
+            )
+            .toList(),
+        onChanged: enabled ? (selected) => onChanged(selected ?? '') : null,
       ),
     );
   }

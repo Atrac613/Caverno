@@ -90,7 +90,6 @@ Future<void> _pumpModelRoutingPage(
   final modelConfig = ModelListConfig(
     baseUrl: settings.baseUrl,
     apiKey: settings.apiKey,
-    selectedModelId: settings.model,
   );
 
   tester.view.devicePixelRatio = 1;

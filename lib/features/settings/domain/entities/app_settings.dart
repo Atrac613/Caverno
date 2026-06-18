@@ -500,6 +500,77 @@ List<Map<String, dynamic>> _profileRevisionsToJson(
   List<ModelCapabilityProfileRevision> revisions,
 ) => revisions.map((r) => r.toJson()).toList(growable: false);
 
+/// LL8: a user-registered OpenAI-compatible endpoint on the LAN mesh.
+///
+/// Registration is always explicit and user-confirmed; discovery only proposes
+/// candidates. The per-endpoint [apiKey] defaults to empty so a discovered host
+/// is stored without credentials until the user supplies one.
+@freezed
+abstract class NamedEndpoint with _$NamedEndpoint {
+  const NamedEndpoint._();
+
+  const factory NamedEndpoint({
+    required String id,
+    @Default('') String label,
+    @Default('') String baseUrl,
+    @Default('') String apiKey,
+    @Default(true) bool enabled,
+    DateTime? createdAt,
+  }) = _NamedEndpoint;
+
+  factory NamedEndpoint.fromJson(Map<String, dynamic> json) =>
+      _$NamedEndpointFromJson(json);
+
+  /// Stable id derived from the normalized base URL so the same endpoint
+  /// registered twice updates in place rather than duplicating.
+  static String buildId(String baseUrl) =>
+      normalizeBaseUrl(baseUrl).toLowerCase();
+
+  static String normalizeBaseUrl(String baseUrl) =>
+      baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+
+  String get normalizedBaseUrl => normalizeBaseUrl(baseUrl);
+
+  String get normalizedLabel => label.trim();
+
+  String get computedId => buildId(normalizedBaseUrl);
+
+  /// Human-readable name for lists and logs, falling back to the base URL.
+  String get displayLabel =>
+      normalizedLabel.isEmpty ? normalizedBaseUrl : normalizedLabel;
+
+  /// Whether this endpoint has enough data to be used as a target.
+  bool get isValid => normalizedBaseUrl.isNotEmpty;
+
+  NamedEndpoint normalizedForPersistence() => copyWith(
+    id: computedId,
+    label: normalizedLabel,
+    baseUrl: normalizedBaseUrl,
+    apiKey: apiKey.trim(),
+  );
+}
+
+List<NamedEndpoint> _namedEndpointsFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const <NamedEndpoint>[];
+  }
+  return json
+      .whereType<Map>()
+      .map(
+        (item) => NamedEndpoint.fromJson(
+          Map<String, dynamic>.from(item),
+        ).normalizedForPersistence(),
+      )
+      .where((endpoint) => endpoint.isValid)
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _namedEndpointsToJson(
+  List<NamedEndpoint> endpoints,
+) => endpoints
+    .map((endpoint) => endpoint.normalizedForPersistence().toJson())
+    .toList(growable: false);
+
 @freezed
 abstract class AppSettings with _$AppSettings {
   const AppSettings._();
@@ -522,6 +593,13 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String subagentModel,
     @Default('') String goalSuggestionModel,
     @Default('') String approvalAutoReviewModel,
+    // LL8 per-role endpoint routing. Empty string means "use the primary
+    // endpoint". A non-empty value is a NamedEndpoint id; an unreachable mesh
+    // endpoint falls back to the primary at call time (MeshEndpointRouter).
+    @Default('') String memoryExtractionEndpointId,
+    @Default('') String subagentEndpointId,
+    @Default('') String goalSuggestionEndpointId,
+    @Default('') String approvalAutoReviewEndpointId,
     @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
     @Default(<String>[]) List<String> mcpUrls,
@@ -595,6 +673,11 @@ abstract class AppSettings with _$AppSettings {
     )
     @Default(<ModelCapabilityProfileRevision>[])
     List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions,
+    // LL8: user-registered LAN inference endpoints (the mesh). Discovery only
+    // proposes candidates; entries here are explicitly registered.
+    @JsonKey(fromJson: _namedEndpointsFromJson, toJson: _namedEndpointsToJson)
+    @Default(<NamedEndpoint>[])
+    List<NamedEndpoint> namedEndpoints,
     // LL18 idle/overnight maintenance gating (consumed via the maintenance
     // feature's IdleMaintenanceConfig; minutes are since local midnight).
     @Default(false) bool idleMaintenanceEnabled,
@@ -714,6 +797,25 @@ abstract class AppSettings with _$AppSettings {
       }
     }
     return result;
+  }
+
+  /// LL8: registered endpoints that are enabled and usable, in registration
+  /// order. The primary endpoint ([baseUrl]) is the implicit fallback and is
+  /// not part of this list.
+  List<NamedEndpoint> get enabledNamedEndpoints => namedEndpoints
+      .map((endpoint) => endpoint.normalizedForPersistence())
+      .where((endpoint) => endpoint.enabled && endpoint.isValid)
+      .toList(growable: false);
+
+  /// Looks up a registered endpoint by base URL (id match), or null.
+  NamedEndpoint? namedEndpointForBaseUrl(String baseUrl) {
+    final targetId = NamedEndpoint.buildId(baseUrl);
+    for (final endpoint in namedEndpoints.reversed) {
+      if (endpoint.computedId == targetId) {
+        return endpoint.normalizedForPersistence();
+      }
+    }
+    return null;
   }
 
   /// Role models only apply to OpenAI-compatible endpoints; the Apple

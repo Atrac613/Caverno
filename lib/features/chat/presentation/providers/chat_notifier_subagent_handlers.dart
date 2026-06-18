@@ -189,9 +189,23 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     required List<Map<String, dynamic>> inheritedTools,
     required bool isBackground,
     int? interactionGeneration,
-  }) {
-    final service = SubagentExecutionService(dataSource: _dataSource);
-    return service.run(
+  }) async {
+    // LL8: route the subagent to its assigned mesh endpoint (primary fallback
+    // when unhealthy/missing). Subagents are multi-turn, so reachability is
+    // recorded from the task outcome rather than per call.
+    final resolved = _meshRunner.resolve(
+      primary: _dataSource,
+      primaryBaseUrl: _settings.baseUrl,
+      primaryApiKey: _settings.apiKey,
+      endpoints: _settings.namedEndpoints,
+      endpointId: _settings.llmProvider == LlmProvider.openAiCompatible
+          ? _settings.subagentEndpointId
+          : '',
+      model: _settings.effectiveSubagentModel,
+      fallbackModel: _settings.effectiveModel,
+    );
+    final service = SubagentExecutionService(dataSource: resolved.dataSource);
+    final task = await service.run(
       id: taskId,
       description: label,
       prompt: prompt,
@@ -201,11 +215,19 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
         childToolCall,
         interactionGeneration: interactionGeneration,
       ),
-      model: _settings.effectiveSubagentModel,
+      model: resolved.model,
       temperature: _agenticRequestTemperature,
       maxTokens: _settings.maxTokens,
       isBackground: isBackground,
     );
+    if (!resolved.isPrimary) {
+      if (task.status == SubagentTaskStatus.failed) {
+        _meshRunner.health.recordFailure(resolved.endpointId);
+      } else {
+        _meshRunner.health.recordSuccess(resolved.endpointId);
+      }
+    }
+    return task;
   }
 
   /// Dispatch wrapper for a child subagent: blocks the delegation tools so a
