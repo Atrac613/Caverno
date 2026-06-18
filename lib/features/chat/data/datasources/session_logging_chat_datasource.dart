@@ -41,6 +41,17 @@ class SessionLoggingChatDataSource implements ChatDataSource {
     return TokenUsage.zero;
   }
 
+  String? get lastFinishReason {
+    final delegate = _delegate;
+    if (delegate is ChatRemoteDataSource) {
+      return delegate.lastFinishReason;
+    }
+    if (delegate is SessionLoggingChatDataSource) {
+      return delegate.lastFinishReason;
+    }
+    return null;
+  }
+
   @override
   Stream<String> streamChatCompletion({
     required List<Message> messages,
@@ -74,7 +85,7 @@ class SessionLoggingChatDataSource implements ChatDataSource {
         startedAt: startedAt,
         response: LlmSessionLogResponse(
           content: response.toString(),
-          finishReason: 'stream_end',
+          finishReason: lastFinishReason ?? 'stream_end',
           usage: lastUsage,
         ),
       );
@@ -257,7 +268,7 @@ class SessionLoggingChatDataSource implements ChatDataSource {
         startedAt: startedAt,
         response: LlmSessionLogResponse(
           content: response.toString(),
-          finishReason: 'stream_end',
+          finishReason: lastFinishReason ?? 'stream_end',
           usage: lastUsage,
         ),
       );

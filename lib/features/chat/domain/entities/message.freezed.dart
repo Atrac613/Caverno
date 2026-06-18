@@ -13,9 +13,284 @@ part of 'message.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
+mixin _$MessageResponseMetrics {
+
+ int get promptTokens; int get completionTokens; int get totalTokens; int get elapsedMilliseconds; String? get finishReason;
+/// Create a copy of MessageResponseMetrics
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MessageResponseMetricsCopyWith<MessageResponseMetrics> get copyWith => _$MessageResponseMetricsCopyWithImpl<MessageResponseMetrics>(this as MessageResponseMetrics, _$identity);
+
+  /// Serializes this MessageResponseMetrics to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageResponseMetrics&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.elapsedMilliseconds, elapsedMilliseconds) || other.elapsedMilliseconds == elapsedMilliseconds)&&(identical(other.finishReason, finishReason) || other.finishReason == finishReason));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,promptTokens,completionTokens,totalTokens,elapsedMilliseconds,finishReason);
+
+@override
+String toString() {
+  return 'MessageResponseMetrics(promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, elapsedMilliseconds: $elapsedMilliseconds, finishReason: $finishReason)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MessageResponseMetricsCopyWith<$Res>  {
+  factory $MessageResponseMetricsCopyWith(MessageResponseMetrics value, $Res Function(MessageResponseMetrics) _then) = _$MessageResponseMetricsCopyWithImpl;
+@useResult
+$Res call({
+ int promptTokens, int completionTokens, int totalTokens, int elapsedMilliseconds, String? finishReason
+});
+
+
+
+
+}
+/// @nodoc
+class _$MessageResponseMetricsCopyWithImpl<$Res>
+    implements $MessageResponseMetricsCopyWith<$Res> {
+  _$MessageResponseMetricsCopyWithImpl(this._self, this._then);
+
+  final MessageResponseMetrics _self;
+  final $Res Function(MessageResponseMetrics) _then;
+
+/// Create a copy of MessageResponseMetrics
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? elapsedMilliseconds = null,Object? finishReason = freezed,}) {
+  return _then(_self.copyWith(
+promptTokens: null == promptTokens ? _self.promptTokens : promptTokens // ignore: cast_nullable_to_non_nullable
+as int,completionTokens: null == completionTokens ? _self.completionTokens : completionTokens // ignore: cast_nullable_to_non_nullable
+as int,totalTokens: null == totalTokens ? _self.totalTokens : totalTokens // ignore: cast_nullable_to_non_nullable
+as int,elapsedMilliseconds: null == elapsedMilliseconds ? _self.elapsedMilliseconds : elapsedMilliseconds // ignore: cast_nullable_to_non_nullable
+as int,finishReason: freezed == finishReason ? _self.finishReason : finishReason // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [MessageResponseMetrics].
+extension MessageResponseMetricsPatterns on MessageResponseMetrics {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _MessageResponseMetrics value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _MessageResponseMetrics() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _MessageResponseMetrics value)  $default,){
+final _that = this;
+switch (_that) {
+case _MessageResponseMetrics():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _MessageResponseMetrics value)?  $default,){
+final _that = this;
+switch (_that) {
+case _MessageResponseMetrics() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int promptTokens,  int completionTokens,  int totalTokens,  int elapsedMilliseconds,  String? finishReason)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _MessageResponseMetrics() when $default != null:
+return $default(_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.elapsedMilliseconds,_that.finishReason);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int promptTokens,  int completionTokens,  int totalTokens,  int elapsedMilliseconds,  String? finishReason)  $default,) {final _that = this;
+switch (_that) {
+case _MessageResponseMetrics():
+return $default(_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.elapsedMilliseconds,_that.finishReason);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int promptTokens,  int completionTokens,  int totalTokens,  int elapsedMilliseconds,  String? finishReason)?  $default,) {final _that = this;
+switch (_that) {
+case _MessageResponseMetrics() when $default != null:
+return $default(_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.elapsedMilliseconds,_that.finishReason);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _MessageResponseMetrics implements MessageResponseMetrics {
+  const _MessageResponseMetrics({this.promptTokens = 0, this.completionTokens = 0, this.totalTokens = 0, this.elapsedMilliseconds = 0, this.finishReason});
+  factory _MessageResponseMetrics.fromJson(Map<String, dynamic> json) => _$MessageResponseMetricsFromJson(json);
+
+@override@JsonKey() final  int promptTokens;
+@override@JsonKey() final  int completionTokens;
+@override@JsonKey() final  int totalTokens;
+@override@JsonKey() final  int elapsedMilliseconds;
+@override final  String? finishReason;
+
+/// Create a copy of MessageResponseMetrics
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$MessageResponseMetricsCopyWith<_MessageResponseMetrics> get copyWith => __$MessageResponseMetricsCopyWithImpl<_MessageResponseMetrics>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$MessageResponseMetricsToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageResponseMetrics&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.elapsedMilliseconds, elapsedMilliseconds) || other.elapsedMilliseconds == elapsedMilliseconds)&&(identical(other.finishReason, finishReason) || other.finishReason == finishReason));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,promptTokens,completionTokens,totalTokens,elapsedMilliseconds,finishReason);
+
+@override
+String toString() {
+  return 'MessageResponseMetrics(promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, elapsedMilliseconds: $elapsedMilliseconds, finishReason: $finishReason)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$MessageResponseMetricsCopyWith<$Res> implements $MessageResponseMetricsCopyWith<$Res> {
+  factory _$MessageResponseMetricsCopyWith(_MessageResponseMetrics value, $Res Function(_MessageResponseMetrics) _then) = __$MessageResponseMetricsCopyWithImpl;
+@override @useResult
+$Res call({
+ int promptTokens, int completionTokens, int totalTokens, int elapsedMilliseconds, String? finishReason
+});
+
+
+
+
+}
+/// @nodoc
+class __$MessageResponseMetricsCopyWithImpl<$Res>
+    implements _$MessageResponseMetricsCopyWith<$Res> {
+  __$MessageResponseMetricsCopyWithImpl(this._self, this._then);
+
+  final _MessageResponseMetrics _self;
+  final $Res Function(_MessageResponseMetrics) _then;
+
+/// Create a copy of MessageResponseMetrics
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? elapsedMilliseconds = null,Object? finishReason = freezed,}) {
+  return _then(_MessageResponseMetrics(
+promptTokens: null == promptTokens ? _self.promptTokens : promptTokens // ignore: cast_nullable_to_non_nullable
+as int,completionTokens: null == completionTokens ? _self.completionTokens : completionTokens // ignore: cast_nullable_to_non_nullable
+as int,totalTokens: null == totalTokens ? _self.totalTokens : totalTokens // ignore: cast_nullable_to_non_nullable
+as int,elapsedMilliseconds: null == elapsedMilliseconds ? _self.elapsedMilliseconds : elapsedMilliseconds // ignore: cast_nullable_to_non_nullable
+as int,finishReason: freezed == finishReason ? _self.finishReason : finishReason // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$Message {
 
- String get id; String get content; MessageRole get role; DateTime get timestamp; bool get isStreaming; String? get error; String? get imageBase64; String? get imageMimeType; String? get originalImagePath; String? get originalImageMimeType;
+ String get id; String get content; MessageRole get role; DateTime get timestamp; bool get isStreaming; String? get error; String? get imageBase64; String? get imageMimeType; String? get originalImagePath; String? get originalImageMimeType; MessageResponseMetrics? get responseMetrics;
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +303,16 @@ $MessageCopyWith<Message> get copyWith => _$MessageCopyWithImpl<Message>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType)&&(identical(other.responseMetrics, responseMetrics) || other.responseMetrics == responseMetrics));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,originalImagePath,originalImageMimeType);
+int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,originalImagePath,originalImageMimeType,responseMetrics);
 
 @override
 String toString() {
-  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType)';
+  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType, responseMetrics: $responseMetrics)';
 }
 
 
@@ -48,11 +323,11 @@ abstract mixin class $MessageCopyWith<$Res>  {
   factory $MessageCopyWith(Message value, $Res Function(Message) _then) = _$MessageCopyWithImpl;
 @useResult
 $Res call({
- String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, String? originalImagePath, String? originalImageMimeType
+ String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, String? originalImagePath, String? originalImageMimeType, MessageResponseMetrics? responseMetrics
 });
 
 
-
+$MessageResponseMetricsCopyWith<$Res>? get responseMetrics;
 
 }
 /// @nodoc
@@ -65,7 +340,7 @@ class _$MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,Object? responseMetrics = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
@@ -77,10 +352,23 @@ as String?,imageBase64: freezed == imageBase64 ? _self.imageBase64 : imageBase64
 as String?,imageMimeType: freezed == imageMimeType ? _self.imageMimeType : imageMimeType // ignore: cast_nullable_to_non_nullable
 as String?,originalImagePath: freezed == originalImagePath ? _self.originalImagePath : originalImagePath // ignore: cast_nullable_to_non_nullable
 as String?,originalImageMimeType: freezed == originalImageMimeType ? _self.originalImageMimeType : originalImageMimeType // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,responseMetrics: freezed == responseMetrics ? _self.responseMetrics : responseMetrics // ignore: cast_nullable_to_non_nullable
+as MessageResponseMetrics?,
   ));
 }
+/// Create a copy of Message
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$MessageResponseMetricsCopyWith<$Res>? get responseMetrics {
+    if (_self.responseMetrics == null) {
+    return null;
+  }
 
+  return $MessageResponseMetricsCopyWith<$Res>(_self.responseMetrics!, (value) {
+    return _then(_self.copyWith(responseMetrics: value));
+  });
+}
 }
 
 
@@ -162,10 +450,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType,  MessageResponseMetrics? responseMetrics)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType,_that.responseMetrics);case _:
   return orElse();
 
 }
@@ -183,10 +471,10 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType,  MessageResponseMetrics? responseMetrics)  $default,) {final _that = this;
 switch (_that) {
 case _Message():
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType,_that.responseMetrics);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -203,10 +491,10 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType,  MessageResponseMetrics? responseMetrics)?  $default,) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType,_that.responseMetrics);case _:
   return null;
 
 }
@@ -218,7 +506,7 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 @JsonSerializable()
 
 class _Message implements Message {
-  const _Message({required this.id, required this.content, required this.role, required this.timestamp, this.isStreaming = false, this.error, this.imageBase64, this.imageMimeType, this.originalImagePath, this.originalImageMimeType});
+  const _Message({required this.id, required this.content, required this.role, required this.timestamp, this.isStreaming = false, this.error, this.imageBase64, this.imageMimeType, this.originalImagePath, this.originalImageMimeType, this.responseMetrics});
   factory _Message.fromJson(Map<String, dynamic> json) => _$MessageFromJson(json);
 
 @override final  String id;
@@ -231,6 +519,7 @@ class _Message implements Message {
 @override final  String? imageMimeType;
 @override final  String? originalImagePath;
 @override final  String? originalImageMimeType;
+@override final  MessageResponseMetrics? responseMetrics;
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
@@ -245,16 +534,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType)&&(identical(other.responseMetrics, responseMetrics) || other.responseMetrics == responseMetrics));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,originalImagePath,originalImageMimeType);
+int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,originalImagePath,originalImageMimeType,responseMetrics);
 
 @override
 String toString() {
-  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType)';
+  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType, responseMetrics: $responseMetrics)';
 }
 
 
@@ -265,11 +554,11 @@ abstract mixin class _$MessageCopyWith<$Res> implements $MessageCopyWith<$Res> {
   factory _$MessageCopyWith(_Message value, $Res Function(_Message) _then) = __$MessageCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, String? originalImagePath, String? originalImageMimeType
+ String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, String? originalImagePath, String? originalImageMimeType, MessageResponseMetrics? responseMetrics
 });
 
 
-
+@override $MessageResponseMetricsCopyWith<$Res>? get responseMetrics;
 
 }
 /// @nodoc
@@ -282,7 +571,7 @@ class __$MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,Object? responseMetrics = freezed,}) {
   return _then(_Message(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
@@ -294,11 +583,24 @@ as String?,imageBase64: freezed == imageBase64 ? _self.imageBase64 : imageBase64
 as String?,imageMimeType: freezed == imageMimeType ? _self.imageMimeType : imageMimeType // ignore: cast_nullable_to_non_nullable
 as String?,originalImagePath: freezed == originalImagePath ? _self.originalImagePath : originalImagePath // ignore: cast_nullable_to_non_nullable
 as String?,originalImageMimeType: freezed == originalImageMimeType ? _self.originalImageMimeType : originalImageMimeType // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,responseMetrics: freezed == responseMetrics ? _self.responseMetrics : responseMetrics // ignore: cast_nullable_to_non_nullable
+as MessageResponseMetrics?,
   ));
 }
 
+/// Create a copy of Message
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$MessageResponseMetricsCopyWith<$Res>? get responseMetrics {
+    if (_self.responseMetrics == null) {
+    return null;
+  }
 
+  return $MessageResponseMetricsCopyWith<$Res>(_self.responseMetrics!, (value) {
+    return _then(_self.copyWith(responseMetrics: value));
+  });
+}
 }
 
 // dart format on

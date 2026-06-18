@@ -104,6 +104,21 @@ class ChatRemoteDataSource implements ChatDataSource {
   /// Last token usage captured from a streaming or non-streaming response.
   TokenUsage lastUsage = TokenUsage.zero;
 
+  /// Last finish reason captured from a streaming or non-streaming response.
+  String? lastFinishReason;
+
+  void _resetResponseTelemetry() {
+    lastUsage = TokenUsage.zero;
+    lastFinishReason = null;
+  }
+
+  void _captureStreamingFinishReason(dynamic choice) {
+    final Object? finishReason = choice?.finishReason?.value;
+    if (finishReason is String && finishReason.isNotEmpty) {
+      lastFinishReason = finishReason;
+    }
+  }
+
   static String? _normalizeReasoningEffort(String? value) {
     final normalized = value?.trim().toLowerCase();
     return switch (normalized) {
@@ -279,6 +294,7 @@ class ChatRemoteDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async* {
+    _resetResponseTelemetry();
     // Strip images from history if the latest user message has no image,
     // allowing conversation to continue on non-Vision servers
     final lastUserMessage = messages.lastWhere(
@@ -322,12 +338,15 @@ class ChatRemoteDataSource implements ChatDataSource {
       final responseBuffer = StringBuffer();
       var isInReasoning = false;
       await for (final event in stream) {
+        final choice = event.choices?.firstOrNull;
+        _captureStreamingFinishReason(choice);
+
         // Capture usage from the final chunk (when stream_options is set)
         if (event.usage != null) {
           lastUsage = _extractUsage(event.usage);
         }
 
-        final delta = event.choices?.firstOrNull?.delta;
+        final delta = choice?.delta;
         if (delta == null) continue;
 
         // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
@@ -399,6 +418,7 @@ class ChatRemoteDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
+    _resetResponseTelemetry();
     final lastUserMessage = messages.lastWhere(
       (m) => m.role == MessageRole.user,
       orElse: () => messages.last,
@@ -443,12 +463,14 @@ class ChatRemoteDataSource implements ChatDataSource {
         var isInReasoning = false;
         await for (final event in stream) {
           accumulator.add(event);
+          final choice = event.choices?.firstOrNull;
+          _captureStreamingFinishReason(choice);
 
           if (event.usage != null) {
             lastUsage = _extractUsage(event.usage);
           }
 
-          final delta = event.choices?.firstOrNull?.delta;
+          final delta = choice?.delta;
           if (delta == null) continue;
 
           // Yield reasoning tokens wrapped in <think> tags.
@@ -500,6 +522,7 @@ class ChatRemoteDataSource implements ChatDataSource {
         // Resolve the completer after the stream ends normally.
         final toolCalls = _parseToolCalls(accumulator.toolCalls);
         final finishReason = accumulator.finishReason?.value ?? 'stop';
+        lastFinishReason = finishReason;
         completer.complete(
           ChatCompletionResult(
             content: accumulator.content,
@@ -516,6 +539,7 @@ class ChatRemoteDataSource implements ChatDataSource {
           );
           yield recoveredText;
           final embeddedToolCalls = _parseEmbeddedToolCalls(recoveredText);
+          lastFinishReason = embeddedToolCalls == null ? 'stop' : 'tool_calls';
           completer.complete(
             ChatCompletionResult(
               content: recoveredText,
@@ -552,6 +576,7 @@ class ChatRemoteDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
+    _resetResponseTelemetry();
     // Strip images from history if the latest user message has no image
     final lastUserMessage = messages.lastWhere(
       (m) => m.role == MessageRole.user,
@@ -609,13 +634,15 @@ class ChatRemoteDataSource implements ChatDataSource {
 
       // Parse tool calls
       final toolCalls = _parseToolCalls(message.toolCalls);
+      final finishReason = choice.finishReason?.value ?? 'stop';
+      lastFinishReason = finishReason;
 
       appLog('[LLM] ==========================================');
 
       return ChatCompletionResult(
         content: responseContent,
         toolCalls: toolCalls,
-        finishReason: choice.finishReason?.value ?? 'stop',
+        finishReason: finishReason,
         usage: lastUsage = _extractUsage(response.usage),
       );
     } catch (e, stackTrace) {
@@ -623,6 +650,7 @@ class ChatRemoteDataSource implements ChatDataSource {
       if (recoveredText != null) {
         appLog('[LLM] Recovered raw text response after create parse failure');
         final embeddedToolCalls = _parseEmbeddedToolCalls(recoveredText);
+        lastFinishReason = embeddedToolCalls == null ? 'stop' : 'tool_calls';
         return ChatCompletionResult(
           content: recoveredText,
           toolCalls: embeddedToolCalls,
@@ -649,6 +677,7 @@ class ChatRemoteDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async* {
+    _resetResponseTelemetry();
     // Strip images when sending tool results (images were already processed at tool call time)
     final formattedMessages = _formatMessages(messages, stripImages: true);
     final modelId = model ?? ApiConstants.defaultModel;
@@ -703,12 +732,15 @@ class ChatRemoteDataSource implements ChatDataSource {
       final responseBuffer = StringBuffer();
       var isInReasoning = false;
       await for (final event in stream) {
+        final choice = event.choices?.firstOrNull;
+        _captureStreamingFinishReason(choice);
+
         // Capture usage from the final chunk
         if (event.usage != null) {
           lastUsage = _extractUsage(event.usage);
         }
 
-        final delta = event.choices?.firstOrNull?.delta;
+        final delta = choice?.delta;
         if (delta == null) continue;
 
         // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
@@ -817,6 +849,7 @@ class ChatRemoteDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
+    _resetResponseTelemetry();
     final formattedMessages = _formatMessages(messages, stripImages: true);
     final modelId = model ?? ApiConstants.defaultModel;
 
@@ -907,13 +940,15 @@ class ChatRemoteDataSource implements ChatDataSource {
       }
 
       final toolCallsResult = _parseToolCalls(message.toolCalls);
+      final finishReason = choice.finishReason?.value ?? 'stop';
+      lastFinishReason = finishReason;
 
       appLog('[LLM] ==========================================');
 
       return ChatCompletionResult(
         content: responseContent,
         toolCalls: toolCallsResult,
-        finishReason: choice.finishReason?.value ?? 'stop',
+        finishReason: finishReason,
         usage: lastUsage = _extractUsage(response.usage),
       );
     } catch (e, stackTrace) {
@@ -923,6 +958,7 @@ class ChatRemoteDataSource implements ChatDataSource {
           '[LLM] Recovered raw text response after tool-result parse failure',
         );
         final embeddedToolCalls = _parseEmbeddedToolCalls(recoveredText);
+        lastFinishReason = embeddedToolCalls == null ? 'stop' : 'tool_calls';
         return ChatCompletionResult(
           content: recoveredText,
           toolCalls: embeddedToolCalls,

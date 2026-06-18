@@ -153,4 +153,27 @@ void main() {
     expect(secondImage.height, 140);
     expect(secondImage.gaplessPlayback, isTrue);
   });
+
+  testWidgets('shows assistant response metrics after completion', (
+    tester,
+  ) async {
+    final message = Message(
+      id: 'assistant-message',
+      content: 'Done.',
+      role: MessageRole.assistant,
+      timestamp: DateTime(2026, 6, 18, 11),
+      responseMetrics: const MessageResponseMetrics(
+        completionTokens: 88,
+        elapsedMilliseconds: 2200,
+        finishReason: 'stop',
+      ),
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+
+    expect(find.text('40.00 tok/sec'), findsOneWidget);
+    expect(find.text('88 tokens'), findsOneWidget);
+    expect(find.text('2.20s'), findsOneWidget);
+    expect(find.text('Stop reason: Stop'), findsOneWidget);
+  });
 }

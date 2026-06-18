@@ -7033,6 +7033,8 @@ class ChatNotifier extends Notifier<ChatState> {
       <int, LlmSessionLogContext>{};
   final Map<int, McpToolResult> _askUserQuestionResultsByGeneration =
       <int, McpToolResult>{};
+  final Map<int, Stopwatch> _responseMetricTimersByGeneration =
+      <int, Stopwatch>{};
   final Map<String, PendingAskUserQuestion> _pendingAskUserQuestionsByThread =
       <String, PendingAskUserQuestion>{};
   ChatInteractionOrigin _activeInteractionOrigin = ChatInteractionOrigin.local;
@@ -7043,6 +7045,11 @@ class ChatNotifier extends Notifier<ChatState> {
   int _beginInteractionGeneration() {
     _interactionGeneration += 1;
     return _interactionGeneration;
+  }
+
+  void _startResponseMetricsTimer(int generation) {
+    _responseMetricTimersByGeneration[generation]?.stop();
+    _responseMetricTimersByGeneration[generation] = Stopwatch()..start();
   }
 
   bool _isCurrentInteractionGeneration(int generation) {
@@ -7125,6 +7132,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _activeResponseMessagesByGeneration.remove(generation);
     _llmSessionLogContextsByGeneration.remove(generation);
     _askUserQuestionResultsByGeneration.remove(generation);
+    _responseMetricTimersByGeneration.remove(generation)?.stop();
     if (generation == _interactionGeneration) {
       _activeResponseConversationId = null;
       _activeResponseMessages = null;
@@ -7136,6 +7144,10 @@ class ChatNotifier extends Notifier<ChatState> {
     _activeResponseMessagesByGeneration.clear();
     _llmSessionLogContextsByGeneration.clear();
     _askUserQuestionResultsByGeneration.clear();
+    for (final timer in _responseMetricTimersByGeneration.values) {
+      timer.stop();
+    }
+    _responseMetricTimersByGeneration.clear();
     _activeResponseConversationId = null;
     _activeResponseMessages = null;
   }
@@ -7347,6 +7359,8 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
+    _startResponseMetricsTimer(interactionGeneration);
+
     // Request extended background execution time on iOS.
     _onSendStarted();
 
@@ -7456,6 +7470,8 @@ class ChatNotifier extends Notifier<ChatState> {
       isLoading: true,
       error: null,
     );
+
+    _startResponseMetricsTimer(interactionGeneration);
 
     _onSendStarted();
 
@@ -13523,14 +13539,50 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  /// Read and accumulate the latest token usage from the data source.
-  void _updateTokenUsage() {
+  TokenUsage _latestTokenUsage() {
     final ds = _dataSource;
-    final usage = switch (ds) {
+    return switch (ds) {
       ChatRemoteDataSource() => ds.lastUsage,
       SessionLoggingChatDataSource() => ds.lastUsage,
       _ => TokenUsage.zero,
     };
+  }
+
+  String? _latestFinishReason() {
+    final ds = _dataSource;
+    return switch (ds) {
+      ChatRemoteDataSource() => ds.lastFinishReason,
+      SessionLoggingChatDataSource() => ds.lastFinishReason,
+      _ => null,
+    };
+  }
+
+  MessageResponseMetrics? _takeResponseMetricsForGeneration(int generation) {
+    final timer = _responseMetricTimersByGeneration.remove(generation);
+    timer?.stop();
+
+    final usage = _latestTokenUsage();
+    final finishReason = _latestFinishReason();
+    if (timer == null && usage.totalTokens <= 0 && finishReason == null) {
+      return null;
+    }
+
+    return MessageResponseMetrics(
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      totalTokens: usage.totalTokens,
+      elapsedMilliseconds: timer?.elapsedMilliseconds ?? 0,
+      finishReason: finishReason,
+    );
+  }
+
+  void _discardResponseMetricsForGeneration(int generation) {
+    _responseMetricTimersByGeneration.remove(generation)?.stop();
+  }
+
+  /// Read and accumulate the latest token usage from the data source.
+  void _updateTokenUsage() {
+    final usage = _latestTokenUsage();
     if (usage.totalTokens <= 0) return;
 
     // Use the latest usage directly (represents the full conversation context)
@@ -14693,16 +14745,26 @@ class ChatNotifier extends Notifier<ChatState> {
         lastMessage.role == MessageRole.assistant &&
         !_assistantMessageHasVisibleContent(lastMessage.content) &&
         !shouldUseContentToolContinuationFallback;
+    final responseMetrics = shouldDropLastAssistant
+        ? null
+        : _takeResponseMetricsForGeneration(generation);
+    if (shouldDropLastAssistant) {
+      _discardResponseMetricsForGeneration(generation);
+    }
 
     if (shouldUseContentToolContinuationFallback) {
       updatedMessages[lastIndex] = lastMessage.copyWith(
         content: fallbackContent,
         isStreaming: false,
+        responseMetrics: responseMetrics,
       );
     } else if (shouldDropLastAssistant) {
       updatedMessages.removeAt(lastIndex);
     } else {
-      updatedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
+      updatedMessages[lastIndex] = lastMessage.copyWith(
+        isStreaming: false,
+        responseMetrics: responseMetrics,
+      );
     }
     _pendingContentToolContinuationFallback = null;
 
@@ -14839,20 +14901,31 @@ class ChatNotifier extends Notifier<ChatState> {
         !_assistantMessageHasVisibleContent(lastMessage.content) &&
         !shouldUseContentToolContinuationFallback;
 
+    // Capture token usage before building per-message metrics so both the
+    // global usage indicator and completed bubble agree on the same response.
+    _updateTokenUsage();
+    final responseMetrics = shouldDropLastAssistant
+        ? null
+        : _takeResponseMetricsForGeneration(generation);
+    if (shouldDropLastAssistant) {
+      _discardResponseMetricsForGeneration(generation);
+    }
+
     if (shouldUseContentToolContinuationFallback) {
       updatedMessages[lastIndex] = lastMessage.copyWith(
         content: fallbackContent,
         isStreaming: false,
+        responseMetrics: responseMetrics,
       );
     } else if (shouldDropLastAssistant) {
       updatedMessages.removeAt(lastIndex);
     } else {
-      updatedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
+      updatedMessages[lastIndex] = lastMessage.copyWith(
+        isStreaming: false,
+        responseMetrics: responseMetrics,
+      );
     }
     _pendingContentToolContinuationFallback = null;
-
-    // Capture token usage from the data source
-    _updateTokenUsage();
 
     if (!_isCurrentInteractionGeneration(generation)) return;
     state = state.copyWith(messages: updatedMessages, isLoading: false);

@@ -153,6 +153,9 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
         ? _extractProjectAccessIssue(message.content)
         : null;
     final hasBodyContent = message.content.isNotEmpty || message.isStreaming;
+    final responseMetrics = !isUser && !message.isStreaming
+        ? message.responseMetrics
+        : null;
     final imageBytes = _imageBytesFor(message.imageBase64);
     final bubble = Container(
       constraints: BoxConstraints(
@@ -254,6 +257,12 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
                       );
                     },
                   ),
+          if (responseMetrics != null &&
+              _ResponseMetricsRow.hasVisibleMetrics(responseMetrics))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _ResponseMetricsRow(metrics: responseMetrics),
+            ),
           if (message.isStreaming)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -388,6 +397,146 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     }
     await tts.setSpeechRate(settings.speechRate);
     await tts.speak(readableText);
+  }
+}
+
+class _ResponseMetricsRow extends StatelessWidget {
+  const _ResponseMetricsRow({required this.metrics});
+
+  final MessageResponseMetrics metrics;
+
+  static bool hasVisibleMetrics(MessageResponseMetrics metrics) {
+    return metrics.completionTokens > 0 ||
+        metrics.elapsedMilliseconds > 0 ||
+        (metrics.finishReason?.trim().isNotEmpty ?? false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <Widget>[];
+    final elapsedSeconds = metrics.elapsedMilliseconds / 1000.0;
+    if (metrics.completionTokens > 0 && metrics.elapsedMilliseconds > 0) {
+      chips.add(
+        _ResponseMetricChip(
+          icon: Icons.speed,
+          label:
+              '${_formatRate(metrics.completionTokens, elapsedSeconds)} tok/sec',
+          tooltip: 'Generated tokens per second',
+        ),
+      );
+    }
+    if (metrics.completionTokens > 0) {
+      chips.add(
+        _ResponseMetricChip(
+          icon: Icons.format_list_numbered,
+          label:
+              '${metrics.completionTokens} '
+              '${metrics.completionTokens == 1 ? 'token' : 'tokens'}',
+          tooltip: 'Generated completion tokens',
+        ),
+      );
+    }
+    if (metrics.elapsedMilliseconds > 0) {
+      chips.add(
+        _ResponseMetricChip(
+          icon: Icons.timer_outlined,
+          label: '${elapsedSeconds.toStringAsFixed(2)}s',
+          tooltip: 'Response duration',
+        ),
+      );
+    }
+    final finishReason = _formatFinishReason(metrics.finishReason);
+    if (finishReason != null) {
+      chips.add(
+        _ResponseMetricChip(
+          icon: Icons.stop_circle_outlined,
+          label: 'Stop reason: $finishReason',
+          tooltip: 'Model finish reason',
+        ),
+      );
+    }
+
+    if (chips.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Wrap(spacing: 6, runSpacing: 6, children: chips);
+  }
+
+  static String _formatRate(int tokens, double elapsedSeconds) {
+    final rate = tokens / elapsedSeconds;
+    return rate >= 100 ? rate.toStringAsFixed(1) : rate.toStringAsFixed(2);
+  }
+
+  static String? _formatFinishReason(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    final normalized = trimmed
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .toLowerCase();
+    return switch (normalized) {
+      'content filter' => 'Content Filter',
+      'eos token' || 'eos token found' => 'EOS Token Found',
+      'stream end' => 'Stream End',
+      'tool calls' => 'Tool Calls',
+      _ =>
+        normalized
+            .split(RegExp(r'\s+'))
+            .where((part) => part.isNotEmpty)
+            .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+            .join(' '),
+    };
+  }
+}
+
+class _ResponseMetricChip extends StatelessWidget {
+  const _ResponseMetricChip({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Tooltip(
+      message: tooltip,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.42),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

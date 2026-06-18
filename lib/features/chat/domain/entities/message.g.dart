@@ -6,6 +6,26 @@ part of 'message.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_MessageResponseMetrics _$MessageResponseMetricsFromJson(
+  Map<String, dynamic> json,
+) => _MessageResponseMetrics(
+  promptTokens: (json['promptTokens'] as num?)?.toInt() ?? 0,
+  completionTokens: (json['completionTokens'] as num?)?.toInt() ?? 0,
+  totalTokens: (json['totalTokens'] as num?)?.toInt() ?? 0,
+  elapsedMilliseconds: (json['elapsedMilliseconds'] as num?)?.toInt() ?? 0,
+  finishReason: json['finishReason'] as String?,
+);
+
+Map<String, dynamic> _$MessageResponseMetricsToJson(
+  _MessageResponseMetrics instance,
+) => <String, dynamic>{
+  'promptTokens': instance.promptTokens,
+  'completionTokens': instance.completionTokens,
+  'totalTokens': instance.totalTokens,
+  'elapsedMilliseconds': instance.elapsedMilliseconds,
+  'finishReason': instance.finishReason,
+};
+
 _Message _$MessageFromJson(Map<String, dynamic> json) => _Message(
   id: json['id'] as String,
   content: json['content'] as String,
@@ -17,6 +37,11 @@ _Message _$MessageFromJson(Map<String, dynamic> json) => _Message(
   imageMimeType: json['imageMimeType'] as String?,
   originalImagePath: json['originalImagePath'] as String?,
   originalImageMimeType: json['originalImageMimeType'] as String?,
+  responseMetrics: json['responseMetrics'] == null
+      ? null
+      : MessageResponseMetrics.fromJson(
+          json['responseMetrics'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$MessageToJson(_Message instance) => <String, dynamic>{
@@ -30,6 +55,7 @@ Map<String, dynamic> _$MessageToJson(_Message instance) => <String, dynamic>{
   'imageMimeType': instance.imageMimeType,
   'originalImagePath': instance.originalImagePath,
   'originalImageMimeType': instance.originalImageMimeType,
+  'responseMetrics': instance.responseMetrics,
 };
 
 const _$MessageRoleEnumMap = {
