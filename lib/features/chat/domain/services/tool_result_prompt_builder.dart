@@ -327,17 +327,28 @@ class ToolResultPromptBuilder {
   /// - Analyzer/test feedback that still reports unresolved `Error`-severity
   ///   diagnostics after the latest edits.
   ///
+  /// Analyzer feedback is only treated as current when the same file was not
+  /// mutated by a later successful write_file/edit_file in the same result
+  /// sequence. The analyzer is not re-run after a subsequent edit, so a stale
+  /// pre-fix diagnostic must not be reported as an unresolved error — that
+  /// would push the model into a false "not complete" claim.
+  ///
   /// These appear near the top of the answer prompt because a weak model may
   /// otherwise ignore the per-result `instruction` field and declare success
   /// while the workspace is still broken.
   static List<String> completionBlockerInstructions(
     List<ToolResultInfo> toolResults,
   ) {
+    final lastMutationIndexByPath = _lastSuccessfulFileMutationIndexByPath(
+      toolResults,
+    );
+
     final unexecutedToolNames = <String>{};
     final unresolvedErrorPaths = <String>{};
     var unresolvedErrorCount = 0;
 
-    for (final toolResult in toolResults) {
+    for (var index = 0; index < toolResults.length; index += 1) {
+      final toolResult = toolResults[index];
       final decoded = _tryDecodeJsonMap(toolResult.result);
       if (decoded == null) {
         continue;
@@ -365,11 +376,20 @@ class ToolResultPromptBuilder {
           if (severity != 'error') {
             continue;
           }
+          final absolutePath = diagnostic['path']?.toString().trim();
+          // Skip diagnostics superseded by a later successful edit on the same
+          // file: the analyzer result predates the fix and may be stale.
+          if (absolutePath != null && absolutePath.isNotEmpty) {
+            final laterMutationIndex = lastMutationIndexByPath[absolutePath];
+            if (laterMutationIndex != null && laterMutationIndex > index) {
+              continue;
+            }
+          }
           unresolvedErrorCount += 1;
-          final path =
+          final displayPath =
               (diagnostic['relative_path'] ?? diagnostic['path'])?.toString();
-          if (path != null && path.trim().isNotEmpty) {
-            unresolvedErrorPaths.add(path.trim());
+          if (displayPath != null && displayPath.trim().isNotEmpty) {
+            unresolvedErrorPaths.add(displayPath.trim());
           }
         }
       }
@@ -399,6 +419,53 @@ class ToolResultPromptBuilder {
       );
     }
     return lines;
+  }
+
+  /// Map each absolute file path to the index of the latest successful
+  /// write_file/edit_file/rollback result that touched it, so analyzer
+  /// diagnostics emitted earlier in the sequence can be recognized as stale.
+  static Map<String, int> _lastSuccessfulFileMutationIndexByPath(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final indexByPath = <String, int>{};
+    for (var index = 0; index < toolResults.length; index += 1) {
+      final toolResult = toolResults[index];
+      if (!_isFileMutationToolName(toolResult.name)) {
+        continue;
+      }
+      final decoded = _tryDecodeJsonMap(toolResult.result);
+      if (decoded == null || !_isSuccessfulFileMutation(decoded)) {
+        continue;
+      }
+      final path = decoded['path']?.toString().trim();
+      if (path != null && path.isNotEmpty) {
+        indexByPath[path] = index;
+      }
+    }
+    return indexByPath;
+  }
+
+  static bool _isFileMutationToolName(String toolName) {
+    switch (toolName.trim().toLowerCase()) {
+      case 'write_file':
+      case 'edit_file':
+      case 'rollback_last_file_change':
+        return true;
+    }
+    return false;
+  }
+
+  static bool _isSuccessfulFileMutation(Map<String, dynamic> decoded) {
+    if (decoded['error'] != null || decoded['ok'] == false) {
+      return false;
+    }
+    final code = decoded['code']?.toString().trim().toLowerCase();
+    if (code != null && code.isNotEmpty && code != 'ok' && code != 'success') {
+      // Any non-success status code (edit_mismatch, unexecuted_file_save,
+      // permission_denied, ...) means the mutation did not land.
+      return false;
+    }
+    return true;
   }
 
   static String formatToolResults(

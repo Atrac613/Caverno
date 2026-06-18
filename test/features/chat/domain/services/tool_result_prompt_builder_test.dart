@@ -172,6 +172,104 @@ void main() {
     );
 
     test(
+      'does not flag analyzer errors superseded by a later edit on same file',
+      () {
+        const dartPath = '/Users/dev/tmp/primes.dart';
+        final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+          ToolResultInfo(
+            id: 'tool-1',
+            name: 'write_file',
+            arguments: const {'path': dartPath},
+            result: jsonEncode({
+              'path': dartPath,
+              'bytes_written': 1354,
+              'created': true,
+            }),
+          ),
+          ToolResultInfo(
+            id: 'tool-2',
+            name: 'dart_analyze_feedback',
+            arguments: const {
+              'project_root': '/Users/dev/tmp',
+              'changed_paths': ['primes.dart'],
+            },
+            result: jsonEncode({
+              'schema': 'caverno_dart_analyze_feedback',
+              'current_diagnostic_count': 1,
+              'diagnostics': [
+                {
+                  'path': dartPath,
+                  'relative_path': 'primes.dart',
+                  'severity': 'Error',
+                  'code': 'ARGUMENT_TYPE_NOT_ASSIGNABLE',
+                  'message': "The argument type 'String' can't be assigned to "
+                      "the parameter type 'num'.",
+                },
+              ],
+            }),
+          ),
+          // The fix lands AFTER the analyzer ran; the analyzer is not re-run,
+          // so its diagnostic is stale and must not block completion.
+          ToolResultInfo(
+            id: 'tool-3',
+            name: 'edit_file',
+            arguments: const {'path': dartPath},
+            result: jsonEncode({
+              'path': dartPath,
+              'replacements': 1,
+              'replace_all': false,
+            }),
+          ),
+        ]);
+
+        expect(prompt, isNot(contains('TASK NOT COMPLETE:')));
+      },
+    );
+
+    test(
+      'still flags analyzer errors when a later edit failed on the same file',
+      () {
+        const dartPath = '/Users/dev/tmp/primes.dart';
+        final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+          ToolResultInfo(
+            id: 'tool-1',
+            name: 'dart_analyze_feedback',
+            arguments: const {'project_root': '/Users/dev/tmp'},
+            result: jsonEncode({
+              'schema': 'caverno_dart_analyze_feedback',
+              'diagnostics': [
+                {
+                  'path': dartPath,
+                  'relative_path': 'primes.dart',
+                  'severity': 'Error',
+                  'code': 'UNDEFINED_METHOD',
+                  'message': "The method 'sqrt' isn't defined.",
+                },
+              ],
+            }),
+          ),
+          // A dropped/failed edit does not resolve the diagnostic.
+          ToolResultInfo(
+            id: 'tool-2',
+            name: 'edit_file',
+            arguments: const {'path': dartPath},
+            result: jsonEncode({
+              'code': 'tool_call_not_executed',
+              'reason': 'bounded_tool_loop_exhausted',
+              'tool_name': 'edit_file',
+            }),
+          ),
+        ]);
+
+        expect(prompt, contains('TASK NOT COMPLETE:'));
+        expect(
+          prompt,
+          contains('1 unresolved Error-severity diagnostic(s)'),
+        );
+      },
+    );
+
+    test(
       'does not inject completion blockers for clean tool results',
       () {
         final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
