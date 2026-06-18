@@ -29,9 +29,12 @@ python3 tool/pack_python_worker.py
 #   python3 tool/pack_python_worker.py
 
 # serious_python (embedded Python) native setup — run once per machine after
-# `flutter pub get`. Stages the interpreter's stdlib native modules
-# (_ssl, _socket, ...) for iOS/macOS/Android. Without it iOS builds fail on a
-# missing dist_ios/site-xcframeworks and Android gradle errors on an unset env:
+# `flutter pub get`. Stages the interpreter (Python.xcframework + compiled
+# stdlib) into dist_{ios,macos}/{xcframeworks,stdlib} and the Android site dirs.
+# pod install runs the same staging via the podspec's prepare_command, so this
+# is mostly to pre-stage + validate; Android still needs the env var below.
+# Note: it prints a benign "cp: .../iphoneos.arm64/*: No such file" / "total
+# size is 0" while syncing the (empty) pure-Python site-packages — expected.
 tool/prepare_serious_python.sh
 # iOS/macOS are then ready to build. Android ALSO needs the env var at build
 # time (the gradle plugin reads it live):
