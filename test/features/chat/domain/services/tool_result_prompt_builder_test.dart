@@ -85,6 +85,108 @@ void main() {
       expect(prompt, contains('ZX-900_\\u03b1 2026-06-12'));
     });
 
+    test(
+      'blocks completion claims when the bounded tool loop dropped a tool call',
+      () {
+        final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+          ToolResultInfo(
+            id: 'tool-1',
+            name: 'edit_file',
+            arguments: const {
+              'path': '/tmp/prime_numbers.dart',
+              'old_text': "import 'dart:math';",
+              'new_text': "import 'dart:math' show sqrt;",
+            },
+            result: jsonEncode({
+              'code': 'tool_call_not_executed',
+              'error':
+                  'Tool call was requested after the bounded tool loop stopped '
+                  'and was not executed before the final answer.',
+              'reason': 'bounded_tool_loop_exhausted',
+              'tool_name': 'edit_file',
+            }),
+          ),
+        ]);
+
+        expect(prompt, contains('TASK NOT COMPLETE:'));
+        expect(prompt, contains('the bounded tool loop stopped'));
+        expect(prompt, contains('edit_file'));
+        expect(prompt, contains('remains unexecuted'));
+        // The guardrail must precede the tool-result payload so a weak model
+        // sees it before the dropped call.
+        expect(
+          prompt.indexOf('TASK NOT COMPLETE:'),
+          lessThan(prompt.indexOf('[Tool: edit_file]')),
+        );
+      },
+    );
+
+    test(
+      'blocks completion claims when analyzer errors remain unresolved',
+      () {
+        final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+          ToolResultInfo(
+            id: 'tool-1',
+            name: 'dart_analyze_feedback',
+            arguments: const {
+              'project_root': '/tmp',
+              'changed_paths': ['prime_numbers.dart'],
+            },
+            result: jsonEncode({
+              'schema': 'caverno_dart_analyze_feedback',
+              'current_diagnostic_count': 3,
+              'diagnostics': [
+                {
+                  'relative_path': 'prime_numbers.dart',
+                  'severity': 'Error',
+                  'code': 'UNDEFINED_METHOD',
+                  'message': "The method 'sqrt' isn't defined for the type "
+                      "'double'.",
+                },
+                {
+                  'relative_path': 'prime_numbers.dart',
+                  'severity': 'Error',
+                  'code': 'NOT_ENOUGH_POSITIONAL_ARGUMENTS',
+                  'message':
+                      "1 positional argument expected by 'print', but 0 found.",
+                },
+                {
+                  'relative_path': 'prime_numbers.dart',
+                  'severity': 'Warning',
+                  'code': 'UNUSED_IMPORT',
+                  'message': "Unused import: 'dart:math'.",
+                },
+              ],
+            }),
+          ),
+        ]);
+
+        expect(prompt, contains('TASK NOT COMPLETE:'));
+        expect(
+          prompt,
+          contains('2 unresolved Error-severity diagnostic(s)'),
+        );
+        expect(prompt, contains('prime_numbers.dart'));
+        expect(prompt, contains('does not pass analysis'));
+      },
+    );
+
+    test(
+      'does not inject completion blockers for clean tool results',
+      () {
+        final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+          ToolResultInfo(
+            id: 'tool-1',
+            name: 'write_file',
+            arguments: const {'path': '/tmp/ok.dart'},
+            result: '{"path":"/tmp/ok.dart","bytes_written":12,"created":true}',
+          ),
+        ]);
+
+        expect(prompt, isNot(contains('TASK NOT COMPLETE:')));
+      },
+    );
+
     test('guards against unverified local file side-effect claims', () {
       final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
         ToolResultInfo(

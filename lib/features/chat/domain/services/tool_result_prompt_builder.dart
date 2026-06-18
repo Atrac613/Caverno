@@ -171,11 +171,19 @@ class ToolResultPromptBuilder {
     List<ToolResultInfo> toolResults, {
     Map<String, String> descriptionsByName = const {},
   }) {
+    final completionBlockers = completionBlockerInstructions(toolResults);
     final buffer = StringBuffer()
       ..writeln(
         'Please answer the user\'s question based on the following tool results.',
       )
-      ..writeln()
+      ..writeln();
+    if (completionBlockers.isNotEmpty) {
+      for (final blocker in completionBlockers) {
+        buffer.writeln(blocker);
+      }
+      buffer.writeln();
+    }
+    buffer
       ..writeln(
         'Interpret each tool name, description, arguments, and result together.',
       )
@@ -308,6 +316,89 @@ class ToolResultPromptBuilder {
         formatToolResults(toolResults, descriptionsByName: descriptionsByName),
       );
     return buffer.toString().trimRight();
+  }
+
+  /// Detect tool results that prove the requested task is unfinished so the
+  /// final answer cannot falsely claim completion.
+  ///
+  /// Two signals are surfaced as explicit, high-priority guardrails:
+  /// - A bounded tool loop that exhausted its iteration budget and dropped a
+  ///   requested tool call (`code=tool_call_not_executed`).
+  /// - Analyzer/test feedback that still reports unresolved `Error`-severity
+  ///   diagnostics after the latest edits.
+  ///
+  /// These appear near the top of the answer prompt because a weak model may
+  /// otherwise ignore the per-result `instruction` field and declare success
+  /// while the workspace is still broken.
+  static List<String> completionBlockerInstructions(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final unexecutedToolNames = <String>{};
+    final unresolvedErrorPaths = <String>{};
+    var unresolvedErrorCount = 0;
+
+    for (final toolResult in toolResults) {
+      final decoded = _tryDecodeJsonMap(toolResult.result);
+      if (decoded == null) {
+        continue;
+      }
+
+      final reason = decoded['reason']?.toString().trim();
+      final code = decoded['code']?.toString().trim();
+      if (reason == 'bounded_tool_loop_exhausted' ||
+          code == 'tool_call_not_executed') {
+        final toolName = (decoded['tool_name'] ?? toolResult.name)
+            ?.toString()
+            .trim();
+        unexecutedToolNames.add(
+          toolName == null || toolName.isEmpty ? 'a tool call' : toolName,
+        );
+      }
+
+      final diagnostics = decoded['diagnostics'];
+      if (diagnostics is List) {
+        for (final diagnostic in diagnostics) {
+          if (diagnostic is! Map) {
+            continue;
+          }
+          final severity = diagnostic['severity']?.toString().toLowerCase();
+          if (severity != 'error') {
+            continue;
+          }
+          unresolvedErrorCount += 1;
+          final path =
+              (diagnostic['relative_path'] ?? diagnostic['path'])?.toString();
+          if (path != null && path.trim().isNotEmpty) {
+            unresolvedErrorPaths.add(path.trim());
+          }
+        }
+      }
+    }
+
+    final lines = <String>[];
+    if (unexecutedToolNames.isNotEmpty) {
+      lines.add(
+        'TASK NOT COMPLETE: the bounded tool loop stopped before a requested '
+        'tool call (${unexecutedToolNames.join(', ')}) was executed '
+        '(code=tool_call_not_executed / reason=bounded_tool_loop_exhausted). '
+        'Do not claim the task, port, fix, edit, or file change is finished. '
+        'State that this action remains unexecuted, name it, and list what '
+        'still needs to be done.',
+      );
+    }
+    if (unresolvedErrorCount > 0) {
+      final pathSuffix = unresolvedErrorPaths.isEmpty
+          ? ''
+          : ' in ${unresolvedErrorPaths.join(', ')}';
+      lines.add(
+        'TASK NOT COMPLETE: the latest analyzer/test feedback still reports '
+        '$unresolvedErrorCount unresolved Error-severity diagnostic(s)'
+        '$pathSuffix. The code does not pass analysis. Do not claim the coding '
+        'or porting task is complete or that it produces correct output. '
+        'Report the remaining errors and that they still need fixing.',
+      );
+    }
+    return lines;
   }
 
   static String formatToolResults(
