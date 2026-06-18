@@ -112,7 +112,7 @@ structurally unmotivated to build:
 | Local LLM | LL5 | done | M | F4, LL4 | Local semantic history search via `/v1/embeddings`, stored in the drift database. Semantic *code* search is a deferred follow-up. |
 | Local LLM | LL6 | done | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
 | Local LLM | LL7 | done | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
-| Local LLM | LL8 | later | M | LL1 | LAN inference mesh: discover and route across multiple OpenAI-compatible endpoints. |
+| Local LLM | LL8 | done | M | LL1 | LAN inference mesh: discover/register OpenAI-compatible endpoints and route secondary calls per role with health fallback. Main-conversation fan-out is a deferred follow-up. |
 | Local LLM | LL9 | later | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
 | Local LLM | LL10 | later | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
 | Local LLM | LL11 | later | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
@@ -790,20 +790,38 @@ Deferred follow-up:
 
 ### LL8: LAN Inference Mesh
 
-Scope:
-- Extend `LanScanService` host probing to detect OpenAI-compatible endpoints
-  (LM Studio 1234, Ollama 11434, llama.cpp 8080, custom ports) via
-  `GET /v1/models`, and offer one-tap registration as named endpoints.
-- Role routing (LL1) gains an endpoint dimension: a role maps to
-  endpoint + model. Health checks demote unreachable endpoints with fallback
-  to the primary.
-- Subagents and Best-of-N candidates (LL7) may fan out across endpoints.
+Status: `done` (secondary-call routing; main-conversation fan-out deferred).
 
-Acceptance criteria:
+Scope (delivered):
+- `LanEndpointDiscovery` probes candidate hosts for OpenAI-compatible endpoints
+  (LM Studio 1234, Ollama 11434, llama.cpp 8080, 8000, 5000) via an
+  unauthenticated `GET /v1/models`; the mesh settings page offers one-tap
+  registration as named endpoints.
+- Role routing (LL1) gains an endpoint dimension: memory extraction, subagent,
+  goal suggestion, and approval auto-review each map to endpoint + model.
+  `EndpointHealthTracker` demotes unreachable endpoints and `MeshEndpointRouter`
+  falls back to the primary, with a primary-valid fallback model.
+
+Acceptance criteria (met):
 - Discovery never sends credentials to unverified hosts; registration is
   explicit and user-confirmed.
 - A dropped mesh endpoint degrades to the primary endpoint without failing
-  the active turn.
+  the active turn (device-verified: a downed endpoint fell back to the primary
+  with the main model and the secondary call still succeeded).
+
+Implementation slices:
+- `LanEndpointDiscovery` (unauthenticated `/v1/models` probe, batched).
+- `NamedEndpoint` entity + `namedEndpoints` persistence + upsert/remove.
+- Pure `MeshEndpointRouter` + `EndpointHealthTracker` (resolve + demotion).
+- Provider composition + `MeshDiscoveryNotifier` (LAN sweep + verify).
+- Mesh settings UI (scan/register/manage) + per-role endpoint dropdowns.
+- `MeshSecondaryCompletionRunner` wired into the four secondary calls, with a
+  primary-valid fallback model on demotion or mid-call failure.
+
+Deferred follow-up:
+- Fan out the main conversation (and Best-of-N candidates) across endpoints.
+- A periodic background health-check loop (today health is recorded from actual
+  call outcomes, demoting after consecutive failures).
 
 ### LL9: Local Stack Manager
 

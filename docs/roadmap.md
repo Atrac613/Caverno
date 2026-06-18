@@ -72,7 +72,8 @@ handoffs can refer to the same unit of work over time.
 | Local LLM | LL20 | done | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, run `--parallel N` candidates. | Unblocked LL7 (Best-of-N) and LL13 (parallel worktrees); compose the slot transport/discovery/executor providers. |
 | Local LLM | LL7 | done | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. | Sequential checkpoint/verify with a consolidated report; a one-tap Routines UI preset and LL13-parallel generation are deferred follow-ups. |
 | Foundation | F4 | done | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS5 history search. | Migration + drift backend + FTS history search UI shipped and verified; retiring Hive is a deferred follow-up. Branch `feature/f4-drift-migration` not yet merged. |
-| Local LLM | LL5 | done | Local semantic history search via `/v1/embeddings`, stored in the F4 drift database. | Conversation history indexed + drift vector store + hybrid semantic/FTS history search UI + semantic-aware `search_past_conversations` shipped and device-verified; degrades to lexical FTS when no embeddings endpoint exists. Semantic *code* search is a deferred follow-up. Branch `feature/ll5-semantic-search` not yet merged. |
+| Local LLM | LL5 | done | Local semantic history search via `/v1/embeddings`, stored in the F4 drift database. | Conversation history indexed + drift vector store + hybrid semantic/FTS history search UI + semantic-aware `search_past_conversations` shipped and device-verified; degrades to lexical FTS when no embeddings endpoint exists. Semantic *code* search is a deferred follow-up. Branch `feature/ll5-semantic-search` merged to main. |
+| Local LLM | LL8 | done | LAN inference mesh: discover and register OpenAI-compatible endpoints, route secondary calls per role with health fallback. | Discovery probe (unauthenticated `GET /v1/models`) + named-endpoint registry + mesh settings UI + per-role endpoint routing for secondary calls with primary fallback shipped and device-verified. Full-mesh main-conversation fan-out and a periodic health-check loop are deferred follow-ups. Branch `feature/ll8-lan-inference-mesh` not yet merged. |
 | Platform Vision | API1 | later | Normalize Chat Completions, Responses-style APIs, and local-provider extensions into one Agent Event Core. | Promote only after the current LL backlog is stable; first slice defines the event schema and replay fixture. |
 | Platform Vision | SEC1 | later | Define the Local Agent Data Perimeter for data classes, tool capabilities, and trust boundaries. | Start before expanding unattended or cross-machine tool execution beyond current approval gates. |
 | Platform Vision | OBS1 | later | Build an Agent Trace Timeline for model calls, tools, checkpoints, slots, evals, and maintenance runs. | Start before making LL13 parallel worktrees a product-facing agent-farm feature. |
@@ -83,7 +84,7 @@ handoffs can refer to the same unit of work over time.
 | Platform Vision | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as first-class multimodal evidence. | Land after SEC1/OBS1 so evidence inherits trust, redaction, and trace behavior. |
 | Platform Vision | MCP-GOV1 | later | Lint MCP tool contracts for schema clarity, dangerous capabilities, and weak-model tool-selection quality. | Start before SEC3 permission diff and MCP trust-registry UX. |
 
-Remaining `later` Local LLM milestones (LL8, LL9, LL10, LL11, LL13), Foundation
+Remaining `later` Local LLM milestones (LL9, LL10, LL11, LL13), Foundation
 F5, and the future platform vision milestones are detailed in
 `docs/local_llm_agent_roadmap.md`.
 
