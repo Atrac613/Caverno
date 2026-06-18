@@ -14,23 +14,41 @@ import '../providers/settings_notifier.dart';
 class ModelRoutingSettingsPage extends ConsumerWidget {
   const ModelRoutingSettingsPage({super.key});
 
+  /// Resolve the model-list config for a role: the assigned mesh endpoint's
+  /// base URL + key, or the primary endpoint when unassigned or not found.
+  /// Roles on the same endpoint share one fetch (a configured model not in the
+  /// catalog stays selectable via [_RoleModelDropdown]).
+  ModelListConfig _endpointConfig(AppSettings settings, String endpointId) {
+    if (endpointId.isNotEmpty) {
+      for (final endpoint in settings.namedEndpoints) {
+        if (endpoint.id == endpointId) {
+          return ModelListConfig(
+            baseUrl: endpoint.normalizedBaseUrl,
+            apiKey: endpoint.apiKey,
+          );
+        }
+      }
+    }
+    return ModelListConfig(baseUrl: settings.baseUrl, apiKey: settings.apiKey);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsNotifierProvider);
     final notifier = ref.read(settingsNotifierProvider.notifier);
     final isAppleProvider =
         settings.llmProvider == LlmProvider.appleFoundationModels;
-    final asyncModels = isAppleProvider
-        ? const AsyncValue<List<String>>.data(<String>[])
-        : ref.watch(
-            modelListProvider(
-              ModelListConfig(
-                baseUrl: settings.baseUrl,
-                apiKey: settings.apiKey,
-                selectedModelId: settings.model,
-              ),
-            ),
-          );
+
+    // LL8: each role lists models from its assigned endpoint (primary when
+    // unassigned), so picking a mesh endpoint surfaces that host's models.
+    AsyncValue<List<String>> modelsFor(String endpointId) {
+      if (isAppleProvider) {
+        return const AsyncValue<List<String>>.data(<String>[]);
+      }
+      return ref.watch(
+        modelListProvider(_endpointConfig(settings, endpointId)),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: Text('settings.model_routing_title'.tr())),
@@ -56,7 +74,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_memory_extraction'.tr(),
             helper: 'settings.model_routing_memory_extraction_desc'.tr(),
             value: settings.memoryExtractionModel,
-            asyncModels: asyncModels,
+            asyncModels: modelsFor(settings.memoryExtractionEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateMemoryExtractionModel,
           ),
@@ -73,7 +91,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_subagent'.tr(),
             helper: 'settings.model_routing_subagent_desc'.tr(),
             value: settings.subagentModel,
-            asyncModels: asyncModels,
+            asyncModels: modelsFor(settings.subagentEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateSubagentModel,
           ),
@@ -90,7 +108,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_goal_suggestion'.tr(),
             helper: 'settings.model_routing_goal_suggestion_desc'.tr(),
             value: settings.goalSuggestionModel,
-            asyncModels: asyncModels,
+            asyncModels: modelsFor(settings.goalSuggestionEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateGoalSuggestionModel,
           ),
@@ -107,7 +125,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_approval_auto_review'.tr(),
             helper: 'settings.model_routing_approval_auto_review_desc'.tr(),
             value: settings.approvalAutoReviewModel,
-            asyncModels: asyncModels,
+            asyncModels: modelsFor(settings.approvalAutoReviewEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateApprovalAutoReviewModel,
           ),
