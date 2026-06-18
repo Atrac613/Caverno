@@ -110,6 +110,7 @@ void main() {
         signals: const {
           'transportDisconnectCount': 1,
           'recoveredStreamFallbackCount': 1,
+          'turnFinalizationRecoveryRequestCount': 1,
         },
       ),
     );
@@ -125,6 +126,12 @@ void main() {
           .singleWhere((gate) => gate.id == 'recovery_signals_clean')
           .evidence,
       contains('transportDisconnectCount=1'),
+    );
+    expect(
+      result.gates
+          .singleWhere((gate) => gate.id == 'recovery_signals_clean')
+          .evidence,
+      contains('turnFinalizationRecoveryRequestCount=1'),
     );
   });
 

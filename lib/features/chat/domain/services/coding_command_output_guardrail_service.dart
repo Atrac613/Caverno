@@ -45,6 +45,38 @@ class CodingCommandOutputIssue {
   }
 }
 
+class CodingCommandPreflightIssue {
+  const CodingCommandPreflightIssue({
+    required this.code,
+    required this.command,
+    required this.workingDirectory,
+    required this.segment,
+    required this.summary,
+    required this.instruction,
+    required this.targets,
+  });
+
+  final String code;
+  final String command;
+  final String workingDirectory;
+  final String segment;
+  final String summary;
+  final String instruction;
+  final List<String> targets;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'code': code,
+      'command': command,
+      'working_directory': workingDirectory,
+      'segment': segment,
+      'summary': summary,
+      'instruction': instruction,
+      'targets': targets,
+    };
+  }
+}
+
 class CodingCommandOutputGuardrailService {
   const CodingCommandOutputGuardrailService();
 
@@ -82,6 +114,13 @@ class CodingCommandOutputGuardrailService {
     0x305b,
     0x3093,
   ]);
+  static const Set<String> _dartCreateOptionsWithValue = {
+    '-t',
+    '--template',
+    '--sample',
+    '--description',
+    '--project-name',
+  };
 
   ToolResultInfo? buildFeedbackToolResult({
     required List<ToolResultInfo> toolResults,
@@ -111,7 +150,8 @@ class CodingCommandOutputGuardrailService {
       'success': false,
       'validation_status': 'failed',
       'error':
-          'A command exited with code 0, but its output reports a failed generated artifact or missing required data.',
+          'A command exited with code 0, but its command shape or output '
+          'reports a failed generated artifact or missing required data.',
       'instruction':
           'Treat the coding task as incomplete. Inspect and repair the script, generated file, or data lookup, then rerun the relevant command before claiming completion.',
       'issues': issues.map((issue) => issue.toJson()).toList(growable: false),
@@ -146,6 +186,26 @@ class CodingCommandOutputGuardrailService {
     );
   }
 
+  static CodingCommandPreflightIssue? detectPreflightIssue({
+    required String toolName,
+    required String command,
+    required String workingDirectory,
+  }) {
+    final normalizedToolName = toolName.trim().toLowerCase();
+    if (normalizedToolName != 'local_execute_command' &&
+        normalizedToolName != 'process_start') {
+      return null;
+    }
+    final normalizedCommand = _normalizeText(command);
+    if (normalizedCommand == null) {
+      return null;
+    }
+    return _detectMalformedDartCreateCommand(
+      command: normalizedCommand,
+      workingDirectory: workingDirectory,
+    );
+  }
+
   static CodingCommandOutputIssue? detectIssueFromDecodedCommandResult({
     required String toolName,
     required Map<String, dynamic> decoded,
@@ -165,6 +225,22 @@ class CodingCommandOutputGuardrailService {
         _normalizeText(decoded['working_directory']) ??
         fallbackWorkingDirectory ??
         '';
+    final preflightIssue = detectPreflightIssue(
+      toolName: toolName,
+      command: command,
+      workingDirectory: workingDirectory,
+    );
+    if (preflightIssue != null) {
+      return CodingCommandOutputIssue(
+        toolName: toolName,
+        command: command,
+        workingDirectory: workingDirectory,
+        exitCode: exitCode!,
+        source: 'command',
+        summary: preflightIssue.summary,
+        excerpt: preflightIssue.segment,
+      );
+    }
     for (final entry in const {
       'stdout': 'stdout',
       'stderr': 'stderr',
@@ -254,6 +330,198 @@ class CodingCommandOutputGuardrailService {
       offset += line.length + 1;
     }
     return null;
+  }
+
+  static CodingCommandPreflightIssue? _detectMalformedDartCreateCommand({
+    required String command,
+    required String workingDirectory,
+  }) {
+    for (final segment in _splitShellSegments(command)) {
+      final args = _splitArgs(segment);
+      final createArgs = _dartCreateArgs(args);
+      if (createArgs == null) {
+        continue;
+      }
+      final targets = _dartCreateTargets(createArgs);
+      if (targets.length <= 1) {
+        continue;
+      }
+      return CodingCommandPreflightIssue(
+        code: 'dart_create_multiple_targets',
+        command: command,
+        workingDirectory: workingDirectory,
+        segment: segment,
+        summary: 'Dart create command specifies multiple target directories.',
+        instruction:
+            'Run dart create with exactly one target directory. Use '
+            '"dart create --force prime_numbers_pkg" from the parent '
+            'directory, or create the directory first and run '
+            '"dart create --force ." inside it.',
+        targets: targets,
+      );
+    }
+    return null;
+  }
+
+  static List<String>? _dartCreateArgs(List<String> args) {
+    if (args.length >= 2 && args[0] == 'dart' && args[1] == 'create') {
+      return args.skip(2).toList(growable: false);
+    }
+    if (args.length >= 3 &&
+        args[0] == 'fvm' &&
+        args[1] == 'dart' &&
+        args[2] == 'create') {
+      return args.skip(3).toList(growable: false);
+    }
+    return null;
+  }
+
+  static List<String> _dartCreateTargets(List<String> args) {
+    final targets = <String>[];
+    var consumeNextAsOptionValue = false;
+    for (var i = 0; i < args.length; i++) {
+      final arg = args[i];
+      if (consumeNextAsOptionValue) {
+        consumeNextAsOptionValue = false;
+        continue;
+      }
+      if (arg == '--') {
+        targets.addAll(
+          args
+              .skip(i + 1)
+              .map((target) => target.trim())
+              .where((target) => target.isNotEmpty),
+        );
+        break;
+      }
+      if (arg.startsWith('-')) {
+        consumeNextAsOptionValue = _dartCreateOptionConsumesNext(arg);
+        continue;
+      }
+      targets.add(arg);
+    }
+    return targets;
+  }
+
+  static bool _dartCreateOptionConsumesNext(String arg) {
+    if (arg.contains('=')) {
+      return false;
+    }
+    return _dartCreateOptionsWithValue.contains(arg);
+  }
+
+  static List<String> _splitShellSegments(String command) {
+    final segments = <String>[];
+    final buffer = StringBuffer();
+    String? quoteChar;
+
+    for (var i = 0; i < command.length; i++) {
+      final char = command[i];
+
+      if (quoteChar != null) {
+        if (char == '\\' && i + 1 < command.length) {
+          i += 1;
+          buffer.write(command[i]);
+          continue;
+        }
+        if (char == quoteChar) {
+          quoteChar = null;
+        } else {
+          buffer.write(char);
+        }
+        continue;
+      }
+
+      if (char == '"' || char == "'") {
+        quoteChar = char;
+        continue;
+      }
+
+      if (char == '\\' && i + 1 < command.length) {
+        i += 1;
+        buffer.write(command[i]);
+        continue;
+      }
+
+      if (char == ';' || char == '\n') {
+        final segment = buffer.toString().trim();
+        if (segment.isNotEmpty) {
+          segments.add(segment);
+        }
+        buffer.clear();
+        continue;
+      }
+
+      if ((char == '&' || char == '|') &&
+          i + 1 < command.length &&
+          command[i + 1] == char) {
+        final segment = buffer.toString().trim();
+        if (segment.isNotEmpty) {
+          segments.add(segment);
+        }
+        buffer.clear();
+        i += 1;
+        continue;
+      }
+
+      buffer.write(char);
+    }
+
+    final trailing = buffer.toString().trim();
+    if (trailing.isNotEmpty) {
+      segments.add(trailing);
+    }
+    return segments;
+  }
+
+  static List<String> _splitArgs(String command) {
+    final args = <String>[];
+    final buffer = StringBuffer();
+    String? quoteChar;
+
+    for (var i = 0; i < command.length; i++) {
+      final char = command[i];
+
+      if (quoteChar != null) {
+        if (char == '\\' && i + 1 < command.length) {
+          i += 1;
+          buffer.write(command[i]);
+          continue;
+        }
+        if (char == quoteChar) {
+          quoteChar = null;
+        } else {
+          buffer.write(char);
+        }
+        continue;
+      }
+
+      if (char == '"' || char == "'") {
+        quoteChar = char;
+        continue;
+      }
+
+      if (char == '\\' && i + 1 < command.length) {
+        i += 1;
+        buffer.write(command[i]);
+        continue;
+      }
+
+      if (char == ' ' || char == '\t') {
+        if (buffer.isNotEmpty) {
+          args.add(buffer.toString());
+          buffer.clear();
+        }
+        continue;
+      }
+
+      buffer.write(char);
+    }
+
+    if (buffer.isNotEmpty) {
+      args.add(buffer.toString());
+    }
+    return args;
   }
 
   static bool _isCjkErrorHeading(String line) {

@@ -405,7 +405,7 @@ void main() {
   });
 
   group('LL21 profile revision history', () {
-    ProviderContainer _container(SharedPreferences prefs) {
+    ProviderContainer createContainer(SharedPreferences prefs) {
       final container = ProviderContainer(
         overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
       );
@@ -413,7 +413,7 @@ void main() {
       return container;
     }
 
-    ModelCapabilityProfile _profile(String baseUrl, String model) =>
+    ModelCapabilityProfile createProfile(String baseUrl, String model) =>
         ModelCapabilityProfile(
           id: ModelCapabilityProfile.buildId(
             provider: LlmProvider.openAiCompatible,
@@ -429,7 +429,7 @@ void main() {
           usableContextTokens: 8192,
         );
 
-    List<ModelCapabilityProfileRevision> _revisionsFor(
+    List<ModelCapabilityProfileRevision> revisionsFor(
       ProviderContainer container,
       String model,
     ) => container
@@ -443,16 +443,16 @@ void main() {
     test('upsert appends a revision with the given source', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
-      final container = _container(prefs);
+      final container = createContainer(prefs);
       final notifier = container.read(settingsNotifierProvider.notifier);
 
-      final profile = _profile('http://localhost:1234/v1', 'my-model');
+      final profile = createProfile('http://localhost:1234/v1', 'my-model');
       await notifier.upsertModelCapabilityProfile(
         profile,
         source: 'idle_re_probe',
       );
 
-      final revisions = _revisionsFor(container, 'my-model');
+      final revisions = revisionsFor(container, 'my-model');
       expect(revisions, hasLength(1));
       expect(revisions.first.source, 'idle_re_probe');
       expect(revisions.first.capabilityChangeDetected, isFalse);
@@ -463,10 +463,10 @@ void main() {
       () async {
         SharedPreferences.setMockInitialValues({});
         final prefs = await SharedPreferences.getInstance();
-        final container = _container(prefs);
+        final container = createContainer(prefs);
         final notifier = container.read(settingsNotifierProvider.notifier);
 
-        final base = _profile('http://localhost:1234/v1', 'my-model');
+        final base = createProfile('http://localhost:1234/v1', 'my-model');
         await notifier.upsertModelCapabilityProfile(base, source: 'probe');
 
         final changed = base.copyWith(
@@ -477,7 +477,7 @@ void main() {
           source: 'idle_re_probe',
         );
 
-        final revisions = _revisionsFor(container, 'my-model');
+        final revisions = revisionsFor(container, 'my-model');
         // Newest first: the idle_re_probe revision should be first.
         expect(revisions, hasLength(2));
         expect(revisions.first.source, 'idle_re_probe');
@@ -490,17 +490,17 @@ void main() {
       () async {
         SharedPreferences.setMockInitialValues({});
         final prefs = await SharedPreferences.getInstance();
-        final container = _container(prefs);
+        final container = createContainer(prefs);
         final notifier = container.read(settingsNotifierProvider.notifier);
 
-        final profile = _profile('http://localhost:1234/v1', 'my-model');
+        final profile = createProfile('http://localhost:1234/v1', 'my-model');
         await notifier.upsertModelCapabilityProfile(profile, source: 'probe');
         await notifier.upsertModelCapabilityProfile(
           profile,
           source: 'idle_re_probe',
         );
 
-        final revisions = _revisionsFor(container, 'my-model');
+        final revisions = revisionsFor(container, 'my-model');
         expect(revisions.first.capabilityChangeDetected, isFalse);
       },
     );
@@ -510,10 +510,10 @@ void main() {
       () async {
         SharedPreferences.setMockInitialValues({});
         final prefs = await SharedPreferences.getInstance();
-        final container = _container(prefs);
+        final container = createContainer(prefs);
         final notifier = container.read(settingsNotifierProvider.notifier);
 
-        final base = _profile('http://localhost:1234/v1', 'my-model');
+        final base = createProfile('http://localhost:1234/v1', 'my-model');
         await notifier.upsertModelCapabilityProfile(base, source: 'probe');
 
         final drifted = base.copyWith(usableContextTokens: 4096); // 50% drop
@@ -522,7 +522,7 @@ void main() {
           source: 'idle_re_probe',
         );
 
-        final revisions = _revisionsFor(container, 'my-model');
+        final revisions = revisionsFor(container, 'my-model');
         expect(revisions.first.capabilityChangeDetected, isTrue);
       },
     );
@@ -530,10 +530,10 @@ void main() {
     test('revisions are capped at maxPerProfile per model id', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
-      final container = _container(prefs);
+      final container = createContainer(prefs);
       final notifier = container.read(settingsNotifierProvider.notifier);
 
-      final profile = _profile('http://localhost:1234/v1', 'my-model');
+      final profile = createProfile('http://localhost:1234/v1', 'my-model');
       final cap = ModelCapabilityProfileRevision.maxPerProfile;
 
       for (var i = 0; i < cap + 3; i++) {
@@ -546,7 +546,7 @@ void main() {
         );
       }
 
-      final revisions = _revisionsFor(container, 'my-model');
+      final revisions = revisionsFor(container, 'my-model');
       expect(revisions.length, cap);
       // Newest is most recent; index 0 should be the last upserted.
       expect(revisions.first.probeSummary, 'run ${cap + 2}');
@@ -555,11 +555,11 @@ void main() {
     test('revisions for different model ids do not interfere', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
-      final container = _container(prefs);
+      final container = createContainer(prefs);
       final notifier = container.read(settingsNotifierProvider.notifier);
 
-      final profileA = _profile('http://localhost:1234/v1', 'model-a');
-      final profileB = _profile('http://localhost:1234/v1', 'model-b');
+      final profileA = createProfile('http://localhost:1234/v1', 'model-a');
+      final profileB = createProfile('http://localhost:1234/v1', 'model-b');
 
       await notifier.upsertModelCapabilityProfile(profileA, source: 'probe');
       await notifier.upsertModelCapabilityProfile(profileB, source: 'probe');
@@ -568,8 +568,8 @@ void main() {
         source: 'idle_re_probe',
       );
 
-      expect(_revisionsFor(container, 'model-a'), hasLength(2));
-      expect(_revisionsFor(container, 'model-b'), hasLength(1));
+      expect(revisionsFor(container, 'model-a'), hasLength(2));
+      expect(revisionsFor(container, 'model-b'), hasLength(1));
     });
   });
 

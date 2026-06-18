@@ -581,6 +581,18 @@ Map<String, int> _recoverySignals(Map<String, dynamic> signals) {
     'toolResultCompactionRetryCount': _asInt(
       signals['toolResultCompactionRetryCount'],
     ),
+    'codingContinuationRecoveryRequestCount': _asInt(
+      signals['codingContinuationRecoveryRequestCount'],
+    ),
+    'codingContinuationRecoveryToolCallCount': _asInt(
+      signals['codingContinuationRecoveryToolCallCount'],
+    ),
+    'turnFinalizationRecoveryRequestCount': _asInt(
+      signals['turnFinalizationRecoveryRequestCount'],
+    ),
+    'turnFinalizationRecoveryToolCallCount': _asInt(
+      signals['turnFinalizationRecoveryToolCallCount'],
+    ),
     'incompleteContentToolRecoveryCount': _asInt(
       signals['incompleteContentToolRecoveryCount'],
     ),

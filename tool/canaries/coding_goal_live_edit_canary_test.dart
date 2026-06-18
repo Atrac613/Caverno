@@ -1394,8 +1394,9 @@ class _LiveSettingsNotifier extends SettingsNotifier {
 
   @override
   Future<void> upsertModelCapabilityProfile(
-    ModelCapabilityProfile profile,
-  ) async {
+    ModelCapabilityProfile profile, {
+    String source = 'probe',
+  }) async {
     final normalized = profile.normalizedForPersistence();
     if (normalized.normalizedModel.isEmpty) {
       throw ArgumentError('Model capability profile model is required');

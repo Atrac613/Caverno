@@ -125,6 +125,7 @@ void main() {
           signals: const LiveLlmCanaryReferenceSignals(
             unexpectedWarningCount: 1,
             assistantAuthoredToolBlockCount: 1,
+            turnFinalizationRecoveryRequestCount: 1,
             approvalFallbackCount: 1,
           ),
         ),
@@ -139,7 +140,7 @@ void main() {
 
     expect(comparison.result, 'failed');
     expect(comparison.isSuccessful, isFalse);
-    expect(comparison.hardRegressionCount, 5);
+    expect(comparison.hardRegressionCount, 6);
     expect(comparison.watchSignalCount, 1);
     final coding = comparison.entries.singleWhere(
       (entry) => entry.surface == 'coding_pm5',
@@ -157,6 +158,10 @@ void main() {
     expect(
       coding.hardRegressions,
       contains('assistant tool blocks increased 0->1'),
+    );
+    expect(
+      coding.hardRegressions,
+      contains('turn finalization recovery increased 0->1'),
     );
     expect(coding.watchSignals, contains('approval fallback increased 0->1'));
     final chat = comparison.entries.singleWhere(

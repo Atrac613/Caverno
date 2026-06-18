@@ -175,8 +175,9 @@ For each model switch, run this minimum set before comparing model quality:
    generated `canary_summary.json` with
    `tool/coding_diagnostic_feedback_release_gate.dart`. The gate blocks unless
    all six root/nested repairs pass, analyzer feedback includes both Dart files,
-   feedback and diagnostic counts are non-zero, and Live LLM recovery signals
-   are zero. See
+   feedback and diagnostic counts are non-zero, and Live LLM recovery signals,
+   including coding-continuation and turn-finalization recovery counts, are
+   zero. See
    [`coding_diagnostic_feedback_release_gate.md`](coding_diagnostic_feedback_release_gate.md)
    for the full gate contract.
 
@@ -200,7 +201,8 @@ For each model switch, run this minimum set before comparing model quality:
    `tool/coding_verification_feedback_release_gate.dart`. The gate blocks
    unless all six root/nested repairs pass, test feedback includes both Dart
    files, feedback and failing-test counts are non-zero, the feedback came from
-   failed completion-claim checks, and Live LLM recovery signals are zero. See
+   failed completion-claim checks, and Live LLM recovery signals, including
+   coding-continuation and turn-finalization recovery counts, are zero. See
    [`coding_verification_feedback_release_gate.md`](coding_verification_feedback_release_gate.md)
    for the full gate contract. Set the data-export acknowledgement only after
    confirming the configured endpoint may receive the live canary prompts,
@@ -317,6 +319,88 @@ allowed-warning, compaction-retry, and analyzer feedback increases are recorded
 as watch signals instead of hard failures.
 
 ## Latest Full-Surface Evidence
+
+### 2026-06-18: `qwen3.6-35b-a3b-vision` Main Gate Recovery Pass
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model: `qwen3.6-35b-a3b-vision`
+- API key: `no-key`
+- Command: `CAVERNO_QWEN36_MAIN_LLM_RUN_PM5=1 tool/run_qwen36_main_llm_gate.sh`
+- Scope note: full Qwen3.6 main LLM gate after LL23 saved-validation
+  preservation, active saved-task target enforcement, and requirements
+  validation normalization.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Exact preservation | `tool/run_qwen36_main_llm_gate.sh` exact-preservation step | Passed | 1/1 scenario passed | Report quality was `ready`, warnings were 0, and task drift was 0. The LLM first rewrote the saved validation path, the guard blocked it, and the model recovered to the exact saved command. |
+| PM5 smoke | `CAVERNO_QWEN36_MAIN_LLM_RUN_PM5=1 tool/run_qwen36_main_llm_gate.sh` | Passed | 3/3 scenarios passed | Report quality was `ready`, warnings were 0, task drift was 0, and tool-loop convergence recorded 4 saved validations with 4 natural stops across the smoke suite. |
+| PM5 Ping CLI | PM5 ping canary step | Passed | 1/1 run passed | The canary created only `ping_cli.py`, validated `python3 ping_cli.py --help`, and recorded 0 failed runs. |
+| Chat background process | PM5 background-process canary step | Passed | 2/2 tests passed | Main readiness was `ready`; the canary exercised process-start/process-wait monitoring and the still-running prose-only recovery path without failed or unverified final process states. |
+| Chat | `tool/run_chat_live_llm_canary.sh` through the Qwen3.6 gate | Passed | 11/11 tests passed | Main readiness was `ready`; recovery signals were limited to 1 incomplete content-tool recovery and 2 ignored assistant-authored `tool_result` packets. |
+| Tool-result budget | `tool/run_tool_result_budget_live_canary.sh` through the Qwen3.6 gate | Passed | 1/1 test passed | Oversized tool-result compaction recovered with the expected single compaction retry. |
+
+Artifacts:
+
+- Exact-preservation suite report:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_live_suite_macos_1781770291875/plan_mode_live_suite_macos_report.json`
+- PM5 smoke suite report:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_live_suite_macos_1781770362512/plan_mode_live_suite_macos_report.json`
+- PM5 smoke Markdown:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_live_suite_macos_1781770362512/plan_mode_live_suite_macos_report.md`
+- PM5 ping canary summary:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_ping_cli_canary_1781770461/canary_summary.json`
+- PM5 ping canary suite report:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_ping_cli_canary_1781770461/run_01_suite_report.json`
+- Chat background-process summary:
+  `build/integration_test_reports/qwen36_main_llm_gate/chat_background_process_live_canary_1781770518/canary_summary.json`
+- Chat canary summary:
+  `build/integration_test_reports/qwen36_main_llm_gate/qwen36_main_llm_chat_canary_1781770569/canary_summary.json`
+- Tool-result budget summary:
+  `build/integration_test_reports/qwen36_main_llm_gate/tool_result_budget_live_canary_1781770608/canary_summary.json`
+
+### 2026-06-18: `qwen3.6-35b-a3b-vision` Historical Main Gate PM5 Blocker
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model: `qwen3.6-35b-a3b-vision`
+- API key: `no-key`
+- Scope note: broader gate after LL23 focused coding-goal stability passed.
+  The run used PM5 to check whether the focused recovery evidence was ready for
+  main-gate promotion.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Exact preservation | `tool/run_qwen36_main_llm_gate.sh` exact-preservation step | Passed | 1/1 scenario passed | Report quality was `ready`, warnings were 0, and task drift was 0. The exact-preservation report is `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_live_suite_macos_1781765267725/plan_mode_live_suite_macos_report.json`. |
+| PM5 smoke | `CAVERNO_QWEN36_MAIN_LLM_RUN_PM5=1 tool/run_qwen36_main_llm_gate.sh` | Failed | 0/3 scenarios passed | Report quality was `blocked` with 5 blockers, and task drift was detected in 2 scenarios. `live_host_health_scaffold` rewrote the saved validation command into denied shell-wrapper variants. `live_cli_entrypoint_decision` and `live_clarify_recovery` created `README.md` while the active saved task target was only `requirements.txt`. |
+
+Artifacts:
+
+- Exact-preservation suite report:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_live_suite_macos_1781765267725/plan_mode_live_suite_macos_report.json`
+- PM5 smoke suite report:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_live_suite_macos_1781765349611/plan_mode_live_suite_macos_report.json`
+- PM5 smoke Markdown:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_live_suite_macos_1781765349611/plan_mode_live_suite_macos_report.md`
+
+### 2026-06-18: `qwen3.6-35b-a3b-vision` LL23 Coding Goal Stability
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model: `qwen3.6-35b-a3b-vision`
+- API key: `no-key`
+- Scope note: focused repeat evidence after LL23 finalization-gate hardening for
+  coding responses that promise a next action without emitting a tool call.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding goal edit | `CAVERNO_CODING_GOAL_LIVE_EDIT_REPEAT_COUNT=2 tool/run_coding_goal_live_edit_canary.sh` | Passed | 12/12 tests passed | Two isolated runs passed direct edit-and-test, red-green repair, two-file coordination, package-like parser repair, file create/read/update/delete lifecycle, and Git init/commit/revert lifecycle. Main readiness was `ready` with 0 blocker failures and 0 warning failures. Turn-finalization recovery ran 3 requests with 3 recovery tool calls; assistant-authored tool blocks were observed twice, but redundant post-success Git tool calls were ignored after terminal goal success. |
+
+Artifacts:
+
+- Coding goal edit repeat summary:
+  `build/integration_test_reports/coding_goal_live_edit_canary_1781763710/canary_summary.json`
+- Coding goal edit repeat Markdown:
+  `build/integration_test_reports/coding_goal_live_edit_canary_1781763710/canary_summary.md`
+- Captured Flutter JSON log:
+  `build/integration_test_reports/coding_goal_live_edit_canary_1781763710/flutter_test.jsonl`
 
 ### 2026-06-01: `qwen3.6-27b-mtp-vision` Output Feedback Reference Wiring
 
@@ -667,9 +751,10 @@ The chat, chat-budget, and routine live scripts write
 `canary_summary.json`, `canary_summary.md`, and `flutter_test.jsonl` under
 `build/integration_test_reports/<canary_name>_<timestamp>/`. The summary records
 pass/fail counts plus recovery signals such as non-streaming fallback after a
-streaming disconnect, incomplete content-tool recovery, ignored
-assistant-authored `tool_result` tags, assistant-authored `[Tool: ...]`
-blocks, and tool-result compaction retry counts.
+streaming disconnect, coding-continuation recovery, turn-finalization recovery,
+incomplete content-tool recovery, ignored assistant-authored `tool_result`
+tags, assistant-authored `[Tool: ...]` blocks, and tool-result compaction retry
+counts.
 
 ## Chat Coverage
 

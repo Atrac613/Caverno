@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:caverno/core/utils/logger.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/git_tools.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
@@ -424,6 +425,7 @@ Future<bool> _runHarnessTaskTurn(
   await _sendHarnessPromptWithApprovals(
     container,
     scenarioDir: scenarioDir,
+    task: task,
     cancellationSignal: cancellationSignal,
     send: () {
       if (useHiddenPrompt) {
@@ -476,6 +478,7 @@ Future<bool> _runHarnessTaskTurn(
 Future<void> _sendHarnessPromptWithApprovals(
   ProviderContainer container, {
   required Directory scenarioDir,
+  required ConversationWorkflowTask task,
   required Future<void> Function() send,
   required PlanModeHarnessCancellationSignal cancellationSignal,
 }) async {
@@ -521,7 +524,11 @@ Future<void> _sendHarnessPromptWithApprovals(
     if (pendingLocalCommand != null) {
       final approved =
           !cancellationSignal.isCancellationRequested &&
-          _isSafeHarnessLocalCommand(pendingLocalCommand, scenarioDir);
+          isSafePlanModeHarnessLocalCommand(
+            pending: pendingLocalCommand,
+            scenarioDir: scenarioDir,
+            task: task,
+          );
       chatNotifier.resolveLocalCommand(
         id: pendingLocalCommand.id,
         approval: LocalCommandApproval(approved: approved),
@@ -555,18 +562,215 @@ bool _isSafeHarnessFileOperation(
   return !segments.contains('..');
 }
 
-bool _isSafeHarnessLocalCommand(
-  PendingLocalCommand pending,
-  Directory scenarioDir,
-) {
+bool isSafePlanModeHarnessLocalCommand({
+  required PendingLocalCommand pending,
+  required Directory scenarioDir,
+  required ConversationWorkflowTask task,
+}) {
   final command = pending.command.trimLeft();
+  final args = GitTools.splitArgs(command);
+  if (args.isEmpty) {
+    return false;
+  }
   final usesScenarioWorkspace =
       command.contains(scenarioDir.path) ||
       _isWithinScenarioWorkspace(pending.workingDirectory.trim(), scenarioDir);
   if (!usesScenarioWorkspace) {
     return false;
   }
-  return command.startsWith('grep ') || command.startsWith('/usr/bin/grep ');
+  if (_matchesHarnessSavedValidationCommand(command, task.validationCommand)) {
+    return _isSafeHarnessSavedValidationCommand(args, scenarioDir, task);
+  }
+  if (args.any(_isHarnessShellControlArgument)) {
+    return false;
+  }
+  return _isSafeHarnessReadOnlyValidationCommand(args, scenarioDir);
+}
+
+bool _isHarnessShellControlArgument(String value) {
+  return value == '&&' || value == '||' || value == ';' || value == '|';
+}
+
+bool _matchesHarnessSavedValidationCommand(
+  String command,
+  String savedValidationCommand,
+) {
+  return command.trim() == savedValidationCommand.trim();
+}
+
+bool _isSafeHarnessSavedValidationCommand(
+  List<String> args,
+  Directory scenarioDir,
+  ConversationWorkflowTask task,
+) {
+  if (_isSafeHarnessReadOnlyPipelineValidationCommand(args, scenarioDir)) {
+    return true;
+  }
+  final segments = <List<String>>[];
+  var current = <String>[];
+  for (final arg in args) {
+    if (arg == '&&') {
+      if (current.isEmpty) {
+        return false;
+      }
+      segments.add(current);
+      current = <String>[];
+      continue;
+    }
+    if (_isHarnessShellControlArgument(arg)) {
+      return false;
+    }
+    current.add(arg);
+  }
+  if (current.isEmpty) {
+    return false;
+  }
+  segments.add(current);
+  return segments.every(
+    (segment) =>
+        _isSafeHarnessReadOnlyValidationCommand(segment, scenarioDir) ||
+        _isSafeHarnessPythonHelpValidationCommand(segment, scenarioDir, task),
+  );
+}
+
+bool _isSafeHarnessReadOnlyPipelineValidationCommand(
+  List<String> args,
+  Directory scenarioDir,
+) {
+  final pipeIndexes = <int>[];
+  for (var index = 0; index < args.length; index += 1) {
+    final arg = args[index];
+    if (arg == '|') {
+      pipeIndexes.add(index);
+      continue;
+    }
+    if (arg == '&&' || arg == '||' || arg == ';') {
+      return false;
+    }
+  }
+  if (pipeIndexes.length != 1) {
+    return false;
+  }
+  final pipeIndex = pipeIndexes.single;
+  if (pipeIndex == 0 || pipeIndex == args.length - 1) {
+    return false;
+  }
+  final left = args.sublist(0, pipeIndex);
+  final right = args.sublist(pipeIndex + 1);
+  return _isSafeHarnessReadOnlyValidationCommand(left, scenarioDir) &&
+      _isSafeHarnessStdinGrepCommand(right);
+}
+
+bool _isSafeHarnessStdinGrepCommand(List<String> args) {
+  if (args.length < 2) {
+    return false;
+  }
+  final executable = args.first.split('/').last.toLowerCase();
+  if (executable != 'grep') {
+    return false;
+  }
+  final patternArguments = args
+      .skip(1)
+      .where((arg) => !arg.startsWith('-'))
+      .toList(growable: false);
+  return patternArguments.length == 1;
+}
+
+bool _isSafeHarnessReadOnlyValidationCommand(
+  List<String> args,
+  Directory scenarioDir,
+) {
+  final executable = args.first.split('/').last.toLowerCase();
+  if (executable == 'cat' && args.length == 2) {
+    return _isSafeHarnessCommandPath(args[1], scenarioDir);
+  }
+  if (executable == 'ls' && args.length == 2) {
+    return _isSafeHarnessCommandPath(args[1], scenarioDir);
+  }
+  if (executable == 'test' && args.length == 3 && args[1] == '-f') {
+    return _isSafeHarnessCommandPath(args[2], scenarioDir);
+  }
+  if (executable == 'grep' && args.length >= 3) {
+    return _isSafeHarnessCommandPath(args.last, scenarioDir);
+  }
+  return false;
+}
+
+bool _isSafeHarnessCommandPath(String path, Directory scenarioDir) {
+  final trimmed = path.trim();
+  if (trimmed.isEmpty) {
+    return false;
+  }
+  if (trimmed.startsWith(Platform.pathSeparator)) {
+    return _isWithinScenarioWorkspace(trimmed, scenarioDir);
+  }
+  final segments = trimmed.split(RegExp(r'[/\\]+'));
+  return !segments.contains('..');
+}
+
+bool _isSafeHarnessPythonHelpValidationCommand(
+  List<String> args,
+  Directory scenarioDir,
+  ConversationWorkflowTask task,
+) {
+  if (args.length != 3) {
+    return false;
+  }
+  final executable = args.first.split('/').last.toLowerCase();
+  if (executable != 'python' && executable != 'python3') {
+    return false;
+  }
+  final helpArgument = args[2].trim();
+  if (helpArgument != '--help' && helpArgument != '-h') {
+    return false;
+  }
+  final scriptPath = args[1];
+  if (!_isSafeHarnessCommandPath(scriptPath, scenarioDir)) {
+    return false;
+  }
+  final normalizedScriptPath = _normalizeHarnessRelativePath(
+    scriptPath,
+    scenarioDir,
+  );
+  if (normalizedScriptPath == null) {
+    return false;
+  }
+  return task.targetFiles.any((targetFile) {
+    final normalizedTarget = _normalizeHarnessRelativePath(
+      targetFile,
+      scenarioDir,
+    );
+    return normalizedTarget != null && normalizedTarget == normalizedScriptPath;
+  });
+}
+
+String? _normalizeHarnessRelativePath(String path, Directory scenarioDir) {
+  var normalized = path.trim().replaceAll('\\', '/');
+  if (normalized.isEmpty) {
+    return null;
+  }
+  final scenarioPath = scenarioDir.path.replaceAll('\\', '/');
+  if (normalized.startsWith('/')) {
+    if (normalized == scenarioPath) {
+      return null;
+    }
+    final prefix = '$scenarioPath/';
+    if (!normalized.startsWith(prefix)) {
+      return null;
+    }
+    normalized = normalized.substring(prefix.length);
+  }
+  while (normalized.startsWith('./')) {
+    normalized = normalized.substring(2);
+  }
+  final segments = normalized
+      .split('/')
+      .where((segment) => segment.isNotEmpty)
+      .toList(growable: false);
+  if (segments.isEmpty || segments.contains('..')) {
+    return null;
+  }
+  return segments.join('/');
 }
 
 bool _isWithinScenarioWorkspace(String path, Directory scenarioDir) {

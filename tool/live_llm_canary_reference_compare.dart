@@ -404,6 +404,22 @@ LiveLlmCanaryReferenceComparisonEntry _compareEntry(
   _compareInt(
     hardRegressions,
     improvements,
+    name: 'coding continuation recovery',
+    referenceValue:
+        referenceEntry.signals.codingContinuationRecoveryRequestCount,
+    candidateValue:
+        candidateEntry.signals.codingContinuationRecoveryRequestCount,
+  );
+  _compareInt(
+    hardRegressions,
+    improvements,
+    name: 'turn finalization recovery',
+    referenceValue: referenceEntry.signals.turnFinalizationRecoveryRequestCount,
+    candidateValue: candidateEntry.signals.turnFinalizationRecoveryRequestCount,
+  );
+  _compareInt(
+    hardRegressions,
+    improvements,
     name: 'transport disconnect',
     referenceValue: referenceEntry.signals.transportDisconnectCount,
     candidateValue: candidateEntry.signals.transportDisconnectCount,

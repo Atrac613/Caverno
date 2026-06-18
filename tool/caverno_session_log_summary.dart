@@ -73,6 +73,7 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     final request = _asStringMap(decoded['request']);
     final response = _asStringMap(decoded['response']);
     final error = _asStringMap(decoded['error']);
+    final workspaceMode = _asString(context?['workspaceMode']);
     final responseContent = response == null
         ? ''
         : _asString(response['content']) ?? '';
@@ -193,20 +194,24 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     diagnostics.add(diagnostic);
     if (isFinalAnswerCandidate) {
       finalAnswer = diagnostic;
-      final finalAnswerWarning = _buildFinalAnswerWarning(
-        lineNumber: lineNumber,
-        content: responseContent,
-        previewLength: previewLength,
+      warnings.addAll(
+        _buildFinalAnswerWarnings(
+          lineNumber: lineNumber,
+          content: responseContent,
+          operation: operation,
+          workspaceMode: workspaceMode,
+          requestText: requestText,
+          requestToolCount: requestTools.length,
+          requestToolResultCount: requestToolResults.length,
+          previewLength: previewLength,
+        ),
       );
-      if (finalAnswerWarning != null) {
-        warnings.add(finalAnswerWarning);
-      }
     }
   }
 
   return CavernoLlmSessionLogSummary(
     schemaName: 'caverno_llm_session_log_summary',
-    schemaVersion: 3,
+    schemaVersion: 4,
     generatedAt: generatedAt ?? DateTime.now(),
     logPath: logFile.path,
     entryCount: parsedEntryCount,
@@ -400,24 +405,52 @@ List<SessionLogWarningEntry> _buildMemoryExtractionWarnings({
   return const [];
 }
 
-SessionLogWarningEntry? _buildFinalAnswerWarning({
+List<SessionLogWarningEntry> _buildFinalAnswerWarnings({
   required int lineNumber,
   required String content,
+  required String operation,
+  required String? workspaceMode,
+  required String requestText,
+  required int requestToolCount,
+  required int requestToolResultCount,
   required int previewLength,
 }) {
-  if (!_misinterpretsStreamEnd(content)) {
-    return null;
+  final warnings = <SessionLogWarningEntry>[];
+  if (_misinterpretsStreamEnd(content)) {
+    warnings.add(
+      SessionLogWarningEntry(
+        code: 'stream_end_misinterpretation',
+        lineNumber: lineNumber,
+        message:
+            'The final answer appears to treat stream_end as an interruption '
+            'or transport failure. In Caverno logs, stream_end only means the '
+            'streaming response was fully consumed unless an explicit error or '
+            'missing final answer is also present.',
+        evidencePreview: _preview(content, previewLength),
+      ),
+    );
   }
-  return SessionLogWarningEntry(
-    code: 'stream_end_misinterpretation',
-    lineNumber: lineNumber,
-    message:
-        'The final answer appears to treat stream_end as an interruption or '
-        'transport failure. In Caverno logs, stream_end only means the '
-        'streaming response was fully consumed unless an explicit error or '
-        'missing final answer is also present.',
-    evidencePreview: _preview(content, previewLength),
-  );
+  if (_looksLikeCodingActionPromiseWithoutTool(
+    content: content,
+    operation: operation,
+    workspaceMode: workspaceMode,
+    requestText: requestText,
+    requestToolCount: requestToolCount,
+    requestToolResultCount: requestToolResultCount,
+  )) {
+    warnings.add(
+      SessionLogWarningEntry(
+        code: 'coding_action_promise_without_tool',
+        lineNumber: lineNumber,
+        message:
+            'The final answer appears to promise a coding action while no tool '
+            'call was emitted. This matches the continuation-stall pattern: '
+            'the next turn should recover before saving or extracting memory.',
+        evidencePreview: _preview(content, previewLength),
+      ),
+    );
+  }
+  return warnings;
 }
 
 bool _misinterpretsStreamEnd(String content) {
@@ -455,6 +488,120 @@ bool _misinterpretsStreamEnd(String content) {
     '原因',
   ]);
 }
+
+bool _looksLikeCodingActionPromiseWithoutTool({
+  required String content,
+  required String operation,
+  required String? workspaceMode,
+  required String requestText,
+  required int requestToolCount,
+  required int requestToolResultCount,
+}) {
+  if (!_hasCodingOrToolContext(
+    operation: operation,
+    workspaceMode: workspaceMode,
+    requestToolCount: requestToolCount,
+    requestToolResultCount: requestToolResultCount,
+  )) {
+    return false;
+  }
+  final normalized = content.trim().replaceAll(RegExp(r'\s+'), ' ');
+  if (normalized.isEmpty) {
+    return false;
+  }
+  if (_looksLikeCompletedCodingAnswer(normalized)) {
+    return false;
+  }
+  if (!_actionPromisePattern.hasMatch(normalized)) {
+    return false;
+  }
+  return _hasContinueOrCodingRequest(requestText) ||
+      workspaceMode == 'coding' ||
+      operation.contains('WithTools') ||
+      requestToolResultCount > 0;
+}
+
+bool _hasCodingOrToolContext({
+  required String operation,
+  required String? workspaceMode,
+  required int requestToolCount,
+  required int requestToolResultCount,
+}) {
+  return workspaceMode == 'coding' ||
+      requestToolCount > 0 ||
+      requestToolResultCount > 0 ||
+      operation.contains('WithTools') ||
+      operation.contains('ToolResults');
+}
+
+bool _hasContinueOrCodingRequest(String requestText) {
+  final normalized = requestText.toLowerCase();
+  return _containsAny(normalized, const [
+        'continue',
+        'proceed',
+        'keep going',
+        'next step',
+        'implement',
+        'edit',
+        'write',
+        'create',
+        'run',
+        'execute',
+        'test',
+        'port',
+      ]) ||
+      _continueOrCodingRequestPattern.hasMatch(requestText);
+}
+
+bool _looksLikeCompletedCodingAnswer(String content) {
+  final normalized = content.toLowerCase();
+  return _containsAny(normalized, const [
+        'completed',
+        'done',
+        'implemented',
+        'created',
+        'updated',
+        'fixed',
+        'verified',
+        'tests passed',
+      ]) ||
+      _completedCodingAnswerPattern.hasMatch(content);
+}
+
+final RegExp _actionPromisePattern = RegExp(
+  r"\b(i will|i'll|i am going to|i'm going to|let me|next i will|now i will|proceed to|continue by)\b.{0,160}\b(read|inspect|check|edit|write|create|update|run|execute|port|implement|modify|fix|test)\b|"
+  '\\u78ba\\u8a8d\\u3057\\u307e\\u3059|'
+  '\\u4f5c\\u6210\\u3057\\u307e\\u3059|'
+  '\\u66f4\\u65b0\\u3057\\u307e\\u3059|'
+  '\\u5b9f\\u884c\\u3057\\u307e\\u3059|'
+  '\\u30dd\\u30fc\\u30c6\\u30a3\\u30f3\\u30b0\\u3057\\u307e\\u3059|'
+  '\\u521d\\u671f\\u5316\\u3057\\u307e\\u3059|'
+  '\\u7de8\\u96c6\\u3057\\u307e\\u3059|'
+  '\\u4fee\\u6b63\\u3057\\u307e\\u3059',
+  caseSensitive: false,
+);
+
+final RegExp _continueOrCodingRequestPattern = RegExp(
+  '\\u7d9a\\u3051\\u3066|'
+  '\\u6b21\\u306e\\u4e00\\u624b|'
+  '\\u4f5c\\u6210|'
+  '\\u5b9f\\u88c5|'
+  '\\u4fee\\u6b63|'
+  '\\u66f4\\u65b0|'
+  '\\u5b9f\\u884c|'
+  '\\u30dd\\u30fc\\u30c6\\u30a3\\u30f3\\u30b0',
+  caseSensitive: false,
+);
+
+final RegExp _completedCodingAnswerPattern = RegExp(
+  '\\u5b8c\\u4e86\\u3057\\u307e\\u3057\\u305f|'
+  '\\u4f5c\\u6210\\u3057\\u307e\\u3057\\u305f|'
+  '\\u66f4\\u65b0\\u3057\\u307e\\u3057\\u305f|'
+  '\\u5b9f\\u884c\\u3057\\u307e\\u3057\\u305f|'
+  '\\u78ba\\u8a8d\\u3057\\u307e\\u3057\\u305f|'
+  '\\u691c\\u8a3c\\u3057\\u307e\\u3057\\u305f',
+  caseSensitive: false,
+);
 
 bool _containsAny(String text, List<String> needles) {
   return needles.any(text.contains);
@@ -639,6 +786,10 @@ final class CavernoLlmSessionLogSummary {
   bool get hasMemoryEphemeralDraftWarning =>
       warnings.any((warning) => warning.code == 'memory_ephemeral_draft');
 
+  bool get hasCodingActionPromiseWithoutToolWarning => warnings.any(
+    (warning) => warning.code == 'coding_action_promise_without_tool',
+  );
+
   Map<String, dynamic> toJson() {
     return {
       'schemaName': schemaName,
@@ -668,6 +819,8 @@ final class CavernoLlmSessionLogSummary {
           .toList(growable: false),
       'streamEndMisinterpretationWarning': hasStreamEndMisinterpretationWarning,
       'memoryEphemeralDraftWarning': hasMemoryEphemeralDraftWarning,
+      'codingActionPromiseWithoutToolWarning':
+          hasCodingActionPromiseWithoutToolWarning,
     };
   }
 
@@ -681,6 +834,10 @@ final class CavernoLlmSessionLogSummary {
       ..writeln('- Malformed lines: `$malformedLineCount`')
       ..writeln('- Errors: `${errorEntries.length}`')
       ..writeln('- Warnings: `${warnings.length}`')
+      ..writeln(
+        '- Coding action promise without tool: '
+        '`${hasCodingActionPromiseWithoutToolWarning ? 'yes' : 'no'}`',
+      )
       ..writeln('- Tool calls: `$toolCallCount`')
       ..writeln('- Loop-limit prompt: `${hasLoopLimitPrompt ? 'yes' : 'no'}`')
       ..writeln(
@@ -739,7 +896,11 @@ final class CavernoLlmSessionLogSummary {
         '- Memory extraction lines: '
         '`${memoryExtractionLineNumbers.join(', ')}`',
       )
-      ..writeln('- Auto-review lines: `${autoReviewLineNumbers.join(', ')}`');
+      ..writeln('- Auto-review lines: `${autoReviewLineNumbers.join(', ')}`')
+      ..writeln(
+        '- Coding action promise warning: '
+        '`${hasCodingActionPromiseWithoutToolWarning ? 'yes' : 'no'}`',
+      );
 
     if (finalAnswer != null) {
       buffer

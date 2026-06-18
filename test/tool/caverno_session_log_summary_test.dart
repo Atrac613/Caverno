@@ -271,6 +271,44 @@ void main() {
     },
   );
 
+  test(
+    'warns when coding final answer promises action without tool calls',
+    () async {
+      final logFile = _writeSessionLog([
+        _entry(
+          operation: 'streamChatCompletionWithTools',
+          finishReason: 'stop',
+          requestMessages: [_message('user', 'continue')],
+          requestTools: [_toolDefinition('read_file')],
+          content:
+              'I will inspect the existing Dart code and port the Python logic.',
+        ),
+      ]);
+
+      final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+
+      expect(summary.result, 'complete');
+      expect(summary.finalAnswer?.lineNumber, 1);
+      expect(summary.hasWarnings, isTrue);
+      expect(summary.hasCodingActionPromiseWithoutToolWarning, isTrue);
+      expect(
+        summary.warnings.single.code,
+        'coding_action_promise_without_tool',
+      );
+      expect(summary.warnings.single.lineNumber, 1);
+      expect(summary.warnings.single.message, contains('continuation-stall'));
+      expect(summary.warnings.single.evidencePreview, contains('port'));
+
+      final json = summary.toJson();
+      expect(json['schemaVersion'], 4);
+      expect(json['codingActionPromiseWithoutToolWarning'], isTrue);
+
+      final markdown = summary.toMarkdown();
+      expect(markdown, contains('Coding action promise without tool: `yes`'));
+      expect(markdown, contains('coding_action_promise_without_tool'));
+    },
+  );
+
   test('records malformed lines and error entries without crashing', () async {
     final logFile = _writeRawSessionLog([
       'not-json',

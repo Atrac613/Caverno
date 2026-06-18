@@ -70,24 +70,22 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-26 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Focused coding goal edit repeat | Passed | Not applicable | Not applicable | 0 | 0 detected | Not applicable | `CAVERNO_CODING_GOAL_LIVE_EDIT_REPEAT_COUNT=3 tool/run_coding_goal_live_edit_canary.sh` passed 9/9. Direct edit-and-test, red-green repair, and two-file helper/caller coordination each passed in three isolated workspaces with 0 Live LLM recovery signals. |
 | 2026-05-26 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Focused package-like coding goal edit | Passed | Not applicable | Not applicable | 0 | 0 detected | Not applicable | `tool/run_coding_goal_live_edit_canary.sh` passed 4/4 after adding the package-like parser fixture. The model repaired production parser and command-builder files, left the test runner unchanged, ran validation successfully, and goal completion handled "successfully completed" narration. |
 | 2026-05-30 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Focused diagnostic feedback repeat | Passed | Not applicable | Not applicable | 0 | 0 detected | Not applicable | `CAVERNO_CODING_DIAGNOSTIC_FEEDBACK_LIVE_REPEAT_COUNT=3 tool/run_coding_diagnostic_feedback_live_canary.sh` passed 6/6 across root package and nested package Dart repairs. Analyzer feedback was observed with 11 feedback packets, 17 diagnostics, and feedback files `lib/main.dart` and `packages/nested_app/lib/main.dart`; recovery signals were all 0. |
+| 2026-06-18 | `http://192.168.100.241:1234/v1` | `qwen3.6-35b-a3b-vision` | Qwen3.6 main LLM gate with PM5 | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: exact-preservation README content | `CAVERNO_QWEN36_MAIN_LLM_RUN_PM5=1 tool/run_qwen36_main_llm_gate.sh` passed exact preservation 1/1, PM5 smoke 3/3, ping 1/1, chat background-process 2/2, chat 11/11, and tool-result budget 1/1 after LL23 saved-validation and active-task scope hardening. |
 
 ## Current Comparison Baseline
 
-Use `qwen3.6-27b-mtp-vision` as the current reference model after the
-2026-05-23 post-hardening full-surface rerun, with an additional 2026-05-26
-focused coding-goal edit repeat passing 9/9 and a package-like parser edit
-passing 4/4, plus 2026-05-30 diagnostic feedback repeat evidence passing 6/6
-across root package and nested package Dart repairs. `gemma4-26b-vision` now has a
-same-revision full-surface candidate pass after the PM5 retry: 13/13 checks,
-0 hard regressions against qwen, 1 README guard watch signal, and 1 PM5 cleanup
-improvement. The same app revision also produced a preceding PM5 ping failure
-where the model did not repair invalid generated code, so classify gemma as a
-passing but recovery-heavy candidate rather than the replacement reference.
-Keep qwen as the named reference until gemma repeats clean same-revision
-evidence, or until the team intentionally accepts the fail-then-pass PM5 risk.
-If the harness, prompts, parser recovery, task-drift classification, routine
-scoped-notification guidance, or saved validation expectations change again,
-rerun the current reference before judging a new model.
+Use `qwen3.6-35b-a3b-vision` as the current main-local-LLM candidate for chat
+and coding surfaces after the 2026-06-18 Qwen3.6 main gate passed exact
+preservation, PM5, chat background-process, chat, and tool-result budget checks.
+Keep `qwen3.6-27b-mtp-vision` as the historical routine-inclusive comparison
+reference until a 35B routine live canary is recorded, because the Qwen3.6 main
+gate wrapper does not run routines. `gemma4-26b-vision` remains a passing but
+recovery-heavy candidate: its same-revision full-surface candidate eventually
+passed, but the same app revision also produced a preceding PM5 ping failure
+where the model did not repair invalid generated code. If the harness, prompts,
+parser recovery, task-drift classification, routine scoped-notification
+guidance, or saved validation expectations change again, rerun the current 35B
+main gate before judging a new model.
 
 Minimum comparison criteria for the next model:
 
@@ -808,7 +806,88 @@ candidate:
     `status_unverified=0`
   - report quality: ready, no unexpected warnings
 
+### 2026-06-18: `qwen3.6-35b-a3b-vision` Main Gate Recovery Pass
+
+- Command:
+  `CAVERNO_QWEN36_MAIN_LLM_RUN_PM5=1 tool/run_qwen36_main_llm_gate.sh`
+- Environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=qwen3.6-35b-a3b-vision`
+- Exact-preservation suite report:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_live_suite_macos_1781770291875/plan_mode_live_suite_macos_report.json`
+- PM5 smoke suite report:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_live_suite_macos_1781770362512/plan_mode_live_suite_macos_report.json`
+- PM5 smoke Markdown:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_live_suite_macos_1781770362512/plan_mode_live_suite_macos_report.md`
+- PM5 ping canary summary:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_ping_cli_canary_1781770461/canary_summary.json`
+- PM5 ping canary suite report:
+  `build/integration_test_reports/qwen36_main_llm_gate/plan_mode_ping_cli_canary_1781770461/run_01_suite_report.json`
+- PM5 chat background-process summary:
+  `build/integration_test_reports/qwen36_main_llm_gate/chat_background_process_live_canary_1781770518/canary_summary.json`
+- Chat live canary summary:
+  `build/integration_test_reports/qwen36_main_llm_gate/qwen36_main_llm_chat_canary_1781770569/canary_summary.json`
+- Tool-result budget canary summary:
+  `build/integration_test_reports/qwen36_main_llm_gate/tool_result_budget_live_canary_1781770608/canary_summary.json`
+- Outcome:
+  - exact preservation: 1 passed, 0 failed
+  - PM5 smoke: 3 passed, 0 failed
+  - PM5 smoke report quality: ready, 0 blockers
+  - PM5 smoke warnings: 0 total, 0 allowed, 0 unexpected
+  - PM5 smoke task drift: 0 detected
+  - PM5 smoke tool-loop convergence: 4 saved validations, 0 guard
+    activations, 4 natural stops across 3 scenarios
+  - PM5 ping canary: 1 passed, 0 failed
+  - chat background-process canary: 2 passed, 0 failed
+  - chat live canary: 11 passed, 0 failed
+  - tool-result budget canary: 1 passed, 0 failed
+- Evaluation:
+  This closes the LL23 broad main-gate blocker for
+  `qwen3.6-35b-a3b-vision`. The exact-preservation and PM5 smoke runs still
+  exercised runtime rails: the model attempted modified validation commands,
+  the guard blocked them, and the model recovered to the exact saved validation
+  commands. Treat this as a clean main-gate pass because the final changed
+  files matched the saved task targets and every saved validation completed.
+
 ## Per-Model Notes
+
+### `qwen3.6-35b-a3b-vision`
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Endpoint owner from `/models`: `llamacpp`
+- Context from `/models`: `65536`
+- Training context from `/models`: `262144`
+- Embedding width from `/models`: `2048`
+- Parameters from `/models`: `35505251456`
+- Size from `/models`: `22652396032`
+- Modalities from `/models`: text and image input, text output
+- Runtime notes from `/models`:
+  - `reasoning=off`
+  - `spec-type=draft-mtp`
+  - `spec-draft-n-max=2`
+  - `parallel=1`
+  - `tensor-split=3,2`
+- Observed behavior notes:
+  - Passed the Qwen3.6 main LLM gate with PM5 enabled after LL23 guardrail
+    hardening.
+  - Exact preservation passed after the model first rewrote the saved
+    validation path, received `saved_validation_command_modified`, and then
+    recovered to the exact saved command with `working_directory`.
+  - PM5 smoke passed with 0 warnings and 0 task drift across
+    `live_host_health_scaffold`, `live_cli_entrypoint_decision`, and
+    `live_clarify_recovery`.
+  - PM5 smoke still showed benign first-attempt validation wrappers such as
+    added `echo` branches or absolute paths. The runtime guard blocked these
+    wrappers, and the model recovered to the exact saved validation command in
+    the same task turn.
+  - Chat live canary passed all 11 checks. Recovery signals were limited to
+    one incomplete content-tool recovery and two ignored assistant-authored
+    `tool_result` packets.
+  - Tool-result budget canary passed with the expected single compaction retry.
+  - Routine live canary evidence has not yet been recorded for this 35B alias;
+    keep `qwen3.6-27b-mtp-vision` as the routine-inclusive comparison baseline
+    until that surface is covered.
 
 ### `qwen3.6-27b-mtp-vision`
 

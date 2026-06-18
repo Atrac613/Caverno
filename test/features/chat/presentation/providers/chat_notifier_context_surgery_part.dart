@@ -3,8 +3,9 @@ part of 'chat_notifier_test.dart';
 class _MutableContextSurgerySettingsNotifier extends _TestSettingsNotifier {
   @override
   Future<void> upsertModelCapabilityProfile(
-    ModelCapabilityProfile profile,
-  ) async {
+    ModelCapabilityProfile profile, {
+    String source = 'probe',
+  }) async {
     final normalized = profile.normalizedForPersistence();
     final profiles = List<ModelCapabilityProfile>.from(
       state.modelCapabilityProfiles,

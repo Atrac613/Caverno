@@ -63,8 +63,8 @@ When debugging a session with Codex:
 2. Start with the bounded summary command:
    `dart run tool/caverno_session_log_summary.dart --log path/to/session.jsonl`
 3. Open the matching `.jsonl` file only when the summary flags an error, a
-   loop-limit prompt, missing final answer, malformed lines, or ambiguous tool
-   call sequence.
+   loop-limit prompt, missing final answer, malformed lines,
+   `coding_action_promise_without_tool`, or ambiguous tool call sequence.
 4. Inspect entries in timestamp order.
 5. Compare the model request, tool calls, tool results, and final response.
 6. Check whether auto-review or memory extraction introduced a secondary LLM
@@ -82,6 +82,12 @@ means Caverno finished reading the stream and wrote the accumulated text to the
 log. It is not an interruption signal by itself. Treat it as suspicious only
 when paired with an explicit `error`, an empty or visibly incomplete final
 answer, or a tool-loop limit prompt without a usable final answer.
+
+For coding turns, `coding_action_promise_without_tool` means the final response
+looked like a promise to inspect, edit, run, port, or otherwise continue work
+while no tool call was emitted. Treat it as the continuation-stall signature:
+the turn should be recovered before the response is saved or used for memory
+extraction.
 
 ## Recommended Next Improvements
 

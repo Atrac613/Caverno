@@ -83,7 +83,7 @@ Future<LiveLlmCanarySummary> buildLiveLlmCanarySummary({
   final signals = LiveLlmCanarySignals.fromLog(rawLog);
   return LiveLlmCanarySummary(
     schemaName: 'live_llm_canary_summary',
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: generatedAt ?? DateTime.now(),
     canaryName: canaryName,
     surface: surface,
@@ -240,6 +240,22 @@ class LiveLlmCanarySummary {
       ..writeln(
         '- Tool-result compaction retry count: '
         '`${signals.toolResultCompactionRetryCount}`',
+      )
+      ..writeln(
+        '- Coding continuation recovery request count: '
+        '`${signals.codingContinuationRecoveryRequestCount}`',
+      )
+      ..writeln(
+        '- Coding continuation recovery tool-call count: '
+        '`${signals.codingContinuationRecoveryToolCallCount}`',
+      )
+      ..writeln(
+        '- Turn-finalization recovery request count: '
+        '`${signals.turnFinalizationRecoveryRequestCount}`',
+      )
+      ..writeln(
+        '- Turn-finalization recovery tool-call count: '
+        '`${signals.turnFinalizationRecoveryToolCallCount}`',
       )
       ..writeln(
         '- Incomplete content-tool recovery count: '
@@ -530,6 +546,10 @@ class LiveLlmCanarySignals {
   const LiveLlmCanarySignals({
     required this.recoveredStreamFallbackCount,
     required this.toolResultCompactionRetryCount,
+    required this.codingContinuationRecoveryRequestCount,
+    required this.codingContinuationRecoveryToolCallCount,
+    required this.turnFinalizationRecoveryRequestCount,
+    required this.turnFinalizationRecoveryToolCallCount,
     required this.incompleteContentToolRecoveryCount,
     required this.ignoredAssistantToolResultCount,
     required this.assistantAuthoredToolBlockCount,
@@ -549,6 +569,10 @@ class LiveLlmCanarySignals {
 
   final int recoveredStreamFallbackCount;
   final int toolResultCompactionRetryCount;
+  final int codingContinuationRecoveryRequestCount;
+  final int codingContinuationRecoveryToolCallCount;
+  final int turnFinalizationRecoveryRequestCount;
+  final int turnFinalizationRecoveryToolCallCount;
   final int incompleteContentToolRecoveryCount;
   final int ignoredAssistantToolResultCount;
   final int assistantAuthoredToolBlockCount;
@@ -578,6 +602,26 @@ class LiveLlmCanarySignals {
       toolResultCompactionRetryCount: _countMatches(
         rawLog,
         RegExp('Retrying tool-result follow-up after context-length error'),
+      ),
+      codingContinuationRecoveryRequestCount: _countMatches(
+        rawLog,
+        RegExp(r'\[Tool\] Requesting coding continuation recovery'),
+      ),
+      codingContinuationRecoveryToolCallCount: _countMatches(
+        rawLog,
+        RegExp(
+          r'\[Tool\] Coding continuation recovery requested (follow-up )?tool calls',
+        ),
+      ),
+      turnFinalizationRecoveryRequestCount: _countMatches(
+        rawLog,
+        RegExp(
+          r'\[TurnFinalization\] Requesting recovery before saving response',
+        ),
+      ),
+      turnFinalizationRecoveryToolCallCount: _countMatches(
+        rawLog,
+        RegExp(r'\[TurnFinalization\] Recovery requested tool calls'),
       ),
       incompleteContentToolRecoveryCount: _countMatches(
         rawLog,
@@ -635,6 +679,14 @@ class LiveLlmCanarySignals {
     return {
       'recoveredStreamFallbackCount': recoveredStreamFallbackCount,
       'toolResultCompactionRetryCount': toolResultCompactionRetryCount,
+      'codingContinuationRecoveryRequestCount':
+          codingContinuationRecoveryRequestCount,
+      'codingContinuationRecoveryToolCallCount':
+          codingContinuationRecoveryToolCallCount,
+      'turnFinalizationRecoveryRequestCount':
+          turnFinalizationRecoveryRequestCount,
+      'turnFinalizationRecoveryToolCallCount':
+          turnFinalizationRecoveryToolCallCount,
       'incompleteContentToolRecoveryCount': incompleteContentToolRecoveryCount,
       'ignoredAssistantToolResultCount': ignoredAssistantToolResultCount,
       'assistantAuthoredToolBlockCount': assistantAuthoredToolBlockCount,

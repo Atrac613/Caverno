@@ -1045,6 +1045,312 @@ class ChatNotifier extends Notifier<ChatState> {
     ].join('\n');
   }
 
+  Future<ChatCompletionResult?> _requestCodingContinuationRecovery({
+    required String candidateResponse,
+    required List<Map<String, dynamic>> tools,
+    required int interactionGeneration,
+    required bool requireContinuationRequest,
+  }) async {
+    final recoveryCode = _codingContinuationRecoveryCode(
+      candidateResponse: candidateResponse,
+      tools: tools,
+      interactionGeneration: interactionGeneration,
+      requireContinuationRequest: requireContinuationRequest,
+    );
+    if (recoveryCode == null) {
+      return null;
+    }
+
+    appLog('[Tool] Requesting coding continuation recovery: $recoveryCode');
+    final recoveryToolResult = _buildCodingContinuationRecoveryToolResult(
+      candidateResponse: candidateResponse,
+      recoveryCode: recoveryCode,
+    );
+    List<Message> buildRecoveryMessages(bool forceCompaction) {
+      final messages = _prepareMessagesForLLM(
+        forceCompaction: forceCompaction,
+        toolDefinitionsOverride: tools,
+        interactionGeneration: interactionGeneration,
+      );
+      messages.add(
+        Message(
+          id: '${recoveryCode}_recovery_${DateTime.now().millisecondsSinceEpoch}',
+          role: MessageRole.user,
+          content: _buildCodingContinuationRecoveryPrompt(
+            candidateResponse,
+            recoveryCode: recoveryCode,
+          ),
+          timestamp: DateTime.now(),
+        ),
+      );
+      return messages;
+    }
+
+    return _createToolResultCompletionWithContextRetry(
+      logLabel: _codingContinuationRecoveryLogLabel(recoveryCode),
+      interactionGeneration: interactionGeneration,
+      buildMessages: buildRecoveryMessages,
+      toolResults: [recoveryToolResult],
+      assistantContent: candidateResponse.isNotEmpty ? candidateResponse : null,
+      tools: tools,
+    );
+  }
+
+  String? _codingContinuationRecoveryCode({
+    required String candidateResponse,
+    required List<Map<String, dynamic>> tools,
+    required int interactionGeneration,
+    required bool requireContinuationRequest,
+  }) {
+    final candidate = candidateResponse.trim();
+    if (candidate.isEmpty) {
+      return null;
+    }
+    if (!_isCodingWorkspaceOrMode()) {
+      return null;
+    }
+    if (!_hasCodingContinuationRecoveryTools(tools)) {
+      return null;
+    }
+    if (requireContinuationRequest &&
+        !_looksLikeContinuationOnlyUserRequest(
+          _latestUserContentForGeneration(interactionGeneration),
+        )) {
+      return null;
+    }
+    if (_shouldAcceptTerminalToolRoleBlockerResponse(candidate)) {
+      return null;
+    }
+    final bracketedToolName = _bracketedToolRequestName(candidate);
+    if (bracketedToolName != null &&
+        _isCodingContinuationRecoveryToolName(bracketedToolName)) {
+      return 'bracketed_coding_tool_request';
+    }
+    if (_looksLikeProseOnlyCodingContinuation(candidate)) {
+      return 'prose_only_coding_continuation';
+    }
+    return null;
+  }
+
+  bool _isCodingWorkspaceOrMode() {
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    return currentConversation?.workspaceMode == WorkspaceMode.coding ||
+        _assistantModeOverride == AssistantMode.coding ||
+        _settings.assistantMode == AssistantMode.coding;
+  }
+
+  bool _hasCodingContinuationRecoveryTools(
+    List<Map<String, dynamic>> toolDefinitions,
+  ) {
+    final toolNames = ToolDefinitionSearchService.toolNamesFromDefinitions(
+      toolDefinitions,
+    ).map((toolName) => toolName.trim().toLowerCase()).toSet();
+    return toolNames.any(_isCodingContinuationRecoveryToolName);
+  }
+
+  bool _isCodingContinuationRecoveryToolName(String toolName) {
+    return const {
+      'read_file',
+      'list_directory',
+      'search_files',
+      'write_file',
+      'edit_file',
+      'local_execute_command',
+      'git_execute_command',
+      'run_tests',
+      'run_python_script',
+    }.contains(toolName.trim().toLowerCase());
+  }
+
+  bool _looksLikeContinuationOnlyUserRequest(String text) {
+    final normalized = text.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    final cleaned = normalized
+        .replaceAll(RegExp(r'^[\s.!?]+'), '')
+        .replaceAll(RegExp(r'[\s.!?]+$'), '');
+    if (const {
+      'continue',
+      'go on',
+      'keep going',
+      'proceed',
+      'resume',
+      'next',
+      'next step',
+    }.contains(cleaned)) {
+      return true;
+    }
+    return _containsAnyCodeUnitSequence(text, const [
+      [0x7d9a, 0x3051, 0x3066],
+      [0x7d9a, 0x304d],
+      [0x9032, 0x3081, 0x3066],
+    ]);
+  }
+
+  bool _looksLikeProseOnlyCodingContinuation(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty || trimmed.length > 1600) {
+      return false;
+    }
+    final normalized = trimmed.toLowerCase();
+    if (_containsAny(normalized, const [
+      'cannot',
+      'can not',
+      "can't",
+      'unable',
+      'blocked',
+      'need your',
+      'please provide',
+      'not enough information',
+    ])) {
+      return false;
+    }
+
+    final hasEnglishTarget = _containsAny(normalized, const [
+      'code',
+      'source',
+      'file',
+      'project',
+      'dart',
+      'python',
+      'script',
+      'logic',
+      'entrypoint',
+      'implementation',
+      'pubspec',
+    ]);
+    final hasEnglishAction = _containsAny(normalized, const [
+      'i will inspect',
+      'i will check',
+      'i will read',
+      'i will port',
+      'i will implement',
+      'i will update',
+      'i will edit',
+      'i will modify',
+      'i will write',
+      'i will create',
+      "i'll inspect",
+      "i'll check",
+      "i'll read",
+      "i'll port",
+      "i'll implement",
+      "i'll update",
+      "i'll edit",
+      "i'll modify",
+      "i'll write",
+      "i'll create",
+      'i am going to inspect',
+      'i am going to check',
+      'i am going to read',
+      'i am going to port',
+      'i am going to implement',
+      'i am going to update',
+      'i am going to edit',
+      'i am going to modify',
+      'i am going to write',
+      'i am going to create',
+      'next i will',
+      'now i will',
+    ]);
+    final hasCjkTarget = _containsAnyCodeUnitSequence(text, const [
+      [0x30b3, 0x30fc, 0x30c9],
+      [0x30bd, 0x30fc, 0x30b9],
+      [0x30d5, 0x30a1, 0x30a4, 0x30eb],
+      [0x30d7, 0x30ed, 0x30b8, 0x30a7, 0x30af, 0x30c8],
+      [0x30b9, 0x30af, 0x30ea, 0x30d7, 0x30c8],
+      [0x30ed, 0x30b8, 0x30c3, 0x30af],
+      [0x65e2, 0x5b58],
+    ]);
+    final hasCjkAction = _containsAnyCodeUnitSequence(text, const [
+      [0x78ba, 0x8a8d, 0x3057],
+      [0x78ba, 0x8a8d, 0x3057, 0x307e, 0x3059],
+      [0x8abf, 0x67fb, 0x3057, 0x307e, 0x3059],
+      [0x8aad, 0x307f, 0x307e, 0x3059],
+      [0x30dd, 0x30fc, 0x30c6, 0x30a3, 0x30f3, 0x30b0, 0x3057, 0x307e, 0x3059],
+      [0x79fb, 0x690d, 0x3057, 0x307e, 0x3059],
+      [0x5b9f, 0x88c5, 0x3057, 0x307e, 0x3059],
+      [0x66f4, 0x65b0, 0x3057, 0x307e, 0x3059],
+      [0x7de8, 0x96c6, 0x3057, 0x307e, 0x3059],
+      [0x4f5c, 0x6210, 0x3057, 0x307e, 0x3059],
+      [0x66f8, 0x304d, 0x307e, 0x3059],
+    ]);
+    return (hasEnglishTarget || hasCjkTarget) &&
+        (hasEnglishAction || hasCjkAction);
+  }
+
+  ToolResultInfo _buildCodingContinuationRecoveryToolResult({
+    required String candidateResponse,
+    required String recoveryCode,
+  }) {
+    return ToolResultInfo(
+      id: '${recoveryCode}_${DateTime.now().microsecondsSinceEpoch}',
+      name: 'coding_continuation_recovery',
+      arguments: {'reason': _codingContinuationRecoveryReason(recoveryCode)},
+      result: jsonEncode({
+        'ok': false,
+        'code': recoveryCode,
+        'error': _codingContinuationRecoveryError(recoveryCode),
+        'claimedResponse': _clipForDiagnostic(candidateResponse),
+        'requiredAction': _codingContinuationRecoveryRequiredAction(
+          recoveryCode,
+        ),
+      }),
+    );
+  }
+
+  String _buildCodingContinuationRecoveryPrompt(
+    String candidateResponse, {
+    required String recoveryCode,
+  }) {
+    return [
+      _codingContinuationRecoveryPromptLead(recoveryCode),
+      'Treat that response as unexecuted.',
+      'Use the available tools now to perform the next concrete coding step.',
+      'Prefer read_file, list_directory, or search_files before editing when the target file has not been inspected.',
+      'Do not restate the plan and do not answer with future-tense prose.',
+      'Previous response: ${_clipForDiagnostic(candidateResponse)}',
+    ].join('\n');
+  }
+
+  String _codingContinuationRecoveryLogLabel(String recoveryCode) {
+    if (recoveryCode == 'bracketed_coding_tool_request') {
+      return 'bracketed coding tool request recovery';
+    }
+    return 'prose-only coding continuation recovery';
+  }
+
+  String _codingContinuationRecoveryReason(String recoveryCode) {
+    if (recoveryCode == 'bracketed_coding_tool_request') {
+      return 'The assistant returned a bracketed coding tool request in final-answer text instead of issuing an executable tool call.';
+    }
+    return 'The assistant returned coding continuation prose instead of using an available coding tool.';
+  }
+
+  String _codingContinuationRecoveryError(String recoveryCode) {
+    if (recoveryCode == 'bracketed_coding_tool_request') {
+      return 'The assistant response contained a bracketed coding tool request, but no executable tool call was issued.';
+    }
+    return 'The assistant response described a future coding action, but no tool call was issued.';
+  }
+
+  String _codingContinuationRecoveryRequiredAction(String recoveryCode) {
+    if (recoveryCode == 'bracketed_coding_tool_request') {
+      return 'Issue the requested coding tool call now. Do not describe bracketed tool blocks as already executed.';
+    }
+    return 'Use an available file, command, or test tool now. Do not restate the plan.';
+  }
+
+  String _codingContinuationRecoveryPromptLead(String recoveryCode) {
+    if (recoveryCode == 'bracketed_coding_tool_request') {
+      return 'The previous assistant response contained a bracketed coding tool request in final-answer text, but no tool call was issued.';
+    }
+    return 'The previous assistant response was a coding continuation, but no tool call was issued.';
+  }
+
   Future<ChatCompletionResult?> _requestSkippedPythonAttachmentAnalysisRepair({
     required String candidateResponse,
     required List<ToolResultInfo> batchToolResults,
@@ -1339,7 +1645,17 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<ToolResultInfo> toolResults,
     required int interactionGeneration,
   }) {
-    if (!_looksLikeUnsupportedCommandExecutionAction(candidateResponse) ||
+    final candidate = candidateResponse.trim();
+    final looksLikeFutureAction = _looksLikeFutureCommandExecutionAction(
+      candidate,
+    );
+    final looksLikeCompletionClaim = _looksLikeCompletedCommandExecutionClaim(
+      candidate,
+    );
+    if (!looksLikeFutureAction && !looksLikeCompletionClaim) {
+      return null;
+    }
+    if (!looksLikeFutureAction &&
         _hasSuccessfulCommandExecutionResult(toolResults)) {
       return null;
     }
@@ -1349,14 +1665,14 @@ class ChatNotifier extends Notifier<ChatState> {
       name: 'local_execute_command',
       arguments: {
         'reason':
-            'The assistant said it would run a local command, but no successful command-execution tool result is available.',
+            'The assistant said it would run a local command, but no matching successful command-execution tool result is available for the claimed action.',
       },
       result: jsonEncode({
         'ok': false,
         'code': 'unexecuted_command_action',
         'error':
-            'The requested command was not executed. No successful local_execute_command, process_start, process_status, process_wait, run_tests, git_execute_command, or ssh_execute_command tool result is available for the claimed action.',
-        'claimedResponse': _clipForDiagnostic(candidateResponse),
+            'The requested command was not executed. No matching successful local_execute_command, process_start, process_status, process_wait, run_tests, git_execute_command, or ssh_execute_command tool result is available for the claimed action.',
+        'claimedResponse': _clipForDiagnostic(candidate),
       }),
     );
   }
@@ -5192,7 +5508,10 @@ class ChatNotifier extends Notifier<ChatState> {
         task.targetFiles,
       );
       final normalizedValidationCommand =
-          _normalizeTaskProposalValidationCommand(task.validationCommand);
+          _normalizeTaskProposalValidationCommandForTargets(
+            task.validationCommand,
+            normalizedTargetFiles,
+          );
       final normalizedNotes = _normalizeTaskProposalTextField(task.notes);
       if (_looksLikeImplementationTaskTitle(normalizedTitle) &&
           task.targetFiles.isNotEmpty &&
@@ -5464,6 +5783,40 @@ class ChatNotifier extends Notifier<ChatState> {
       return '$normalized -c 1';
     }
     return normalized;
+  }
+
+  String _normalizeTaskProposalValidationCommandForTargets(
+    String value,
+    List<String> targetFiles,
+  ) {
+    final normalized = _normalizeTaskProposalValidationCommand(value);
+    if (_looksLikeRequirementsAstValidationCommand(normalized, targetFiles)) {
+      return 'ls requirements.txt';
+    }
+    return normalized;
+  }
+
+  bool _looksLikeRequirementsAstValidationCommand(
+    String validationCommand,
+    List<String> targetFiles,
+  ) {
+    final normalized = validationCommand.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    if (!normalized.startsWith('python3 -c ') &&
+        !normalized.startsWith('python -c ')) {
+      return false;
+    }
+    if (!normalized.contains('ast.parse') ||
+        !normalized.contains('requirements.txt')) {
+      return false;
+    }
+    return targetFiles.any((path) {
+      final normalizedPath = path.trim().replaceAll('\\', '/').toLowerCase();
+      return normalizedPath == 'requirements.txt' ||
+          normalizedPath.endsWith('/requirements.txt');
+    });
   }
 
   bool _looksLikePlaceholderTaskProposalValue(String value) {
@@ -7018,6 +7371,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final ToolApprovalCache _toolApprovalCache = ToolApprovalCache();
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
+  final Set<int> _turnFinalizationRecoveryGenerations = {};
   Future<void> _contentToolExecutionTail = Future<void>.value();
   Future<void> _conversationMessagePersistenceTail = Future<void>.value();
   bool _forcePromptCompactionForNextRequest = false;
@@ -7029,6 +7383,8 @@ class ChatNotifier extends Notifier<ChatState> {
       <int, String>{};
   final Map<int, List<Message>> _activeResponseMessagesByGeneration =
       <int, List<Message>>{};
+  final Map<int, String> _lastStreamedToolResultFinalAnswersByGeneration =
+      <int, String>{};
   final Map<int, LlmSessionLogContext> _llmSessionLogContextsByGeneration =
       <int, LlmSessionLogContext>{};
   final Map<int, McpToolResult> _askUserQuestionResultsByGeneration =
@@ -7130,9 +7486,11 @@ class ChatNotifier extends Notifier<ChatState> {
   void _clearActiveResponseForGeneration(int generation) {
     _activeResponseConversationIdsByGeneration.remove(generation);
     _activeResponseMessagesByGeneration.remove(generation);
+    _lastStreamedToolResultFinalAnswersByGeneration.remove(generation);
     _llmSessionLogContextsByGeneration.remove(generation);
     _askUserQuestionResultsByGeneration.remove(generation);
     _responseMetricTimersByGeneration.remove(generation)?.stop();
+    _turnFinalizationRecoveryGenerations.remove(generation);
     if (generation == _interactionGeneration) {
       _activeResponseConversationId = null;
       _activeResponseMessages = null;
@@ -7142,12 +7500,14 @@ class ChatNotifier extends Notifier<ChatState> {
   void _clearAllActiveResponses() {
     _activeResponseConversationIdsByGeneration.clear();
     _activeResponseMessagesByGeneration.clear();
+    _lastStreamedToolResultFinalAnswersByGeneration.clear();
     _llmSessionLogContextsByGeneration.clear();
     _askUserQuestionResultsByGeneration.clear();
     for (final timer in _responseMetricTimersByGeneration.values) {
       timer.stop();
     }
     _responseMetricTimersByGeneration.clear();
+    _turnFinalizationRecoveryGenerations.clear();
     _activeResponseConversationId = null;
     _activeResponseMessages = null;
   }
@@ -9029,6 +9389,7 @@ class ChatNotifier extends Notifier<ChatState> {
           _appendUnexecutedToolRequestNoticeForContentIfNeeded(
             interactionGeneration: interactionGeneration,
             content: rawStreamedAnswer,
+            toolResults: toolResults,
           );
           _replaceTimedOutCommandSuccessClaimIfNeeded(
             toolResults: toolResults,
@@ -9042,9 +9403,18 @@ class ChatNotifier extends Notifier<ChatState> {
             toolResults: toolResults,
             interactionGeneration: interactionGeneration,
           );
-          return ContentParser.stripToolArtifacts(
+          final strippedStreamedAnswer = ContentParser.stripToolArtifacts(
             streamedAnswer.toString(),
           ).trim();
+          if (strippedStreamedAnswer.isNotEmpty) {
+            _lastStreamedToolResultFinalAnswersByGeneration[interactionGeneration] =
+                strippedStreamedAnswer;
+          } else {
+            _lastStreamedToolResultFinalAnswersByGeneration.remove(
+              interactionGeneration,
+            );
+          }
+          return strippedStreamedAnswer;
         },
       );
     }
@@ -9254,7 +9624,59 @@ class ChatNotifier extends Notifier<ChatState> {
         final hiddenAssistantEvidence = streamedAssistantContent.isNotEmpty
             ? streamedAssistantContent
             : result.content;
-        _recordHiddenAssistantResponse(hiddenAssistantEvidence);
+        var hiddenAssistantEvidenceRecorded = false;
+        void recordHiddenAssistantEvidenceOnce() {
+          if (hiddenAssistantEvidenceRecorded) {
+            return;
+          }
+          _recordHiddenAssistantResponse(hiddenAssistantEvidence);
+          hiddenAssistantEvidenceRecorded = true;
+        }
+
+        final codingContinuationRecoveryResult =
+            await _requestCodingContinuationRecovery(
+              candidateResponse: hiddenAssistantEvidence,
+              tools: initialToolSelection.toolDefinitions,
+              interactionGeneration: generation,
+              requireContinuationRequest: true,
+            );
+        if (!_isCurrentInteractionGeneration(generation)) return;
+        if (!ref.mounted) return;
+        if (codingContinuationRecoveryResult != null) {
+          recordHiddenAssistantEvidenceOnce();
+          if (codingContinuationRecoveryResult.hasToolCalls) {
+            appLog('[Tool] Coding continuation recovery requested tool calls');
+            _removeAssistantStreamDeltaForGeneration(
+              generation: generation,
+              messageIndex: streamedMessageIndex,
+              startingLength: streamedContentStart,
+            );
+            final recoveredToolNames = codingContinuationRecoveryResult
+                .toolCalls!
+                .map((toolCall) => toolCall.name);
+            await _executeToolCalls(
+              codingContinuationRecoveryResult.toolCalls!,
+              assistantContent:
+                  codingContinuationRecoveryResult.content.isNotEmpty
+                  ? codingContinuationRecoveryResult.content
+                  : hiddenAssistantEvidence,
+              toolSearchEnabled: initialToolSelection.toolSearchEnabled,
+              selectedToolNames: {
+                ...initialToolSelection.selectedToolNames,
+                ...recoveredToolNames,
+              },
+              stableToolDefinitions: prefixStableToolLoop
+                  ? initialToolSelection.toolDefinitions
+                  : null,
+              interactionGeneration: generation,
+            );
+            return;
+          }
+          _recordHiddenAssistantResponse(
+            codingContinuationRecoveryResult.content,
+          );
+        }
+        recordHiddenAssistantEvidenceOnce();
         final recoveredContentToolArtifact =
             _recoverContentToolArtifactsBeforeNoToolFinalization(
               interactionGeneration: generation,
@@ -10756,6 +11178,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var attemptedSkippedPythonAttachmentRepair = false;
     var attemptedPythonAttachmentPathRepair = false;
     var forcedBackgroundProcessFollowUpCount = 0;
+    var attemptedCodingContinuationRecovery = false;
     final attemptedCompletionVerificationMutationSignatures = <String>{};
     final verificationFailureCounts =
         completionVerificationFailureCounts ?? <String, int>{};
@@ -10864,9 +11287,25 @@ class ChatNotifier extends Notifier<ChatState> {
               _buildProductionReleaseApprovalGuardResult(
                 toolCall,
                 currentAssistantContent: currentAssistantContent,
+                interactionGeneration: interactionGeneration,
               );
           if (productionReleaseGuardResult != null) {
             return productionReleaseGuardResult;
+          }
+          final codingCommandPreflightGuardResult =
+              _buildCodingCommandPreflightGuardResult(toolCall);
+          if (codingCommandPreflightGuardResult != null) {
+            return codingCommandPreflightGuardResult;
+          }
+          final modifiedSavedValidationCommandGuardResult =
+              _buildModifiedSavedValidationCommandGuardResult(toolCall);
+          if (modifiedSavedValidationCommandGuardResult != null) {
+            return modifiedSavedValidationCommandGuardResult;
+          }
+          final savedTaskTargetScopeGuardResult =
+              _buildSavedTaskTargetScopeGuardResult(toolCall);
+          if (savedTaskTargetScopeGuardResult != null) {
+            return savedTaskTargetScopeGuardResult;
           }
           final unexecutedFileMutationGuardResult =
               _buildUnexecutedFileMutationBeforeCommandGuardResult(
@@ -11762,6 +12201,54 @@ class ChatNotifier extends Notifier<ChatState> {
             break;
           }
           break;
+        }
+        final shouldSkipCodingContinuationRecovery =
+            _shouldSkipCompletedToolResultCodingContinuationRecovery(
+              candidateResponse: fallbackResponse,
+              toolResults: batchToolResults,
+            );
+        if (shouldSkipCodingContinuationRecovery) {
+          appLog(
+            '[Tool] Skipping coding continuation recovery after completed tool-result response',
+          );
+        }
+        if (!attemptedCodingContinuationRecovery &&
+            !shouldSkipCodingContinuationRecovery) {
+          final codingContinuationRecoveryResult =
+              await _requestCodingContinuationRecovery(
+                candidateResponse: fallbackResponse,
+                tools: tools,
+                interactionGeneration: interactionGeneration,
+                requireContinuationRequest: false,
+              );
+          if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+          if (!ref.mounted) return;
+          if (codingContinuationRecoveryResult != null) {
+            attemptedCodingContinuationRecovery = true;
+            if (codingContinuationRecoveryResult.hasToolCalls) {
+              appLog(
+                '[Tool] Coding continuation recovery requested follow-up tool calls',
+              );
+              currentToolCalls = codingContinuationRecoveryResult.toolCalls!;
+              activeToolNames.addAll(
+                currentToolCalls.map((toolCall) => toolCall.name),
+              );
+              _recordHiddenAssistantResponse(
+                codingContinuationRecoveryResult.content,
+              );
+              currentAssistantContent =
+                  codingContinuationRecoveryResult.content.isNotEmpty
+                  ? codingContinuationRecoveryResult.content
+                  : fallbackResponse;
+              if (iteration >= maxIterations) {
+                maxIterations += 2;
+              }
+              continue;
+            }
+            _recordHiddenAssistantResponse(
+              codingContinuationRecoveryResult.content,
+            );
+          }
         }
         if (_shouldAcceptTerminalToolRoleFinalTextResponse(fallbackResponse)) {
           appLog(
@@ -12707,6 +13194,12 @@ class ChatNotifier extends Notifier<ChatState> {
       validationCommand,
     );
     return toolResults.any((result) {
+      if (_readFileMatchesSavedCatValidation(
+        result: result,
+        validationCommand: validationCommand,
+      )) {
+        return true;
+      }
       if (!_toolResultHasSuccessfulExit(result)) {
         return false;
       }
@@ -12726,6 +13219,40 @@ class ChatNotifier extends Notifier<ChatState> {
         normalizedValidationCommand: normalizedValidationCommand,
       );
     });
+  }
+
+  bool _readFileMatchesSavedCatValidation({
+    required ToolResultInfo result,
+    required String validationCommand,
+  }) {
+    if (result.name != 'read_file') {
+      return false;
+    }
+    final validationArgs = GitTools.splitArgs(validationCommand.trim());
+    if (validationArgs.length != 2 ||
+        validationArgs.first.split('/').last.toLowerCase() != 'cat') {
+      return false;
+    }
+    final decoded = _decodeJsonObject(result.result);
+    if (decoded == null || decoded['error'] != null) {
+      return false;
+    }
+    if (decoded['content'] is! String) {
+      return false;
+    }
+    final actualPath =
+        _toolResultPayloadPath(result.result) ??
+        _toolPathFromArguments(result.arguments);
+    if (actualPath == null) {
+      return false;
+    }
+    final normalizedActualPath = _normalizeSavedTaskScopePath(actualPath);
+    final normalizedValidationPath = _normalizeSavedTaskScopePath(
+      validationArgs[1],
+    );
+    return normalizedActualPath != null &&
+        normalizedValidationPath != null &&
+        normalizedActualPath == normalizedValidationPath;
   }
 
   bool _toolCommandMatchesSavedValidation({
@@ -13924,12 +14451,18 @@ class ChatNotifier extends Notifier<ChatState> {
   void _appendUnexecutedToolRequestNoticeForContentIfNeeded({
     required int interactionGeneration,
     required String content,
+    List<ToolResultInfo> toolResults = const [],
   }) {
     const notice =
         'I could not execute the additional tool request above in this final-answer step. '
         'Treat it as unexecuted; ask me to continue with a narrower follow-up '
         'if the missing action still matters.';
-    if (content.contains(notice) || !_looksLikeUnexecutedToolRequest(content)) {
+    if (content.contains(notice) ||
+        !_looksLikeUnexecutedToolRequest(content) ||
+        _shouldSkipUnexecutedToolRequestNoticeForToolResults(
+          content: content,
+          toolResults: toolResults,
+        )) {
       return;
     }
     final currentContent = _lastMessageContentForGeneration(
@@ -13942,6 +14475,33 @@ class ChatNotifier extends Notifier<ChatState> {
       interactionGeneration,
       '${currentContent.trimRight()}\n\n$notice',
     );
+  }
+
+  bool _shouldSkipUnexecutedToolRequestNoticeForToolResults({
+    required String content,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    if (toolResults.isEmpty ||
+        _hasTimedOutCommandResult(toolResults) ||
+        _toolResultsContainFailedCommandValidation(toolResults) ||
+        _hasUnexecutedCommandActionResult(toolResults) ||
+        _hasUnexecutedFileSideEffectResult(toolResults) ||
+        !_hasSuccessfulFinalAnswerToolEvidence(toolResults)) {
+      return false;
+    }
+
+    final candidate = ContentParser.stripToolArtifacts(content).trim();
+    if (candidate.isEmpty ||
+        _looksLikeStructuredToolRequest(candidate) ||
+        _looksLikePlanOnlyFinalToolAnswer(candidate) ||
+        _looksLikeFutureCommandExecutionAction(candidate) ||
+        _looksLikeFutureFileSideEffectAction(candidate) ||
+        _looksLikeCodingFutureAction(candidate)) {
+      return false;
+    }
+
+    return _looksLikeCompletedCommandExecutionClaim(candidate) ||
+        _looksLikeCompletedCodingFinalAnswer(candidate);
   }
 
   void _appendUnexecutedFileSideEffectNoticeIfNeeded({
@@ -14010,10 +14570,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     final generation = interactionGeneration ?? _interactionGeneration;
     const notice =
-        'The requested command was not executed because no successful command-execution tool result is available. '
+        'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action. '
         'Treat any run, dry-run, test, validation, or command execution claim above as unverified.';
-    if (!_hasUnexecutedCommandActionResult(toolResults) ||
-        _hasSuccessfulCommandExecutionResult(toolResults)) {
+    if (!_hasUnexecutedCommandActionResult(toolResults)) {
       return;
     }
 
@@ -14297,6 +14856,7 @@ class ChatNotifier extends Notifier<ChatState> {
           [0x5b8c, 0x4e86],
           [0x901a, 0x904e],
           [0x30b3, 0x30df, 0x30c3, 0x30c8, 0x6e08, 0x307f],
+          [0x6b63, 0x5e38, 0x306b, 0x52d5, 0x4f5c],
         ]);
   }
 
@@ -14446,11 +15006,16 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _looksLikeBracketedToolRequest(String content) {
-    return RegExp(
-      r'\[Tool:\s*[A-Za-z_][\w.-]*\]\s*(?:\r?\n)+\s*Arguments:\s*(?:\{|\[)',
+    return _bracketedToolRequestName(content) != null;
+  }
+
+  String? _bracketedToolRequestName(String content) {
+    final match = RegExp(
+      r'\[Tool:\s*([A-Za-z_][\w.-]*)\]\s*(?:\r?\n)+\s*Arguments:\s*(?:\{|\[)',
       caseSensitive: false,
       dotAll: true,
-    ).hasMatch(content);
+    ).firstMatch(content);
+    return match?.group(1);
   }
 
   bool _looksLikePlanOnlyFinalToolAnswer(String content) {
@@ -14797,6 +15362,361 @@ class ChatNotifier extends Notifier<ChatState> {
     _onResponseCompleted(completedContent);
   }
 
+  Future<bool> _recoverBeforeTurnFinalizationIfNeeded({
+    required int generation,
+    required List<Message> finalizedMessages,
+    required bool shouldDropLastAssistant,
+  }) async {
+    if (shouldDropLastAssistant ||
+        finalizedMessages.isEmpty ||
+        _turnFinalizationRecoveryGenerations.contains(generation)) {
+      return false;
+    }
+    final lastMessage = finalizedMessages.last;
+    if (lastMessage.role != MessageRole.assistant ||
+        !_assistantMessageHasVisibleContent(lastMessage.content)) {
+      return false;
+    }
+    final candidateResponse = _turnFinalizationCandidateText(
+      lastMessage.content,
+      generation: generation,
+    );
+    if (candidateResponse.isEmpty) {
+      return false;
+    }
+    if (_hasTerminalGoalSuccessToolResults(_latestCompletedToolResults)) {
+      appLog(
+        '[TurnFinalization] Skipping coding continuation recovery after terminal goal success',
+      );
+      return false;
+    }
+    if (_shouldSkipCompletedToolResultFinalAnswerRecovery(
+      generation: generation,
+      candidateResponse: candidateResponse,
+      toolResults: _latestCompletedToolResults,
+    )) {
+      appLog(
+        '[TurnFinalization] Skipping coding continuation recovery after completed tool-result final answer',
+      );
+      return false;
+    }
+    final mcpToolService = _mcpToolService;
+    if (mcpToolService == null || !_settings.mcpEnabled) {
+      return false;
+    }
+    final allTools = mcpToolService.getOpenAiToolDefinitions();
+    if (allTools.isEmpty) {
+      return false;
+    }
+    final prefixStableToolLoop = _settings.enablePrefixStableToolLoop;
+    final toolSelection = prefixStableToolLoop
+        ? ToolDefinitionSearchSelection(
+            toolSearchEnabled: false,
+            toolDefinitions: allTools,
+            selectedToolNames:
+                ToolDefinitionSearchService.toolNamesFromDefinitions(allTools),
+          )
+        : ToolDefinitionSearchService.buildInitialSelection(allTools);
+    if (_codingContinuationRecoveryCode(
+          candidateResponse: candidateResponse,
+          tools: toolSelection.toolDefinitions,
+          interactionGeneration: generation,
+          requireContinuationRequest: false,
+        ) ==
+        null) {
+      return false;
+    }
+
+    _turnFinalizationRecoveryGenerations.add(generation);
+    appLog('[TurnFinalization] Requesting recovery before saving response');
+    final recoveryResult = await _requestCodingContinuationRecovery(
+      candidateResponse: candidateResponse,
+      tools: toolSelection.toolDefinitions,
+      interactionGeneration: generation,
+      requireContinuationRequest: false,
+    );
+    if (!_isCurrentInteractionGeneration(generation)) {
+      return true;
+    }
+    if (!ref.mounted || recoveryResult == null) {
+      return false;
+    }
+    _recordHiddenAssistantResponse(candidateResponse);
+    if (!recoveryResult.hasToolCalls) {
+      _recordHiddenAssistantResponse(recoveryResult.content);
+      return false;
+    }
+
+    appLog('[TurnFinalization] Recovery requested tool calls');
+    _prepareLastAssistantForTurnFinalizationRecovery(
+      generation: generation,
+      preRecoveryContent: _contentBeforeFinalizationCandidate(
+        currentContent: lastMessage.content,
+        candidateResponse: candidateResponse,
+      ),
+    );
+    final recoveredToolNames = recoveryResult.toolCalls!.map(
+      (toolCall) => toolCall.name,
+    );
+    await _executeToolCalls(
+      recoveryResult.toolCalls!,
+      assistantContent: recoveryResult.content.isNotEmpty
+          ? recoveryResult.content
+          : candidateResponse,
+      toolSearchEnabled: toolSelection.toolSearchEnabled,
+      selectedToolNames: {
+        ...toolSelection.selectedToolNames,
+        ...recoveredToolNames,
+      },
+      stableToolDefinitions: prefixStableToolLoop
+          ? toolSelection.toolDefinitions
+          : null,
+      interactionGeneration: generation,
+    );
+    return true;
+  }
+
+  bool _hasTerminalGoalSuccessToolResults(List<ToolResultInfo> toolResults) {
+    if (toolResults.isEmpty) {
+      return false;
+    }
+    return _toolResultsContainSuccessfulCurrentSavedValidation(toolResults) ||
+        _toolResultsSatisfyCurrentGoalGitLifecycle(toolResults);
+  }
+
+  bool _shouldSkipCompletedToolResultFinalAnswerRecovery({
+    required int generation,
+    required String candidateResponse,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final candidate = candidateResponse.trim();
+    final streamedFinalAnswer =
+        _lastStreamedToolResultFinalAnswersByGeneration[generation]?.trim();
+    if (streamedFinalAnswer != null &&
+        streamedFinalAnswer.isNotEmpty &&
+        candidate != streamedFinalAnswer) {
+      return false;
+    }
+    return _shouldSkipCompletedToolResultCodingContinuationRecovery(
+      candidateResponse: candidate,
+      toolResults: toolResults,
+    );
+  }
+
+  bool _shouldSkipCompletedToolResultCodingContinuationRecovery({
+    required String candidateResponse,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final candidate = candidateResponse.trim();
+    if (candidate.isEmpty) {
+      return false;
+    }
+    if (_hasTimedOutCommandResult(toolResults) ||
+        _toolResultsContainFailedCommandValidation(toolResults) ||
+        _hasUnexecutedCommandActionResult(toolResults) ||
+        _hasUnexecutedFileSideEffectResult(toolResults)) {
+      return false;
+    }
+    if (!_hasSuccessfulFinalAnswerToolEvidence(toolResults)) {
+      return false;
+    }
+    return _looksLikeCompletedCodingFinalAnswer(candidate) &&
+        !_looksLikeCodingFutureAction(candidate);
+  }
+
+  bool _hasSuccessfulFinalAnswerToolEvidence(List<ToolResultInfo> toolResults) {
+    return toolResults.any((toolResult) {
+          return _isFileMutationToolName(toolResult.name) &&
+              _isSuccessfulFileMutationToolResult(toolResult);
+        }) ||
+        _hasSuccessfulCommandExecutionResult(toolResults);
+  }
+
+  bool _looksLikeCompletedCodingFinalAnswer(String content) {
+    final normalized = content.trim().toLowerCase();
+    if (normalized.isEmpty || normalized.length > 1600) {
+      return false;
+    }
+    final hasTarget =
+        _containsAny(normalized, const [
+          'code',
+          'source',
+          'file',
+          'project',
+          'dart',
+          'python',
+          'script',
+          'logic',
+          'entrypoint',
+          'implementation',
+          'pubspec',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x30b3, 0x30fc, 0x30c9],
+          [0x30bd, 0x30fc, 0x30b9],
+          [0x30d5, 0x30a1, 0x30a4, 0x30eb],
+          [0x30d7, 0x30ed, 0x30b8, 0x30a7, 0x30af, 0x30c8],
+          [0x30b9, 0x30af, 0x30ea, 0x30d7, 0x30c8],
+          [0x30ed, 0x30b8, 0x30c3, 0x30af],
+          [0x65e2, 0x5b58],
+        ]);
+    if (!hasTarget) {
+      return false;
+    }
+    return _containsAny(normalized, const [
+          'completed',
+          'complete',
+          'created',
+          'implemented',
+          'updated',
+          'modified',
+          'wrote',
+          'written',
+          'saved',
+          'verified',
+          'confirmed',
+          'checked',
+          'tested',
+          'ran',
+          'executed',
+          'successfully',
+          'passed',
+          'passes',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x3057, 0x307e, 0x3057, 0x305f],
+          [0x5b8c, 0x4e86],
+          [0x6210, 0x529f],
+          [0x6e08, 0x307f],
+        ]);
+  }
+
+  bool _looksLikeCodingFutureAction(String content) {
+    final normalized = content.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    return _containsAny(normalized, const [
+          'i will inspect',
+          'i will check',
+          'i will read',
+          'i will port',
+          'i will implement',
+          'i will update',
+          'i will edit',
+          'i will modify',
+          'i will write',
+          'i will create',
+          "i'll inspect",
+          "i'll check",
+          "i'll read",
+          "i'll port",
+          "i'll implement",
+          "i'll update",
+          "i'll edit",
+          "i'll modify",
+          "i'll write",
+          "i'll create",
+          'i am going to inspect',
+          'i am going to check',
+          'i am going to read',
+          'i am going to port',
+          'i am going to implement',
+          'i am going to update',
+          'i am going to edit',
+          'i am going to modify',
+          'i am going to write',
+          'i am going to create',
+          'next i will',
+          'now i will',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x78ba, 0x8a8d, 0x3057, 0x307e, 0x3059],
+          [0x8abf, 0x67fb, 0x3057, 0x307e, 0x3059],
+          [0x8aad, 0x307f, 0x307e, 0x3059],
+          [
+            0x30dd,
+            0x30fc,
+            0x30c6,
+            0x30a3,
+            0x30f3,
+            0x30b0,
+            0x3057,
+            0x307e,
+            0x3059,
+          ],
+          [0x79fb, 0x690d, 0x3057, 0x307e, 0x3059],
+          [0x5b9f, 0x88c5, 0x3057, 0x307e, 0x3059],
+          [0x66f4, 0x65b0, 0x3057, 0x307e, 0x3059],
+          [0x7de8, 0x96c6, 0x3057, 0x307e, 0x3059],
+          [0x4f5c, 0x6210, 0x3057, 0x307e, 0x3059],
+          [0x66f8, 0x304d, 0x307e, 0x3059],
+        ]);
+  }
+
+  String _turnFinalizationCandidateText(
+    String content, {
+    required int generation,
+  }) {
+    final streamedFinalAnswer =
+        _lastStreamedToolResultFinalAnswersByGeneration[generation]?.trim();
+    if (streamedFinalAnswer != null && streamedFinalAnswer.isNotEmpty) {
+      return streamedFinalAnswer;
+    }
+    return ContentParser.stripToolArtifacts(content).trim();
+  }
+
+  String _contentBeforeFinalizationCandidate({
+    required String currentContent,
+    required String candidateResponse,
+  }) {
+    final candidate = candidateResponse.trim();
+    if (candidate.isEmpty) {
+      return currentContent.trimRight();
+    }
+    final index = currentContent.lastIndexOf(candidate);
+    if (index < 0) {
+      return '';
+    }
+    return currentContent.substring(0, index).trimRight();
+  }
+
+  void _prepareLastAssistantForTurnFinalizationRecovery({
+    required int generation,
+    required String preRecoveryContent,
+  }) {
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+      final updatedMessages = [...activeMessages];
+      final lastIndex = updatedMessages.length - 1;
+      final lastMessage = updatedMessages[lastIndex];
+      if (lastMessage.role != MessageRole.assistant) return;
+      updatedMessages[lastIndex] = lastMessage.copyWith(
+        content: preRecoveryContent,
+        isStreaming: true,
+      );
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+      return;
+    }
+
+    if (!ref.mounted || state.messages.isEmpty) return;
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    if (lastMessage.role != MessageRole.assistant) return;
+    updatedMessages[lastIndex] = lastMessage.copyWith(
+      content: preRecoveryContent,
+      isStreaming: true,
+    );
+    state = state.copyWith(
+      messages: updatedMessages,
+      isLoading: true,
+      error: null,
+    );
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+  }
+
   Future<void> _finishStreaming({int? interactionGeneration}) async {
     final generation = interactionGeneration ?? _interactionGeneration;
     if (!_isCurrentInteractionGeneration(generation)) return;
@@ -14928,11 +15848,11 @@ class ChatNotifier extends Notifier<ChatState> {
     _pendingContentToolContinuationFallback = null;
 
     if (!_isCurrentInteractionGeneration(generation)) return;
-    state = state.copyWith(messages: updatedMessages, isLoading: false);
 
     // Hidden prompt responses are ephemeral — remove from visible history
     // so they are spoken but not persisted in the conversation.
     if (_hiddenPrompt != null) {
+      state = state.copyWith(messages: updatedMessages, isLoading: false);
       if (!shouldDropLastAssistant && updatedMessages.isNotEmpty) {
         _recordHiddenAssistantResponse(updatedMessages.last.content);
       }
@@ -14946,6 +15866,18 @@ class ChatNotifier extends Notifier<ChatState> {
       await _drainQueuedChatMessagesIfIdle();
       return;
     }
+
+    final recoveredBeforeFinalization =
+        await _recoverBeforeTurnFinalizationIfNeeded(
+          generation: generation,
+          finalizedMessages: updatedMessages,
+          shouldDropLastAssistant: shouldDropLastAssistant,
+        );
+    if (recoveredBeforeFinalization) {
+      return;
+    }
+    if (!_isCurrentInteractionGeneration(generation)) return;
+    state = state.copyWith(messages: updatedMessages, isLoading: false);
 
     // Persist messages.
     _contentToolContinuationCount = 0;

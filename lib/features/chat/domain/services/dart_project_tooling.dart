@@ -91,6 +91,46 @@ final class DartProjectTooling {
     return root.path;
   }
 
+  static String? inferPackageRootForTestPath({
+    required String projectRoot,
+    required String workingDirectory,
+    required String testPath,
+  }) {
+    final root = Directory(projectRoot).absolute.path;
+    final workingRoot = Directory(workingDirectory).absolute.path;
+    final trimmedTestPath = testPath.trim();
+    if (trimmedTestPath.isEmpty) {
+      return null;
+    }
+
+    final directTestPath = DartProjectPath.resolvePath(
+      trimmedTestPath,
+      projectRoot: workingRoot,
+    );
+    if (directTestPath != null &&
+        DartProjectPath.isInsideRoot(directTestPath, root) &&
+        File(directTestPath).existsSync()) {
+      final packageRoot = nearestPackageRoot(directTestPath, root);
+      return _hasPubspec(packageRoot) ? packageRoot : null;
+    }
+
+    if (DartProjectPath.isAbsolutePath(trimmedTestPath)) {
+      return null;
+    }
+
+    final normalizedTestPath = trimmedTestPath.replaceAll('\\', '/');
+    final matches = <String>[];
+    for (final packageRoot in _discoverPackageRoots(root)) {
+      final candidate = File.fromUri(
+        Directory(packageRoot).uri.resolve(normalizedTestPath),
+      );
+      if (candidate.existsSync()) {
+        matches.add(packageRoot);
+      }
+    }
+    return matches.length == 1 ? matches.single : null;
+  }
+
   static bool hasFvmMetadata({
     required String packageRoot,
     required String projectRoot,
@@ -121,6 +161,56 @@ final class DartProjectTooling {
     } on FileSystemException {
       return false;
     }
+  }
+
+  static bool _hasPubspec(String packageRoot) {
+    return File.fromUri(
+      Directory(packageRoot).uri.resolve('pubspec.yaml'),
+    ).existsSync();
+  }
+
+  static List<String> _discoverPackageRoots(
+    String projectRoot, {
+    int maxDepth = 4,
+  }) {
+    final roots = <String>[];
+    void visit(Directory directory, int depth) {
+      if (depth > maxDepth || _shouldSkipDirectory(directory)) {
+        return;
+      }
+      if (_hasPubspec(directory.path)) {
+        roots.add(directory.absolute.path);
+      }
+      if (depth == maxDepth) {
+        return;
+      }
+      List<FileSystemEntity> children;
+      try {
+        children = directory.listSync(followLinks: false);
+      } on FileSystemException {
+        return;
+      }
+      for (final child in children) {
+        if (child is Directory) {
+          visit(child, depth + 1);
+        }
+      }
+    }
+
+    visit(Directory(projectRoot).absolute, 0);
+    return roots;
+  }
+
+  static bool _shouldSkipDirectory(Directory directory) {
+    final segments = directory.path
+        .split(Platform.pathSeparator)
+        .where((segment) => segment.isNotEmpty);
+    final name = segments.isEmpty ? null : segments.last;
+    return switch (name) {
+      null => false,
+      '.git' || '.dart_tool' || '.fvm' || 'build' => true,
+      _ => false,
+    };
   }
 }
 

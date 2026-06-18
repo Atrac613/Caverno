@@ -22,7 +22,10 @@ void main() {
 
       expect(rev.profileId, profile.computedId);
       expect(rev.toolCallStyle, ModelToolCallStyle.nativeToolCalls);
-      expect(rev.structuredOutputSupport, ModelStructuredOutputSupport.jsonSchema);
+      expect(
+        rev.structuredOutputSupport,
+        ModelStructuredOutputSupport.jsonSchema,
+      );
       expect(rev.editFormatPreference, ModelEditFormatPreference.searchReplace);
       expect(rev.usableContextTokens, 8192);
       expect(rev.source, 'idle_re_probe');
@@ -35,7 +38,9 @@ void main() {
         source: 'calibrate',
         capabilityChangeDetected: true,
       );
-      final decoded = ModelCapabilityProfileRevision.fromJson(original.toJson());
+      final decoded = ModelCapabilityProfileRevision.fromJson(
+        original.toJson(),
+      );
 
       expect(decoded.profileId, original.profileId);
       expect(decoded.toolCallStyle, original.toolCallStyle);
@@ -136,23 +141,11 @@ void main() {
         ),
       );
 
-      final settings = AppSettings(
-        baseUrl: 'http://localhost:1234/v1',
-        model: 'test-model',
-        apiKey: 'no-key',
-        temperature: 0.7,
-        maxTokens: 4096,
-        modelCapabilityProfileRevisions: existing,
-      );
-
       // Simulate what upsertModelCapabilityProfile does via the static helper
       // via the SettingsNotifier internals — we test the observable result.
       // We verify by checking that the cap is documented and consistent with
       // the constant.
-      expect(
-        existing.length,
-        ModelCapabilityProfileRevision.maxPerProfile,
-      );
+      expect(existing.length, ModelCapabilityProfileRevision.maxPerProfile);
     });
   });
 }

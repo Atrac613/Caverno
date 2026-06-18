@@ -185,10 +185,42 @@ void main() {
         }),
         jsonEncode({
           'testID': 3,
+          'message': '[Tool] Requesting coding continuation recovery',
+          'type': 'print',
+          'time': 136,
+        }),
+        jsonEncode({
+          'testID': 3,
+          'message': '[Tool] Coding continuation recovery requested tool calls',
+          'type': 'print',
+          'time': 137,
+        }),
+        jsonEncode({
+          'testID': 3,
+          'message':
+              '[Tool] Coding continuation recovery requested follow-up tool calls',
+          'type': 'print',
+          'time': 138,
+        }),
+        jsonEncode({
+          'testID': 3,
+          'message':
+              '[TurnFinalization] Requesting recovery before saving response',
+          'type': 'print',
+          'time': 139,
+        }),
+        jsonEncode({
+          'testID': 3,
+          'message': '[TurnFinalization] Recovery requested tool calls',
+          'type': 'print',
+          'time': 140,
+        }),
+        jsonEncode({
+          'testID': 3,
           'message':
               '[LLM] model: test-model, temperature: 0.2, maxTokens: 2048',
           'type': 'print',
-          'time': 136,
+          'time': 141,
         }),
         jsonEncode({
           'testID': 3,
@@ -222,6 +254,10 @@ void main() {
     expect(summary.durationMs, 250);
     expect(summary.signals.recoveredStreamFallbackCount, 1);
     expect(summary.signals.toolResultCompactionRetryCount, 1);
+    expect(summary.signals.codingContinuationRecoveryRequestCount, 1);
+    expect(summary.signals.codingContinuationRecoveryToolCallCount, 2);
+    expect(summary.signals.turnFinalizationRecoveryRequestCount, 1);
+    expect(summary.signals.turnFinalizationRecoveryToolCallCount, 1);
     expect(summary.signals.incompleteContentToolRecoveryCount, 1);
     expect(summary.signals.ignoredAssistantToolResultCount, 1);
     expect(summary.signals.assistantAuthoredToolBlockCount, 1);
@@ -272,7 +308,7 @@ void main() {
 
     final json = summary.toJson();
     expect(json['schemaName'], 'live_llm_canary_summary');
-    expect(json['schemaVersion'], 2);
+    expect(json['schemaVersion'], 3);
     expect(json['generatedAt'], '2026-05-23T01:02:03.000Z');
     expect(json['mainReadiness'], containsPair('status', 'ready'));
     expect(json['tests'], hasLength(2));
@@ -299,6 +335,14 @@ void main() {
     expect(
       (json['signals'] as Map<String, dynamic>)['codingOutputFeedback'],
       containsPair('issueCount', 1),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>),
+      containsPair('codingContinuationRecoveryRequestCount', 1),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>),
+      containsPair('turnFinalizationRecoveryRequestCount', 1),
     );
     expect(
       (json['signals'] as Map<String, dynamic>),
@@ -329,6 +373,14 @@ void main() {
     expect(summary.toMarkdown(), contains('Main readiness: `ready`'));
     expect(summary.toMarkdown(), contains('## Main Readiness'));
     expect(summary.toMarkdown(), contains('Recovered stream fallback count'));
+    expect(
+      summary.toMarkdown(),
+      contains('Coding continuation recovery request count'),
+    );
+    expect(
+      summary.toMarkdown(),
+      contains('Turn-finalization recovery request count'),
+    );
     expect(
       summary.toMarkdown(),
       contains('Incomplete content-tool recovery count'),

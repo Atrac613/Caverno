@@ -426,6 +426,27 @@ class _TestSessionMemoryService extends SessionMemoryService {
   }
 }
 
+class _TrackingSessionMemoryService extends _TestSessionMemoryService {
+  int updateCount = 0;
+  final List<List<Message>> updateMessages = [];
+  final Completer<void> firstUpdate = Completer<void>();
+
+  @override
+  Future<MemoryUpdateResult> updateFromConversation({
+    required String conversationId,
+    required List<Message> messages,
+    DateTime? now,
+    MemoryExtractionDraft? draft,
+  }) async {
+    updateCount += 1;
+    updateMessages.add(List<Message>.from(messages));
+    if (!firstUpdate.isCompleted) {
+      firstUpdate.complete();
+    }
+    return const MemoryUpdateResult.none();
+  }
+}
+
 class _MockAppLifecycleService extends Mock implements AppLifecycleService {}
 
 class _MockSshService extends Mock implements SshService {}
@@ -1528,10 +1549,17 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     required this.initialToolCalls,
     required List<ChatCompletionResult> toolLoopResponses,
     this.finalAnswerChunks = const ['Recovered final answer'],
-  }) : _toolLoopResponses = Queue<ChatCompletionResult>.from(toolLoopResponses);
+    List<List<String>> finalAnswerChunkBatches = const [],
+    this.toolLoopResponseGates = const {},
+  }) : _toolLoopResponses = Queue<ChatCompletionResult>.from(toolLoopResponses),
+       _finalAnswerChunkBatches = Queue<List<String>>.from(
+         finalAnswerChunkBatches,
+       );
 
   final List<ToolCallInfo> initialToolCalls;
   final Queue<ChatCompletionResult> _toolLoopResponses;
+  final Queue<List<String>> _finalAnswerChunkBatches;
+  final Map<int, Future<void>> toolLoopResponseGates;
   final List<String> finalAnswerChunks;
   final List<List<ToolResultInfo>> toolResultBatches = [];
   final List<Message> finalAnswerMessages = <Message>[];
@@ -1551,7 +1579,10 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     finalAnswerMessages
       ..clear()
       ..addAll(List<Message>.from(messages));
-    yield* Stream<String>.fromIterable(finalAnswerChunks);
+    final chunks = _finalAnswerChunkBatches.isNotEmpty
+        ? _finalAnswerChunkBatches.removeFirst()
+        : finalAnswerChunks;
+    yield* Stream<String>.fromIterable(chunks);
   }
 
   @override
@@ -1630,6 +1661,10 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
     toolLoopTemperatures.add(temperature);
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
     assistantContents.add(assistantContent);
+    final gate = toolLoopResponseGates[toolResultBatches.length];
+    if (gate != null) {
+      await gate;
+    }
     return _toolLoopResponses.removeFirst();
   }
 }
@@ -3625,8 +3660,1171 @@ void main() {
       expect(
         chatNotifier.state.messages.last.content,
         contains(
-          'The requested command was not executed because no successful command-execution tool result is available.',
+          'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action.',
         ),
+      );
+    },
+  );
+
+  test(
+    'sendMessage marks future command execution after earlier command success as unexecuted',
+    () async {
+      const inspectionCommand = 'pwd';
+      const finalContent =
+          'The workspace inspection command succeeded. I will run the dry-run release script now using a local command.';
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'inspect-workspace',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': inspectionCommand,
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Execute a local shell command.',
+        },
+        results: const {'local_execute_command': 'unexpected fallback'},
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': inspectionCommand,
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': '/tmp/project',
+              'stderr': '',
+            }),
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('continue');
+
+      expect(toolService.executedToolNames, ['local_execute_command']);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(
+          'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action.',
+        ),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains(finalContent)),
+      );
+    },
+  );
+
+  test(
+    'sendMessage accepts completed command final answer after successful command result',
+    () async {
+      const finalContent =
+          'The local command `python3 prime_numbers.py` completed successfully. '
+          'The script output confirmed 168 prime numbers and all checks passed.';
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'run-prime-script',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'python3 prime_numbers.py',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Execute a local shell command.',
+        },
+        results: const {'local_execute_command': 'unexpected fallback'},
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': 'python3 prime_numbers.py',
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': '168 primes\nchecks passed\n',
+              'stderr': '',
+            }),
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('Run and verify the prime script');
+
+      expect(toolService.executedToolNames, ['local_execute_command']);
+      expect(chatNotifier.state.messages.last.content, contains(finalContent));
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(
+          contains(
+            'I could not execute the additional tool request above in this final-answer step.',
+          ),
+        ),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(
+          contains(
+            'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action.',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'sendMessage skips continuation recovery for completed tool-role command response',
+    () async {
+      const toolRoleCompletion =
+          'The Dart script completed successfully after running the local command. '
+          'It printed 168 prime numbers and the ported implementation is complete.';
+      const streamedFinalAnswer =
+          'The Dart script was ported and verified successfully.';
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'run-dart-script',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'dart run prime_numbers.dart',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: toolRoleCompletion,
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'Recovery should not run.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'unexpected-read',
+                name: 'read_file',
+                arguments: const {'path': '/tmp/project/prime_numbers.dart'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ],
+        finalAnswerChunks: const [streamedFinalAnswer],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Execute a local shell command.',
+          'read_file': 'Read a local file.',
+        },
+        results: const {
+          'local_execute_command': 'unexpected fallback',
+          'read_file': 'unexpected fallback',
+        },
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': 'dart run prime_numbers.dart',
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': '168 primes\n',
+              'stderr': '',
+            }),
+          ],
+          'read_file': [
+            '{"path":"/tmp/project/prime_numbers.dart","content":"void main() {}"}',
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('Port the script to Dart and verify it');
+
+      expect(toolService.executedToolNames, ['local_execute_command']);
+      expect(dataSource.toolResultBatches, hasLength(1));
+      expect(
+        dataSource.toolResultBatches
+            .expand((batch) => batch)
+            .map((result) => result.name),
+        isNot(contains('coding_continuation_recovery')),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(streamedFinalAnswer),
+      );
+    },
+  );
+
+  test(
+    'sendMessage recovers prose-only coding continuation after continue',
+    () async {
+      final continuationText = String.fromCharCodes(const [
+        0x65e2,
+        0x5b58,
+        0x306e,
+        0x0044,
+        0x0061,
+        0x0072,
+        0x0074,
+        0x30b3,
+        0x30fc,
+        0x30c9,
+        0x3092,
+        0x78ba,
+        0x8a8d,
+        0x3057,
+        0x3001,
+        0x0050,
+        0x0079,
+        0x0074,
+        0x0068,
+        0x006f,
+        0x006e,
+        0x30b9,
+        0x30af,
+        0x30ea,
+        0x30d7,
+        0x30c8,
+        0x306e,
+        0x30ed,
+        0x30b8,
+        0x30c3,
+        0x30af,
+        0x3092,
+        0x0044,
+        0x0061,
+        0x0072,
+        0x0074,
+        0x306b,
+        0x30dd,
+        0x30fc,
+        0x30c6,
+        0x30a3,
+        0x30f3,
+        0x30b0,
+        0x3057,
+        0x307e,
+        0x3059,
+        0x3002,
+      ]);
+      final conversationRepository = _FakeConversationRepository();
+      final project = CodingProject(
+        id: 'project-prose-continuation',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 6, 18),
+        updatedAt: DateTime(2026, 6, 18),
+      );
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: continuationText,
+        initialStreamChunks: [continuationText],
+        intermediateToolRoleResponseContent:
+            'Recovering by inspecting the Dart entrypoint.',
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'read-dart-entrypoint',
+            name: 'read_file',
+            arguments: const {
+              'path': '/tmp/project/prime_numbers/bin/prime_numbers.dart',
+            },
+          ),
+        ],
+        toolRoleResponseContent: 'Dart entrypoint was inspected.',
+        finalAnswerChunks: const [
+          'Dart porting can continue after inspection.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'read_file': 'Read a local file.'},
+        results: const {
+          'read_file':
+              '{"path":"/tmp/project/prime_numbers/bin/prime_numbers.dart","content":"void main() {}"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(toolContainer.dispose);
+
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('continue', bypassPlanMode: true);
+
+      expect(toolService.executedToolNames, ['read_file']);
+      expect(dataSource.toolResultBatches, hasLength(2));
+      expect(
+        dataSource.toolResultBatches.first.single.result,
+        contains('prose_only_coding_continuation'),
+      );
+      expect(
+        dataSource.toolResultRequestMessages.first.last.content,
+        contains('The previous assistant response was a coding continuation'),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains(continuationText)),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('Dart porting can continue after inspection.'),
+      );
+    },
+  );
+
+  test(
+    'sendMessage recovers prose-only coding continuation after tool results',
+    () async {
+      final continuationText = String.fromCharCodes(const [
+        0x30d7,
+        0x30ed,
+        0x30b8,
+        0x30a7,
+        0x30af,
+        0x30c8,
+        0x304c,
+        0x4f5c,
+        0x6210,
+        0x3055,
+        0x308c,
+        0x307e,
+        0x3057,
+        0x305f,
+        0x3002,
+        0x65e2,
+        0x5b58,
+        0x306e,
+        0x30b3,
+        0x30fc,
+        0x30c9,
+        0x3092,
+        0x78ba,
+        0x8a8d,
+        0x3057,
+        0x3001,
+        0x0050,
+        0x0079,
+        0x0074,
+        0x0068,
+        0x006f,
+        0x006e,
+        0x30b9,
+        0x30af,
+        0x30ea,
+        0x30d7,
+        0x30c8,
+        0x306e,
+        0x30ed,
+        0x30b8,
+        0x30c3,
+        0x30af,
+        0x3092,
+        0x0044,
+        0x0061,
+        0x0072,
+        0x0074,
+        0x306b,
+        0x30dd,
+        0x30fc,
+        0x30c6,
+        0x30a3,
+        0x30f3,
+        0x30b0,
+        0x3057,
+        0x307e,
+        0x3059,
+        0x3002,
+      ]);
+      final conversationRepository = _FakeConversationRepository();
+      final project = CodingProject(
+        id: 'project-tool-result-prose-continuation',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 6, 18),
+        updatedAt: DateTime(2026, 6, 18),
+      );
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'create-dart-project',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'dart create --template console-simple prime_numbers',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: continuationText, finishReason: 'stop'),
+          ChatCompletionResult(
+            content: 'Recovering by inspecting the generated Dart entrypoint.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'read-generated-entrypoint',
+                name: 'read_file',
+                arguments: const {
+                  'path': '/tmp/project/prime_numbers/bin/prime_numbers.dart',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Generated Dart entrypoint was inspected.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'Dart porting can continue after inspection.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Execute a local command.',
+          'read_file': 'Read a local file.',
+        },
+        results: const {
+          'local_execute_command': 'unexpected fallback',
+          'read_file': 'unexpected fallback',
+        },
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': 'dart create --template console-simple prime_numbers',
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': 'Creating prime_numbers...',
+              'stderr': '',
+            }),
+          ],
+          'read_file': [
+            '{"path":"/tmp/project/prime_numbers/bin/prime_numbers.dart","content":"void main() {}"}',
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(toolContainer.dispose);
+
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(
+        'Port the script to Dart',
+        bypassPlanMode: true,
+      );
+
+      expect(toolService.executedToolNames, [
+        'local_execute_command',
+        'read_file',
+      ]);
+      expect(dataSource.toolResultBatches, hasLength(3));
+      expect(
+        dataSource.toolResultBatches[1].single.result,
+        contains('prose_only_coding_continuation'),
+      );
+      expect(dataSource.assistantContents[1], continuationText);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('Dart porting can continue after inspection.'),
+      );
+    },
+  );
+
+  test(
+    'sendMessage gates prose-only coding continuation before memory update',
+    () async {
+      const incompleteFinalAnswer =
+          'Next I will inspect the Dart entrypoint before porting the script.';
+      const recoveredFinalAnswer =
+          'Dart porting can continue after the entrypoint inspection.';
+      final conversationRepository = _FakeConversationRepository();
+      final memoryService = _TrackingSessionMemoryService();
+      final recoveryResponseGate = Completer<void>();
+      addTearDown(() {
+        if (!recoveryResponseGate.isCompleted) {
+          recoveryResponseGate.complete();
+        }
+      });
+      final project = CodingProject(
+        id: 'project-finalization-gate',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 6, 18),
+        updatedAt: DateTime(2026, 6, 18),
+      );
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'inspect-workspace',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'pwd',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Workspace command completed.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'Recovering by inspecting the Dart entrypoint.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'read-entrypoint-after-finalization-gate',
+                name: 'read_file',
+                arguments: const {
+                  'path': '/tmp/project/prime_numbers/bin/prime_numbers.dart',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Dart entrypoint was inspected.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunkBatches: const [
+          [incompleteFinalAnswer],
+          [recoveredFinalAnswer],
+        ],
+        toolLoopResponseGates: {2: recoveryResponseGate.future},
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Execute a local command.',
+          'read_file': 'Read a local file.',
+        },
+        results: const {
+          'local_execute_command': 'unexpected fallback',
+          'read_file': 'unexpected fallback',
+        },
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': 'pwd',
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': '/tmp/project\n',
+              'stderr': '',
+            }),
+          ],
+          'read_file': [
+            '{"path":"/tmp/project/prime_numbers/bin/prime_numbers.dart","content":"void main() {}"}',
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(memoryService),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(toolContainer.dispose);
+
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      final sendFuture = chatNotifier.sendMessage(
+        'Port the script to Dart',
+        bypassPlanMode: true,
+      );
+      await _waitForCondition(() => dataSource.toolResultBatches.length >= 2);
+
+      expect(chatNotifier.state.isLoading, isTrue);
+      expect(chatNotifier.state.messages.last.isStreaming, isTrue);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(incompleteFinalAnswer),
+      );
+
+      recoveryResponseGate.complete();
+      await sendFuture;
+      await memoryService.firstUpdate.future.timeout(
+        const Duration(seconds: 1),
+      );
+
+      expect(toolService.executedToolNames, [
+        'local_execute_command',
+        'read_file',
+      ]);
+      expect(dataSource.finalAnswerTemperatures, hasLength(2));
+      expect(dataSource.toolResultBatches, hasLength(3));
+      expect(
+        dataSource.toolResultBatches[1].single.result,
+        contains('prose_only_coding_continuation'),
+      );
+      expect(memoryService.updateCount, 1);
+      final savedAssistantContent = memoryService.updateMessages.single
+          .where((message) => message.role == MessageRole.assistant)
+          .last
+          .content;
+      expect(savedAssistantContent, contains(recoveredFinalAnswer));
+      expect(savedAssistantContent, isNot(contains(incompleteFinalAnswer)));
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(recoveredFinalAnswer),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains(incompleteFinalAnswer)),
+      );
+    },
+  );
+
+  test(
+    'sendMessage ignores pre-final tool prose when final answer is complete',
+    () async {
+      final initialToolProse = String.fromCharCodes(const [
+        0x7d20,
+        0x6570,
+        0x3092,
+        0x8a08,
+        0x7b97,
+        0x3059,
+        0x308b,
+        0x0050,
+        0x0079,
+        0x0074,
+        0x0068,
+        0x006f,
+        0x006e,
+        0x30b9,
+        0x30af,
+        0x30ea,
+        0x30d7,
+        0x30c8,
+        0x3092,
+        0x4f5c,
+        0x6210,
+        0x3057,
+        0x307e,
+        0x3059,
+        0x3002,
+      ]);
+      final followUpToolProse = String.fromCharCodes(const [
+        0x4f5c,
+        0x6210,
+        0x3057,
+        0x307e,
+        0x3057,
+        0x305f,
+        0x3002,
+        0x5b9f,
+        0x884c,
+        0x3057,
+        0x3066,
+        0x78ba,
+        0x8a8d,
+        0x3057,
+        0x307e,
+        0x3059,
+        0x3002,
+      ]);
+      final finalAnswer = String.fromCharCodes(const [
+        0x7d20,
+        0x6570,
+        0x3092,
+        0x8a08,
+        0x7b97,
+        0x3059,
+        0x308b,
+        0x0050,
+        0x0079,
+        0x0074,
+        0x0068,
+        0x006f,
+        0x006e,
+        0x30b9,
+        0x30af,
+        0x30ea,
+        0x30d7,
+        0x30c8,
+        0x0020,
+        0x0060,
+        0x0070,
+        0x0072,
+        0x0069,
+        0x006d,
+        0x0065,
+        0x005f,
+        0x006e,
+        0x0075,
+        0x006d,
+        0x0062,
+        0x0065,
+        0x0072,
+        0x0073,
+        0x002e,
+        0x0070,
+        0x0079,
+        0x0060,
+        0x0020,
+        0x3092,
+        0x4f5c,
+        0x6210,
+        0x3057,
+        0x3001,
+        0x5b9f,
+        0x884c,
+        0x3057,
+        0x3066,
+        0x6b63,
+        0x5e38,
+        0x306b,
+        0x52d5,
+        0x4f5c,
+        0x3059,
+        0x308b,
+        0x3053,
+        0x3068,
+        0x3092,
+        0x78ba,
+        0x8a8d,
+        0x3057,
+        0x307e,
+        0x3057,
+        0x305f,
+        0x3002,
+      ]);
+      final conversationRepository = _FakeConversationRepository();
+      final project = CodingProject(
+        id: 'project-final-answer-complete-after-tool-prose',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 6, 18),
+        updatedAt: DateTime(2026, 6, 18),
+      );
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'write-prime-script',
+            name: 'write_file',
+            arguments: const {
+              'path': '/tmp/project/prime_numbers.py',
+              'content': 'print([2, 3, 5, 7])\n',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: followUpToolProse,
+            toolCalls: [
+              ToolCallInfo(
+                id: 'run-prime-script',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'python3 prime_numbers.py',
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: [finalAnswer],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'write_file': 'Write a file.',
+          'local_execute_command': 'Execute a local command.',
+        },
+        results: const {
+          'write_file': 'unexpected fallback',
+          'local_execute_command': 'unexpected fallback',
+        },
+        queuedResults: {
+          'write_file': [
+            '{"path":"/tmp/project/prime_numbers.py","created":true}',
+          ],
+          'local_execute_command': [
+            jsonEncode({
+              'command': 'python3 prime_numbers.py',
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': '[2, 3, 5, 7]\n',
+              'stderr': '',
+            }),
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(toolContainer.dispose);
+
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(initialToolProse, bypassPlanMode: true);
+
+      expect(toolService.executedToolNames, [
+        'write_file',
+        'local_execute_command',
+      ]);
+      expect(
+        dataSource.toolResultBatches
+            .expand((batch) => batch)
+            .map((result) => result.name),
+        isNot(contains('coding_continuation_recovery')),
+      );
+      expect(chatNotifier.state.messages.last.content, contains(finalAnswer));
+    },
+  );
+
+  test(
+    'sendMessage recovers bracketed coding tool request before memory update',
+    () async {
+      const bracketedFinalAnswer =
+          'I need to apply the pending parser fix.\n\n'
+          '[Tool: edit_file]\n'
+          'Arguments: {"path":"/tmp/project/lib/src/ping_command.dart","old_text":"return command;","new_text":"return commandWithIpv6;"}';
+      const recoveredFinalAnswer =
+          'The ping command now includes the IPv6 flag.';
+      final conversationRepository = _FakeConversationRepository();
+      final memoryService = _TrackingSessionMemoryService();
+      final project = CodingProject(
+        id: 'project-bracketed-finalization-gate',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 6, 18),
+        updatedAt: DateTime(2026, 6, 18),
+      );
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'inspect-workspace-for-bracketed-gate',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'pwd',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Workspace command completed.',
+            finishReason: 'stop',
+          ),
+          ChatCompletionResult(
+            content: 'Recovering by applying the pending parser fix.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'edit-ping-command-after-finalization-gate',
+                name: 'edit_file',
+                arguments: const {
+                  'path': '/tmp/project/lib/src/ping_command.dart',
+                  'old_text': 'return command;',
+                  'new_text': 'return commandWithIpv6;',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Parser fix was applied.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunkBatches: const [
+          [bracketedFinalAnswer],
+          [recoveredFinalAnswer],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Execute a local command.',
+          'edit_file': 'Edit a file.',
+        },
+        results: const {
+          'local_execute_command': 'unexpected fallback',
+          'edit_file': 'unexpected fallback',
+        },
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': 'pwd',
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': '/tmp/project\n',
+              'stderr': '',
+            }),
+          ],
+          'edit_file': [
+            '{"path":"/tmp/project/lib/src/ping_command.dart","replacements":1}',
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(memoryService),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(toolContainer.dispose);
+
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(
+        'Fix the ping command parser',
+        bypassPlanMode: true,
+      );
+      await memoryService.firstUpdate.future.timeout(
+        const Duration(seconds: 1),
+      );
+
+      expect(toolService.executedToolNames, [
+        'local_execute_command',
+        'edit_file',
+      ]);
+      expect(
+        toolService.executedToolArguments.last,
+        containsPair('path', '/tmp/project/lib/src/ping_command.dart'),
+      );
+      expect(dataSource.finalAnswerTemperatures, hasLength(2));
+      expect(dataSource.toolResultBatches, hasLength(3));
+      expect(
+        dataSource.toolResultBatches[1].single.result,
+        contains('bracketed_coding_tool_request'),
+      );
+      expect(memoryService.updateCount, 1);
+      final savedAssistantContent = memoryService.updateMessages.single
+          .where((message) => message.role == MessageRole.assistant)
+          .last
+          .content;
+      expect(savedAssistantContent, contains(recoveredFinalAnswer));
+      expect(savedAssistantContent, isNot(contains('[Tool: edit_file]')));
+      expect(
+        savedAssistantContent,
+        isNot(
+          contains(
+            'I could not execute the additional tool request above in this final-answer step.',
+          ),
+        ),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(recoveredFinalAnswer),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('[Tool: edit_file]')),
       );
     },
   );
@@ -3680,7 +4878,7 @@ void main() {
       expect(
         chatNotifier.state.messages.last.content,
         contains(
-          'The requested command was not executed because no successful command-execution tool result is available.',
+          'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action.',
         ),
       );
     },
@@ -3735,7 +4933,7 @@ void main() {
       expect(
         chatNotifier.state.messages.last.content,
         contains(
-          'The requested command was not executed because no successful command-execution tool result is available.',
+          'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action.',
         ),
       );
       expect(
@@ -10846,7 +12044,7 @@ with open(path, "rb") as file:
       ],
       toolLoopResponses: [
         ChatCompletionResult(
-          content: 'Repository initialized. Now create the lifecycle file.',
+          content: 'I will create the lifecycle file now.',
           toolCalls: [
             ToolCallInfo(
               id: 'write-note',
@@ -10860,7 +12058,7 @@ with open(path, "rb") as file:
           finishReason: 'tool_calls',
         ),
         ChatCompletionResult(
-          content: 'File created. Now configure git email.',
+          content: 'I will configure git email now.',
           toolCalls: [
             ToolCallInfo(
               id: 'git-email',
@@ -10874,7 +12072,7 @@ with open(path, "rb") as file:
           finishReason: 'tool_calls',
         ),
         ChatCompletionResult(
-          content: 'Email configured. Now configure git name.',
+          content: 'I will configure git name now.',
           toolCalls: [
             ToolCallInfo(
               id: 'git-name',
@@ -10888,7 +12086,7 @@ with open(path, "rb") as file:
           finishReason: 'tool_calls',
         ),
         ChatCompletionResult(
-          content: 'Name configured. Now add the lifecycle file.',
+          content: 'I will add the lifecycle file now.',
           toolCalls: [
             ToolCallInfo(
               id: 'git-add',
@@ -10902,7 +12100,7 @@ with open(path, "rb") as file:
           finishReason: 'tool_calls',
         ),
         ChatCompletionResult(
-          content: 'File staged. Now commit it.',
+          content: 'I will commit the lifecycle file now.',
           toolCalls: [
             ToolCallInfo(
               id: 'git-commit',
@@ -10916,7 +12114,7 @@ with open(path, "rb") as file:
           finishReason: 'tool_calls',
         ),
         ChatCompletionResult(
-          content: 'Commit succeeded. Now inspect status.',
+          content: 'I will inspect status after the commit now.',
           toolCalls: [
             ToolCallInfo(
               id: 'git-status-after-commit',
@@ -10931,7 +12129,7 @@ with open(path, "rb") as file:
           finishReason: 'tool_calls',
         ),
         ChatCompletionResult(
-          content: 'Status is clean. Now revert the commit.',
+          content: 'I will revert the commit now.',
           toolCalls: [
             ToolCallInfo(
               id: 'git-revert',
@@ -10945,7 +12143,7 @@ with open(path, "rb") as file:
           finishReason: 'tool_calls',
         ),
         ChatCompletionResult(
-          content: 'Revert succeeded. Now inspect final status.',
+          content: 'I will inspect final status after the revert now.',
           toolCalls: [
             ToolCallInfo(
               id: 'git-status-after-revert',
@@ -10968,6 +12166,20 @@ with open(path, "rb") as file:
               arguments: const {
                 'command': 'dart lib/canary_greeting_test.dart',
                 'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Recovery should not restart the completed lifecycle.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'wrong-recovery-write',
+              name: 'write_file',
+              arguments: const {
+                'path': '/tmp/project/lib/git_lifecycle_note.txt',
+                'content': 'CODING_GOAL_GIT_LIFECYCLE_OK',
               },
             ),
           ],
@@ -11039,6 +12251,18 @@ with open(path, "rb") as file:
       expect(
         toolService.executedToolNames,
         isNot(contains('local_execute_command')),
+      );
+      expect(
+        toolService.executedToolNames
+            .where((toolName) => toolName == 'write_file')
+            .length,
+        1,
+      );
+      expect(
+        toolDataSource.toolResultBatches
+            .expand((batch) => batch)
+            .map((result) => result.name),
+        isNot(contains('coding_continuation_recovery')),
       );
       expect(toolDataSource.finalAnswerMessages, isEmpty);
       expect(
@@ -12324,7 +13548,7 @@ with open(path, "rb") as file:
   );
 
   test(
-    'sendMessage accepts successful saved validation wrapper commands',
+    'sendMessage rejects modified saved validation commands and recovers',
     () async {
       final conversation = Conversation(
         id: 'conversation-tool-loop-wrapper',
@@ -12377,8 +13601,22 @@ with open(path, "rb") as file:
             finishReason: 'tool_calls',
           ),
           ChatCompletionResult(
+            content: 'I will run the saved validation command exactly.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-validate-exact',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'ls README.md',
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
             content:
-                'The wrapped saved validation command passed, so the README task is complete.',
+                'The saved validation command passed, so the README task is complete.',
             toolCalls: [
               ToolCallInfo(
                 id: 'tool-rewrite-after-validation',
@@ -12437,6 +13675,22 @@ with open(path, "rb") as file:
           'write_file',
           'local_execute_command',
         ]);
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        final guardPayload =
+            jsonDecode(toolDataSource.toolResultBatches[1].single.result)
+                as Map<String, dynamic>;
+        expect(
+          guardPayload,
+          containsPair('code', 'saved_validation_command_modified'),
+        );
+        expect(
+          guardPayload,
+          containsPair('saved_validation_command', 'ls README.md'),
+        );
+        expect(
+          guardPayload,
+          containsPair('attempted_command', wrappedValidationCommand),
+        );
         expect(toolDataSource.finalAnswerMessages, isEmpty);
         expect(
           toolNotifier.state.messages.last.content,
@@ -12451,6 +13705,429 @@ with open(path, "rb") as file:
       }
     },
   );
+
+  test(
+    'sendMessage blocks file writes outside the active saved task target',
+    () async {
+      final conversation = Conversation(
+        id: 'conversation-tool-loop-target-scope',
+        title: 'Plan thread',
+        messages: const <Message>[],
+        createdAt: DateTime(2026, 4, 24, 12),
+        updatedAt: DateTime(2026, 4, 24, 12, 5),
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-requirements',
+              title: 'Create requirements.txt for the host health CLI',
+              targetFiles: ['requirements.txt'],
+              validationCommand: 'test -f requirements.txt',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+          ],
+        ),
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-write-requirements',
+            name: 'write_file',
+            arguments: const {
+              'path': 'requirements.txt',
+              'content': 'requests>=2.32\n',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'I will add README notes next.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-write-readme',
+                name: 'write_file',
+                arguments: const {
+                  'path': 'README.md',
+                  'content': '# Host health CLI\n',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'I will stay on the active saved task and validate it.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-validate-requirements',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'test -f requirements.txt',
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content:
+                'The saved validation command passed, so the requirements task is complete.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Requirements task complete.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file': '{"path":"/tmp/requirements.txt","bytes_written":15}',
+          'local_execute_command':
+              '{"command":"test -f requirements.txt","exit_code":0,"stdout":"","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            () => _WorkflowTestConversationsNotifier(conversation),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Create requirements.txt first');
+
+        expect(toolService.executedToolNames, [
+          'write_file',
+          'local_execute_command',
+        ]);
+        expect(
+          toolService.executedToolArguments,
+          isNot(contains(containsPair('path', 'README.md'))),
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        final guardPayload =
+            jsonDecode(toolDataSource.toolResultBatches[1].single.result)
+                as Map<String, dynamic>;
+        expect(
+          guardPayload,
+          containsPair('code', 'saved_task_target_scope_violation'),
+        );
+        expect(guardPayload, containsPair('attempted_path', 'README.md'));
+        expect(
+          guardPayload['allowed_target_files'],
+          contains('requirements.txt'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Requirements task complete.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage rejects saved validation commands with resolved paths',
+    () async {
+      final now = DateTime(2026, 4, 24, 12);
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Tmp project',
+        rootPath: '/tmp',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final conversation = Conversation(
+        id: 'conversation-tool-loop-resolved-validation-path',
+        title: 'Plan thread',
+        messages: const <Message>[],
+        createdAt: now,
+        updatedAt: now.add(const Duration(minutes: 5)),
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-readme',
+              title: 'Create README.md with project description',
+              targetFiles: ['README.md'],
+              validationCommand: 'cat README.md',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+          ],
+        ),
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-write',
+            name: 'write_file',
+            arguments: const {
+              'path': 'README.md',
+              'content': '# Host Health Checker\n',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'I will validate the file.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-validate-resolved',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'cat /tmp/README.md',
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'I will run the saved command exactly.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-validate-exact',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'cat README.md',
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content:
+                'The saved validation command passed, so the README task is complete.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-rewrite-after-validation',
+                name: 'write_file',
+                arguments: const {
+                  'path': 'README.md',
+                  'content': '# Host Health Checker\n\nRepeated rewrite\n',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file': '{"path":"/tmp/README.md","bytes_written":22}',
+          'local_execute_command':
+              '{"command":"cat README.md","exit_code":0,"stdout":"# Host Health Checker\\n","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            () => _WorkflowTestConversationsNotifier(conversation),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Create the README first');
+
+        expect(toolService.executedToolNames, [
+          'write_file',
+          'local_execute_command',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        final guardPayload =
+            jsonDecode(toolDataSource.toolResultBatches[1].single.result)
+                as Map<String, dynamic>;
+        expect(
+          guardPayload,
+          containsPair('code', 'saved_validation_command_modified'),
+        );
+        expect(
+          guardPayload,
+          containsPair('saved_validation_command', 'cat README.md'),
+        );
+        expect(
+          guardPayload,
+          containsPair('attempted_command', 'cat /tmp/README.md'),
+        );
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('README task is complete'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('sendMessage accepts read_file as cat saved validation evidence', () async {
+    final now = DateTime(2026, 4, 24, 12);
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Tmp project',
+      rootPath: '/tmp',
+      createdAt: now,
+      updatedAt: now,
+    );
+    final conversation = Conversation(
+      id: 'conversation-tool-loop-read-file-cat-validation',
+      title: 'Plan thread',
+      messages: const <Message>[],
+      createdAt: now,
+      updatedAt: now.add(const Duration(minutes: 5)),
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      workflowStage: ConversationWorkflowStage.implement,
+      workflowSpec: const ConversationWorkflowSpec(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-readme',
+            title: 'Create README.md with project description',
+            targetFiles: ['README.md'],
+            validationCommand: 'cat README.md',
+            status: ConversationWorkflowTaskStatus.inProgress,
+          ),
+        ],
+      ),
+    );
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-write',
+          name: 'write_file',
+          arguments: const {
+            'path': 'README.md',
+            'content': '# Host Health Checker\n',
+          },
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: 'I will read the file to validate it.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-read',
+              name: 'read_file',
+              arguments: const {'path': 'README.md'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content:
+              'The saved validation command passed, so the README task is complete.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-rewrite-after-validation',
+              name: 'write_file',
+              arguments: const {
+                'path': 'README.md',
+                'content': '# Host Health Checker\n\nRepeated rewrite\n',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      ],
+      finalAnswerChunks: const ['This final answer should never be requested.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'write_file': '{"path":"/tmp/README.md","bytes_written":22}',
+        'read_file':
+            '{"path":"/tmp/README.md","content":"# Host Health Checker\\n","size_bytes":22}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          () => _WorkflowTestConversationsNotifier(conversation),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Create the README first');
+
+      expect(toolService.executedToolNames, ['write_file', 'read_file']);
+      expect(toolDataSource.finalAnswerMessages, isEmpty);
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('README task is complete'),
+      );
+      expect(
+        toolNotifier.state.messages.last.content,
+        isNot(contains('This final answer should never be requested.')),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
 
   const untrustedWrapperCases = <_SavedValidationWrapperCase>[
     _SavedValidationWrapperCase(
@@ -12483,11 +14160,12 @@ with open(path, "rb") as file:
           commandResult: wrapperCase.commandResult,
         );
 
-        expect(outcome.executedToolNames, [
-          'write_file',
-          'local_execute_command',
-          'write_file',
-        ]);
+        expect(
+          outcome.executedToolNames,
+          wrapperCase.name == 'different validation command'
+              ? ['write_file', 'local_execute_command', 'write_file']
+              : ['write_file', 'write_file'],
+        );
         expect(outcome.finalAnswerMessages, isNotEmpty);
         expect(
           outcome.lastMessageContent,
@@ -14776,6 +16454,120 @@ with open(path, "rb") as file:
     },
   );
 
+  test(
+    'sendMessage replaces CJK normal operation claim after failed run_tests',
+    () async {
+      final normalOperationClaim = String.fromCharCodes(const [
+        0x30c6,
+        0x30b9,
+        0x30c8,
+        0x3092,
+        0x5b9f,
+        0x884c,
+        0x3057,
+        0x3001,
+        0x6b63,
+        0x5e38,
+        0x306b,
+        0x52d5,
+        0x4f5c,
+        0x3059,
+        0x308b,
+        0x3053,
+        0x3068,
+        0x3092,
+        0x78ba,
+        0x8a8d,
+        0x3057,
+        0x307e,
+        0x3057,
+        0x305f,
+        0x3002,
+      ]);
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'dart-test',
+            name: 'run_tests',
+            arguments: const {
+              'test_path': 'test/prime_numbers_pkg_test.dart',
+              'working_directory': '/tmp/project',
+              'runner': 'dart',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: [normalOperationClaim],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'command': "dart test 'test/prime_numbers_pkg_test.dart'",
+            'working_directory': '/tmp/project',
+            'exit_code': 1,
+            'stdout': '00:00 +0 -1: Some tests failed.\n',
+            'stderr': '',
+          }),
+        },
+      );
+      final conversationRepository = _FakeConversationRepository();
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run the Dart package test');
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        final finalContent = toolNotifier.state.messages.last.content;
+        expect(finalContent, isNot(contains(normalOperationClaim)));
+        expect(finalContent, contains('non-zero exit code'));
+        expect(finalContent, contains('1'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
   test('sendMessage preserves success claim after later command success', () async {
     final toolDataSource = _QueuedToolLoopChatDataSource(
       initialToolCalls: [
@@ -16843,6 +18635,201 @@ with open(path, "rb") as file:
         expect(result.name, 'run_tests');
         expect(result.arguments['test_path'], 'test/widget_test.dart');
         expect(result.result, contains('"exit_code":0'));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'run_tests avoids duplicating nested package path with working directory',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'run_tests',
+            arguments: const {
+              'test_path': 'prime_numbers_pkg/test/prime_numbers_pkg_test.dart',
+              'working_directory': '/tmp/project/prime_numbers_pkg',
+              'runner': 'dart',
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"dart test test/prime_numbers_pkg_test.dart","exit_code":0,"stdout":"All tests passed.","stderr":""}',
+        },
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage(
+          'Run the nested package test',
+          bypassPlanMode: true,
+        );
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(
+          toolService.executedToolArguments.single['command'],
+          "dart test 'test/prime_numbers_pkg_test.dart'",
+        );
+        expect(
+          toolService.executedToolArguments.single['working_directory'],
+          '/tmp/project/prime_numbers_pkg',
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        final result = toolDataSource.toolResultBatches.single.single;
+        expect(result.name, 'run_tests');
+        expect(
+          result.result,
+          contains('"command":"dart test test/prime_numbers_pkg_test.dart"'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'run_tests infers nested package root for relative test paths',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_run_tests_nested_root_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final packageRoot = Directory('${projectRoot.path}/prime_numbers_pkg');
+      await Directory('${packageRoot.path}/test').create(recursive: true);
+      await File('${packageRoot.path}/pubspec.yaml').writeAsString('''
+name: prime_numbers_pkg
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+''');
+      await File(
+        '${packageRoot.path}/test/prime_numbers_test.dart',
+      ).writeAsString("void main() {}\n");
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'run_tests',
+            arguments: const {
+              'test_path': 'test/prime_numbers_test.dart',
+              'runner': 'dart',
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
+            'command': "dart test 'test/prime_numbers_test.dart'",
+            'working_directory': packageRoot.path,
+            'exit_code': 0,
+            'stdout': 'All tests passed.',
+            'stderr': '',
+          }),
+        },
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 5, 26),
+        updatedAt: DateTime(2026, 5, 26),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage(
+          'Run the Dart package test',
+          bypassPlanMode: true,
+        );
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(
+          toolService.executedToolArguments.single['command'],
+          "dart test 'test/prime_numbers_test.dart'",
+        );
+        expect(
+          toolService.executedToolArguments.single['working_directory'],
+          packageRoot.path,
+        );
       } finally {
         toolContainer.dispose();
       }

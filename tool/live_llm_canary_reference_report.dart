@@ -229,7 +229,7 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
 
   return LiveLlmCanaryReferenceReport(
     schemaName: 'live_llm_canary_reference_report',
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: generatedAt ?? DateTime.now(),
     label: label,
     entries: entries,
@@ -593,6 +593,10 @@ class LiveLlmCanaryReferenceSignals {
     this.approvalFallbackCount = 0,
     this.recoveredStreamFallbackCount = 0,
     this.toolResultCompactionRetryCount = 0,
+    this.codingContinuationRecoveryRequestCount = 0,
+    this.codingContinuationRecoveryToolCallCount = 0,
+    this.turnFinalizationRecoveryRequestCount = 0,
+    this.turnFinalizationRecoveryToolCallCount = 0,
     this.assistantAuthoredToolBlockCount = 0,
     this.transportDisconnectCount = 0,
     this.memoryExtractionFallbackCount = 0,
@@ -635,6 +639,18 @@ class LiveLlmCanaryReferenceSignals {
       ),
       toolResultCompactionRetryCount: _asInt(
         json['toolResultCompactionRetryCount'],
+      ),
+      codingContinuationRecoveryRequestCount: _asInt(
+        json['codingContinuationRecoveryRequestCount'],
+      ),
+      codingContinuationRecoveryToolCallCount: _asInt(
+        json['codingContinuationRecoveryToolCallCount'],
+      ),
+      turnFinalizationRecoveryRequestCount: _asInt(
+        json['turnFinalizationRecoveryRequestCount'],
+      ),
+      turnFinalizationRecoveryToolCallCount: _asInt(
+        json['turnFinalizationRecoveryToolCallCount'],
       ),
       assistantAuthoredToolBlockCount: _asInt(
         json['assistantAuthoredToolBlockCount'],
@@ -685,6 +701,10 @@ class LiveLlmCanaryReferenceSignals {
   final int approvalFallbackCount;
   final int recoveredStreamFallbackCount;
   final int toolResultCompactionRetryCount;
+  final int codingContinuationRecoveryRequestCount;
+  final int codingContinuationRecoveryToolCallCount;
+  final int turnFinalizationRecoveryRequestCount;
+  final int turnFinalizationRecoveryToolCallCount;
   final int assistantAuthoredToolBlockCount;
   final int transportDisconnectCount;
   final int memoryExtractionFallbackCount;
@@ -707,6 +727,10 @@ class LiveLlmCanaryReferenceSignals {
       backgroundProcessStillRunningCount > 0 ||
       backgroundProcessStatusUnverifiedCount > 0 ||
       recoveredStreamFallbackCount > 0 ||
+      codingContinuationRecoveryRequestCount > 0 ||
+      codingContinuationRecoveryToolCallCount > 0 ||
+      turnFinalizationRecoveryRequestCount > 0 ||
+      turnFinalizationRecoveryToolCallCount > 0 ||
       assistantAuthoredToolBlockCount > 0 ||
       transportDisconnectCount > 0 ||
       memoryExtractionFallbackCount > 0;
@@ -724,6 +748,14 @@ class LiveLlmCanaryReferenceSignals {
       'approvalFallbackCount': approvalFallbackCount,
       'recoveredStreamFallbackCount': recoveredStreamFallbackCount,
       'toolResultCompactionRetryCount': toolResultCompactionRetryCount,
+      'codingContinuationRecoveryRequestCount':
+          codingContinuationRecoveryRequestCount,
+      'codingContinuationRecoveryToolCallCount':
+          codingContinuationRecoveryToolCallCount,
+      'turnFinalizationRecoveryRequestCount':
+          turnFinalizationRecoveryRequestCount,
+      'turnFinalizationRecoveryToolCallCount':
+          turnFinalizationRecoveryToolCallCount,
       'assistantAuthoredToolBlockCount': assistantAuthoredToolBlockCount,
       'transportDisconnectCount': transportDisconnectCount,
       'memoryExtractionFallbackCount': memoryExtractionFallbackCount,
@@ -771,6 +803,18 @@ class LiveLlmCanaryReferenceSignals {
     }
     if (toolResultCompactionRetryCount > 0) {
       parts.add('compaction retry $toolResultCompactionRetryCount');
+    }
+    if (codingContinuationRecoveryRequestCount > 0 ||
+        codingContinuationRecoveryToolCallCount > 0) {
+      parts.add(
+        'coding continuation recovery $codingContinuationRecoveryRequestCount, tool calls $codingContinuationRecoveryToolCallCount',
+      );
+    }
+    if (turnFinalizationRecoveryRequestCount > 0 ||
+        turnFinalizationRecoveryToolCallCount > 0) {
+      parts.add(
+        'turn finalization recovery $turnFinalizationRecoveryRequestCount, tool calls $turnFinalizationRecoveryToolCallCount',
+      );
     }
     if (assistantAuthoredToolBlockCount > 0) {
       parts.add('assistant tool blocks $assistantAuthoredToolBlockCount');
@@ -1023,6 +1067,18 @@ Future<LiveLlmCanaryReferenceEntry> _buildLiveSummaryEntry(
       ),
       toolResultCompactionRetryCount: _asInt(
         signals['toolResultCompactionRetryCount'],
+      ),
+      codingContinuationRecoveryRequestCount: _asInt(
+        signals['codingContinuationRecoveryRequestCount'],
+      ),
+      codingContinuationRecoveryToolCallCount: _asInt(
+        signals['codingContinuationRecoveryToolCallCount'],
+      ),
+      turnFinalizationRecoveryRequestCount: _asInt(
+        signals['turnFinalizationRecoveryRequestCount'],
+      ),
+      turnFinalizationRecoveryToolCallCount: _asInt(
+        signals['turnFinalizationRecoveryToolCallCount'],
       ),
       assistantAuthoredToolBlockCount: _asInt(
         signals['assistantAuthoredToolBlockCount'],

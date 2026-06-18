@@ -48,7 +48,7 @@ void registerChatNotifierGitGuardrailTests() {
       expect(
         chatNotifier.state.messages.last.content,
         contains(
-          'The requested command was not executed because no successful command-execution tool result is available.',
+          'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action.',
         ),
       );
       expect(
@@ -520,6 +520,288 @@ void registerChatNotifierGitGuardrailTests() {
         expect(toolDataSource.toolResultBatches, hasLength(2));
         final releaseBlock =
             jsonDecode(toolDataSource.toolResultBatches.last.single.result)
+                as Map<String, dynamic>;
+        expect(
+          releaseBlock,
+          containsPair('code', 'production_release_explicit_approval_required'),
+        );
+        expect(releaseBlock['command'], productionCommand);
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage accepts production release after ask-user-question approval',
+    () async {
+      const dryRunCommand =
+          'bash tool/release_ios_macos.sh --dry-run --macos-release-notes docs/releases/caverno-1.3.6.md';
+      const productionCommand =
+          'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.6.md';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'release-dry-run',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': dryRunCommand,
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Dry run succeeded. I need production release approval.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'release-approval',
+                name: 'ask_user_question',
+                arguments: const {
+                  'question':
+                      'Approve running the production release command now?',
+                  'options': [
+                    {'label': 'Approve production release'},
+                    {'label': 'Do not release'},
+                  ],
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content:
+                'The user approved production release execution. I will run the production release command now.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'release-production',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': productionCommand,
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Production release completed.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Production release completed.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'ask_user_question': '',
+          'local_execute_command': 'unexpected fallback command result',
+        },
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': dryRunCommand,
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': 'Dry run completed successfully.',
+              'stderr': '',
+            }),
+            jsonEncode({
+              'command': productionCommand,
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': 'Production release completed successfully.',
+              'stderr': '',
+            }),
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        final sendFuture = toolNotifier.sendMessage('continue');
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        final pending = toolNotifier.state.pendingAskUserQuestion;
+        expect(pending, isNotNull);
+        toolNotifier.resolveAskUserQuestion(
+          id: pending!.id,
+          answer: AskUserQuestionAnswer(
+            question: pending.question,
+            selectedOptions: const [
+              AskUserQuestionSelection(
+                id: 'approve-production-release',
+                label: 'Approve production release',
+              ),
+            ],
+          ),
+        );
+
+        await sendFuture;
+
+        expect(toolService.executedToolNames, [
+          'local_execute_command',
+          'local_execute_command',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        final productionResult =
+            jsonDecode(toolDataSource.toolResultBatches.last.last.result)
+                as Map<String, dynamic>;
+        expect(productionResult, containsPair('command', productionCommand));
+        expect(productionResult, containsPair('exit_code', 0));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage blocks production release after ask-user-question rejection',
+    () async {
+      const dryRunCommand =
+          'bash tool/release_ios_macos.sh --dry-run --macos-release-notes docs/releases/caverno-1.3.6.md';
+      const productionCommand =
+          'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.6.md';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'release-dry-run',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': dryRunCommand,
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Dry run succeeded. I need production release approval.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'release-approval',
+                name: 'ask_user_question',
+                arguments: const {
+                  'question':
+                      'Approve running the production release command now?',
+                  'options': [
+                    {'label': 'Approve production release'},
+                    {'label': 'Do not release'},
+                  ],
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content:
+                'The answer was not approval, but I will run the production release command now.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'release-production',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': productionCommand,
+                  'working_directory': '/tmp/project',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Production release remains blocked.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'ask_user_question': '',
+          'local_execute_command': 'unexpected fallback command result',
+        },
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': dryRunCommand,
+              'working_directory': '/tmp/project',
+              'exit_code': 0,
+              'stdout': 'Dry run completed successfully.',
+              'stderr': '',
+            }),
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        final sendFuture = toolNotifier.sendMessage('continue');
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        final pending = toolNotifier.state.pendingAskUserQuestion;
+        expect(pending, isNotNull);
+        toolNotifier.resolveAskUserQuestion(
+          id: pending!.id,
+          answer: AskUserQuestionAnswer(
+            question: pending.question,
+            selectedOptions: const [
+              AskUserQuestionSelection(
+                id: 'do-not-release',
+                label: 'Do not release',
+              ),
+            ],
+          ),
+        );
+
+        await sendFuture;
+
+        expect(toolService.executedToolNames, ['local_execute_command']);
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        final releaseBlock =
+            jsonDecode(toolDataSource.toolResultBatches.last.last.result)
                 as Map<String, dynamic>;
         expect(
           releaseBlock,

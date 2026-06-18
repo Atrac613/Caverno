@@ -107,11 +107,12 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
   McpToolResult? _buildProductionReleaseApprovalGuardResult(
     ToolCallInfo toolCall, {
     required String? currentAssistantContent,
+    required int interactionGeneration,
   }) {
     if (!_isProductionReleaseCommandToolCall(toolCall)) {
       return null;
     }
-    if (_latestUserExplicitlyApprovedProductionRelease()) {
+    if (_hasExplicitProductionReleaseApproval(interactionGeneration)) {
       return null;
     }
 
@@ -121,7 +122,8 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
       'code': 'production_release_explicit_approval_required',
       'error':
           'A production release command was blocked because the latest user '
-          'message did not explicitly approve production release execution.',
+          'message or ask_user_question answer did not explicitly approve '
+          'production release execution.',
       'command': command,
       if ((currentAssistantContent ?? '').trim().isNotEmpty)
         'assistant_intent': _clipForDiagnostic(currentAssistantContent!.trim()),
@@ -133,6 +135,134 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
       toolName: toolCall.name,
       result: payload,
       isSuccess: true,
+    );
+  }
+
+  McpToolResult? _buildCodingCommandPreflightGuardResult(
+    ToolCallInfo toolCall,
+  ) {
+    final toolName = toolCall.name.trim().toLowerCase();
+    if (toolName != 'local_execute_command' && toolName != 'process_start') {
+      return null;
+    }
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final command = LocalShellTools.normalizeCommand(
+      (resolvedArguments['command'] as String?)?.trim() ?? '',
+    );
+    final workingDirectory =
+        (resolvedArguments['working_directory'] as String?)?.trim() ?? '';
+    final issue = CodingCommandOutputGuardrailService.detectPreflightIssue(
+      toolName: toolCall.name,
+      command: command,
+      workingDirectory: workingDirectory,
+    );
+    if (issue == null) {
+      return null;
+    }
+
+    final payload = jsonEncode({
+      'ok': false,
+      ...issue.toJson(),
+      'required_action': issue.instruction,
+    });
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: false,
+      errorMessage: issue.summary,
+    );
+  }
+
+  McpToolResult? _buildModifiedSavedValidationCommandGuardResult(
+    ToolCallInfo toolCall,
+  ) {
+    if (!_isCommandExecutionTool(toolCall.name)) {
+      return null;
+    }
+    final validationCommand = _currentSavedValidationCommandForToolLoop();
+    if (validationCommand == null) {
+      return null;
+    }
+    final command = _toolCommandArgument(toolCall.arguments);
+    if (command == null) {
+      return null;
+    }
+    final normalizedCommand = _normalizeToolCommandForComparison(command);
+    final normalizedValidationCommand = _normalizeToolCommandForComparison(
+      validationCommand,
+    );
+    if (normalizedCommand == normalizedValidationCommand) {
+      return null;
+    }
+    if (!_looksLikeModifiedSavedValidationCommand(
+      command: command,
+      validationCommand: validationCommand,
+      normalizedCommand: normalizedCommand,
+      normalizedValidationCommand: normalizedValidationCommand,
+    )) {
+      return null;
+    }
+
+    final payload = jsonEncode({
+      'ok': false,
+      'code': 'saved_validation_command_modified',
+      'error':
+          'A saved validation command was blocked because it was modified '
+          'before execution.',
+      'saved_validation_command': validationCommand,
+      'attempted_command': command,
+      'required_action':
+          'Run the saved validation command exactly as saved, without '
+          'wrappers, shell operators, extra echo commands, or fallback '
+          'branches.',
+    });
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: false,
+      errorMessage: 'Run the saved validation command exactly as saved.',
+    );
+  }
+
+  McpToolResult? _buildSavedTaskTargetScopeGuardResult(ToolCallInfo toolCall) {
+    final toolName = toolCall.name.trim().toLowerCase();
+    if (toolName != 'write_file' && toolName != 'edit_file') {
+      return null;
+    }
+    final task = _currentSavedTaskForToolLoop();
+    if (task == null || task.targetFiles.isEmpty) {
+      return null;
+    }
+    final path = _toolPathFromArguments(toolCall.arguments);
+    if (path == null) {
+      return null;
+    }
+    if (_savedTaskTargetAllowsPath(path: path, targetFiles: task.targetFiles)) {
+      return null;
+    }
+
+    final payload = jsonEncode({
+      'ok': false,
+      'code': 'saved_task_target_scope_violation',
+      'error':
+          'A file mutation was blocked because it targeted a file outside '
+          'the active saved task target files.',
+      'task_id': task.id,
+      'task_title': task.title,
+      'attempted_path': path,
+      'allowed_target_files': task.targetFiles,
+      'required_action':
+          'Modify only the active saved task target files, or finish the '
+          'current saved task before starting work on another file.',
+    });
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: false,
+      errorMessage: 'File mutation is outside the active saved task targets.',
     );
   }
 
@@ -187,6 +317,149 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
       result: payload,
       isSuccess: true,
     );
+  }
+
+  bool _looksLikeModifiedSavedValidationCommand({
+    required String command,
+    required String validationCommand,
+    required String normalizedCommand,
+    required String normalizedValidationCommand,
+  }) {
+    if (normalizedCommand.startsWith(normalizedValidationCommand)) {
+      final suffix = normalizedCommand
+          .substring(normalizedValidationCommand.length)
+          .trimLeft();
+      if (suffix.startsWith('&&') ||
+          suffix.startsWith('||') ||
+          suffix.startsWith(';') ||
+          suffix.startsWith('|')) {
+        return true;
+      }
+    }
+    return _looksLikePathResolvedSavedValidationCommand(
+      command: command,
+      validationCommand: validationCommand,
+    );
+  }
+
+  bool _looksLikePathResolvedSavedValidationCommand({
+    required String command,
+    required String validationCommand,
+  }) {
+    final attemptedArgs = _simpleCommandSegmentArgs(command);
+    final validationArgs = _simpleCommandSegmentArgs(validationCommand);
+    final attemptedPathIndex = _savedValidationPathArgumentIndex(attemptedArgs);
+    final validationPathIndex = _savedValidationPathArgumentIndex(
+      validationArgs,
+    );
+    if (attemptedPathIndex == null ||
+        validationPathIndex == null ||
+        attemptedPathIndex != validationPathIndex ||
+        attemptedArgs.length != validationArgs.length) {
+      return false;
+    }
+    for (var index = 0; index < validationArgs.length; index += 1) {
+      if (index == validationPathIndex) {
+        continue;
+      }
+      if (attemptedArgs[index] != validationArgs[index]) {
+        return false;
+      }
+    }
+    final attemptedPath = _normalizeSavedTaskScopePath(
+      attemptedArgs[attemptedPathIndex],
+    );
+    final validationPath = _normalizeSavedTaskScopePath(
+      validationArgs[validationPathIndex],
+    );
+    return attemptedPath != null &&
+        validationPath != null &&
+        attemptedPath == validationPath;
+  }
+
+  List<String> _simpleCommandSegmentArgs(String command) {
+    final args = GitTools.splitArgs(command.trim());
+    final controlIndex = args.indexWhere(_isShellControlArgument);
+    return controlIndex == -1 ? args : args.take(controlIndex).toList();
+  }
+
+  bool _isShellControlArgument(String value) {
+    return value == '&&' || value == '||' || value == ';' || value == '|';
+  }
+
+  int? _savedValidationPathArgumentIndex(List<String> args) {
+    if (args.length < 2) {
+      return null;
+    }
+    final executable = args.first.split('/').last.toLowerCase();
+    if (executable == 'cat' && args.length == 2) {
+      return 1;
+    }
+    if (executable == 'ls' && args.length == 2) {
+      return 1;
+    }
+    if (executable == 'test' && args.length == 3 && args[1] == '-f') {
+      return 2;
+    }
+    if (executable == 'grep' && args.length >= 3) {
+      return args.length - 1;
+    }
+    return null;
+  }
+
+  ConversationWorkflowTask? _currentSavedTaskForToolLoop() {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null) {
+      return null;
+    }
+    return ConversationPlanExecutionCoordinator.validationTask(conversation) ??
+        ConversationPlanExecutionCoordinator.executionFocusTask(conversation);
+  }
+
+  bool _savedTaskTargetAllowsPath({
+    required String path,
+    required List<String> targetFiles,
+  }) {
+    final normalizedPath = _normalizeSavedTaskScopePath(path);
+    if (normalizedPath == null) {
+      return true;
+    }
+    for (final targetFile in targetFiles) {
+      final target = targetFile.trim();
+      if (target.isEmpty) {
+        continue;
+      }
+      final normalizedTarget = _normalizeSavedTaskScopePath(target);
+      if (normalizedTarget == null) {
+        continue;
+      }
+      if (normalizedPath == normalizedTarget) {
+        return true;
+      }
+      if ((target.endsWith('/') || target.endsWith('\\')) &&
+          normalizedPath.startsWith('$normalizedTarget/')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  String? _normalizeSavedTaskScopePath(String path) {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    final resolved = FilesystemTools.resolvePath(
+      trimmed,
+      defaultRoot: _getActiveProjectRootPath(),
+    );
+    var normalized = (resolved ?? trimmed).replaceAll('\\', '/').trim();
+    while (normalized.length > 1 && normalized.endsWith('/')) {
+      normalized = normalized.substring(0, normalized.length - 1);
+    }
+    return normalized.toLowerCase();
   }
 
   bool _isGitTagCreationCommand(String command) {
@@ -310,6 +583,59 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
     return false;
   }
 
+  bool _hasExplicitProductionReleaseApproval(int interactionGeneration) {
+    if (_latestUserExplicitlyApprovedProductionRelease()) {
+      return true;
+    }
+    final answerResult =
+        _askUserQuestionResultsByGeneration[interactionGeneration];
+    if (answerResult == null || !answerResult.isSuccess) {
+      return false;
+    }
+    final decoded = _decodeJsonObject(answerResult.result);
+    if (decoded == null || decoded['status'] != 'answered') {
+      return false;
+    }
+
+    String questionText = '';
+    final answerEvidence = <String>[];
+    void addEvidence(Object? value) {
+      if (value is String && value.trim().isNotEmpty) {
+        answerEvidence.add(value.trim());
+      }
+    }
+
+    final questionValue = decoded['question'];
+    if (questionValue is String && questionValue.trim().isNotEmpty) {
+      questionText = questionValue.trim();
+    }
+    addEvidence(decoded['answer']);
+    addEvidence(decoded['other']);
+    final selected = decoded['selected'];
+    if (selected is List) {
+      for (final option in selected) {
+        if (option is Map) {
+          addEvidence(option['label']);
+          addEvidence(option['description']);
+          addEvidence(option['preview']);
+        } else {
+          addEvidence(option);
+        }
+      }
+    }
+
+    if (answerEvidence.isEmpty) {
+      return false;
+    }
+    if (answerEvidence.any(_looksLikeExplicitProductionReleaseApproval)) {
+      return true;
+    }
+    if (!_looksLikeExplicitProductionReleaseApproval(questionText)) {
+      return false;
+    }
+    return answerEvidence.any(_looksLikeAffirmativeReleaseApprovalAnswer);
+  }
+
   bool _looksLikeExplicitProductionReleaseApproval(String content) {
     final lowerContent = content.toLowerCase();
     if (RegExp(r'^\s*(release|ship)\b').hasMatch(lowerContent)) {
@@ -351,6 +677,48 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
           [0x30a2, 0x30c3, 0x30d7, 0x30ed, 0x30fc, 0x30c9],
           [0x672c, 0x756a],
           [0x3057, 0x3066],
+          [0x304a, 0x9858, 0x3044],
+          [0x3084, 0x3063, 0x3066],
+        ]);
+  }
+
+  bool _looksLikeAffirmativeReleaseApprovalAnswer(String content) {
+    final lowerContent = content.toLowerCase();
+    if (_containsAny(lowerContent, const [
+      'do not',
+      "don't",
+      'dont',
+      'no',
+      'cancel',
+      'decline',
+      'deny',
+      'reject',
+      'skip',
+      'stop',
+      'block',
+      'not release',
+      'not now',
+    ])) {
+      return false;
+    }
+    return _containsAny(lowerContent, const [
+          'approve',
+          'approved',
+          'yes',
+          'go ahead',
+          'proceed',
+          'run',
+          'execute',
+          'release',
+          'ship',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x627f, 0x8a8d],
+          [0x306f, 0x3044],
+          [0x9032, 0x3081],
+          [0x5b9f, 0x884c],
+          [0x516c, 0x958b],
+          [0x672c, 0x756a],
           [0x304a, 0x9858, 0x3044],
           [0x3084, 0x3063, 0x3066],
         ]);

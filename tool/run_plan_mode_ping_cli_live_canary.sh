@@ -7,7 +7,11 @@ PROMPT="${1:-${CAVERNO_PLAN_MODE_USER_PROMPT:-}}"
 RUN_COUNT="${CAVERNO_PLAN_MODE_REPEAT_COUNT:-5}"
 DEVICE="${CAVERNO_PLAN_MODE_DEVICE:-macos}"
 REPORT_PREFIX="plan_mode_live_suite_${DEVICE}"
-CANARY_DIR="${ROOT_DIR}/build/integration_test_reports/plan_mode_ping_cli_canary_$(date +%s)"
+REPORT_ROOT="${CAVERNO_PLAN_MODE_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}"
+if [[ "${REPORT_ROOT}" != /* ]]; then
+  REPORT_ROOT="${ROOT_DIR}/${REPORT_ROOT}"
+fi
+CANARY_DIR="${CAVERNO_PLAN_MODE_PING_CLI_CANARY_DIR:-${REPORT_ROOT}/plan_mode_ping_cli_canary_$(date +%s)}"
 PLANNING_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_PLANNING_TIMEOUT_SECONDS:-180}"
 EXECUTION_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS:-180}"
 EXECUTION_STALL_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_EXECUTION_STALL_TIMEOUT_SECONDS:-45}"
@@ -214,7 +218,7 @@ for run_index in $(seq 1 "${RUN_COUNT}"); do
   run_log_path="${CANARY_DIR}/${run_label}_run.log"
   echo "Running ${run_label}/${RUN_COUNT}"
   cleanup_live_plan_mode_processes
-  rm -f "${ROOT_DIR}/build/integration_test_reports/${REPORT_PREFIX}_report.json"
+  rm -f "${REPORT_ROOT}/${REPORT_PREFIX}_report.json"
 
   set +e
   run_live_canary_iteration "${PROMPT}" "${heartbeat_path}" "${run_log_path}"
@@ -225,7 +229,7 @@ for run_index in $(seq 1 "${RUN_COUNT}"); do
     overall_exit=1
   fi
 
-  report_path="${ROOT_DIR}/build/integration_test_reports/${REPORT_PREFIX}_report.json"
+  report_path="${REPORT_ROOT}/${REPORT_PREFIX}_report.json"
   if [[ ${run_exit} -eq 124 ]]; then
     write_failure_suite_report \
       "${CANARY_DIR}/${run_label}_suite_report.json" \

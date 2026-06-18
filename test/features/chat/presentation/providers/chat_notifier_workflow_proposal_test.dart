@@ -1271,6 +1271,39 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     },
   );
 
+  test('normalizes requirements ast validation commands to file checks', () {
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        const ConversationWorkflowTask(
+          id: 'task-requirements',
+          title: 'Create requirements.txt with psutil dependency',
+          targetFiles: ['requirements.txt'],
+          validationCommand:
+              'python3 -c "import ast; ast.parse(open(\'requirements.txt\').read())"',
+          notes: 'Add psutil for system metrics collection.',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-cli',
+          title: 'Implement health_checker.py CLI entry point',
+          targetFiles: ['health_checker.py'],
+          validationCommand: 'python3 health_checker.py --help',
+          notes: 'Use argparse for the first CLI slice.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(finalized.tasks.first.validationCommand, 'ls requirements.txt');
+    expect(
+      notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+      isFalse,
+    );
+  });
+
   test('drops placeholder task fields from truncated task proposals', () {
     final proposal = WorkflowTaskProposalDraft(
       tasks: [

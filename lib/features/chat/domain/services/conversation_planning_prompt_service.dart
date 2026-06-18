@@ -244,6 +244,9 @@ class ConversationPlanningPromptService {
         '- For implementation tasks, validationCommand must verify the target file or module directly. Avoid generic checks such as "module importable" or validation that only appends src to sys.path.',
       )
       ..writeln(
+        '- For requirements.txt tasks, validate file existence or expected dependency text with ls, test, cat, or grep. Do not parse requirements.txt as Python code.',
+      )
+      ..writeln(
         '- For ping or other long-running CLI tasks, validationCommand must be bounded and exit on its own. Prefer one-shot checks such as --help, -c 1, --count 1, or a dedicated verification script instead of commands that can run forever.',
       )
       ..writeln(

@@ -288,7 +288,7 @@ void main() {
       containsPair('dartTestFailureCount', 6),
     );
     expect(report.toJson()['schemaName'], 'live_llm_canary_reference_report');
-    expect(report.toJson()['schemaVersion'], 2);
+    expect(report.toJson()['schemaVersion'], 3);
     expect(report.toMarkdown(), contains('Live LLM Canary Reference Report'));
     expect(report.toMarkdown(), contains('qwen post-hardening'));
   });
@@ -878,6 +878,10 @@ File _writeLiveSummary({
     'signals': {
       'recoveredStreamFallbackCount': 0,
       'toolResultCompactionRetryCount': 0,
+      'codingContinuationRecoveryRequestCount': 0,
+      'codingContinuationRecoveryToolCallCount': 0,
+      'turnFinalizationRecoveryRequestCount': 0,
+      'turnFinalizationRecoveryToolCallCount': 0,
       'incompleteContentToolRecoveryCount': 0,
       'ignoredAssistantToolResultCount': 0,
       'assistantAuthoredToolBlockCount': 0,
@@ -968,6 +972,10 @@ Map<String, Object?> _liveSummaryJson({
     'signals': {
       'recoveredStreamFallbackCount': 0,
       'toolResultCompactionRetryCount': 0,
+      'codingContinuationRecoveryRequestCount': 0,
+      'codingContinuationRecoveryToolCallCount': 0,
+      'turnFinalizationRecoveryRequestCount': 0,
+      'turnFinalizationRecoveryToolCallCount': 0,
       'incompleteContentToolRecoveryCount': 0,
       'ignoredAssistantToolResultCount': 0,
       'assistantAuthoredToolBlockCount': 0,

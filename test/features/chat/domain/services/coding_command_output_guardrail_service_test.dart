@@ -129,6 +129,90 @@ void main() {
         isTrue,
       );
     });
+
+    test('detects a dart create command with multiple targets', () {
+      final issue = CodingCommandOutputGuardrailService.detectPreflightIssue(
+        toolName: 'local_execute_command',
+        command:
+            'cd /Users/noguwo/Documents/Workspace/tmp && dart create --force . prime_numbers_pkg',
+        workingDirectory: '/Users/noguwo/Documents/Workspace/tmp',
+      );
+
+      expect(issue, isNotNull);
+      expect(issue!.code, 'dart_create_multiple_targets');
+      expect(issue.segment, 'dart create --force . prime_numbers_pkg');
+      expect(issue.targets, ['.', 'prime_numbers_pkg']);
+    });
+
+    test('allows dart create with a single target directory', () {
+      final service = CodingCommandOutputGuardrailService.detectPreflightIssue;
+
+      expect(
+        service(
+          toolName: 'local_execute_command',
+          command: 'dart create --force .',
+          workingDirectory: '/tmp/project',
+        ),
+        isNull,
+      );
+      expect(
+        service(
+          toolName: 'local_execute_command',
+          command: 'dart create --template console-full prime_numbers_pkg',
+          workingDirectory: '/tmp',
+        ),
+        isNull,
+      );
+      expect(
+        service(
+          toolName: 'local_execute_command',
+          command: 'fvm dart create --template=console prime_numbers_pkg',
+          workingDirectory: '/tmp',
+        ),
+        isNull,
+      );
+    });
+
+    test('builds feedback from a zero-exit malformed dart create command', () {
+      final feedback = const CodingCommandOutputGuardrailService()
+          .buildFeedbackToolResult(
+            toolResults: [
+              ToolResultInfo(
+                id: 'call-1',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command':
+                      'cd /Users/noguwo/Documents/Workspace/tmp && dart create --force . prime_numbers_pkg',
+                  'working_directory': '/Users/noguwo/Documents/Workspace/tmp',
+                },
+                result: jsonEncode({
+                  'command':
+                      'cd /Users/noguwo/Documents/Workspace/tmp && dart create --force . prime_numbers_pkg',
+                  'working_directory': '/Users/noguwo/Documents/Workspace/tmp',
+                  'exit_code': 0,
+                  'stdout':
+                      'Creating tmp using template console...\n'
+                      'Created project tmp in .!\n',
+                  'stderr': '',
+                }),
+              ),
+            ],
+            now: DateTime.fromMicrosecondsSinceEpoch(11),
+          );
+
+      expect(feedback, isNotNull);
+      final payload = jsonDecode(feedback!.result) as Map<String, dynamic>;
+      final issues = payload['issues'] as List<dynamic>;
+      expect(issues, hasLength(1));
+      expect(issues.single, containsPair('source', 'command'));
+      expect(
+        issues.single,
+        containsPair(
+          'summary',
+          'Dart create command specifies multiple target directories.',
+        ),
+      );
+    });
   });
 }
 

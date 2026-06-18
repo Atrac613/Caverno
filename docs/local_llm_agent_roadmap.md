@@ -127,7 +127,7 @@ structurally unmotivated to build:
 | Local LLM | LL20 | done | M | F3, LL6 | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, and run `--parallel N` candidates concurrently. Unblocks LL7/LL13. |
 | Local LLM | LL21 | done | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
 | Local LLM | LL22 | done | M | LL4, LL6, LL18 | Idle warm-up and precompute: precompute repo map / embeddings and warm the KV cache so the first morning turn is instant. |
-| Local LLM | LL23 | done | M | LL3, LL6 | Declared per-model harness config: instruction surfaces (bootstrap/verify/recovery) and runtime control policy (loop caps, recovery middleware) as a mutable schema LL17 edits. |
+| Local LLM | LL23 | done | M | LL3, LL6 | Declared per-model harness config: instruction surfaces (bootstrap/verify/recovery) and runtime control policy (loop caps, recovery middleware) as a mutable schema LL17 edits. Focused coding-goal repeat canary is green; broad main-gate PM5 still blocks on saved-validation command preservation and active-task target-scope drift. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | later | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
@@ -1738,10 +1738,13 @@ Implementation status:
   `ChatNotifier`. Covered by `system_prompt_builder_test.dart`.
 - The tool loop resolves its base iteration cap from `toolLoopMaxIterations`
   (`resolveToolLoopMaxIterations`, clamped to a defensive ceiling).
-- Follow-up: `recoveryMiddlewareEnabled` currently primes recovery at the prompt
-  level. Upgrading it to true on-failure dynamic injection (re-sending a
-  targeted recovery message when a tool actually fails) needs deeper tool-loop
-  machinery and live-canary coverage, deferred to a later slice.
+- Follow-up status: targeted recovery now covers prose-only coding
+  continuations and turn-finalization checks before a premature coding answer is
+  saved. Live canary summaries record both coding-continuation and
+  turn-finalization recovery counts. Broader schema-driven tool-failure
+  injection still needs deeper tool-loop machinery and a later dedicated slice.
+  Session-log triage for the continuation-stall signature is recorded in
+  `docs/ll23_recovery_session_log_triage_2026-06-18.md`.
 
 
 ## Future Platform Vision Milestone Notes
