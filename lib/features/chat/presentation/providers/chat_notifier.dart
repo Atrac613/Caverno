@@ -9193,6 +9193,116 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
+  Future<void> _sendWithEmbeddedToolTagFallback({
+    required List<Map<String, dynamic>> toolDefinitions,
+    bool allowContextRetry = true,
+    required int interactionGeneration,
+  }) async {
+    if (!ref.mounted) return;
+    _resetStreamingAssistantForRetry();
+    try {
+      _runWithLlmSessionLogContextForGeneration(interactionGeneration, () {
+        final messages = _prepareMessagesForLLM(
+          toolDefinitionsOverride: toolDefinitions,
+          interactionGeneration: interactionGeneration,
+        );
+        messages.add(_embeddedToolTagFallbackInstructionMessage());
+
+        final stream = _dataSource.streamChatCompletion(
+          messages: messages,
+          model: _settings.model,
+          temperature: _agenticRequestTemperature,
+          maxTokens: _settings.maxTokens,
+        );
+
+        _streamSubscription = stream.listen(
+          (chunk) {
+            if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+              return;
+            }
+            _appendToLastMessageForGeneration(interactionGeneration, chunk);
+          },
+          onError: (error, stackTrace) {
+            if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+              return;
+            }
+            appLog(
+              '[Tool] Embedded tool-tag fallback stream error: '
+              '${error.runtimeType}: $error',
+            );
+            appLog('[Tool] stackTrace: $stackTrace');
+            if (allowContextRetry) {
+              unawaited(
+                _retryAfterContextLengthError(
+                  error,
+                  () => _sendWithEmbeddedToolTagFallback(
+                    toolDefinitions: toolDefinitions,
+                    allowContextRetry: false,
+                    interactionGeneration: interactionGeneration,
+                  ),
+                ).then((retried) {
+                  if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+                    return;
+                  }
+                  if (!retried) {
+                    _handleError(error.toString());
+                  }
+                }),
+              );
+              return;
+            }
+            _handleError(error.toString());
+          },
+          onDone: () {
+            unawaited(
+              _finishStreaming(interactionGeneration: interactionGeneration),
+            );
+          },
+          cancelOnError: true,
+        );
+      });
+    } catch (error, stackTrace) {
+      appLog(
+        '[Tool] Embedded tool-tag fallback setup error: '
+        '${error.runtimeType}: $error',
+      );
+      appLog('[Tool] stackTrace: $stackTrace');
+      if (allowContextRetry &&
+          await _retryAfterContextLengthError(
+            error,
+            () => _sendWithEmbeddedToolTagFallback(
+              toolDefinitions: toolDefinitions,
+              allowContextRetry: false,
+              interactionGeneration: interactionGeneration,
+            ),
+          )) {
+        return;
+      }
+      if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+      _handleError(error.toString());
+    }
+  }
+
+  Message _embeddedToolTagFallbackInstructionMessage() {
+    return Message(
+      id:
+          'system_embedded_tool_tag_fallback_'
+          '${DateTime.now().millisecondsSinceEpoch}',
+      content:
+          'The previous native tool-call stream failed before any trusted tool '
+          'result was available. For this retry, use Caverno textual tool-call '
+          'tags instead of native OpenAI tool calls. When a tool is needed, '
+          'emit exactly one complete '
+          '<tool_call>{"name":"tool_name","arguments":{...}}</tool_call> '
+          'block with valid JSON and no surrounding prose. The application '
+          'will execute that tag and provide trusted results. Do not describe '
+          'future file, command, browser, or git actions instead of emitting '
+          'the required tool-call tag.',
+      role: MessageRole.system,
+      timestamp: DateTime.now(),
+    );
+  }
+
   Future<bool> _retryAfterContextLengthError(
     Object error,
     Future<void> Function() retry,
@@ -9456,6 +9566,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }) async {
     if (!ref.mounted) return;
     final generation = interactionGeneration ?? _interactionGeneration;
+    var nativeToolFallbackDefinitions = const <Map<String, dynamic>>[];
     if (!_supportsToolAwareRequests) {
       appLog(
         '[Tool] Tool-aware requests are unavailable for the selected provider; '
@@ -9505,6 +9616,7 @@ class ChatNotifier extends Notifier<ChatState> {
           '${ToolDefinitionSearchService.toolNamesFromDefinitions(initialToolSelection.toolDefinitions).toList()}',
         );
       }
+      nativeToolFallbackDefinitions = initialToolSelection.toolDefinitions;
       final streamedMessageIndex = state.messages.isEmpty
           ? -1
           : state.messages.length - 1;
@@ -9730,6 +9842,20 @@ class ChatNotifier extends Notifier<ChatState> {
         );
         _resetStreamingAssistantForRetry();
         await _sendWithoutTools(
+          allowContextRetry: allowContextRetry,
+          interactionGeneration: generation,
+        );
+        return;
+      }
+
+      if (nativeToolFallbackDefinitions.isNotEmpty &&
+          ChatRemoteDataSource.isNativeToolStreamFormatError(e)) {
+        appLog(
+          '[Tool] Native tool stream format failed; retrying with embedded '
+          'tool-call tags',
+        );
+        await _sendWithEmbeddedToolTagFallback(
+          toolDefinitions: nativeToolFallbackDefinitions,
           allowContextRetry: allowContextRetry,
           interactionGeneration: generation,
         );

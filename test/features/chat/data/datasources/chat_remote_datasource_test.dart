@@ -39,6 +39,24 @@ void main() {
     expect(recovered, isNull);
   });
 
+  test('classifies native tool stream format errors', () {
+    expect(
+      ChatRemoteDataSource.isNativeToolStreamFormatError(
+        Exception(
+          'StreamException: The model produced output that does not match the expected peg-native format',
+        ),
+      ),
+      isTrue,
+    );
+
+    expect(
+      ChatRemoteDataSource.isNativeToolStreamFormatError(
+        Exception('Connection refused'),
+      ),
+      isFalse,
+    );
+  });
+
   test('parses embedded tool calls from recovered assistant text', () {
     const content =
         '<think>Planning</think><tool_use>{"name":"write_file","arguments":{"path":"out.txt","content":"hello"}}</tool_use>';

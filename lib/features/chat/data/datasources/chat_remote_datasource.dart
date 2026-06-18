@@ -101,6 +101,12 @@ class ChatRemoteDataSource implements ChatDataSource {
   );
   static const int _maxLoggedToolNames = 12;
 
+  static bool isNativeToolStreamFormatError(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('peg-native') ||
+        (message.contains('native tool') && message.contains('format'));
+  }
+
   /// Last token usage captured from a streaming or non-streaming response.
   TokenUsage lastUsage = TokenUsage.zero;
 

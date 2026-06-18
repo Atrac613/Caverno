@@ -1280,6 +1280,105 @@ class _QueuedStreamingChatDataSource implements ChatDataSource {
   }
 }
 
+class _NativeToolFormatFallbackDataSource implements ChatDataSource {
+  _NativeToolFormatFallbackDataSource(List<List<String>> plainResponses)
+    : _plainResponses = Queue<List<String>>.from(plainResponses);
+
+  final Queue<List<String>> _plainResponses;
+  final List<List<Message>> toolAwareRequests = [];
+  final List<List<Map<String, dynamic>>> toolAwareToolBatches = [];
+  final List<List<Message>> plainRequests = [];
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    plainRequests.add(List<Message>.from(messages));
+    if (_plainResponses.isEmpty) {
+      return const Stream<String>.empty();
+    }
+    return Stream<String>.fromIterable(_plainResponses.removeFirst());
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    toolAwareRequests.add(List<Message>.from(messages));
+    toolAwareToolBatches.add(List<Map<String, dynamic>>.from(tools));
+    return StreamWithToolsResult(
+      stream: Stream<String>.error(
+        Exception(
+          'StreamException: The model produced output that does not match the expected peg-native format',
+        ),
+      ),
+      completion: Completer<ChatCompletionResult>().future,
+    );
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
 class _ContinuationFallbackChatDataSource implements ChatDataSource {
   final List<List<Message>> streamRequests = [];
   final List<List<Message>> completionRequests = [];
@@ -17271,6 +17370,71 @@ with open(path, "rb") as file:
         expect(
           dataSource.finalAnswerRequestMessages.single.last.content,
           contains('[Result of $toolName]'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage retries native tool stream format failures with embedded tags',
+    () async {
+      final dataSource = _NativeToolFormatFallbackDataSource([
+        [
+          '<tool_call>{"name":"read_file","arguments":{"path":"pubspec.yaml"}}</tool_call>',
+        ],
+        ['Recovered with embedded tool tags.'],
+      ]);
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'read_file': '{"path":"pubspec.yaml","content":"name: caverno"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Inspect pubspec');
+        for (var i = 0; i < 8; i += 1) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        expect(dataSource.toolAwareRequests, hasLength(1));
+        expect(dataSource.plainRequests, hasLength(2));
+        expect(
+          dataSource.plainRequests.first
+              .where((message) => message.role == MessageRole.system)
+              .map((message) => message.content)
+              .join('\n'),
+          contains('use Caverno textual tool-call tags'),
+        );
+        expect(toolService.executedToolNames, ['read_file']);
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Recovered with embedded tool tags.'),
         );
       } finally {
         toolContainer.dispose();
