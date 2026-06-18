@@ -42,6 +42,7 @@ void main() {
 
     expect(find.text('Advanced'), findsOneWidget);
     expect(find.text('Computer Use'), findsOneWidget);
+    expect(find.text('Local Stack'), findsOneWidget);
     expect(
       find.text('Helper permissions, smoke checks, and manual sign-off'),
       findsOneWidget,
@@ -106,6 +107,11 @@ Future<void> _pumpPage(
   SharedPreferences prefs, {
   required WidgetBuilder computerUseBuilder,
 }) async {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1000, 1200);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
+
   await tester.pumpWidget(
     EasyLocalization(
       supportedLocales: const [Locale('en')],

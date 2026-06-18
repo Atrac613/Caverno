@@ -113,7 +113,7 @@ structurally unmotivated to build:
 | Local LLM | LL6 | done | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
 | Local LLM | LL7 | done | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
 | Local LLM | LL8 | done | M | LL1 | LAN inference mesh: discover/register OpenAI-compatible endpoints and route secondary calls per role with health fallback. Main-conversation fan-out is a deferred follow-up. |
-| Local LLM | LL9 | later | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
+| Local LLM | LL9 | done | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
 | Local LLM | LL10 | later | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
 | Local LLM | LL11 | later | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
 | Local LLM | LL12 | done | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
@@ -848,6 +848,65 @@ Acceptance criteria:
 - Management actions are no-ops with clear messaging on servers that do not
   support them.
 - Recommendations never exceed detected memory and state their assumptions.
+
+Implementation status:
+- First slice started the llama.cpp router lifecycle data layer: native-root
+  `GET /models` parsing, model status capture, and `POST /models/load` /
+  `POST /models/unload` action results that degrade to clear unsupported
+  messages on non-router endpoints. Settings UI, role-model prepare, and host
+  resource recommendations remain follow-up slices.
+- Settings UI follow-up started `Advanced > Local Stack`, showing primary
+  endpoint managed-model status with load/unload controls and refresh. Role
+  model prepare, endpoint selection, and host resource recommendations remain
+  follow-up slices.
+- Role-model prepare follow-up started a primary-endpoint-only button that
+  loads explicit LL1 role assignments reported as unloaded by the router
+  catalog, while skipping already-ready, in-progress, missing, and mesh-routed
+  models. Endpoint selection and host resource recommendations remain follow-up
+  slices.
+- Endpoint selection follow-up expanded Local Stack from primary-only to the
+  primary endpoint plus registered LL8 named endpoints, and prepares role
+  models assigned to the selected endpoint. Host resource recommendations
+  remain a follow-up slice.
+- Host resource guidance follow-up added macOS `sysctl` memory detection,
+  Apple Silicon unified-memory labeling, and conservative per-model fit
+  guidance in `Advanced > Local Stack`. Estimates parse model size and
+  quantization hints from router catalog ids, paths, and launch arguments, keep
+  a 70% safe memory budget, and mark unknowns rather than recommending models
+  whose assumptions are incomplete.
+- Speedup guidance follow-up added `Advanced > Local Stack` recommendations
+  for llama.cpp `--spec-type ngram-simple` and draft-model speculation for the
+  selected coding/subagent model. The guidance detects already configured
+  ngram or draft flags from router command arguments and only names a draft
+  candidate when the catalog exposes an obviously smaller or draft-labeled
+  model.
+- Per-role suggestion follow-up added `Advanced > Local Stack` guidance that
+  notices LL1 roles falling back to large main models or explicit oversized
+  assignments, then recommends only smaller catalog models that already fit the
+  detected safe memory budget. Embedding, rerank, and draft-only models are not
+  proposed as full role models.
+- Lifecycle adapter abstraction follow-up moved Local Stack callers to
+  provider-neutral managed-model APIs while keeping the existing llama.cpp
+  router implementation as the first backend. This prepares LM Studio and
+  Ollama lifecycle adapters without changing current router behavior.
+- LM Studio lifecycle follow-up added native v1 REST support for
+  `/api/v1/models`, `/api/v1/models/load`, and `/api/v1/models/unload` as the
+  first provider-neutral fallback after llama.cpp router probing. LM Studio
+  model metadata feeds resource recommendations through non-UI metadata hints.
+- Ollama lifecycle follow-up added native `/api/tags`, `/api/ps`,
+  `/api/show`, `/api/generate`, and `/api/pull` support as the next
+  provider-neutral fallback. Local Stack now maps Ollama tags/running state into
+  load status, enriches model guidance from show metadata, uses empty-prompt
+  generate requests for load/unload, and keeps pull available as a
+  non-streaming lifecycle action.
+- Closeout decision: LM Studio JIT is treated as provider-native inference
+  behavior rather than a separate Local Stack toggle. The native chat API reports
+  `model_load_time_seconds` when a request triggers model loading, so exposing
+  JIT timing belongs with future trace/provider-event work instead of LL9
+  lifecycle controls. Broader model-library acquisition UX, such as catalog
+  search, license/provenance review, and user-entered remote download targets,
+  is deferred to MLIB1; LL9 keeps lifecycle actions scoped to already selected
+  endpoint models and explicit backend actions.
 
 ### LL10: Installed-Dependency Grounding
 

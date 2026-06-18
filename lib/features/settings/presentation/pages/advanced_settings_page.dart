@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../maintenance/presentation/pages/idle_maintenance_settings_page.dart';
 import '../../../personal_eval/presentation/pages/personal_eval_cases_page.dart';
 import 'debug_settings_page.dart';
+import 'local_stack_settings_page.dart';
 import 'mesh_settings_page.dart';
 import 'model_harness_config_settings_page.dart';
 import 'model_routing_settings_page.dart';
@@ -59,6 +60,22 @@ class AdvancedSettingsPage extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const MeshSettingsPage()),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            key: const ValueKey('settings-menu-local-stack'),
+            leading: const Icon(Icons.storage_outlined),
+            title: Text('settings.local_stack_title'.tr()),
+            subtitle: Text('settings.local_stack_menu_desc'.tr()),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const LocalStackSettingsPage(),
+                ),
               );
             },
           ),
