@@ -964,6 +964,8 @@
     "mesh_registered_section": "登録済みエンドポイント",
     "mesh_no_registered": "まだエンドポイントが登録されていません。",
     "mesh_remove": "削除",
+    "model_routing_endpoint_label": "エンドポイント",
+    "model_routing_endpoint_primary": "プライマリエンドポイント",
     "model_routing_intro": "メイン会話とは別のモデルに補助的なLLM呼び出しを振り分けます。小型で高速なモデルを使うと、メモリ抽出やバックグラウンド処理が軽快になり、メインモデルは会話に専念できます。「デフォルト」はメインモデルを使用します。",
     "model_routing_apple_unsupported": "Apple Foundation Models プロバイダの選択中はモデルルーティングを利用できません（単一のオンデバイスモデルのみ提供されるため）。",
     "model_routing_default_option": "デフォルト（メインモデル）",

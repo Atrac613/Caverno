@@ -143,6 +143,24 @@ void main() {
     );
   });
 
+  test('defaults and persists per-role endpoint assignments', () {
+    expect(AppSettings.defaults().memoryExtractionEndpointId, '');
+    expect(AppSettings.defaults().subagentEndpointId, '');
+
+    final settings = AppSettings.defaults().copyWith(
+      memoryExtractionEndpointId: 'http://10.0.0.5:1234/v1',
+      subagentEndpointId: 'http://10.0.0.9:8080/v1',
+    );
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.memoryExtractionEndpointId, 'http://10.0.0.5:1234/v1');
+    expect(decoded.subagentEndpointId, 'http://10.0.0.9:8080/v1');
+    expect(decoded.goalSuggestionEndpointId, '');
+    expect(decoded.approvalAutoReviewEndpointId, '');
+  });
+
   test('drops invalid named endpoints on parse', () {
     final json =
         jsonDecode(jsonEncode(AppSettings.defaults().toJson()))

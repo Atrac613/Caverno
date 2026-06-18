@@ -964,6 +964,8 @@
     "mesh_registered_section": "Registered endpoints",
     "mesh_no_registered": "No endpoints registered yet.",
     "mesh_remove": "Remove",
+    "model_routing_endpoint_label": "Endpoint",
+    "model_routing_endpoint_primary": "Primary endpoint",
     "model_routing_intro": "Route secondary LLM calls to a different model than the main conversation. A smaller, faster model keeps memory extraction and background work snappy while the main model focuses on your conversation. \"Default\" uses the main model.",
     "model_routing_apple_unsupported": "Model routing is unavailable while the Apple Foundation Models provider is selected, because it serves a single on-device model.",
     "model_routing_default_option": "Default (main model)",

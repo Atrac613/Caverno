@@ -593,6 +593,13 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String subagentModel,
     @Default('') String goalSuggestionModel,
     @Default('') String approvalAutoReviewModel,
+    // LL8 per-role endpoint routing. Empty string means "use the primary
+    // endpoint". A non-empty value is a NamedEndpoint id; an unreachable mesh
+    // endpoint falls back to the primary at call time (MeshEndpointRouter).
+    @Default('') String memoryExtractionEndpointId,
+    @Default('') String subagentEndpointId,
+    @Default('') String goalSuggestionEndpointId,
+    @Default('') String approvalAutoReviewEndpointId,
     @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
     @Default(<String>[]) List<String> mcpUrls,

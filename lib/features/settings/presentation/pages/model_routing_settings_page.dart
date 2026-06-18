@@ -60,6 +60,13 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             enabled: !isAppleProvider,
             onChanged: notifier.updateMemoryExtractionModel,
           ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-memory-extraction'),
+            value: settings.memoryExtractionEndpointId,
+            endpoints: settings.namedEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateMemoryExtractionEndpointId,
+          ),
           const SizedBox(height: 16),
           _RoleModelDropdown(
             fieldKey: const ValueKey('model-routing-subagent'),
@@ -69,6 +76,13 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             asyncModels: asyncModels,
             enabled: !isAppleProvider,
             onChanged: notifier.updateSubagentModel,
+          ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-subagent'),
+            value: settings.subagentEndpointId,
+            endpoints: settings.namedEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateSubagentEndpointId,
           ),
           const SizedBox(height: 16),
           _RoleModelDropdown(
@@ -80,6 +94,13 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             enabled: !isAppleProvider,
             onChanged: notifier.updateGoalSuggestionModel,
           ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-goal-suggestion'),
+            value: settings.goalSuggestionEndpointId,
+            endpoints: settings.namedEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateGoalSuggestionEndpointId,
+          ),
           const SizedBox(height: 16),
           _RoleModelDropdown(
             fieldKey: const ValueKey('model-routing-approval-auto-review'),
@@ -90,7 +111,75 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             enabled: !isAppleProvider,
             onChanged: notifier.updateApprovalAutoReviewModel,
           ),
+          _RoleEndpointDropdown(
+            fieldKey: const ValueKey('endpoint-routing-approval-auto-review'),
+            value: settings.approvalAutoReviewEndpointId,
+            endpoints: settings.namedEndpoints,
+            enabled: !isAppleProvider,
+            onChanged: notifier.updateApprovalAutoReviewEndpointId,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// LL8: assigns a role's secondary calls to a registered mesh endpoint. Hidden
+/// when no endpoints are registered so the page is unchanged without a mesh.
+class _RoleEndpointDropdown extends StatelessWidget {
+  const _RoleEndpointDropdown({
+    required this.fieldKey,
+    required this.value,
+    required this.endpoints,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final Key fieldKey;
+  final String value;
+  final List<NamedEndpoint> endpoints;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (endpoints.isEmpty) return const SizedBox.shrink();
+
+    final ids = endpoints.map((endpoint) => endpoint.id).toList();
+    final options = <String>[
+      '',
+      ...ids,
+      // Keep a stale assignment selectable so it is not silently dropped.
+      if (value.isNotEmpty && !ids.contains(value)) value,
+    ];
+
+    String labelFor(String id) {
+      if (id.isEmpty) return 'settings.model_routing_endpoint_primary'.tr();
+      for (final endpoint in endpoints) {
+        if (endpoint.id == id) return endpoint.displayLabel;
+      }
+      return id;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: DropdownButtonFormField<String>(
+        key: fieldKey,
+        initialValue: value,
+        decoration: InputDecoration(
+          labelText: 'settings.model_routing_endpoint_label'.tr(),
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+        items: options
+            .map(
+              (id) => DropdownMenuItem<String>(
+                value: id,
+                child: Text(labelFor(id), overflow: TextOverflow.ellipsis),
+              ),
+            )
+            .toList(),
+        onChanged: enabled ? (selected) => onChanged(selected ?? '') : null,
       ),
     );
   }
