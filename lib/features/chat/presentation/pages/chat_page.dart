@@ -54,11 +54,14 @@ import '../providers/chat_state.dart';
 import '../providers/coding_environment_snapshot_provider.dart';
 import '../providers/conversations_notifier.dart';
 import '../providers/custom_slash_commands_notifier.dart';
+import '../providers/worktree_agent_task_launcher.dart';
+import '../providers/worktree_agent_task_orchestrator.dart';
 import '../slash_commands/slash_command.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/file_workspace_viewer_sheet.dart';
 import '../widgets/subagent_task_banner.dart';
+import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
@@ -108,6 +111,20 @@ bool shouldShowContextStatusWidget(ChatState chatState) {
       chatState.totalTokens > 0 ||
       chatState.estimatedPromptTokens > 0 ||
       chatState.contextSurgerySnapshot.hasData;
+}
+
+class _WorktreeAgentCommandArgs {
+  const _WorktreeAgentCommandArgs({
+    required this.prompt,
+    this.verificationCommand = '',
+    this.hasVerificationMarker = false,
+    this.runAfterQueue = false,
+  });
+
+  final String prompt;
+  final String verificationCommand;
+  final bool hasVerificationMarker;
+  final bool runAfterQueue;
 }
 
 enum _RightSidebarTab { companion, files }
@@ -558,6 +575,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         description: 'chat.slash_cancel_desc'.tr(),
         enabledWhileLoading: true,
       ),
+      SlashCommandDefinition(
+        name: 'agent',
+        action: SlashCommandAction.worktreeAgent,
+        description: 'chat.slash_agent_desc'.tr(),
+        aliases: const ['worktree', 'worktree-agent'],
+        argumentHint: '<task> [--run] [--verify <command>]',
+        argumentRequirement: SlashCommandArgumentRequirement.required,
+      ),
       for (final template in builtInSlashCommandPromptTemplates)
         template.toDefinition(
           descriptionOverride: 'chat.slash_${template.id}_desc'.tr(),
@@ -685,6 +710,64 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return SlashCommandExecutionResult(
           feedbackMessage: 'chat.slash_cancelled'.tr(),
         );
+      case SlashCommandAction.worktreeAgent:
+        if (!isCodingWorkspace || activeProject == null) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'chat.slash_agent_unavailable'.tr(),
+          );
+        }
+        final agentArgs = _parseWorktreeAgentCommandArgs(invocation.args);
+        if (agentArgs.prompt.isEmpty) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'chat.slash_agent_prompt_required'.tr(),
+          );
+        }
+        if (agentArgs.hasVerificationMarker &&
+            agentArgs.verificationCommand.isEmpty) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'chat.slash_agent_verify_required'.tr(),
+          );
+        }
+        try {
+          final result = await ref
+              .read(worktreeAgentTaskLauncherProvider)
+              .enqueue(
+                WorktreeAgentTaskLaunchRequest(
+                  title: _worktreeAgentTaskTitle(agentArgs.prompt),
+                  prompt: agentArgs.prompt,
+                  codingProjectId: activeProject.id,
+                  projectRootPath: activeProject.normalizedRootPath,
+                  verificationCommand: agentArgs.verificationCommand,
+                ),
+              );
+          if (agentArgs.runAfterQueue) {
+            unawaited(
+              ref
+                  .read(worktreeAgentTaskRunControllerProvider.notifier)
+                  .startAndExecuteReady(
+                    WorktreeAgentTaskRunRequest(
+                      fallbackProjectRootPath: activeProject.normalizedRootPath,
+                    ),
+                  ),
+            );
+            return SlashCommandExecutionResult(
+              feedbackMessage: 'chat.slash_agent_queued_and_started'.tr(
+                namedArgs: {'branch': result.task.branchName},
+              ),
+            );
+          }
+          return SlashCommandExecutionResult(
+            feedbackMessage: 'chat.slash_agent_queued'.tr(
+              namedArgs: {'branch': result.task.branchName},
+            ),
+          );
+        } catch (error) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'chat.slash_agent_failed'.tr(
+              namedArgs: {'error': '$error'},
+            ),
+          );
+        }
       case SlashCommandAction.review:
       case SlashCommandAction.fix:
       case SlashCommandAction.explain:
@@ -706,6 +789,43 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ),
         );
     }
+  }
+
+  _WorktreeAgentCommandArgs _parseWorktreeAgentCommandArgs(String args) {
+    final trimmed = args.trim();
+    final match = RegExp(r'(^|\s)--verify(?:\s+|$)').firstMatch(trimmed);
+    final verifyMarkerStart = match == null
+        ? trimmed.length
+        : match.start + (match.group(1)?.length ?? 0);
+    final prefix = trimmed.substring(0, verifyMarkerStart).trim();
+    final runMarker = RegExp(r'(^|\s)--run(?=\s|$)');
+    final runAfterQueue = runMarker.hasMatch(prefix);
+    final prompt = prefix.replaceFirst(runMarker, ' ').trim();
+    if (match == null) {
+      return _WorktreeAgentCommandArgs(
+        prompt: prompt,
+        runAfterQueue: runAfterQueue,
+      );
+    }
+
+    return _WorktreeAgentCommandArgs(
+      prompt: prompt,
+      verificationCommand: trimmed.substring(match.end).trim(),
+      hasVerificationMarker: true,
+      runAfterQueue: runAfterQueue,
+    );
+  }
+
+  String _worktreeAgentTaskTitle(String prompt) {
+    final firstLine = prompt
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .firstWhere((line) => line.isNotEmpty, orElse: () => 'Worktree agent');
+    const maxTitleLength = 80;
+    if (firstLine.length <= maxTitleLength) {
+      return firstLine;
+    }
+    return '${firstLine.substring(0, maxTitleLength - 3).trimRight()}...';
   }
 
   SlashCommandPromptTemplate? _findPromptTemplateForInvocation(
@@ -1809,6 +1929,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       body: Column(
         children: [
           const SubagentTaskBanner(),
+          const WorktreeAgentTaskBanner(),
           Expanded(child: buildScaffoldBody()),
         ],
       ),

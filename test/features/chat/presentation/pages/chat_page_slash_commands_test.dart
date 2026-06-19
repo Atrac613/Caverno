@@ -10,9 +10,13 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
+import 'package:caverno/features/chat/presentation/providers/coding_environment_snapshot_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/custom_slash_commands_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/worktree_agent_git_worktree_preparer.dart';
+import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_executor.dart';
+import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
 import 'package:caverno/features/chat/presentation/slash_commands/slash_command_prompt_template.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -296,6 +300,262 @@ void main() {
     );
   });
 
+  testWidgets('/agent queues a worktree agent task for a coding thread', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/Users/test/Workspace/caverno',
+      createdAt: DateTime(2026, 5, 31, 10),
+      updatedAt: DateTime(2026, 5, 31, 10),
+    );
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+      runProcess: _gitRunner(),
+    );
+
+    await _submitComposerText(tester, '/agent Fix flaky widget test');
+
+    final tasks = container
+        .read(worktreeAgentTaskRegistryNotifierProvider)
+        .tasks;
+    expect(tasks, hasLength(1));
+    expect(tasks.single.status.name, 'queued');
+    expect(tasks.single.title, 'Fix flaky widget test');
+    expect(tasks.single.prompt, 'Fix flaky widget test');
+    expect(tasks.single.verificationCommand, isEmpty);
+    expect(tasks.single.codingProjectId, 'project-1');
+    expect(tasks.single.branchName, 'feature/ll13-fix-flaky-widget-test');
+    expect(
+      tasks.single.worktreePath,
+      '/Users/test/Workspace/caverno-worktrees/fix-flaky-widget-test',
+    );
+    expect(
+      find.text(
+        'Worktree agent task queued: feature/ll13-fix-flaky-widget-test',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('1 worktree agent task(s)'), findsOneWidget);
+  });
+
+  testWidgets('/agent stores an optional verification command', (tester) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/Users/test/Workspace/caverno',
+      createdAt: DateTime(2026, 5, 31, 10),
+      updatedAt: DateTime(2026, 5, 31, 10),
+    );
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+      runProcess: _gitRunner(),
+    );
+
+    await _submitComposerText(
+      tester,
+      '/agent Fix flaky widget test --verify fvm flutter test test/widget_test.dart',
+    );
+
+    final task = container
+        .read(worktreeAgentTaskRegistryNotifierProvider)
+        .tasks
+        .single;
+    expect(task.title, 'Fix flaky widget test');
+    expect(task.prompt, 'Fix flaky widget test');
+    expect(task.verificationCommand, 'fvm flutter test test/widget_test.dart');
+    expect(task.branchName, 'feature/ll13-fix-flaky-widget-test');
+  });
+
+  testWidgets('/agent --run starts the queued worktree task', (tester) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/Users/test/Workspace/caverno',
+      createdAt: DateTime(2026, 5, 31, 10),
+      updatedAt: DateTime(2026, 5, 31, 10),
+    );
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final contexts = <WorktreeAgentTaskExecutionContext>[];
+    final runProcess = _gitRunner();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+      runProcess: runProcess,
+      worktreeAgentPreparer: WorktreeAgentGitWorktreePreparer(
+        runProcess: runProcess,
+        ensureParentDirectory: (_) async {},
+      ),
+      worktreeAgentDelegate: (context) async {
+        contexts.add(context);
+        return const WorktreeAgentTaskExecutionOutcome(
+          resultSummary: 'Implemented the queued task.',
+          verifiedGreen: true,
+          verificationSummary: 'fvm flutter test passed',
+        );
+      },
+    );
+
+    await _submitComposerText(
+      tester,
+      '/agent Fix flaky widget test --run --verify fvm flutter test test/widget_test.dart',
+    );
+    await _pumpUntil(tester, () {
+      final tasks = container
+          .read(worktreeAgentTaskRegistryNotifierProvider)
+          .tasks;
+      return tasks.length == 1 && tasks.single.status.name == 'completed';
+    });
+
+    final task = container
+        .read(worktreeAgentTaskRegistryNotifierProvider)
+        .tasks
+        .single;
+    expect(contexts.single.taskId, task.id);
+    expect(task.title, 'Fix flaky widget test');
+    expect(task.verificationCommand, 'fvm flutter test test/widget_test.dart');
+    expect(task.verifiedGreen, isTrue);
+    expect(task.resultSummary, 'Implemented the queued task.');
+    expect(
+      find.text(
+        'Worktree agent task queued and run started: '
+        'feature/ll13-fix-flaky-widget-test',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('/agent requires a task before --verify', (tester) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/Users/test/Workspace/caverno',
+      createdAt: DateTime(2026, 5, 31, 10),
+      updatedAt: DateTime(2026, 5, 31, 10),
+    );
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+      runProcess: _gitRunner(),
+    );
+
+    await _submitComposerText(tester, '/agent --verify fvm flutter test');
+
+    expect(
+      container.read(worktreeAgentTaskRegistryNotifierProvider).tasks,
+      isEmpty,
+    );
+    expect(find.text('Add a worktree-agent task.'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/agent --verify fvm flutter test',
+    );
+  });
+
+  testWidgets('/agent is blocked outside coding threads', (tester) async {
+    final conversation = _chatConversation(messages: const <Message>[]);
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.chat,
+        activeProjectId: null,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      runProcess: _gitRunner(),
+    );
+
+    await _submitComposerText(tester, '/agent Fix flaky widget test');
+
+    expect(
+      container.read(worktreeAgentTaskRegistryNotifierProvider).tasks,
+      isEmpty,
+    );
+    expect(
+      find.text('Worktree agents are available in coding threads.'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/agent Fix flaky widget test',
+    );
+  });
+
   testWidgets('/cancel cancels an active response', (tester) async {
     final conversation = _chatConversation(messages: const <Message>[]);
     final conversationsNotifier = _SlashConversationsNotifier(
@@ -477,12 +737,25 @@ Future<ProviderContainer> _pumpSlashChatPage(
   required _SlashConversationsNotifier conversationsNotifier,
   required _SlashChatNotifier chatNotifier,
   _SlashCodingProjectsNotifier? codingProjectsNotifier,
+  CodingEnvironmentProcessRunner? runProcess,
+  WorktreeAgentGitWorktreePreparer? worktreeAgentPreparer,
+  WorktreeAgentTaskExecutionDelegate? worktreeAgentDelegate,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   final preferences = await SharedPreferences.getInstance();
   final container = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(preferences),
+      if (runProcess != null)
+        codingEnvironmentProcessRunnerProvider.overrideWithValue(runProcess),
+      if (worktreeAgentPreparer != null)
+        worktreeAgentGitWorktreePreparerProvider.overrideWithValue(
+          worktreeAgentPreparer,
+        ),
+      if (worktreeAgentDelegate != null)
+        worktreeAgentTaskExecutionDelegateProvider.overrideWithValue(
+          worktreeAgentDelegate,
+        ),
       settingsNotifierProvider.overrideWith(_SlashSettingsNotifier.new),
       conversationsNotifierProvider.overrideWith(() => conversationsNotifier),
       codingProjectsNotifierProvider.overrideWith(
@@ -522,10 +795,63 @@ Future<ProviderContainer> _pumpSlashChatPage(
   return container;
 }
 
+CodingEnvironmentProcessRunner _gitRunner({
+  List<String> branches = const <String>[],
+  List<String> worktreePaths = const <String>[],
+}) {
+  return (executable, arguments, {workingDirectory}) async {
+    if (executable != 'git') {
+      return ProcessResult(1, 1, '', 'unexpected executable');
+    }
+    if (_argumentsEqual(arguments, const ['rev-parse', '--show-toplevel'])) {
+      return ProcessResult(1, 0, workingDirectory ?? '', '');
+    }
+    if (_argumentsEqual(arguments, const [
+      'for-each-ref',
+      '--format=%(refname:short)',
+      'refs/heads',
+    ])) {
+      return ProcessResult(2, 0, branches.join('\n'), '');
+    }
+    if (_argumentsEqual(arguments, const ['worktree', 'list', '--porcelain'])) {
+      return ProcessResult(3, 0, _worktreePorcelain(worktreePaths), '');
+    }
+    if (arguments.length >= 6 &&
+        arguments[0] == 'worktree' &&
+        arguments[1] == 'add' &&
+        arguments[2] == '-b') {
+      return ProcessResult(4, 0, 'worktree created', '');
+    }
+    return ProcessResult(4, 1, '', 'unexpected git command');
+  };
+}
+
+bool _argumentsEqual(List<String> left, List<String> right) {
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index += 1) {
+    if (left[index] != right[index]) return false;
+  }
+  return true;
+}
+
+String _worktreePorcelain(List<String> paths) {
+  return paths.map((path) => 'worktree $path\nHEAD abc123\n').join();
+}
+
 Future<void> _submitComposerText(WidgetTester tester, String text) async {
   await tester.tap(find.byType(TextField));
   await tester.enterText(find.byType(TextField), text);
   await tester.pump();
   await tester.sendKeyEvent(LogicalKeyboardKey.enter);
   await tester.pumpAndSettle();
+}
+
+Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
+  for (var attempt = 0; attempt < 50; attempt += 1) {
+    if (condition()) {
+      return;
+    }
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  fail('Timed out waiting for condition.');
 }

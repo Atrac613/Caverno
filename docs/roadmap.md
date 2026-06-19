@@ -78,6 +78,7 @@ handoffs can refer to the same unit of work over time.
 | Local LLM | LL9 | done | Local stack manager: model lifecycle controls and hardware-aware model guidance. | `Advanced > Local Stack` manages primary and LL8 endpoints across llama.cpp router, LM Studio, and Ollama, with role-model prepare, resource fit guidance, speedup guidance, and focused verification. |
 | Local LLM | LL10 | done | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. | Use `tool/run_ll10_dependency_grounding_release_gate.sh` and `tool/run_ll10_dependency_grounding_live_canary.sh` to verify lockfile-exact source/docs grounding, future-only API rejection, and weak-model failure reduction. |
 | Local LLM | LL11 | done | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. | Use `tool/run_ll11_lsp_language_server_smoke.sh` as the LL11 regression evidence; Dart/Swift live evidence is signed off, with TypeScript/Python rerun optional after installing their language servers. |
+| Local LLM | LL13 | done | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. | Use `tool/run_ll13_worktree_agent_verify.sh` as regression evidence for registry persistence, recovery listing, worktree reservation/planning, `/agent` queueing and `--run`, materialization, endpoint balancing/capacity, orchestration, execution result persistence, run summaries, and review-ready visibility. Broader unattended agent-farm scheduling is deferred until SEC1/OBS1 guardrails. |
 | Platform Vision | API1 | later | Normalize Chat Completions, Responses-style APIs, and local-provider extensions into one Agent Event Core. | Promote only after the current LL backlog is stable; first slice defines the event schema and replay fixture. |
 | Platform Vision | SEC1 | later | Define the Local Agent Data Perimeter for data classes, tool capabilities, and trust boundaries. | Start before expanding unattended or cross-machine tool execution beyond current approval gates. |
 | Platform Vision | OBS1 | later | Build an Agent Trace Timeline for model calls, tools, checkpoints, slots, evals, and maintenance runs. | Start before making LL13 parallel worktrees a product-facing agent-farm feature. |
@@ -91,8 +92,7 @@ handoffs can refer to the same unit of work over time.
 | Platform Vision | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as first-class multimodal evidence. | Land after SEC1/OBS1 so evidence inherits trust, redaction, and trace behavior. |
 | Platform Vision | MCP-GOV1 | later | Lint MCP tool contracts for schema clarity, dangerous capabilities, and weak-model tool-selection quality. | Start before SEC3 permission diff and MCP trust-registry UX. |
 
-Remaining `later` Local LLM milestones (LL13), Foundation F5, and
-the future platform vision milestones are detailed in
+Remaining Foundation F5 and the future platform vision milestones are detailed in
 `docs/local_llm_agent_roadmap.md`.
 
 ## Plan Mode Track

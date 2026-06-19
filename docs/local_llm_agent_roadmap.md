@@ -119,7 +119,7 @@ structurally unmotivated to build:
 | Local LLM | LL10 | done | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
 | Local LLM | LL11 | done | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
 | Local LLM | LL12 | done | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
-| Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
+| Local LLM | LL13 | done | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
 | Local LLM | LL14 | done | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
 | Local LLM | LL15 | done | S-M | LL3 | Weak-model edit harness: grammar-constrained edit blocks and profile-stored few-shot exemplars. |
 | Local LLM | LL16 | done | S-M | LL3 | Sampler auto-calibration: probed per-role temperature/sampler presets with runtime feedback. |
@@ -243,11 +243,13 @@ shrink.
 
 LL13 runs multiple agent tasks in parallel, each isolated in its own git
 worktree with its own checkpoint history (LL2), optionally executing on
-different LL8 mesh endpoints. This is the capstone: a home lab running several
-unattended coding tasks overnight, each verified green before merge. LL17 is
-the other capstone, closing the loop the profile thread opened: instead of
-hand-tuning harness behavior per model, the app mines its own failure traces
-and adapts the per-model harness under the eval regression gate. Following the
+different LL8 mesh endpoints. The shipped milestone keeps starts user-directed:
+tasks can be queued, recovered, run from the sheet, or started immediately with
+`/agent --run`, while broader unattended overnight agent-farm scheduling waits
+for SEC1/OBS1 guardrails. LL17 is the other capstone, closing the loop the
+profile thread opened: instead of hand-tuning harness behavior per model, the
+app mines its own failure traces and adapts the per-model harness under the eval
+regression gate. Following the
 Self-Harness analysis, LL17 mutates the declared per-model harness config
 (LL23) — instruction surfaces and runtime control policy, not just LL3 profile
 fields — and gates adoption on an LL19 held-in/held-out eval split.
@@ -280,10 +282,10 @@ minimal agent-kb bridge into a reviewed lifecycle extension surface.
 
 Recommended ordering: COMPAT1 can start early because it is mostly diagnostic;
 API1 should land before any broad Responses-style API migration; SEC1 should
-land before expanding automatic tool execution; OBS1 should land before LL13
-becomes a product-facing parallel-agent feature. HOOK1 can land independently,
-but HOOK2 should wait for enough trace visibility to debug tool-event side
-effects, and HOOK3 should wait for SEC1 trust boundaries.
+land before expanding automatic tool execution; OBS1 should land before
+productizing broader unattended agent-farm scheduling. HOOK1 can land
+independently, but HOOK2 should wait for enough trace visibility to debug
+tool-event side effects, and HOOK3 should wait for SEC1 trust boundaries.
 
 ### Phase 9 — Local model/library operations (MLIB, MCP-GOV)
 
@@ -1151,6 +1153,8 @@ Follow-up (Self-Harness alignment):
 
 ### LL13: Parallel Agents In Worktrees
 
+Status: `done`
+
 Scope:
 - Run multiple agent tasks concurrently, each in an isolated git worktree
   with its own LL2 checkpoint lineage and tool-approval scope.
@@ -1163,6 +1167,42 @@ Acceptance criteria:
 - Two concurrent tasks cannot write to the same worktree.
 - Killing the app mid-task leaves worktrees recoverable and listed on
   restart.
+
+Initial implementation slice:
+- Add a persistent worktree task registry that records the assigned worktree
+  path, branch, checkpoint lineage, optional LL8 endpoint, and lifecycle status
+  for each parallel-agent task.
+- Reject registration when another non-terminal task already occupies the same
+  normalized worktree path.
+- On app startup, surface previously queued or running tasks as recoverable
+  instead of silently treating them as live.
+- Surface active and recoverable worktree-agent tasks in the chat scaffold so
+  interrupted worktree tasks remain visible after restart.
+- Plan collision-free branch names and sibling worktree paths before invoking
+  git worktree creation.
+- Enqueue planned assignments from the selected coding project, existing git
+  reservations, and the LL8 subagent endpoint default.
+- Read existing git branch and worktree reservations before enqueueing so
+  planned assignments avoid live repository collisions.
+- Create the planned git worktree and branch for queued tasks, then mark the
+  task running only after worktree creation succeeds.
+- Schedule queued worktree-agent tasks by endpoint capacity so parallel starts
+  do not oversubscribe the primary or LL8 mesh endpoints.
+- Execute running worktree-agent tasks through an isolated delegate and persist
+  completion summaries plus verification status for review-ready branches.
+- Queue worktree-agent tasks from the `/agent <task>` composer command for the
+  active coding project, with optional `--verify <command>` metadata for
+  review-ready branches.
+- Start the existing Run ready orchestration immediately when the user adds the
+  explicit `/agent <task> --run` flag.
+- Balance implicit worktree-agent endpoint assignment across enabled LL8 named
+  endpoints, while preserving explicit endpoint overrides.
+- Run queued or recovered worktree-agent tasks from the task sheet through the
+  scheduler/executor orchestrator, then keep completed tasks visible with their
+  verification status and latest run summary until the user clears them.
+
+Verification:
+- `tool/run_ll13_worktree_agent_verify.sh`
 
 ### LL14: Context Surgery
 
