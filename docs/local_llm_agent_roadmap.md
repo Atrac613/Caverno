@@ -23,6 +23,8 @@ It also records a future platform vision layer. These milestones are deliberatel
 - `OBS<number>` — Agent trace observability and exportable support evidence.
 - `COMPAT<number>` — OpenAI-compatible endpoint conformance and provider
   compatibility diagnostics.
+- `HOOK<number>` — External config hooks and lifecycle integration points for
+  local automation, agent-kb, and future Claude-like hook flexibility.
 - `EDGE<number>` — Embedded on-device runtime adapters and offline fallback.
 - `EVAL-MOBILE<number>` — Flutter/mobile coding eval packs and visual
   regression harnesses.
@@ -142,6 +144,9 @@ structurally unmotivated to build:
 | Compatibility | COMPAT1 | later | M | LL3, LL20 | OpenAI-compatible endpoint conformance suite for chat, streaming, tools, Responses-style APIs, embeddings, vision, and provider extensions. |
 | Compatibility | COMPAT2 | later | S | COMPAT1 | Provider compatibility badge surfaced in settings and diagnostics. |
 | Compatibility | COMPAT3 | later | M | COMPAT1, API2 | Streaming/tool-call fuzz tests for local endpoints and weak-model recovery paths. |
+| Hooks | HOOK1 | current | S-M | F2, LL2 | Caverno-owned external config plus basic lifecycle hook bridge for agent-kb and local automation. |
+| Hooks | HOOK2 | later | M | HOOK1, OBS1 | Claude-like lifecycle hook flexibility: tool-event hooks, matchers, normalized payloads, and hook-result handling. |
+| Hooks | HOOK3 | later | M-L | HOOK2, SEC1, OBS1 | Advanced hook runtime with trust review, richer handler types, async/batch hooks, and reactive lifecycle events. |
 | Edge | EDGE1 | later | L | F3, LL1 | Embedded local runtime adapter for on-device micro-model execution. |
 | Edge | EDGE2 | later | M | EDGE1, SEC1 | On-device micro-model tasks: routing, memory extraction, privacy screening, title/summary helpers, and prompt compression. |
 | Edge | EDGE3 | later | S-M | EDGE1, API1 | Offline fallback mode for selected low-risk app features when no endpoint is reachable. |
@@ -261,7 +266,7 @@ LL22 spends idle cycles warming caches and precomputing the repo map/embeddings
 so the first interactive turn each morning is instant. None of these add a token
 cost; they convert otherwise wasted local compute into quality and speed.
 
-### Phase 8 — Control-plane hardening (API, SEC, OBS, COMPAT)
+### Phase 8 — Control-plane hardening (API, SEC, OBS, COMPAT, HOOK)
 
 The LL track makes Caverno powerful; this phase makes that power durable and
 reviewable. API1/API2 decouple the app from any one OpenAI-compatible endpoint
@@ -270,12 +275,15 @@ content, MCP resources, Remote Coding state, and memory writes do not collapse
 into one undifferentiated prompt. OBS1-OBS3 make parallel candidates, overnight
 maintenance, eval adoption, and worktree execution inspectable as a single trace.
 COMPAT1-COMPAT3 turn endpoint variance into a visible compatibility result
-instead of a support mystery.
+instead of a support mystery. HOOK1-HOOK3 turn external automation from a
+minimal agent-kb bridge into a reviewed lifecycle extension surface.
 
 Recommended ordering: COMPAT1 can start early because it is mostly diagnostic;
 API1 should land before any broad Responses-style API migration; SEC1 should
 land before expanding automatic tool execution; OBS1 should land before LL13
-becomes a product-facing parallel-agent feature.
+becomes a product-facing parallel-agent feature. HOOK1 can land independently,
+but HOOK2 should wait for enough trace visibility to debug tool-event side
+effects, and HOOK3 should wait for SEC1 trust boundaries.
 
 ### Phase 9 — Local model/library operations (MLIB, MCP-GOV)
 
@@ -2306,6 +2314,90 @@ Acceptance criteria:
 - The user can review and edit the task before agent execution.
 - Ambiguous or high-risk voice commands ask for confirmation.
 - Transcripts follow the same retention/export defaults as other evidence.
+
+### HOOK1: Caverno External Config And Basic Hooks
+
+Status: `current`
+
+Scope:
+- Read a Caverno-owned external config file for selected settings, MCP servers,
+  and hook definitions.
+- Keep Codex and Claude settings as inspiration only; Caverno owns its schema
+  and compatibility contract.
+- Provide an agent-kb-friendly bridge for session start, user prompt submit,
+  and turn stop events.
+- Pass environment variables through stdio MCP servers and hook commands.
+
+Acceptance criteria:
+- External config sync is opt-in and uses a stable Caverno config path.
+- MCP servers and hook definitions loaded from external config are replaceable
+  on later syncs without duplicating entries.
+- Basic hook payloads include enough context for archive-only integrations:
+  event name, session/conversation id, timestamp, model, base URL, prompt,
+  assistant response, error, and current project root when available.
+- Focused tests cover config parsing, managed-entry replacement, and agent-kb
+  preset behavior.
+
+Deferred from HOOK1:
+- Tool-call lifecycle hooks such as `PreToolUse`, `PostToolUse`, and
+  `PostToolUseFailure`.
+- Matcher semantics, hook result decisions, trust-review UI, HTTP handlers,
+  async hooks, batch hooks, and reactive file/config events.
+
+### HOOK2: Claude-Like Tool Lifecycle Hooks
+
+Status: `later`
+
+Scope:
+- Add tool-call lifecycle events with normalized payloads: start with
+  `PostToolUse` and `PostToolUseFailure`, then consider `PreToolUse` and
+  `PermissionRequest` after the approval/data-perimeter model is clearer.
+- Support simple matcher filters for tool name, including built-in tools and
+  MCP-style tool identities.
+- Align common payload fields with the intersection of Codex and Claude Code
+  conventions where useful: `hook_event_name`, `session_id`, `cwd`,
+  `tool_name`, `tool_input`, `tool_response`, and error details.
+- Feed agent-kb with successful and failed tool outcomes without turning hooks
+  into a blocking reprocess mechanism.
+
+Acceptance criteria:
+- Successful tool calls can trigger `PostToolUse` with tool input and output.
+- Failed tool calls can trigger `PostToolUseFailure` with failure metadata.
+- Hook dispatch is observable enough to debug failures without exposing secrets
+  in normal UI.
+- Existing tool execution behavior remains unchanged when hooks are disabled.
+
+Deferred from HOOK2:
+- `PostToolBatch` and full parallel-batch lifecycle semantics.
+- Hook-driven mutation of tool inputs or outputs.
+- Blocking decisions for privileged tool calls; those should wait for SEC1 and
+  the existing approval policy to be unified.
+
+### HOOK3: Advanced Hook Runtime
+
+Status: `later`
+
+Scope:
+- Add a hook trust/review surface for local commands and external-config
+  changes before they run automatically.
+- Consider additional handler types after command hooks are stable: HTTP,
+  MCP-tool handlers, prompt handlers, agent handlers, and async/background
+  hooks.
+- Add advanced lifecycle events only when there is a clear product need:
+  `PostToolBatch`, `ConfigChange`, `FileChanged`, `SessionEnd`, and
+  compaction-specific events beyond the current minimal set.
+- Connect hook runs to OBS1 traces and SEC1 data-perimeter classifications.
+
+Acceptance criteria:
+- New or changed hooks can be reviewed before execution.
+- Hook side effects are visible in traces and support snapshots.
+- Async/background hook failures do not corrupt the chat turn.
+- Advanced handler types have bounded execution, redaction, and audit behavior.
+
+Deferred from HOOK3:
+- Organization-managed hook policy.
+- Cross-device hook distribution.
+- A public plugin marketplace for hook bundles.
 
 ### MCP-GOV1: MCP Tool Contract Linter
 

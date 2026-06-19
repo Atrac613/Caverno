@@ -13,8 +13,9 @@ handoffs can refer to the same unit of work over time.
   milestones and `LL<number>` for Local LLM Agent milestones, both documented
   in `docs/local_llm_agent_roadmap.md`.
 - Use `API<number>`, `SEC<number>`, `MLIB<number>`, `OBS<number>`,
-  `COMPAT<number>`, `EDGE<number>`, `EVAL-MOBILE<number>`, `MM<number>`, and
-  `MCP-GOV<number>` for future platform vision milestones, also documented in
+  `COMPAT<number>`, `HOOK<number>`, `EDGE<number>`,
+  `EVAL-MOBILE<number>`, `MM<number>`, and `MCP-GOV<number>` for future
+  platform vision milestones, also documented in
   `docs/local_llm_agent_roadmap.md`.
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
 - Every active milestone should record scope, acceptance criteria, verification
@@ -81,6 +82,9 @@ handoffs can refer to the same unit of work over time.
 | Platform Vision | SEC1 | later | Define the Local Agent Data Perimeter for data classes, tool capabilities, and trust boundaries. | Start before expanding unattended or cross-machine tool execution beyond current approval gates. |
 | Platform Vision | OBS1 | later | Build an Agent Trace Timeline for model calls, tools, checkpoints, slots, evals, and maintenance runs. | Start before making LL13 parallel worktrees a product-facing agent-farm feature. |
 | Platform Vision | COMPAT1 | later | Add an OpenAI-compatible endpoint conformance suite for protocol and provider-behavior diagnostics. | Can start early as diagnostic tooling; keep model capability separate from endpoint protocol support. |
+| Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | Keep the first slice scoped to config sync, MCP server import, and session/prompt/stop hooks; defer tool-event parity to HOOK2. |
+| Platform Vision | HOOK2 | later | Claude-like lifecycle hook flexibility with tool-event hooks, matchers, and normalized payloads. | Start with `PostToolUse` and `PostToolUseFailure` so agent-kb can archive successful and failed tool outcomes. |
+| Platform Vision | HOOK3 | later | Advanced hook runtime: trust review, richer handler types, async execution, batch hooks, and reactive config/file events. | Keep deferred until SEC1/OBS1 define trust boundaries and trace visibility for hook side effects. |
 | Platform Vision | MLIB1 | later | Store Local Model Pack manifests with provenance, checksum, quantization, license, and verified capability metadata. | Pair with LL9 model management and LL21 profile history when model-library UX becomes active. |
 | Platform Vision | EDGE1 | later | Add an embedded local runtime adapter for bounded on-device micro-model tasks. | Keep first tasks low-risk and advisory: routing, memory extraction, privacy screening, and offline fallback. |
 | Platform Vision | EVAL-MOBILE1 | later | Create a Flutter/mobile coding eval pack for Caverno-relevant app-development failures. | Start as local fixtures before UI productization; connect results to LL19 replay. |
@@ -764,6 +768,7 @@ Future platform vision summary:
 | OBS | OBS1 | later | Make agent work inspectable as a timeline of model calls, tools, checkpoints, evals, and maintenance decisions. |
 | COMPAT | COMPAT1 | later | Turn endpoint variance into a conformance report and compatibility badge. |
 | MLIB | MLIB1 | later | Treat local models as managed artifacts with provenance, checksum, license, and verified capabilities. |
+| HOOK | HOOK1-HOOK3 | current/later | Evolve external config hooks from the current basic bridge into a Claude-like lifecycle system. |
 | MCP-GOV | MCP-GOV1 | later | Govern MCP tools through contract linting, trust levels, and model-specific prompt optimization. |
 | EDGE | EDGE1 | later | Use embedded on-device runtimes for bounded low-risk micro-tasks and offline fallback. |
 | EVAL-MOBILE | EVAL-MOBILE1 | later | Measure coding agents on Flutter/mobile failures that match Caverno's product domain. |
