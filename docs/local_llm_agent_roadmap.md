@@ -942,6 +942,9 @@ Task breakdown:
   and vendored dependency fixtures, verifies lockfile-exact installed API
   lookup, symbol-only lookup, missing-package offline failure, prompt guidance,
   and rejection of a future-only API symbol.
+- Add an LL10 live canary that compares an ungrounded weak-model baseline
+  against the grounded prompt on a locked dependency fixture, proving that
+  installed source evidence reduces future-only API hallucinations.
 
 Evidence:
 - Implementation commit: `ae445658` (`feat: add installed dependency grounding tool`).
@@ -955,17 +958,27 @@ Evidence:
 - Release gate:
   `tool/run_ll10_dependency_grounding_release_gate.sh` produced
   `ready_for_ll10_release` with all gates ready.
+- LL10 live canary unit tests:
+  `fvm flutter test test/tool/ll10_dependency_grounding_live_canary_test.dart test/tool/ll10_dependency_grounding_release_gate_test.dart test/features/chat/data/datasources/installed_dependency_grounding_service_test.dart`
+  passed.
+- LL10 live canary:
+  `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1 CAVERNO_LLM_API_KEY=no-key CAVERNO_LLM_MODEL=qwen3.6-35b-a3b-vision tool/run_ll10_dependency_grounding_live_canary.sh`
+  produced `ready_for_ll10_live_canary`, with baseline future-API failures
+  reduced from `1` to `0` after installed dependency grounding.
 - Gate artifacts:
-  `build/integration_test_reports/ll10_dependency_grounding_release_gate_1781827998/release_gate.json`
+  `build/integration_test_reports/ll10_dependency_grounding_release_gate_1781828844/release_gate.json`
   and
-  `build/integration_test_reports/ll10_dependency_grounding_release_gate_1781827998/release_gate.md`.
+  `build/integration_test_reports/ll10_dependency_grounding_release_gate_1781828844/release_gate.md`.
+- Live canary artifacts:
+  `build/integration_test_reports/ll10_dependency_grounding_live_canary_1781828768/canary_summary.json`
+  and
+  `build/integration_test_reports/ll10_dependency_grounding_live_canary_1781828768/canary_summary.md`.
 
 Deferred:
 - Optional F4 indexing of dependency sources for faster repeated lookup.
-- Full live weak-model comparison across real user tasks should move into the
-  LL19 personal eval suite once enough dependency-hallucination cases are
-  recorded. The LL10 gate locks the app-side grounding behavior and future-only
-  API rejection deterministically.
+- Expansion from the LL10 targeted weak-model canary into a broader real-task
+  dependency-hallucination suite should move into LL19 once enough cases are
+  recorded.
 
 ### LL11: LSP Bridge
 
