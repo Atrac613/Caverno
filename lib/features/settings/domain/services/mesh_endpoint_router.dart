@@ -148,11 +148,25 @@ class EndpointHealthTracker {
     );
   }
 
-  void recordFailure(String endpointId, {DateTime? at}) {
+  /// Record a failed call for [endpointId].
+  ///
+  /// A [hard] failure is an unambiguous "endpoint is down" signal (e.g.
+  /// connection refused / host unreachable) and demotes the endpoint
+  /// immediately instead of waiting for [failureThreshold] consecutive
+  /// failures. This avoids wasting a round-trip on a known-dead endpoint on the
+  /// next secondary call. Ambiguous failures (timeouts, transient 5xx) still
+  /// accrue gradually so a briefly flapping endpoint is not demoted on a single
+  /// blip.
+  void recordFailure(String endpointId, {DateTime? at, bool hard = false}) {
     final now = at ?? DateTime.now();
     final previous = _byId[endpointId] ?? const EndpointHealth();
+    final nextFailures = hard
+        ? (previous.consecutiveFailures + 1 < failureThreshold
+              ? failureThreshold
+              : previous.consecutiveFailures + 1)
+        : previous.consecutiveFailures + 1;
     _byId[endpointId] = EndpointHealth(
-      consecutiveFailures: previous.consecutiveFailures + 1,
+      consecutiveFailures: nextFailures,
       lastSuccessAt: previous.lastSuccessAt,
       lastFailureAt: now,
     );

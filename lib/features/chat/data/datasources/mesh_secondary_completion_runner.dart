@@ -81,12 +81,36 @@ class MeshSecondaryCompletionRunner<D> {
       final result = await call(resolved.dataSource, resolved.model);
       health.recordSuccess(resolved.endpointId);
       return result;
-    } catch (_) {
+    } catch (error) {
       // The mesh endpoint failed mid-call: demote it for next time and retry on
       // the primary (with a primary-valid model) so the active turn completes.
-      health.recordFailure(resolved.endpointId);
+      // An unambiguous connectivity failure (connection refused / unreachable)
+      // demotes immediately so the next secondary call skips the dead endpoint.
+      health.recordFailure(
+        resolved.endpointId,
+        hard: isHardEndpointFailure(error),
+      );
       return call(primary, fallbackModel ?? model);
     }
+  }
+
+  /// Whether [error] is an unambiguous "endpoint is down" signal, as opposed to
+  /// a transient/ambiguous failure (timeout, intermittent 5xx). Matches socket
+  /// connectivity failures surfaced by `dart:io` / `http` clients.
+  static bool isHardEndpointFailure(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('socketexception') ||
+        text.contains('connection refused') ||
+        text.contains('connection failed') ||
+        text.contains('connection closed') ||
+        text.contains('connection reset') ||
+        text.contains('connection terminated') ||
+        text.contains('no route to host') ||
+        text.contains('network is unreachable') ||
+        text.contains('host is unreachable') ||
+        text.contains('failed host lookup') ||
+        text.contains('errno = 61') ||
+        text.contains('errno = 111');
   }
 
   /// Resolve [endpointId] to a concrete data source + model without calling it.

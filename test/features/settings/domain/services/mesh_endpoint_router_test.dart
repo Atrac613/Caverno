@@ -107,6 +107,24 @@ void main() {
       expect(tracker.unhealthyEndpointIds, {'x'});
     });
 
+    test('a hard failure demotes immediately, ignoring the threshold', () {
+      final tracker = EndpointHealthTracker(failureThreshold: 3);
+      tracker.recordFailure('x', hard: true);
+      expect(tracker.isUnhealthy('x'), isTrue);
+    });
+
+    test('a hard failure never lowers an already-higher failure streak', () {
+      final tracker = EndpointHealthTracker(failureThreshold: 2);
+      tracker.recordFailure('x');
+      tracker.recordFailure('x');
+      tracker.recordFailure('x');
+      tracker.recordFailure('x', hard: true);
+      expect(
+        tracker.healthFor('x').consecutiveFailures,
+        greaterThanOrEqualTo(4),
+      );
+    });
+
     test('a success resets the failure streak', () {
       final tracker = EndpointHealthTracker(failureThreshold: 2);
       tracker.recordFailure('x');
