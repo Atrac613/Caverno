@@ -111,6 +111,39 @@ void main() {
       }
     });
 
+    test('includes LSP go-to-definition tool definition', () {
+      final service = McpToolService();
+
+      final lspTool =
+          service.getOpenAiToolDefinitions().firstWhere(
+                (tool) =>
+                    (tool['function']! as Map<String, dynamic>)['name'] ==
+                    'lsp_go_to_definition',
+              )['function']!
+              as Map<String, dynamic>;
+      final parameters = lspTool['parameters']! as Map<String, dynamic>;
+      final properties = parameters['properties']! as Map<String, dynamic>;
+
+      expect(lspTool['description'], contains('language server'));
+      expect(properties, contains('path'));
+      expect(properties, contains('line'));
+      expect(properties, contains('column'));
+      expect(parameters['required'], ['path', 'line', 'column']);
+    });
+
+    test('requires chat handler for LSP go-to-definition execution', () async {
+      final service = McpToolService();
+
+      final result = await service.executeTool(
+        name: 'lsp_go_to_definition',
+        arguments: const {'path': 'lib/main.dart', 'line': 1, 'column': 1},
+      );
+
+      expect(result.isSuccess, isFalse);
+      final payload = jsonDecode(result.result) as Map<String, dynamic>;
+      expect(payload['code'], 'chat_handler_required');
+    });
+
     test(
       'includes process_list when background process tools are supported',
       () {

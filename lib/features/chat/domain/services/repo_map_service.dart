@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'lsp_diagnostic_feedback_provider.dart';
+
 class RepoMapService {
   RepoMapService._();
 
@@ -35,6 +37,7 @@ class RepoMapService {
     int? usableContextTokens,
     int maxFiles = defaultMaxFiles,
     int maxSymbols = defaultMaxSymbols,
+    Iterable<RepoMapSymbolEntry> lspSymbolEntries = const [],
   }) {
     final normalizedRootPath = rootPath?.trim();
     if (normalizedRootPath == null || normalizedRootPath.isEmpty) return null;
@@ -46,15 +49,25 @@ class RepoMapService {
     if (files.isEmpty) return null;
 
     final fileLimit = maxFiles.clamp(1, defaultMaxFiles).toInt();
-    final selectedFiles = files.take(fileLimit);
-    final symbolEntries = <_RepoMapSymbolEntry>[];
+    final selectedFiles = files.take(fileLimit).toList(growable: false);
+    final selectedRelativePaths = selectedFiles
+        .map((file) => file.relativePath)
+        .toSet();
+    final symbolEntries = <RepoMapSymbolEntry>[];
     var remainingSymbols = maxSymbols.clamp(0, defaultMaxSymbols).toInt();
+    final normalizedLspSymbolEntries = _boundedSymbolEntries(
+      lspSymbolEntries,
+      selectedRelativePaths: selectedRelativePaths,
+      limit: remainingSymbols,
+    );
+    symbolEntries.addAll(normalizedLspSymbolEntries);
+    remainingSymbols -= _symbolCount(normalizedLspSymbolEntries);
     for (final file in selectedFiles) {
       if (remainingSymbols <= 0) break;
       final symbols = _extractDartSymbols(file.file, limit: remainingSymbols);
       if (symbols.isEmpty) continue;
       symbolEntries.add(
-        _RepoMapSymbolEntry(relativePath: file.relativePath, symbols: symbols),
+        RepoMapSymbolEntry(relativePath: file.relativePath, symbols: symbols),
       );
       remainingSymbols -= symbols.length;
     }
@@ -65,9 +78,18 @@ class RepoMapService {
     for (final file in selectedFiles) {
       buffer.writeln('- ${file.relativePath}');
     }
-    if (symbolEntries.isNotEmpty) {
+    if (normalizedLspSymbolEntries.isNotEmpty) {
+      buffer.writeln('LSP symbols:');
+      for (final entry in normalizedLspSymbolEntries) {
+        buffer.writeln('- ${entry.relativePath}: ${entry.symbols.join(', ')}');
+      }
+    }
+    final dartSymbolEntries = symbolEntries
+        .skip(normalizedLspSymbolEntries.length)
+        .toList(growable: false);
+    if (dartSymbolEntries.isNotEmpty) {
       buffer.writeln('Dart symbols:');
-      for (final entry in symbolEntries) {
+      for (final entry in dartSymbolEntries) {
         buffer.writeln('- ${entry.relativePath}: ${entry.symbols.join(', ')}');
       }
     }
@@ -95,6 +117,7 @@ class RepoMapService {
     int? usableContextTokens,
     int maxFiles = defaultMaxFiles,
     int maxSymbols = defaultMaxSymbols,
+    Iterable<RepoMapSymbolEntry> lspSymbolEntries = const [],
   }) {
     final normalizedRootPath = rootPath?.trim();
     if (normalizedRootPath == null || normalizedRootPath.isEmpty) return null;
@@ -107,7 +130,15 @@ class RepoMapService {
 
     final fileLimit = maxFiles.clamp(1, defaultMaxFiles).toInt();
     final symbolLimit = maxSymbols.clamp(0, defaultMaxSymbols).toInt();
-    final selectedFiles = files.take(fileLimit);
+    final selectedFiles = files.take(fileLimit).toList(growable: false);
+    final selectedRelativePaths = selectedFiles
+        .map((file) => file.relativePath)
+        .toSet();
+    final boundedLspSymbolEntries = _boundedSymbolEntries(
+      lspSymbolEntries,
+      selectedRelativePaths: selectedRelativePaths,
+      limit: symbolLimit,
+    );
 
     final buffer = StringBuffer()
       ..write('root=${_displayPath(root.path)}')
@@ -121,6 +152,9 @@ class RepoMapService {
         '${stat?.modified.microsecondsSinceEpoch ?? -1}',
       );
     }
+    for (final entry in boundedLspSymbolEntries) {
+      buffer.write(';lsp:${entry.relativePath}:${entry.symbols.join('|')}');
+    }
     return buffer.toString();
   }
 
@@ -130,6 +164,43 @@ class RepoMapService {
     } on FileSystemException {
       return null;
     }
+  }
+
+  static List<RepoMapSymbolEntry> symbolEntriesFromLsp({
+    required String projectRoot,
+    required Iterable<LspDocumentSymbol> symbols,
+    int maxSymbols = defaultMaxSymbols,
+  }) {
+    final root = Directory(projectRoot).absolute.path;
+    final remainingByPath = <String, List<String>>{};
+    final seenByPath = <String, Set<String>>{};
+    var remaining = maxSymbols.clamp(0, defaultMaxSymbols).toInt();
+    for (final symbol in symbols.expand((symbol) => symbol.flatten())) {
+      if (remaining <= 0) {
+        break;
+      }
+      final relativePath = _relativePathFromUri(symbol.uri, root);
+      if (relativePath == null) {
+        continue;
+      }
+      final label = _lspSymbolLabel(symbol);
+      final seen = seenByPath.putIfAbsent(relativePath, () => <String>{});
+      if (!seen.add(label)) {
+        continue;
+      }
+      remainingByPath.putIfAbsent(relativePath, () => <String>[]).add(label);
+      remaining -= 1;
+    }
+    final entries = remainingByPath.entries
+        .map(
+          (entry) => RepoMapSymbolEntry(
+            relativePath: entry.key,
+            symbols: List<String>.unmodifiable(entry.value),
+          ),
+        )
+        .toList(growable: false);
+    entries.sort((a, b) => a.relativePath.compareTo(b.relativePath));
+    return entries;
   }
 
   static List<_RepoMapFile> _scanFiles(Directory root) {
@@ -256,6 +327,92 @@ class RepoMapService {
     return symbols;
   }
 
+  static List<RepoMapSymbolEntry> _boundedSymbolEntries(
+    Iterable<RepoMapSymbolEntry> entries, {
+    required Set<String> selectedRelativePaths,
+    required int limit,
+  }) {
+    if (limit <= 0) {
+      return const [];
+    }
+    final results = <RepoMapSymbolEntry>[];
+    var remaining = limit;
+    final sortedEntries = entries.toList(growable: false)
+      ..sort((a, b) => a.relativePath.compareTo(b.relativePath));
+    for (final entry in sortedEntries) {
+      if (remaining <= 0) {
+        break;
+      }
+      final relativePath = _pathKey(entry.relativePath).trim();
+      if (relativePath.isEmpty ||
+          !selectedRelativePaths.contains(relativePath)) {
+        continue;
+      }
+      final symbols = <String>[];
+      final seen = <String>{};
+      for (final symbol in entry.symbols) {
+        if (remaining <= 0) {
+          break;
+        }
+        final trimmed = symbol.trim();
+        if (trimmed.isEmpty || !seen.add(trimmed)) {
+          continue;
+        }
+        symbols.add(trimmed);
+        remaining -= 1;
+      }
+      if (symbols.isNotEmpty) {
+        results.add(
+          RepoMapSymbolEntry(
+            relativePath: relativePath,
+            symbols: List<String>.unmodifiable(symbols),
+          ),
+        );
+      }
+    }
+    return results;
+  }
+
+  static int _symbolCount(Iterable<RepoMapSymbolEntry> entries) {
+    return entries.fold<int>(0, (count, entry) => count + entry.symbols.length);
+  }
+
+  static String _lspSymbolLabel(LspDocumentSymbol symbol) {
+    final kind = symbol.kindLabel.toLowerCase();
+    final name =
+        symbol.containerName == null || symbol.containerName!.trim().isEmpty
+        ? symbol.name
+        : '${symbol.containerName}.${symbol.name}';
+    return '$kind $name';
+  }
+
+  static String? _relativePathFromUri(String uri, String projectRoot) {
+    try {
+      final parsed = Uri.parse(uri);
+      if (parsed.scheme != 'file') {
+        return null;
+      }
+      final absolutePath = File.fromUri(parsed).absolute.path;
+      if (!_isInsideRoot(absolutePath, projectRoot)) {
+        return null;
+      }
+      return _relativePath(absolutePath, projectRoot);
+    } on FormatException {
+      return null;
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  static bool _isInsideRoot(String path, String rootPath) {
+    final normalizedPath = _pathKey(File(path).absolute.path);
+    final normalizedRoot = _pathKey(
+      Directory(rootPath).absolute.path,
+    ).replaceFirst(RegExp(r'/+$'), '');
+    return normalizedPath == normalizedRoot ||
+        normalizedPath.startsWith('$normalizedRoot/');
+  }
+
   static String _readPrefix(File file) {
     RandomAccessFile? openedFile;
     try {
@@ -328,6 +485,13 @@ class RepoMapService {
     '.json',
     '.md',
     '.sh',
+    '.js',
+    '.jsx',
+    '.kt',
+    '.py',
+    '.swift',
+    '.ts',
+    '.tsx',
     '.yaml',
     '.yml',
   ];
@@ -345,11 +509,8 @@ class _RepoMapFile {
   final int rank;
 }
 
-class _RepoMapSymbolEntry {
-  const _RepoMapSymbolEntry({
-    required this.relativePath,
-    required this.symbols,
-  });
+class RepoMapSymbolEntry {
+  const RepoMapSymbolEntry({required this.relativePath, required this.symbols});
 
   final String relativePath;
   final List<String> symbols;

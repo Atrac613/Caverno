@@ -38,6 +38,7 @@ final class _ProjectScopedToolHandlerModule implements ChatToolHandlerModule {
         'process_wait',
       ])
         toolName: _notifier._handleProjectScopedTool,
+      'lsp_go_to_definition': _notifier._handleLspGoToDefinition,
     };
   }
 }

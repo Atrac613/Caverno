@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../entities/tool_call_info.dart';
 import 'dart_project_tooling.dart';
+import 'language_diagnostics_bridge.dart';
 
 typedef CodingDiagnosticCommandRunner =
     Future<CodingDiagnosticCommandOutput> Function(
@@ -57,6 +58,7 @@ class CodingDiagnosticSnapshot {
     required this.changedPaths,
     required this.diagnostics,
     required this.telemetry,
+    required this.bridge,
     this.selectedAttempt,
   });
 
@@ -65,7 +67,20 @@ class CodingDiagnosticSnapshot {
   final List<String> changedPaths;
   final List<CodeDiagnostic> diagnostics;
   final CodingDiagnosticTelemetry telemetry;
+  final LanguageDiagnosticsBridgeMetadata bridge;
   final CodingDiagnosticCommandAttempt? selectedAttempt;
+
+  CodingDiagnosticSnapshot withBridge(LanguageDiagnosticsBridgeMetadata value) {
+    return CodingDiagnosticSnapshot(
+      providerName: providerName,
+      projectRoot: projectRoot,
+      changedPaths: changedPaths,
+      diagnostics: diagnostics,
+      telemetry: telemetry,
+      bridge: value,
+      selectedAttempt: selectedAttempt,
+    );
+  }
 }
 
 class CodingDiagnosticFeedbackBaseline {
@@ -232,6 +247,8 @@ class CodingDiagnosticFeedbackService {
   final int maxDiagnosticsPerFile;
   final int maxTotalDiagnostics;
 
+  String get providerName => _provider.providerName;
+
   Future<CodingDiagnosticFeedbackBaseline?> captureBaseline({
     required String projectRoot,
     required Iterable<String> changedPaths,
@@ -279,7 +296,7 @@ class CodingDiagnosticFeedbackService {
       'schema': schemaName,
       'provider': snapshot.providerName,
       'instruction':
-          'These new analyzer diagnostics were detected after the latest Dart file edits. Fix relevant errors or warnings before claiming the coding task is complete.',
+          'These new code diagnostics were detected after the latest file edits. Fix relevant errors or warnings before claiming the coding task is complete.',
       'project_root': snapshot.projectRoot,
       'changed_paths': snapshot.changedPaths,
       'baseline_applied': baseline != null,
@@ -290,6 +307,7 @@ class CodingDiagnosticFeedbackService {
           : snapshot.diagnostics.length - newDiagnostics.length,
       'diagnostic_count': limitedDiagnostics.length,
       'new_diagnostic_count': limitedDiagnostics.length,
+      'language_diagnostics_bridge': snapshot.bridge.toJson(),
       'telemetry': snapshot.telemetry.toJson(),
       if (selectedAttempt != null)
         'analyzer': {
@@ -360,6 +378,67 @@ class CodingDiagnosticFeedbackService {
       limited.add(diagnostic);
     }
     return limited;
+  }
+}
+
+class LanguageDiagnosticsBridgeFallbackProvider
+    implements CodingDiagnosticFeedbackProvider {
+  const LanguageDiagnosticsBridgeFallbackProvider({
+    required this.primary,
+    required this.fallback,
+  });
+
+  final CodingDiagnosticFeedbackProvider primary;
+  final CodingDiagnosticFeedbackProvider fallback;
+
+  @override
+  String get providerName => primary.providerName;
+
+  @override
+  Future<CodingDiagnosticSnapshot?> collectSnapshot({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+  }) async {
+    try {
+      final primarySnapshot = await primary.collectSnapshot(
+        projectRoot: projectRoot,
+        changedPaths: changedPaths,
+      );
+      if (primarySnapshot != null) {
+        return primarySnapshot;
+      }
+      return _collectFallback(
+        projectRoot: projectRoot,
+        changedPaths: changedPaths,
+        reason: 'primary_unavailable',
+      );
+    } catch (_) {
+      return _collectFallback(
+        projectRoot: projectRoot,
+        changedPaths: changedPaths,
+        reason: 'primary_failed',
+      );
+    }
+  }
+
+  Future<CodingDiagnosticSnapshot?> _collectFallback({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+    required String reason,
+  }) async {
+    final fallbackSnapshot = await fallback.collectSnapshot(
+      projectRoot: projectRoot,
+      changedPaths: changedPaths,
+    );
+    if (fallbackSnapshot == null) {
+      return null;
+    }
+    return fallbackSnapshot.withBridge(
+      fallbackSnapshot.bridge.degradedFrom(
+        attemptedProviderName: primary.providerName,
+        reason: reason,
+      ),
+    );
   }
 }
 
@@ -462,6 +541,7 @@ class DartAnalyzerDiagnosticFeedbackProvider
         durationMs: durationMs,
         attempts: List<CodingDiagnosticCommandAttempt>.unmodifiable(attempts),
       ),
+      bridge: LanguageDiagnosticsBridgeMetadata.dartAnalyzerCli(),
       selectedAttempt: selectedAttempt,
     );
   }

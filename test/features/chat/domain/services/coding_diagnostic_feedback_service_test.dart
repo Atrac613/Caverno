@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
+import 'package:caverno/features/chat/domain/services/language_diagnostics_bridge.dart';
 
 void main() {
   group('CodingDiagnosticFeedbackService', () {
@@ -62,6 +63,15 @@ void main() {
       expect(payload['new_diagnostic_count'], 1);
       expect(payload['current_diagnostic_count'], 1);
       expect(payload['baseline_applied'], isFalse);
+      final bridge =
+          payload['language_diagnostics_bridge'] as Map<String, dynamic>;
+      expect(bridge['provider'], 'dart_analyzer');
+      expect(bridge['protocol'], 'dart_analyzer_cli');
+      expect(bridge['status'], 'ready');
+      final capabilities = bridge['capabilities'] as Map<String, dynamic>;
+      expect(capabilities['diagnostics'], isTrue);
+      expect(capabilities['document_symbols'], isFalse);
+      expect(capabilities['go_to_definition'], isFalse);
       expect(payload['telemetry'], containsPair('command_attempt_count', 1));
       final diagnostics = payload['diagnostics'] as List<dynamic>;
       expect(
@@ -400,6 +410,59 @@ environment:
         containsPair('executable', attempts.last['executable']),
       );
     });
+
+    test(
+      'falls back when the primary language diagnostics provider fails',
+      () async {
+        final root = await Directory.systemTemp.createTemp(
+          'caverno_diagnostic_feedback_lsp_fallback_',
+        );
+        addTearDown(() => root.delete(recursive: true));
+        final editedFile = await _writeFile(
+          root,
+          'lib/main.dart',
+          'void main() {}\n',
+        );
+
+        final service = CodingDiagnosticFeedbackService(
+          provider: LanguageDiagnosticsBridgeFallbackProvider(
+            primary: const _ThrowingDiagnosticProvider('lsp_server'),
+            fallback: _SnapshotDiagnosticProvider(
+              providerName: 'dart_analyzer',
+              projectRoot: root.path,
+              changedPaths: const ['lib/main.dart'],
+              diagnostics: [
+                CodeDiagnostic(
+                  absolutePath: editedFile.path,
+                  severity: 'Error',
+                  line: 1,
+                  column: 1,
+                  message: 'Fallback diagnostic.',
+                  code: 'fallback_error',
+                  source: 'dart',
+                ),
+              ],
+              bridge: LanguageDiagnosticsBridgeMetadata.dartAnalyzerCli(),
+            ),
+          ),
+        );
+
+        final result = await service.buildFeedbackToolResult(
+          projectRoot: root.path,
+          changedPaths: [editedFile.path],
+        );
+
+        expect(result, isNotNull);
+        final payload = jsonDecode(result!.result) as Map<String, dynamic>;
+        expect(payload['provider'], 'dart_analyzer');
+        expect(payload['diagnostic_count'], 1);
+        final bridge =
+            payload['language_diagnostics_bridge'] as Map<String, dynamic>;
+        expect(bridge['status'], 'degraded');
+        expect(bridge['attempted_primary_provider'], 'lsp_server');
+        expect(bridge['degrade_reason'], 'primary_failed');
+      },
+    );
   });
 }
 
@@ -411,4 +474,51 @@ Future<File> _writeFile(
   final file = File.fromUri(root.uri.resolve(relativePath));
   await file.parent.create(recursive: true);
   return file.writeAsString(content);
+}
+
+class _ThrowingDiagnosticProvider implements CodingDiagnosticFeedbackProvider {
+  const _ThrowingDiagnosticProvider(this.providerName);
+
+  @override
+  final String providerName;
+
+  @override
+  Future<CodingDiagnosticSnapshot?> collectSnapshot({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+  }) async {
+    throw StateError('Language server crashed.');
+  }
+}
+
+class _SnapshotDiagnosticProvider implements CodingDiagnosticFeedbackProvider {
+  const _SnapshotDiagnosticProvider({
+    required this.providerName,
+    required this.projectRoot,
+    required this.changedPaths,
+    required this.diagnostics,
+    required this.bridge,
+  });
+
+  @override
+  final String providerName;
+  final String projectRoot;
+  final List<String> changedPaths;
+  final List<CodeDiagnostic> diagnostics;
+  final LanguageDiagnosticsBridgeMetadata bridge;
+
+  @override
+  Future<CodingDiagnosticSnapshot?> collectSnapshot({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+  }) async {
+    return CodingDiagnosticSnapshot(
+      providerName: providerName,
+      projectRoot: Directory(this.projectRoot).absolute.path,
+      changedPaths: this.changedPaths,
+      diagnostics: diagnostics,
+      telemetry: const CodingDiagnosticTelemetry(durationMs: 1, attempts: []),
+      bridge: bridge,
+    );
+  }
 }

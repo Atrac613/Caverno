@@ -46,6 +46,7 @@ import '../../data/datasources/file_rollback_checkpoint_store.dart';
 import '../../data/datasources/filesystem_tools.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/local_shell_tools.dart';
+import '../../data/datasources/lsp_json_rpc_session_registry.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/datasources/python_input_staging.dart';
 import '../../data/datasources/llm_session_log_store.dart';
@@ -71,6 +72,7 @@ import '../../domain/services/coding_verification_feedback_service.dart';
 import '../../domain/services/chat_tool_dispatcher.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/dart_project_tooling.dart';
+import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/model_edit_apply_telemetry_service.dart';
 import '../../domain/services/model_switch_handoff_brief_service.dart';
@@ -132,9 +134,28 @@ final sessionMemoryServiceProvider = Provider<SessionMemoryService>((ref) {
   return SessionMemoryService(repository);
 });
 
+final lspJsonRpcSessionRegistryProvider = Provider<LspJsonRpcSessionRegistry>((
+  ref,
+) {
+  final registry = LspJsonRpcSessionRegistry();
+  ref.onDispose(() {
+    unawaited(registry.close());
+  });
+  return registry;
+});
+
 final codingDiagnosticFeedbackServiceProvider =
     Provider<CodingDiagnosticFeedbackService>((ref) {
-      return CodingDiagnosticFeedbackService();
+      final lspRegistry = ref.watch(lspJsonRpcSessionRegistryProvider);
+      return CodingDiagnosticFeedbackService(
+        provider: LanguageDiagnosticsBridgeFallbackProvider(
+          primary: LspDiagnosticFeedbackProvider(
+            client: lspRegistry,
+            readinessProbe: lspRegistry,
+          ),
+          fallback: DartAnalyzerDiagnosticFeedbackProvider(),
+        ),
+      );
     });
 
 final codingVerificationFeedbackServiceProvider =
@@ -7137,7 +7158,11 @@ class ChatNotifier extends Notifier<ChatState> {
         }
         return resolvedArguments;
       }(),
-      'read_file' || 'inspect_file' || 'write_file' || 'edit_file' => () {
+      'read_file' ||
+      'inspect_file' ||
+      'write_file' ||
+      'edit_file' ||
+      'lsp_go_to_definition' => () {
         final resolvedPath = resolvePathArg('path');
         final resolvedArguments = toolName == 'write_file'
             ? _normalizeWriteFileArgumentAliases(arguments)
@@ -9953,7 +9978,10 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
 
-    final changedPaths = _changedFileMutationPaths(toolResults);
+    final changedPaths = _changedFileMutationPaths(
+      toolResults,
+      dartOnly: false,
+    );
     if (changedPaths.isEmpty) {
       return null;
     }
@@ -9967,14 +9995,21 @@ class ChatNotifier extends Notifier<ChatState> {
           );
       if (feedback != null) {
         appLog(
-          '[CodingDiagnostics] Added analyzer feedback for '
+          '[CodingDiagnostics] Added diagnostic feedback for '
           '${changedPaths.length} changed file(s)',
         );
         _logCodingDiagnosticFeedbackSummary(feedback);
       }
+      await _refreshRepoMapLspSymbols(
+        projectRoot: projectRoot,
+        changedPaths: changedPaths,
+        interactionGeneration: interactionGeneration,
+      );
       return feedback;
     } catch (error, stackTrace) {
-      appLog('[CodingDiagnostics] Failed to collect analyzer feedback: $error');
+      appLog(
+        '[CodingDiagnostics] Failed to collect diagnostic feedback: $error',
+      );
       appLog('[CodingDiagnostics] stackTrace: $stackTrace');
       return null;
     }
@@ -10021,7 +10056,10 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
 
-    final changedPaths = _changedFileMutationCallPaths(toolCalls);
+    final changedPaths = _changedFileMutationCallPaths(
+      toolCalls,
+      dartOnly: false,
+    );
     if (changedPaths.isEmpty) {
       return null;
     }
@@ -10035,6 +10073,45 @@ class ChatNotifier extends Notifier<ChatState> {
       appLog('[CodingDiagnostics] Failed to capture analyzer baseline: $error');
       appLog('[CodingDiagnostics] stackTrace: $stackTrace');
       return null;
+    }
+  }
+
+  Future<void> _refreshRepoMapLspSymbols({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+    required int interactionGeneration,
+  }) async {
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+      return;
+    }
+    try {
+      final symbols = await ref
+          .read(lspJsonRpcSessionRegistryProvider)
+          .collectDocumentSymbols(
+            projectRoot: projectRoot,
+            changedPaths: changedPaths,
+          );
+      if (!_isCurrentInteractionGeneration(interactionGeneration) ||
+          symbols == null) {
+        return;
+      }
+      ref
+          .read(repoMapLspSymbolCacheProvider)
+          .updateFromLsp(
+            projectRoot: projectRoot,
+            changedPaths: changedPaths,
+            symbols: symbols,
+          );
+      ref.read(repoMapPrecomputeCacheProvider).invalidate(projectRoot);
+      if (symbols.isNotEmpty) {
+        appLog(
+          '[RepoMap] Refreshed LSP symbols for '
+          '${changedPaths.length} changed file(s)',
+        );
+      }
+    } catch (error, stackTrace) {
+      appLog('[RepoMap] Failed to refresh LSP symbols: $error');
+      appLog('[RepoMap] stackTrace: $stackTrace');
     }
   }
 
@@ -11102,7 +11179,10 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  List<String> _changedFileMutationCallPaths(List<ToolCallInfo> toolCalls) {
+  List<String> _changedFileMutationCallPaths(
+    List<ToolCallInfo> toolCalls, {
+    bool dartOnly = true,
+  }) {
     final paths = <String>[];
     final seen = <String>{};
     for (final toolCall in toolCalls) {
@@ -11110,7 +11190,7 @@ class ChatNotifier extends Notifier<ChatState> {
         continue;
       }
       final path = _toolPathFromArguments(toolCall.arguments);
-      if (path == null || !path.toLowerCase().endsWith('.dart')) {
+      if (path == null || (dartOnly && !path.toLowerCase().endsWith('.dart'))) {
         continue;
       }
       final resolved = FilesystemTools.resolvePath(
@@ -11125,7 +11205,10 @@ class ChatNotifier extends Notifier<ChatState> {
     return paths;
   }
 
-  List<String> _changedFileMutationPaths(List<ToolResultInfo> toolResults) {
+  List<String> _changedFileMutationPaths(
+    List<ToolResultInfo> toolResults, {
+    bool dartOnly = true,
+  }) {
     final paths = <String>[];
     final seen = <String>{};
     for (final toolResult in toolResults) {
@@ -11138,7 +11221,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final path =
           _toolResultPayloadPath(toolResult.result) ??
           _toolPathFromArguments(toolResult.arguments);
-      if (path == null || !path.toLowerCase().endsWith('.dart')) {
+      if (path == null || (dartOnly && !path.toLowerCase().endsWith('.dart'))) {
         continue;
       }
       final resolved = FilesystemTools.resolvePath(

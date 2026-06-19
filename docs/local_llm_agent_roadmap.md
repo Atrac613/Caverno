@@ -115,7 +115,7 @@ structurally unmotivated to build:
 | Local LLM | LL8 | done | M | LL1 | LAN inference mesh: discover/register OpenAI-compatible endpoints and route secondary calls per role with health fallback. Main-conversation fan-out is a deferred follow-up. |
 | Local LLM | LL9 | done | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
 | Local LLM | LL10 | done | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
-| Local LLM | LL11 | later | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
+| Local LLM | LL11 | done | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
 | Local LLM | LL12 | done | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
 | Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
 | Local LLM | LL14 | done | M | LL6 | Context surgery: stale tool-result eviction, file-read dedup, model-switch handoff brief. |
@@ -982,6 +982,8 @@ Deferred:
 
 ### LL11: LSP Bridge
 
+Status: `done`
+
 Scope:
 - Manage language server processes per coding project (reusing the
   background-process infrastructure) and consume diagnostics after each
@@ -994,6 +996,87 @@ Acceptance criteria:
 - Post-edit diagnostics reach the model within the same tool loop iteration.
 - A missing or crashed language server degrades to current behavior without
   blocking edits.
+
+Implementation status:
+- Diagnostics v1 started with a language-server command resolver for Dart,
+  TypeScript, Python, and Swift, plus a process readiness manager backed by the
+  existing background-process tooling.
+- JSON-RPC transport now supports LSP `Content-Length` framing, process stdin /
+  stdout wiring, `initialize`, `textDocument/didOpen`, and
+  `textDocument/didChange`.
+- A diagnostic bridge records `textDocument/publishDiagnostics`, including empty
+  publications, and maps them into the existing coding diagnostic feedback
+  payload shape.
+- A session registry reuses one language-server session per project/language,
+  syncs changed documents with incrementing versions, waits briefly for
+  asynchronous diagnostic publications, and exposes the registry as both the
+  LSP readiness probe and diagnostic client.
+- Chat diagnostic feedback now tries the LSP registry first and falls back to
+  the current Dart analyzer provider when no supported language server is
+  available or the server cannot start.
+- `documentSymbol` output is collected from the shared JSON-RPC LSP registry,
+  cached by project root and changed file, and included in LL4 repo map prompt
+  context when a server is available.
+- `textDocument/definition` output is exposed through the
+  `lsp_go_to_definition` built-in tool, using the shared JSON-RPC LSP session
+  registry for token-cheap navigation from symbol usage to declaration.
+- Language-server startup now checks the resolved executable against the
+  login-shell `PATH` before starting JSON-RPC or background process sessions, so
+  missing TypeScript/Python servers report `language_server_executable_not_found`
+  immediately instead of waiting for initialize timeout.
+- `tool/run_ll11_lsp_language_server_smoke.sh` records diagnostics,
+  `documentSymbol`, and go-to-definition evidence for local language servers
+  without requiring a live LLM endpoint.
+- Live smoke evidence from 2026-06-19:
+  `build/integration_test_reports/ll11_lsp_language_server_smoke_1781848464/`
+  passed with `CAVERNO_LL11_LSP_SMOKE_REQUIRE_LANGUAGE_SERVER=1`; Dart and
+  Swift returned both diagnostics and document symbols, while TypeScript and
+  Python were skipped after initialize timeout on this machine.
+- Go-to-definition smoke evidence from 2026-06-19:
+  `build/integration_test_reports/ll11_lsp_language_server_smoke_1781849991/`
+  passed for Dart with `CAVERNO_LL11_LSP_SMOKE_REQUIRE_LANGUAGE_SERVER=1`,
+  returning 1 diagnostic, 3 document symbols, and 1 definition location.
+- All-language smoke evidence from 2026-06-19:
+  `build/integration_test_reports/ll11_lsp_language_server_smoke_1781850903/`
+  passed with `CAVERNO_LL11_LSP_SMOKE_REQUIRE_LANGUAGE_SERVER=1`; Dart and
+  Swift returned diagnostics, document symbols, and definition locations, while
+  TypeScript and Python were skipped immediately with
+  `language_server_executable_not_found` because their language-server
+  executables are not installed on this machine.
+
+Verification:
+```bash
+tool/codex_verify.sh --no-codegen \
+  --test test/features/chat/presentation/providers/coding_diagnostic_feedback_provider_test.dart \
+  --test test/features/chat/data/datasources/lsp_json_rpc_session_registry_test.dart \
+  --test test/features/chat/data/datasources/lsp_json_rpc_diagnostic_bridge_test.dart \
+  --test test/features/chat/data/datasources/lsp_json_rpc_process_transport_test.dart \
+  --test test/features/chat/domain/services/lsp_diagnostic_feedback_provider_test.dart \
+  --test test/features/chat/domain/services/coding_diagnostic_feedback_service_test.dart \
+  --test test/features/chat/domain/services/repo_map_service_test.dart \
+  --test test/features/chat/domain/services/repo_map_precompute_cache_test.dart \
+  --test test/features/chat/domain/services/repo_map_lsp_symbol_cache_test.dart \
+  --test test/features/chat/data/datasources/mcp_tool_service_test.dart \
+  --test test/tool/ll11_lsp_language_server_smoke_test.dart
+```
+- `fvm flutter analyze`
+
+Sign-off:
+- LL11 is accepted on the current Dart/Swift live evidence. The delivered scope
+  covers post-edit LSP diagnostics, JSON-RPC session reuse, repo-map
+  `documentSymbol` grounding, `lsp_go_to_definition`, and non-blocking
+  degradation when a language server is unavailable.
+- The latest all-language smoke has `blockedGateIds: []` with Dart and Swift
+  passing diagnostics, document symbols, and definition locations. TypeScript
+  and Python are skipped by explicit executable preflight because
+  `typescript-language-server` and `pyright-langserver` are not installed on
+  this machine.
+
+Deferred:
+- Install TypeScript/Python language servers locally and rerun
+  `CAVERNO_LL11_LSP_SMOKE_REQUIRE_LANGUAGE_SERVER=1 tool/run_ll11_lsp_language_server_smoke.sh`
+  when expanded language coverage is needed; this is evidence expansion, not an
+  LL11 release blocker.
 
 ### LL12: Personal Eval Harness
 

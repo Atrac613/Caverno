@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/features/chat/domain/services/lsp_diagnostic_feedback_provider.dart';
 import 'package:caverno/features/chat/domain/services/repo_map_service.dart';
 
 void main() {
@@ -51,6 +52,74 @@ Future<void> sendMessage() async {}
     expect(map, contains('function sendMessage'));
   });
 
+  test('adds LSP symbols for non-Dart project files', () {
+    _writeFile(tempDir, 'pubspec.yaml', 'name: example\n');
+    _writeFile(tempDir, 'src/app.ts', 'export class AppRoot {}\n');
+
+    final map = RepoMapService.buildForProject(
+      rootPath: tempDir.path,
+      maxFiles: 10,
+      maxSymbols: 4,
+      lspSymbolEntries: const [
+        RepoMapSymbolEntry(
+          relativePath: 'src/app.ts',
+          symbols: ['class AppRoot', 'function createApp'],
+        ),
+      ],
+    );
+
+    expect(map, isNotNull);
+    expect(map, contains('src/app.ts'));
+    expect(map, contains('LSP symbols:'));
+    expect(map, contains('- src/app.ts: class AppRoot, function createApp'));
+  });
+
+  test('converts LSP document symbols into repo-map entries', () {
+    final source = _writeFile(
+      tempDir,
+      'src/app.ts',
+      'export class AppRoot {}\n',
+    );
+    _writeFile(tempDir, 'other/outside.ts', 'export const ignored = true;\n');
+
+    final entries = RepoMapService.symbolEntriesFromLsp(
+      projectRoot: tempDir.path,
+      symbols: [
+        LspDocumentSymbol(
+          uri: source.uri.toString(),
+          name: 'AppRoot',
+          kind: 5,
+          kindLabel: 'Class',
+          startLine: 0,
+          startCharacter: 13,
+          children: [
+            LspDocumentSymbol(
+              uri: source.uri.toString(),
+              name: 'render',
+              kind: 6,
+              kindLabel: 'Method',
+              startLine: 2,
+              startCharacter: 2,
+              containerName: 'AppRoot',
+            ),
+          ],
+        ),
+        const LspDocumentSymbol(
+          uri: 'file:///tmp/outside.ts',
+          name: 'Outside',
+          kind: 5,
+          kindLabel: 'Class',
+          startLine: 0,
+          startCharacter: 0,
+        ),
+      ],
+    );
+
+    expect(entries, hasLength(1));
+    expect(entries.single.relativePath, 'src/app.ts');
+    expect(entries.single.symbols, ['class AppRoot', 'method AppRoot.render']);
+  });
+
   test('skips generated and build files while respecting explicit limits', () {
     _writeFile(tempDir, 'pubspec.yaml', 'name: example\n');
     _writeFile(tempDir, 'build/generated.dart', 'class BuildArtifact {}\n');
@@ -91,10 +160,11 @@ Future<void> sendMessage() async {}
   });
 }
 
-void _writeFile(Directory root, String relativePath, String contents) {
+File _writeFile(Directory root, String relativePath, String contents) {
   final file = File('${root.path}/$relativePath');
   file.parent.createSync(recursive: true);
   file.writeAsStringSync(contents);
+  return file;
 }
 
 int _sectionLineCount(String text, String heading) {

@@ -19526,11 +19526,17 @@ environment:
 
         await toolNotifier.sendMessage('Update the Dart entrypoint');
 
-        expect(diagnosticService.requestedProjectRoots, [projectRoot.path]);
+        expect(diagnosticService.requestedProjectRoots, [
+          projectRoot.path,
+          projectRoot.path,
+        ]);
         expect(diagnosticService.baselineProjectRoots, [projectRoot.path]);
         expect(diagnosticService.baselineChangedPaths.single, [changedPath]);
-        expect(diagnosticService.requestedChangedPaths.single, [changedPath]);
-        expect(diagnosticService.receivedBaselines.single, same(baseline));
+        expect(diagnosticService.requestedChangedPaths, [
+          [changedPath],
+          [changedPath],
+        ]);
+        expect(diagnosticService.receivedBaselines, [same(baseline), isNull]);
         expect(toolDataSource.toolResultBatches, hasLength(1));
         expect(
           toolDataSource.toolResultBatches.single.map((result) => result.name),

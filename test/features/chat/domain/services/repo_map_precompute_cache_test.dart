@@ -69,6 +69,23 @@ void main() {
       );
       expect(small, isNot(large));
     });
+
+    test('changes when supplied LSP symbols change', () {
+      final before = RepoMapService.computeSignatureForProject(
+        rootPath: tempDir.path,
+      );
+      final after = RepoMapService.computeSignatureForProject(
+        rootPath: tempDir.path,
+        lspSymbolEntries: const [
+          RepoMapSymbolEntry(
+            relativePath: 'lib/main.dart',
+            symbols: ['class AppRoot'],
+          ),
+        ],
+      );
+
+      expect(after, isNot(before));
+    });
   });
 
   group('RepoMapPrecomputeCache', () {
@@ -89,6 +106,23 @@ void main() {
       cache.precompute(rootPath: tempDir.path);
       final built = RepoMapService.buildForProject(rootPath: tempDir.path);
       expect(cache.getOrBuild(rootPath: tempDir.path), built);
+    });
+
+    test('rebuilds when supplied LSP symbols change', () {
+      final cache = RepoMapPrecomputeCache();
+      final before = cache.getOrBuild(rootPath: tempDir.path);
+      final after = cache.getOrBuild(
+        rootPath: tempDir.path,
+        lspSymbolEntries: const [
+          RepoMapSymbolEntry(
+            relativePath: 'lib/main.dart',
+            symbols: ['class AppRoot'],
+          ),
+        ],
+      );
+
+      expect(after, isNot(before));
+      expect(after, contains('LSP symbols:'));
     });
 
     test('invalidates and rebuilds after a file edit', () {

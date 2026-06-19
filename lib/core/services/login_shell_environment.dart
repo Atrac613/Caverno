@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
-
-import '../utils/logger.dart';
 
 /// Resolves and caches the user's *login-shell* environment so that
 /// child processes (stdio MCP servers, `git`, shell tool commands, ...) can
@@ -57,9 +56,7 @@ class LoginShellEnvironment {
   /// `{...Platform.environment, ...?extra}` with `PATH` augmented by any
   /// directories from the login shell that the current process is missing.
   /// `extra` wins over both (callers may still override PATH explicitly).
-  Future<Map<String, String>> environment({
-    Map<String, String>? extra,
-  }) async {
+  Future<Map<String, String>> environment({Map<String, String>? extra}) async {
     await ensureResolved();
 
     final merged = <String, String>{...Platform.environment, ...?extra};
@@ -80,10 +77,7 @@ class LoginShellEnvironment {
   String _mergePath(String? current, String login) {
     final seen = <String>{};
     final ordered = <String>[];
-    for (final segment in [
-      ...?current?.split(':'),
-      ...login.split(':'),
-    ]) {
+    for (final segment in [...?current?.split(':'), ...login.split(':')]) {
       if (segment.isEmpty || !seen.add(segment)) continue;
       ordered.add(segment);
     }
@@ -100,12 +94,12 @@ class LoginShellEnvironment {
       final path = await _capturePath(shell);
       if (path != null && path.isNotEmpty) {
         _loginPath = path;
-        appLog('[LoginShellEnvironment] Resolved login PATH via $shell');
+        _log('Resolved login PATH via $shell');
       } else {
-        appLog('[LoginShellEnvironment] Login PATH empty; using process PATH');
+        _log('Login PATH empty; using process PATH');
       }
     } catch (error) {
-      appLog('[LoginShellEnvironment] Failed to resolve login PATH: $error');
+      _log('Failed to resolve login PATH: $error');
     }
   }
 
@@ -127,8 +121,7 @@ class LoginShellEnvironment {
     // Close stdin so an interactive shell doesn't block waiting for input.
     unawaited(process.stdin.close().catchError((_) {}));
 
-    final stdoutFuture =
-        process.stdout.transform(utf8.decoder).join();
+    final stdoutFuture = process.stdout.transform(utf8.decoder).join();
     // Drain stderr to avoid back-pressure deadlocks; ignore its contents.
     unawaited(process.stderr.drain<void>().catchError((_) {}));
 
@@ -139,10 +132,13 @@ class LoginShellEnvironment {
       process.kill();
       rethrow;
     }
-    await process.exitCode.timeout(_resolveTimeout, onTimeout: () {
-      process.kill();
-      return -1;
-    });
+    await process.exitCode.timeout(
+      _resolveTimeout,
+      onTimeout: () {
+        process.kill();
+        return -1;
+      },
+    );
 
     return _extractPath(output);
   }
@@ -163,5 +159,9 @@ class LoginShellEnvironment {
       }
     }
     return path?.trim();
+  }
+
+  void _log(String message) {
+    developer.log(message, name: 'LoginShellEnvironment');
   }
 }

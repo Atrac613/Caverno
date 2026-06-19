@@ -5,6 +5,156 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierLocalFileHandlers on ChatNotifier {
+  Future<McpToolResult> _handleLspGoToDefinition(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
+    final projectRoot = _getActiveProjectRootPath();
+    if (projectRoot == null || projectRoot.trim().isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'ok': false,
+          'code': 'active_coding_project_required',
+          'error':
+              'An active coding project is required for LSP go-to-definition.',
+        }),
+        isSuccess: false,
+        errorMessage: 'An active coding project is required',
+      );
+    }
+
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final path = (resolvedArguments['path'] as String?)?.trim() ?? '';
+    final line = _oneBasedPositionValue(resolvedArguments['line']);
+    final column = _oneBasedPositionValue(resolvedArguments['column']);
+    if (path.isEmpty || line == null || column == null) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'ok': false,
+          'code': 'invalid_arguments',
+          'error': 'path, line, and column are required.',
+        }),
+        isSuccess: false,
+        errorMessage: 'path, line, and column are required',
+      );
+    }
+
+    try {
+      final definitions = await ref
+          .read(lspJsonRpcSessionRegistryProvider)
+          .collectDefinitions(
+            projectRoot: projectRoot,
+            path: path,
+            line: line - 1,
+            character: column - 1,
+          );
+      if (definitions == null) {
+        return McpToolResult(
+          toolName: toolCall.name,
+          result: jsonEncode({
+            'ok': false,
+            'code': 'language_server_unavailable',
+            'error':
+                'No supported language server session is available for this file.',
+            'path': path,
+          }),
+          isSuccess: false,
+          errorMessage: 'No supported language server session is available',
+        );
+      }
+
+      final payload = {
+        'ok': true,
+        'provider': 'lsp_json_rpc',
+        'path': path,
+        'line': line,
+        'column': column,
+        'definition_count': definitions.length,
+        'definitions': definitions
+            .map(
+              (definition) =>
+                  _lspDefinitionToJson(definition, projectRoot: projectRoot),
+            )
+            .toList(growable: false),
+      };
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode(payload),
+        isSuccess: true,
+      );
+    } catch (error, stackTrace) {
+      appLog('[LSP] Go-to-definition failed: $error');
+      appLog('[LSP] stackTrace: $stackTrace');
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'ok': false,
+          'code': 'lsp_go_to_definition_failed',
+          'error': error.toString(),
+          'path': path,
+        }),
+        isSuccess: false,
+        errorMessage: error.toString(),
+      );
+    }
+  }
+
+  int? _oneBasedPositionValue(Object? value) {
+    final rawValue = switch (value) {
+      int value => value,
+      num value => value.toInt(),
+      String value => int.tryParse(value.trim()),
+      _ => null,
+    };
+    if (rawValue == null || rawValue < 1) {
+      return null;
+    }
+    return rawValue;
+  }
+
+  Map<String, dynamic> _lspDefinitionToJson(
+    LspDefinitionLocation definition, {
+    required String projectRoot,
+  }) {
+    final absolutePath = _pathFromLspUri(definition.uri);
+    final insideProject =
+        absolutePath != null &&
+        DartProjectPath.isInsideRoot(absolutePath, projectRoot);
+    return {
+      'uri': definition.uri,
+      'path': ?absolutePath,
+      if (insideProject)
+        'relative_path': DartProjectPath.relativePath(
+          absolutePath,
+          projectRoot,
+        ).replaceAll('\\', '/'),
+      'line': definition.startLine + 1,
+      'column': definition.startCharacter + 1,
+      if (definition.endLine != null) 'end_line': definition.endLine! + 1,
+      if (definition.endCharacter != null)
+        'end_column': definition.endCharacter! + 1,
+    };
+  }
+
+  String? _pathFromLspUri(String uri) {
+    try {
+      final parsed = Uri.parse(uri);
+      if (parsed.scheme == 'file') {
+        return parsed.toFilePath();
+      }
+    } on FormatException {
+      return null;
+    } on UnsupportedError {
+      return null;
+    }
+    return null;
+  }
+
   Future<McpToolResult> _handleWriteFile(ToolCallInfo toolCall) async {
     final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
     if (accessFailure != null) return accessFailure;

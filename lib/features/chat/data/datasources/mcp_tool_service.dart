@@ -83,6 +83,7 @@ class McpToolService {
     'find_files',
     'search_files',
     InstalledDependencyGroundingService.toolName,
+    'lsp_go_to_definition',
     'local_execute_command',
     'process_start',
     'process_status',
@@ -559,6 +560,7 @@ class McpToolService {
     _addIfEnabled(toolDefinitions, _findFilesTool);
     _addIfEnabled(toolDefinitions, _searchFilesTool);
     _addIfEnabled(toolDefinitions, _resolveInstalledDependencyTool);
+    _addIfEnabled(toolDefinitions, _lspGoToDefinitionTool);
 
     // Mutating file tools stay desktop-only: writing arbitrary paths on a
     // sandboxed mobile OS is both risky and largely unusable.
@@ -1023,6 +1025,21 @@ class McpToolService {
             ? null
             : (decoded['error'] as String? ??
                   'Installed dependency grounding failed'),
+      );
+    }
+
+    if (name == 'lsp_go_to_definition') {
+      return McpToolResult(
+        toolName: name,
+        result: jsonEncode({
+          'ok': false,
+          'code': 'chat_handler_required',
+          'error':
+              'lsp_go_to_definition must be executed through the chat LSP session handler.',
+        }),
+        isSuccess: false,
+        errorMessage:
+            'lsp_go_to_definition must be executed through the chat LSP session handler',
       );
     }
 
@@ -4373,6 +4390,36 @@ class McpToolService {
           },
         },
         'required': <String>[],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _lspGoToDefinitionTool => {
+    'type': 'function',
+    'function': {
+      'name': 'lsp_go_to_definition',
+      'description':
+          'Use the active language server to locate the definition for a '
+          'symbol at a precise file position. Prefer this over broad text '
+          'search when navigating from a usage to its declaration.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'path': {
+            'type': 'string',
+            'description': 'Absolute or project-relative source file path.',
+          },
+          'line': {
+            'type': 'integer',
+            'description':
+                '1-based source line containing the symbol reference.',
+          },
+          'column': {
+            'type': 'integer',
+            'description': '1-based source column inside the symbol reference.',
+          },
+        },
+        'required': ['path', 'line', 'column'],
       },
     },
   };

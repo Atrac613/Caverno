@@ -38,12 +38,14 @@ class RepoMapPrecomputeCache {
     int? usableContextTokens,
     int maxFiles = RepoMapService.defaultMaxFiles,
     int maxSymbols = RepoMapService.defaultMaxSymbols,
+    Iterable<RepoMapSymbolEntry> lspSymbolEntries = const [],
   }) {
     return _resolve(
       rootPath: rootPath,
       usableContextTokens: usableContextTokens,
       maxFiles: maxFiles,
       maxSymbols: maxSymbols,
+      lspSymbolEntries: lspSymbolEntries,
     ).map;
   }
 
@@ -55,12 +57,14 @@ class RepoMapPrecomputeCache {
     int? usableContextTokens,
     int maxFiles = RepoMapService.defaultMaxFiles,
     int maxSymbols = RepoMapService.defaultMaxSymbols,
+    Iterable<RepoMapSymbolEntry> lspSymbolEntries = const [],
   }) {
     return _resolve(
       rootPath: rootPath,
       usableContextTokens: usableContextTokens,
       maxFiles: maxFiles,
       maxSymbols: maxSymbols,
+      lspSymbolEntries: lspSymbolEntries,
     ).result;
   }
 
@@ -80,6 +84,7 @@ class RepoMapPrecomputeCache {
     required int? usableContextTokens,
     required int maxFiles,
     required int maxSymbols,
+    required Iterable<RepoMapSymbolEntry> lspSymbolEntries,
   }) {
     final key = rootPath?.trim();
     if (key == null || key.isEmpty) {
@@ -91,6 +96,7 @@ class RepoMapPrecomputeCache {
       usableContextTokens: usableContextTokens,
       maxFiles: maxFiles,
       maxSymbols: maxSymbols,
+      lspSymbolEntries: lspSymbolEntries,
     );
     if (signature == null) {
       _entries.remove(key);
@@ -107,6 +113,7 @@ class RepoMapPrecomputeCache {
       usableContextTokens: usableContextTokens,
       maxFiles: maxFiles,
       maxSymbols: maxSymbols,
+      lspSymbolEntries: lspSymbolEntries,
     );
     if (map == null) {
       _entries.remove(key);
