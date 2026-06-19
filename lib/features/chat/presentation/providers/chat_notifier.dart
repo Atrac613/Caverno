@@ -67,6 +67,7 @@ import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../domain/services/tool_approval_gate.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
+import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/coding_command_output_guardrail_service.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
 import '../../domain/services/coding_verification_feedback_service.dart';
@@ -295,6 +296,8 @@ class ChatNotifier extends Notifier<ChatState> {
   final ToolCallExecutionPolicy _toolCallExecutionPolicy =
       const ToolCallExecutionPolicy();
   final PlanningToolPolicy _planningToolPolicy = const PlanningToolPolicy();
+  final ToolLoopContextDigest _toolLoopContextDigest =
+      const ToolLoopContextDigest();
   String? conversationId;
   String _languageCode = 'en';
   String? _sessionMemoryContext;
@@ -12030,6 +12033,19 @@ class ChatNotifier extends Notifier<ChatState> {
         batchToolResults: batchToolResults,
         executedToolResults: executedToolResults,
       );
+      // Remind the model what read-only context it already gathered so it does
+      // not re-list directories / re-read files across the loop (and after a
+      // recovery re-entry that resets the per-call dedup set).
+      final contextDigest = _toolLoopContextDigest.build(executedToolResults);
+      final trimmedAssistantContent = currentAssistantContent?.trim();
+      final followUpAssistantContent = contextDigest.isEmpty
+          ? currentAssistantContent
+          : [
+              if (trimmedAssistantContent != null &&
+                  trimmedAssistantContent.isNotEmpty)
+                trimmedAssistantContent,
+              contextDigest,
+            ].join('\n\n');
       final nextResult = await _createToolResultCompletionWithContextRetry(
         logLabel: 'tool-result follow-up',
         interactionGeneration: interactionGeneration,
@@ -12039,7 +12055,7 @@ class ChatNotifier extends Notifier<ChatState> {
           interactionGeneration: interactionGeneration,
         ),
         toolResults: followUpToolResults,
-        assistantContent: currentAssistantContent,
+        assistantContent: followUpAssistantContent,
         tools: tools,
       );
 
