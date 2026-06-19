@@ -147,6 +147,8 @@ void main() {
     await tester.tap(find.text('Code & Scripts'));
     await tester.pumpAndSettle();
 
+    expect(find.text('resolve_installed_dependency'), findsOneWidget);
+    expect(find.textContaining('local lockfiles'), findsOneWidget);
     expect(find.text('run_python_script'), findsOneWidget);
     expect(find.textContaining('analyze an attached image'), findsOneWidget);
   });

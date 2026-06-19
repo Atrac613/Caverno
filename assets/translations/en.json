@@ -816,6 +816,7 @@
     "tool_rollback_last_file_change": "Roll back the most recent local file change",
     "tool_find_files": "Find files by wildcard pattern in the local project",
     "tool_search_files": "Search text across local project files",
+    "tool_resolve_installed_dependency": "Resolve installed dependency APIs from local lockfiles",
     "tool_local_execute_command": "Execute a local shell command in the project",
     "tool_run_tests": "Run scoped Dart or Flutter tests in the project",
     "tool_run_python_script": "Write and run a Python script on-device to compute answers (e.g. analyze an attached image's metadata)",

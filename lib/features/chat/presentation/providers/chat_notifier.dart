@@ -1155,6 +1155,7 @@ class ChatNotifier extends Notifier<ChatState> {
       'read_file',
       'list_directory',
       'search_files',
+      'resolve_installed_dependency',
       'write_file',
       'edit_file',
       'local_execute_command',
@@ -7120,6 +7121,19 @@ class ChatNotifier extends Notifier<ChatState> {
         final resolvedArguments = <String, dynamic>{...arguments};
         if (resolvedPath != null) {
           resolvedArguments['path'] = resolvedPath;
+        }
+        return resolvedArguments;
+      }(),
+      'resolve_installed_dependency' => () {
+        final resolvedProjectPath = resolvePathArg(
+          'project_path',
+          allowEmpty: true,
+          aliases: const ['path', 'working_directory', 'cwd'],
+          fallbackWhenMissing: '.',
+        );
+        final resolvedArguments = <String, dynamic>{...arguments};
+        if (resolvedProjectPath != null) {
+          resolvedArguments['project_path'] = resolvedProjectPath;
         }
         return resolvedArguments;
       }(),

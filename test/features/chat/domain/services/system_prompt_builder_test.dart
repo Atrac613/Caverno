@@ -17,6 +17,7 @@ void main() {
         'list_directory',
         'read_file',
         'write_file',
+        'resolve_installed_dependency',
         'local_execute_command',
         'os_get_system_info',
         'os_log_read',
@@ -50,6 +51,10 @@ void main() {
       contains(
         'When analyzing Caverno LLM session logs, treat each JSONL line as a caverno_llm_session_log_entry object',
       ),
+    );
+    expect(
+      prompt,
+      contains('call resolve_installed_dependency before guessing'),
     );
     expect(
       prompt,
@@ -255,10 +260,7 @@ Dart symbols:
       isVoiceMode: true,
     );
 
-    expect(
-      normal,
-      contains('Use the minimum formatting needed for clarity.'),
-    );
+    expect(normal, contains('Use the minimum formatting needed for clarity.'));
     expect(
       voice,
       isNot(contains('Use the minimum formatting needed for clarity.')),

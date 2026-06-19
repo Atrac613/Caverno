@@ -53,6 +53,9 @@ class SystemPromptBuilder {
         uniqueToolNames.contains('inspect_file') ||
         uniqueToolNames.contains('find_files') ||
         uniqueToolNames.contains('search_files');
+    final hasDependencyGroundingTool = uniqueToolNames.contains(
+      'resolve_installed_dependency',
+    );
     final hasProjectWriteTools =
         uniqueToolNames.contains('write_file') ||
         uniqueToolNames.contains('edit_file');
@@ -237,6 +240,15 @@ class SystemPromptBuilder {
           'response.finishReason, response.toolCalls, and response.usage '
           'directly instead of assuming an OpenAI choices[] wrapper. Start '
           'with compact per-line metadata before deeper content reads.',
+        );
+      }
+      if (hasDependencyGroundingTool) {
+        buffer.writeln(
+          'When a coding task depends on a third-party API, package symbol, '
+          'import, or version-specific behavior, call '
+          'resolve_installed_dependency before guessing. Treat its offline '
+          'lockfile-matched source and docs as authoritative for installed '
+          'dependency APIs.',
         );
       }
       if (hasProjectWriteTools) {

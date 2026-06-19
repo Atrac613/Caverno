@@ -423,7 +423,76 @@ void main() {
       expect(functionNames, contains('inspect_file'));
       expect(functionNames, contains('find_files'));
       expect(functionNames, contains('search_files'));
+      expect(functionNames, contains('resolve_installed_dependency'));
     });
+
+    test(
+      'executes resolve_installed_dependency against local lockfiles',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'mcp_tool_service_dependency_grounding_test_',
+        );
+        addTearDown(() async {
+          if (tempDir.existsSync()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
+        final packageRoot = Directory('${tempDir.path}/cache/locked_dep-1.0.0')
+          ..createSync(recursive: true);
+        File(
+          '${packageRoot.path}/README.md',
+        ).writeAsStringSync('Locked dependency documentation.');
+        File('${packageRoot.path}/lib/locked_dep.dart')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('class LockedApi {}\n');
+        Directory('${tempDir.path}/.dart_tool').createSync();
+        File(
+          '${tempDir.path}/.dart_tool/package_config.json',
+        ).writeAsStringSync(
+          jsonEncode({
+            'configVersion': 2,
+            'packages': [
+              {
+                'name': 'locked_dep',
+                'rootUri': packageRoot.uri.toString(),
+                'packageUri': 'lib/',
+              },
+            ],
+          }),
+        );
+        File('${tempDir.path}/pubspec.lock').writeAsStringSync('''
+packages:
+  locked_dep:
+    dependency: transitive
+    description:
+      name: locked_dep
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
+''');
+
+        final service = McpToolService();
+        final result = await service.executeTool(
+          name: 'resolve_installed_dependency',
+          arguments: {
+            'project_path': tempDir.path,
+            'ecosystem': 'dart',
+            'package_name': 'locked_dep',
+            'symbol': 'LockedApi',
+          },
+        );
+
+        expect(result.isSuccess, isTrue);
+        final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+        expect(decoded['ok'], isTrue);
+        expect(decoded['offline_only'], isTrue);
+        expect(
+          (decoded['package'] as Map<String, dynamic>)['version'],
+          '1.0.0',
+        );
+        expect(decoded['matches'], isNotEmpty);
+      },
+    );
 
     test('inspect_file returns an overview and clamps head/tail', () async {
       final tempDir = await Directory.systemTemp.createTemp(

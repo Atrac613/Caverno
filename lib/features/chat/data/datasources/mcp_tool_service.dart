@@ -29,6 +29,7 @@ import 'conversation_search_tool.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'filesystem_tools.dart';
 import 'git_tools.dart';
+import 'installed_dependency_grounding_service.dart';
 import 'lan_scan_tools.dart';
 import 'local_shell_tools.dart';
 import 'mcp_client.dart';
@@ -81,6 +82,7 @@ class McpToolService {
     'rollback_last_file_change',
     'find_files',
     'search_files',
+    InstalledDependencyGroundingService.toolName,
     'local_execute_command',
     'process_start',
     'process_status',
@@ -145,9 +147,12 @@ class McpToolService {
     this.scriptRuntimeRegistry,
     this.backgroundProcessTools,
     this.backgroundProcessMonitorService,
+    InstalledDependencyGroundingService? dependencyGroundingService,
     this.semanticConversationRanker,
     this.disabledBuiltInTools = const {},
-  });
+  }) : dependencyGroundingService =
+           dependencyGroundingService ??
+           const InstalledDependencyGroundingService();
 
   final List<McpClientBase> mcpClients;
   final SearxngClient? searxngClient;
@@ -165,6 +170,7 @@ class McpToolService {
   final ScriptRuntimeRegistry? scriptRuntimeRegistry;
   final BackgroundProcessTools? backgroundProcessTools;
   final BackgroundProcessMonitorService? backgroundProcessMonitorService;
+  final InstalledDependencyGroundingService dependencyGroundingService;
 
   /// LL5: ranks conversation ids by semantic similarity for
   /// `search_past_conversations`. Null when semantic search is disabled, in
@@ -552,6 +558,7 @@ class McpToolService {
     _addIfEnabled(toolDefinitions, _inspectFileTool);
     _addIfEnabled(toolDefinitions, _findFilesTool);
     _addIfEnabled(toolDefinitions, _searchFilesTool);
+    _addIfEnabled(toolDefinitions, _resolveInstalledDependencyTool);
 
     // Mutating file tools stay desktop-only: writing arbitrary paths on a
     // sandboxed mobile OS is both risky and largely unusable.
@@ -1002,6 +1009,21 @@ class McpToolService {
         maxBytesScanned: maxBytesScanned,
       );
       return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == InstalledDependencyGroundingService.toolName) {
+      final result = await dependencyGroundingService.resolve(arguments);
+      final decoded = _tryDecodeMap(result);
+      final success = decoded == null || decoded['ok'] != false;
+      return McpToolResult(
+        toolName: name,
+        result: result,
+        isSuccess: success,
+        errorMessage: success
+            ? null
+            : (decoded['error'] as String? ??
+                  'Installed dependency grounding failed'),
+      );
     }
 
     if (name == 'local_execute_command') {
@@ -4306,6 +4328,51 @@ class McpToolService {
           },
         },
         'required': ['query'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _resolveInstalledDependencyTool => {
+    'type': 'function',
+    'function': {
+      'name': InstalledDependencyGroundingService.toolName,
+      'description':
+          'Resolve an installed dependency package or API symbol from the local project lockfile and installed source tree. Use this before guessing third-party APIs. The lookup is offline and returns only the locked installed version, never newer upstream docs.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'project_path': {
+            'type': 'string',
+            'description':
+                'Absolute or project-relative project root. Optional when a coding project is selected.',
+          },
+          'ecosystem': {
+            'type': 'string',
+            'description':
+                'Dependency ecosystem: auto, dart, node, python, or vendored.',
+          },
+          'package_name': {
+            'type': 'string',
+            'description':
+                'Dependency package name from the project lockfile, such as openai_dart, @scope/pkg, or requests.',
+          },
+          'symbol': {
+            'type': 'string',
+            'description':
+                'Optional API symbol, class, method, function, or import name to search inside the installed package source.',
+          },
+          'max_results': {
+            'type': 'integer',
+            'description':
+                'Maximum number of source matches to return (default: 12, max: 50).',
+          },
+          'max_chars': {
+            'type': 'integer',
+            'description':
+                'Maximum documentation excerpt size in characters (default: 12000, max: 60000).',
+          },
+        },
+        'required': <String>[],
       },
     },
   };

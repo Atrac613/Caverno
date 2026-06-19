@@ -339,6 +339,11 @@ class BuiltInToolRegistry {
       category: categoryCoding,
     ),
     BuiltInToolInfo(
+      name: 'resolve_installed_dependency',
+      descriptionKey: 'settings.tool_resolve_installed_dependency',
+      category: categoryCoding,
+    ),
+    BuiltInToolInfo(
       name: 'local_execute_command',
       descriptionKey: 'settings.tool_local_execute_command',
       category: categoryCoding,
