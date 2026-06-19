@@ -121,6 +121,22 @@ void main() {
     expect(prompt, isNot(contains('Project name: "caverno".')));
   });
 
+  test('includes the research-honesty instruction in every mode', () {
+    for (final mode in AssistantMode.values) {
+      final prompt = SystemPromptBuilder.build(
+        now: DateTime(2026, 4, 13, 10, 30),
+        assistantMode: mode,
+        languageCode: 'en',
+      );
+
+      expect(
+        prompt,
+        contains('Do not claim to have searched'),
+        reason: 'honesty instruction missing for $mode',
+      );
+    }
+  });
+
   test('includes repository map context in coding mode prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),

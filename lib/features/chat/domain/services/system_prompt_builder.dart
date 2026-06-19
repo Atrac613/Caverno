@@ -114,6 +114,7 @@ class SystemPromptBuilder {
 
     buffer
       ..writeln(SystemPromptConstants.knowledgeCutoffHumilityInstruction)
+      ..writeln(SystemPromptConstants.researchHonestyInstruction)
       ..writeln(SystemPromptConstants.coreAssistantPrompt)
       ..writeln(SystemPromptConstants.priorityInstruction)
       ..writeln(SystemPromptConstants.judgmentInstruction)
