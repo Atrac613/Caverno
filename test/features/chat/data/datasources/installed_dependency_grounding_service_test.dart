@@ -241,6 +241,37 @@ packages:
     },
   );
 
+  test('resolves a vendored dependency directory', () async {
+    final packageRoot = Directory.fromUri(
+      root.uri.resolve('third_party/legacy_vendor/'),
+    )..createSync(recursive: true);
+    File.fromUri(
+      packageRoot.uri.resolve('README.md'),
+    ).writeAsStringSync('Installed vendored docs mention LegacyVendorClient.');
+    File.fromUri(packageRoot.uri.resolve('lib/client.dart'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('class LegacyVendorClient {}\n');
+
+    final decoded =
+        jsonDecode(
+              await service.resolve({
+                'project_path': root.path,
+                'ecosystem': 'vendored',
+                'package_name': 'legacy_vendor',
+                'symbol': 'LegacyVendorClient',
+              }),
+            )
+            as Map<String, dynamic>;
+
+    expect(decoded['ok'], isTrue);
+    expect(decoded['ecosystem'], 'vendored');
+    expect(decoded['lockfile_accuracy'], 'vendored_directory');
+    expect(decoded['symbol_found'], isTrue);
+    final package = decoded['package'] as Map<String, dynamic>;
+    expect(package['name'], 'legacy_vendor');
+    expect(package['source'], 'vendored');
+  });
+
   test(
     'returns an error instead of using online docs for missing packages',
     () async {

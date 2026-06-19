@@ -530,6 +530,9 @@ class InstalledDependencyGroundingService {
       'source_files': files,
       'matches': matches,
       'symbol': symbol,
+      'symbol_found': symbol == null || symbol.trim().isEmpty
+          ? null
+          : matches.isNotEmpty,
       'guidance':
           'Use these installed files as the source of truth. Do not assume a newer upstream API than the locked version.',
     });

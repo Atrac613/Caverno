@@ -114,7 +114,7 @@ structurally unmotivated to build:
 | Local LLM | LL7 | done | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
 | Local LLM | LL8 | done | M | LL1 | LAN inference mesh: discover/register OpenAI-compatible endpoints and route secondary calls per role with health fallback. Main-conversation fan-out is a deferred follow-up. |
 | Local LLM | LL9 | done | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
-| Local LLM | LL10 | later | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
+| Local LLM | LL10 | done | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
 | Local LLM | LL11 | later | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
 | Local LLM | LL12 | done | M | LL3 | Personal eval harness: replay recorded real tasks to score new models. |
 | Local LLM | LL13 | later | L | F2, LL2 | Parallel agents in isolated git worktrees, optionally distributed over the LL8 mesh. |
@@ -910,6 +910,8 @@ Implementation status:
 
 ### LL10: Installed-Dependency Grounding
 
+Status: `done`
+
 Scope:
 - A built-in tool resolves a package or symbol to the exact installed
   version's source and docs from the project's lockfile: pub cache for Dart,
@@ -924,6 +926,46 @@ Acceptance criteria:
   version than the one installed).
 - Live coding canaries show reduced hallucinated-API failures on a
   weak-model profile.
+
+Task breakdown:
+- Add `InstalledDependencyGroundingService` as a read-only resolver for Dart
+  `pubspec.lock` + `.dart_tool/package_config.json` / pub cache, Node
+  `package-lock.json` + `node_modules`, Python requirements / Poetry /
+  Pipfile locks + venv site-packages, and vendored dependency directories.
+- Expose `resolve_installed_dependency` as a built-in MCP tool, project-root
+  argument resolver, built-in tool settings entry, and coding prompt guidance.
+- Return package version, lockfile accuracy source, installed root path,
+  documentation excerpt, source file overview, source matches, and
+  `symbol_found` so weak models can distinguish installed APIs from
+  future-only upstream APIs.
+- Add deterministic LL10 release-gate tooling that creates Dart, Node, Python,
+  and vendored dependency fixtures, verifies lockfile-exact installed API
+  lookup, symbol-only lookup, missing-package offline failure, prompt guidance,
+  and rejection of a future-only API symbol.
+
+Evidence:
+- Implementation commit: `ae445658` (`feat: add installed dependency grounding tool`).
+- Focused tests:
+  `fvm flutter test test/features/chat/data/datasources/installed_dependency_grounding_service_test.dart test/features/chat/data/datasources/mcp_tool_service_test.dart test/features/chat/domain/services/system_prompt_builder_test.dart test/features/settings/presentation/pages/tools_settings_page_test.dart`
+  passed.
+- Analyzer: `fvm flutter analyze` passed.
+- LL10 gate unit tests:
+  `fvm flutter test test/tool/ll10_dependency_grounding_release_gate_test.dart test/features/chat/data/datasources/installed_dependency_grounding_service_test.dart`
+  passed.
+- Release gate:
+  `tool/run_ll10_dependency_grounding_release_gate.sh` produced
+  `ready_for_ll10_release` with all gates ready.
+- Gate artifacts:
+  `build/integration_test_reports/ll10_dependency_grounding_release_gate_1781827998/release_gate.json`
+  and
+  `build/integration_test_reports/ll10_dependency_grounding_release_gate_1781827998/release_gate.md`.
+
+Deferred:
+- Optional F4 indexing of dependency sources for faster repeated lookup.
+- Full live weak-model comparison across real user tasks should move into the
+  LL19 personal eval suite once enough dependency-hallucination cases are
+  recorded. The LL10 gate locks the app-side grounding behavior and future-only
+  API rejection deterministically.
 
 ### LL11: LSP Bridge
 
