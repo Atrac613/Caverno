@@ -139,6 +139,8 @@ abstract class McpServerConfig with _$McpServerConfig {
     McpServerTrustState trustState,
     @Default('') String command,
     @Default(<String>[]) List<String> args,
+    @Default(<String, String>{}) Map<String, String> env,
+    @Default('') String sourceId,
     DateTime? trustedAt,
   }) = _McpServerConfig;
 
@@ -147,17 +149,29 @@ abstract class McpServerConfig with _$McpServerConfig {
 
   String get normalizedUrl => url.trim();
 
+  String get normalizedCommand => command.trim();
+
+  Map<String, String> get normalizedEnv {
+    final entries =
+        env.entries
+            .map((entry) => MapEntry(entry.key.trim(), entry.value.trim()))
+            .where((entry) => entry.key.isNotEmpty)
+            .toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
+    return Map<String, String>.fromEntries(entries);
+  }
+
   /// Whether this server configuration has enough data to attempt a connection.
   bool get isValid => switch (type) {
     McpServerType.http => normalizedUrl.isNotEmpty,
-    McpServerType.stdio => command.trim().isNotEmpty,
+    McpServerType.stdio => normalizedCommand.isNotEmpty,
   };
 
   /// Human-readable label for display and logging.
   String get displayLabel => switch (type) {
     McpServerType.http => normalizedUrl,
     McpServerType.stdio =>
-      args.isEmpty ? command.trim() : '${command.trim()} ${args.join(' ')}',
+      args.isEmpty ? normalizedCommand : '$normalizedCommand ${args.join(' ')}',
   };
 
   String get trustSourceLabel => switch (type) {
@@ -168,7 +182,8 @@ abstract class McpServerConfig with _$McpServerConfig {
   String get trustIdentity => switch (type) {
     McpServerType.http => 'http:${normalizedUrl.toLowerCase()}',
     McpServerType.stdio =>
-      'stdio:${command.trim().toLowerCase()}::${args.join('\u{1f}')}',
+      'stdio:${normalizedCommand.toLowerCase()}::${args.join('\u{1f}')}::'
+          '${normalizedEnv.entries.map((e) => '${e.key}=${e.value}').join('\u{1f}')}',
   };
 
   bool get isTrusted => trustState == McpServerTrustState.trusted;
@@ -178,6 +193,54 @@ abstract class McpServerConfig with _$McpServerConfig {
   bool get needsTrustReview => trustState == McpServerTrustState.pending;
 
   bool get exposesToolsToModel => enabled && isValid && isTrusted;
+}
+
+@freezed
+abstract class ExternalToolHook with _$ExternalToolHook {
+  const ExternalToolHook._();
+
+  const factory ExternalToolHook({
+    required String id,
+    @Default(true) bool enabled,
+    @Default('') String event,
+    @Default('') String command,
+    @Default(<String>[]) List<String> args,
+    @Default(<String, String>{}) Map<String, String> env,
+    @Default('') String sourceId,
+  }) = _ExternalToolHook;
+
+  factory ExternalToolHook.fromJson(Map<String, dynamic> json) =>
+      _$ExternalToolHookFromJson(json);
+
+  String get normalizedEvent => event.trim();
+
+  String get normalizedCommand => command.trim();
+
+  Map<String, String> get normalizedEnv {
+    final entries =
+        env.entries
+            .map((entry) => MapEntry(entry.key.trim(), entry.value.trim()))
+            .where((entry) => entry.key.isNotEmpty)
+            .toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
+    return Map<String, String>.fromEntries(entries);
+  }
+
+  bool get isUsable =>
+      enabled && normalizedEvent.isNotEmpty && normalizedCommand.isNotEmpty;
+
+  String get identity =>
+      '${normalizedEvent.toLowerCase()}::$normalizedCommand::'
+      '${args.join('\u{1f}')}::'
+      '${normalizedEnv.entries.map((e) => '${e.key}=${e.value}').join('\u{1f}')}';
+
+  ExternalToolHook normalizedForPersistence() => copyWith(
+    id: id.trim(),
+    event: normalizedEvent,
+    command: normalizedCommand,
+    env: normalizedEnv,
+    sourceId: sourceId.trim(),
+  );
 }
 
 @freezed
@@ -571,6 +634,27 @@ List<Map<String, dynamic>> _namedEndpointsToJson(
     .map((endpoint) => endpoint.normalizedForPersistence().toJson())
     .toList(growable: false);
 
+List<ExternalToolHook> _externalToolHooksFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const <ExternalToolHook>[];
+  }
+  return json
+      .whereType<Map>()
+      .map(
+        (item) => ExternalToolHook.fromJson(
+          Map<String, dynamic>.from(item),
+        ).normalizedForPersistence(),
+      )
+      .where((hook) => hook.id.trim().isNotEmpty)
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _externalToolHooksToJson(
+  List<ExternalToolHook> hooks,
+) => hooks
+    .map((hook) => hook.normalizedForPersistence().toJson())
+    .toList(growable: false);
+
 @freezed
 abstract class AppSettings with _$AppSettings {
   const AppSettings._();
@@ -605,6 +689,15 @@ abstract class AppSettings with _$AppSettings {
     @Default(<String>[]) List<String> mcpUrls,
     @Default(<McpServerConfig>[]) List<McpServerConfig> mcpServers,
     @Default(false) bool mcpEnabled,
+    @Default(false) bool externalSettingsSyncEnabled,
+    @Default('~/.caverno/config.json') String externalSettingsPath,
+    @Default(false) bool externalToolHooksEnabled,
+    @JsonKey(
+      fromJson: _externalToolHooksFromJson,
+      toJson: _externalToolHooksToJson,
+    )
+    @Default(<ExternalToolHook>[])
+    List<ExternalToolHook> externalToolHooks,
     // Voice settings
     @Default(true) bool ttsEnabled,
     @Default(false) bool autoReadEnabled,
@@ -708,6 +801,7 @@ abstract class AppSettings with _$AppSettings {
   static const int minCodingVerificationMaxFailures = 1;
   static const int maxCodingVerificationMaxFailures = 20;
   static const int defaultCodingVerificationMaxFailures = 5;
+  static const String defaultExternalSettingsPath = '~/.caverno/config.json';
   static const String appleFoundationModelsModelId =
       ApiConstants.appleFoundationModelsModelId;
 
@@ -902,6 +996,25 @@ abstract class AppSettings with _$AppSettings {
           )
           .toList(growable: false);
 
+  String get normalizedExternalSettingsPath => externalSettingsPath.trim();
+
+  bool get hasExternalSettingsPath => normalizedExternalSettingsPath.isNotEmpty;
+
+  List<ExternalToolHook> enabledExternalToolHooksFor(String event) {
+    if (!externalToolHooksEnabled) {
+      return const <ExternalToolHook>[];
+    }
+    final normalizedEvent = event.trim().toLowerCase();
+    return externalToolHooks
+        .map((hook) => hook.normalizedForPersistence())
+        .where(
+          (hook) =>
+              hook.isUsable &&
+              hook.normalizedEvent.toLowerCase() == normalizedEvent,
+        )
+        .toList(growable: false);
+  }
+
   List<McpServerConfig> get configuredMcpServers {
     if (mcpServers.isNotEmpty) {
       return List<McpServerConfig>.from(mcpServers);
@@ -922,7 +1035,7 @@ abstract class AppSettings with _$AppSettings {
 
     for (final server in effectiveMcpServers) {
       if (!server.enabled || !server.isValid || !server.isTrusted) continue;
-      final id = server.displayLabel;
+      final id = server.trustIdentity;
       if (!seenIds.add(id)) continue;
 
       enabledServers.add(
@@ -941,7 +1054,7 @@ abstract class AppSettings with _$AppSettings {
 
     for (final server in effectiveMcpServers) {
       if (!server.enabled || !server.isValid || server.isBlocked) continue;
-      final id = server.displayLabel;
+      final id = server.trustIdentity;
       if (!seenIds.add(id)) continue;
       connectableServers.add(
         server.type == McpServerType.http

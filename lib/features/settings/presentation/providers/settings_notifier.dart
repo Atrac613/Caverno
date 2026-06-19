@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
+import '../../data/external_settings_service.dart';
 import '../../data/settings_file_service.dart';
 import '../../data/settings_qr_service.dart';
 import '../../data/settings_repository.dart';
@@ -18,6 +21,12 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   return SettingsRepository(ref.watch(sharedPreferencesProvider));
 });
 
+final externalSettingsServiceProvider = Provider<ExternalSettingsService>((
+  ref,
+) {
+  return ExternalSettingsService();
+});
+
 final settingsNotifierProvider =
     NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
 
@@ -25,13 +34,20 @@ class SettingsNotifier extends Notifier<AppSettings> {
   late final SettingsRepository _repository;
   late final SettingsFileService _fileService;
   late final SettingsQrService _qrService;
+  late final ExternalSettingsService _externalSettingsService;
+  bool _isSyncingExternalSettings = false;
 
   @override
   AppSettings build() {
     _repository = ref.read(settingsRepositoryProvider);
     _fileService = ref.read(settingsFileServiceProvider);
     _qrService = ref.read(settingsQrServiceProvider);
-    return _repository.load();
+    _externalSettingsService = ref.read(externalSettingsServiceProvider);
+    final settings = _repository.load();
+    if (settings.externalSettingsSyncEnabled) {
+      unawaited(Future<void>.microtask(syncExternalSettings));
+    }
+    return settings;
   }
 
   Future<void> updateBaseUrl(String baseUrl) async {
@@ -572,6 +588,51 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateExternalSettingsSyncEnabled(bool enabled) async {
+    state = state.copyWith(externalSettingsSyncEnabled: enabled);
+    await _repository.save(state);
+    if (enabled) {
+      await syncExternalSettings();
+    }
+  }
+
+  Future<void> updateExternalToolHooksEnabled(bool enabled) async {
+    state = state.copyWith(externalToolHooksEnabled: enabled);
+    await _repository.save(state);
+  }
+
+  Future<void> updateExternalSettingsPath(String path) async {
+    state = state.copyWith(externalSettingsPath: path.trim());
+    await _repository.save(state);
+    if (state.externalSettingsSyncEnabled) {
+      await syncExternalSettings();
+    }
+  }
+
+  Future<void> applyAgentKbIntegrationPreset() async {
+    state = _externalSettingsService.applyAgentKbPreset(state);
+    await _repository.save(state);
+    await syncExternalSettings();
+  }
+
+  Future<bool> syncExternalSettings() async {
+    if (_isSyncingExternalSettings) {
+      return false;
+    }
+    _isSyncingExternalSettings = true;
+    try {
+      final synced = await _externalSettingsService.sync(state);
+      if (synced == state) {
+        return false;
+      }
+      state = synced;
+      await _repository.save(state);
+      return true;
+    } finally {
+      _isSyncingExternalSettings = false;
+    }
+  }
+
   // Voice settings
   Future<void> updateTtsEnabled(bool ttsEnabled) async {
     state = state.copyWith(ttsEnabled: ttsEnabled);
@@ -820,8 +881,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
     required McpServerConfig next,
   }) {
     final normalized = next.type == McpServerType.http
-        ? next.copyWith(url: next.normalizedUrl)
-        : next.copyWith(command: next.command.trim());
+        ? next.copyWith(url: next.normalizedUrl, sourceId: next.sourceId.trim())
+        : next.copyWith(
+            command: next.normalizedCommand,
+            env: next.normalizedEnv,
+            sourceId: next.sourceId.trim(),
+          );
 
     if (previous == null) {
       return normalized;

@@ -43,7 +43,11 @@ final mcpClientsProvider = Provider<List<McpClientBase>>((ref) {
       case McpServerType.stdio:
         if (isDesktop) {
           clients.add(
-            McpStdioClient(command: server.command.trim(), args: server.args),
+            McpStdioClient(
+              command: server.command.trim(),
+              args: server.args,
+              env: server.normalizedEnv,
+            ),
           );
         }
     }

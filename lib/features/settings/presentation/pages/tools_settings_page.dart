@@ -8,6 +8,7 @@ import '../../domain/entities/built_in_tool_info.dart';
 import '../providers/settings_notifier.dart';
 import '../../../remote_coding/presentation/remote_coding_settings_page.dart';
 import 'built_in_tools_settings_page.dart';
+import 'external_settings_page.dart';
 import 'local_command_permission_rules_page.dart';
 import 'mcp_servers_settings_page.dart';
 import 'routine_computer_use_allowlist_page.dart';
@@ -91,6 +92,7 @@ class ToolsSettingsPage extends ConsumerWidget {
           _buildLocalCommandPermissionRulesTile(context, settings),
           _buildRoutineComputerUseAllowlistTile(context, settings),
           _buildRemoteCodingTile(context),
+          _buildExternalSettingsTile(context, settings),
           _buildMcpServersTile(context, settings),
         ],
       ),
@@ -190,6 +192,26 @@ class ToolsSettingsPage extends ConsumerWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const McpServersSettingsPage()),
+      ),
+    );
+  }
+
+  Widget _buildExternalSettingsTile(
+    BuildContext context,
+    AppSettings settings,
+  ) {
+    final hookCount = settings.externalToolHooks.length;
+
+    return ListTile(
+      leading: const Icon(Icons.settings_input_component_outlined),
+      title: const Text('External Settings'),
+      subtitle: Text(
+        '${settings.normalizedExternalSettingsPath}, $hookCount hook(s)',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ExternalSettingsPage()),
       ),
     );
   }
@@ -358,8 +380,7 @@ class ToolsSettingsPage extends ConsumerWidget {
       ToolApprovalMode.defaultPermissions =>
         'settings.chat_approval_default'.tr(),
       ToolApprovalMode.autoReview => 'settings.chat_approval_auto_review'.tr(),
-      ToolApprovalMode.fullAccess =>
-        'settings.chat_approval_full_access'.tr(),
+      ToolApprovalMode.fullAccess => 'settings.chat_approval_full_access'.tr(),
     };
   }
 

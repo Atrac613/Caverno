@@ -115,6 +115,12 @@ _McpServerConfig _$McpServerConfigFromJson(Map<String, dynamic> json) =>
       args:
           (json['args'] as List<dynamic>?)?.map((e) => e as String).toList() ??
           const <String>[],
+      env:
+          (json['env'] as Map<String, dynamic>?)?.map(
+            (k, e) => MapEntry(k, e as String),
+          ) ??
+          const <String, String>{},
+      sourceId: json['sourceId'] as String? ?? '',
       trustedAt: json['trustedAt'] == null
           ? null
           : DateTime.parse(json['trustedAt'] as String),
@@ -128,6 +134,8 @@ Map<String, dynamic> _$McpServerConfigToJson(_McpServerConfig instance) =>
       'trustState': _$McpServerTrustStateEnumMap[instance.trustState]!,
       'command': instance.command,
       'args': instance.args,
+      'env': instance.env,
+      'sourceId': instance.sourceId,
       'trustedAt': instance.trustedAt?.toIso8601String(),
     };
 
@@ -141,6 +149,34 @@ const _$McpServerTrustStateEnumMap = {
   McpServerTrustState.trusted: 'trusted',
   McpServerTrustState.blocked: 'blocked',
 };
+
+_ExternalToolHook _$ExternalToolHookFromJson(Map<String, dynamic> json) =>
+    _ExternalToolHook(
+      id: json['id'] as String,
+      enabled: json['enabled'] as bool? ?? true,
+      event: json['event'] as String? ?? '',
+      command: json['command'] as String? ?? '',
+      args:
+          (json['args'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+          const <String>[],
+      env:
+          (json['env'] as Map<String, dynamic>?)?.map(
+            (k, e) => MapEntry(k, e as String),
+          ) ??
+          const <String, String>{},
+      sourceId: json['sourceId'] as String? ?? '',
+    );
+
+Map<String, dynamic> _$ExternalToolHookToJson(_ExternalToolHook instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'enabled': instance.enabled,
+      'event': instance.event,
+      'command': instance.command,
+      'args': instance.args,
+      'env': instance.env,
+      'sourceId': instance.sourceId,
+    };
 
 _ModelCapabilityProfile _$ModelCapabilityProfileFromJson(
   Map<String, dynamic> json,
@@ -377,6 +413,14 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
           .toList() ??
       const <McpServerConfig>[],
   mcpEnabled: json['mcpEnabled'] as bool? ?? false,
+  externalSettingsSyncEnabled:
+      json['externalSettingsSyncEnabled'] as bool? ?? false,
+  externalSettingsPath:
+      json['externalSettingsPath'] as String? ?? '~/.caverno/config.json',
+  externalToolHooksEnabled: json['externalToolHooksEnabled'] as bool? ?? false,
+  externalToolHooks: json['externalToolHooks'] == null
+      ? const <ExternalToolHook>[]
+      : _externalToolHooksFromJson(json['externalToolHooks'] as List?),
   ttsEnabled: json['ttsEnabled'] as bool? ?? true,
   autoReadEnabled: json['autoReadEnabled'] as bool? ?? false,
   speechRate: (json['speechRate'] as num?)?.toDouble() ?? 0.5,
@@ -506,6 +550,10 @@ Map<String, dynamic> _$AppSettingsToJson(
   'mcpUrls': instance.mcpUrls,
   'mcpServers': instance.mcpServers,
   'mcpEnabled': instance.mcpEnabled,
+  'externalSettingsSyncEnabled': instance.externalSettingsSyncEnabled,
+  'externalSettingsPath': instance.externalSettingsPath,
+  'externalToolHooksEnabled': instance.externalToolHooksEnabled,
+  'externalToolHooks': _externalToolHooksToJson(instance.externalToolHooks),
   'ttsEnabled': instance.ttsEnabled,
   'autoReadEnabled': instance.autoReadEnabled,
   'speechRate': instance.speechRate,

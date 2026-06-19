@@ -34,6 +34,7 @@ import '../../../settings/domain/services/llm_provider_capabilities.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';
 import '../../../settings/domain/services/llm_sampler_preset_profile.dart';
 import '../../../settings/domain/services/llm_sampler_runtime_feedback_service.dart';
+import '../../../settings/domain/services/external_tool_hook_service.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/apple_foundation_models_datasource.dart';
 import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
@@ -1969,6 +1970,47 @@ class ChatNotifier extends Notifier<ChatState> {
 
   String? _getActiveProjectRootPath() {
     return _getActiveCodingProject()?.rootPath.trim();
+  }
+
+  void _dispatchExternalToolHook(
+    String event, {
+    String? userMessage,
+    String? assistantMessage,
+    String? error,
+  }) {
+    final hooks = _settings.enabledExternalToolHooksFor(event);
+    if (hooks.isEmpty || !ref.mounted) {
+      return;
+    }
+
+    final conversationsState = ref.read(conversationsNotifierProvider);
+    final currentConversation = conversationsState.currentConversation;
+    final projectRoot = _getActiveProjectRootPath();
+    final payload = <String, dynamic>{
+      'hook_event_name': event,
+      'event': event,
+      'source_agent': 'caverno',
+      'session_id': currentConversation?.id ?? conversationId ?? '',
+      'conversation_id': currentConversation?.id ?? conversationId ?? '',
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'model': _settings.effectiveModel,
+      'base_url': _settings.baseUrl,
+      'assistant_mode': _resolveAssistantMode(
+        currentConversation: currentConversation,
+      ).name,
+      if (currentConversation != null)
+        'workspace_mode': currentConversation.workspaceMode.name,
+      if (projectRoot != null && projectRoot.isNotEmpty) 'cwd': projectRoot,
+      'prompt': ?userMessage,
+      'assistant_response': ?assistantMessage,
+      'error': ?error,
+    };
+
+    unawaited(
+      ref
+          .read(externalToolHookServiceProvider)
+          .dispatch(settings: _settings, event: event, payload: payload),
+    );
   }
 
   Future<void> _prewarmProjectAccess(String projectId) async {
@@ -7697,6 +7739,16 @@ class ChatNotifier extends Notifier<ChatState> {
       messages: state.messages,
     );
     _persistCurrentNonStreamingMessages();
+    if (isFirstTurn) {
+      _dispatchExternalToolHook(
+        'SessionStart',
+        userMessage: userMessage.content,
+      );
+    }
+    _dispatchExternalToolHook(
+      'UserPromptSubmit',
+      userMessage: userMessage.content,
+    );
 
     await conversationsNotifier.ensureCurrentPlanArtifactBackfilled();
     if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
@@ -16176,8 +16228,10 @@ class ChatNotifier extends Notifier<ChatState> {
     final lastMsg = finalizedLastMessage;
     if (lastMsg.role == MessageRole.assistant && lastMsg.content.isNotEmpty) {
       _onResponseCompleted(lastMsg.content);
+      _dispatchExternalToolHook('Stop', assistantMessage: lastMsg.content);
     } else {
       _onResponseCompleted('');
+      _dispatchExternalToolHook('Stop');
     }
     if (!_isCurrentInteractionGeneration(generation)) return;
     await _drainQueuedChatMessagesIfIdle();
@@ -16641,6 +16695,7 @@ class ChatNotifier extends Notifier<ChatState> {
       error: displayError,
     );
     _clearTurnDiffCapture();
+    _dispatchExternalToolHook('Stop', error: displayError);
   }
 
   String _buildDisplayError(String rawError) {
