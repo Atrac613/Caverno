@@ -23,6 +23,12 @@ class ToolDefinitionSearchService {
   static const defaultMaxResults = 8;
   static const maxResultsLimit = 20;
 
+  /// A query term appearing in more than this many searchable tools' text is
+  /// treated as generic (e.g. "device", "data", "get"): it no longer earns
+  /// description/parameter points, so a tool is not matched just because a
+  /// common word happens to recur in its docs. Name-level matches always count.
+  static const genericDescriptionTermToolThreshold = 4;
+
   static const Set<String> _searchToolNames = {
     'searxng_web_search',
     'web_search',
@@ -192,9 +198,16 @@ class ToolDefinitionSearchService {
     }
 
     final terms = _tokenize(normalizedQuery);
+    final searchable = _searchableDefinitions(definitions).toList(growable: false);
+    final genericTerms = _genericQueryTerms(searchable, terms);
     final scored = <_ScoredToolDefinition>[];
-    for (final definition in _searchableDefinitions(definitions)) {
-      final score = _scoreDefinition(definition, normalizedQuery, terms);
+    for (final definition in searchable) {
+      final score = _scoreDefinition(
+        definition,
+        normalizedQuery,
+        terms,
+        genericTerms,
+      );
       if (score <= 0) continue;
       scored.add(_ScoredToolDefinition(definition: definition, score: score));
     }
@@ -326,6 +339,7 @@ class ToolDefinitionSearchService {
     Map<String, dynamic> definition,
     String normalizedQuery,
     List<String> terms,
+    Set<String> genericTerms,
   ) {
     final function = definition['function'];
     if (function is! Map) return 0;
@@ -344,15 +358,55 @@ class ToolDefinitionSearchService {
     final nameParts = name.split(RegExp(r'[_\-\s]+')).toSet();
     for (final term in terms) {
       if (term.length <= 1) continue;
+      // Name-level matches always count: a term in the tool name is a strong
+      // signal regardless of how common the word is across the catalog.
       if (nameParts.contains(term)) {
         score += 50;
       } else if (name.contains(term)) {
         score += 30;
       }
+      // Description/parameter matches only count for discriminating terms, so a
+      // generic word recurring in many tools' docs cannot alone match a tool
+      // whose name and topical terms are unrelated to the query.
+      if (genericTerms.contains(term)) continue;
       if (description.contains(term)) score += 12;
       if (parameters.contains(term)) score += 4;
     }
     return score;
+  }
+
+  /// Query terms that appear in more than [genericDescriptionTermToolThreshold]
+  /// of the [searchable] tools' text — too common to discriminate, so their
+  /// description/parameter matches are ignored in [_scoreDefinition].
+  static Set<String> _genericQueryTerms(
+    List<Map<String, dynamic>> searchable,
+    List<String> terms,
+  ) {
+    if (searchable.length <= genericDescriptionTermToolThreshold) {
+      return const <String>{};
+    }
+    final texts = <String>[
+      for (final definition in searchable)
+        if (definition['function'] is Map)
+          _normalize(
+            '${(definition['function'] as Map)['name']} '
+            '${(definition['function'] as Map)['description']} '
+            '${jsonEncode((definition['function'] as Map)['parameters'] ?? const {})}',
+          ),
+    ];
+    final generic = <String>{};
+    for (final term in terms) {
+      if (term.length <= 1 || generic.contains(term)) continue;
+      var count = 0;
+      for (final text in texts) {
+        if (text.contains(term)) count += 1;
+        if (count > genericDescriptionTermToolThreshold) {
+          generic.add(term);
+          break;
+        }
+      }
+    }
+    return generic;
   }
 
   static String _normalize(String value) {

@@ -178,6 +178,71 @@ void main() {
       );
     });
 
+    test('does not match tools on a generic recurring term alone', () {
+      final definitions = [
+        for (var i = 0; i < 5; i++)
+          _tool('ble_op_$i', 'Operate on a connected BLE device by device_id.'),
+        _tool('read_file', 'Read a local project file.'),
+        ToolDefinitionSearchService.toolDefinition,
+      ];
+
+      final result = ToolDefinitionSearchService.searchToolDefinitions(
+        definitions: definitions,
+        query: 'gpu vram affordable device',
+      );
+      final decoded = jsonDecode(result) as Map<String, dynamic>;
+      final names = (decoded['matched_tools'] as List)
+          .map((match) => (match as Map)['name'])
+          .toList();
+
+      // "device" is generic (5 tools); gpu/vram/affordable match nothing, so
+      // the BLE tools are not surfaced for a GPU query.
+      expect(names, isEmpty);
+    });
+
+    test('still matches a tool by name when a query term is generic', () {
+      final definitions = [
+        for (var i = 0; i < 5; i++)
+          _tool('ble_op_$i', 'Operate on a connected BLE device by device_id.'),
+        _tool('device_inventory', 'List warehouse inventory items.'),
+        ToolDefinitionSearchService.toolDefinition,
+      ];
+
+      final result = ToolDefinitionSearchService.searchToolDefinitions(
+        definitions: definitions,
+        query: 'device inventory',
+      );
+      final decoded = jsonDecode(result) as Map<String, dynamic>;
+      final names = (decoded['matched_tools'] as List)
+          .map((match) => (match as Map)['name'])
+          .toList();
+
+      // Name-level matches still count even though "device" is generic.
+      expect(names.first, 'device_inventory');
+    });
+
+    test('matches a discriminating description term in a large catalog', () {
+      final definitions = [
+        for (var i = 0; i < 5; i++)
+          _tool('ble_op_$i', 'Operate on a connected BLE device by device_id.'),
+        _tool('query_database', 'Run a readonly SQL query.'),
+        ToolDefinitionSearchService.toolDefinition,
+      ];
+
+      final result = ToolDefinitionSearchService.searchToolDefinitions(
+        definitions: definitions,
+        query: 'sql',
+      );
+      final decoded = jsonDecode(result) as Map<String, dynamic>;
+      final names = (decoded['matched_tools'] as List)
+          .map((match) => (match as Map)['name'])
+          .toList();
+
+      // "sql" appears in a single tool, so it is discriminating and still
+      // matches by description alone.
+      expect(names, contains('query_database'));
+    });
+
     test('extracts discovered names from tool_search results', () {
       final result = ToolDefinitionSearchService.searchToolDefinitions(
         definitions: [_tool('query_database', 'Run a readonly SQL query.')],
