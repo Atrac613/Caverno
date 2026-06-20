@@ -62,6 +62,9 @@ void main() {
     expect(entry['sessionId'], 'session-1');
     expect((entry['arguments'] as Map)['selector'], '#next');
     expect(entry['timestamp'], isA<String>());
+    // SEC1: every recorded approval carries the classified capability.
+    expect(entry['capabilityClass'], 'browserControl');
+    expect(entry['capabilityRisk'], 'medium');
   });
 
   test('redacts secret-bearing argument values', () async {

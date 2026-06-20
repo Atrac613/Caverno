@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../security/tool_capability_classifier.dart';
 import '../utils/logger.dart';
 
 /// Retention bounds for the approval audit trail. Because entries are
@@ -83,7 +84,8 @@ class ToolApprovalAuditLog {
   final bool _enabled;
 
   static const schemaName = 'caverno_tool_approval_audit_entry';
-  static const schemaVersion = 1;
+  // v2 adds SEC1 capabilityClass / capabilityRisk fields.
+  static const schemaVersion = 2;
   static const directoryEnvironmentKey = 'CAVERNO_APPROVAL_AUDIT_DIR';
   static final RegExp _dayFilePattern = RegExp(
     r'^(\d{4})-(\d{2})-(\d{2})\.jsonl$',
@@ -109,6 +111,12 @@ class ToolApprovalAuditLog {
 
   static const int _maxStringLength = 240;
 
+  /// SEC1: classify the tool's capability so each recorded approval carries the
+  /// kind of action that was allowed (e.g. shell execution, network fetch),
+  /// independent of the approval verdict.
+  static const ToolCapabilityClassifier _capabilityClassifier =
+      ToolCapabilityClassifier();
+
   static bool get _isFlutterTest =>
       Platform.environment.containsKey('FLUTTER_TEST');
 
@@ -129,6 +137,7 @@ class ToolApprovalAuditLog {
   }) async {
     if (!_enabled) return;
     final now = timestamp ?? DateTime.now();
+    final capability = _capabilityClassifier.classify(tool);
     final entry = <String, dynamic>{
       'schemaName': schemaName,
       'schemaVersion': schemaVersion,
@@ -138,6 +147,8 @@ class ToolApprovalAuditLog {
       'domain': domain,
       'mode': mode,
       'outcome': outcome,
+      'capabilityClass': capability.capabilityClass.name,
+      'capabilityRisk': capability.riskTier.name,
       'decisionSource': ?decisionSource,
       if (rationale != null && rationale.trim().isNotEmpty)
         'rationale': rationale.trim(),

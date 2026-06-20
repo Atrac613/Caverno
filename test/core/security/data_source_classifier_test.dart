@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:caverno/features/chat/domain/services/data_source_classifier.dart';
+import 'package:caverno/core/security/data_source_classifier.dart';
 
 void main() {
   const classifier = DataSourceClassifier();

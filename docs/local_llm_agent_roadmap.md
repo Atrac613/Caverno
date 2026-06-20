@@ -2032,10 +2032,14 @@ Slice plan:
    audit call site) is already over its F1 ratchet budget (16.8k vs 15.5k), so
    the producer wiring waits on an F5 extraction or a new handler file rather
    than growing the god-file.
-4. Attach the descriptor to tool calls + approval display (acceptance
-   criterion 1) and enforce that untrusted document content is never elevated to
-   a user command (criterion 2), without weakening existing approvals
-   (criterion 3).
+4. Relocate the perimeter classifiers to `lib/core/security/` (cross-cutting)
+   and attach the classified capability to recorded approvals via the approval
+   audit trail — without touching the over-budget `chat_notifier.dart`. **done.**
+5. Surface the capability + data-source context in the live approval UI
+   (acceptance criterion 1's "display") and enforce that untrusted document
+   content is never elevated to a user command (criterion 2), without weakening
+   existing approvals (criterion 3). Blocked on freeing `chat_notifier.dart`
+   budget (F5) for the producer-side wiring.
 
 Slice 1 evidence:
 - `lib/features/chat/domain/services/tool_capability_classifier.dart`:
@@ -2075,6 +2079,20 @@ Slice 3 evidence:
   `chat_notifier.dart` and the approval widgets) cannot grow the already
   over-budget `chat_notifier.dart`; slice 4 must land a small extraction or a
   new handler file first.
+
+Slice 4 evidence:
+- Relocated the three classifiers (and their tests) to `lib/core/security/` so
+  the perimeter primitives are cross-cutting and `lib/core` no longer needs to
+  reach into the chat feature.
+- `lib/core/services/tool_approval_audit_log.dart` now classifies the recorded
+  tool and writes `capabilityClass` / `capabilityRisk` on every audited
+  approval (schema v2), so the audit trail carries the kind of action that was
+  allowed independent of the verdict. No chat_notifier change; the over-budget
+  god-file is untouched.
+- `test/core/services/tool_approval_audit_log_test.dart` asserts the new fields.
+- Note: the F1 ratchet is currently red for `chat_notifier.dart`,
+  `mcp_tool_service.dart`, and `chat_notifier_test.dart` (pre-existing F5 debt);
+  the live approval-UI display (criterion 1) waits on freeing that budget.
 
 ### SEC2: Taint-Aware Tool Execution
 

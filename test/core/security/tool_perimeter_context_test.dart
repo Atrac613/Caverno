@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:caverno/features/chat/domain/services/data_source_classifier.dart';
-import 'package:caverno/features/chat/domain/services/tool_capability_classifier.dart';
-import 'package:caverno/features/chat/domain/services/tool_perimeter_context.dart';
+import 'package:caverno/core/security/data_source_classifier.dart';
+import 'package:caverno/core/security/tool_capability_classifier.dart';
+import 'package:caverno/core/security/tool_perimeter_context.dart';
 
 void main() {
   const classifier = ToolPerimeterClassifier();
