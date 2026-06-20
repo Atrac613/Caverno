@@ -2026,10 +2026,16 @@ Slice plan:
 2. Data-source classification (user / project / dependency / generated /
    remote-web / mcp / untrusted-document / local-diagnostic) with a trust level,
    plus credential and prompt-injection content detectors. **done.**
-3. Attach capability + data-source context to tool calls and the approval
-   surface (acceptance criterion 1).
-4. Enforce that untrusted document content is never elevated to a user command
-   (acceptance criterion 2), without weakening existing approvals (criterion 3).
+3. Unify capability + data-source into one `ToolPerimeterContext` descriptor
+   with a display summary (pure aggregator). **done.** Wiring this into the live
+   approval surface / audit trail is blocked: `chat_notifier.dart` (the single
+   audit call site) is already over its F1 ratchet budget (16.8k vs 15.5k), so
+   the producer wiring waits on an F5 extraction or a new handler file rather
+   than growing the god-file.
+4. Attach the descriptor to tool calls + approval display (acceptance
+   criterion 1) and enforce that untrusted document content is never elevated to
+   a user command (criterion 2), without weakening existing approvals
+   (criterion 3).
 
 Slice 1 evidence:
 - `lib/features/chat/domain/services/tool_capability_classifier.dart`:
@@ -2056,6 +2062,19 @@ Slice 2 evidence:
   for later perimeter enforcement. Additive: nothing is wired yet.
 - `test/features/chat/domain/services/data_source_classifier_test.dart` covers
   provenance, trust mapping, credential detection, and injection detection.
+
+Slice 3 evidence:
+- `lib/features/chat/domain/services/tool_perimeter_context.dart`:
+  `ToolPerimeterContext` (capability + result provenance/trust +
+  `producesUntrustedContent` + a one-line `summary`) and a pure
+  `ToolPerimeterClassifier` composing the slice-1/2 classifiers. The summary is
+  the string the approval surface and audit trail will display.
+- `test/features/chat/domain/services/tool_perimeter_context_test.dart` covers
+  composition (shell, network fetch, MCP, project read) and the summary format.
+- Wiring blocker: the producer side (`_recordApprovalAudit` in
+  `chat_notifier.dart` and the approval widgets) cannot grow the already
+  over-budget `chat_notifier.dart`; slice 4 must land a small extraction or a
+  new handler file first.
 
 ### SEC2: Taint-Aware Tool Execution
 
