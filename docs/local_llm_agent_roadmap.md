@@ -2133,10 +2133,26 @@ Slice plan:
 2. Conversation taint-state tracker (pure): accumulate the trust levels of
    evidence entering the turn so the approval boundary can ask "did untrusted
    content influence this call?". **done.**
-3. Honor the decision at the approval/execution boundary (mandatory
-   non-cacheable approval or block) and feed findings into the audit trail;
-   keep taint metadata across compaction / model-switch handoff. (Wiring slice —
-   behavioral; verify on a live run before relying on it.)
+3a. Taint-aware auto-review: feed `hasUntrustedInfluence` into the approval
+    auto-review packet so the LLM reviewer denies a privileged action that
+    untrusted content may be driving. Escalation-via-reviewer only (no new hard
+    block), so no default is weakened. **done.**
+3b. Honor `TaintDecision` directly at the approval/execution boundary (mandatory
+    non-cacheable approval or hard block) and feed findings into the audit
+    trail; keep taint metadata across compaction / model-switch handoff. (Hard
+    behavioral gate — verify on a live run before relying on it.)
+
+Slice 3a evidence:
+- `ConversationTaintState` is held on `ChatNotifier`, reset per turn, and fed
+  each executed tool result in the loop. `_buildAutoReviewRequest` passes
+  `hasUntrustedInfluence`, and `ToolApprovalAutoReviewService` emits
+  `action.untrustedInfluence` plus an instruction to deny privileged
+  write/shell/network actions that untrusted content may be driving unless the
+  user clearly asked. Escalation-only: the reviewer already gates, so this
+  cannot weaken a default. chat_notifier.dart grew 7 lines (15,253), still under
+  its ratcheted budget.
+- `test/features/chat/domain/services/tool_approval_auto_review_service_test.dart`
+  asserts `untrustedInfluence` is surfaced for tainted vs untainted turns.
 
 Slice 1 evidence:
 - `lib/core/security/taint_policy.dart`: `TaintDecision` (allow / requireApproval

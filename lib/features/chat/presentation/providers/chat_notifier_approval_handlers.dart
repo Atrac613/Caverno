@@ -162,6 +162,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
       conversationTail: ToolApprovalAutoReviewService.buildConversationTail(
         state.messages,
       ),
+      hasUntrustedInfluence: _conversationTaintState.hasUntrustedInfluence,
     );
   }
 

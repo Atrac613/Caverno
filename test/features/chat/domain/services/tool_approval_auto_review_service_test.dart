@@ -95,5 +95,28 @@ void main() {
       final capability = capabilityFor('http_get');
       expect(capability['producesUntrustedContent'], isTrue);
     });
+
+    Map<String, dynamic> packetFor({required bool hasUntrustedInfluence}) {
+      final messages = ToolApprovalAutoReviewService.buildMessages(
+        ToolApprovalAutoReviewRequest(
+          actionKind: 'local_execute_command',
+          toolName: 'local_execute_command',
+          arguments: const {'command': 'rm -rf build'},
+          conversationTail: const [],
+          hasUntrustedInfluence: hasUntrustedInfluence,
+        ),
+      );
+      final user = messages.firstWhere((m) => m.role == MessageRole.user);
+      return (jsonDecode(user.content) as Map<String, dynamic>)['action']
+          as Map<String, dynamic>;
+    }
+
+    test('surfaces SEC2 untrusted influence in the review packet', () {
+      expect(packetFor(hasUntrustedInfluence: true)['untrustedInfluence'], isTrue);
+      expect(
+        packetFor(hasUntrustedInfluence: false)['untrustedInfluence'],
+        isFalse,
+      );
+    });
   });
 }

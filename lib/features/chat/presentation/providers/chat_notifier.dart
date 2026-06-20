@@ -66,6 +66,7 @@ import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../domain/services/tool_approval_gate.dart';
+import '../../../../core/security/conversation_taint_state.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/coding_command_output_guardrail_service.dart';
@@ -304,6 +305,10 @@ class ChatNotifier extends Notifier<ChatState> {
   final PlanningToolPolicy _planningToolPolicy = const PlanningToolPolicy();
   final ToolLoopContextDigest _toolLoopContextDigest =
       const ToolLoopContextDigest();
+
+  /// SEC2: accumulates the trust levels of evidence entering the current turn so
+  /// the approval auto-reviewer is told when untrusted content is in context.
+  final ConversationTaintState _conversationTaintState = ConversationTaintState();
   String? conversationId;
   String _languageCode = 'en';
   String? _sessionMemoryContext;
@@ -708,6 +713,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _executedContentToolCalls.clear();
       _seenContentToolCallHashes.clear();
       _toolApprovalCache.clear();
+      _conversationTaintState.reset();
       _pendingContentToolResults.clear();
       _pendingContentToolContinuationFallback = null;
       _pendingToolExecutions.clear();
@@ -10445,6 +10451,7 @@ class ChatNotifier extends Notifier<ChatState> {
         );
         batchToolResults.add(promptToolResult);
         executedToolResults.add(batchToolResults.last);
+        _conversationTaintState.recordToolResult(toolCall.name);
         _recordBackgroundProcessStartResult(promptToolResult);
         await _recordModelEditApplyTelemetry(promptToolResult);
 
