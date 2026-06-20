@@ -32,6 +32,9 @@ It also records a future platform vision layer. These milestones are deliberatel
   screen recordings.
 - `MCP-GOV<number>` — MCP tool contract governance, trust registry, and
   model-specific tool-prompt optimization.
+- `THREAT<number>` — Endpoint threat posture: agent-as-malware-vector
+  hardening, read-only host compromise triage, and idle-time local
+  threat-intelligence pre-learning.
 
 ## Design Thesis
 
@@ -97,6 +100,18 @@ structurally unmotivated to build:
     accessibility output, and screen recordings should become first-class
     evidence objects that can be cited, diffed, redacted, and routed through the
     same trace and permission model as text and tool results.
+14. **The agent's own tool surface is an endpoint-security boundary.** A local
+    agent that runs shell, fetches URLs, and writes files is the same delivery
+    path attackers now target directly: a `curl`-to-shell or
+    download-then-execute that an auto-approving agent runs is indistinguishable
+    from a user doing it (the AMOS Stealer macOS variant arrived exactly this
+    way). Caverno should both harden that path — never silently auto-approve
+    network-fetch-then-execute or persistence writes — and turn its free local
+    token budget toward the inverse problem: distilling public vulnerability and
+    malware intelligence into a local knowledge base that informs read-only host
+    triage. Vulnerability intel (what is patchable) and threat/IoC intel (what
+    infection looks like) are different axes, and neither is the model's stale
+    training data.
 
 ## Milestone Index
 
@@ -160,6 +175,9 @@ structurally unmotivated to build:
 | MCP Governance | MCP-GOV1 | later | M | SEC1, LL3 | MCP tool contract linter for schema clarity, dangerous capability detection, and weak-model tool-selection quality. |
 | MCP Governance | MCP-GOV2 | later | M | MCP-GOV1, SEC1 | Tool trust registry with server trust levels, capability classes, and approval policy defaults. |
 | MCP Governance | MCP-GOV3 | later | S-M | MCP-GOV1, LL3 | Model-specific tool prompt optimizer for compressing and specializing tool descriptions per model profile. |
+| Threat Posture | THREAT1 | later | M | F2, SEC1, SEC2 | Agent-as-malware-vector hardening: non-cacheable approval plus explicit resolved-command and destination-domain review for network-fetch-then-execute and persistence-write shapes in `local_shell`. |
+| Threat Posture | THREAT2 | later | M | F2, SEC1 | Read-only host compromise triage: a fixed-command `host_security_snapshot` IoC collector, a routine allowlist entry, and an AMOS-style TTP triage prompt/mode. |
+| Threat Posture | THREAT3 | later | L | THREAT2, LL10, LL18, LL5, SEC1 | Local threat-intelligence pre-learning: idle-orchestrated ingestion of CISA KEV / scoped NVD CVE feeds and malware advisories, map-reduced into a provenance-tracked local KB that feeds THREAT2 triage and installed-software vulnerability matching. |
 
 Size legend: S = days, M = one to a few weeks of slices, L = multi-week.
 
@@ -286,6 +304,10 @@ land before expanding automatic tool execution; OBS1 should land before
 productizing broader unattended agent-farm scheduling. HOOK1 can land
 independently, but HOOK2 should wait for enough trace visibility to debug
 tool-event side effects, and HOOK3 should wait for SEC1 trust boundaries.
+THREAT1 (agent-as-vector hardening) builds directly on the SEC1/SEC2 perimeter;
+THREAT2 host triage can ship its read-only snapshot independently, but THREAT3
+intel pre-learning waits for the LL18 idle orchestrator and the LL10
+installed-dependency inventory.
 
 ### Phase 9 — Local model/library operations (MLIB, MCP-GOV)
 
@@ -2487,6 +2509,113 @@ Acceptance criteria:
   fixtures.
 - Adopted prompt variants are traceable and revertible.
 
+### THREAT1: Agent-As-Malware-Vector Hardening
+
+Status: `later`
+
+Context:
+- Recent macOS infostealer campaigns (the AMOS Stealer macOS variant, first seen
+  April 2026) are delivered not through an exploit but through an auto-approving
+  AI coding agent that fetched and ran an obfuscated payload during a software
+  install/update — the malicious `curl` sat between ordinary agent commands in
+  `.zhistory`. Caverno's `local_shell` is the same delivery surface.
+- `local_shell_tools` already blocks shell *syntax* tokens (`| ; > < \` $`
+  newline), which happens to defeat the classic `curl … | sh` one-liner, but it
+  has no command-name policy, so a two-step `curl -o /tmp/x` then `sh /tmp/x`
+  still passes, and `ToolApprovalCache` can make the second occurrence silent.
+
+Scope:
+- Detect high-risk command shapes regardless of the approval cache: network
+  fetch (`curl`/`wget`/`nscurl`/`osascript -e <url>`), execution of a freshly
+  written file in `/tmp`, `~/Downloads`, or other world-writable paths, and
+  writes to persistence locations (`~/Library/LaunchAgents`, `/Library/Launch*`,
+  login items, cron/`launchd` plists).
+- Force these shapes through a non-cacheable, full approval that shows the
+  resolved command and the destination host/domain, warning when the domain is
+  unfamiliar (the fake-official-site SEO delivery vector).
+- Reuse the SEC1 capability/data-source classification and SEC2 taint hooks so
+  the escalation is policy-driven, not a special case bolted onto one tool.
+
+Acceptance criteria:
+- A fetch-then-execute or persistence-write command never resolves from the
+  approval cache and always renders its resolved form plus destination.
+- Existing benign commands keep their current approval/caching behavior.
+- The hardening is enforced by tests against representative malicious shapes,
+  including the two-step download/execute pattern.
+
+### THREAT2: Read-Only Host Compromise Triage
+
+Status: `later`
+
+Scope:
+- Add a fixed-command, read-only `host_security_snapshot` built-in tool that
+  collects endpoint IoC signal without exposing generic shell: launch
+  agents/daemons and login items with code-signing/notarization status of their
+  target binaries, recent process tree, listening/outbound sockets,
+  Gatekeeper/SIP state, loaded kexts, configuration profiles, and shell-history
+  download-then-execute remnants.
+- Return structured, provenance-labeled output (command, host, timestamp) sized
+  to the model profile budget; never persist the raw output to the session log
+  store (PII/token hygiene).
+- Add the tool to the `RoutineToolPolicy` read-only allowlist so an unattended
+  routine can capture a periodic snapshot and dispatch anomalies through
+  `RoutineCompletionActionService`.
+- Provide an AMOS-style triage prompt/assistant mode that reasons over the
+  snapshot: e.g. flag a `com.apple.*`-named LaunchAgent whose target binary is
+  not Apple-signed, an unexpected PTY/remote-control helper, or a wiped-log gap.
+
+Acceptance criteria:
+- The snapshot tool runs only the fixed command set, performs no writes, and is
+  safe to run unattended in a routine.
+- The triage surfaces the canonical AMOS persistence pattern in a fixture.
+- Snapshot output is never written to the session log store.
+
+Honest limitations (recorded, not solved here):
+- LLM triage is signal interpretation, not detection; it complements XProtect /
+  EDR and keeps a human in the loop. Mature malware wipes logs, so the durable
+  wins are signature-mismatch persistence and history remnants, not log replay.
+
+### THREAT3: Local Threat-Intelligence Pre-Learning
+
+Status: `later`
+
+Thesis:
+- This is the strongest fit for the local "tokens are free" + idle-compute
+  thesis: ingest large public feeds overnight and map-reduce them into a compact
+  local KB, with no API cost and without shipping the machine's software
+  inventory or fingerprint to a cloud service.
+- Two distinct intel axes, deliberately not merged:
+  - Vulnerability intel (CISA KEV, scoped NVD CVE) answers "what on this box is
+    patchable/exploitable" and is matched against the LL10 installed-dependency
+    inventory.
+  - Threat/IoC intel (malware advisories, vendor writeups) answers "what
+    infection looks like" and feeds the THREAT2 triage with current TTPs/IoCs.
+- Disambiguation is a first-class requirement, illustrated by CVE-2021-32570:
+  its "AMOS" is Ericsson Network Manager's CLI (CWE-532, log-file info leak),
+  unrelated to AMOS Stealer malware. Naive free-text ingestion would conflate
+  the two; extracted records must carry product/CPE identity, source URL, and
+  hash so the KB grounds on identity, not string match.
+
+Scope:
+- An idle-orchestrated (LL18) ingestion job pulls scoped feeds (KEV first as the
+  small high-signal set; CVEs filtered to installed software via LL10; macOS /
+  Apple advisories), distills each source into structured records, and stores
+  them with provenance in the F4/LL5 database (embeddings for retrieval).
+- Bounded volume: scope by installed inventory and KEV rather than the full NVD
+  firehose; re-summarize incrementally as the KB grows (map-reduce, not
+  stuff-the-context).
+- A morning report surfaces new exploited-in-the-wild items affecting installed
+  software and any new IoCs added to the THREAT2 triage knowledge.
+
+Acceptance criteria:
+- Every KB record carries source URL, fetch hash, and affected-product identity;
+  records with unknown product identity are marked, never guessed.
+- Ingested intel is SEC1 untrusted content: it can inform triage and the report
+  but never becomes an instruction that authorizes a tool call (prompt-injection
+  resistance verified in a fixture with a hostile "advisory").
+- The job runs only under LL18 idle/power/window gates and the RoutineToolPolicy
+  trust model, and adds no token cost to interactive turns.
+
 ## Cross-Cutting Rules
 
 - All tracks obey the F1 ratchet: no milestone may push a budgeted file past
@@ -2517,6 +2646,10 @@ Acceptance criteria:
   endpoint path.
 - Multimodal evidence inherits SEC1 data classifications and OBS1 trace links;
   OCR or visual interpretation is evidence, not authority.
+- Threat-posture milestones treat every external intelligence feed (CVE, KEV,
+  advisories) as SEC1 untrusted content: ingested intel informs triage but never
+  becomes an instruction with tool authority, and host triage tools (THREAT2)
+  stay strictly read-only.
 
 ## Appendix: llama.cpp Server Capability Reference
 
