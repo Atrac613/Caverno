@@ -147,7 +147,7 @@ structurally unmotivated to build:
 | Local LLM | LL23 | done | M | LL3, LL6 | Declared per-model harness config: instruction surfaces (bootstrap/verify/recovery) and runtime control policy (loop caps, recovery middleware) as a mutable schema LL17 edits. Focused coding-goal repeat canary is green; broad main-gate PM5 still blocks on saved-validation command preservation and active-task target-scope drift. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
-| Security | SEC1 | later | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
+| Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
 | Security | SEC2 | later | M | SEC1, LL23 | Taint-aware tool execution: surface when untrusted evidence influences a privileged tool call. |
 | Security | SEC3 | later | S-M | SEC1, MCP-GOV2 | MCP permission diff and audit view for server/tool changes. |
 | Model Library | MLIB1 | later | M | LL3, LL9 | Local Model Pack Manifest: provenance, checksum, quantization, license, and verified capability metadata per local model artifact. |
@@ -2005,7 +2005,7 @@ Acceptance criteria:
 
 ### SEC1: Local Agent Data Perimeter
 
-Status: `later`
+Status: `current`
 
 Scope:
 - Classify data sources such as user instructions, project source, dependency
@@ -2020,6 +2020,28 @@ Acceptance criteria:
 - High-risk tool calls display the relevant capability and data-source context.
 - Untrusted document content is never treated as equivalent to a user command.
 - Existing approval flows continue to work with no weaker default policy.
+
+Slice plan:
+1. Tool capability classification (pure domain model). **done.**
+2. Data-source classification (user / project / dependency / generated /
+   remote-web / mcp / untrusted-document / credential / executable-instruction).
+3. Attach capability + data-source context to tool calls and the approval
+   surface (acceptance criterion 1).
+4. Enforce that untrusted document content is never elevated to a user command
+   (acceptance criterion 2), without weakening existing approvals (criterion 3).
+
+Slice 1 evidence:
+- `lib/features/chat/domain/services/tool_capability_classifier.dart`:
+  `ToolCapabilityClass` (file write, shell, code execution, network fetch, git
+  write, SSH, memory write, clipboard, notification, Remote Coding, browser,
+  computer-use, device control, read-only inspection) plus `ToolRiskTier` and a
+  pure `ToolCapabilityClassifier`. High-risk tiers are aligned with the existing
+  approval-gated set so the classifier does not silently re-rank current
+  behavior (criterion 3). Pure and additive: nothing is wired yet, so no
+  approval/execution path changes.
+- `test/features/chat/domain/services/tool_capability_classifier_test.dart`
+  covers each capability class, risk tier, and the `mutatesState` /
+  `accessesNetwork` derived properties.
 
 ### SEC2: Taint-Aware Tool Execution
 
