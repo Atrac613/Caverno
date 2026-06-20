@@ -2130,11 +2130,13 @@ Acceptance criteria:
 Slice plan:
 1. Pure taint-decision policy over SEC1 capability + influencing trust levels.
    **done.**
-2. Track which influencing evidence (by data source / trust) reached a tool call
-   — taint propagation through the tool-result → message pipeline.
+2. Conversation taint-state tracker (pure): accumulate the trust levels of
+   evidence entering the turn so the approval boundary can ask "did untrusted
+   content influence this call?". **done.**
 3. Honor the decision at the approval/execution boundary (mandatory
    non-cacheable approval or block) and feed findings into the audit trail;
-   keep taint metadata across compaction / model-switch handoff.
+   keep taint metadata across compaction / model-switch handoff. (Wiring slice —
+   behavioral; verify on a live run before relying on it.)
 
 Slice 1 evidence:
 - `lib/core/security/taint_policy.dart`: `TaintDecision` (allow / requireApproval
@@ -2146,6 +2148,17 @@ Slice 1 evidence:
   advisory — no execution path is wired yet, so no default is weakened.
 - `test/core/security/taint_policy_test.dart` covers untainted allow, read-only
   pass-through, high-risk block, medium escalation, and mixed-trust influence.
+
+Slice 2 evidence:
+- `lib/core/security/conversation_taint_state.dart`: `ConversationTaintState`
+  accumulates the `TrustLevel`s of evidence entering a turn (via
+  `recordToolResult` / `recordTrust`) and exposes `influencingTrustLevels` and
+  `hasUntrustedInfluence` for `TaintPolicy.assess`. Conservative: any untrusted
+  evidence in the turn is treated as potentially influencing the next call. Pure
+  and in-memory.
+- `test/core/security/conversation_taint_state_test.dart` covers clean start,
+  local-read no-taint, web-fetch / MCP taint, explicit trust, reset, and the
+  unmodifiable view.
 
 ### SEC3: MCP Permission Diff And Audit View
 
