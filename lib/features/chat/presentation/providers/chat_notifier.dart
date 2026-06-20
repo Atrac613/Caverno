@@ -66,7 +66,6 @@ import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../domain/services/tool_approval_gate.dart';
-import '../../domain/services/research_followup_detector.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/coding_command_output_guardrail_service.dart';
@@ -299,13 +298,6 @@ class ChatNotifier extends Notifier<ChatState> {
   final PlanningToolPolicy _planningToolPolicy = const PlanningToolPolicy();
   final ToolLoopContextDigest _toolLoopContextDigest =
       const ToolLoopContextDigest();
-  final ResearchFollowupDetector _researchFollowupDetector =
-      const ResearchFollowupDetector();
-
-  /// Whether this turn already attempted the non-coding research follow-up
-  /// recovery (announced a lookup but issued no tool call). Bounded to once per
-  /// turn; reset at turn start.
-  bool _attemptedResearchFollowupRecovery = false;
   String? conversationId;
   String _languageCode = 'en';
   String? _sessionMemoryContext;
@@ -710,7 +702,6 @@ class ChatNotifier extends Notifier<ChatState> {
       _executedContentToolCalls.clear();
       _seenContentToolCallHashes.clear();
       _toolApprovalCache.clear();
-      _attemptedResearchFollowupRecovery = false;
       _pendingContentToolResults.clear();
       _pendingContentToolContinuationFallback = null;
       _pendingToolExecutions.clear();
@@ -1128,102 +1119,6 @@ class ChatNotifier extends Notifier<ChatState> {
       assistantContent: candidateResponse.isNotEmpty ? candidateResponse : null,
       tools: tools,
     );
-  }
-
-  /// Non-coding counterpart to [_requestCodingContinuationRecovery]: when a chat
-  /// answer announces a read-only lookup ("I'll look it up" / "調べます") but
-  /// issues no tool call, and a web tool is available, re-prompt the model to
-  /// actually perform the lookup. Coding mode keeps its own recovery, so this is
-  /// limited to non-coding to avoid double recovery (and to stay away from the
-  /// release-approval pauses that live in coding flows). Returns null when it
-  /// should not fire.
-  Future<ChatCompletionResult?> _requestResearchFollowupRecovery({
-    required String candidateResponse,
-    required List<Map<String, dynamic>> tools,
-    required int interactionGeneration,
-  }) {
-    final candidate = candidateResponse.trim();
-    if (candidate.isEmpty || _isCodingWorkspaceOrMode()) {
-      return Future<ChatCompletionResult?>.value(null);
-    }
-    if (!_researchFollowupDetector.looksLikeUnactionedResearch(candidate) ||
-        !_hasWebLookupTool(tools)) {
-      return Future<ChatCompletionResult?>.value(null);
-    }
-
-    appLog('[Tool] Requesting research follow-up recovery');
-    final recoveryToolResult = ToolResultInfo(
-      id: 'research_followup_${DateTime.now().microsecondsSinceEpoch}',
-      name: 'research_followup_recovery',
-      arguments: const {'reason': 'announced_lookup_without_tool_call'},
-      result: jsonEncode({
-        'ok': false,
-        'code': 'announced_lookup_without_tool_call',
-        'error':
-            'The assistant said it would look up information, but issued no '
-            'tool call.',
-        'claimedResponse': _clipForDiagnostic(candidate),
-        'requiredAction':
-            'Use an available web tool now (e.g. browser_open then '
-            'browser_get_content, or http_get) to perform the lookup, or state '
-            'plainly that no web-search capability is available.',
-      }),
-    );
-    List<Message> buildRecoveryMessages(bool forceCompaction) {
-      final messages = _prepareMessagesForLLM(
-        forceCompaction: forceCompaction,
-        toolDefinitionsOverride: tools,
-        interactionGeneration: interactionGeneration,
-      );
-      messages.add(
-        Message(
-          id: 'research_followup_recovery_'
-              '${DateTime.now().millisecondsSinceEpoch}',
-          role: MessageRole.user,
-          content: [
-            'The previous response said it would look up information, but no '
-                'tool call was issued.',
-            'Use an available web tool now (e.g. browser_open then '
-                'browser_get_content, or http_get) to actually perform the '
-                'lookup.',
-            'If no web-search capability is available, say so plainly instead '
-                'of promising a future lookup.',
-            'Do not answer with future-tense prose.',
-            'Previous response: ${_clipForDiagnostic(candidate)}',
-          ].join('\n'),
-          timestamp: DateTime.now(),
-        ),
-      );
-      return messages;
-    }
-
-    return _createToolResultCompletionWithContextRetry(
-      logLabel: 'research follow-up recovery',
-      interactionGeneration: interactionGeneration,
-      buildMessages: buildRecoveryMessages,
-      toolResults: [recoveryToolResult],
-      assistantContent: candidate,
-      tools: tools,
-    );
-  }
-
-  /// Whether [tools] include a tool that can fetch information from the web.
-  bool _hasWebLookupTool(List<Map<String, dynamic>> tools) {
-    const webToolNames = <String>{
-      'browser_open',
-      'browser_get_content',
-      'browser_navigate',
-      'browser_snapshot',
-      'http_get',
-      'http_head',
-      'http_status',
-      'searxng_web_search',
-      'web_search',
-      'web_url_read',
-    };
-    return ToolDefinitionSearchService.toolNamesFromDefinitions(tools)
-        .map((name) => name.trim().toLowerCase())
-        .any(webToolNames.contains);
   }
 
   String? _codingContinuationRecoveryCode({
@@ -9986,47 +9881,6 @@ class ChatNotifier extends Notifier<ChatState> {
           _recordHiddenAssistantResponse(
             codingContinuationRecoveryResult.content,
           );
-        }
-        if (!_attemptedResearchFollowupRecovery) {
-          final researchRecoveryResult = await _requestResearchFollowupRecovery(
-            candidateResponse: hiddenAssistantEvidence,
-            tools: initialToolSelection.toolDefinitions,
-            interactionGeneration: generation,
-          );
-          if (!_isCurrentInteractionGeneration(generation)) return;
-          if (!ref.mounted) return;
-          if (researchRecoveryResult != null) {
-            _attemptedResearchFollowupRecovery = true;
-            recordHiddenAssistantEvidenceOnce();
-            if (researchRecoveryResult.hasToolCalls) {
-              appLog('[Tool] Research follow-up recovery requested tool calls');
-              _removeAssistantStreamDeltaForGeneration(
-                generation: generation,
-                messageIndex: streamedMessageIndex,
-                startingLength: streamedContentStart,
-              );
-              final recoveredToolNames = researchRecoveryResult.toolCalls!.map(
-                (toolCall) => toolCall.name,
-              );
-              await _executeToolCalls(
-                researchRecoveryResult.toolCalls!,
-                assistantContent: researchRecoveryResult.content.isNotEmpty
-                    ? researchRecoveryResult.content
-                    : hiddenAssistantEvidence,
-                toolSearchEnabled: initialToolSelection.toolSearchEnabled,
-                selectedToolNames: {
-                  ...initialToolSelection.selectedToolNames,
-                  ...recoveredToolNames,
-                },
-                stableToolDefinitions: prefixStableToolLoop
-                    ? initialToolSelection.toolDefinitions
-                    : null,
-                interactionGeneration: generation,
-              );
-              return;
-            }
-            _recordHiddenAssistantResponse(researchRecoveryResult.content);
-          }
         }
         recordHiddenAssistantEvidenceOnce();
         final recoveredContentToolArtifact =
