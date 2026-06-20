@@ -148,7 +148,7 @@ structurally unmotivated to build:
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
-| Security | SEC2 | later | M | SEC1, LL23 | Taint-aware tool execution: surface when untrusted evidence influences a privileged tool call. |
+| Security | SEC2 | current | M | SEC1, LL23 | Taint-aware tool execution: surface when untrusted evidence influences a privileged tool call. |
 | Security | SEC3 | later | S-M | SEC1, MCP-GOV2 | MCP permission diff and audit view for server/tool changes. |
 | Model Library | MLIB1 | later | M | LL3, LL9 | Local Model Pack Manifest: provenance, checksum, quantization, license, and verified capability metadata per local model artifact. |
 | Model Library | MLIB2 | later | M | MLIB1 | Model provenance and license registry with revision history and local-only export boundaries. |
@@ -2113,7 +2113,7 @@ Slice 5 evidence:
 
 ### SEC2: Taint-Aware Tool Execution
 
-Status: `later`
+Status: `current`
 
 Scope:
 - Track whether a proposed tool call was influenced by untrusted or lower-trust
@@ -2126,6 +2126,26 @@ Acceptance criteria:
 - A tool call derived from untrusted document instructions is flagged in tests.
 - Taint metadata survives compaction, model-switch handoff, and trace export.
 - Safe read-only actions can proceed while write/shell/network actions escalate.
+
+Slice plan:
+1. Pure taint-decision policy over SEC1 capability + influencing trust levels.
+   **done.**
+2. Track which influencing evidence (by data source / trust) reached a tool call
+   — taint propagation through the tool-result → message pipeline.
+3. Honor the decision at the approval/execution boundary (mandatory
+   non-cacheable approval or block) and feed findings into the audit trail;
+   keep taint metadata across compaction / model-switch handoff.
+
+Slice 1 evidence:
+- `lib/core/security/taint_policy.dart`: `TaintDecision` (allow / requireApproval
+  / block) and a pure `TaintPolicy.assess` over a `ToolCapability` and the set of
+  influencing `TrustLevel`s. Untrusted influence on a high-risk mutating action
+  blocks (the fetch-then-execute / AMOS shape); on other write/network actions it
+  requires a non-cacheable approval; read-only/inert actions still proceed
+  (acceptance: read-only proceeds while write/shell/network escalate). Pure and
+  advisory — no execution path is wired yet, so no default is weakened.
+- `test/core/security/taint_policy_test.dart` covers untainted allow, read-only
+  pass-through, high-risk block, medium escalation, and mixed-trust influence.
 
 ### SEC3: MCP Permission Diff And Audit View
 
