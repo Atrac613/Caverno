@@ -2024,7 +2024,8 @@ Acceptance criteria:
 Slice plan:
 1. Tool capability classification (pure domain model). **done.**
 2. Data-source classification (user / project / dependency / generated /
-   remote-web / mcp / untrusted-document / credential / executable-instruction).
+   remote-web / mcp / untrusted-document / local-diagnostic) with a trust level,
+   plus credential and prompt-injection content detectors. **done.**
 3. Attach capability + data-source context to tool calls and the approval
    surface (acceptance criterion 1).
 4. Enforce that untrusted document content is never elevated to a user command
@@ -2042,6 +2043,19 @@ Slice 1 evidence:
 - `test/features/chat/domain/services/tool_capability_classifier_test.dart`
   covers each capability class, risk tier, and the `mutatesState` /
   `accessesNetwork` derived properties.
+
+Slice 2 evidence:
+- `lib/features/chat/domain/services/data_source_classifier.dart`:
+  `DataSourceClass` (user instruction, project source, dependency source,
+  generated summary, remote web, MCP resource, untrusted document, local
+  diagnostic) and `TrustLevel` (user / project / untrusted), with a pure
+  `DataSourceClassifier`. Provenance is the immediate producing tool; only
+  remote-web, MCP, and explicitly-untrusted content is `untrusted`, while local
+  reads, deps, diagnostics, and the user's own memory are `projectTrusted`.
+  Adds `looksLikeCredential` and `containsInjectionAttempt` content detectors
+  for later perimeter enforcement. Additive: nothing is wired yet.
+- `test/features/chat/domain/services/data_source_classifier_test.dart` covers
+  provenance, trust mapping, credential detection, and injection detection.
 
 ### SEC2: Taint-Aware Tool Execution
 
