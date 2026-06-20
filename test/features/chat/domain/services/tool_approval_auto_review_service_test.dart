@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/tool_approval_auto_review_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -66,6 +68,32 @@ void main() {
         'Please edit README.',
         'I will update it.',
       ]);
+    });
+
+    Map<String, dynamic> capabilityFor(String toolName) {
+      final messages = ToolApprovalAutoReviewService.buildMessages(
+        ToolApprovalAutoReviewRequest(
+          actionKind: toolName,
+          toolName: toolName,
+          arguments: const {'command': 'rm -rf build'},
+          conversationTail: const [],
+        ),
+      );
+      final user = messages.firstWhere((m) => m.role == MessageRole.user);
+      final packet = jsonDecode(user.content) as Map<String, dynamic>;
+      return (packet['action'] as Map)['capability'] as Map<String, dynamic>;
+    }
+
+    test('embeds SEC1 capability context in the review packet', () {
+      final capability = capabilityFor('local_execute_command');
+      expect(capability['class'], 'shellExecution');
+      expect(capability['risk'], 'high');
+      expect(capability['mutatesState'], isTrue);
+    });
+
+    test('marks untrusted output for a network fetch', () {
+      final capability = capabilityFor('http_get');
+      expect(capability['producesUntrustedContent'], isTrue);
     });
   });
 }

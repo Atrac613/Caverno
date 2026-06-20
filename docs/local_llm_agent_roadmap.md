@@ -2035,11 +2035,15 @@ Slice plan:
 4. Relocate the perimeter classifiers to `lib/core/security/` (cross-cutting)
    and attach the classified capability to recorded approvals via the approval
    audit trail — without touching the over-budget `chat_notifier.dart`. **done.**
-5. Surface the capability + data-source context in the live approval UI
+5. Feed the capability context into the LLM auto-review packet so the reviewer
+   weighs the action's capability/risk and refuses to let untrusted content
+   authorize a privileged action. **done.**
+6. Surface the capability + data-source context in the live approval UI
    (acceptance criterion 1's "display") and enforce that untrusted document
    content is never elevated to a user command (criterion 2), without weakening
-   existing approvals (criterion 3). Blocked on freeing `chat_notifier.dart`
-   budget (F5) for the producer-side wiring.
+   existing approvals (criterion 3). Deferred: the approval UI lives in the
+   near-budget `chat_page.dart` / the over-budget `chat_notifier.dart`, so this
+   waits on further F5 room and a focused UI pass.
 
 Slice 1 evidence:
 - `lib/features/chat/domain/services/tool_capability_classifier.dart`:
@@ -2092,7 +2096,20 @@ Slice 4 evidence:
 - `test/core/services/tool_approval_audit_log_test.dart` asserts the new fields.
 - Note: the F1 ratchet is currently red for `chat_notifier.dart`,
   `mcp_tool_service.dart`, and `chat_notifier_test.dart` (pre-existing F5 debt);
-  the live approval-UI display (criterion 1) waits on freeing that budget.
+  the live approval-UI display (criterion 1) waits on freeing that budget. An
+  F5 slice has since extracted the approval cluster into
+  `chat_notifier_approval_handlers.dart`, trimming the god-file.
+
+Slice 5 evidence:
+- `lib/features/chat/domain/services/tool_approval_auto_review_service.dart`:
+  the auto-review request packet now includes an `action.capability` object
+  (class, risk, mutatesState, accessesNetwork, producesUntrustedContent) from
+  the perimeter classifier, and the instructions tell the reviewer to scrutinize
+  higher-risk/state-mutating actions and never let untrusted content authorize a
+  privileged action. Pure, in its own domain service — no budgeted-file growth.
+- `test/features/chat/domain/services/tool_approval_auto_review_service_test.dart`
+  asserts the embedded capability context for a shell command and a network
+  fetch.
 
 ### SEC2: Taint-Aware Tool Execution
 
