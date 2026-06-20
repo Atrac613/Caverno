@@ -137,6 +137,25 @@ void main() {
     }
   });
 
+  test('warns against fabricated browser_open URLs when browser tools '
+      'are available', () {
+    final withBrowser = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      toolNames: const ['browser_open', 'browser_snapshot', 'search_web'],
+    );
+    expect(withBrowser, contains('Do not fabricate deep URLs'));
+
+    final withoutBrowser = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      toolNames: const ['search_web'],
+    );
+    expect(withoutBrowser, isNot(contains('Do not fabricate deep URLs')));
+  });
+
   test('includes repository map context in coding mode prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),

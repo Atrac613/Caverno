@@ -605,6 +605,15 @@ class SystemPromptBuilder {
           'a successful browser tool result.',
         );
         buffer.writeln(
+          'Do not fabricate deep URLs by guessing path segments or query '
+          'parameters for browser_open. To reach a specific results or detail '
+          'page, first find its real URL with a search tool (e.g. search_web), '
+          'or open the site root and follow on-page links via browser_snapshot '
+          'then browser_click. If browser_open lands on a not-found or wrong '
+          'page, stop trying invented URL variants and navigate from a known '
+          'page instead.',
+        );
+        buffer.writeln(
           'For built-in browser tasks, call browser_snapshot before using '
           'browser_fill, browser_click, or browser_submit unless the current '
           'message context already includes a fresh browser_snapshot result '
