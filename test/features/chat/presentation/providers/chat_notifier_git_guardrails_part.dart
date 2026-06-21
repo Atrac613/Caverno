@@ -678,6 +678,118 @@ void registerChatNotifierGitGuardrailTests() {
   );
 
   test(
+    'ask_user_question prompts again for a different question in the same turn',
+    () async {
+      // Regression: the same-turn answer cache was keyed only by interaction
+      // generation, so a DIFFERENT question reused the first answer and never
+      // re-prompted. Two distinct questions in one turn must each prompt.
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'first-question',
+            name: 'ask_user_question',
+            arguments: const {
+              'question': 'Approve the release?',
+              'options': [
+                {'label': 'Approve'},
+                {'label': 'Cancel'},
+              ],
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'I still need one detail.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'second-question',
+                name: 'ask_user_question',
+                arguments: const {
+                  'question': 'What is the notary profile name?',
+                  'options': [
+                    {'label': 'default'},
+                  ],
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(content: 'All set.', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const ['All set.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'ask_user_question': ''},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        final sendFuture = toolNotifier.sendMessage('continue');
+        for (var i = 0; i < 4; i += 1) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        final firstPending = toolNotifier.state.pendingAskUserQuestion;
+        expect(firstPending, isNotNull);
+        expect(firstPending!.question, 'Approve the release?');
+        toolNotifier.resolveAskUserQuestion(
+          id: firstPending.id,
+          answer: AskUserQuestionAnswer(
+            question: firstPending.question,
+            selectedOptions: const [
+              AskUserQuestionSelection(id: 'approve', label: 'Approve'),
+            ],
+          ),
+        );
+
+        for (var i = 0; i < 4; i += 1) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        // The fix: a different question re-prompts instead of reusing the
+        // earlier answer. Under the bug, no second pending question appears.
+        final secondPending = toolNotifier.state.pendingAskUserQuestion;
+        expect(secondPending, isNotNull);
+        expect(secondPending!.question, 'What is the notary profile name?');
+        toolNotifier.resolveAskUserQuestion(
+          id: secondPending.id,
+          answer: AskUserQuestionAnswer(
+            question: secondPending.question,
+            selectedOptions: const [
+              AskUserQuestionSelection(id: 'default', label: 'default'),
+            ],
+          ),
+        );
+
+        await sendFuture;
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage blocks production release after ask-user-question rejection',
     () async {
       const dryRunCommand =
