@@ -69,6 +69,7 @@ import '../../domain/services/tool_approval_gate.dart';
 import '../../../../core/security/conversation_taint_state.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
+import '../../domain/services/truncation_notice.dart';
 import '../../domain/services/coding_command_output_guardrail_service.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
 import '../../domain/services/coding_verification_feedback_service.dart';
@@ -14075,7 +14076,15 @@ class ChatNotifier extends Notifier<ChatState> {
     } else if (shouldDropLastAssistant) {
       updatedMessages.removeAt(lastIndex);
     } else {
+      // UX: if the answer was cut off at the max-token limit, flag it so the
+      // user knows the response (and any code/file content in it) is incomplete
+      // rather than silently presenting a truncated answer.
+      final finalizedContent =
+          _isCompletionTruncated(_latestFinishReason() ?? '')
+          ? TruncationNotice.withMaxTokenNotice(lastMessage.content)
+          : lastMessage.content;
       updatedMessages[lastIndex] = lastMessage.copyWith(
+        content: finalizedContent,
         isStreaming: false,
         responseMetrics: responseMetrics,
       );
@@ -14589,7 +14598,15 @@ class ChatNotifier extends Notifier<ChatState> {
     } else if (shouldDropLastAssistant) {
       updatedMessages.removeAt(lastIndex);
     } else {
+      // UX: if the answer was cut off at the max-token limit, flag it so the
+      // user knows the response (and any code/file content in it) is incomplete
+      // rather than silently presenting a truncated answer.
+      final finalizedContent =
+          _isCompletionTruncated(_latestFinishReason() ?? '')
+          ? TruncationNotice.withMaxTokenNotice(lastMessage.content)
+          : lastMessage.content;
       updatedMessages[lastIndex] = lastMessage.copyWith(
+        content: finalizedContent,
         isStreaming: false,
         responseMetrics: responseMetrics,
       );
