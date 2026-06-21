@@ -5286,8 +5286,12 @@ class ChatNotifier extends Notifier<ChatState> {
       <int, String>{};
   final Map<int, LlmSessionLogContext> _llmSessionLogContextsByGeneration =
       <int, LlmSessionLogContext>{};
-  final Map<int, McpToolResult> _askUserQuestionResultsByGeneration =
-      <int, McpToolResult>{};
+  // Per turn (generation), cache one answer per distinct question text so a
+  // repeated identical question reuses its answer, while a *different* question
+  // in the same turn still prompts the user instead of reusing an unrelated
+  // earlier answer.
+  final Map<int, Map<String, McpToolResult>>
+  _askUserQuestionResultsByGeneration = <int, Map<String, McpToolResult>>{};
   final Map<int, Stopwatch> _responseMetricTimersByGeneration =
       <int, Stopwatch>{};
   final Map<String, PendingAskUserQuestion> _pendingAskUserQuestionsByThread =
@@ -6630,16 +6634,6 @@ class ChatNotifier extends Notifier<ChatState> {
     ToolCallInfo toolCall, {
     int? interactionGeneration,
   }) async {
-    final existingResult = interactionGeneration == null
-        ? null
-        : _askUserQuestionResultsByGeneration[interactionGeneration];
-    if (existingResult != null) {
-      appLog(
-        '[AskUserQuestion] Reusing completed answer for repeated question in the same turn',
-      );
-      return _buildRepeatedAskUserQuestionResult(existingResult);
-    }
-
     final question = _trimStringArgument(toolCall.arguments, 'question');
     if (question.isEmpty) {
       return McpToolResult(
@@ -6648,6 +6642,20 @@ class ChatNotifier extends Notifier<ChatState> {
         isSuccess: false,
         errorMessage: 'question is required',
       );
+    }
+
+    // Reuse only when the SAME question was already answered this turn; a
+    // different question must prompt the user instead of inheriting an
+    // unrelated earlier answer.
+    final existingResult = interactionGeneration == null
+        ? null
+        : _askUserQuestionResultsByGeneration[interactionGeneration]?[question];
+    if (existingResult != null) {
+      appLog(
+        '[AskUserQuestion] Reusing completed answer for the same repeated '
+        'question in the same turn',
+      );
+      return _buildRepeatedAskUserQuestionResult(existingResult);
     }
 
     final options = _parseAskUserQuestionOptions(toolCall.arguments['options']);
@@ -6683,7 +6691,8 @@ class ChatNotifier extends Notifier<ChatState> {
         errorMessage: 'User dismissed the question',
       );
       if (interactionGeneration != null) {
-        _askUserQuestionResultsByGeneration[interactionGeneration] = result;
+        (_askUserQuestionResultsByGeneration[interactionGeneration] ??=
+            <String, McpToolResult>{})[question] = result;
       }
       return result;
     }
@@ -6694,7 +6703,8 @@ class ChatNotifier extends Notifier<ChatState> {
       isSuccess: true,
     );
     if (interactionGeneration != null) {
-      _askUserQuestionResultsByGeneration[interactionGeneration] = result;
+      (_askUserQuestionResultsByGeneration[interactionGeneration] ??=
+          <String, McpToolResult>{})[question] = result;
     }
     return result;
   }

@@ -587,9 +587,17 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
     if (_latestUserExplicitlyApprovedProductionRelease()) {
       return true;
     }
-    final answerResult =
-        _askUserQuestionResultsByGeneration[interactionGeneration];
-    if (answerResult == null || !answerResult.isSuccess) {
+    final answers = _askUserQuestionResultsByGeneration[interactionGeneration];
+    if (answers == null || answers.isEmpty) {
+      return false;
+    }
+    // The cache now holds one answer per distinct question this turn, so the
+    // release approval may live alongside other questions' answers; scan them.
+    return answers.values.any(_answerGrantsProductionReleaseApproval);
+  }
+
+  bool _answerGrantsProductionReleaseApproval(McpToolResult answerResult) {
+    if (!answerResult.isSuccess) {
       return false;
     }
     final decoded = _decodeJsonObject(answerResult.result);
