@@ -80,6 +80,7 @@ import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/model_edit_apply_telemetry_service.dart';
 import '../../domain/services/model_switch_handoff_brief_service.dart';
+import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_tool_policy.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
@@ -15079,7 +15080,7 @@ class ChatNotifier extends Notifier<ChatState> {
           messages: extractionMessages,
           model: model,
           temperature: 0.1,
-          maxTokens: _settings.maxTokens > 1200 ? 1200 : _settings.maxTokens,
+          maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 1200),
         ),
       );
 
