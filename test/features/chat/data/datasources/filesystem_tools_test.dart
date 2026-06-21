@@ -87,6 +87,61 @@ void main() {
     expect(updated, 'hello agent');
   });
 
+  test('editFile not-found error echoes content and an actionable hint for '
+      'small files', () async {
+    final targetPath =
+        '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}arrow.dart';
+    final file = File(targetPath)..createSync(recursive: true);
+    // An arrow function, as a live canary fixture writes it. A model that
+    // assumes a `  return '...';` block body will miss with old_text.
+    file.writeAsStringSync("String canaryValue() => 'BROKEN';\n");
+
+    final editResult =
+        jsonDecode(
+              await FilesystemTools.editFile(
+                path: targetPath,
+                oldText: "  return 'BROKEN';",
+                newText: "  return 'OK';",
+              ),
+            )
+            as Map<String, dynamic>;
+
+    // The exact phrase tool-loop recovery / telemetry match on is preserved.
+    expect(editResult['error'], 'old_text was not found in the target file');
+    // Small files echo their current content so the model can copy old_text
+    // verbatim (or overwrite via write_file) without another read_file.
+    expect(editResult['current_content'], "String canaryValue() => 'BROKEN';\n");
+    expect(editResult['hint'], contains('write_file'));
+    expect(editResult['hint'], contains('verbatim'));
+
+    // The file is left untouched on a failed edit.
+    expect(
+      await File(targetPath).readAsString(),
+      "String canaryValue() => 'BROKEN';\n",
+    );
+  });
+
+  test('editFile not-found error omits inline content for large files', () async {
+    final targetPath =
+        '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}big.dart';
+    final file = File(targetPath)..createSync(recursive: true);
+    file.writeAsStringSync('// padding\n' * 1000); // > 4 KiB
+
+    final editResult =
+        jsonDecode(
+              await FilesystemTools.editFile(
+                path: targetPath,
+                oldText: 'does-not-exist',
+                newText: 'whatever',
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(editResult['error'], 'old_text was not found in the target file');
+    expect(editResult.containsKey('current_content'), isFalse);
+    expect(editResult['hint'], contains('Re-read'));
+  });
+
   test('readFile returns requested line range metadata', () async {
     final targetPath =
         '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}range_sample.txt';
