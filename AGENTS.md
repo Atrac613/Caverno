@@ -143,6 +143,12 @@ JSONL session logs for later debugging and Codex analysis.
   perimeter fields (capability class/risk, untrustedInfluence, auto-review
   verdict). Pure bash + python3; honors `CAVERNO_SESSION_LOG_DIR` /
   `CAVERNO_APPROVAL_AUDIT_DIR`.
+- Find anomalous sessions: `python3 tool/triage_session_logs.py [--top N]
+  [--since-days D]` ranks every session log by an anomaly score (fr=length
+  truncations, transport errors, longest identical tool-call loop, oversized
+  turns, tool errors) so you can deep-dive the worst offenders instead of
+  opening logs at random. Pure python3; honors `CAVERNO_SESSION_LOG_DIR` /
+  `CAVERNO_HOME`.
 
 ### Approval Audit Log
 

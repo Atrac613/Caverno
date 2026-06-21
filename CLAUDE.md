@@ -66,6 +66,11 @@ tool/safe-flutter run -d macos
 # Triage SEC1/SEC2 verification logs (newest session log + today's approval
 # audit, with capability/untrustedInfluence/auto-review verdict). See AGENTS.md.
 tool/sec_verify_logs.sh
+
+# Rank all session logs by how anomalous they look (fr=length truncations,
+# transport errors, tool loops, oversized turns) to find sessions worth a
+# deep-dive. Pure python3; honors CAVERNO_SESSION_LOG_DIR / CAVERNO_HOME.
+python3 tool/triage_session_logs.py --top 10 [--since-days N]
 ```
 
 ## macOS Build Policy
