@@ -627,10 +627,9 @@ class FilesystemTools {
       final content = await file.readAsString();
       final occurrences = _countOccurrences(content, oldText);
       if (occurrences == 0) {
-        return jsonEncode({
-          'error': 'old_text was not found in the target file',
-          'path': file.absolute.path,
-        });
+        return jsonEncode(
+          _oldTextNotFoundError(path: file.absolute.path, content: content),
+        );
       }
       if (!replaceAll && occurrences > 1) {
         return jsonEncode({
@@ -658,6 +657,43 @@ class FilesystemTools {
         error: error,
       );
     }
+  }
+
+  /// Maximum file size (UTF-8 bytes) for which a failed [editFile] echoes the
+  /// full current content inline, so the model can copy `old_text` verbatim or
+  /// overwrite via `write_file` without another `read_file` round-trip.
+  static const int _editErrorInlineContentMaxBytes = 4096;
+
+  /// Build an actionable "old_text not found" error for [editFile].
+  ///
+  /// Keeps the exact `old_text was not found in the target file` phrase that
+  /// tool-loop recovery and edit telemetry match on, but adds the current file
+  /// content (for small files) plus a hint. Live canary traces showed a model
+  /// react to the bare error by retrying with a guessed block body, then with
+  /// the desired *new* value as `old_text`, then looping on `read_file` without
+  /// ever landing a fix; the inline content and hint target exactly that
+  /// failure at the point it happens.
+  static Map<String, dynamic> _oldTextNotFoundError({
+    required String path,
+    required String content,
+  }) {
+    final error = <String, dynamic>{
+      'error': 'old_text was not found in the target file',
+      'path': path,
+    };
+    if (utf8.encode(content).length <= _editErrorInlineContentMaxBytes) {
+      error['current_content'] = content;
+      error['hint'] =
+          'old_text must be copied verbatim from current_content; do not pass '
+          'the desired new value as old_text. If matching is hard, call '
+          'write_file with the full corrected file content instead.';
+    } else {
+      error['hint'] =
+          'Re-read the file and copy old_text verbatim from its current '
+          'content; do not guess and do not pass the desired new value as '
+          'old_text.';
+    }
+    return error;
   }
 
   static Future<String> findFiles({
