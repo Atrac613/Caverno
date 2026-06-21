@@ -5,6 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 void main() {
+  test('default max tokens is 8192 to avoid truncating coding output', () {
+    expect(AppSettings.defaults().maxTokens, 8192);
+  });
+
   test('only trusted MCP servers are exposed to the model', () {
     const settings = AppSettings(
       baseUrl: 'http://localhost:1234/v1',

@@ -3,6 +3,14 @@ import 'dart:convert';
 import '../../domain/entities/message.dart';
 import 'chat_remote_datasource.dart';
 
+/// Opt-in capability for data sources that track the finish reason of their
+/// most recent completion (e.g. `'stop'`, `'length'`). Read by the chat loop to
+/// detect truncation at the max-token limit. Kept separate from [ChatDataSource]
+/// so existing implementers are not forced to provide it.
+abstract interface class FinishReasonAware {
+  String? get lastFinishReason;
+}
+
 /// Abstract interface for chat data sources.
 ///
 /// Both [ChatRemoteDataSource] (real API) and [DemoDataSource] implement this.

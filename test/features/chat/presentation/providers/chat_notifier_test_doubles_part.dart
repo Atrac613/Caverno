@@ -446,10 +446,13 @@ class _ReleaseCheckSkillsNotifier extends SkillsNotifier {
   }
 }
 
-class _StreamingChatDataSource implements ChatDataSource {
-  _StreamingChatDataSource(this.controller);
+class _StreamingChatDataSource implements ChatDataSource, FinishReasonAware {
+  _StreamingChatDataSource(this.controller, {this.lastFinishReason});
 
   final StreamController<String> controller;
+
+  @override
+  final String? lastFinishReason;
 
   @override
   Stream<String> streamChatCompletion({

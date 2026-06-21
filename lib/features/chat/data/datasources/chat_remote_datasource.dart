@@ -66,7 +66,7 @@ class ChatCompletionResult {
   bool get hasToolCalls => toolCalls != null && toolCalls!.isNotEmpty;
 }
 
-class ChatRemoteDataSource implements ChatDataSource {
+class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
   ChatRemoteDataSource({
     String? baseUrl,
     String? apiKey,
@@ -111,6 +111,7 @@ class ChatRemoteDataSource implements ChatDataSource {
   TokenUsage lastUsage = TokenUsage.zero;
 
   /// Last finish reason captured from a streaming or non-streaming response.
+  @override
   String? lastFinishReason;
 
   void _resetResponseTelemetry() {

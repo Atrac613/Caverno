@@ -12,7 +12,7 @@ final llmSessionLogStoreProvider = Provider<LlmSessionLogStore>((ref) {
   return LlmSessionLogStore();
 });
 
-class SessionLoggingChatDataSource implements ChatDataSource {
+class SessionLoggingChatDataSource implements ChatDataSource, FinishReasonAware {
   SessionLoggingChatDataSource({
     required ChatDataSource delegate,
     required LlmSessionLogStore logStore,
@@ -41,6 +41,7 @@ class SessionLoggingChatDataSource implements ChatDataSource {
     return TokenUsage.zero;
   }
 
+  @override
   String? get lastFinishReason {
     final delegate = _delegate;
     if (delegate is ChatRemoteDataSource) {

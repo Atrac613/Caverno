@@ -12827,11 +12827,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
   String? _latestFinishReason() {
     final ds = _dataSource;
-    return switch (ds) {
-      ChatRemoteDataSource() => ds.lastFinishReason,
-      SessionLoggingChatDataSource() => ds.lastFinishReason,
-      _ => null,
-    };
+    if (ds is FinishReasonAware) {
+      return (ds as FinishReasonAware).lastFinishReason;
+    }
+    return null;
   }
 
   MessageResponseMetrics? _takeResponseMetricsForGeneration(int generation) {

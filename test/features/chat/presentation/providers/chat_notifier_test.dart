@@ -39,6 +39,7 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
+import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
@@ -120,6 +121,61 @@ void main() {
     expect(notifier.state.messages.first.content, 'Inspect the workspace');
     expect(notifier.state.messages.last.role, MessageRole.assistant);
     expect(notifier.state.messages.last.isStreaming, isTrue);
+  });
+
+  test('flags a final answer truncated at the max-token limit', () async {
+    final truncController = StreamController<String>();
+    final truncContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(
+          _StreamingChatDataSource(truncController, lastFinishReason: 'length'),
+        ),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      truncContainer.dispose();
+      if (!truncController.isClosed) await truncController.close();
+    });
+
+    final truncNotifier = truncContainer.read(chatNotifierProvider.notifier);
+    final sendFuture = truncNotifier.sendMessage('Explain quicksort in detail');
+    truncController.add('Quicksort picks a pivot and');
+    await truncController.close();
+    await sendFuture;
+    for (var i = 0; i < 10; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(
+      truncNotifier.state.messages.last.content,
+      contains(TruncationNotice.maxTokenNotice),
+    );
+  });
+
+  test('does not flag a normally-completed final answer', () async {
+    final sendFuture = notifier.sendMessage('Say hello');
+    controller.add('Hello there!');
+    await controller.close();
+    await sendFuture;
+    for (var i = 0; i < 10; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(
+      notifier.state.messages.last.content,
+      isNot(contains(TruncationNotice.maxTokenNotice)),
+    );
   });
 
   test(
