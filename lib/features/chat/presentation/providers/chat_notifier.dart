@@ -2431,33 +2431,33 @@ class ChatNotifier extends Notifier<ChatState> {
       if (projectLooksEmpty) ...[
         (
           compact: true,
-          maxTokens: _settings.maxTokens > 1100 ? 1100 : _settings.maxTokens,
+          maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 1100),
           minimalRetry: false,
         ),
         (
           compact: true,
-          maxTokens: _settings.maxTokens > 800 ? 800 : _settings.maxTokens,
+          maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 800),
           minimalRetry: true,
         ),
         (
           compact: true,
-          maxTokens: _settings.maxTokens > 650 ? 650 : _settings.maxTokens,
+          maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 650),
           minimalRetry: true,
         ),
       ] else ...[
         (
           compact: false,
-          maxTokens: _settings.maxTokens > 1600 ? 1600 : _settings.maxTokens,
+          maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 1600),
           minimalRetry: false,
         ),
         (
           compact: true,
-          maxTokens: _settings.maxTokens > 900 ? 900 : _settings.maxTokens,
+          maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 900),
           minimalRetry: true,
         ),
         (
           compact: true,
-          maxTokens: _settings.maxTokens > 700 ? 700 : _settings.maxTokens,
+          maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 700),
           minimalRetry: true,
         ),
       ],
@@ -2778,17 +2778,17 @@ class ChatNotifier extends Notifier<ChatState> {
     final attempts = <({bool compact, int maxTokens, bool minimalRetry})>[
       (
         compact: false,
-        maxTokens: _settings.maxTokens > 1800 ? 1800 : _settings.maxTokens,
+        maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 1800),
         minimalRetry: false,
       ),
       (
         compact: true,
-        maxTokens: _settings.maxTokens > 1200 ? 1200 : _settings.maxTokens,
+        maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 1200),
         minimalRetry: true,
       ),
       (
         compact: true,
-        maxTokens: _settings.maxTokens > 900 ? 900 : _settings.maxTokens,
+        maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 900),
         minimalRetry: true,
       ),
     ];
@@ -7255,7 +7255,7 @@ class ChatNotifier extends Notifier<ChatState> {
           ),
           model: model,
           temperature: 0.1,
-          maxTokens: _settings.maxTokens > 600 ? 600 : _settings.maxTokens,
+          maxTokens: SecondaryCallBudget.resolve(_settings.maxTokens, 600),
         ),
       );
       final suggestion = ConversationGoalSuggestionService.parse(
