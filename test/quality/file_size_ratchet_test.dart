@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// raise a budget to make this test pass; extract code instead, following
 /// docs/large_file_refactor_plan.md.
 const Map<String, int> _lineBudgets = {
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 15300,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 13900,
   'lib/features/chat/presentation/pages/chat_page.dart': 8120,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 5200,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':
