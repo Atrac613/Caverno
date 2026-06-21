@@ -62,6 +62,10 @@ flutter run
 
 # Run macOS app (use the safe-flutter wrapper, see "macOS Build Policy" below)
 tool/safe-flutter run -d macos
+
+# Triage SEC1/SEC2 verification logs (newest session log + today's approval
+# audit, with capability/untrustedInfluence/auto-review verdict). See AGENTS.md.
+tool/sec_verify_logs.sh
 ```
 
 ## macOS Build Policy
