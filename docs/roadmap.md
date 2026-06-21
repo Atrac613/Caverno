@@ -14,8 +14,8 @@ handoffs can refer to the same unit of work over time.
   in `docs/local_llm_agent_roadmap.md`.
 - Use `API<number>`, `SEC<number>`, `MLIB<number>`, `OBS<number>`,
   `COMPAT<number>`, `HOOK<number>`, `EDGE<number>`,
-  `EVAL-MOBILE<number>`, `MM<number>`, and `MCP-GOV<number>` for future
-  platform vision milestones, also documented in
+  `EVAL-MOBILE<number>`, `MM<number>`, `MCP-GOV<number>`, and
+  `SKILL<number>` for future platform vision milestones, also documented in
   `docs/local_llm_agent_roadmap.md`.
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
 - Every active milestone should record scope, acceptance criteria, verification
@@ -91,6 +91,7 @@ handoffs can refer to the same unit of work over time.
 | Platform Vision | EVAL-MOBILE1 | later | Create a Flutter/mobile coding eval pack for Caverno-relevant app-development failures. | Start as local fixtures before UI productization; connect results to LL19 replay. |
 | Platform Vision | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as first-class multimodal evidence. | Land after SEC1/OBS1 so evidence inherits trust, redaction, and trace behavior. |
 | Platform Vision | MCP-GOV1 | later | Lint MCP tool contracts for schema clarity, dangerous capabilities, and weak-model tool-selection quality. | Start before SEC3 permission diff and MCP trust-registry UX. |
+| Skills | SKILL1 | next | Author skills from chat: capture the current conversation's workflow as a reusable skill via a `save_skill` tool behind a non-cacheable approval. | First slice ships the `save_skill` built-in tool (inverse of `load_skill`) writing through `SkillsNotifier.upsertMarkdown` with explicit user approval. |
 
 Remaining Foundation F5 and the future platform vision milestones are detailed in
 `docs/local_llm_agent_roadmap.md`.
@@ -773,6 +774,7 @@ Future platform vision summary:
 | EDGE | EDGE1 | later | Use embedded on-device runtimes for bounded low-risk micro-tasks and offline fallback. |
 | EVAL-MOBILE | EVAL-MOBILE1 | later | Measure coding agents on Flutter/mobile failures that match Caverno's product domain. |
 | MM | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as traceable multimodal evidence. |
+| SKILL | SKILL1 | next | Author and maintain reusable skills directly from chat, then mine recurring workflows into proposed skills. |
 
 These vision milestones should not displace the current `next` Local LLM
 milestone unless one is explicitly promoted through the normal operating loop.

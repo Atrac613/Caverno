@@ -32,6 +32,8 @@ It also records a future platform vision layer. These milestones are deliberatel
   screen recordings.
 - `MCP-GOV<number>` — MCP tool contract governance, trust registry, and
   model-specific tool-prompt optimization.
+- `SKILL<number>` — In-chat skill authoring and lifecycle: create, edit, and
+  mine reusable skills from the conversation instead of only the settings UI.
 - `THREAT<number>` — Endpoint threat posture: agent-as-malware-vector
   hardening, read-only host compromise triage, and idle-time local
   threat-intelligence pre-learning.
@@ -175,6 +177,9 @@ structurally unmotivated to build:
 | MCP Governance | MCP-GOV1 | later | M | SEC1, LL3 | MCP tool contract linter for schema clarity, dangerous capability detection, and weak-model tool-selection quality. |
 | MCP Governance | MCP-GOV2 | later | M | MCP-GOV1, SEC1 | Tool trust registry with server trust levels, capability classes, and approval policy defaults. |
 | MCP Governance | MCP-GOV3 | later | S-M | MCP-GOV1, LL3 | Model-specific tool prompt optimizer for compressing and specializing tool descriptions per model profile. |
+| Skills | SKILL1 | next | S-M | F2 | In-chat skill authoring: a `save_skill` built-in tool that persists a new or updated skill from the conversation behind a non-cacheable user approval. |
+| Skills | SKILL2 | later | M | SKILL1 | Chat-driven skill lifecycle: a `/skill` command plus edit/duplicate/merge of existing skills with a diff preview before save. |
+| Skills | SKILL3 | later | M | SKILL1, LL18, OBS1 | Idle-time skill mining: distill recurring verified workflows from traces into proposed skills, user-reviewed before adoption. |
 | Threat Posture | THREAT1 | later | M | F2, SEC1, SEC2 | Agent-as-malware-vector hardening: non-cacheable approval plus explicit resolved-command and destination-domain review for network-fetch-then-execute and persistence-write shapes in `local_shell`. |
 | Threat Posture | THREAT2 | later | M | F2, SEC1 | Read-only host compromise triage: a fixed-command `host_security_snapshot` IoC collector, a routine allowlist entry, and an AMOS-style TTP triage prompt/mode. |
 | Threat Posture | THREAT3 | later | L | THREAT2, LL10, LL18, LL5, SEC1 | Local threat-intelligence pre-learning: idle-orchestrated ingestion of CISA KEV / scoped NVD CVE feeds and malware advisories, map-reduced into a provenance-tracked local KB that feeds THREAT2 triage and installed-software vulnerability matching. |
@@ -335,6 +340,26 @@ Recommended ordering: EVAL-MOBILE1 can start as data and fixtures before the
 UI is ambitious. MM1 should precede screenshot-to-issue and visual-regression
 features so multimodal artifacts inherit the same trace, redaction, and data
 perimeter rules from OBS1 and SEC1.
+
+### Phase 11 — In-chat capability authoring (SKILL)
+
+Caverno already lets the model *read* user skills mid-conversation: a
+lightweight skills index is injected into the system prompt and a `load_skill`
+tool pulls the full markdown on demand. The missing half is *writing* them —
+today a skill can only be authored in `skills_settings_page.dart`. SKILL1 adds
+the inverse of `load_skill`: a `save_skill` built-in tool that lets the agent
+distill the current conversation's workflow into skill markdown and persist it
+through `SkillsNotifier.upsertMarkdown`, gated by a non-cacheable user approval
+so a skill is never written silently. SKILL2 grows that into a chat-driven
+lifecycle (`/skill` command, edit/duplicate/merge, diff-before-save), and
+SKILL3 spends idle compute (LL18) mining recurring verified workflows from
+traces into proposed skills the user reviews before adoption.
+
+Recommended ordering: SKILL1 only needs the F2 tool-handler seam and the
+existing high-risk approval gate, so it can ship independently; SKILL3 waits for
+the LL18 idle orchestrator and OBS1 traces so mined proposals are grounded in
+real run evidence. SEC1 perimeter classification enriches all three by flagging
+skill content authored from untrusted evidence, but does not block SKILL1.
 
 ## Milestone Notes
 
@@ -2683,6 +2708,69 @@ Acceptance criteria:
   fixtures.
 - Adopted prompt variants are traceable and revertible.
 
+### SKILL1: In-Chat Skill Authoring
+
+Status: `next`
+
+Context:
+- Skills already work as a read path from chat: `SkillPromptIndexBuilder`
+  injects a lightweight index into the system prompt and the `load_skill` tool
+  (`mcp_tool_service.dart`) returns the full markdown when the index matches.
+- The only write path is `skills_settings_page.dart` →
+  `SkillsNotifier.upsertMarkdown`, so a user cannot capture a workflow as a
+  skill in the moment it emerges in conversation.
+
+Scope:
+- Add a `save_skill` built-in tool (the inverse of `load_skill`) that takes a
+  skill name, description, `whenToUse`, and markdown body, normalizes it through
+  `SkillMarkdownParser`, and persists it via `SkillsNotifier.upsertMarkdown`
+  (create or update by name/id).
+- Route the write through a non-cacheable, high-risk approval that previews the
+  resolved skill (name + body) before it is saved, so a skill is never written
+  silently and `ToolApprovalCache` cannot make repeat writes invisible.
+- Expose the tool in built-in tool settings and add coding/general prompt
+  guidance so the model offers to save a reusable workflow when one is evident.
+
+Acceptance criteria:
+- A skill authored from chat is parsed, persisted, and immediately visible in
+  the skills settings list and the runtime skills index.
+- Every `save_skill` call requires explicit approval and never resolves from the
+  approval cache.
+- Saving an existing skill name updates it rather than creating a duplicate, and
+  the round trip is covered by focused tests.
+
+### SKILL2: Chat-Driven Skill Lifecycle
+
+Status: `later`
+
+Scope:
+- Add a `/skill` slash command so the user can explicitly ask Caverno to turn
+  the current conversation (or a selection) into a skill.
+- Support editing, duplicating, and merging existing skills from chat, with a
+  diff preview against the stored markdown before any write.
+
+Acceptance criteria:
+- `/skill` produces a reviewable draft that reuses the SKILL1 approval path.
+- Edit/merge operations show what changes relative to the saved skill and never
+  overwrite without confirmation.
+
+### SKILL3: Idle-Time Skill Mining
+
+Status: `later`
+
+Scope:
+- Under the LL18 idle/power/window gates, mine recurring verified workflows from
+  session traces (OBS1) and propose them as new or improved skills.
+- Surface proposals in a morning review; nothing is adopted without explicit
+  user approval through the SKILL1 path.
+
+Acceptance criteria:
+- Proposals are grounded in real run evidence (trace links), not speculation.
+- Mining adds no token cost to interactive turns and obeys the RoutineToolPolicy
+  trust model.
+- Mined skill content is treated as SEC1 evidence: it informs a proposal but is
+  never auto-adopted as an authority-bearing instruction.
+
 ### THREAT1: Agent-As-Malware-Vector Hardening
 
 Status: `later`
@@ -2820,6 +2908,9 @@ Acceptance criteria:
   endpoint path.
 - Multimodal evidence inherits SEC1 data classifications and OBS1 trace links;
   OCR or visual interpretation is evidence, not authority.
+- Skill writes (SKILL track) always pass through the same high-risk,
+  non-cacheable approval as other persistence-class tools; skill content
+  distilled from untrusted evidence is flagged under SEC1 and never auto-adopted.
 - Threat-posture milestones treat every external intelligence feed (CVE, KEV,
   advisories) as SEC1 untrusted content: ingested intel informs triage but never
   becomes an instruction with tool authority, and host triage tools (THREAT2)
