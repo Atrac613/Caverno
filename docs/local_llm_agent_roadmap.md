@@ -2005,7 +2005,7 @@ Acceptance criteria:
 
 ### SEC1: Local Agent Data Perimeter
 
-Status: `current`
+Status: `done`
 
 Scope:
 - Classify data sources such as user instructions, project source, dependency
@@ -2041,22 +2041,25 @@ Slice plan:
 6. Surface the capability + data-source context in the live approval UI
    (acceptance criterion 1's "display") and enforce that untrusted document
    content is never elevated to a user command (criterion 2), without weakening
-   existing approvals (criterion 3). **In progress.** The F5 task-proposal
-   extraction freed `chat_notifier.dart` budget (15,270 -> 13,853), unblocking
-   this. A reusable `ToolPerimeterSummary` widget (display-only; pure
-   `ToolPerimeterClassifier`, no gating) now renders the perimeter one-liner in
-   the local-command and file-operation approval sheets. Criterion 2 is already
-   met by slice 5 + SEC2 3a (the auto-reviewer denies untrusted-driven
-   privileged actions; live-verified). Remaining: wire the same widget into the
-   git / ssh / computer-use / browser approval sheets (mechanical follow-up).
+   existing approvals (criterion 3). **done.** The F5 task-proposal extraction
+   freed `chat_notifier.dart` budget (15,270 -> 13,853), unblocking this. A
+   reusable `ToolPerimeterSummary` widget (display-only; pure
+   `ToolPerimeterClassifier`, no gating) renders the perimeter one-liner in every
+   high-risk approval sheet. Criterion 2 is met by slice 5 + SEC2 3a (the
+   auto-reviewer denies untrusted-driven privileged actions; live-verified).
+   Live-verified on macOS (2026-06-21): the local-command sheet for
+   `touch /tmp/...` showed "shell execution · high risk · mutates host" in red.
 
 Slice 6 evidence:
 - `lib/features/chat/presentation/widgets/tool_perimeter_summary.dart`: a
   `StatelessWidget` that classifies a pending tool call via
   `ToolPerimeterClassifier` and shows `summary` with a risk-tiered icon/colour.
   Display-only; cannot gate or weaken an approval (criterion 3).
-- Wired into `_showLocalCommandDialog` and `_showFileOperationDialog` in
-  `chat_page.dart` (8,071/8,120 lines, within budget).
+- Wired into the local-command, file-operation, ssh-command, git-command,
+  computer-use, and browser approval sheets (`chat_page.dart` +
+  `chat_page_browser_builders.dart`, within the 8,120 ratchet budget). The
+  ssh-connect sheet is intentionally excluded (a connection prompt, not a
+  tool-capability call).
 - `test/features/chat/presentation/widgets/tool_perimeter_summary_test.dart`
   covers shell, filesystem-write, untrusted network-fetch, and read-only cases.
 

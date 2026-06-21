@@ -233,6 +233,8 @@ extension _ChatPageBrowserBuilders on _ChatPageState {
                   ],
                 ),
                 const SizedBox(height: 12),
+                ToolPerimeterSummary(toolName: pending.toolName),
+                const SizedBox(height: 12),
                 Text(pending.warningMessage, style: theme.textTheme.bodyMedium),
                 _browserApprovalRow(
                   theme,

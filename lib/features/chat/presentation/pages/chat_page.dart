@@ -6015,6 +6015,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   ),
                 ),
                 const Divider(height: 24),
+                const ToolPerimeterSummary(toolName: 'ssh_execute_command'),
+                const SizedBox(height: 12),
                 // Reason (if any)
                 if (pending.reason != null && pending.reason!.isNotEmpty) ...[
                   Padding(
@@ -6228,6 +6230,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   ),
                 ),
                 const Divider(height: 24),
+                const ToolPerimeterSummary(toolName: 'git_execute_command'),
+                const SizedBox(height: 12),
                 // Reason (if any)
                 if (pending.reason != null && pending.reason!.isNotEmpty) ...[
                   Padding(
@@ -6759,6 +6763,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ),
                       ),
                       const Divider(height: 24),
+                      ToolPerimeterSummary(toolName: pending.toolName),
+                      const SizedBox(height: 12),
                       Flexible(
                         child: SingleChildScrollView(
                           key: const ValueKey('computer-use-approval-scroll'),
