@@ -138,6 +138,21 @@ JSONL session logs for later debugging and Codex analysis.
 - Do not commit session log files.
 - See `docs/session_logs.md` before changing log schema, redaction, retention,
   or analysis workflows.
+- Quick triage: `tool/sec_verify_logs.sh [N] [YYYY-MM-DD]` prints the newest
+  session log(s) and that day's approval-audit entries with their SEC1/SEC2
+  perimeter fields (capability class/risk, untrustedInfluence, auto-review
+  verdict). Pure bash + python3; honors `CAVERNO_SESSION_LOG_DIR` /
+  `CAVERNO_APPROVAL_AUDIT_DIR`.
+
+### Approval Audit Log
+
+Caverno always-on records automated high-risk tool approvals (full-access
+auto-runs and LLM auto-review verdicts) as JSONL.
+- Default location: `$HOME/.caverno/approval_audit/<YYYY-MM-DD>.jsonl`
+- Override: `CAVERNO_APPROVAL_AUDIT_DIR`
+- Schema name: `caverno_tool_approval_audit_entry` (v3); each entry carries
+  `capabilityClass` / `capabilityRisk` (SEC1) and `untrustedInfluence` (SEC2).
+- Manual approvals are intentionally not recorded (the user decided those).
 
 ### Content Parsing
 
