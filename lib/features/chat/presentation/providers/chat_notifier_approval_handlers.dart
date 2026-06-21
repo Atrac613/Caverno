@@ -129,6 +129,7 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
           decisionSource: decisionSource,
           rationale: rationale,
           riskLevel: riskLevel,
+          untrustedInfluence: _conversationTaintState.hasUntrustedInfluence,
           arguments: toolCall.arguments,
           workspaceMode: context?.workspaceMode.name,
           sessionId: context?.sessionId,

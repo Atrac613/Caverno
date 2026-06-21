@@ -67,6 +67,18 @@ void main() {
     expect(entry['capabilityRisk'], 'medium');
   });
 
+  test('records SEC2 untrusted-influence when provided', () async {
+    await buildLog().record(
+      tool: 'local_execute_command',
+      actionKind: 'local_execute_command',
+      domain: 'coding',
+      mode: 'autoReview',
+      outcome: 'allowed',
+      untrustedInfluence: true,
+    );
+    expect(readEntries().single['untrustedInfluence'], isTrue);
+  });
+
   test('redacts secret-bearing argument values', () async {
     await buildLog().record(
       tool: 'browser_fill',

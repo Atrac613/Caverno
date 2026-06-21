@@ -84,8 +84,9 @@ class ToolApprovalAuditLog {
   final bool _enabled;
 
   static const schemaName = 'caverno_tool_approval_audit_entry';
-  // v2 adds SEC1 capabilityClass / capabilityRisk fields.
-  static const schemaVersion = 2;
+  // v2 adds SEC1 capabilityClass / capabilityRisk; v3 adds SEC2
+  // untrustedInfluence.
+  static const schemaVersion = 3;
   static const directoryEnvironmentKey = 'CAVERNO_APPROVAL_AUDIT_DIR';
   static final RegExp _dayFilePattern = RegExp(
     r'^(\d{4})-(\d{2})-(\d{2})\.jsonl$',
@@ -129,6 +130,7 @@ class ToolApprovalAuditLog {
     String? decisionSource,
     String? rationale,
     String? riskLevel,
+    bool? untrustedInfluence,
     Map<String, dynamic>? arguments,
     String? workspaceMode,
     String? sessionId,
@@ -149,6 +151,9 @@ class ToolApprovalAuditLog {
       'outcome': outcome,
       'capabilityClass': capability.capabilityClass.name,
       'capabilityRisk': capability.riskTier.name,
+      // SEC2: whether untrusted (remote/MCP) content was in context when this
+      // automated approval was made.
+      'untrustedInfluence': ?untrustedInfluence,
       'decisionSource': ?decisionSource,
       if (rationale != null && rationale.trim().isNotEmpty)
         'rationale': rationale.trim(),
