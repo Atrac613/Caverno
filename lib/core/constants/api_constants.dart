@@ -22,7 +22,10 @@ class ApiConstants {
   ];
 
   static const double defaultTemperature = 0.7;
-  static const int defaultMaxTokens = 4096;
+  // 8192 (up from 4096): an upper bound on output, so raising it only prevents
+  // premature truncation of large file writes and detailed coding answers — it
+  // does not increase normal generation. Modern local models handle this.
+  static const int defaultMaxTokens = 8192;
 
   static bool isNvidiaNimCloudBaseUrl(String baseUrl) {
     final uri = Uri.tryParse(baseUrl.trim());
