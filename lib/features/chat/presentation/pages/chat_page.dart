@@ -64,6 +64,7 @@ import '../widgets/subagent_task_banner.dart';
 import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
+import '../widgets/tool_perimeter_summary.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../widgets/token_usage_indicator.dart';
@@ -6438,6 +6439,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   ),
                 ),
                 const Divider(height: 24),
+                const ToolPerimeterSummary(toolName: 'local_execute_command'),
+                const SizedBox(height: 12),
                 if (pending.reason != null && pending.reason!.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -7587,6 +7590,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   ),
                 ),
                 const Divider(height: 24),
+                ToolPerimeterSummary(
+                  toolName: pending.operation.toLowerCase().contains('edit')
+                      ? 'edit_file'
+                      : 'write_file',
+                ),
+                const SizedBox(height: 12),
                 if (pending.reason != null && pending.reason!.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),

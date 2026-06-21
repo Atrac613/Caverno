@@ -2041,9 +2041,24 @@ Slice plan:
 6. Surface the capability + data-source context in the live approval UI
    (acceptance criterion 1's "display") and enforce that untrusted document
    content is never elevated to a user command (criterion 2), without weakening
-   existing approvals (criterion 3). Deferred: the approval UI lives in the
-   near-budget `chat_page.dart` / the over-budget `chat_notifier.dart`, so this
-   waits on further F5 room and a focused UI pass.
+   existing approvals (criterion 3). **In progress.** The F5 task-proposal
+   extraction freed `chat_notifier.dart` budget (15,270 -> 13,853), unblocking
+   this. A reusable `ToolPerimeterSummary` widget (display-only; pure
+   `ToolPerimeterClassifier`, no gating) now renders the perimeter one-liner in
+   the local-command and file-operation approval sheets. Criterion 2 is already
+   met by slice 5 + SEC2 3a (the auto-reviewer denies untrusted-driven
+   privileged actions; live-verified). Remaining: wire the same widget into the
+   git / ssh / computer-use / browser approval sheets (mechanical follow-up).
+
+Slice 6 evidence:
+- `lib/features/chat/presentation/widgets/tool_perimeter_summary.dart`: a
+  `StatelessWidget` that classifies a pending tool call via
+  `ToolPerimeterClassifier` and shows `summary` with a risk-tiered icon/colour.
+  Display-only; cannot gate or weaken an approval (criterion 3).
+- Wired into `_showLocalCommandDialog` and `_showFileOperationDialog` in
+  `chat_page.dart` (8,071/8,120 lines, within budget).
+- `test/features/chat/presentation/widgets/tool_perimeter_summary_test.dart`
+  covers shell, filesystem-write, untrusted network-fetch, and read-only cases.
 
 Slice 1 evidence:
 - `lib/features/chat/domain/services/tool_capability_classifier.dart`:
