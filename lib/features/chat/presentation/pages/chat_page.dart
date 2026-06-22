@@ -1660,6 +1660,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             config: currentConversation.participantTurnConfig,
             endpoints: settings.enabledNamedEndpoints,
             primaryModel: settings.effectiveModel,
+            referencedParticipantIds: {
+              for (final message in currentConversation.messages)
+                if (message.participantId != null) message.participantId!,
+            },
             enabled: !chatState.isLoading,
             runtime: chatState.participantTurnRuntime,
             onStopRequested: chatNotifier.requestParticipantTurnStop,

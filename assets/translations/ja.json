@@ -59,6 +59,7 @@
     "demo_banner": "デモ",
     "token_usage": "↑{prompt} ↓{completion} Σ{total} tokens",
     "participants": "参加者",
+    "participant_user": "あなた",
     "participant_add_tooltip": "参加者を追加",
     "participant_continue_tooltip": "参加者ターンを続ける",
     "participant_stop_tooltip": "現在の参加者の後で停止",

@@ -59,6 +59,7 @@
     "demo_banner": "Demo",
     "token_usage": "↑{prompt} ↓{completion} Σ{total} tokens",
     "participants": "Participants",
+    "participant_user": "You",
     "participant_add_tooltip": "Add participant",
     "participant_continue_tooltip": "Continue participant turns",
     "participant_stop_tooltip": "Stop after current participant",

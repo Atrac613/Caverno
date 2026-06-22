@@ -35,6 +35,7 @@ class ParticipantRosterBar extends StatelessWidget {
     required this.endpoints,
     required this.primaryModel,
     required this.onChanged,
+    this.referencedParticipantIds = const <String>{},
     this.enabled = true,
     this.runtime,
     this.onStopRequested,
@@ -46,6 +47,7 @@ class ParticipantRosterBar extends StatelessWidget {
   final List<NamedEndpoint> endpoints;
   final String primaryModel;
   final ParticipantRosterChanged onChanged;
+  final Set<String> referencedParticipantIds;
   final bool enabled;
   final ParticipantTurnRuntime? runtime;
   final VoidCallback? onStopRequested;
@@ -81,6 +83,8 @@ class ParticipantRosterBar extends StatelessWidget {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 8),
+                    const _UserParticipantChip(),
+                    const SizedBox(width: 6),
                     for (final participant in orderedParticipants) ...[
                       _ParticipantChip(
                         participant: participant,
@@ -147,9 +151,20 @@ class ParticipantRosterBar extends StatelessWidget {
     if (result == null) return;
 
     if (result.removeParticipant) {
-      final nextParticipants = participants
-          .where((item) => item.id != result.participant.id)
-          .toList(growable: false);
+      final shouldKeepAttribution = referencedParticipantIds.contains(
+        result.participant.id,
+      );
+      final nextParticipants = shouldKeepAttribution
+          ? participants
+                .map(
+                  (item) => item.id == result.participant.id
+                      ? result.participant.copyWith(enabled: false)
+                      : item,
+                )
+                .toList(growable: false)
+          : participants
+                .where((item) => item.id != result.participant.id)
+                .toList(growable: false);
       await _emitChange(participants: nextParticipants, config: config);
       return;
     }
@@ -313,6 +328,32 @@ class _EmptyRosterButton extends StatelessWidget {
         label: Text('chat.participants'.tr()),
         onPressed: enabled ? onPressed : null,
       ),
+    );
+  }
+}
+
+class _UserParticipantChip extends StatelessWidget {
+  const _UserParticipantChip();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Chip(
+      avatar: Icon(
+        Icons.person_outline,
+        size: 16,
+        color: theme.colorScheme.onSecondaryContainer,
+      ),
+      label: Text(
+        'chat.participant_user'.tr(),
+        style: TextStyle(
+          color: theme.colorScheme.onSecondaryContainer,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      backgroundColor: theme.colorScheme.secondaryContainer,
+      side: BorderSide(color: theme.colorScheme.outlineVariant),
+      visualDensity: VisualDensity.compact,
     );
   }
 }
