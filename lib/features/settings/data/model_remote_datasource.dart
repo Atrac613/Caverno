@@ -339,6 +339,60 @@ class ModelRemoteDataSource {
     return LocalModelLifecycleCatalog.supported(models: models);
   }
 
+  static LocalModelLifecycleCatalog parseOpenAiManagedModelCatalogResponse(
+    Object? json,
+  ) {
+    if (json is! Map<String, dynamic>) {
+      return const LocalModelLifecycleCatalog.unsupported(
+        message: 'OpenAI-compatible lifecycle response was not a JSON object.',
+      );
+    }
+
+    final data = json['data'];
+    if (data is! List) {
+      return const LocalModelLifecycleCatalog.unsupported(
+        message:
+            'OpenAI-compatible lifecycle response did not include a data list.',
+      );
+    }
+
+    final modelsById = <String, LocalManagedModel>{};
+    for (final item in data) {
+      if (item is! Map<String, dynamic>) {
+        continue;
+      }
+      final id = _normalizeModelId(_readString(item, 'id'));
+      if (id == null) {
+        continue;
+      }
+      final status = _readOpenAiLifecycleStatus(item);
+      if (status == null) {
+        continue;
+      }
+      modelsById[id] = LocalManagedModel(
+        id: id,
+        state: status.state,
+        statusValue: status.value,
+        ownedBy: _readString(item, 'owned_by') ?? _readString(item, 'ownedBy'),
+        contextWindowTokens: _readContextWindowTokens(item),
+        failed: status.failed,
+        exitCode: status.exitCode,
+        commandArguments: status.commandArguments,
+      );
+    }
+
+    if (modelsById.isEmpty) {
+      return const LocalModelLifecycleCatalog.unsupported(
+        message:
+            'OpenAI-compatible model catalog did not include lifecycle status.',
+      );
+    }
+
+    final models = modelsById.values.toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
+    return LocalModelLifecycleCatalog.supported(models: models);
+  }
+
   static LocalModelLifecycleCatalog parseLmStudioManagedModelCatalogResponse(
     Object? json,
   ) {
@@ -522,6 +576,44 @@ class ModelRemoteDataSource {
     }
   }
 
+  Future<LocalModelLifecycleCatalog> listOpenAiManagedModels({
+    bool refresh = false,
+  }) async {
+    try {
+      final response = await _client
+          .get(_modelsUri(), headers: _headers())
+          .timeout(_nativeMetadataTimeout);
+      if (_isLifecycleUnsupportedStatus(response.statusCode)) {
+        return const LocalModelLifecycleCatalog.unsupported(
+          message: _modelLifecycleUnsupportedMessage,
+        );
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return LocalModelLifecycleCatalog.unsupported(
+          message: _readHttpErrorMessage(
+            response.body,
+            fallback:
+                'Failed to retrieve OpenAI-compatible managed models '
+                '(${response.statusCode}).',
+          ),
+        );
+      }
+      return parseOpenAiManagedModelCatalogResponse(jsonDecode(response.body));
+    } on FormatException {
+      return const LocalModelLifecycleCatalog.unsupported(
+        message: 'OpenAI-compatible managed model response was not valid JSON.',
+      );
+    } on TimeoutException {
+      return const LocalModelLifecycleCatalog.unsupported(
+        message: 'Timed out while retrieving OpenAI-compatible managed models.',
+      );
+    } on Object {
+      return const LocalModelLifecycleCatalog.unsupported(
+        message: _modelLifecycleUnsupportedMessage,
+      );
+    }
+  }
+
   Future<LocalModelLifecycleCatalog> listLmStudioManagedModels() async {
     try {
       final response = await _client
@@ -609,6 +701,11 @@ class ModelRemoteDataSource {
   Future<LocalModelLifecycleCatalog> listManagedModels({
     bool refresh = false,
   }) async {
+    final openAiCatalog = await listOpenAiManagedModels(refresh: refresh);
+    if (openAiCatalog.supported) {
+      return openAiCatalog;
+    }
+
     final llamaCppCatalog = await listLlamaCppManagedModels(refresh: refresh);
     if (llamaCppCatalog.supported) {
       return llamaCppCatalog;
@@ -1205,6 +1302,25 @@ class ModelRemoteDataSource {
             ]
           : const [],
     );
+  }
+
+  static _LifecycleStatus? _readOpenAiLifecycleStatus(
+    Map<String, dynamic> json,
+  ) {
+    final rawStatus =
+        json['status'] ??
+        json['state'] ??
+        json['lifecycle_state'] ??
+        json['lifecycleState'];
+    if (rawStatus != null) {
+      return _readLifecycleStatus(rawStatus);
+    }
+
+    final rawLoaded = json['loaded'] ?? json['is_loaded'] ?? json['isLoaded'];
+    if (rawLoaded is bool) {
+      return _LifecycleStatus(value: rawLoaded ? 'loaded' : 'unloaded');
+    }
+    return null;
   }
 
   static List<String> _lmStudioMetadataHints(Map<String, dynamic> json) {

@@ -16,8 +16,12 @@ extension ChatNotifierContextSurgery on ChatNotifier {
         _modelSwitchRouteKey(previousSettings) !=
         _modelSwitchRouteKey(settings);
     if (routeChanged) {
-      _pendingPrimaryModelPreparationKey = _primaryModelPreparationKey(
-        settings,
+      _pendingPrimaryModelPreparation = _PendingPrimaryModelPreparation(
+        key: _primaryModelPreparationKey(settings),
+        previousModelId: _previousPrimaryModelForPreparation(
+          previousSettings,
+          settings,
+        ),
       );
       _scheduleModelSwitchHandoff(
         previousSettings: previousSettings,
@@ -35,6 +39,29 @@ extension ChatNotifierContextSurgery on ChatNotifier {
         settings,
       );
     }
+  }
+
+  String? _previousPrimaryModelForPreparation(
+    AppSettings previousSettings,
+    AppSettings nextSettings,
+  ) {
+    if (previousSettings.llmProvider != LlmProvider.openAiCompatible ||
+        nextSettings.llmProvider != LlmProvider.openAiCompatible ||
+        previousSettings.demoMode ||
+        nextSettings.demoMode) {
+      return null;
+    }
+    if (previousSettings.baseUrl.trim() != nextSettings.baseUrl.trim() ||
+        previousSettings.apiKey.trim() != nextSettings.apiKey.trim()) {
+      return null;
+    }
+
+    final previousModel = previousSettings.model.trim();
+    final nextModel = nextSettings.model.trim();
+    if (previousModel.isEmpty || previousModel == nextModel) {
+      return null;
+    }
+    return previousModel;
   }
 
   @visibleForTesting

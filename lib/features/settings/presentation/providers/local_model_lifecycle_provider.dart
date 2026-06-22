@@ -97,6 +97,7 @@ final primaryModelPreparationServiceProvider =
       )(endpoint);
       return PrimaryModelPreparationService(
         listManagedModels: dataSource.listManagedModels,
+        unloadManagedModel: dataSource.unloadManagedModel,
         loadManagedModel: dataSource.loadManagedModel,
       );
     });

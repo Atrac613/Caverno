@@ -464,7 +464,7 @@ void main() {
   });
 
   test(
-    'lists managed models through the provider-neutral lifecycle API',
+    'lists managed models through OpenAI-compatible lifecycle catalog',
     () async {
       final requests = <http.Request>[];
       final client = MockClient((request) async {
@@ -485,10 +485,8 @@ void main() {
 
       expect(catalog.supported, isTrue);
       expect(catalog.models.single.id, 'local-model');
-      expect(
-        requests.single.url.toString(),
-        'http://localhost:1234/models?reload=1',
-      );
+      expect(catalog.models.single.state, LocalModelLifecycleState.loaded);
+      expect(requests.single.url.toString(), 'http://localhost:1234/v1/models');
     },
   );
 
@@ -498,6 +496,9 @@ void main() {
       final requests = <http.Request>[];
       final client = MockClient((request) async {
         requests.add(request);
+        if (request.url.path == '/v1/models') {
+          return http.Response('not found', 404);
+        }
         if (request.url.path == '/models') {
           return http.Response('not found', 404);
         }
@@ -522,6 +523,7 @@ void main() {
       expect(catalog.supported, isTrue);
       expect(catalog.models.single.id, 'lmstudio-model');
       expect(requests.map((request) => request.url.path).toList(), [
+        '/v1/models',
         '/models',
         '/api/v1/models',
       ]);
@@ -534,6 +536,9 @@ void main() {
       final requests = <http.Request>[];
       final client = MockClient((request) async {
         requests.add(request);
+        if (request.url.path == '/v1/models') {
+          return http.Response('not found', 404);
+        }
         if (request.url.path == '/models') {
           return http.Response('not found', 404);
         }
@@ -577,6 +582,7 @@ void main() {
       expect(catalog.models.single.state, LocalModelLifecycleState.loaded);
       expect(catalog.models.single.contextWindowTokens, 8192);
       expect(requests.map((request) => request.url.path).toList(), [
+        '/v1/models',
         '/models',
         '/api/v1/models',
         '/api/tags',

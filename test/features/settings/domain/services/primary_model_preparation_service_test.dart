@@ -26,6 +26,9 @@ void main() {
             message: 'Requested load for "$modelId".',
           );
         },
+        unloadManagedModel: (modelId) async {
+          fail('Expected no unload request for $modelId.');
+        },
       );
 
       final outcome = await service.preparePrimaryModel(
@@ -39,6 +42,165 @@ void main() {
       expect(outcome.attemptedLoad, isTrue);
       expect(loadedModelIds, ['qwen3.6-35b-a3b-vision']);
     });
+
+    test(
+      'unloads previous model and confirms before loading next model',
+      () async {
+        final operations = <String>[];
+        final service = PrimaryModelPreparationService(
+          listManagedModels: ({bool refresh = false}) async {
+            operations.add('list:$refresh');
+            return const LocalModelLifecycleCatalog.supported(
+              models: [
+                LocalManagedModel(
+                  id: 'qwen3.6-27b-mtp-vision',
+                  state: LocalModelLifecycleState.unloaded,
+                  statusValue: 'unloaded',
+                ),
+                LocalManagedModel(
+                  id: 'qwen3.6-35b-a3b-vision',
+                  state: LocalModelLifecycleState.unloaded,
+                  statusValue: 'unloaded',
+                ),
+              ],
+            );
+          },
+          unloadManagedModel: (modelId) async {
+            operations.add('unload:$modelId');
+            return LocalModelLifecycleActionResult.success(
+              message: 'Requested unload for "$modelId".',
+            );
+          },
+          loadManagedModel: (modelId) async {
+            operations.add('load:$modelId');
+            return LocalModelLifecycleActionResult.success(
+              message: 'Requested load for "$modelId".',
+            );
+          },
+        );
+
+        final outcome = await service.preparePrimaryModel(
+          settings: AppSettings.defaults().copyWith(
+            model: 'qwen3.6-35b-a3b-vision',
+          ),
+          previousPrimaryModelId: 'qwen3.6-27b-mtp-vision',
+        );
+
+        expect(outcome.status, PrimaryModelPreparationStatus.loadStarted);
+        expect(outcome.previousModelId, 'qwen3.6-27b-mtp-vision');
+        expect(outcome.attemptedUnload, isTrue);
+        expect(outcome.attemptedLoad, isTrue);
+        expect(operations, [
+          'unload:qwen3.6-27b-mtp-vision',
+          'list:true',
+          'load:qwen3.6-35b-a3b-vision',
+        ]);
+      },
+    );
+
+    test('infers loaded previous model before loading next model', () async {
+      final operations = <String>[];
+      final service = PrimaryModelPreparationService(
+        listManagedModels: ({bool refresh = false}) async {
+          operations.add('list:$refresh');
+          final previousState =
+              operations.contains('unload:qwen3.6-27b-mtp-vision')
+              ? LocalModelLifecycleState.unloaded
+              : LocalModelLifecycleState.loaded;
+          return LocalModelLifecycleCatalog.supported(
+            models: [
+              LocalManagedModel(
+                id: 'qwen3.6-27b-mtp-vision',
+                state: previousState,
+                statusValue: previousState.name,
+              ),
+              const LocalManagedModel(
+                id: 'qwen3.6-35b-a3b-vision',
+                state: LocalModelLifecycleState.unloaded,
+                statusValue: 'unloaded',
+              ),
+            ],
+          );
+        },
+        unloadManagedModel: (modelId) async {
+          operations.add('unload:$modelId');
+          return LocalModelLifecycleActionResult.success(
+            message: 'Requested unload for "$modelId".',
+          );
+        },
+        loadManagedModel: (modelId) async {
+          operations.add('load:$modelId');
+          return LocalModelLifecycleActionResult.success(
+            message: 'Requested load for "$modelId".',
+          );
+        },
+      );
+
+      final outcome = await service.preparePrimaryModel(
+        settings: AppSettings.defaults().copyWith(
+          model: 'qwen3.6-35b-a3b-vision',
+        ),
+      );
+
+      expect(outcome.status, PrimaryModelPreparationStatus.loadStarted);
+      expect(outcome.previousModelId, 'qwen3.6-27b-mtp-vision');
+      expect(operations, [
+        'list:false',
+        'unload:qwen3.6-27b-mtp-vision',
+        'list:true',
+        'load:qwen3.6-35b-a3b-vision',
+      ]);
+    });
+
+    test(
+      'does not load next model until previous unload is confirmed',
+      () async {
+        final operations = <String>[];
+        final service = PrimaryModelPreparationService(
+          listManagedModels: ({bool refresh = false}) async {
+            operations.add('list:$refresh');
+            return const LocalModelLifecycleCatalog.supported(
+              models: [
+                LocalManagedModel(
+                  id: 'qwen3.6-27b-mtp-vision',
+                  state: LocalModelLifecycleState.loaded,
+                  statusValue: 'loaded',
+                ),
+                LocalManagedModel(
+                  id: 'qwen3.6-35b-a3b-vision',
+                  state: LocalModelLifecycleState.unloaded,
+                  statusValue: 'unloaded',
+                ),
+              ],
+            );
+          },
+          unloadManagedModel: (modelId) async {
+            operations.add('unload:$modelId');
+            return LocalModelLifecycleActionResult.success(
+              message: 'Requested unload for "$modelId".',
+            );
+          },
+          loadManagedModel: (modelId) async {
+            operations.add('load:$modelId');
+            fail(
+              'Expected no load request until previous unload is confirmed.',
+            );
+          },
+        );
+
+        final outcome = await service.preparePrimaryModel(
+          settings: AppSettings.defaults().copyWith(
+            model: 'qwen3.6-35b-a3b-vision',
+          ),
+          previousPrimaryModelId: 'qwen3.6-27b-mtp-vision',
+        );
+
+        expect(outcome.status, PrimaryModelPreparationStatus.failed);
+        expect(outcome.attemptedUnload, isTrue);
+        expect(outcome.attemptedLoad, isFalse);
+        expect(operations, ['unload:qwen3.6-27b-mtp-vision', 'list:true']);
+      },
+    );
 
     test('does not load ready or in-progress models', () async {
       final service = PrimaryModelPreparationService(
@@ -60,6 +222,9 @@ void main() {
         },
         loadManagedModel: (modelId) async {
           fail('Expected no load request for $modelId.');
+        },
+        unloadManagedModel: (modelId) async {
+          fail('Expected no unload request for $modelId.');
         },
       );
 
@@ -84,6 +249,9 @@ void main() {
         loadManagedModel: (modelId) async {
           fail('Expected no load request for $modelId.');
         },
+        unloadManagedModel: (modelId) async {
+          fail('Expected no unload request for $modelId.');
+        },
       );
 
       final outcome = await service.preparePrimaryModel(
@@ -103,6 +271,9 @@ void main() {
         },
         loadManagedModel: (modelId) async {
           fail('Expected no load request for $modelId.');
+        },
+        unloadManagedModel: (modelId) async {
+          fail('Expected no unload request for $modelId.');
         },
       );
 

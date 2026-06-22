@@ -295,6 +295,16 @@ final class _PlanningResearchContext {
   }
 }
 
+final class _PendingPrimaryModelPreparation {
+  const _PendingPrimaryModelPreparation({
+    required this.key,
+    this.previousModelId,
+  });
+
+  final String key;
+  final String? previousModelId;
+}
+
 class ChatNotifier extends Notifier<ChatState> {
   late ChatDataSource _dataSource;
   late MeshSecondaryCompletionRunner<ChatDataSource> _meshRunner;
@@ -302,7 +312,7 @@ class ChatNotifier extends Notifier<ChatState> {
   late SessionMemoryService _memoryService;
   late AppSettings _settings;
   bool _hasLoadedSettings = false;
-  String? _pendingPrimaryModelPreparationKey;
+  _PendingPrimaryModelPreparation? _pendingPrimaryModelPreparation;
   late CodingDiagnosticFeedbackService _codingDiagnosticFeedbackService;
   late CodingVerificationFeedbackService _codingVerificationFeedbackService;
   late BackgroundProcessMonitorService _backgroundProcessMonitorService;
@@ -560,25 +570,30 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<void> _preparePrimaryModelForPendingRouteIfNeeded() async {
-    final pendingKey = _pendingPrimaryModelPreparationKey;
-    if (pendingKey == null) {
+    final pending = _pendingPrimaryModelPreparation;
+    if (pending == null) {
       return;
     }
     final settings = _settings;
-    if (pendingKey != _primaryModelPreparationKey(settings)) {
+    if (pending.key != _primaryModelPreparationKey(settings)) {
+      _pendingPrimaryModelPreparation = null;
       return;
     }
     if (settings.demoMode ||
         settings.llmProvider != LlmProvider.openAiCompatible ||
         settings.model.trim().isEmpty) {
-      _pendingPrimaryModelPreparationKey = null;
+      _pendingPrimaryModelPreparation = null;
       return;
     }
 
     try {
       final outcome = await ref
           .read(primaryModelPreparationServiceProvider)
-          .preparePrimaryModel(settings: settings, refreshCatalog: true);
+          .preparePrimaryModel(
+            settings: settings,
+            previousPrimaryModelId: pending.previousModelId,
+            refreshCatalog: true,
+          );
       _logPrimaryModelPreparationOutcome(outcome);
     } on Object catch (error, stackTrace) {
       appLog(
@@ -587,8 +602,8 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       appLog('[LL9] stackTrace: $stackTrace');
     } finally {
-      if (_pendingPrimaryModelPreparationKey == pendingKey) {
-        _pendingPrimaryModelPreparationKey = null;
+      if (_pendingPrimaryModelPreparation == pending) {
+        _pendingPrimaryModelPreparation = null;
       }
     }
   }

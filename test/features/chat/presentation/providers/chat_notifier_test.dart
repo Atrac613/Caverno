@@ -130,6 +130,7 @@ void main() {
   test('sendMessage prepares changed primary model before request', () async {
     final prepController = StreamController<String>();
     final preparedModelIds = <String>[];
+    final unloadedModelIds = <String>[];
     final appLifecycleService = _MockAppLifecycleService();
     when(() => appLifecycleService.isInBackground).thenReturn(false);
     final prepContainer = ProviderContainer(
@@ -153,14 +154,26 @@ void main() {
           PrimaryModelPreparationService(
             listManagedModels: ({bool refresh = false}) async {
               expect(refresh, isTrue);
-              return const LocalModelLifecycleCatalog.supported(
+              return LocalModelLifecycleCatalog.supported(
                 models: [
+                  for (final modelId in unloadedModelIds)
+                    LocalManagedModel(
+                      id: modelId,
+                      state: LocalModelLifecycleState.unloaded,
+                      statusValue: 'unloaded',
+                    ),
                   LocalManagedModel(
                     id: 'qwen3.6-35b-a3b-vision',
                     state: LocalModelLifecycleState.unloaded,
                     statusValue: 'unloaded',
                   ),
                 ],
+              );
+            },
+            unloadManagedModel: (modelId) async {
+              unloadedModelIds.add(modelId);
+              return LocalModelLifecycleActionResult.success(
+                message: 'Requested unload for "$modelId".',
               );
             },
             loadManagedModel: (modelId) async {
@@ -188,8 +201,10 @@ void main() {
       ),
     );
 
-    await prepNotifier.sendMessage('Use the stronger model');
+    await prepNotifier.sendMessage('Use the selected model');
 
+    expect(unloadedModelIds, hasLength(1));
+    expect(unloadedModelIds.single, isNot('qwen3.6-35b-a3b-vision'));
     expect(preparedModelIds, ['qwen3.6-35b-a3b-vision']);
     expect(prepNotifier.state.isLoading, isTrue);
   });
