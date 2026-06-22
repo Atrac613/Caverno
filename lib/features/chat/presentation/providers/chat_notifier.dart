@@ -6809,16 +6809,19 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
-    // Reuse only when the SAME question was already answered this turn; a
-    // different question must prompt the user instead of inheriting an
-    // unrelated earlier answer.
-    final existingResult = interactionGeneration == null
+    // Local models can ask the same user-facing decision again with slightly
+    // different wording after receiving tool results. Keep a turn-level answer
+    // sticky so the UI does not block on repeated clarification loops.
+    final existingResults = interactionGeneration == null
         ? null
-        : _askUserQuestionResultsByGeneration[interactionGeneration]?[question];
+        : _askUserQuestionResultsByGeneration[interactionGeneration];
+    final existingResult = existingResults == null
+        ? null
+        : existingResults[question] ?? existingResults.values.firstOrNull;
     if (existingResult != null) {
       appLog(
-        '[AskUserQuestion] Reusing completed answer for the same repeated '
-        'question in the same turn',
+        '[AskUserQuestion] Reusing completed answer for repeated '
+        'ask_user_question in the same turn',
       );
       return _buildRepeatedAskUserQuestionResult(existingResult);
     }
