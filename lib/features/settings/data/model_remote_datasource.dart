@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../core/constants/api_constants.dart';
+import '../../../core/utils/logger.dart';
 import '../domain/entities/local_model_lifecycle.dart';
 import '../domain/entities/model_catalog_entry.dart';
 
@@ -1024,9 +1025,35 @@ class ModelRemoteDataSource {
   }) async {
     final normalizedModelId = _normalizeModelId(modelId);
     if (normalizedModelId == null) {
-      return LocalModelLifecycleActionResult.failure(
+      final result = LocalModelLifecycleActionResult.failure(
         message: 'A model id is required to $actionLabel a managed model.',
       );
+      _logLifecycleActionResult(
+        actionLabel: actionLabel,
+        modelId: modelId,
+        uri: uri,
+        result: result,
+      );
+      return result;
+    }
+
+    _logLifecycleActionRequest(
+      actionLabel: actionLabel,
+      modelId: normalizedModelId,
+      uri: uri,
+      payloadLabel: modelIdField,
+    );
+
+    LocalModelLifecycleActionResult finish(
+      LocalModelLifecycleActionResult result,
+    ) {
+      _logLifecycleActionResult(
+        actionLabel: actionLabel,
+        modelId: normalizedModelId,
+        uri: uri,
+        result: result,
+      );
+      return result;
     }
 
     try {
@@ -1038,53 +1065,81 @@ class ModelRemoteDataSource {
           )
           .timeout(_nativeMetadataTimeout);
       if (_isLifecycleUnsupportedStatus(response.statusCode)) {
-        return LocalModelLifecycleActionResult.unsupported(
-          message: _modelLifecycleUnsupportedMessage,
-          statusCode: response.statusCode,
+        return finish(
+          LocalModelLifecycleActionResult.unsupported(
+            message: _modelLifecycleUnsupportedMessage,
+            statusCode: response.statusCode,
+          ),
         );
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        return LocalModelLifecycleActionResult.failure(
-          message: _readHttpErrorMessage(
-            response.body,
-            fallback:
-                'Failed to $actionLabel "$normalizedModelId" '
-                '(${response.statusCode}).',
+        return finish(
+          LocalModelLifecycleActionResult.failure(
+            message: _readHttpErrorMessage(
+              response.body,
+              fallback:
+                  'Failed to $actionLabel "$normalizedModelId" '
+                  '(${response.statusCode}).',
+            ),
+            statusCode: response.statusCode,
           ),
-          statusCode: response.statusCode,
         );
       }
 
       if (response.body.trim().isEmpty) {
-        return LocalModelLifecycleActionResult.success(
-          message: 'Requested $actionLabel for "$normalizedModelId".',
+        return finish(
+          LocalModelLifecycleActionResult.success(
+            message: 'Requested $actionLabel for "$normalizedModelId".',
+          ),
         );
       }
 
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic> && decoded['success'] == false) {
-        return LocalModelLifecycleActionResult.failure(
-          message: _readHttpErrorMessage(
-            response.body,
-            fallback: 'Failed to $actionLabel "$normalizedModelId".',
+        return finish(
+          LocalModelLifecycleActionResult.failure(
+            message: _readHttpErrorMessage(
+              response.body,
+              fallback: 'Failed to $actionLabel "$normalizedModelId".',
+            ),
+            statusCode: response.statusCode,
           ),
-          statusCode: response.statusCode,
         );
       }
-      return LocalModelLifecycleActionResult.success(
-        message: 'Requested $actionLabel for "$normalizedModelId".',
+      return finish(
+        LocalModelLifecycleActionResult.success(
+          message: 'Requested $actionLabel for "$normalizedModelId".',
+        ),
       );
-    } on FormatException {
-      return LocalModelLifecycleActionResult.failure(
-        message: 'Managed model $actionLabel response was not valid JSON.',
+    } on FormatException catch (error) {
+      _logLifecycleActionException(
+        actionLabel: actionLabel,
+        modelId: normalizedModelId,
+        uri: uri,
+        error: error,
+      );
+      return finish(
+        LocalModelLifecycleActionResult.failure(
+          message: 'Managed model $actionLabel response was not valid JSON.',
+        ),
       );
     } on TimeoutException {
-      return LocalModelLifecycleActionResult.failure(
-        message: 'Timed out while requesting $actionLabel for "$modelId".',
+      return finish(
+        LocalModelLifecycleActionResult.failure(
+          message: 'Timed out while requesting $actionLabel for "$modelId".',
+        ),
       );
-    } on Object {
-      return LocalModelLifecycleActionResult.unsupported(
-        message: _modelLifecycleUnsupportedMessage,
+    } on Object catch (error) {
+      _logLifecycleActionException(
+        actionLabel: actionLabel,
+        modelId: normalizedModelId,
+        uri: uri,
+        error: error,
+      );
+      return finish(
+        LocalModelLifecycleActionResult.unsupported(
+          message: _modelLifecycleUnsupportedMessage,
+        ),
       );
     }
   }
@@ -1097,9 +1152,35 @@ class ModelRemoteDataSource {
   }) async {
     final normalizedModelId = _normalizeModelId(modelId);
     if (normalizedModelId == null) {
-      return LocalModelLifecycleActionResult.failure(
+      final result = LocalModelLifecycleActionResult.failure(
         message: 'A model id is required to $actionLabel an Ollama model.',
       );
+      _logLifecycleActionResult(
+        actionLabel: actionLabel,
+        modelId: modelId,
+        uri: uri,
+        result: result,
+      );
+      return result;
+    }
+
+    _logLifecycleActionRequest(
+      actionLabel: actionLabel,
+      modelId: normalizedModelId,
+      uri: uri,
+      payloadLabel: 'ollama',
+    );
+
+    LocalModelLifecycleActionResult finish(
+      LocalModelLifecycleActionResult result,
+    ) {
+      _logLifecycleActionResult(
+        actionLabel: actionLabel,
+        modelId: normalizedModelId,
+        uri: uri,
+        result: result,
+      );
+      return result;
     }
 
     try {
@@ -1111,55 +1192,124 @@ class ModelRemoteDataSource {
           )
           .timeout(_nativeMetadataTimeout);
       if (_isLifecycleUnsupportedStatus(response.statusCode)) {
-        return LocalModelLifecycleActionResult.unsupported(
-          message: _modelLifecycleUnsupportedMessage,
-          statusCode: response.statusCode,
+        return finish(
+          LocalModelLifecycleActionResult.unsupported(
+            message: _modelLifecycleUnsupportedMessage,
+            statusCode: response.statusCode,
+          ),
         );
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        return LocalModelLifecycleActionResult.failure(
-          message: _readHttpErrorMessage(
-            response.body,
-            fallback:
-                'Failed to $actionLabel "$normalizedModelId" '
-                '(${response.statusCode}).',
+        return finish(
+          LocalModelLifecycleActionResult.failure(
+            message: _readHttpErrorMessage(
+              response.body,
+              fallback:
+                  'Failed to $actionLabel "$normalizedModelId" '
+                  '(${response.statusCode}).',
+            ),
+            statusCode: response.statusCode,
           ),
-          statusCode: response.statusCode,
         );
       }
 
       if (response.body.trim().isEmpty) {
-        return LocalModelLifecycleActionResult.success(
-          message: 'Requested $actionLabel for "$normalizedModelId".',
+        return finish(
+          LocalModelLifecycleActionResult.success(
+            message: 'Requested $actionLabel for "$normalizedModelId".',
+          ),
         );
       }
 
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic> && decoded.containsKey('error')) {
-        return LocalModelLifecycleActionResult.failure(
-          message: _readHttpErrorMessage(
-            response.body,
-            fallback: 'Failed to $actionLabel "$normalizedModelId".',
+        return finish(
+          LocalModelLifecycleActionResult.failure(
+            message: _readHttpErrorMessage(
+              response.body,
+              fallback: 'Failed to $actionLabel "$normalizedModelId".',
+            ),
+            statusCode: response.statusCode,
           ),
-          statusCode: response.statusCode,
         );
       }
-      return LocalModelLifecycleActionResult.success(
-        message: 'Requested $actionLabel for "$normalizedModelId".',
+      return finish(
+        LocalModelLifecycleActionResult.success(
+          message: 'Requested $actionLabel for "$normalizedModelId".',
+        ),
       );
-    } on FormatException {
-      return LocalModelLifecycleActionResult.failure(
-        message: 'Ollama model $actionLabel response was not valid JSON.',
+    } on FormatException catch (error) {
+      _logLifecycleActionException(
+        actionLabel: actionLabel,
+        modelId: normalizedModelId,
+        uri: uri,
+        error: error,
+      );
+      return finish(
+        LocalModelLifecycleActionResult.failure(
+          message: 'Ollama model $actionLabel response was not valid JSON.',
+        ),
       );
     } on TimeoutException {
-      return LocalModelLifecycleActionResult.failure(
-        message: 'Timed out while requesting $actionLabel for "$modelId".',
+      return finish(
+        LocalModelLifecycleActionResult.failure(
+          message: 'Timed out while requesting $actionLabel for "$modelId".',
+        ),
       );
-    } on Object {
-      return LocalModelLifecycleActionResult.unsupported(
-        message: _modelLifecycleUnsupportedMessage,
+    } on Object catch (error) {
+      _logLifecycleActionException(
+        actionLabel: actionLabel,
+        modelId: normalizedModelId,
+        uri: uri,
+        error: error,
+      );
+      return finish(
+        LocalModelLifecycleActionResult.unsupported(
+          message: _modelLifecycleUnsupportedMessage,
+        ),
       );
     }
+  }
+
+  void _logLifecycleActionRequest({
+    required String actionLabel,
+    required String modelId,
+    required Uri uri,
+    required String payloadLabel,
+  }) {
+    appLog(
+      '[LL9] Model lifecycle $actionLabel request: '
+      'model="$modelId", uri=$uri, payload=$payloadLabel',
+    );
+  }
+
+  void _logLifecycleActionResult({
+    required String actionLabel,
+    required String modelId,
+    required Uri uri,
+    required LocalModelLifecycleActionResult result,
+  }) {
+    final statusCode = result.statusCode == null
+        ? ''
+        : ', statusCode=${result.statusCode}';
+    appLog(
+      '[LL9] Model lifecycle $actionLabel result: '
+      'model="$modelId", uri=$uri, '
+      'supported=${result.supported}, succeeded=${result.succeeded}'
+      '$statusCode, message=${result.message}',
+    );
+  }
+
+  void _logLifecycleActionException({
+    required String actionLabel,
+    required String modelId,
+    required Uri uri,
+    required Object error,
+  }) {
+    appLog(
+      '[LL9] Model lifecycle $actionLabel exception: '
+      'model="$modelId", uri=$uri, error=${error.runtimeType}: $error',
+    );
   }
 
   bool _canUseNvidiaNimFallback(Object? primaryError) {

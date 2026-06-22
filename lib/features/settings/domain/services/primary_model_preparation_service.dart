@@ -40,6 +40,7 @@ class PrimaryModelPreparationOutcome {
     required this.message,
     this.previousModelId,
     this.unloadActionResult,
+    this.previousModelUnloadConfirmed = false,
     this.actionResult,
   });
 
@@ -48,6 +49,7 @@ class PrimaryModelPreparationOutcome {
   final String message;
   final String? previousModelId;
   final LocalModelLifecycleActionResult? unloadActionResult;
+  final bool previousModelUnloadConfirmed;
   final LocalModelLifecycleActionResult? actionResult;
 
   bool get attemptedLoad => actionResult != null;
@@ -83,6 +85,7 @@ class PrimaryModelPreparationService {
 
     LocalModelLifecycleCatalog? catalog;
     LocalModelLifecycleActionResult? unloadResult;
+    var unloadConfirmed = false;
     PrimaryModelPreparationPlan? plan;
     if (previousModelId == null) {
       try {
@@ -166,6 +169,7 @@ class PrimaryModelPreparationService {
           unloadActionResult: unloadResult,
         );
       }
+      unloadConfirmed = true;
       plan = null;
     }
 
@@ -180,6 +184,7 @@ class PrimaryModelPreparationService {
             'Failed to inspect the managed model catalog: '
             '${error.runtimeType}: $error',
         unloadActionResult: unloadResult,
+        previousModelUnloadConfirmed: unloadConfirmed,
       );
     }
 
@@ -189,6 +194,7 @@ class PrimaryModelPreparationService {
         plan,
         previousModelId: previousModelId,
         unloadActionResult: unloadResult,
+        previousModelUnloadConfirmed: unloadConfirmed,
       );
     }
 
@@ -201,6 +207,7 @@ class PrimaryModelPreparationService {
           status: PrimaryModelPreparationStatus.loadStarted,
           message: result.message,
           unloadActionResult: unloadResult,
+          previousModelUnloadConfirmed: unloadConfirmed,
           actionResult: result,
         );
       }
@@ -212,6 +219,7 @@ class PrimaryModelPreparationService {
             : PrimaryModelPreparationStatus.unsupported,
         message: result.message,
         unloadActionResult: unloadResult,
+        previousModelUnloadConfirmed: unloadConfirmed,
         actionResult: result,
       );
     } on Object catch (error) {
@@ -223,6 +231,7 @@ class PrimaryModelPreparationService {
             'Failed to request managed model load: '
             '${error.runtimeType}: $error',
         unloadActionResult: unloadResult,
+        previousModelUnloadConfirmed: unloadConfirmed,
       );
     }
   }
@@ -351,6 +360,7 @@ class PrimaryModelPreparationService {
     PrimaryModelPreparationPlan plan, {
     String? previousModelId,
     LocalModelLifecycleActionResult? unloadActionResult,
+    bool previousModelUnloadConfirmed = false,
   }) {
     return PrimaryModelPreparationOutcome(
       modelId: plan.modelId,
@@ -358,6 +368,7 @@ class PrimaryModelPreparationService {
       status: plan.status,
       message: plan.message,
       unloadActionResult: unloadActionResult,
+      previousModelUnloadConfirmed: previousModelUnloadConfirmed,
     );
   }
 }

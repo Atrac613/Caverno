@@ -89,6 +89,7 @@ void main() {
         expect(outcome.status, PrimaryModelPreparationStatus.loadStarted);
         expect(outcome.previousModelId, 'qwen3.6-27b-mtp-vision');
         expect(outcome.attemptedUnload, isTrue);
+        expect(outcome.previousModelUnloadConfirmed, isTrue);
         expect(outcome.attemptedLoad, isTrue);
         expect(operations, [
           'unload:qwen3.6-27b-mtp-vision',
@@ -144,6 +145,7 @@ void main() {
 
       expect(outcome.status, PrimaryModelPreparationStatus.loadStarted);
       expect(outcome.previousModelId, 'qwen3.6-27b-mtp-vision');
+      expect(outcome.previousModelUnloadConfirmed, isTrue);
       expect(operations, [
         'list:false',
         'unload:qwen3.6-27b-mtp-vision',
@@ -197,6 +199,7 @@ void main() {
 
         expect(outcome.status, PrimaryModelPreparationStatus.failed);
         expect(outcome.attemptedUnload, isTrue);
+        expect(outcome.previousModelUnloadConfirmed, isFalse);
         expect(outcome.attemptedLoad, isFalse);
         expect(operations, ['unload:qwen3.6-27b-mtp-vision', 'list:true']);
       },

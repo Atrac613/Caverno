@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/utils/logger.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/local_host_resources.dart';
 import '../../domain/entities/local_model_lifecycle.dart';
@@ -124,6 +125,11 @@ class _LocalStackSettingsPageState
   }) async {
     if (_pendingModelIds.contains(modelId)) return;
     setState(() => _pendingModelIds.add(modelId));
+    final actionLabel = _actionLogLabel(action);
+    appLog(
+      '[LL9] Local Stack settings $actionLabel requested: '
+      'endpoint=${_endpointLogLabel(endpoint)}, model="$modelId"',
+    );
     try {
       final dataSource = ref.read(localModelLifecycleDataSourceFactoryProvider)(
         endpoint,
@@ -136,11 +142,25 @@ class _LocalStackSettingsPageState
           modelId,
         ),
       };
+      appLog(
+        '[LL9] Local Stack settings $actionLabel completed: '
+        'endpoint=${_endpointLogLabel(endpoint)}, model="$modelId", '
+        'supported=${result.supported}, succeeded=${result.succeeded}, '
+        'message=${result.message}',
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(result.message)));
       _refresh(endpoint);
+    } on Object catch (error, stackTrace) {
+      appLog(
+        '[LL9] Local Stack settings $actionLabel failed: '
+        'endpoint=${_endpointLogLabel(endpoint)}, model="$modelId", '
+        'error=${error.runtimeType}: $error',
+      );
+      appLog('[LL9] Local Stack settings stackTrace: $stackTrace');
+      rethrow;
     } finally {
       if (mounted) {
         setState(() => _pendingModelIds.remove(modelId));
@@ -153,6 +173,10 @@ class _LocalStackSettingsPageState
   ) async {
     if (_preparingRoleModels) return;
     setState(() => _preparingRoleModels = true);
+    appLog(
+      '[LL9] Local Stack role-model preparation requested: '
+      'endpoint=${_endpointLogLabel(endpoint)}',
+    );
     try {
       final settings = ref.read(settingsNotifierProvider);
       final catalog = await ref.read(
@@ -168,10 +192,21 @@ class _LocalStackSettingsPageState
 
       if (!mounted) return;
       if (!plan.hasTargets) {
+        appLog(
+          '[LL9] Local Stack role-model preparation skipped: '
+          'endpoint=${_endpointLogLabel(endpoint)}, reason=no-targets',
+        );
         _showSnackBar('settings.local_stack_prepare_no_endpoint_roles'.tr());
         return;
       }
       if (!plan.hasLoadableModels) {
+        appLog(
+          '[LL9] Local Stack role-model preparation skipped: '
+          'endpoint=${_endpointLogLabel(endpoint)}, reason=no-loadable-models, '
+          'ready=${plan.readyModelIds.length}, '
+          'inProgress=${plan.inProgressModelIds.length}, '
+          'missing=${plan.missingModelIds.length}',
+        );
         _showSnackBar(
           'settings.local_stack_prepare_no_work'.tr(
             args: ['${plan.readyModelIds.length}'],
@@ -186,12 +221,22 @@ class _LocalStackSettingsPageState
       var loadedCount = 0;
       var failedCount = 0;
       for (final modelId in plan.loadableModelIds) {
+        appLog(
+          '[LL9] Local Stack role-model preparation load requested: '
+          'endpoint=${_endpointLogLabel(endpoint)}, model="$modelId"',
+        );
         final result = await dataSource.loadManagedModel(modelId);
         if (result.supported && result.succeeded) {
           loadedCount++;
         } else {
           failedCount++;
         }
+        appLog(
+          '[LL9] Local Stack role-model preparation load completed: '
+          'endpoint=${_endpointLogLabel(endpoint)}, model="$modelId", '
+          'supported=${result.supported}, succeeded=${result.succeeded}, '
+          'message=${result.message}',
+        );
       }
 
       if (!mounted) return;
@@ -208,7 +253,22 @@ class _LocalStackSettingsPageState
                 args: ['$loadedCount', '$failedCount', '$skippedCount'],
               ),
       );
+      appLog(
+        '[LL9] Local Stack role-model preparation completed: '
+        'endpoint=${_endpointLogLabel(endpoint)}, loaded=$loadedCount, '
+        'failed=$failedCount, skipped=$skippedCount',
+      );
       _refresh(endpoint);
+    } on Object catch (error, stackTrace) {
+      appLog(
+        '[LL9] Local Stack role-model preparation failed: '
+        'endpoint=${_endpointLogLabel(endpoint)}, '
+        'error=${error.runtimeType}: $error',
+      );
+      appLog(
+        '[LL9] Local Stack role-model preparation stackTrace: $stackTrace',
+      );
+      rethrow;
     } finally {
       if (mounted) {
         setState(() => _preparingRoleModels = false);
@@ -220,6 +280,18 @@ class _LocalStackSettingsPageState
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _actionLogLabel(_LocalStackModelAction action) {
+    return switch (action) {
+      _LocalStackModelAction.load => 'load',
+      _LocalStackModelAction.unload => 'unload',
+    };
+  }
+
+  String _endpointLogLabel(LocalModelLifecycleEndpointConfig endpoint) {
+    final id = endpoint.isPrimary ? 'primary' : endpoint.id;
+    return '$id (${endpoint.baseUrl})';
   }
 }
 

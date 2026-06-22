@@ -611,6 +611,22 @@ class ChatNotifier extends Notifier<ChatState> {
   void _logPrimaryModelPreparationOutcome(
     PrimaryModelPreparationOutcome outcome,
   ) {
+    final previousModelId = outcome.previousModelId;
+    final unloadResult = outcome.unloadActionResult;
+    if (previousModelId != null && unloadResult != null) {
+      appLog(
+        '[LL9] Previous primary model "$previousModelId" unload result: '
+        'supported=${unloadResult.supported}, '
+        'succeeded=${unloadResult.succeeded}, message=${unloadResult.message}',
+      );
+      if (outcome.previousModelUnloadConfirmed) {
+        appLog(
+          '[LL9] Previous primary model "$previousModelId" confirmed '
+          'unloaded before preparing "${outcome.modelId}".',
+        );
+      }
+    }
+
     switch (outcome.status) {
       case PrimaryModelPreparationStatus.loadStarted:
         appLog(
