@@ -4,6 +4,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../services/conversation_plan_hash.dart';
 import 'conversation_compaction_artifact.dart';
 import 'conversation_goal.dart';
+import 'conversation_participant.dart';
 import 'message.dart';
 import 'conversation_plan_artifact.dart';
 import 'turn_diff.dart';
@@ -229,6 +230,10 @@ abstract class Conversation with _$Conversation {
     @JsonKey(fromJson: _turnDiffsFromJson, toJson: _turnDiffsToJson)
     @Default(<TurnDiff>[])
     List<TurnDiff> turnDiffs,
+    @Default(<ConversationParticipant>[])
+    List<ConversationParticipant> participants,
+    @Default(ParticipantTurnConfig())
+    ParticipantTurnConfig participantTurnConfig,
   }) = _Conversation;
 
   factory Conversation.fromJson(Map<String, dynamic> json) =>

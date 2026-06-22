@@ -32,6 +32,10 @@ abstract class Message with _$Message {
     String? imageMimeType,
     String? originalImagePath,
     String? originalImageMimeType,
+    String? participantId,
+    String? participantDisplayName,
+    String? participantRoleLabel,
+    int? participantColorValue,
     MessageResponseMetrics? responseMetrics,
   }) = _Message;
 

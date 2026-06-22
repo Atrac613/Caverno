@@ -37,6 +37,10 @@ _Message _$MessageFromJson(Map<String, dynamic> json) => _Message(
   imageMimeType: json['imageMimeType'] as String?,
   originalImagePath: json['originalImagePath'] as String?,
   originalImageMimeType: json['originalImageMimeType'] as String?,
+  participantId: json['participantId'] as String?,
+  participantDisplayName: json['participantDisplayName'] as String?,
+  participantRoleLabel: json['participantRoleLabel'] as String?,
+  participantColorValue: (json['participantColorValue'] as num?)?.toInt(),
   responseMetrics: json['responseMetrics'] == null
       ? null
       : MessageResponseMetrics.fromJson(
@@ -55,6 +59,10 @@ Map<String, dynamic> _$MessageToJson(_Message instance) => <String, dynamic>{
   'imageMimeType': instance.imageMimeType,
   'originalImagePath': instance.originalImagePath,
   'originalImageMimeType': instance.originalImageMimeType,
+  'participantId': instance.participantId,
+  'participantDisplayName': instance.participantDisplayName,
+  'participantRoleLabel': instance.participantRoleLabel,
+  'participantColorValue': instance.participantColorValue,
   'responseMetrics': instance.responseMetrics,
 };
 

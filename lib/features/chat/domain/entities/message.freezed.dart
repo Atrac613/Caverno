@@ -290,7 +290,7 @@ as String?,
 /// @nodoc
 mixin _$Message {
 
- String get id; String get content; MessageRole get role; DateTime get timestamp; bool get isStreaming; String? get error; String? get imageBase64; String? get imageMimeType; String? get originalImagePath; String? get originalImageMimeType; MessageResponseMetrics? get responseMetrics;
+ String get id; String get content; MessageRole get role; DateTime get timestamp; bool get isStreaming; String? get error; String? get imageBase64; String? get imageMimeType; String? get originalImagePath; String? get originalImageMimeType; String? get participantId; String? get participantDisplayName; String? get participantRoleLabel; int? get participantColorValue; MessageResponseMetrics? get responseMetrics;
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -303,16 +303,16 @@ $MessageCopyWith<Message> get copyWith => _$MessageCopyWithImpl<Message>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType)&&(identical(other.responseMetrics, responseMetrics) || other.responseMetrics == responseMetrics));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType)&&(identical(other.participantId, participantId) || other.participantId == participantId)&&(identical(other.participantDisplayName, participantDisplayName) || other.participantDisplayName == participantDisplayName)&&(identical(other.participantRoleLabel, participantRoleLabel) || other.participantRoleLabel == participantRoleLabel)&&(identical(other.participantColorValue, participantColorValue) || other.participantColorValue == participantColorValue)&&(identical(other.responseMetrics, responseMetrics) || other.responseMetrics == responseMetrics));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,originalImagePath,originalImageMimeType,responseMetrics);
+int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,originalImagePath,originalImageMimeType,participantId,participantDisplayName,participantRoleLabel,participantColorValue,responseMetrics);
 
 @override
 String toString() {
-  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType, responseMetrics: $responseMetrics)';
+  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType, participantId: $participantId, participantDisplayName: $participantDisplayName, participantRoleLabel: $participantRoleLabel, participantColorValue: $participantColorValue, responseMetrics: $responseMetrics)';
 }
 
 
@@ -323,7 +323,7 @@ abstract mixin class $MessageCopyWith<$Res>  {
   factory $MessageCopyWith(Message value, $Res Function(Message) _then) = _$MessageCopyWithImpl;
 @useResult
 $Res call({
- String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, String? originalImagePath, String? originalImageMimeType, MessageResponseMetrics? responseMetrics
+ String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, String? originalImagePath, String? originalImageMimeType, String? participantId, String? participantDisplayName, String? participantRoleLabel, int? participantColorValue, MessageResponseMetrics? responseMetrics
 });
 
 
@@ -340,7 +340,7 @@ class _$MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,Object? responseMetrics = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,Object? participantId = freezed,Object? participantDisplayName = freezed,Object? participantRoleLabel = freezed,Object? participantColorValue = freezed,Object? responseMetrics = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
@@ -352,7 +352,11 @@ as String?,imageBase64: freezed == imageBase64 ? _self.imageBase64 : imageBase64
 as String?,imageMimeType: freezed == imageMimeType ? _self.imageMimeType : imageMimeType // ignore: cast_nullable_to_non_nullable
 as String?,originalImagePath: freezed == originalImagePath ? _self.originalImagePath : originalImagePath // ignore: cast_nullable_to_non_nullable
 as String?,originalImageMimeType: freezed == originalImageMimeType ? _self.originalImageMimeType : originalImageMimeType // ignore: cast_nullable_to_non_nullable
-as String?,responseMetrics: freezed == responseMetrics ? _self.responseMetrics : responseMetrics // ignore: cast_nullable_to_non_nullable
+as String?,participantId: freezed == participantId ? _self.participantId : participantId // ignore: cast_nullable_to_non_nullable
+as String?,participantDisplayName: freezed == participantDisplayName ? _self.participantDisplayName : participantDisplayName // ignore: cast_nullable_to_non_nullable
+as String?,participantRoleLabel: freezed == participantRoleLabel ? _self.participantRoleLabel : participantRoleLabel // ignore: cast_nullable_to_non_nullable
+as String?,participantColorValue: freezed == participantColorValue ? _self.participantColorValue : participantColorValue // ignore: cast_nullable_to_non_nullable
+as int?,responseMetrics: freezed == responseMetrics ? _self.responseMetrics : responseMetrics // ignore: cast_nullable_to_non_nullable
 as MessageResponseMetrics?,
   ));
 }
@@ -450,10 +454,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType,  MessageResponseMetrics? responseMetrics)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType,  String? participantId,  String? participantDisplayName,  String? participantRoleLabel,  int? participantColorValue,  MessageResponseMetrics? responseMetrics)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType,_that.responseMetrics);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType,_that.participantId,_that.participantDisplayName,_that.participantRoleLabel,_that.participantColorValue,_that.responseMetrics);case _:
   return orElse();
 
 }
@@ -471,10 +475,10 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType,  MessageResponseMetrics? responseMetrics)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType,  String? participantId,  String? participantDisplayName,  String? participantRoleLabel,  int? participantColorValue,  MessageResponseMetrics? responseMetrics)  $default,) {final _that = this;
 switch (_that) {
 case _Message():
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType,_that.responseMetrics);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType,_that.participantId,_that.participantDisplayName,_that.participantRoleLabel,_that.participantColorValue,_that.responseMetrics);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -491,10 +495,10 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType,  MessageResponseMetrics? responseMetrics)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String content,  MessageRole role,  DateTime timestamp,  bool isStreaming,  String? error,  String? imageBase64,  String? imageMimeType,  String? originalImagePath,  String? originalImageMimeType,  String? participantId,  String? participantDisplayName,  String? participantRoleLabel,  int? participantColorValue,  MessageResponseMetrics? responseMetrics)?  $default,) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
-return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType,_that.responseMetrics);case _:
+return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStreaming,_that.error,_that.imageBase64,_that.imageMimeType,_that.originalImagePath,_that.originalImageMimeType,_that.participantId,_that.participantDisplayName,_that.participantRoleLabel,_that.participantColorValue,_that.responseMetrics);case _:
   return null;
 
 }
@@ -506,7 +510,7 @@ return $default(_that.id,_that.content,_that.role,_that.timestamp,_that.isStream
 @JsonSerializable()
 
 class _Message implements Message {
-  const _Message({required this.id, required this.content, required this.role, required this.timestamp, this.isStreaming = false, this.error, this.imageBase64, this.imageMimeType, this.originalImagePath, this.originalImageMimeType, this.responseMetrics});
+  const _Message({required this.id, required this.content, required this.role, required this.timestamp, this.isStreaming = false, this.error, this.imageBase64, this.imageMimeType, this.originalImagePath, this.originalImageMimeType, this.participantId, this.participantDisplayName, this.participantRoleLabel, this.participantColorValue, this.responseMetrics});
   factory _Message.fromJson(Map<String, dynamic> json) => _$MessageFromJson(json);
 
 @override final  String id;
@@ -519,6 +523,10 @@ class _Message implements Message {
 @override final  String? imageMimeType;
 @override final  String? originalImagePath;
 @override final  String? originalImageMimeType;
+@override final  String? participantId;
+@override final  String? participantDisplayName;
+@override final  String? participantRoleLabel;
+@override final  int? participantColorValue;
 @override final  MessageResponseMetrics? responseMetrics;
 
 /// Create a copy of Message
@@ -534,16 +542,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType)&&(identical(other.responseMetrics, responseMetrics) || other.responseMetrics == responseMetrics));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.role, role) || other.role == role)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.isStreaming, isStreaming) || other.isStreaming == isStreaming)&&(identical(other.error, error) || other.error == error)&&(identical(other.imageBase64, imageBase64) || other.imageBase64 == imageBase64)&&(identical(other.imageMimeType, imageMimeType) || other.imageMimeType == imageMimeType)&&(identical(other.originalImagePath, originalImagePath) || other.originalImagePath == originalImagePath)&&(identical(other.originalImageMimeType, originalImageMimeType) || other.originalImageMimeType == originalImageMimeType)&&(identical(other.participantId, participantId) || other.participantId == participantId)&&(identical(other.participantDisplayName, participantDisplayName) || other.participantDisplayName == participantDisplayName)&&(identical(other.participantRoleLabel, participantRoleLabel) || other.participantRoleLabel == participantRoleLabel)&&(identical(other.participantColorValue, participantColorValue) || other.participantColorValue == participantColorValue)&&(identical(other.responseMetrics, responseMetrics) || other.responseMetrics == responseMetrics));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,originalImagePath,originalImageMimeType,responseMetrics);
+int get hashCode => Object.hash(runtimeType,id,content,role,timestamp,isStreaming,error,imageBase64,imageMimeType,originalImagePath,originalImageMimeType,participantId,participantDisplayName,participantRoleLabel,participantColorValue,responseMetrics);
 
 @override
 String toString() {
-  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType, responseMetrics: $responseMetrics)';
+  return 'Message(id: $id, content: $content, role: $role, timestamp: $timestamp, isStreaming: $isStreaming, error: $error, imageBase64: $imageBase64, imageMimeType: $imageMimeType, originalImagePath: $originalImagePath, originalImageMimeType: $originalImageMimeType, participantId: $participantId, participantDisplayName: $participantDisplayName, participantRoleLabel: $participantRoleLabel, participantColorValue: $participantColorValue, responseMetrics: $responseMetrics)';
 }
 
 
@@ -554,7 +562,7 @@ abstract mixin class _$MessageCopyWith<$Res> implements $MessageCopyWith<$Res> {
   factory _$MessageCopyWith(_Message value, $Res Function(_Message) _then) = __$MessageCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, String? originalImagePath, String? originalImageMimeType, MessageResponseMetrics? responseMetrics
+ String id, String content, MessageRole role, DateTime timestamp, bool isStreaming, String? error, String? imageBase64, String? imageMimeType, String? originalImagePath, String? originalImageMimeType, String? participantId, String? participantDisplayName, String? participantRoleLabel, int? participantColorValue, MessageResponseMetrics? responseMetrics
 });
 
 
@@ -571,7 +579,7 @@ class __$MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,Object? responseMetrics = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? content = null,Object? role = null,Object? timestamp = null,Object? isStreaming = null,Object? error = freezed,Object? imageBase64 = freezed,Object? imageMimeType = freezed,Object? originalImagePath = freezed,Object? originalImageMimeType = freezed,Object? participantId = freezed,Object? participantDisplayName = freezed,Object? participantRoleLabel = freezed,Object? participantColorValue = freezed,Object? responseMetrics = freezed,}) {
   return _then(_Message(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
@@ -583,7 +591,11 @@ as String?,imageBase64: freezed == imageBase64 ? _self.imageBase64 : imageBase64
 as String?,imageMimeType: freezed == imageMimeType ? _self.imageMimeType : imageMimeType // ignore: cast_nullable_to_non_nullable
 as String?,originalImagePath: freezed == originalImagePath ? _self.originalImagePath : originalImagePath // ignore: cast_nullable_to_non_nullable
 as String?,originalImageMimeType: freezed == originalImageMimeType ? _self.originalImageMimeType : originalImageMimeType // ignore: cast_nullable_to_non_nullable
-as String?,responseMetrics: freezed == responseMetrics ? _self.responseMetrics : responseMetrics // ignore: cast_nullable_to_non_nullable
+as String?,participantId: freezed == participantId ? _self.participantId : participantId // ignore: cast_nullable_to_non_nullable
+as String?,participantDisplayName: freezed == participantDisplayName ? _self.participantDisplayName : participantDisplayName // ignore: cast_nullable_to_non_nullable
+as String?,participantRoleLabel: freezed == participantRoleLabel ? _self.participantRoleLabel : participantRoleLabel // ignore: cast_nullable_to_non_nullable
+as String?,participantColorValue: freezed == participantColorValue ? _self.participantColorValue : participantColorValue // ignore: cast_nullable_to_non_nullable
+as int?,responseMetrics: freezed == responseMetrics ? _self.responseMetrics : responseMetrics // ignore: cast_nullable_to_non_nullable
 as MessageResponseMetrics?,
   ));
 }
