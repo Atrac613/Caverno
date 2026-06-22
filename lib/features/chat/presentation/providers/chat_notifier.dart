@@ -109,6 +109,7 @@ import 'tool_approval_cache.dart';
 import 'subagent_task_notifier.dart';
 
 part 'chat_notifier_approval_handlers.dart';
+part 'chat_notifier_ask_user_question.dart';
 part 'chat_notifier_ble_handlers.dart';
 part 'chat_notifier_browser_handlers.dart';
 part 'chat_notifier_coding_continuation_recovery.dart';
@@ -5409,12 +5410,8 @@ class ChatNotifier extends Notifier<ChatState> {
       <int, String>{};
   final Map<int, LlmSessionLogContext> _llmSessionLogContextsByGeneration =
       <int, LlmSessionLogContext>{};
-  // Per turn (generation), cache one answer per distinct question text so a
-  // repeated identical question reuses its answer, while a *different* question
-  // in the same turn still prompts the user instead of reusing an unrelated
-  // earlier answer.
-  final Map<int, Map<String, McpToolResult>>
-  _askUserQuestionResultsByGeneration = <int, Map<String, McpToolResult>>{};
+  final _AskUserQuestionTurnCache _askUserQuestionTurnCache =
+      _AskUserQuestionTurnCache();
   final Map<int, Stopwatch> _responseMetricTimersByGeneration =
       <int, Stopwatch>{};
   final Map<String, PendingAskUserQuestion> _pendingAskUserQuestionsByThread =
@@ -5519,7 +5516,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _activeResponseMessagesByGeneration.remove(generation);
     _lastStreamedToolResultFinalAnswersByGeneration.remove(generation);
     _llmSessionLogContextsByGeneration.remove(generation);
-    _askUserQuestionResultsByGeneration.remove(generation);
+    _askUserQuestionTurnCache.removeGeneration(generation);
     _responseMetricTimersByGeneration.remove(generation)?.stop();
     _turnFinalizationRecoveryGenerations.remove(generation);
     if (generation == _interactionGeneration) {
@@ -5533,7 +5530,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _activeResponseMessagesByGeneration.clear();
     _lastStreamedToolResultFinalAnswersByGeneration.clear();
     _llmSessionLogContextsByGeneration.clear();
-    _askUserQuestionResultsByGeneration.clear();
+    _askUserQuestionTurnCache.clear();
     for (final timer in _responseMetricTimersByGeneration.values) {
       timer.stop();
     }
@@ -6795,108 +6792,6 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(pendingWorkflowDecision: null);
   }
 
-  Future<McpToolResult> _handleAskUserQuestion(
-    ToolCallInfo toolCall, {
-    int? interactionGeneration,
-  }) async {
-    final question = _trimStringArgument(toolCall.arguments, 'question');
-    if (question.isEmpty) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'question is required',
-      );
-    }
-
-    // Local models can ask the same user-facing decision again with slightly
-    // different wording after receiving tool results. Keep a turn-level answer
-    // sticky so the UI does not block on repeated clarification loops.
-    final existingResults = interactionGeneration == null
-        ? null
-        : _askUserQuestionResultsByGeneration[interactionGeneration];
-    final existingResult = existingResults == null
-        ? null
-        : existingResults[question] ?? existingResults.values.firstOrNull;
-    if (existingResult != null) {
-      appLog(
-        '[AskUserQuestion] Reusing completed answer for repeated '
-        'ask_user_question in the same turn',
-      );
-      return _buildRepeatedAskUserQuestionResult(existingResult);
-    }
-
-    final options = _parseAskUserQuestionOptions(toolCall.arguments['options']);
-    final allowOther = toolCall.arguments['allow_other'] as bool? ?? true;
-    if (options.isEmpty && !allowOther) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'at least one option or allow_other is required',
-      );
-    }
-
-    final answer = await requestAskUserQuestion(
-      question: question,
-      help: _trimStringArgument(toolCall.arguments, 'help'),
-      options: options,
-      allowMultiple: toolCall.arguments['allow_multiple'] as bool? ?? false,
-      allowOther: allowOther,
-      otherPlaceholder: _trimStringArgument(
-        toolCall.arguments,
-        'other_placeholder',
-      ),
-      targetConversationId: interactionGeneration == null
-          ? null
-          : _activeResponseConversationIdForGeneration(interactionGeneration),
-    );
-    if (answer == null || !answer.hasAnswer) {
-      final result = McpToolResult(
-        toolName: toolCall.name,
-        result: jsonEncode({'question': question, 'status': 'cancelled'}),
-        isSuccess: false,
-        errorMessage: 'User dismissed the question',
-      );
-      if (interactionGeneration != null) {
-        (_askUserQuestionResultsByGeneration[interactionGeneration] ??=
-                <String, McpToolResult>{})[question] =
-            result;
-      }
-      return result;
-    }
-
-    final result = McpToolResult(
-      toolName: toolCall.name,
-      result: jsonEncode({'status': 'answered', ...answer.toJson()}),
-      isSuccess: true,
-    );
-    if (interactionGeneration != null) {
-      (_askUserQuestionResultsByGeneration[interactionGeneration] ??=
-              <String, McpToolResult>{})[question] =
-          result;
-    }
-    return result;
-  }
-
-  McpToolResult _buildRepeatedAskUserQuestionResult(McpToolResult previous) {
-    final decoded = _decodeJsonObject(previous.result);
-    final result = decoded == null
-        ? previous.result
-        : jsonEncode({
-            ...decoded,
-            'reused': true,
-            'note':
-                'The user already answered ask_user_question during this turn. Continue using the existing answer and do not ask again.',
-          });
-    return McpToolResult(
-      toolName: previous.toolName,
-      result: result,
-      isSuccess: previous.isSuccess,
-      errorMessage: previous.errorMessage,
-    );
-  }
-
   Map<String, dynamic>? _decodeJsonObject(String value) {
     try {
       final decoded = jsonDecode(value);
@@ -6912,163 +6807,8 @@ class ChatNotifier extends Notifier<ChatState> {
     return null;
   }
 
-  Future<AskUserQuestionAnswer?> requestAskUserQuestion({
-    required String question,
-    required String help,
-    required List<AskUserQuestionOption> options,
-    required bool allowMultiple,
-    required bool allowOther,
-    required String otherPlaceholder,
-    String? targetConversationId,
-  }) {
-    final resolvedTargetConversationId =
-        targetConversationId ?? _activeResponseConversationId ?? conversationId;
-    final existingPending = resolvedTargetConversationId == null
-        ? state.pendingAskUserQuestion
-        : _pendingAskUserQuestionsByThread[resolvedTargetConversationId];
-    if (existingPending != null) {
-      appLog('[AskUserQuestion] Ignoring question while another is pending');
-      return Future<AskUserQuestionAnswer?>.value();
-    }
-    final completer = Completer<AskUserQuestionAnswer?>();
-    final pending = PendingAskUserQuestion(
-      id: const Uuid().v4(),
-      conversationId: resolvedTargetConversationId,
-      question: question,
-      help: help,
-      options: options,
-      allowMultiple: allowMultiple,
-      allowOther: allowOther,
-      otherPlaceholder: otherPlaceholder,
-      completer: completer,
-    );
-    if (resolvedTargetConversationId != null) {
-      _pendingAskUserQuestionsByThread[resolvedTargetConversationId] = pending;
-    }
-    if (resolvedTargetConversationId == null ||
-        conversationId == resolvedTargetConversationId) {
-      state = state.copyWith(pendingAskUserQuestion: pending);
-    }
-    return completer.future;
-  }
-
-  void resolveAskUserQuestion({
-    required String id,
-    AskUserQuestionAnswer? answer,
-  }) {
-    final pending = state.pendingAskUserQuestion?.id == id
-        ? state.pendingAskUserQuestion
-        : _pendingAskUserQuestionsByThread.values
-              .where((item) => item.id == id)
-              .firstOrNull;
-    if (pending == null) return;
-    if (!pending.completer.isCompleted) {
-      pending.completer.complete(answer);
-    }
-    final pendingConversationId = pending.conversationId;
-    if (pendingConversationId != null) {
-      _pendingAskUserQuestionsByThread.remove(pendingConversationId);
-    }
-    if (state.pendingAskUserQuestion?.id == id) {
-      state = state.copyWith(pendingAskUserQuestion: null);
-    }
-  }
-
-  void _dismissAllPendingAskUserQuestions() {
-    final pendingQuestions = <PendingAskUserQuestion>[
-      ..._pendingAskUserQuestionsByThread.values,
-      if (state.pendingAskUserQuestion != null &&
-          !_pendingAskUserQuestionsByThread.values.any(
-            (pending) => pending.id == state.pendingAskUserQuestion!.id,
-          ))
-        state.pendingAskUserQuestion!,
-    ];
-
-    for (final pending in pendingQuestions) {
-      if (!pending.completer.isCompleted) {
-        pending.completer.complete();
-      }
-    }
-    _pendingAskUserQuestionsByThread.clear();
-    if (state.pendingAskUserQuestion != null) {
-      state = state.copyWith(pendingAskUserQuestion: null);
-    }
-  }
-
   String _trimStringArgument(Map<String, dynamic> arguments, String key) {
     return (arguments[key] as String?)?.trim() ?? '';
-  }
-
-  List<AskUserQuestionOption> _parseAskUserQuestionOptions(dynamic rawOptions) {
-    if (rawOptions is! List) {
-      return const [];
-    }
-
-    final options = <AskUserQuestionOption>[];
-    final usedIds = <String>{};
-    for (
-      var index = 0;
-      index < rawOptions.length && options.length < 8;
-      index++
-    ) {
-      final rawOption = rawOptions[index];
-      String label;
-      String id;
-      String description = '';
-      String preview = '';
-
-      if (rawOption is String) {
-        label = rawOption.trim();
-        id = _askUserQuestionOptionId(label, index);
-      } else if (rawOption is Map) {
-        label = (rawOption['label'] as String?)?.trim() ?? '';
-        id = (rawOption['id'] as String?)?.trim().isNotEmpty == true
-            ? (rawOption['id'] as String).trim()
-            : _askUserQuestionOptionId(label, index);
-        description = (rawOption['description'] as String?)?.trim() ?? '';
-        preview = (rawOption['preview'] as String?)?.trim() ?? '';
-      } else {
-        continue;
-      }
-
-      if (label.isEmpty) {
-        continue;
-      }
-      var uniqueId = id;
-      var suffix = 2;
-      while (!usedIds.add(uniqueId)) {
-        uniqueId = '$id-$suffix';
-        suffix++;
-      }
-      options.add(
-        AskUserQuestionOption(
-          id: uniqueId,
-          label: _clipAskUserQuestionText(label, 120),
-          description: _clipAskUserQuestionText(description, 500),
-          preview: _clipAskUserQuestionText(preview, 2000),
-        ),
-      );
-    }
-    return options;
-  }
-
-  String _askUserQuestionOptionId(String label, int index) {
-    final normalized = label
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
-        .replaceAll(RegExp(r'^-+|-+$'), '');
-    if (normalized.isNotEmpty) {
-      return normalized.length > 40 ? normalized.substring(0, 40) : normalized;
-    }
-    return 'option-${index + 1}';
-  }
-
-  String _clipAskUserQuestionText(String value, int maxLength) {
-    final normalized = value.trim();
-    if (normalized.length <= maxLength) {
-      return normalized;
-    }
-    return '${normalized.substring(0, maxLength - 3)}...';
   }
 
   Future<void> _runPlanProposalFlow({
