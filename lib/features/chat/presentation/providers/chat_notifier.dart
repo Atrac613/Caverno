@@ -44,6 +44,7 @@ import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/mesh_secondary_completion_runner.dart';
+import '../../data/datasources/participant_completion_runner.dart';
 import '../../data/datasources/demo_datasource.dart';
 import '../../data/datasources/background_process_monitor_service.dart';
 import '../../data/datasources/file_rollback_checkpoint_store.dart';
@@ -311,6 +312,7 @@ final class _PendingPrimaryModelPreparation {
 class ChatNotifier extends Notifier<ChatState> {
   late ChatDataSource _dataSource;
   late MeshSecondaryCompletionRunner<ChatDataSource> _meshRunner;
+  late ParticipantCompletionRunner _participantCompletionRunner;
   McpToolService? _mcpToolService;
   late SessionMemoryService _memoryService;
   late AppSettings _settings;
@@ -416,6 +418,9 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
         _settings,
       ),
+    );
+    _participantCompletionRunner = ParticipantCompletionRunner(
+      meshRunner: _meshRunner,
     );
     _mcpToolService = ref.read(mcpToolServiceProvider);
     _memoryService = ref.read(sessionMemoryServiceProvider);

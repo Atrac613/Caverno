@@ -210,26 +210,24 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
     try {
       await _runWithLlmSessionLogContextForGeneration(
         interactionGeneration,
-        () => _runSecondaryCompletion<void>(
-          endpointId: participant.endpointId,
-          model: model,
-          call: (dataSource, resolvedModel) async {
-            final stream = dataSource.streamChatCompletion(
-              messages: promptMessages,
-              model: resolvedModel,
-              temperature: _assistantRequestTemperature,
-              maxTokens: _settings.maxTokens,
+        () => _participantCompletionRunner.stream(
+          primary: _dataSource,
+          settings: _settings,
+          request: ParticipantCompletionRequest(
+            participant: participant,
+            messages: promptMessages,
+            model: model,
+            temperature: _assistantRequestTemperature,
+            maxTokens: _settings.maxTokens,
+          ),
+          shouldContinue: () =>
+              _isCurrentInteractionGeneration(interactionGeneration),
+          onChunk: (chunk) {
+            _appendToLastMessageForGeneration(
+              interactionGeneration,
+              chunk,
+              scanForTools: false,
             );
-            await for (final chunk in stream) {
-              if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-                return;
-              }
-              _appendToLastMessageForGeneration(
-                interactionGeneration,
-                chunk,
-                scanForTools: false,
-              );
-            }
           },
         ),
       );
