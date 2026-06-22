@@ -1649,7 +1649,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             : null,
         isFloating: floating,
       );
-      if (currentConversation == null) {
+      if (currentConversation == null ||
+          currentConversation.workspaceMode != WorkspaceMode.chat) {
         return input;
       }
       return Column(

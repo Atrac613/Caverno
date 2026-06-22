@@ -5745,6 +5745,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     if (currentConversation != null &&
+        currentConversation.workspaceMode == WorkspaceMode.chat &&
         currentConversation.participants.isNotEmpty) {
       _onSendStarted();
       _assistantModeOverride = bypassPlanMode ? AssistantMode.coding : null;

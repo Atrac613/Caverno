@@ -502,6 +502,85 @@ void main() {
     },
   );
 
+  test(
+    'sendMessage ignores participant turns outside chat workspace',
+    () async {
+      final codingController = StreamController<String>();
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'Project 1',
+        rootPath: '/tmp/project-1',
+        createdAt: DateTime(2026, 6, 23, 10),
+        updatedAt: DateTime(2026, 6, 23, 10),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final codingContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(
+            _StreamingChatDataSource(codingController),
+          ),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        codingContainer.dispose();
+        if (codingController.hasListener) {
+          await codingController.close();
+        } else {
+          unawaited(codingController.close());
+        }
+      });
+      final codingNotifier = codingContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final conversationsNotifier = codingContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      final conversation = conversationsNotifier.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+      )!;
+      await conversationsNotifier.updateConversationParticipants(
+        conversation.id,
+        participants: const [
+          ConversationParticipant(
+            id: 'reviewer',
+            displayName: 'Reviewer',
+            roleLabel: 'Critic',
+            model: 'review-model',
+            order: 0,
+          ),
+        ],
+      );
+
+      await codingNotifier.sendMessage(
+        'Inspect the code',
+        bypassPlanMode: true,
+      );
+
+      expect(codingNotifier.state.participantTurnRuntime, isNull);
+      expect(codingNotifier.state.messages, hasLength(2));
+      expect(codingNotifier.state.messages.last.role, MessageRole.assistant);
+      expect(codingNotifier.state.messages.last.participantId, isNull);
+      expect(codingNotifier.state.messages.last.isStreaming, isTrue);
+    },
+  );
+
   test('sendMessage prepares changed primary model before request', () async {
     final prepController = StreamController<String>();
     final preparedModelIds = <String>[];
