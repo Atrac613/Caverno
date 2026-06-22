@@ -2024,6 +2024,12 @@ Implementation slices:
 - Pure `PrimaryModelRouter` domain service (`RouteContext` → `ResolvedEndpoint`).
 - Wire the router into `ChatNotifier` at the turn boundary; add route-reason
   logging behind `enableLlmSessionLogs`.
+- Primary-model auto-prepare at the turn boundary: before the selected primary
+  model is used, ask the provider-neutral LL9 lifecycle layer whether the model
+  is already loaded or in progress, load unloaded/unknown models when supported,
+  and treat unsupported or missing lifecycle metadata as a no-op. The first
+  slice is load-only; automatic unload/eviction policy remains a later Local
+  Stack concern.
 - Model-routing settings UI: per-mode rows alongside the existing LL1 role rows.
 
 Design seam (reserved for LL25):
