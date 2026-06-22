@@ -176,4 +176,25 @@ void main() {
     expect(find.text('2.20s'), findsOneWidget);
     expect(find.text('Stop reason: Stop'), findsOneWidget);
   });
+
+  testWidgets('shows participant speaker snapshot for attributed assistant', (
+    tester,
+  ) async {
+    final message = Message(
+      id: 'participant-message',
+      content: 'This proposal needs a rollback path.',
+      role: MessageRole.assistant,
+      timestamp: DateTime(2026, 6, 23, 12),
+      participantId: 'reviewer',
+      participantDisplayName: 'Reviewer',
+      participantRoleLabel: 'Critic',
+      participantColorValue: 0xFF006A6A,
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+
+    expect(find.text('Reviewer'), findsOneWidget);
+    expect(find.text('Critic'), findsOneWidget);
+    expect(find.text('This proposal needs a rollback path.'), findsOneWidget);
+  });
 }

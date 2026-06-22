@@ -61,6 +61,19 @@ Map<String, dynamic>? _compactionArtifactToJson(
   return artifact?.toJson();
 }
 
+List<Message> _messagesFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const [];
+  }
+  return json
+      .map((item) => Message.fromJson(item as Map<String, dynamic>))
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _messagesToJson(List<Message> messages) {
+  return messages.map((item) => item.toJson()).toList(growable: false);
+}
+
 List<ConversationExecutionTaskProgress> _executionProgressFromJson(
   List<dynamic>? json,
 ) {
@@ -219,6 +232,7 @@ abstract class Conversation with _$Conversation {
   const factory Conversation({
     required String id,
     required String title,
+    @JsonKey(fromJson: _messagesFromJson, toJson: _messagesToJson)
     required List<Message> messages,
     required DateTime createdAt,
     required DateTime updatedAt,

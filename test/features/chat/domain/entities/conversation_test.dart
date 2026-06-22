@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 
 void main() {
@@ -110,5 +111,34 @@ void main() {
 
     expect(restored.participants, conversation.participants);
     expect(restored.participantTurnConfig, conversation.participantTurnConfig);
+  });
+
+  test('participant speaker snapshot survives message json roundtrip', () {
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Participant discussion',
+      messages: [
+        Message(
+          id: 'message-1',
+          content: 'I would keep the API surface small.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 6, 23, 12, 1),
+          participantId: 'reviewer',
+          participantDisplayName: 'Reviewer',
+          participantRoleLabel: 'Critic',
+          participantColorValue: 0xFF006A6A,
+        ),
+      ],
+      createdAt: DateTime(2026, 6, 23, 12),
+      updatedAt: DateTime(2026, 6, 23, 12),
+    );
+
+    final restored = Conversation.fromJson(conversation.toJson());
+    final restoredMessage = restored.messages.single;
+
+    expect(restoredMessage.participantId, 'reviewer');
+    expect(restoredMessage.participantDisplayName, 'Reviewer');
+    expect(restoredMessage.participantRoleLabel, 'Critic');
+    expect(restoredMessage.participantColorValue, 0xFF006A6A);
   });
 }
