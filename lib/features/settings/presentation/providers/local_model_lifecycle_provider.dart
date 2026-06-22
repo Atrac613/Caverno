@@ -7,6 +7,7 @@ import '../../domain/entities/local_host_resources.dart';
 import '../../domain/entities/local_model_lifecycle.dart';
 import '../../domain/services/local_model_preparation_service.dart';
 import '../../domain/services/local_stack_recommendation_service.dart';
+import '../../domain/services/primary_model_preparation_service.dart';
 import 'settings_notifier.dart';
 
 class LocalModelLifecycleEndpointConfig {
@@ -82,6 +83,22 @@ final localModelLifecycleDataSourceFactoryProvider =
 final localModelPreparationServiceProvider =
     Provider<LocalModelPreparationService>((ref) {
       return const LocalModelPreparationService();
+    });
+
+final primaryModelPreparationServiceProvider =
+    Provider<PrimaryModelPreparationService>((ref) {
+      final settings = ref.watch(settingsNotifierProvider);
+      final endpoint = LocalModelLifecycleEndpointConfig.primary(
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+      );
+      final dataSource = ref.watch(
+        localModelLifecycleDataSourceFactoryProvider,
+      )(endpoint);
+      return PrimaryModelPreparationService(
+        listManagedModels: dataSource.listManagedModels,
+        loadManagedModel: dataSource.loadManagedModel,
+      );
     });
 
 final localStackRecommendationServiceProvider =

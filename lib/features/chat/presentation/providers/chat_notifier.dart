@@ -36,6 +36,8 @@ import '../../../settings/domain/services/llm_request_temperature_policy.dart';
 import '../../../settings/domain/services/llm_sampler_preset_profile.dart';
 import '../../../settings/domain/services/llm_sampler_runtime_feedback_service.dart';
 import '../../../settings/domain/services/external_tool_hook_service.dart';
+import '../../../settings/domain/services/primary_model_preparation_service.dart';
+import '../../../settings/presentation/providers/local_model_lifecycle_provider.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/apple_foundation_models_datasource.dart';
 import '../../../settings/presentation/providers/mesh_endpoint_provider.dart';
@@ -300,6 +302,7 @@ class ChatNotifier extends Notifier<ChatState> {
   late SessionMemoryService _memoryService;
   late AppSettings _settings;
   bool _hasLoadedSettings = false;
+  String? _pendingPrimaryModelPreparationKey;
   late CodingDiagnosticFeedbackService _codingDiagnosticFeedbackService;
   late CodingVerificationFeedbackService _codingVerificationFeedbackService;
   late BackgroundProcessMonitorService _backgroundProcessMonitorService;
@@ -313,7 +316,8 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// SEC2: accumulates the trust levels of evidence entering the current turn so
   /// the approval auto-reviewer is told when untrusted content is in context.
-  final ConversationTaintState _conversationTaintState = ConversationTaintState();
+  final ConversationTaintState _conversationTaintState =
+      ConversationTaintState();
   String? conversationId;
   String _languageCode = 'en';
   String? _sessionMemoryContext;
@@ -545,6 +549,78 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Begins extended background execution on iOS when a request starts.
   void _onSendStarted() {
     ref.read(backgroundTaskServiceProvider).beginBackgroundTask();
+  }
+
+  String _primaryModelPreparationKey(AppSettings settings) {
+    return [
+      settings.llmProvider.name,
+      settings.baseUrl.trim(),
+      settings.model.trim(),
+    ].join('|');
+  }
+
+  Future<void> _preparePrimaryModelForPendingRouteIfNeeded() async {
+    final pendingKey = _pendingPrimaryModelPreparationKey;
+    if (pendingKey == null) {
+      return;
+    }
+    final settings = _settings;
+    if (pendingKey != _primaryModelPreparationKey(settings)) {
+      return;
+    }
+    if (settings.demoMode ||
+        settings.llmProvider != LlmProvider.openAiCompatible ||
+        settings.model.trim().isEmpty) {
+      _pendingPrimaryModelPreparationKey = null;
+      return;
+    }
+
+    try {
+      final outcome = await ref
+          .read(primaryModelPreparationServiceProvider)
+          .preparePrimaryModel(settings: settings, refreshCatalog: true);
+      _logPrimaryModelPreparationOutcome(outcome);
+    } on Object catch (error, stackTrace) {
+      appLog(
+        '[LL9] Primary model auto-prepare failed: '
+        '${error.runtimeType}: $error',
+      );
+      appLog('[LL9] stackTrace: $stackTrace');
+    } finally {
+      if (_pendingPrimaryModelPreparationKey == pendingKey) {
+        _pendingPrimaryModelPreparationKey = null;
+      }
+    }
+  }
+
+  void _logPrimaryModelPreparationOutcome(
+    PrimaryModelPreparationOutcome outcome,
+  ) {
+    switch (outcome.status) {
+      case PrimaryModelPreparationStatus.loadStarted:
+        appLog(
+          '[LL9] Primary model "${outcome.modelId}" load requested: '
+          '${outcome.message}',
+        );
+      case PrimaryModelPreparationStatus.inProgress:
+        appLog('[LL9] Primary model "${outcome.modelId}" is already loading.');
+      case PrimaryModelPreparationStatus.missing:
+        appLog(
+          '[LL9] Primary model "${outcome.modelId}" is not in the managed '
+          'model catalog; continuing without a lifecycle load.',
+        );
+      case PrimaryModelPreparationStatus.unsupported:
+        appLog('[LL9] Primary model auto-prepare skipped: ${outcome.message}');
+      case PrimaryModelPreparationStatus.failed:
+        appLog(
+          '[LL9] Primary model "${outcome.modelId}" preparation failed: '
+          '${outcome.message}',
+        );
+      case PrimaryModelPreparationStatus.ready:
+      case PrimaryModelPreparationStatus.skipped:
+      case PrimaryModelPreparationStatus.loadRequired:
+        break;
+    }
   }
 
   /// Ends extended background execution and posts a notification when the
@@ -5580,6 +5656,8 @@ class ChatNotifier extends Notifier<ChatState> {
         .read(conversationsNotifierProvider)
         .currentConversation;
     conversationId = currentConversation?.id;
+    await _preparePrimaryModelForPendingRouteIfNeeded();
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
     final shouldInterceptForPlanMode =
         !bypassPlanMode &&
         (currentConversation?.isPlanningSession ?? false) &&
@@ -5749,6 +5827,9 @@ class ChatNotifier extends Notifier<ChatState> {
     _startResponseMetricsTimer(interactionGeneration);
 
     _onSendStarted();
+
+    await _preparePrimaryModelForPendingRouteIfNeeded();
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
 
     // Use tool-aware flow when the MCP tool service is available.
     if (_mcpToolService != null &&

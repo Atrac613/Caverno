@@ -56,6 +56,9 @@ import 'package:caverno/features/chat/presentation/providers/subagent_task_notif
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/domain/entities/local_model_lifecycle.dart';
+import 'package:caverno/features/settings/domain/services/primary_model_preparation_service.dart';
+import 'package:caverno/features/settings/presentation/providers/local_model_lifecycle_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 
@@ -122,6 +125,73 @@ void main() {
     expect(notifier.state.messages.first.content, 'Inspect the workspace');
     expect(notifier.state.messages.last.role, MessageRole.assistant);
     expect(notifier.state.messages.last.isStreaming, isTrue);
+  });
+
+  test('sendMessage prepares changed primary model before request', () async {
+    final prepController = StreamController<String>();
+    final preparedModelIds = <String>[];
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final prepContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(
+          _StreamingChatDataSource(prepController),
+        ),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+        primaryModelPreparationServiceProvider.overrideWithValue(
+          PrimaryModelPreparationService(
+            listManagedModels: ({bool refresh = false}) async {
+              expect(refresh, isTrue);
+              return const LocalModelLifecycleCatalog.supported(
+                models: [
+                  LocalManagedModel(
+                    id: 'qwen3.6-35b-a3b-vision',
+                    state: LocalModelLifecycleState.unloaded,
+                    statusValue: 'unloaded',
+                  ),
+                ],
+              );
+            },
+            loadManagedModel: (modelId) async {
+              preparedModelIds.add(modelId);
+              return LocalModelLifecycleActionResult.success(
+                message: 'Requested load for "$modelId".',
+              );
+            },
+          ),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      prepContainer.dispose();
+      if (!prepController.isClosed) {
+        await prepController.close();
+      }
+    });
+
+    final prepNotifier = prepContainer.read(chatNotifierProvider.notifier);
+    prepNotifier.updateConnectionSettings(
+      AppSettings.defaults().copyWith(
+        model: 'qwen3.6-35b-a3b-vision',
+        mcpEnabled: false,
+      ),
+    );
+
+    await prepNotifier.sendMessage('Use the stronger model');
+
+    expect(preparedModelIds, ['qwen3.6-35b-a3b-vision']);
+    expect(prepNotifier.state.isLoading, isTrue);
   });
 
   test('flags a final answer truncated at the max-token limit', () async {

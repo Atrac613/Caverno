@@ -12,8 +12,13 @@ extension ChatNotifierContextSurgery on ChatNotifier {
 
   void _updateConnectionSettings(AppSettings settings) {
     final previousSettings = _settings;
-    if (_modelSwitchRouteKey(previousSettings) !=
-        _modelSwitchRouteKey(settings)) {
+    final routeChanged =
+        _modelSwitchRouteKey(previousSettings) !=
+        _modelSwitchRouteKey(settings);
+    if (routeChanged) {
+      _pendingPrimaryModelPreparationKey = _primaryModelPreparationKey(
+        settings,
+      );
       _scheduleModelSwitchHandoff(
         previousSettings: previousSettings,
         nextSettings: settings,
