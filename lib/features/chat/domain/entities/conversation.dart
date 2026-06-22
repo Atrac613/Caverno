@@ -133,6 +133,39 @@ List<Map<String, dynamic>> _turnDiffsToJson(List<TurnDiff> turnDiffs) {
   return turnDiffs.map((item) => item.toJson()).toList(growable: false);
 }
 
+List<ConversationParticipant> _participantsFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const [];
+  }
+  return json
+      .map(
+        (item) =>
+            ConversationParticipant.fromJson(item as Map<String, dynamic>),
+      )
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _participantsToJson(
+  List<ConversationParticipant> participants,
+) {
+  return participants.map((item) => item.toJson()).toList(growable: false);
+}
+
+ParticipantTurnConfig _participantTurnConfigFromJson(
+  Map<String, dynamic>? json,
+) {
+  if (json == null) {
+    return const ParticipantTurnConfig();
+  }
+  return ParticipantTurnConfig.fromJson(json);
+}
+
+Map<String, dynamic> _participantTurnConfigToJson(
+  ParticipantTurnConfig config,
+) {
+  return config.toJson();
+}
+
 @freezed
 abstract class ConversationCheckpoint with _$ConversationCheckpoint {
   const ConversationCheckpoint._();
@@ -230,8 +263,13 @@ abstract class Conversation with _$Conversation {
     @JsonKey(fromJson: _turnDiffsFromJson, toJson: _turnDiffsToJson)
     @Default(<TurnDiff>[])
     List<TurnDiff> turnDiffs,
+    @JsonKey(fromJson: _participantsFromJson, toJson: _participantsToJson)
     @Default(<ConversationParticipant>[])
     List<ConversationParticipant> participants,
+    @JsonKey(
+      fromJson: _participantTurnConfigFromJson,
+      toJson: _participantTurnConfigToJson,
+    )
     @Default(ParticipantTurnConfig())
     ParticipantTurnConfig participantTurnConfig,
   }) = _Conversation;

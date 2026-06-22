@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
@@ -78,5 +79,36 @@ void main() {
       progress.normalizedValidationSummary,
       'The smoke test failed on macOS.',
     );
+  });
+
+  test('participant settings survive direct json roundtrip', () {
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Participant discussion',
+      messages: const [],
+      createdAt: DateTime(2026, 6, 23, 12),
+      updatedAt: DateTime(2026, 6, 23, 12),
+      participants: const [
+        ConversationParticipant(
+          id: 'reviewer',
+          displayName: 'Reviewer',
+          roleLabel: 'Critic',
+          roleSystemPrompt: 'Challenge weak assumptions.',
+          endpointId: 'pc2',
+          model: 'review-model',
+          colorValue: 0xFF006A6A,
+          order: 1,
+        ),
+      ],
+      participantTurnConfig: const ParticipantTurnConfig(
+        depth: ParticipantTurnDepth.multiRound,
+        maxRounds: 3,
+      ),
+    );
+
+    final restored = Conversation.fromJson(conversation.toJson());
+
+    expect(restored.participants, conversation.participants);
+    expect(restored.participantTurnConfig, conversation.participantTurnConfig);
   });
 }

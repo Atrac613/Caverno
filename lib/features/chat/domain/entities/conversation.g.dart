@@ -143,18 +143,13 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
       turnDiffs: json['turnDiffs'] == null
           ? const <TurnDiff>[]
           : _turnDiffsFromJson(json['turnDiffs'] as List?),
-      participants:
-          (json['participants'] as List<dynamic>?)
-              ?.map(
-                (e) =>
-                    ConversationParticipant.fromJson(e as Map<String, dynamic>),
-              )
-              .toList() ??
-          const <ConversationParticipant>[],
+      participants: json['participants'] == null
+          ? const <ConversationParticipant>[]
+          : _participantsFromJson(json['participants'] as List?),
       participantTurnConfig: json['participantTurnConfig'] == null
           ? const ParticipantTurnConfig()
-          : ParticipantTurnConfig.fromJson(
-              json['participantTurnConfig'] as Map<String, dynamic>,
+          : _participantTurnConfigFromJson(
+              json['participantTurnConfig'] as Map<String, dynamic>?,
             ),
     );
 
@@ -182,8 +177,10 @@ Map<String, dynamic> _$ConversationToJson(
   'compactionArtifact': _compactionArtifactToJson(instance.compactionArtifact),
   'checkpoints': _checkpointsToJson(instance.checkpoints),
   'turnDiffs': _turnDiffsToJson(instance.turnDiffs),
-  'participants': instance.participants,
-  'participantTurnConfig': instance.participantTurnConfig,
+  'participants': _participantsToJson(instance.participants),
+  'participantTurnConfig': _participantTurnConfigToJson(
+    instance.participantTurnConfig,
+  ),
 };
 
 const _$WorkspaceModeEnumMap = {
