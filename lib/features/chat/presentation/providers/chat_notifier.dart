@@ -58,6 +58,7 @@ import '../../data/datasources/session_logging_chat_datasource.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
+import '../../domain/entities/conversation_participant.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
@@ -83,6 +84,7 @@ import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/model_edit_apply_telemetry_service.dart';
 import '../../domain/services/model_switch_handoff_brief_service.dart';
+import '../../domain/services/participant_turn_coordinator.dart';
 import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_tool_policy.dart';
 import '../../domain/services/temporal_context_builder.dart';
@@ -115,6 +117,7 @@ part 'chat_notifier_context_surgery.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
 part 'chat_notifier_mesh_routing.dart';
+part 'chat_notifier_participant_turns.dart';
 part 'chat_notifier_serial_handlers.dart';
 part 'chat_notifier_skill_handlers.dart';
 part 'chat_notifier_ssh_handlers.dart';
@@ -5717,6 +5720,23 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
+    if (currentConversation != null &&
+        currentConversation.participants.isNotEmpty) {
+      _onSendStarted();
+      _assistantModeOverride = bypassPlanMode ? AssistantMode.coding : null;
+      try {
+        await _sendWithParticipantTurns(
+          interactionGeneration: interactionGeneration,
+          currentConversation: currentConversation,
+          conversationsNotifier: conversationsNotifier,
+        );
+      } finally {
+        _assistantModeOverride = null;
+        _activeInteractionOrigin = ChatInteractionOrigin.local;
+      }
+      return;
+    }
+
     // Append a placeholder assistant message for streaming.
     final assistantMessage = Message(
       id: _uuid.v4(),
@@ -6806,7 +6826,8 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       if (interactionGeneration != null) {
         (_askUserQuestionResultsByGeneration[interactionGeneration] ??=
-            <String, McpToolResult>{})[question] = result;
+                <String, McpToolResult>{})[question] =
+            result;
       }
       return result;
     }
@@ -6818,7 +6839,8 @@ class ChatNotifier extends Notifier<ChatState> {
     );
     if (interactionGeneration != null) {
       (_askUserQuestionResultsByGeneration[interactionGeneration] ??=
-          <String, McpToolResult>{})[question] = result;
+              <String, McpToolResult>{})[question] =
+          result;
     }
     return result;
   }

@@ -13,6 +13,7 @@ import 'semantic_search_provider.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
+import '../../domain/entities/conversation_participant.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
@@ -607,6 +608,28 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     );
     await _persistUpdatedConversation(updatedConversation);
     _scheduleSemanticIndex(updatedConversation);
+  }
+
+  Future<void> updateConversationParticipants(
+    String conversationId, {
+    required List<ConversationParticipant> participants,
+    ParticipantTurnConfig? participantTurnConfig,
+  }) async {
+    final conversation = state.conversations
+        .where((item) => item.id == conversationId)
+        .firstOrNull;
+    if (conversation == null) return;
+
+    final updatedConversation = conversation.copyWith(
+      participants: participants,
+      participantTurnConfig:
+          participantTurnConfig ?? conversation.participantTurnConfig,
+      updatedAt: DateTime.now(),
+    );
+    await _persistUpdatedConversation(
+      updatedConversation,
+      recordCheckpoint: false,
+    );
   }
 
   Future<bool> rewindCurrentConversationToMessage(String messageId) async {
