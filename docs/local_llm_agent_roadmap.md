@@ -162,7 +162,7 @@ structurally unmotivated to build:
 | Observability | OBS1 | later | M | LL7, LL18, LL20 | Agent Trace Timeline: inspect model calls, tools, checkpoints, evals, slot assignment, and verifier evidence as one run trace. |
 | Observability | OBS2 | later | S-M | OBS1, SEC1 | Redacted trace export for support reports without secrets or private project content by default. |
 | Observability | OBS3 | later | M | OBS1 | Local OpenTelemetry-compatible span model for agent work, async links, and maintenance runs. |
-| Compatibility | COMPAT1 | later | M | LL3, LL20 | OpenAI-compatible endpoint conformance suite for chat, streaming, tools, Responses-style APIs, embeddings, vision, and provider extensions. |
+| Compatibility | COMPAT1 | next | M | LL3, LL20 | OpenAI-compatible endpoint conformance suite for chat, streaming, tools, Responses-style APIs, embeddings, vision, lifecycle metadata, and provider extensions. |
 | Compatibility | COMPAT2 | later | S | COMPAT1 | Provider compatibility badge surfaced in settings and diagnostics. |
 | Compatibility | COMPAT3 | later | M | COMPAT1, API2 | Streaming/tool-call fuzz tests for local endpoints and weak-model recovery paths. |
 | Hooks | HOOK1 | current | S-M | F2, LL2 | Caverno-owned external config plus basic lifecycle hook bridge for agent-kb and local automation. |
@@ -181,8 +181,8 @@ structurally unmotivated to build:
 | MCP Governance | MCP-GOV1 | later | M | SEC1, LL3 | MCP tool contract linter for schema clarity, dangerous capability detection, and weak-model tool-selection quality. |
 | MCP Governance | MCP-GOV2 | later | M | MCP-GOV1, SEC1 | Tool trust registry with server trust levels, capability classes, and approval policy defaults. |
 | MCP Governance | MCP-GOV3 | later | S-M | MCP-GOV1, LL3 | Model-specific tool prompt optimizer for compressing and specializing tool descriptions per model profile. |
-| Skills | SKILL1 | next | S-M | F2 | In-chat skill authoring: a `save_skill` built-in tool that persists a new or updated skill from the conversation behind a non-cacheable user approval. |
-| Skills | SKILL2 | later | M | SKILL1 | Chat-driven skill lifecycle: a `/skill` command plus edit/duplicate/merge of existing skills with a diff preview before save. |
+| Skills | SKILL1 | done | S-M | F2 | In-chat skill authoring: a `save_skill` built-in tool persists a new or updated skill from the conversation behind a non-cacheable user approval. |
+| Skills | SKILL2 | done | M | SKILL1 | Chat-driven skill lifecycle: a `/skill` command plus update-by-name and diff preview before save. |
 | Skills | SKILL3 | later | M | SKILL1, LL18, OBS1 | Idle-time skill mining: distill recurring verified workflows from traces into proposed skills, user-reviewed before adoption. |
 | Threat Posture | THREAT1 | later | M | F2, SEC1, SEC2 | Agent-as-malware-vector hardening: non-cacheable approval plus explicit resolved-command and destination-domain review for network-fetch-then-execute and persistence-write shapes in `local_shell`. |
 | Threat Posture | THREAT2 | later | M | F2, SEC1 | Read-only host compromise triage: a fixed-command `host_security_snapshot` IoC collector, a routine allowlist entry, and an AMOS-style TTP triage prompt/mode. |
@@ -349,21 +349,19 @@ perimeter rules from OBS1 and SEC1.
 
 Caverno already lets the model *read* user skills mid-conversation: a
 lightweight skills index is injected into the system prompt and a `load_skill`
-tool pulls the full markdown on demand. The missing half is *writing* them —
-today a skill can only be authored in `skills_settings_page.dart`. SKILL1 adds
-the inverse of `load_skill`: a `save_skill` built-in tool that lets the agent
-distill the current conversation's workflow into skill markdown and persist it
-through `SkillsNotifier.upsertMarkdown`, gated by a non-cacheable user approval
-so a skill is never written silently. SKILL2 grows that into a chat-driven
-lifecycle (`/skill` command, edit/duplicate/merge, diff-before-save), and
-SKILL3 spends idle compute (LL18) mining recurring verified workflows from
-traces into proposed skills the user reviews before adoption.
+tool pulls the full markdown on demand. SKILL1 completed the write-side inverse:
+`save_skill` lets the agent distill the current conversation's workflow into
+skill markdown and persist it through `SkillsNotifier.upsertMarkdown`, gated by
+a non-cacheable user approval so a skill is never written silently. SKILL2 added
+the chat-driven entrypoint (`/skill` and `save-skill`) and diff-before-save
+updates for existing skills. SKILL3 remains the deferred idle-compute path:
+mine recurring verified workflows from LL18/OBS1 traces into proposed skills the
+user reviews before adoption.
 
-Recommended ordering: SKILL1 only needs the F2 tool-handler seam and the
-existing high-risk approval gate, so it can ship independently; SKILL3 waits for
-the LL18 idle orchestrator and OBS1 traces so mined proposals are grounded in
-real run evidence. SEC1 perimeter classification enriches all three by flagging
-skill content authored from untrusted evidence, but does not block SKILL1.
+Recommended ordering: SKILL1 and SKILL2 are complete. SKILL3 waits for the LL18
+idle orchestrator and OBS1 traces so mined proposals are grounded in real run
+evidence. SEC1 perimeter classification enriches all skill flows by flagging
+skill content authored from untrusted evidence.
 
 ## Milestone Notes
 
@@ -2535,7 +2533,7 @@ Acceptance criteria:
 
 ### COMPAT1: OpenAI-Compatible Endpoint Conformance Suite
 
-Status: `later`
+Status: `next`
 
 Scope:
 - Probe endpoint support for `/v1/models`, chat completions, streaming, tool
@@ -2548,6 +2546,9 @@ Scope:
 
 Acceptance criteria:
 - Endpoint incompatibility is visible before a user runs a long agent task.
+- The first diagnostic slice produces a local report without mutating model
+  state, reusing LL9 lifecycle findings for `/v1/models` status fields and
+  provider-native extension preservation.
 - Generic OpenAI endpoints are not sent provider-specific extension fields.
 - Reports clearly distinguish protocol failures from weak-model behavior.
 
@@ -2885,15 +2886,14 @@ Acceptance criteria:
 
 ### SKILL1: In-Chat Skill Authoring
 
-Status: `next`
+Status: `done`
 
 Context:
 - Skills already work as a read path from chat: `SkillPromptIndexBuilder`
   injects a lightweight index into the system prompt and the `load_skill` tool
   (`mcp_tool_service.dart`) returns the full markdown when the index matches.
-- The only write path is `skills_settings_page.dart` →
-  `SkillsNotifier.upsertMarkdown`, so a user cannot capture a workflow as a
-  skill in the moment it emerges in conversation.
+- The write path now exists in chat: `save_skill` persists approved markdown via
+  `SkillsNotifier.upsertMarkdown`.
 
 Scope:
 - Add a `save_skill` built-in tool (the inverse of `load_skill`) that takes a
@@ -2914,9 +2914,19 @@ Acceptance criteria:
 - Saving an existing skill name updates it rather than creating a duplicate, and
   the round trip is covered by focused tests.
 
+Implementation evidence:
+- `c029bf9d` added the `save_skill` tool definition, ChatNotifier handler,
+  system-prompt guidance, built-in tool setting entry, and parser round-trip
+  support.
+- `test/features/chat/presentation/providers/chat_notifier_test.dart` covers
+  approved skill creation, repeat approval prompts, and update-by-name without
+  duplicates.
+- `test/features/chat/domain/services/skill_markdown_parser_test.dart` covers
+  markdown composition and parsing.
+
 ### SKILL2: Chat-Driven Skill Lifecycle
 
-Status: `later`
+Status: `done`
 
 Scope:
 - Add a `/skill` slash command so the user can explicitly ask Caverno to turn
@@ -2928,6 +2938,15 @@ Acceptance criteria:
 - `/skill` produces a reviewable draft that reuses the SKILL1 approval path.
 - Edit/merge operations show what changes relative to the saved skill and never
   overwrite without confirmation.
+
+Implementation evidence:
+- `1a73c8b8` added the `/skill` slash command and `save-skill` alias that route
+  the model toward `save_skill` with optional focus arguments.
+- Existing-skill saves preview a unified diff before approval through the
+  SKILL1 handler.
+- `test/features/chat/presentation/slash_commands/slash_command_prompt_template_test.dart`
+  covers the command and alias, and the ChatNotifier skill test covers the diff
+  preview on update.
 
 ### SKILL3: Idle-Time Skill Mining
 

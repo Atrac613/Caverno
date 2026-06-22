@@ -82,7 +82,7 @@ handoffs can refer to the same unit of work over time.
 | Platform Vision | API1 | later | Normalize Chat Completions, Responses-style APIs, and local-provider extensions into one Agent Event Core. | Promote only after the current LL backlog is stable; first slice defines the event schema and replay fixture. |
 | Platform Vision | SEC1 | later | Define the Local Agent Data Perimeter for data classes, tool capabilities, and trust boundaries. | Start before expanding unattended or cross-machine tool execution beyond current approval gates. |
 | Platform Vision | OBS1 | later | Build an Agent Trace Timeline for model calls, tools, checkpoints, slots, evals, and maintenance runs. | Start before making LL13 parallel worktrees a product-facing agent-farm feature. |
-| Platform Vision | COMPAT1 | later | Add an OpenAI-compatible endpoint conformance suite for protocol and provider-behavior diagnostics. | Can start early as diagnostic tooling; keep model capability separate from endpoint protocol support. |
+| Platform Vision | COMPAT1 | next | Add an OpenAI-compatible endpoint conformance suite for protocol and provider-behavior diagnostics. | Start with a diagnostic CLI seeded by LL9 live lifecycle evidence; keep model capability separate from endpoint protocol support. |
 | Platform Vision | HOOK1 | current | Caverno-owned external config and basic lifecycle hook bridge for agent-kb and other local integrations. | Keep the first slice scoped to config sync, MCP server import, and session/prompt/stop hooks; defer tool-event parity to HOOK2. |
 | Platform Vision | HOOK2 | later | Claude-like lifecycle hook flexibility with tool-event hooks, matchers, and normalized payloads. | Start with `PostToolUse` and `PostToolUseFailure` so agent-kb can archive successful and failed tool outcomes. |
 | Platform Vision | HOOK3 | later | Advanced hook runtime: trust review, richer handler types, async execution, batch hooks, and reactive config/file events. | Keep deferred until SEC1/OBS1 define trust boundaries and trace visibility for hook side effects. |
@@ -91,7 +91,9 @@ handoffs can refer to the same unit of work over time.
 | Platform Vision | EVAL-MOBILE1 | later | Create a Flutter/mobile coding eval pack for Caverno-relevant app-development failures. | Start as local fixtures before UI productization; connect results to LL19 replay. |
 | Platform Vision | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as first-class multimodal evidence. | Land after SEC1/OBS1 so evidence inherits trust, redaction, and trace behavior. |
 | Platform Vision | MCP-GOV1 | later | Lint MCP tool contracts for schema clarity, dangerous capabilities, and weak-model tool-selection quality. | Start before SEC3 permission diff and MCP trust-registry UX. |
-| Skills | SKILL1 | next | Author skills from chat: capture the current conversation's workflow as a reusable skill via a `save_skill` tool behind a non-cacheable approval. | First slice ships the `save_skill` built-in tool (inverse of `load_skill`) writing through `SkillsNotifier.upsertMarkdown` with explicit user approval. |
+| Skills | SKILL1 | done | Author skills from chat: capture the current conversation's workflow as a reusable skill via a `save_skill` tool behind a non-cacheable approval. | Shipped in `c029bf9d`: `save_skill` writes through `SkillsNotifier.upsertMarkdown`, requires fresh explicit approval, and focused tests cover create/update behavior. |
+| Skills | SKILL2 | done | Drive skill lifecycle from chat with `/skill`, update-by-name, and diff-before-save review. | Shipped in `1a73c8b8`: `/skill` and `save-skill` route to `save_skill`, and existing-skill updates preview a diff before approval. |
+| Skills | SKILL3 | later | Mine recurring verified workflows into proposed skills during idle windows. | Wait for LL18/OBS1 evidence so proposals are grounded in traces and remain user-reviewed before adoption. |
 
 Remaining Foundation F5 and the future platform vision milestones are detailed in
 `docs/local_llm_agent_roadmap.md`.
@@ -767,14 +769,14 @@ Future platform vision summary:
 | API | API1 | later | Normalize provider APIs into a stable Agent Event Core before broader Responses-style migration. |
 | SEC | SEC1 | later | Make data classes, trust boundaries, and tool capabilities first-class policy inputs. |
 | OBS | OBS1 | later | Make agent work inspectable as a timeline of model calls, tools, checkpoints, evals, and maintenance decisions. |
-| COMPAT | COMPAT1 | later | Turn endpoint variance into a conformance report and compatibility badge. |
+| COMPAT | COMPAT1 | next | Turn endpoint variance into a conformance report and compatibility badge. |
 | MLIB | MLIB1 | later | Treat local models as managed artifacts with provenance, checksum, license, and verified capabilities. |
 | HOOK | HOOK1-HOOK3 | current/later | Evolve external config hooks from the current basic bridge into a Claude-like lifecycle system. |
 | MCP-GOV | MCP-GOV1 | later | Govern MCP tools through contract linting, trust levels, and model-specific prompt optimization. |
 | EDGE | EDGE1 | later | Use embedded on-device runtimes for bounded low-risk micro-tasks and offline fallback. |
 | EVAL-MOBILE | EVAL-MOBILE1 | later | Measure coding agents on Flutter/mobile failures that match Caverno's product domain. |
 | MM | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as traceable multimodal evidence. |
-| SKILL | SKILL1 | next | Author and maintain reusable skills directly from chat, then mine recurring workflows into proposed skills. |
+| SKILL | SKILL1-SKILL3 | done/later | In-chat skill authoring and `/skill` are done; idle-time skill mining remains deferred until trace-backed proposals are available. |
 
 These vision milestones should not displace the current `next` Local LLM
 milestone unless one is explicitly promoted through the normal operating loop.
