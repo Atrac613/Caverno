@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
+import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/personal_eval/domain/entities/personal_eval_case.dart';
 import 'package:caverno/features/personal_eval/presentation/pages/personal_eval_record_page.dart';
 import 'package:caverno/features/personal_eval/presentation/providers/personal_eval_cases_notifier.dart';
@@ -59,6 +60,11 @@ class _CapturingNotifier extends PersonalEvalCasesNotifier {
   }
 }
 
+class _EmptyCodingProjectsNotifier extends CodingProjectsNotifier {
+  @override
+  CodingProjectsState build() => CodingProjectsState.initial();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
@@ -89,6 +95,9 @@ void main() {
             return ProviderScope(
               overrides: [
                 personalEvalCasesNotifierProvider.overrideWith(() => notifier),
+                codingProjectsNotifierProvider.overrideWith(
+                  _EmptyCodingProjectsNotifier.new,
+                ),
               ],
               child: MaterialApp(
                 localizationsDelegates: context.localizationDelegates,
