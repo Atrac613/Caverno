@@ -148,6 +148,9 @@ ISO-style dates, money values, unit values, and opaque identifiers.
 Recommended operating posture:
 
 - Keep temperature low for coding, tool-heavy, and diagnostic workflows.
+- Do not infer that this 35B-A3B model is the quality-preferred primary route
+  from its displayed parameter count. Pick the quality/default routing tier from
+  live canary and personal-eval results against the current workload.
 - Treat tool-result URLs, IDs, dates, money values, unit values, JSON keys, and
   scalar values as exact-copy data unless the user explicitly asks for
   conversion.

@@ -55,7 +55,8 @@ Pick the cheapest model that can handle the query; escalate only if needed.
 - Recent unifications: "A Unified Approach to Routing and Cascading" (2410.10347),
   "Dynamic Model Routing and Cascading: A Survey" (2603.04445).
 - **Caverno fit:** this is exactly **LL24 (mode routing) / LL25 (cascade)**. Mesh
-  makes it free to keep the strong model resident on PC2 instead of swapping.
+  makes it free to keep the quality-preferred model resident on PC2 instead of
+  swapping.
 
 ### Group B — Ensemble by aggregation (N answer; fuse or rank)
 - **LLM-Blender** (Jiang et al., ACL 2023) — `PairRanker` ranks candidate outputs
@@ -119,9 +120,9 @@ Pick the cheapest model that can handle the query; escalate only if needed.
 - **CAMEL** (Li et al., NeurIPS 2023) — role-playing via inception prompting.
   arXiv:2303.17760.
 - **Caverno fit:** maps cleanly onto coding work — assign **role → endpoint**
-  (strong reasoner on PC1 plans, coder model on PC2 edits, a local small model
-  verifies). Caverno's **LL13 (parallel agents in worktrees over the mesh)** is
-  already the substrate for this.
+  (quality-preferred reasoner on PC1 plans, coder model on PC2 edits, a local
+  small model verifies). Caverno's **LL13 (parallel agents in worktrees over the
+  mesh)** is already the substrate for this.
 
 ### Group F — Learned / evolved conductor ★ (closest to your mental model)
 - **Sakana Trinity** (`sakana.ai/trinity`, ICLR 2026) — a small **~0.6B**
@@ -217,12 +218,13 @@ conductor latency proves too high.
 **Roadmap positioning (2026-06-22):** A0 is filed as **LL26 (`later`, sequenced
 after LL24)** — high-confidence and cheap, but not the immediate next. The eval
 gate is real: LL12 already scores wall-clock duration alongside pass rate, so
-"beats single-strong including latency" is measurable; the only residual eval work
-is letting an orchestration recipe run as one replay candidate. The collaboration
-paradigms (A1/A2/A3) are filed
+"beats the best currently validated single-model path including latency" is
+measurable; the only residual eval work is letting an orchestration recipe run
+as one replay candidate. The collaboration paradigms (A1/A2/A3) are filed
 as **LL27 (`later`)**, with the **A2 role conductor kept explicitly as the guiding
 thesis / future challenge** rather than a committed build, gated by the LL12/LL19
-eval harness ("beats single-strong-model including latency"). See
+eval harness ("beats the best currently validated single-model path including
+latency"). See
 `docs/local_llm_agent_roadmap.md`.
 
 ---
@@ -232,12 +234,13 @@ eval harness ("beats single-strong-model including latency"). See
 Use the **LL12 / LL19 personal eval harness** to answer these on *your* tasks and
 *your* model pool — do not trust paper benchmarks blindly:
 
-1. **Does parallel-aggregate actually beat the single strong model** on your tasks,
-   once you count the slowest worker + aggregation latency? (the core go/no-go)
-2. **Aggregator choice:** strongest model as aggregator vs a dedicated fuser. MoA
-   found a good aggregator matters more than proposer count.
-3. **Does heterogeneity help?** MoA and DeePEn show a weak model can *lift* a
-   strong one via fusion; confirm it holds for your PC1/PC2 pair.
+1. **Does parallel-aggregate actually beat the best currently validated
+   single-model path** on your tasks, once you count the slowest worker +
+   aggregation latency? (the core go/no-go)
+2. **Aggregator choice:** quality-preferred model as aggregator vs a dedicated
+   fuser. MoA found a good aggregator matters more than proposer count.
+3. **Does heterogeneity help?** MoA and DeePEn show that a weaker model can
+   *lift* a stronger partner via fusion; confirm it holds for your PC1/PC2 pair.
 4. **Latency budget per mode:** general turns may not justify orchestration;
    reserve A1/A2/A3 for plan/coding (ties back to LL24/LL25 gating).
 5. **Failure semantics:** a downed PC already demotes to primary (LL8). Confirm an
