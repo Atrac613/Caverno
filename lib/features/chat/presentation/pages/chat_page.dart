@@ -1661,6 +1661,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             endpoints: settings.enabledNamedEndpoints,
             primaryModel: settings.effectiveModel,
             enabled: !chatState.isLoading,
+            runtime: chatState.participantTurnRuntime,
+            onStopRequested: chatNotifier.requestParticipantTurnStop,
+            onContinueRequested: () {
+              unawaited(chatNotifier.continueParticipantTurns());
+            },
             onChanged: ({required participants, required config}) async {
               await conversationsNotifier.updateConversationParticipants(
                 currentConversation.id,

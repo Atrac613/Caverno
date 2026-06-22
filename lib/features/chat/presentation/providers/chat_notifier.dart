@@ -5408,6 +5408,11 @@ class ChatNotifier extends Notifier<ChatState> {
       <int, Stopwatch>{};
   final Map<String, PendingAskUserQuestion> _pendingAskUserQuestionsByThread =
       <String, PendingAskUserQuestion>{};
+  bool _participantTurnStopRequested = false;
+  ParticipantTurnCursor? _pausedParticipantTurnCursor;
+  List<ConversationParticipant> _pausedParticipantTurnParticipants = const [];
+  ParticipantTurnConfig? _pausedParticipantTurnConfig;
+  String? _pausedParticipantTurnConversationId;
   ChatInteractionOrigin _activeInteractionOrigin = ChatInteractionOrigin.local;
 
   bool get _isRemoteInteraction =>
@@ -5525,6 +5530,11 @@ class ChatNotifier extends Notifier<ChatState> {
     _turnFinalizationRecoveryGenerations.clear();
     _activeResponseConversationId = null;
     _activeResponseMessages = null;
+    _participantTurnStopRequested = false;
+    _pausedParticipantTurnCursor = null;
+    _pausedParticipantTurnParticipants = const [];
+    _pausedParticipantTurnConfig = null;
+    _pausedParticipantTurnConversationId = null;
   }
 
   Future<void> sendMessage(
@@ -14000,10 +14010,14 @@ class ChatNotifier extends Notifier<ChatState> {
       changedMessages = true;
     }
     if (changedMessages) {
-      state = state.copyWith(messages: updatedMessages, isLoading: false);
+      state = state.copyWith(
+        messages: updatedMessages,
+        isLoading: false,
+        participantTurnRuntime: null,
+      );
       unawaited(_saveMessages());
     } else if (state.isLoading) {
-      state = state.copyWith(isLoading: false);
+      state = state.copyWith(isLoading: false, participantTurnRuntime: null);
     }
   }
 
@@ -14023,6 +14037,11 @@ class ChatNotifier extends Notifier<ChatState> {
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _dismissAllPendingAskUserQuestions();
+    _participantTurnStopRequested = false;
+    _pausedParticipantTurnCursor = null;
+    _pausedParticipantTurnParticipants = const [];
+    _pausedParticipantTurnConfig = null;
+    _pausedParticipantTurnConversationId = null;
     _clearAllActiveResponses();
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;

@@ -88,6 +88,30 @@ class _TestConversationsNotifier extends ConversationsNotifier {
   }
 
   @override
+  Future<void> updateConversationParticipants(
+    String conversationId, {
+    required List<ConversationParticipant> participants,
+    ParticipantTurnConfig? participantTurnConfig,
+  }) async {
+    final conversation = state.conversations
+        .where((item) => item.id == conversationId)
+        .firstOrNull;
+    if (conversation == null) {
+      return;
+    }
+    final updated = conversation.copyWith(
+      participants: participants,
+      participantTurnConfig:
+          participantTurnConfig ?? conversation.participantTurnConfig,
+    );
+    state = state.copyWith(
+      conversations: state.conversations
+          .map((item) => item.id == conversationId ? updated : item)
+          .toList(growable: false),
+    );
+  }
+
+  @override
   Future<void> ensureCurrentPlanArtifactBackfilled() async {}
 }
 
@@ -1404,6 +1428,107 @@ class _ContinuationFallbackChatDataSource implements ChatDataSource {
       content: 'Recovered continuation after stream failure.',
       finishReason: 'stop',
     );
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
+class _ParticipantStreamingChatDataSource
+    implements ChatDataSource, FinishReasonAware {
+  _ParticipantStreamingChatDataSource({
+    List<StreamController<String>> manualStreams = const [],
+    List<List<String>> chunkBatches = const [],
+  }) : _manualStreams = Queue<StreamController<String>>.from(manualStreams),
+       _chunkBatches = Queue<List<String>>.from(chunkBatches);
+
+  final Queue<StreamController<String>> _manualStreams;
+  final Queue<List<String>> _chunkBatches;
+  final List<List<Message>> streamRequests = [];
+  final List<String?> requestedModels = [];
+
+  @override
+  String? get lastFinishReason => 'stop';
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    streamRequests.add(List<Message>.from(messages));
+    requestedModels.add(model);
+    if (_manualStreams.isNotEmpty) {
+      return _manualStreams.removeFirst().stream;
+    }
+    final chunks = _chunkBatches.isEmpty
+        ? const <String>[]
+        : _chunkBatches.removeFirst();
+    return Stream<String>.fromIterable(chunks);
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
   }
 
   @override

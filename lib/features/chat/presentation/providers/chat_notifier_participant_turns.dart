@@ -5,11 +5,77 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierParticipantTurns on ChatNotifier {
+  void requestParticipantTurnStop() {
+    final runtime = state.participantTurnRuntime;
+    if (runtime == null || runtime.paused) return;
+    _participantTurnStopRequested = true;
+    state = state.copyWith(
+      participantTurnRuntime: runtime.copyWith(stopRequested: true),
+    );
+  }
+
+  Future<void> continueParticipantTurns() async {
+    if (state.isLoading) return;
+    final cursor = _pausedParticipantTurnCursor;
+    final config = _pausedParticipantTurnConfig;
+    final targetConversationId = _pausedParticipantTurnConversationId;
+    if (cursor == null || config == null || targetConversationId == null) {
+      return;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation?.id != targetConversationId) {
+      return;
+    }
+
+    final participants = _pausedParticipantTurnParticipants;
+    if (participants.isEmpty) {
+      _clearPausedParticipantTurn();
+      state = state.copyWith(participantTurnRuntime: null);
+      return;
+    }
+
+    _participantTurnStopRequested = false;
+    final interactionGeneration = _beginInteractionGeneration();
+    conversationId = targetConversationId;
+    _llmSessionLogContextsByGeneration[interactionGeneration] =
+        _buildLlmSessionLogContext(targetConversationId: targetConversationId);
+    _registerActiveResponse(
+      generation: interactionGeneration,
+      targetConversationId: targetConversationId,
+      messages: state.messages,
+    );
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      participantTurnRuntime: state.participantTurnRuntime?.copyWith(
+        paused: false,
+        stopRequested: false,
+      ),
+    );
+    _onSendStarted();
+    try {
+      await _runParticipantTurnLoop(
+        interactionGeneration: interactionGeneration,
+        targetConversationId: targetConversationId,
+        participants: participants,
+        config: config,
+        initialCursor: cursor,
+      );
+    } finally {
+      _activeInteractionOrigin = ChatInteractionOrigin.local;
+    }
+  }
+
   Future<void> _sendWithParticipantTurns({
     required int interactionGeneration,
     required Conversation currentConversation,
     required ConversationsNotifier conversationsNotifier,
   }) async {
+    _clearPausedParticipantTurn();
+    _participantTurnStopRequested = false;
     const coordinator = ParticipantTurnCoordinator();
     var participants = coordinator.normalizeParticipants(
       participants: currentConversation.participants,
@@ -27,31 +93,54 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       participants,
     );
     if (enabledParticipants.isEmpty) {
-      state = state.copyWith(isLoading: false);
+      state = state.copyWith(isLoading: false, participantTurnRuntime: null);
       _clearActiveResponseForGeneration(interactionGeneration);
       await _drainQueuedChatMessagesIfIdle();
       return;
     }
 
-    var cursor = const ParticipantTurnCursor();
+    await _runParticipantTurnLoop(
+      interactionGeneration: interactionGeneration,
+      targetConversationId: currentConversation.id,
+      participants: participants,
+      config: currentConversation.participantTurnConfig,
+      initialCursor: const ParticipantTurnCursor(),
+    );
+  }
+
+  Future<void> _runParticipantTurnLoop({
+    required int interactionGeneration,
+    required String targetConversationId,
+    required List<ConversationParticipant> participants,
+    required ParticipantTurnConfig config,
+    required ParticipantTurnCursor initialCursor,
+  }) async {
+    const coordinator = ParticipantTurnCoordinator();
+    var cursor = initialCursor;
     String completedContent = '';
 
     while (_isCurrentInteractionGeneration(interactionGeneration)) {
       final decision = coordinator.nextSpeaker(
         participants: participants,
-        config: currentConversation.participantTurnConfig,
+        config: config,
         cursor: cursor,
       );
       if (!decision.hasParticipant) {
-        state = state.copyWith(isLoading: false);
-        _clearActiveResponseForGeneration(interactionGeneration);
-        _onResponseCompleted(completedContent);
-        await _drainQueuedChatMessagesIfIdle();
+        await _completeParticipantTurns(
+          generation: interactionGeneration,
+          completedContent: completedContent,
+        );
         return;
       }
 
       final participant = decision.participant!;
       final isFinalTurn = decision.completed;
+      _setParticipantTurnRuntime(
+        participant: participant,
+        config: config,
+        roundNumber: decision.roundNumber,
+        paused: false,
+      );
       completedContent = await _streamParticipantTurn(
         interactionGeneration: interactionGeneration,
         participant: participant,
@@ -61,11 +150,23 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
 
       cursor = decision.cursor;
+      if (_participantTurnStopRequested && !isFinalTurn) {
+        await _pauseParticipantTurns(
+          generation: interactionGeneration,
+          targetConversationId: targetConversationId,
+          participants: participants,
+          config: config,
+          cursor: cursor,
+          completedContent: completedContent,
+        );
+        return;
+      }
+
       if (isFinalTurn) {
-        _clearActiveResponseForGeneration(interactionGeneration);
-        _contentToolContinuationCount = 0;
-        _onResponseCompleted(completedContent);
-        await _drainQueuedChatMessagesIfIdle();
+        await _completeParticipantTurns(
+          generation: interactionGeneration,
+          completedContent: completedContent,
+        );
         return;
       }
     }
@@ -138,6 +239,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       );
       appLog('[ParticipantTurn] stackTrace: $stackTrace');
       if (_isCurrentInteractionGeneration(interactionGeneration)) {
+        state = state.copyWith(participantTurnRuntime: null);
         _handleError(error.toString());
       }
       return '';
@@ -241,6 +343,82 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       _onAutoRead(finalizedLastMessage.content);
     }
     return finalizedLastMessage.content;
+  }
+
+  Future<void> _pauseParticipantTurns({
+    required int generation,
+    required String targetConversationId,
+    required List<ConversationParticipant> participants,
+    required ParticipantTurnConfig config,
+    required ParticipantTurnCursor cursor,
+    required String completedContent,
+  }) async {
+    _pausedParticipantTurnCursor = cursor;
+    _pausedParticipantTurnParticipants = List.unmodifiable(participants);
+    _pausedParticipantTurnConfig = config;
+    _pausedParticipantTurnConversationId = targetConversationId;
+    _participantTurnStopRequested = false;
+    final runtime = state.participantTurnRuntime;
+    state = state.copyWith(
+      isLoading: false,
+      participantTurnRuntime: runtime?.copyWith(
+        activeParticipantId: null,
+        activeParticipantName: '',
+        activeParticipantRoleLabel: '',
+        activeParticipantColorValue: null,
+        stopRequested: true,
+        paused: true,
+      ),
+    );
+    _clearActiveResponseForGeneration(generation);
+    _contentToolContinuationCount = 0;
+    _onResponseCompleted(completedContent);
+    await _drainQueuedChatMessagesIfIdle();
+  }
+
+  Future<void> _completeParticipantTurns({
+    required int generation,
+    required String completedContent,
+  }) async {
+    _clearPausedParticipantTurn();
+    _participantTurnStopRequested = false;
+    state = state.copyWith(isLoading: false, participantTurnRuntime: null);
+    _clearActiveResponseForGeneration(generation);
+    _contentToolContinuationCount = 0;
+    _onResponseCompleted(completedContent);
+    await _drainQueuedChatMessagesIfIdle();
+  }
+
+  void _setParticipantTurnRuntime({
+    required ConversationParticipant participant,
+    required ParticipantTurnConfig config,
+    required int roundNumber,
+    required bool paused,
+  }) {
+    final multiRound = config.depth == ParticipantTurnDepth.multiRound;
+    final maxRounds = multiRound
+        ? (config.maxRounds < 1 ? 1 : config.maxRounds)
+        : 1;
+    state = state.copyWith(
+      participantTurnRuntime: ParticipantTurnRuntime(
+        activeParticipantId: participant.id,
+        activeParticipantName: participant.effectiveDisplayName,
+        activeParticipantRoleLabel: participant.effectiveRoleLabel,
+        activeParticipantColorValue: participant.colorValue,
+        currentRound: roundNumber,
+        maxRounds: maxRounds,
+        multiRound: multiRound,
+        stopRequested: _participantTurnStopRequested,
+        paused: paused,
+      ),
+    );
+  }
+
+  void _clearPausedParticipantTurn() {
+    _pausedParticipantTurnCursor = null;
+    _pausedParticipantTurnParticipants = const [];
+    _pausedParticipantTurnConfig = null;
+    _pausedParticipantTurnConversationId = null;
   }
 
   bool _sameParticipants(

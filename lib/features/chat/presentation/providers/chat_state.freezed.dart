@@ -553,9 +553,290 @@ as List<ConversationWorkflowTask>,
 }
 
 /// @nodoc
+mixin _$ParticipantTurnRuntime {
+
+ String? get activeParticipantId; String get activeParticipantName; String get activeParticipantRoleLabel; int? get activeParticipantColorValue; int get currentRound; int get maxRounds; bool get multiRound; bool get stopRequested; bool get paused;
+/// Create a copy of ParticipantTurnRuntime
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ParticipantTurnRuntimeCopyWith<ParticipantTurnRuntime> get copyWith => _$ParticipantTurnRuntimeCopyWithImpl<ParticipantTurnRuntime>(this as ParticipantTurnRuntime, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ParticipantTurnRuntime&&(identical(other.activeParticipantId, activeParticipantId) || other.activeParticipantId == activeParticipantId)&&(identical(other.activeParticipantName, activeParticipantName) || other.activeParticipantName == activeParticipantName)&&(identical(other.activeParticipantRoleLabel, activeParticipantRoleLabel) || other.activeParticipantRoleLabel == activeParticipantRoleLabel)&&(identical(other.activeParticipantColorValue, activeParticipantColorValue) || other.activeParticipantColorValue == activeParticipantColorValue)&&(identical(other.currentRound, currentRound) || other.currentRound == currentRound)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds)&&(identical(other.multiRound, multiRound) || other.multiRound == multiRound)&&(identical(other.stopRequested, stopRequested) || other.stopRequested == stopRequested)&&(identical(other.paused, paused) || other.paused == paused));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,activeParticipantId,activeParticipantName,activeParticipantRoleLabel,activeParticipantColorValue,currentRound,maxRounds,multiRound,stopRequested,paused);
+
+@override
+String toString() {
+  return 'ParticipantTurnRuntime(activeParticipantId: $activeParticipantId, activeParticipantName: $activeParticipantName, activeParticipantRoleLabel: $activeParticipantRoleLabel, activeParticipantColorValue: $activeParticipantColorValue, currentRound: $currentRound, maxRounds: $maxRounds, multiRound: $multiRound, stopRequested: $stopRequested, paused: $paused)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ParticipantTurnRuntimeCopyWith<$Res>  {
+  factory $ParticipantTurnRuntimeCopyWith(ParticipantTurnRuntime value, $Res Function(ParticipantTurnRuntime) _then) = _$ParticipantTurnRuntimeCopyWithImpl;
+@useResult
+$Res call({
+ String? activeParticipantId, String activeParticipantName, String activeParticipantRoleLabel, int? activeParticipantColorValue, int currentRound, int maxRounds, bool multiRound, bool stopRequested, bool paused
+});
+
+
+
+
+}
+/// @nodoc
+class _$ParticipantTurnRuntimeCopyWithImpl<$Res>
+    implements $ParticipantTurnRuntimeCopyWith<$Res> {
+  _$ParticipantTurnRuntimeCopyWithImpl(this._self, this._then);
+
+  final ParticipantTurnRuntime _self;
+  final $Res Function(ParticipantTurnRuntime) _then;
+
+/// Create a copy of ParticipantTurnRuntime
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? activeParticipantId = freezed,Object? activeParticipantName = null,Object? activeParticipantRoleLabel = null,Object? activeParticipantColorValue = freezed,Object? currentRound = null,Object? maxRounds = null,Object? multiRound = null,Object? stopRequested = null,Object? paused = null,}) {
+  return _then(_self.copyWith(
+activeParticipantId: freezed == activeParticipantId ? _self.activeParticipantId : activeParticipantId // ignore: cast_nullable_to_non_nullable
+as String?,activeParticipantName: null == activeParticipantName ? _self.activeParticipantName : activeParticipantName // ignore: cast_nullable_to_non_nullable
+as String,activeParticipantRoleLabel: null == activeParticipantRoleLabel ? _self.activeParticipantRoleLabel : activeParticipantRoleLabel // ignore: cast_nullable_to_non_nullable
+as String,activeParticipantColorValue: freezed == activeParticipantColorValue ? _self.activeParticipantColorValue : activeParticipantColorValue // ignore: cast_nullable_to_non_nullable
+as int?,currentRound: null == currentRound ? _self.currentRound : currentRound // ignore: cast_nullable_to_non_nullable
+as int,maxRounds: null == maxRounds ? _self.maxRounds : maxRounds // ignore: cast_nullable_to_non_nullable
+as int,multiRound: null == multiRound ? _self.multiRound : multiRound // ignore: cast_nullable_to_non_nullable
+as bool,stopRequested: null == stopRequested ? _self.stopRequested : stopRequested // ignore: cast_nullable_to_non_nullable
+as bool,paused: null == paused ? _self.paused : paused // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ParticipantTurnRuntime].
+extension ParticipantTurnRuntimePatterns on ParticipantTurnRuntime {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ParticipantTurnRuntime value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ParticipantTurnRuntime() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ParticipantTurnRuntime value)  $default,){
+final _that = this;
+switch (_that) {
+case _ParticipantTurnRuntime():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ParticipantTurnRuntime value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ParticipantTurnRuntime() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? activeParticipantId,  String activeParticipantName,  String activeParticipantRoleLabel,  int? activeParticipantColorValue,  int currentRound,  int maxRounds,  bool multiRound,  bool stopRequested,  bool paused)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ParticipantTurnRuntime() when $default != null:
+return $default(_that.activeParticipantId,_that.activeParticipantName,_that.activeParticipantRoleLabel,_that.activeParticipantColorValue,_that.currentRound,_that.maxRounds,_that.multiRound,_that.stopRequested,_that.paused);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? activeParticipantId,  String activeParticipantName,  String activeParticipantRoleLabel,  int? activeParticipantColorValue,  int currentRound,  int maxRounds,  bool multiRound,  bool stopRequested,  bool paused)  $default,) {final _that = this;
+switch (_that) {
+case _ParticipantTurnRuntime():
+return $default(_that.activeParticipantId,_that.activeParticipantName,_that.activeParticipantRoleLabel,_that.activeParticipantColorValue,_that.currentRound,_that.maxRounds,_that.multiRound,_that.stopRequested,_that.paused);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? activeParticipantId,  String activeParticipantName,  String activeParticipantRoleLabel,  int? activeParticipantColorValue,  int currentRound,  int maxRounds,  bool multiRound,  bool stopRequested,  bool paused)?  $default,) {final _that = this;
+switch (_that) {
+case _ParticipantTurnRuntime() when $default != null:
+return $default(_that.activeParticipantId,_that.activeParticipantName,_that.activeParticipantRoleLabel,_that.activeParticipantColorValue,_that.currentRound,_that.maxRounds,_that.multiRound,_that.stopRequested,_that.paused);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class _ParticipantTurnRuntime implements ParticipantTurnRuntime {
+  const _ParticipantTurnRuntime({this.activeParticipantId, this.activeParticipantName = '', this.activeParticipantRoleLabel = '', this.activeParticipantColorValue, this.currentRound = 1, this.maxRounds = 1, this.multiRound = false, this.stopRequested = false, this.paused = false});
+
+
+@override final  String? activeParticipantId;
+@override@JsonKey() final  String activeParticipantName;
+@override@JsonKey() final  String activeParticipantRoleLabel;
+@override final  int? activeParticipantColorValue;
+@override@JsonKey() final  int currentRound;
+@override@JsonKey() final  int maxRounds;
+@override@JsonKey() final  bool multiRound;
+@override@JsonKey() final  bool stopRequested;
+@override@JsonKey() final  bool paused;
+
+/// Create a copy of ParticipantTurnRuntime
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ParticipantTurnRuntimeCopyWith<_ParticipantTurnRuntime> get copyWith => __$ParticipantTurnRuntimeCopyWithImpl<_ParticipantTurnRuntime>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ParticipantTurnRuntime&&(identical(other.activeParticipantId, activeParticipantId) || other.activeParticipantId == activeParticipantId)&&(identical(other.activeParticipantName, activeParticipantName) || other.activeParticipantName == activeParticipantName)&&(identical(other.activeParticipantRoleLabel, activeParticipantRoleLabel) || other.activeParticipantRoleLabel == activeParticipantRoleLabel)&&(identical(other.activeParticipantColorValue, activeParticipantColorValue) || other.activeParticipantColorValue == activeParticipantColorValue)&&(identical(other.currentRound, currentRound) || other.currentRound == currentRound)&&(identical(other.maxRounds, maxRounds) || other.maxRounds == maxRounds)&&(identical(other.multiRound, multiRound) || other.multiRound == multiRound)&&(identical(other.stopRequested, stopRequested) || other.stopRequested == stopRequested)&&(identical(other.paused, paused) || other.paused == paused));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,activeParticipantId,activeParticipantName,activeParticipantRoleLabel,activeParticipantColorValue,currentRound,maxRounds,multiRound,stopRequested,paused);
+
+@override
+String toString() {
+  return 'ParticipantTurnRuntime(activeParticipantId: $activeParticipantId, activeParticipantName: $activeParticipantName, activeParticipantRoleLabel: $activeParticipantRoleLabel, activeParticipantColorValue: $activeParticipantColorValue, currentRound: $currentRound, maxRounds: $maxRounds, multiRound: $multiRound, stopRequested: $stopRequested, paused: $paused)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ParticipantTurnRuntimeCopyWith<$Res> implements $ParticipantTurnRuntimeCopyWith<$Res> {
+  factory _$ParticipantTurnRuntimeCopyWith(_ParticipantTurnRuntime value, $Res Function(_ParticipantTurnRuntime) _then) = __$ParticipantTurnRuntimeCopyWithImpl;
+@override @useResult
+$Res call({
+ String? activeParticipantId, String activeParticipantName, String activeParticipantRoleLabel, int? activeParticipantColorValue, int currentRound, int maxRounds, bool multiRound, bool stopRequested, bool paused
+});
+
+
+
+
+}
+/// @nodoc
+class __$ParticipantTurnRuntimeCopyWithImpl<$Res>
+    implements _$ParticipantTurnRuntimeCopyWith<$Res> {
+  __$ParticipantTurnRuntimeCopyWithImpl(this._self, this._then);
+
+  final _ParticipantTurnRuntime _self;
+  final $Res Function(_ParticipantTurnRuntime) _then;
+
+/// Create a copy of ParticipantTurnRuntime
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? activeParticipantId = freezed,Object? activeParticipantName = null,Object? activeParticipantRoleLabel = null,Object? activeParticipantColorValue = freezed,Object? currentRound = null,Object? maxRounds = null,Object? multiRound = null,Object? stopRequested = null,Object? paused = null,}) {
+  return _then(_ParticipantTurnRuntime(
+activeParticipantId: freezed == activeParticipantId ? _self.activeParticipantId : activeParticipantId // ignore: cast_nullable_to_non_nullable
+as String?,activeParticipantName: null == activeParticipantName ? _self.activeParticipantName : activeParticipantName // ignore: cast_nullable_to_non_nullable
+as String,activeParticipantRoleLabel: null == activeParticipantRoleLabel ? _self.activeParticipantRoleLabel : activeParticipantRoleLabel // ignore: cast_nullable_to_non_nullable
+as String,activeParticipantColorValue: freezed == activeParticipantColorValue ? _self.activeParticipantColorValue : activeParticipantColorValue // ignore: cast_nullable_to_non_nullable
+as int?,currentRound: null == currentRound ? _self.currentRound : currentRound // ignore: cast_nullable_to_non_nullable
+as int,maxRounds: null == maxRounds ? _self.maxRounds : maxRounds // ignore: cast_nullable_to_non_nullable
+as int,multiRound: null == multiRound ? _self.multiRound : multiRound // ignore: cast_nullable_to_non_nullable
+as bool,stopRequested: null == stopRequested ? _self.stopRequested : stopRequested // ignore: cast_nullable_to_non_nullable
+as bool,paused: null == paused ? _self.paused : paused // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$ChatState {
 
- List<Message> get messages; List<QueuedChatMessage> get queuedMessages; bool get isLoading; String? get error; int get promptTokens; int get completionTokens; int get totalTokens; int get estimatedPromptTokens; ContextTokenPressureLevel get contextTokenPressureLevel; bool get promptCompactionActive; ContextSurgeryObservationSnapshot get contextSurgerySnapshot;// SSH tool UI flow — holders contain Completers so they live outside
+ List<Message> get messages; List<QueuedChatMessage> get queuedMessages; bool get isLoading; String? get error; int get promptTokens; int get completionTokens; int get totalTokens; int get estimatedPromptTokens; ContextTokenPressureLevel get contextTokenPressureLevel; bool get promptCompactionActive; ContextSurgeryObservationSnapshot get contextSurgerySnapshot; ParticipantTurnRuntime? get participantTurnRuntime;// SSH tool UI flow — holders contain Completers so they live outside
 // the freezed equality graph.
  PendingSshConnect? get pendingSshConnect; PendingSshCommand? get pendingSshCommand;// Git tool UI flow — same Completer-based pattern as SSH.
  PendingGitCommand? get pendingGitCommand;// Local shell tool UI flow.
@@ -577,16 +858,16 @@ $ChatStateCopyWith<ChatState> get copyWith => _$ChatStateCopyWithImpl<ChatState>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatState&&const DeepCollectionEquality().equals(other.messages, messages)&&const DeepCollectionEquality().equals(other.queuedMessages, queuedMessages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.estimatedPromptTokens, estimatedPromptTokens) || other.estimatedPromptTokens == estimatedPromptTokens)&&(identical(other.contextTokenPressureLevel, contextTokenPressureLevel) || other.contextTokenPressureLevel == contextTokenPressureLevel)&&(identical(other.promptCompactionActive, promptCompactionActive) || other.promptCompactionActive == promptCompactionActive)&&(identical(other.contextSurgerySnapshot, contextSurgerySnapshot) || other.contextSurgerySnapshot == contextSurgerySnapshot)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingLocalCommand, pendingLocalCommand) || other.pendingLocalCommand == pendingLocalCommand)&&(identical(other.pendingComputerUseAction, pendingComputerUseAction) || other.pendingComputerUseAction == pendingComputerUseAction)&&(identical(other.pendingBrowserAction, pendingBrowserAction) || other.pendingBrowserAction == pendingBrowserAction)&&(identical(other.pendingFileOperation, pendingFileOperation) || other.pendingFileOperation == pendingFileOperation)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect)&&(identical(other.pendingSerialOpen, pendingSerialOpen) || other.pendingSerialOpen == pendingSerialOpen)&&(identical(other.pendingAskUserQuestion, pendingAskUserQuestion) || other.pendingAskUserQuestion == pendingAskUserQuestion)&&(identical(other.pendingWorkflowDecision, pendingWorkflowDecision) || other.pendingWorkflowDecision == pendingWorkflowDecision)&&(identical(other.isGeneratingWorkflowProposal, isGeneratingWorkflowProposal) || other.isGeneratingWorkflowProposal == isGeneratingWorkflowProposal)&&(identical(other.workflowProposalDraft, workflowProposalDraft) || other.workflowProposalDraft == workflowProposalDraft)&&(identical(other.workflowProposalError, workflowProposalError) || other.workflowProposalError == workflowProposalError)&&(identical(other.isGeneratingTaskProposal, isGeneratingTaskProposal) || other.isGeneratingTaskProposal == isGeneratingTaskProposal)&&(identical(other.taskProposalDraft, taskProposalDraft) || other.taskProposalDraft == taskProposalDraft)&&(identical(other.taskProposalError, taskProposalError) || other.taskProposalError == taskProposalError));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatState&&const DeepCollectionEquality().equals(other.messages, messages)&&const DeepCollectionEquality().equals(other.queuedMessages, queuedMessages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.estimatedPromptTokens, estimatedPromptTokens) || other.estimatedPromptTokens == estimatedPromptTokens)&&(identical(other.contextTokenPressureLevel, contextTokenPressureLevel) || other.contextTokenPressureLevel == contextTokenPressureLevel)&&(identical(other.promptCompactionActive, promptCompactionActive) || other.promptCompactionActive == promptCompactionActive)&&(identical(other.contextSurgerySnapshot, contextSurgerySnapshot) || other.contextSurgerySnapshot == contextSurgerySnapshot)&&(identical(other.participantTurnRuntime, participantTurnRuntime) || other.participantTurnRuntime == participantTurnRuntime)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingLocalCommand, pendingLocalCommand) || other.pendingLocalCommand == pendingLocalCommand)&&(identical(other.pendingComputerUseAction, pendingComputerUseAction) || other.pendingComputerUseAction == pendingComputerUseAction)&&(identical(other.pendingBrowserAction, pendingBrowserAction) || other.pendingBrowserAction == pendingBrowserAction)&&(identical(other.pendingFileOperation, pendingFileOperation) || other.pendingFileOperation == pendingFileOperation)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect)&&(identical(other.pendingSerialOpen, pendingSerialOpen) || other.pendingSerialOpen == pendingSerialOpen)&&(identical(other.pendingAskUserQuestion, pendingAskUserQuestion) || other.pendingAskUserQuestion == pendingAskUserQuestion)&&(identical(other.pendingWorkflowDecision, pendingWorkflowDecision) || other.pendingWorkflowDecision == pendingWorkflowDecision)&&(identical(other.isGeneratingWorkflowProposal, isGeneratingWorkflowProposal) || other.isGeneratingWorkflowProposal == isGeneratingWorkflowProposal)&&(identical(other.workflowProposalDraft, workflowProposalDraft) || other.workflowProposalDraft == workflowProposalDraft)&&(identical(other.workflowProposalError, workflowProposalError) || other.workflowProposalError == workflowProposalError)&&(identical(other.isGeneratingTaskProposal, isGeneratingTaskProposal) || other.isGeneratingTaskProposal == isGeneratingTaskProposal)&&(identical(other.taskProposalDraft, taskProposalDraft) || other.taskProposalDraft == taskProposalDraft)&&(identical(other.taskProposalError, taskProposalError) || other.taskProposalError == taskProposalError));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,const DeepCollectionEquality().hash(messages),const DeepCollectionEquality().hash(queuedMessages),isLoading,error,promptTokens,completionTokens,totalTokens,estimatedPromptTokens,contextTokenPressureLevel,promptCompactionActive,contextSurgerySnapshot,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingLocalCommand,pendingComputerUseAction,pendingBrowserAction,pendingFileOperation,pendingBleConnect,pendingSerialOpen,pendingAskUserQuestion,pendingWorkflowDecision,isGeneratingWorkflowProposal,workflowProposalDraft,workflowProposalError,isGeneratingTaskProposal,taskProposalDraft,taskProposalError]);
+int get hashCode => Object.hashAll([runtimeType,const DeepCollectionEquality().hash(messages),const DeepCollectionEquality().hash(queuedMessages),isLoading,error,promptTokens,completionTokens,totalTokens,estimatedPromptTokens,contextTokenPressureLevel,promptCompactionActive,contextSurgerySnapshot,participantTurnRuntime,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingLocalCommand,pendingComputerUseAction,pendingBrowserAction,pendingFileOperation,pendingBleConnect,pendingSerialOpen,pendingAskUserQuestion,pendingWorkflowDecision,isGeneratingWorkflowProposal,workflowProposalDraft,workflowProposalError,isGeneratingTaskProposal,taskProposalDraft,taskProposalError]);
 
 @override
 String toString() {
-  return 'ChatState(messages: $messages, queuedMessages: $queuedMessages, isLoading: $isLoading, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, estimatedPromptTokens: $estimatedPromptTokens, contextTokenPressureLevel: $contextTokenPressureLevel, promptCompactionActive: $promptCompactionActive, contextSurgerySnapshot: $contextSurgerySnapshot, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingLocalCommand: $pendingLocalCommand, pendingComputerUseAction: $pendingComputerUseAction, pendingBrowserAction: $pendingBrowserAction, pendingFileOperation: $pendingFileOperation, pendingBleConnect: $pendingBleConnect, pendingSerialOpen: $pendingSerialOpen, pendingAskUserQuestion: $pendingAskUserQuestion, pendingWorkflowDecision: $pendingWorkflowDecision, isGeneratingWorkflowProposal: $isGeneratingWorkflowProposal, workflowProposalDraft: $workflowProposalDraft, workflowProposalError: $workflowProposalError, isGeneratingTaskProposal: $isGeneratingTaskProposal, taskProposalDraft: $taskProposalDraft, taskProposalError: $taskProposalError)';
+  return 'ChatState(messages: $messages, queuedMessages: $queuedMessages, isLoading: $isLoading, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, estimatedPromptTokens: $estimatedPromptTokens, contextTokenPressureLevel: $contextTokenPressureLevel, promptCompactionActive: $promptCompactionActive, contextSurgerySnapshot: $contextSurgerySnapshot, participantTurnRuntime: $participantTurnRuntime, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingLocalCommand: $pendingLocalCommand, pendingComputerUseAction: $pendingComputerUseAction, pendingBrowserAction: $pendingBrowserAction, pendingFileOperation: $pendingFileOperation, pendingBleConnect: $pendingBleConnect, pendingSerialOpen: $pendingSerialOpen, pendingAskUserQuestion: $pendingAskUserQuestion, pendingWorkflowDecision: $pendingWorkflowDecision, isGeneratingWorkflowProposal: $isGeneratingWorkflowProposal, workflowProposalDraft: $workflowProposalDraft, workflowProposalError: $workflowProposalError, isGeneratingTaskProposal: $isGeneratingTaskProposal, taskProposalDraft: $taskProposalDraft, taskProposalError: $taskProposalError)';
 }
 
 
@@ -597,11 +878,11 @@ abstract mixin class $ChatStateCopyWith<$Res>  {
   factory $ChatStateCopyWith(ChatState value, $Res Function(ChatState) _then) = _$ChatStateCopyWithImpl;
 @useResult
 $Res call({
- List<Message> messages, List<QueuedChatMessage> queuedMessages, bool isLoading, String? error, int promptTokens, int completionTokens, int totalTokens, int estimatedPromptTokens, ContextTokenPressureLevel contextTokenPressureLevel, bool promptCompactionActive, ContextSurgeryObservationSnapshot contextSurgerySnapshot, PendingSshConnect? pendingSshConnect, PendingSshCommand? pendingSshCommand, PendingGitCommand? pendingGitCommand, PendingLocalCommand? pendingLocalCommand, PendingComputerUseAction? pendingComputerUseAction, PendingBrowserAction? pendingBrowserAction, PendingFileOperation? pendingFileOperation, PendingBleConnect? pendingBleConnect, PendingSerialOpen? pendingSerialOpen, PendingAskUserQuestion? pendingAskUserQuestion, PendingWorkflowDecision? pendingWorkflowDecision, bool isGeneratingWorkflowProposal, WorkflowProposalDraft? workflowProposalDraft, String? workflowProposalError, bool isGeneratingTaskProposal, WorkflowTaskProposalDraft? taskProposalDraft, String? taskProposalError
+ List<Message> messages, List<QueuedChatMessage> queuedMessages, bool isLoading, String? error, int promptTokens, int completionTokens, int totalTokens, int estimatedPromptTokens, ContextTokenPressureLevel contextTokenPressureLevel, bool promptCompactionActive, ContextSurgeryObservationSnapshot contextSurgerySnapshot, ParticipantTurnRuntime? participantTurnRuntime, PendingSshConnect? pendingSshConnect, PendingSshCommand? pendingSshCommand, PendingGitCommand? pendingGitCommand, PendingLocalCommand? pendingLocalCommand, PendingComputerUseAction? pendingComputerUseAction, PendingBrowserAction? pendingBrowserAction, PendingFileOperation? pendingFileOperation, PendingBleConnect? pendingBleConnect, PendingSerialOpen? pendingSerialOpen, PendingAskUserQuestion? pendingAskUserQuestion, PendingWorkflowDecision? pendingWorkflowDecision, bool isGeneratingWorkflowProposal, WorkflowProposalDraft? workflowProposalDraft, String? workflowProposalError, bool isGeneratingTaskProposal, WorkflowTaskProposalDraft? taskProposalDraft, String? taskProposalError
 });
 
 
-$WorkflowProposalDraftCopyWith<$Res>? get workflowProposalDraft;$WorkflowTaskProposalDraftCopyWith<$Res>? get taskProposalDraft;
+$ParticipantTurnRuntimeCopyWith<$Res>? get participantTurnRuntime;$WorkflowProposalDraftCopyWith<$Res>? get workflowProposalDraft;$WorkflowTaskProposalDraftCopyWith<$Res>? get taskProposalDraft;
 
 }
 /// @nodoc
@@ -614,7 +895,7 @@ class _$ChatStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? messages = null,Object? queuedMessages = null,Object? isLoading = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? estimatedPromptTokens = null,Object? contextTokenPressureLevel = null,Object? promptCompactionActive = null,Object? contextSurgerySnapshot = null,Object? pendingSshConnect = freezed,Object? pendingSshCommand = freezed,Object? pendingGitCommand = freezed,Object? pendingLocalCommand = freezed,Object? pendingComputerUseAction = freezed,Object? pendingBrowserAction = freezed,Object? pendingFileOperation = freezed,Object? pendingBleConnect = freezed,Object? pendingSerialOpen = freezed,Object? pendingAskUserQuestion = freezed,Object? pendingWorkflowDecision = freezed,Object? isGeneratingWorkflowProposal = null,Object? workflowProposalDraft = freezed,Object? workflowProposalError = freezed,Object? isGeneratingTaskProposal = null,Object? taskProposalDraft = freezed,Object? taskProposalError = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? messages = null,Object? queuedMessages = null,Object? isLoading = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? estimatedPromptTokens = null,Object? contextTokenPressureLevel = null,Object? promptCompactionActive = null,Object? contextSurgerySnapshot = null,Object? participantTurnRuntime = freezed,Object? pendingSshConnect = freezed,Object? pendingSshCommand = freezed,Object? pendingGitCommand = freezed,Object? pendingLocalCommand = freezed,Object? pendingComputerUseAction = freezed,Object? pendingBrowserAction = freezed,Object? pendingFileOperation = freezed,Object? pendingBleConnect = freezed,Object? pendingSerialOpen = freezed,Object? pendingAskUserQuestion = freezed,Object? pendingWorkflowDecision = freezed,Object? isGeneratingWorkflowProposal = null,Object? workflowProposalDraft = freezed,Object? workflowProposalError = freezed,Object? isGeneratingTaskProposal = null,Object? taskProposalDraft = freezed,Object? taskProposalError = freezed,}) {
   return _then(_self.copyWith(
 messages: null == messages ? _self.messages : messages // ignore: cast_nullable_to_non_nullable
 as List<Message>,queuedMessages: null == queuedMessages ? _self.queuedMessages : queuedMessages // ignore: cast_nullable_to_non_nullable
@@ -627,7 +908,8 @@ as int,estimatedPromptTokens: null == estimatedPromptTokens ? _self.estimatedPro
 as int,contextTokenPressureLevel: null == contextTokenPressureLevel ? _self.contextTokenPressureLevel : contextTokenPressureLevel // ignore: cast_nullable_to_non_nullable
 as ContextTokenPressureLevel,promptCompactionActive: null == promptCompactionActive ? _self.promptCompactionActive : promptCompactionActive // ignore: cast_nullable_to_non_nullable
 as bool,contextSurgerySnapshot: null == contextSurgerySnapshot ? _self.contextSurgerySnapshot : contextSurgerySnapshot // ignore: cast_nullable_to_non_nullable
-as ContextSurgeryObservationSnapshot,pendingSshConnect: freezed == pendingSshConnect ? _self.pendingSshConnect : pendingSshConnect // ignore: cast_nullable_to_non_nullable
+as ContextSurgeryObservationSnapshot,participantTurnRuntime: freezed == participantTurnRuntime ? _self.participantTurnRuntime : participantTurnRuntime // ignore: cast_nullable_to_non_nullable
+as ParticipantTurnRuntime?,pendingSshConnect: freezed == pendingSshConnect ? _self.pendingSshConnect : pendingSshConnect // ignore: cast_nullable_to_non_nullable
 as PendingSshConnect?,pendingSshCommand: freezed == pendingSshCommand ? _self.pendingSshCommand : pendingSshCommand // ignore: cast_nullable_to_non_nullable
 as PendingSshCommand?,pendingGitCommand: freezed == pendingGitCommand ? _self.pendingGitCommand : pendingGitCommand // ignore: cast_nullable_to_non_nullable
 as PendingGitCommand?,pendingLocalCommand: freezed == pendingLocalCommand ? _self.pendingLocalCommand : pendingLocalCommand // ignore: cast_nullable_to_non_nullable
@@ -648,6 +930,18 @@ as String?,
   ));
 }
 /// Create a copy of ChatState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$ParticipantTurnRuntimeCopyWith<$Res>? get participantTurnRuntime {
+    if (_self.participantTurnRuntime == null) {
+    return null;
+  }
+
+  return $ParticipantTurnRuntimeCopyWith<$Res>(_self.participantTurnRuntime!, (value) {
+    return _then(_self.copyWith(participantTurnRuntime: value));
+  });
+}/// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
@@ -753,10 +1047,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<Message> messages,  List<QueuedChatMessage> queuedMessages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  int estimatedPromptTokens,  ContextTokenPressureLevel contextTokenPressureLevel,  bool promptCompactionActive,  ContextSurgeryObservationSnapshot contextSurgerySnapshot,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingLocalCommand? pendingLocalCommand,  PendingComputerUseAction? pendingComputerUseAction,  PendingBrowserAction? pendingBrowserAction,  PendingFileOperation? pendingFileOperation,  PendingBleConnect? pendingBleConnect,  PendingSerialOpen? pendingSerialOpen,  PendingAskUserQuestion? pendingAskUserQuestion,  PendingWorkflowDecision? pendingWorkflowDecision,  bool isGeneratingWorkflowProposal,  WorkflowProposalDraft? workflowProposalDraft,  String? workflowProposalError,  bool isGeneratingTaskProposal,  WorkflowTaskProposalDraft? taskProposalDraft,  String? taskProposalError)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<Message> messages,  List<QueuedChatMessage> queuedMessages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  int estimatedPromptTokens,  ContextTokenPressureLevel contextTokenPressureLevel,  bool promptCompactionActive,  ContextSurgeryObservationSnapshot contextSurgerySnapshot,  ParticipantTurnRuntime? participantTurnRuntime,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingLocalCommand? pendingLocalCommand,  PendingComputerUseAction? pendingComputerUseAction,  PendingBrowserAction? pendingBrowserAction,  PendingFileOperation? pendingFileOperation,  PendingBleConnect? pendingBleConnect,  PendingSerialOpen? pendingSerialOpen,  PendingAskUserQuestion? pendingAskUserQuestion,  PendingWorkflowDecision? pendingWorkflowDecision,  bool isGeneratingWorkflowProposal,  WorkflowProposalDraft? workflowProposalDraft,  String? workflowProposalError,  bool isGeneratingTaskProposal,  WorkflowTaskProposalDraft? taskProposalDraft,  String? taskProposalError)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChatState() when $default != null:
-return $default(_that.messages,_that.queuedMessages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.estimatedPromptTokens,_that.contextTokenPressureLevel,_that.promptCompactionActive,_that.contextSurgerySnapshot,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingLocalCommand,_that.pendingComputerUseAction,_that.pendingBrowserAction,_that.pendingFileOperation,_that.pendingBleConnect,_that.pendingSerialOpen,_that.pendingAskUserQuestion,_that.pendingWorkflowDecision,_that.isGeneratingWorkflowProposal,_that.workflowProposalDraft,_that.workflowProposalError,_that.isGeneratingTaskProposal,_that.taskProposalDraft,_that.taskProposalError);case _:
+return $default(_that.messages,_that.queuedMessages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.estimatedPromptTokens,_that.contextTokenPressureLevel,_that.promptCompactionActive,_that.contextSurgerySnapshot,_that.participantTurnRuntime,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingLocalCommand,_that.pendingComputerUseAction,_that.pendingBrowserAction,_that.pendingFileOperation,_that.pendingBleConnect,_that.pendingSerialOpen,_that.pendingAskUserQuestion,_that.pendingWorkflowDecision,_that.isGeneratingWorkflowProposal,_that.workflowProposalDraft,_that.workflowProposalError,_that.isGeneratingTaskProposal,_that.taskProposalDraft,_that.taskProposalError);case _:
   return orElse();
 
 }
@@ -774,10 +1068,10 @@ return $default(_that.messages,_that.queuedMessages,_that.isLoading,_that.error,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<Message> messages,  List<QueuedChatMessage> queuedMessages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  int estimatedPromptTokens,  ContextTokenPressureLevel contextTokenPressureLevel,  bool promptCompactionActive,  ContextSurgeryObservationSnapshot contextSurgerySnapshot,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingLocalCommand? pendingLocalCommand,  PendingComputerUseAction? pendingComputerUseAction,  PendingBrowserAction? pendingBrowserAction,  PendingFileOperation? pendingFileOperation,  PendingBleConnect? pendingBleConnect,  PendingSerialOpen? pendingSerialOpen,  PendingAskUserQuestion? pendingAskUserQuestion,  PendingWorkflowDecision? pendingWorkflowDecision,  bool isGeneratingWorkflowProposal,  WorkflowProposalDraft? workflowProposalDraft,  String? workflowProposalError,  bool isGeneratingTaskProposal,  WorkflowTaskProposalDraft? taskProposalDraft,  String? taskProposalError)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<Message> messages,  List<QueuedChatMessage> queuedMessages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  int estimatedPromptTokens,  ContextTokenPressureLevel contextTokenPressureLevel,  bool promptCompactionActive,  ContextSurgeryObservationSnapshot contextSurgerySnapshot,  ParticipantTurnRuntime? participantTurnRuntime,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingLocalCommand? pendingLocalCommand,  PendingComputerUseAction? pendingComputerUseAction,  PendingBrowserAction? pendingBrowserAction,  PendingFileOperation? pendingFileOperation,  PendingBleConnect? pendingBleConnect,  PendingSerialOpen? pendingSerialOpen,  PendingAskUserQuestion? pendingAskUserQuestion,  PendingWorkflowDecision? pendingWorkflowDecision,  bool isGeneratingWorkflowProposal,  WorkflowProposalDraft? workflowProposalDraft,  String? workflowProposalError,  bool isGeneratingTaskProposal,  WorkflowTaskProposalDraft? taskProposalDraft,  String? taskProposalError)  $default,) {final _that = this;
 switch (_that) {
 case _ChatState():
-return $default(_that.messages,_that.queuedMessages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.estimatedPromptTokens,_that.contextTokenPressureLevel,_that.promptCompactionActive,_that.contextSurgerySnapshot,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingLocalCommand,_that.pendingComputerUseAction,_that.pendingBrowserAction,_that.pendingFileOperation,_that.pendingBleConnect,_that.pendingSerialOpen,_that.pendingAskUserQuestion,_that.pendingWorkflowDecision,_that.isGeneratingWorkflowProposal,_that.workflowProposalDraft,_that.workflowProposalError,_that.isGeneratingTaskProposal,_that.taskProposalDraft,_that.taskProposalError);case _:
+return $default(_that.messages,_that.queuedMessages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.estimatedPromptTokens,_that.contextTokenPressureLevel,_that.promptCompactionActive,_that.contextSurgerySnapshot,_that.participantTurnRuntime,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingLocalCommand,_that.pendingComputerUseAction,_that.pendingBrowserAction,_that.pendingFileOperation,_that.pendingBleConnect,_that.pendingSerialOpen,_that.pendingAskUserQuestion,_that.pendingWorkflowDecision,_that.isGeneratingWorkflowProposal,_that.workflowProposalDraft,_that.workflowProposalError,_that.isGeneratingTaskProposal,_that.taskProposalDraft,_that.taskProposalError);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -794,10 +1088,10 @@ return $default(_that.messages,_that.queuedMessages,_that.isLoading,_that.error,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<Message> messages,  List<QueuedChatMessage> queuedMessages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  int estimatedPromptTokens,  ContextTokenPressureLevel contextTokenPressureLevel,  bool promptCompactionActive,  ContextSurgeryObservationSnapshot contextSurgerySnapshot,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingLocalCommand? pendingLocalCommand,  PendingComputerUseAction? pendingComputerUseAction,  PendingBrowserAction? pendingBrowserAction,  PendingFileOperation? pendingFileOperation,  PendingBleConnect? pendingBleConnect,  PendingSerialOpen? pendingSerialOpen,  PendingAskUserQuestion? pendingAskUserQuestion,  PendingWorkflowDecision? pendingWorkflowDecision,  bool isGeneratingWorkflowProposal,  WorkflowProposalDraft? workflowProposalDraft,  String? workflowProposalError,  bool isGeneratingTaskProposal,  WorkflowTaskProposalDraft? taskProposalDraft,  String? taskProposalError)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<Message> messages,  List<QueuedChatMessage> queuedMessages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  int estimatedPromptTokens,  ContextTokenPressureLevel contextTokenPressureLevel,  bool promptCompactionActive,  ContextSurgeryObservationSnapshot contextSurgerySnapshot,  ParticipantTurnRuntime? participantTurnRuntime,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingLocalCommand? pendingLocalCommand,  PendingComputerUseAction? pendingComputerUseAction,  PendingBrowserAction? pendingBrowserAction,  PendingFileOperation? pendingFileOperation,  PendingBleConnect? pendingBleConnect,  PendingSerialOpen? pendingSerialOpen,  PendingAskUserQuestion? pendingAskUserQuestion,  PendingWorkflowDecision? pendingWorkflowDecision,  bool isGeneratingWorkflowProposal,  WorkflowProposalDraft? workflowProposalDraft,  String? workflowProposalError,  bool isGeneratingTaskProposal,  WorkflowTaskProposalDraft? taskProposalDraft,  String? taskProposalError)?  $default,) {final _that = this;
 switch (_that) {
 case _ChatState() when $default != null:
-return $default(_that.messages,_that.queuedMessages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.estimatedPromptTokens,_that.contextTokenPressureLevel,_that.promptCompactionActive,_that.contextSurgerySnapshot,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingLocalCommand,_that.pendingComputerUseAction,_that.pendingBrowserAction,_that.pendingFileOperation,_that.pendingBleConnect,_that.pendingSerialOpen,_that.pendingAskUserQuestion,_that.pendingWorkflowDecision,_that.isGeneratingWorkflowProposal,_that.workflowProposalDraft,_that.workflowProposalError,_that.isGeneratingTaskProposal,_that.taskProposalDraft,_that.taskProposalError);case _:
+return $default(_that.messages,_that.queuedMessages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.estimatedPromptTokens,_that.contextTokenPressureLevel,_that.promptCompactionActive,_that.contextSurgerySnapshot,_that.participantTurnRuntime,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingLocalCommand,_that.pendingComputerUseAction,_that.pendingBrowserAction,_that.pendingFileOperation,_that.pendingBleConnect,_that.pendingSerialOpen,_that.pendingAskUserQuestion,_that.pendingWorkflowDecision,_that.isGeneratingWorkflowProposal,_that.workflowProposalDraft,_that.workflowProposalError,_that.isGeneratingTaskProposal,_that.taskProposalDraft,_that.taskProposalError);case _:
   return null;
 
 }
@@ -809,7 +1103,7 @@ return $default(_that.messages,_that.queuedMessages,_that.isLoading,_that.error,
 
 
 class _ChatState implements ChatState {
-  const _ChatState({required final  List<Message> messages, final  List<QueuedChatMessage> queuedMessages = const [], required this.isLoading, this.error, this.promptTokens = 0, this.completionTokens = 0, this.totalTokens = 0, this.estimatedPromptTokens = 0, this.contextTokenPressureLevel = ContextTokenPressureLevel.normal, this.promptCompactionActive = false, this.contextSurgerySnapshot = ContextSurgeryObservationSnapshot.empty, this.pendingSshConnect, this.pendingSshCommand, this.pendingGitCommand, this.pendingLocalCommand, this.pendingComputerUseAction, this.pendingBrowserAction, this.pendingFileOperation, this.pendingBleConnect, this.pendingSerialOpen, this.pendingAskUserQuestion, this.pendingWorkflowDecision, this.isGeneratingWorkflowProposal = false, this.workflowProposalDraft, this.workflowProposalError, this.isGeneratingTaskProposal = false, this.taskProposalDraft, this.taskProposalError}): _messages = messages,_queuedMessages = queuedMessages;
+  const _ChatState({required final  List<Message> messages, final  List<QueuedChatMessage> queuedMessages = const [], required this.isLoading, this.error, this.promptTokens = 0, this.completionTokens = 0, this.totalTokens = 0, this.estimatedPromptTokens = 0, this.contextTokenPressureLevel = ContextTokenPressureLevel.normal, this.promptCompactionActive = false, this.contextSurgerySnapshot = ContextSurgeryObservationSnapshot.empty, this.participantTurnRuntime, this.pendingSshConnect, this.pendingSshCommand, this.pendingGitCommand, this.pendingLocalCommand, this.pendingComputerUseAction, this.pendingBrowserAction, this.pendingFileOperation, this.pendingBleConnect, this.pendingSerialOpen, this.pendingAskUserQuestion, this.pendingWorkflowDecision, this.isGeneratingWorkflowProposal = false, this.workflowProposalDraft, this.workflowProposalError, this.isGeneratingTaskProposal = false, this.taskProposalDraft, this.taskProposalError}): _messages = messages,_queuedMessages = queuedMessages;
   
 
  final  List<Message> _messages;
@@ -835,6 +1129,7 @@ class _ChatState implements ChatState {
 @override@JsonKey() final  ContextTokenPressureLevel contextTokenPressureLevel;
 @override@JsonKey() final  bool promptCompactionActive;
 @override@JsonKey() final  ContextSurgeryObservationSnapshot contextSurgerySnapshot;
+@override final  ParticipantTurnRuntime? participantTurnRuntime;
 // SSH tool UI flow — holders contain Completers so they live outside
 // the freezed equality graph.
 @override final  PendingSshConnect? pendingSshConnect;
@@ -874,16 +1169,16 @@ _$ChatStateCopyWith<_ChatState> get copyWith => __$ChatStateCopyWithImpl<_ChatSt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatState&&const DeepCollectionEquality().equals(other._messages, _messages)&&const DeepCollectionEquality().equals(other._queuedMessages, _queuedMessages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.estimatedPromptTokens, estimatedPromptTokens) || other.estimatedPromptTokens == estimatedPromptTokens)&&(identical(other.contextTokenPressureLevel, contextTokenPressureLevel) || other.contextTokenPressureLevel == contextTokenPressureLevel)&&(identical(other.promptCompactionActive, promptCompactionActive) || other.promptCompactionActive == promptCompactionActive)&&(identical(other.contextSurgerySnapshot, contextSurgerySnapshot) || other.contextSurgerySnapshot == contextSurgerySnapshot)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingLocalCommand, pendingLocalCommand) || other.pendingLocalCommand == pendingLocalCommand)&&(identical(other.pendingComputerUseAction, pendingComputerUseAction) || other.pendingComputerUseAction == pendingComputerUseAction)&&(identical(other.pendingBrowserAction, pendingBrowserAction) || other.pendingBrowserAction == pendingBrowserAction)&&(identical(other.pendingFileOperation, pendingFileOperation) || other.pendingFileOperation == pendingFileOperation)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect)&&(identical(other.pendingSerialOpen, pendingSerialOpen) || other.pendingSerialOpen == pendingSerialOpen)&&(identical(other.pendingAskUserQuestion, pendingAskUserQuestion) || other.pendingAskUserQuestion == pendingAskUserQuestion)&&(identical(other.pendingWorkflowDecision, pendingWorkflowDecision) || other.pendingWorkflowDecision == pendingWorkflowDecision)&&(identical(other.isGeneratingWorkflowProposal, isGeneratingWorkflowProposal) || other.isGeneratingWorkflowProposal == isGeneratingWorkflowProposal)&&(identical(other.workflowProposalDraft, workflowProposalDraft) || other.workflowProposalDraft == workflowProposalDraft)&&(identical(other.workflowProposalError, workflowProposalError) || other.workflowProposalError == workflowProposalError)&&(identical(other.isGeneratingTaskProposal, isGeneratingTaskProposal) || other.isGeneratingTaskProposal == isGeneratingTaskProposal)&&(identical(other.taskProposalDraft, taskProposalDraft) || other.taskProposalDraft == taskProposalDraft)&&(identical(other.taskProposalError, taskProposalError) || other.taskProposalError == taskProposalError));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatState&&const DeepCollectionEquality().equals(other._messages, _messages)&&const DeepCollectionEquality().equals(other._queuedMessages, _queuedMessages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.estimatedPromptTokens, estimatedPromptTokens) || other.estimatedPromptTokens == estimatedPromptTokens)&&(identical(other.contextTokenPressureLevel, contextTokenPressureLevel) || other.contextTokenPressureLevel == contextTokenPressureLevel)&&(identical(other.promptCompactionActive, promptCompactionActive) || other.promptCompactionActive == promptCompactionActive)&&(identical(other.contextSurgerySnapshot, contextSurgerySnapshot) || other.contextSurgerySnapshot == contextSurgerySnapshot)&&(identical(other.participantTurnRuntime, participantTurnRuntime) || other.participantTurnRuntime == participantTurnRuntime)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingLocalCommand, pendingLocalCommand) || other.pendingLocalCommand == pendingLocalCommand)&&(identical(other.pendingComputerUseAction, pendingComputerUseAction) || other.pendingComputerUseAction == pendingComputerUseAction)&&(identical(other.pendingBrowserAction, pendingBrowserAction) || other.pendingBrowserAction == pendingBrowserAction)&&(identical(other.pendingFileOperation, pendingFileOperation) || other.pendingFileOperation == pendingFileOperation)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect)&&(identical(other.pendingSerialOpen, pendingSerialOpen) || other.pendingSerialOpen == pendingSerialOpen)&&(identical(other.pendingAskUserQuestion, pendingAskUserQuestion) || other.pendingAskUserQuestion == pendingAskUserQuestion)&&(identical(other.pendingWorkflowDecision, pendingWorkflowDecision) || other.pendingWorkflowDecision == pendingWorkflowDecision)&&(identical(other.isGeneratingWorkflowProposal, isGeneratingWorkflowProposal) || other.isGeneratingWorkflowProposal == isGeneratingWorkflowProposal)&&(identical(other.workflowProposalDraft, workflowProposalDraft) || other.workflowProposalDraft == workflowProposalDraft)&&(identical(other.workflowProposalError, workflowProposalError) || other.workflowProposalError == workflowProposalError)&&(identical(other.isGeneratingTaskProposal, isGeneratingTaskProposal) || other.isGeneratingTaskProposal == isGeneratingTaskProposal)&&(identical(other.taskProposalDraft, taskProposalDraft) || other.taskProposalDraft == taskProposalDraft)&&(identical(other.taskProposalError, taskProposalError) || other.taskProposalError == taskProposalError));
 }
 
 
 @override
-int get hashCode => Object.hashAll([runtimeType,const DeepCollectionEquality().hash(_messages),const DeepCollectionEquality().hash(_queuedMessages),isLoading,error,promptTokens,completionTokens,totalTokens,estimatedPromptTokens,contextTokenPressureLevel,promptCompactionActive,contextSurgerySnapshot,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingLocalCommand,pendingComputerUseAction,pendingBrowserAction,pendingFileOperation,pendingBleConnect,pendingSerialOpen,pendingAskUserQuestion,pendingWorkflowDecision,isGeneratingWorkflowProposal,workflowProposalDraft,workflowProposalError,isGeneratingTaskProposal,taskProposalDraft,taskProposalError]);
+int get hashCode => Object.hashAll([runtimeType,const DeepCollectionEquality().hash(_messages),const DeepCollectionEquality().hash(_queuedMessages),isLoading,error,promptTokens,completionTokens,totalTokens,estimatedPromptTokens,contextTokenPressureLevel,promptCompactionActive,contextSurgerySnapshot,participantTurnRuntime,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingLocalCommand,pendingComputerUseAction,pendingBrowserAction,pendingFileOperation,pendingBleConnect,pendingSerialOpen,pendingAskUserQuestion,pendingWorkflowDecision,isGeneratingWorkflowProposal,workflowProposalDraft,workflowProposalError,isGeneratingTaskProposal,taskProposalDraft,taskProposalError]);
 
 @override
 String toString() {
-  return 'ChatState(messages: $messages, queuedMessages: $queuedMessages, isLoading: $isLoading, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, estimatedPromptTokens: $estimatedPromptTokens, contextTokenPressureLevel: $contextTokenPressureLevel, promptCompactionActive: $promptCompactionActive, contextSurgerySnapshot: $contextSurgerySnapshot, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingLocalCommand: $pendingLocalCommand, pendingComputerUseAction: $pendingComputerUseAction, pendingBrowserAction: $pendingBrowserAction, pendingFileOperation: $pendingFileOperation, pendingBleConnect: $pendingBleConnect, pendingSerialOpen: $pendingSerialOpen, pendingAskUserQuestion: $pendingAskUserQuestion, pendingWorkflowDecision: $pendingWorkflowDecision, isGeneratingWorkflowProposal: $isGeneratingWorkflowProposal, workflowProposalDraft: $workflowProposalDraft, workflowProposalError: $workflowProposalError, isGeneratingTaskProposal: $isGeneratingTaskProposal, taskProposalDraft: $taskProposalDraft, taskProposalError: $taskProposalError)';
+  return 'ChatState(messages: $messages, queuedMessages: $queuedMessages, isLoading: $isLoading, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, estimatedPromptTokens: $estimatedPromptTokens, contextTokenPressureLevel: $contextTokenPressureLevel, promptCompactionActive: $promptCompactionActive, contextSurgerySnapshot: $contextSurgerySnapshot, participantTurnRuntime: $participantTurnRuntime, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingLocalCommand: $pendingLocalCommand, pendingComputerUseAction: $pendingComputerUseAction, pendingBrowserAction: $pendingBrowserAction, pendingFileOperation: $pendingFileOperation, pendingBleConnect: $pendingBleConnect, pendingSerialOpen: $pendingSerialOpen, pendingAskUserQuestion: $pendingAskUserQuestion, pendingWorkflowDecision: $pendingWorkflowDecision, isGeneratingWorkflowProposal: $isGeneratingWorkflowProposal, workflowProposalDraft: $workflowProposalDraft, workflowProposalError: $workflowProposalError, isGeneratingTaskProposal: $isGeneratingTaskProposal, taskProposalDraft: $taskProposalDraft, taskProposalError: $taskProposalError)';
 }
 
 
@@ -894,11 +1189,11 @@ abstract mixin class _$ChatStateCopyWith<$Res> implements $ChatStateCopyWith<$Re
   factory _$ChatStateCopyWith(_ChatState value, $Res Function(_ChatState) _then) = __$ChatStateCopyWithImpl;
 @override @useResult
 $Res call({
- List<Message> messages, List<QueuedChatMessage> queuedMessages, bool isLoading, String? error, int promptTokens, int completionTokens, int totalTokens, int estimatedPromptTokens, ContextTokenPressureLevel contextTokenPressureLevel, bool promptCompactionActive, ContextSurgeryObservationSnapshot contextSurgerySnapshot, PendingSshConnect? pendingSshConnect, PendingSshCommand? pendingSshCommand, PendingGitCommand? pendingGitCommand, PendingLocalCommand? pendingLocalCommand, PendingComputerUseAction? pendingComputerUseAction, PendingBrowserAction? pendingBrowserAction, PendingFileOperation? pendingFileOperation, PendingBleConnect? pendingBleConnect, PendingSerialOpen? pendingSerialOpen, PendingAskUserQuestion? pendingAskUserQuestion, PendingWorkflowDecision? pendingWorkflowDecision, bool isGeneratingWorkflowProposal, WorkflowProposalDraft? workflowProposalDraft, String? workflowProposalError, bool isGeneratingTaskProposal, WorkflowTaskProposalDraft? taskProposalDraft, String? taskProposalError
+ List<Message> messages, List<QueuedChatMessage> queuedMessages, bool isLoading, String? error, int promptTokens, int completionTokens, int totalTokens, int estimatedPromptTokens, ContextTokenPressureLevel contextTokenPressureLevel, bool promptCompactionActive, ContextSurgeryObservationSnapshot contextSurgerySnapshot, ParticipantTurnRuntime? participantTurnRuntime, PendingSshConnect? pendingSshConnect, PendingSshCommand? pendingSshCommand, PendingGitCommand? pendingGitCommand, PendingLocalCommand? pendingLocalCommand, PendingComputerUseAction? pendingComputerUseAction, PendingBrowserAction? pendingBrowserAction, PendingFileOperation? pendingFileOperation, PendingBleConnect? pendingBleConnect, PendingSerialOpen? pendingSerialOpen, PendingAskUserQuestion? pendingAskUserQuestion, PendingWorkflowDecision? pendingWorkflowDecision, bool isGeneratingWorkflowProposal, WorkflowProposalDraft? workflowProposalDraft, String? workflowProposalError, bool isGeneratingTaskProposal, WorkflowTaskProposalDraft? taskProposalDraft, String? taskProposalError
 });
 
 
-@override $WorkflowProposalDraftCopyWith<$Res>? get workflowProposalDraft;@override $WorkflowTaskProposalDraftCopyWith<$Res>? get taskProposalDraft;
+@override $ParticipantTurnRuntimeCopyWith<$Res>? get participantTurnRuntime;@override $WorkflowProposalDraftCopyWith<$Res>? get workflowProposalDraft;@override $WorkflowTaskProposalDraftCopyWith<$Res>? get taskProposalDraft;
 
 }
 /// @nodoc
@@ -911,7 +1206,7 @@ class __$ChatStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? messages = null,Object? queuedMessages = null,Object? isLoading = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? estimatedPromptTokens = null,Object? contextTokenPressureLevel = null,Object? promptCompactionActive = null,Object? contextSurgerySnapshot = null,Object? pendingSshConnect = freezed,Object? pendingSshCommand = freezed,Object? pendingGitCommand = freezed,Object? pendingLocalCommand = freezed,Object? pendingComputerUseAction = freezed,Object? pendingBrowserAction = freezed,Object? pendingFileOperation = freezed,Object? pendingBleConnect = freezed,Object? pendingSerialOpen = freezed,Object? pendingAskUserQuestion = freezed,Object? pendingWorkflowDecision = freezed,Object? isGeneratingWorkflowProposal = null,Object? workflowProposalDraft = freezed,Object? workflowProposalError = freezed,Object? isGeneratingTaskProposal = null,Object? taskProposalDraft = freezed,Object? taskProposalError = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? messages = null,Object? queuedMessages = null,Object? isLoading = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? estimatedPromptTokens = null,Object? contextTokenPressureLevel = null,Object? promptCompactionActive = null,Object? contextSurgerySnapshot = null,Object? participantTurnRuntime = freezed,Object? pendingSshConnect = freezed,Object? pendingSshCommand = freezed,Object? pendingGitCommand = freezed,Object? pendingLocalCommand = freezed,Object? pendingComputerUseAction = freezed,Object? pendingBrowserAction = freezed,Object? pendingFileOperation = freezed,Object? pendingBleConnect = freezed,Object? pendingSerialOpen = freezed,Object? pendingAskUserQuestion = freezed,Object? pendingWorkflowDecision = freezed,Object? isGeneratingWorkflowProposal = null,Object? workflowProposalDraft = freezed,Object? workflowProposalError = freezed,Object? isGeneratingTaskProposal = null,Object? taskProposalDraft = freezed,Object? taskProposalError = freezed,}) {
   return _then(_ChatState(
 messages: null == messages ? _self._messages : messages // ignore: cast_nullable_to_non_nullable
 as List<Message>,queuedMessages: null == queuedMessages ? _self._queuedMessages : queuedMessages // ignore: cast_nullable_to_non_nullable
@@ -924,7 +1219,8 @@ as int,estimatedPromptTokens: null == estimatedPromptTokens ? _self.estimatedPro
 as int,contextTokenPressureLevel: null == contextTokenPressureLevel ? _self.contextTokenPressureLevel : contextTokenPressureLevel // ignore: cast_nullable_to_non_nullable
 as ContextTokenPressureLevel,promptCompactionActive: null == promptCompactionActive ? _self.promptCompactionActive : promptCompactionActive // ignore: cast_nullable_to_non_nullable
 as bool,contextSurgerySnapshot: null == contextSurgerySnapshot ? _self.contextSurgerySnapshot : contextSurgerySnapshot // ignore: cast_nullable_to_non_nullable
-as ContextSurgeryObservationSnapshot,pendingSshConnect: freezed == pendingSshConnect ? _self.pendingSshConnect : pendingSshConnect // ignore: cast_nullable_to_non_nullable
+as ContextSurgeryObservationSnapshot,participantTurnRuntime: freezed == participantTurnRuntime ? _self.participantTurnRuntime : participantTurnRuntime // ignore: cast_nullable_to_non_nullable
+as ParticipantTurnRuntime?,pendingSshConnect: freezed == pendingSshConnect ? _self.pendingSshConnect : pendingSshConnect // ignore: cast_nullable_to_non_nullable
 as PendingSshConnect?,pendingSshCommand: freezed == pendingSshCommand ? _self.pendingSshCommand : pendingSshCommand // ignore: cast_nullable_to_non_nullable
 as PendingSshCommand?,pendingGitCommand: freezed == pendingGitCommand ? _self.pendingGitCommand : pendingGitCommand // ignore: cast_nullable_to_non_nullable
 as PendingGitCommand?,pendingLocalCommand: freezed == pendingLocalCommand ? _self.pendingLocalCommand : pendingLocalCommand // ignore: cast_nullable_to_non_nullable
@@ -946,6 +1242,18 @@ as String?,
 }
 
 /// Create a copy of ChatState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$ParticipantTurnRuntimeCopyWith<$Res>? get participantTurnRuntime {
+    if (_self.participantTurnRuntime == null) {
+    return null;
+  }
+
+  return $ParticipantTurnRuntimeCopyWith<$Res>(_self.participantTurnRuntime!, (value) {
+    return _then(_self.copyWith(participantTurnRuntime: value));
+  });
+}/// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')

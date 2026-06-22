@@ -501,6 +501,21 @@ abstract class WorkflowTaskProposalDraft with _$WorkflowTaskProposalDraft {
 }
 
 @freezed
+abstract class ParticipantTurnRuntime with _$ParticipantTurnRuntime {
+  const factory ParticipantTurnRuntime({
+    String? activeParticipantId,
+    @Default('') String activeParticipantName,
+    @Default('') String activeParticipantRoleLabel,
+    int? activeParticipantColorValue,
+    @Default(1) int currentRound,
+    @Default(1) int maxRounds,
+    @Default(false) bool multiRound,
+    @Default(false) bool stopRequested,
+    @Default(false) bool paused,
+  }) = _ParticipantTurnRuntime;
+}
+
+@freezed
 abstract class ChatState with _$ChatState {
   const factory ChatState({
     required List<Message> messages,
@@ -516,6 +531,7 @@ abstract class ChatState with _$ChatState {
     @Default(false) bool promptCompactionActive,
     @Default(ContextSurgeryObservationSnapshot.empty)
     ContextSurgeryObservationSnapshot contextSurgerySnapshot,
+    ParticipantTurnRuntime? participantTurnRuntime,
     // SSH tool UI flow — holders contain Completers so they live outside
     // the freezed equality graph.
     PendingSshConnect? pendingSshConnect,

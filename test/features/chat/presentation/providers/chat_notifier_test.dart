@@ -31,6 +31,7 @@ import 'package:caverno/features/chat/data/repositories/chat_memory_repository.d
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
@@ -125,6 +126,199 @@ void main() {
     expect(notifier.state.messages.first.content, 'Inspect the workspace');
     expect(notifier.state.messages.last.role, MessageRole.assistant);
     expect(notifier.state.messages.last.isStreaming, isTrue);
+  });
+
+  test('sendMessage streams attributed participant turns in order', () async {
+    final dataSource = _ParticipantStreamingChatDataSource(
+      chunkBatches: const [
+        ['Primary answer.'],
+        ['Reviewer answer.'],
+      ],
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final participantContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(participantContainer.dispose);
+    final chatNotifier = participantContainer.read(
+      chatNotifierProvider.notifier,
+    );
+    final conversationsNotifier = participantContainer.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final conversation = conversationsNotifier.ensureCurrentConversation()!;
+    await conversationsNotifier.updateConversationParticipants(
+      conversation.id,
+      participants: const [
+        ConversationParticipant(
+          id: 'primary',
+          displayName: 'Primary',
+          roleLabel: 'Facilitator',
+          roleSystemPrompt: 'Facilitate the discussion.',
+          model: 'primary-model',
+          colorValue: 0xFF6750A4,
+          order: 0,
+        ),
+        ConversationParticipant(
+          id: 'reviewer',
+          displayName: 'Reviewer',
+          roleLabel: 'Critic',
+          roleSystemPrompt: 'Critique the proposal.',
+          model: 'review-model',
+          colorValue: 0xFF006A6A,
+          order: 1,
+        ),
+      ],
+    );
+
+    await chatNotifier.sendMessage('Discuss the proposal');
+
+    final assistantMessages = chatNotifier.state.messages
+        .where((message) => message.role == MessageRole.assistant)
+        .toList(growable: false);
+    expect(assistantMessages, hasLength(2));
+    expect(assistantMessages[0].content, 'Primary answer.');
+    expect(assistantMessages[0].participantId, 'primary');
+    expect(assistantMessages[0].participantDisplayName, 'Primary');
+    expect(assistantMessages[0].participantRoleLabel, 'Facilitator');
+    expect(assistantMessages[1].content, 'Reviewer answer.');
+    expect(assistantMessages[1].participantId, 'reviewer');
+    expect(assistantMessages[1].participantColorValue, 0xFF006A6A);
+    expect(dataSource.requestedModels, ['primary-model', 'review-model']);
+    expect(dataSource.streamRequests, hasLength(2));
+    expect(
+      dataSource.streamRequests.last
+          .map((message) => message.content)
+          .join('\n'),
+      contains('Primary'),
+    );
+    expect(chatNotifier.state.participantTurnRuntime, isNull);
+  });
+
+  test('participant turns pause after current speaker and continue', () async {
+    final firstTurn = StreamController<String>();
+    final dataSource = _ParticipantStreamingChatDataSource(
+      manualStreams: [firstTurn],
+      chunkBatches: const [
+        ['Reviewer round one.'],
+        ['Primary round two.'],
+        ['Reviewer round two.'],
+      ],
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final participantContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      participantContainer.dispose();
+      if (!firstTurn.isClosed) {
+        await firstTurn.close();
+      }
+    });
+    final chatNotifier = participantContainer.read(
+      chatNotifierProvider.notifier,
+    );
+    final conversationsNotifier = participantContainer.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final conversation = conversationsNotifier.ensureCurrentConversation()!;
+    await conversationsNotifier.updateConversationParticipants(
+      conversation.id,
+      participants: const [
+        ConversationParticipant(
+          id: 'primary',
+          displayName: 'Primary',
+          roleLabel: 'Facilitator',
+          model: 'primary-model',
+          order: 0,
+        ),
+        ConversationParticipant(
+          id: 'reviewer',
+          displayName: 'Reviewer',
+          roleLabel: 'Critic',
+          model: 'review-model',
+          order: 1,
+        ),
+      ],
+      participantTurnConfig: const ParticipantTurnConfig(
+        depth: ParticipantTurnDepth.multiRound,
+        maxRounds: 2,
+      ),
+    );
+
+    final sendFuture = chatNotifier.sendMessage('Discuss twice');
+    for (var i = 0; i < 10 && dataSource.streamRequests.isEmpty; i += 1) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(dataSource.streamRequests, hasLength(1));
+    expect(
+      chatNotifier.state.participantTurnRuntime?.activeParticipantId,
+      'primary',
+    );
+    expect(chatNotifier.state.participantTurnRuntime?.currentRound, 1);
+    expect(chatNotifier.state.participantTurnRuntime?.maxRounds, 2);
+
+    firstTurn.add('Primary round one.');
+    await Future<void>.delayed(Duration.zero);
+    chatNotifier.requestParticipantTurnStop();
+    expect(chatNotifier.state.participantTurnRuntime?.stopRequested, isTrue);
+    await firstTurn.close();
+    await sendFuture;
+
+    expect(chatNotifier.state.isLoading, isFalse);
+    expect(chatNotifier.state.participantTurnRuntime?.paused, isTrue);
+    expect(dataSource.streamRequests, hasLength(1));
+    expect(
+      chatNotifier.state.messages.where(
+        (message) => message.role == MessageRole.assistant,
+      ),
+      hasLength(1),
+    );
+
+    await chatNotifier.continueParticipantTurns();
+
+    final assistantContents = chatNotifier.state.messages
+        .where((message) => message.role == MessageRole.assistant)
+        .map((message) => message.content)
+        .toList(growable: false);
+    expect(assistantContents, [
+      'Primary round one.',
+      'Reviewer round one.',
+      'Primary round two.',
+      'Reviewer round two.',
+    ]);
+    expect(dataSource.streamRequests, hasLength(4));
+    expect(chatNotifier.state.participantTurnRuntime, isNull);
   });
 
   test('sendMessage prepares changed primary model before request', () async {
@@ -4535,7 +4729,9 @@ void main() {
       final repository = _FakeConversationRepository();
       // Offer save_skill so the tool loop does not drop the call as unknown;
       // the registry still routes it to ChatNotifier (never to this fallback).
-      final toolService = _FakeMcpToolService(results: const {'save_skill': ''});
+      final toolService = _FakeMcpToolService(
+        results: const {'save_skill': ''},
+      );
       final appLifecycleService = _MockAppLifecycleService();
       when(() => appLifecycleService.isInBackground).thenReturn(false);
       final skillContainer = ProviderContainer(
@@ -4612,7 +4808,8 @@ void main() {
               name: 'save_skill',
               arguments: const {
                 'name': 'iOS Release',
-                'content': '# Steps\n\n1. Bump version.\n2. Archive.\n3. Upload.',
+                'content':
+                    '# Steps\n\n1. Bump version.\n2. Archive.\n3. Upload.',
               },
             ),
           ],

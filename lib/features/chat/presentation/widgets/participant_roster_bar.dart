@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/conversation_participant.dart';
 import '../../domain/services/participant_turn_coordinator.dart';
+import '../providers/chat_state.dart';
 
 typedef ParticipantRosterChanged =
     FutureOr<void> Function({
@@ -34,6 +35,9 @@ class ParticipantRosterBar extends StatelessWidget {
     required this.primaryModel,
     required this.onChanged,
     this.enabled = true,
+    this.runtime,
+    this.onStopRequested,
+    this.onContinueRequested,
   });
 
   final List<ConversationParticipant> participants;
@@ -42,6 +46,9 @@ class ParticipantRosterBar extends StatelessWidget {
   final String primaryModel;
   final ParticipantRosterChanged onChanged;
   final bool enabled;
+  final ParticipantTurnRuntime? runtime;
+  final VoidCallback? onStopRequested;
+  final VoidCallback? onContinueRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +110,14 @@ class ParticipantRosterBar extends StatelessWidget {
                         config: nextConfig,
                       ),
                     ),
+                    if (runtime != null) ...[
+                      const SizedBox(width: 8),
+                      _ParticipantRuntimeControl(
+                        runtime: runtime!,
+                        onStopRequested: onStopRequested,
+                        onContinueRequested: onContinueRequested,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -180,6 +195,88 @@ class ParticipantRosterBar extends StatelessWidget {
         );
     await Future<void>.value(
       onChanged(participants: normalizedParticipants, config: config),
+    );
+  }
+}
+
+class _ParticipantRuntimeControl extends StatelessWidget {
+  const _ParticipantRuntimeControl({
+    required this.runtime,
+    this.onStopRequested,
+    this.onContinueRequested,
+  });
+
+  final ParticipantTurnRuntime runtime;
+  final VoidCallback? onStopRequested;
+  final VoidCallback? onContinueRequested;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final activeName = runtime.activeParticipantName.trim();
+    final label = runtime.paused
+        ? 'Paused at round ${runtime.currentRound}/${runtime.maxRounds}'
+        : activeName.isEmpty
+        ? 'Round ${runtime.currentRound}/${runtime.maxRounds}'
+        : '$activeName - round ${runtime.currentRound}/${runtime.maxRounds}';
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.64,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (runtime.activeParticipantColorValue != null) ...[
+              _ParticipantColorDot(
+                color: Color(runtime.activeParticipantColorValue!),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 6),
+            if (runtime.paused)
+              Tooltip(
+                message: 'Continue participant turns',
+                child: IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.play_arrow_outlined, size: 18),
+                  onPressed: onContinueRequested,
+                ),
+              )
+            else if (runtime.multiRound && !runtime.stopRequested)
+              Tooltip(
+                message: 'Stop after current participant',
+                child: IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.pause_circle_outline, size: 18),
+                  onPressed: onStopRequested,
+                ),
+              )
+            else if (runtime.stopRequested)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6),
+                child: SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
