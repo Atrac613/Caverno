@@ -483,6 +483,59 @@ class _ParticipantEditorResult {
   final bool removeParticipant;
 }
 
+class _ParticipantRolePreset {
+  const _ParticipantRolePreset({
+    required this.id,
+    required this.labelKey,
+    required this.displayName,
+    required this.roleLabel,
+    required this.rolePrompt,
+  });
+
+  final String id;
+  final String labelKey;
+  final String displayName;
+  final String roleLabel;
+  final String rolePrompt;
+}
+
+const _customRolePresetId = 'custom';
+
+const _participantRolePresets = <_ParticipantRolePreset>[
+  _ParticipantRolePreset(
+    id: 'facilitator',
+    labelKey: 'chat.participant_role_preset_facilitator',
+    displayName: 'Facilitator',
+    roleLabel: 'Facilitator',
+    rolePrompt:
+        'Facilitate the discussion and help the participants converge on useful next steps.',
+  ),
+  _ParticipantRolePreset(
+    id: 'senior_engineer',
+    labelKey: 'chat.participant_role_preset_senior_engineer',
+    displayName: 'Senior Engineer',
+    roleLabel: 'Senior Engineer',
+    rolePrompt:
+        'Review the proposal as a senior engineer. Focus on architecture, edge cases, maintainability, and pragmatic implementation risks.',
+  ),
+  _ParticipantRolePreset(
+    id: 'critic',
+    labelKey: 'chat.participant_role_preset_critic',
+    displayName: 'Critic',
+    roleLabel: 'Critic',
+    rolePrompt:
+        'Challenge weak assumptions, identify missing context, and explain the strongest objections concisely.',
+  ),
+  _ParticipantRolePreset(
+    id: 'reviewer',
+    labelKey: 'chat.participant_role_preset_reviewer',
+    displayName: 'Reviewer',
+    roleLabel: 'Reviewer',
+    rolePrompt:
+        'Review the conversation, add a concise second opinion, and call out risks or missing context.',
+  ),
+];
+
 class _ParticipantEditorSheet extends StatefulWidget {
   const _ParticipantEditorSheet({
     required this.participant,
@@ -507,6 +560,8 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
   late final TextEditingController _rolePromptController;
   late final TextEditingController _modelController;
   late String _endpointId;
+  String _rolePresetId = _customRolePresetId;
+  late ToolApprovalMode _toolApprovalMode;
   late int _colorValue;
   late bool _enabled;
 
@@ -523,6 +578,7 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
     );
     _modelController = TextEditingController(text: participant.model);
     _endpointId = participant.endpointId;
+    _toolApprovalMode = participant.toolApprovalMode;
     _colorValue = participant.colorValue;
     _enabled = participant.enabled;
   }
@@ -565,6 +621,26 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
                 ),
               ),
               const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: _rolePresetId,
+                decoration: InputDecoration(
+                  labelText: 'chat.participant_role_preset'.tr(),
+                  prefixIcon: const Icon(Icons.auto_awesome_outlined),
+                ),
+                items: [
+                  DropdownMenuItem(
+                    value: _customRolePresetId,
+                    child: Text('chat.participant_role_preset_custom'.tr()),
+                  ),
+                  for (final preset in _participantRolePresets)
+                    DropdownMenuItem(
+                      value: preset.id,
+                      child: Text(preset.labelKey.tr()),
+                    ),
+                ],
+                onChanged: _applyRolePreset,
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: _displayNameController,
                 textInputAction: TextInputAction.next,
@@ -615,6 +691,25 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
                 onChanged: (value) {
                   if (value == null) return;
                   setState(() => _endpointId = value);
+                },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<ToolApprovalMode>(
+                initialValue: _toolApprovalMode,
+                decoration: InputDecoration(
+                  labelText: 'chat.participant_approval_mode'.tr(),
+                  prefixIcon: const Icon(Icons.verified_user_outlined),
+                ),
+                items: [
+                  for (final mode in ToolApprovalMode.values)
+                    DropdownMenuItem(
+                      value: mode,
+                      child: Text(_approvalModeLabel(mode)),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _toolApprovalMode = value);
                 },
               ),
               const SizedBox(height: 12),
@@ -710,12 +805,38 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
       roleSystemPrompt: _rolePromptController.text.trim(),
       endpointId: _endpointId.trim(),
       model: _modelController.text.trim(),
+      toolApprovalMode: _toolApprovalMode,
       colorValue: _colorValue,
       enabled: _enabled,
     );
     Navigator.of(
       context,
     ).pop(_ParticipantEditorResult(participant: participant));
+  }
+
+  void _applyRolePreset(String? presetId) {
+    if (presetId == null) return;
+    setState(() {
+      _rolePresetId = presetId;
+      if (presetId == _customRolePresetId) {
+        return;
+      }
+      final preset = _participantRolePresets.firstWhere(
+        (item) => item.id == presetId,
+      );
+      _displayNameController.text = preset.displayName;
+      _roleLabelController.text = preset.roleLabel;
+      _rolePromptController.text = preset.rolePrompt;
+    });
+  }
+
+  String _approvalModeLabel(ToolApprovalMode mode) {
+    return switch (mode) {
+      ToolApprovalMode.defaultPermissions =>
+        'chat.participant_approval_default'.tr(),
+      ToolApprovalMode.autoReview => 'chat.participant_approval_auto'.tr(),
+      ToolApprovalMode.fullAccess => 'chat.participant_approval_full'.tr(),
+    };
   }
 }
 
