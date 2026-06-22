@@ -41,9 +41,17 @@ class SystemPromptBuilder {
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
     final hasTools = uniqueToolNames.isNotEmpty;
-    final hasSearchTool = uniqueToolNames.any(
-      (name) => name == 'searxng_web_search' || name == 'web_search',
-    );
+    final searchToolNames = uniqueToolNames
+        .where(
+          (name) =>
+              name == 'search_web' ||
+              name == 'search_news' ||
+              name == 'search_images' ||
+              name == 'searxng_web_search' ||
+              name == 'web_search',
+        )
+        .toList(growable: false);
+    final hasSearchTool = searchToolNames.isNotEmpty;
     final hasToolSearch = uniqueToolNames.contains('tool_search');
     final hasWebReader = uniqueToolNames.contains('web_url_read');
     final hasDatetimeTool = uniqueToolNames.contains('get_current_datetime');
@@ -741,12 +749,7 @@ class SystemPromptBuilder {
         'tools before answering from memory.',
       );
       if (hasSearchTool) {
-        final searchToolNames = uniqueToolNames
-            .where(
-              (name) => name == 'searxng_web_search' || name == 'web_search',
-            )
-            .join(', ');
-        buffer.writeln('Use $searchToolNames for web search.');
+        buffer.writeln('Use ${searchToolNames.join(', ')} for web search.');
       }
       if (hasWebReader) {
         buffer.writeln(

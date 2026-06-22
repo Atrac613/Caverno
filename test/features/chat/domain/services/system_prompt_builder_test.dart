@@ -259,6 +259,17 @@ Dart symbols:
     expect(prompt, isNot(contains('Treat tool_search as free')));
   });
 
+  test('treats MCP search tools as web search tools', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      toolNames: const ['search_web', 'search_images'],
+    );
+
+    expect(prompt, contains('Use search_images, search_web for web search.'));
+  });
+
   test('includes knowledge-cutoff humility and self-reference ban', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 6, 10, 10, 30),

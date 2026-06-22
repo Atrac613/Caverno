@@ -30,6 +30,9 @@ class ToolDefinitionSearchService {
   static const genericDescriptionTermToolThreshold = 4;
 
   static const Set<String> _searchToolNames = {
+    'search_web',
+    'search_news',
+    'search_images',
     'searxng_web_search',
     'web_search',
   };
@@ -43,6 +46,9 @@ class ToolDefinitionSearchService {
     'spawn_subagent',
     'get_subagent_result',
     'load_skill',
+    'search_web',
+    'search_news',
+    'search_images',
     'searxng_web_search',
     'web_search',
     'ping',
@@ -134,8 +140,11 @@ class ToolDefinitionSearchService {
   }
 
   static bool shouldEnableToolSearch(List<Map<String, dynamic>> definitions) {
-    return _searchableDefinitions(definitions).length >
-        autoEnableToolCountThreshold;
+    final searchable = _searchableDefinitions(
+      definitions,
+    ).toList(growable: false);
+    return searchable.length > autoEnableToolCountThreshold ||
+        _hasSearchAndBrowserTools(searchable);
   }
 
   static ToolDefinitionSearchSelection buildInitialSelection(
@@ -198,7 +207,9 @@ class ToolDefinitionSearchService {
     }
 
     final terms = _tokenize(normalizedQuery);
-    final searchable = _searchableDefinitions(definitions).toList(growable: false);
+    final searchable = _searchableDefinitions(
+      definitions,
+    ).toList(growable: false);
     final genericTerms = _genericQueryTerms(searchable, terms);
     final scored = <_ScoredToolDefinition>[];
     for (final definition in searchable) {
@@ -297,13 +308,25 @@ class ToolDefinitionSearchService {
   static bool _shouldLoadInitially(String toolName) {
     final normalized = toolName.trim().toLowerCase();
     return _alwaysLoadedToolNames.contains(normalized) ||
-        normalized.startsWith('browser_') ||
         normalized.startsWith('wifi_') ||
         normalized.startsWith('get_wifi_') ||
         normalized.startsWith('wan_') ||
         normalized.startsWith('get_wan_') ||
         normalized.startsWith('lan_') ||
         normalized.startsWith('get_lan_');
+  }
+
+  static bool _hasSearchAndBrowserTools(
+    Iterable<Map<String, dynamic>> definitions,
+  ) {
+    final names = toolNamesFromDefinitions(
+      definitions,
+    ).map((name) => name.trim().toLowerCase());
+    return names.any(_searchToolNames.contains) && names.any(_isBrowserTool);
+  }
+
+  static bool _isBrowserTool(String toolName) {
+    return toolName.trim().toLowerCase().startsWith('browser_');
   }
 
   static List<Map<String, dynamic>> _definitionsMatchingNames(
