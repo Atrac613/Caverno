@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -92,7 +93,7 @@ class ParticipantRosterBar extends StatelessWidget {
                       const SizedBox(width: 6),
                     ],
                     Tooltip(
-                      message: 'Add participant',
+                      message: 'chat.participant_add_tooltip'.tr(),
                       child: IconButton(
                         visualDensity: VisualDensity.compact,
                         icon: const Icon(Icons.person_add_alt_1_outlined),
@@ -215,10 +216,26 @@ class _ParticipantRuntimeControl extends StatelessWidget {
     final theme = Theme.of(context);
     final activeName = runtime.activeParticipantName.trim();
     final label = runtime.paused
-        ? 'Paused at round ${runtime.currentRound}/${runtime.maxRounds}'
+        ? 'chat.participant_paused_round'.tr(
+            namedArgs: {
+              'current': '${runtime.currentRound}',
+              'max': '${runtime.maxRounds}',
+            },
+          )
         : activeName.isEmpty
-        ? 'Round ${runtime.currentRound}/${runtime.maxRounds}'
-        : '$activeName - round ${runtime.currentRound}/${runtime.maxRounds}';
+        ? 'chat.participant_round'.tr(
+            namedArgs: {
+              'current': '${runtime.currentRound}',
+              'max': '${runtime.maxRounds}',
+            },
+          )
+        : 'chat.participant_active_round'.tr(
+            namedArgs: {
+              'name': activeName,
+              'current': '${runtime.currentRound}',
+              'max': '${runtime.maxRounds}',
+            },
+          );
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -249,7 +266,7 @@ class _ParticipantRuntimeControl extends StatelessWidget {
             const SizedBox(width: 6),
             if (runtime.paused)
               Tooltip(
-                message: 'Continue participant turns',
+                message: 'chat.participant_continue_tooltip'.tr(),
                 child: IconButton(
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.play_arrow_outlined, size: 18),
@@ -258,7 +275,7 @@ class _ParticipantRuntimeControl extends StatelessWidget {
               )
             else if (runtime.multiRound && !runtime.stopRequested)
               Tooltip(
-                message: 'Stop after current participant',
+                message: 'chat.participant_stop_tooltip'.tr(),
                 child: IconButton(
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.pause_circle_outline, size: 18),
@@ -293,7 +310,7 @@ class _EmptyRosterButton extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: TextButton.icon(
         icon: const Icon(Icons.group_add_outlined, size: 18),
-        label: const Text('Participants'),
+        label: Text('chat.participants'.tr()),
         onPressed: enabled ? onPressed : null,
       ),
     );
@@ -403,16 +420,16 @@ class _TurnDepthControl extends StatelessWidget {
           ),
           showSelectedIcon: false,
           selected: {config.depth},
-          segments: const [
+          segments: [
             ButtonSegment(
               value: ParticipantTurnDepth.singleRound,
-              icon: Icon(Icons.looks_one_outlined, size: 16),
-              label: Text('Single'),
+              icon: const Icon(Icons.looks_one_outlined, size: 16),
+              label: Text('chat.participant_single_round'.tr()),
             ),
             ButtonSegment(
               value: ParticipantTurnDepth.multiRound,
-              icon: Icon(Icons.repeat_outlined, size: 16),
-              label: Text('Multi'),
+              icon: const Icon(Icons.repeat_outlined, size: 16),
+              label: Text('chat.participant_multi_round'.tr()),
             ),
           ],
           onSelectionChanged: enabled
@@ -424,7 +441,7 @@ class _TurnDepthControl extends StatelessWidget {
         if (config.depth == ParticipantTurnDepth.multiRound) ...[
           const SizedBox(width: 8),
           Tooltip(
-            message: 'Decrease rounds',
+            message: 'chat.participant_decrease_rounds'.tr(),
             child: IconButton(
               visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.remove_circle_outline, size: 18),
@@ -434,14 +451,14 @@ class _TurnDepthControl extends StatelessWidget {
             ),
           ),
           Text(
-            '$maxRounds rounds',
+            'chat.participant_rounds'.tr(namedArgs: {'count': '$maxRounds'}),
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
           Tooltip(
-            message: 'Increase rounds',
+            message: 'chat.participant_increase_rounds'.tr(),
             child: IconButton(
               visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.add_circle_outline, size: 18),
@@ -539,7 +556,10 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.isNew ? 'Add participant' : 'Edit participant',
+                (widget.isNew
+                        ? 'chat.participant_add_title'
+                        : 'chat.participant_edit_title')
+                    .tr(),
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -548,36 +568,40 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
               TextField(
                 controller: _displayNameController,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  prefixIcon: Icon(Icons.badge_outlined),
+                decoration: InputDecoration(
+                  labelText: 'chat.participant_name'.tr(),
+                  prefixIcon: const Icon(Icons.badge_outlined),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: _roleLabelController,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Role',
-                  prefixIcon: Icon(Icons.assignment_ind_outlined),
+                decoration: InputDecoration(
+                  labelText: 'chat.participant_role'.tr(),
+                  prefixIcon: const Icon(Icons.assignment_ind_outlined),
                 ),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _endpointId,
-                decoration: const InputDecoration(
-                  labelText: 'Endpoint',
-                  prefixIcon: Icon(Icons.hub_outlined),
+                decoration: InputDecoration(
+                  labelText: 'chat.participant_endpoint'.tr(),
+                  prefixIcon: const Icon(Icons.hub_outlined),
                 ),
                 items: [
-                  const DropdownMenuItem(
+                  DropdownMenuItem(
                     value: '',
-                    child: Text('Primary endpoint'),
+                    child: Text('chat.participant_primary_endpoint'.tr()),
                   ),
                   if (hasMissingEndpoint)
                     DropdownMenuItem(
                       value: _endpointId,
-                      child: Text('Missing endpoint: $_endpointId'),
+                      child: Text(
+                        'chat.participant_missing_endpoint'.tr(
+                          namedArgs: {'endpoint': _endpointId},
+                        ),
+                      ),
                     ),
                   for (final endpoint in widget.endpoints)
                     DropdownMenuItem(
@@ -598,7 +622,7 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
                 controller: _modelController,
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
-                  labelText: 'Model override',
+                  labelText: 'chat.participant_model_override'.tr(),
                   hintText: widget.primaryModel,
                   prefixIcon: const Icon(Icons.memory_outlined),
                 ),
@@ -608,15 +632,15 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
                 controller: _rolePromptController,
                 minLines: 3,
                 maxLines: 6,
-                decoration: const InputDecoration(
-                  labelText: 'Role prompt',
-                  prefixIcon: Icon(Icons.notes_outlined),
+                decoration: InputDecoration(
+                  labelText: 'chat.participant_role_prompt'.tr(),
+                  prefixIcon: const Icon(Icons.notes_outlined),
                   alignLabelWithHint: true,
                 ),
               ),
               const SizedBox(height: 14),
               Text(
-                'Color',
+                'chat.participant_color'.tr(),
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -639,7 +663,7 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
               const SizedBox(height: 12),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Enabled'),
+                title: Text('chat.participant_enabled'.tr()),
                 value: _enabled,
                 onChanged: (value) => setState(() => _enabled = value),
               ),
@@ -649,7 +673,7 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
                   if (!widget.isNew)
                     TextButton.icon(
                       icon: const Icon(Icons.delete_outline),
-                      label: const Text('Remove'),
+                      label: Text('chat.participant_remove'.tr()),
                       onPressed: () {
                         Navigator.of(context).pop(
                           _ParticipantEditorResult(
@@ -662,12 +686,12 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
                   const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
+                    child: Text('common.cancel'.tr()),
                   ),
                   const SizedBox(width: 8),
                   FilledButton.icon(
                     icon: const Icon(Icons.check),
-                    label: const Text('Save'),
+                    label: Text('common.save'.tr()),
                     onPressed: _save,
                   ),
                 ],
@@ -711,7 +735,7 @@ class _ColorSwatchButton extends StatelessWidget {
     final theme = Theme.of(context);
     final color = Color(colorValue);
     return Tooltip(
-      message: 'Select color',
+      message: 'chat.participant_select_color'.tr(),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onPressed,
