@@ -970,7 +970,10 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Builds the system message, including the current date and time.
-  Message _createSystemMessage({List<String>? toolNamesOverride}) {
+  Message _createSystemMessage({
+    List<String>? toolNamesOverride,
+    String? participantRolePrompt,
+  }) {
     final now = DateTime.now();
     final activeCodingProject = _getActiveCodingProject();
     final currentConversation = ref
@@ -1006,6 +1009,7 @@ class ChatNotifier extends Notifier<ChatState> {
       languageCode: resolvedLanguage,
       toolNames: toolNames,
       sessionMemoryContext: _sessionMemoryContext,
+      participantRolePrompt: participantRolePrompt,
       projectName: activeCodingProject?.name,
       projectRootPath: activeCodingProject?.rootPath,
       repoMapContext: _repoMap(resolvedAssistantMode, activeCodingProject),
@@ -5202,6 +5206,7 @@ class ChatNotifier extends Notifier<ChatState> {
     bool forceCompaction = false,
     List<Map<String, dynamic>>? toolDefinitionsOverride,
     int? interactionGeneration,
+    String? participantRolePrompt,
   }) {
     final conversationsState = ref.read(conversationsNotifierProvider);
     final activeConversationId = interactionGeneration == null
@@ -5232,6 +5237,7 @@ class ChatNotifier extends Notifier<ChatState> {
     );
     final promptMessages = <Message>[
       _createSystemMessage(
+        participantRolePrompt: participantRolePrompt,
         toolNamesOverride: toolDefinitionsOverride == null
             ? null
             : ToolDefinitionSearchService.toolNamesFromDefinitions(

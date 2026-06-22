@@ -202,6 +202,25 @@ void main() {
     expect(assistantMessages[1].participantColorValue, 0xFF006A6A);
     expect(dataSource.requestedModels, ['primary-model', 'review-model']);
     expect(dataSource.streamRequests, hasLength(2));
+    expect(dataSource.streamRequests.first.first.role, MessageRole.system);
+    expect(
+      dataSource.streamRequests.first.first.content,
+      contains('Participant role instructions for this response:'),
+    );
+    expect(
+      dataSource.streamRequests.first.first.content,
+      contains('Facilitate the discussion.'),
+    );
+    expect(
+      dataSource.streamRequests.last.first.content,
+      contains('Critique the proposal.'),
+    );
+    expect(
+      dataSource.streamRequests.first.where(
+        (message) => message.id.startsWith('participant_role_prompt_'),
+      ),
+      isEmpty,
+    );
     expect(
       dataSource.streamRequests.last
           .map((message) => message.content)

@@ -25,6 +25,7 @@ class SystemPromptBuilder {
     String languageCode = 'en',
     List<String> toolNames = const [],
     String? sessionMemoryContext,
+    String? participantRolePrompt,
     String? projectName,
     String? projectRootPath,
     String? repoMapContext,
@@ -131,6 +132,13 @@ class SystemPromptBuilder {
       ..writeln(SystemPromptConstants.noSystemPromptReferenceInstruction)
       ..writeln(SystemPromptConstants.oversightInstruction)
       ..writeln(SystemPromptConstants.languageInstruction(languageCode));
+
+    final normalizedParticipantRolePrompt = participantRolePrompt?.trim();
+    if (normalizedParticipantRolePrompt != null &&
+        normalizedParticipantRolePrompt.isNotEmpty) {
+      buffer.writeln('Participant role instructions for this response:');
+      buffer.writeln(normalizedParticipantRolePrompt);
+    }
 
     final modelCapabilityGuidance = _modelCapabilityGuidance(
       modelCapabilityProfile,

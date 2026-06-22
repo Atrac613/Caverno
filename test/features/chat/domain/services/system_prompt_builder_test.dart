@@ -121,6 +121,21 @@ void main() {
     expect(prompt, isNot(contains('Project name: "caverno".')));
   });
 
+  test('includes participant role prompt in the system prompt', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 6, 23, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      participantRolePrompt: 'Respond as the senior engineering reviewer.',
+    );
+
+    expect(
+      prompt,
+      contains('Participant role instructions for this response:'),
+    );
+    expect(prompt, contains('Respond as the senior engineering reviewer.'));
+  });
+
   test('includes the research-honesty instruction in every mode', () {
     for (final mode in AssistantMode.values) {
       final prompt = SystemPromptBuilder.build(

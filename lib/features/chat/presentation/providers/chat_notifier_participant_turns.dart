@@ -204,7 +204,9 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
           participants: participants,
           transcript: _prepareMessagesForLLM(
             interactionGeneration: interactionGeneration,
+            participantRolePrompt: participant.roleSystemPrompt,
           ),
+          includeRolePrompt: false,
         );
 
     try {
