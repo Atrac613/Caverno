@@ -166,6 +166,23 @@ Target:
 Respond in the user's current language unless they ask otherwise.
 ''',
   ),
+  SlashCommandPromptTemplate(
+    id: 'skill',
+    name: 'skill',
+    description: '',
+    aliases: ['save-skill'],
+    argumentHint: '[name or focus]',
+    argumentRequirement: SlashCommandArgumentRequirement.optional,
+    template: '''
+Capture a reusable skill from this conversation using the save_skill tool.
+
+Review what we accomplished and distill the durable, repeatable workflow worth reusing — the steps, commands, and gotchas — not the one-off specifics of this session. Optional focus or name from the user: {input}
+
+Call save_skill with a short unique name, a one-line description, a whenToUse hint, and the full instructions as markdown. To edit or merge an existing skill, reuse its exact name (save_skill updates it in place and shows a diff for approval); to duplicate, choose a new name. The user must approve every save.
+
+If no reusable workflow is present yet, say so instead of saving.
+''',
+  ),
 ];
 
 final Set<String> reservedSlashCommandNames = {

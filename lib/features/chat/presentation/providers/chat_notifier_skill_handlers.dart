@@ -50,13 +50,24 @@ extension ChatNotifierSkillHandlers on ChatNotifier {
     // creating a duplicate.
     final existing = _findSkillByName(name);
 
+    // SKILL2: an update (edit/merge) previews a diff against the stored skill so
+    // the user sees exactly what changes; a brand-new skill previews its full
+    // body. Duplicating is just a save under a new name (no existing match).
+    final preview = existing == null
+        ? markdown
+        : FilesystemTools.buildUnifiedDiff(
+            path: 'skill: $name',
+            oldContent: SkillMarkdownParser.toMarkdown(existing),
+            newContent: markdown,
+          );
+
     // SKILL1: the write is non-cacheable. Go straight to a manual approval that
-    // previews the resolved skill (name + body); never auto-review and never
-    // remember the decision, so every save_skill requires fresh confirmation.
+    // previews the resolved skill; never auto-review and never remember the
+    // decision, so every save_skill requires fresh confirmation.
     final approved = await requestFileOperation(
       operation: existing == null ? 'Save Skill' : 'Update Skill',
       path: name,
-      preview: markdown,
+      preview: preview,
       reason: reason,
     );
     if (!approved) {

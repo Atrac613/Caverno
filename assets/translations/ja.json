@@ -31,6 +31,7 @@
     "slash_fix_desc": "バグ修正用プロンプトに展開",
     "slash_explain_desc": "説明用プロンプトに展開",
     "slash_test_desc": "テスト作成用プロンプトに展開",
+    "slash_skill_desc": "この会話を再利用可能なスキルとして保存（承認が必要）",
     "slash_blocked_while_loading": "現在の応答が完了するまで待つか、/cancel を使ってください。",
     "slash_new_conversation_started": "新しい会話を開始しました。",
     "slash_new_thread_started": "新しいコーディングスレッドを開始しました。",

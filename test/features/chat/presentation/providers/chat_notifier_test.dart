@@ -4543,6 +4543,10 @@ void main() {
         reason: 'save_skill must never resolve from the approval cache',
       );
       expect(secondPending!.operation, 'Update Skill');
+      // SKILL2: updating an existing skill previews a diff against the stored
+      // markdown rather than the full body.
+      expect(secondPending.preview, contains('+++ skill: iOS Release'));
+      expect(secondPending.preview, contains('Upload.'));
 
       chatNotifier.resolveFileOperation(id: secondPending.id, approved: true);
       await secondSend;

@@ -31,6 +31,7 @@
     "slash_fix_desc": "Expand into a bug-fix prompt",
     "slash_explain_desc": "Expand into an explanation prompt",
     "slash_test_desc": "Expand into a test-writing prompt",
+    "slash_skill_desc": "Save this conversation as a reusable skill (needs approval)",
     "slash_blocked_while_loading": "Wait for the current response to finish, or use /cancel.",
     "slash_new_conversation_started": "New conversation started.",
     "slash_new_thread_started": "New coding thread started.",
