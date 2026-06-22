@@ -2168,7 +2168,7 @@ Goal:
 
 Scope (MVP):
 - Participant model: a conversation carries an ordered list of
-  `DiscussionParticipant` (display name, role label + role system prompt,
+  `ConversationParticipant` (display name, role label + role system prompt,
   endpoint id [empty = primary / PC1], model, per-participant `ToolApprovalMode`,
   tools-enabled flag, color). Empty list == today's single-LLM behavior.
 - Message attribution: add nullable `Message.participantId`; render other speakers
@@ -2193,8 +2193,11 @@ Reuses (substrate already shipped):
 - `ToolApprovalMode` + gate / cache; `SystemPromptBuilder`.
 
 New build:
-- `GroupDiscussionCoordinator` (domain service) driving turns; `ChatNotifier`
-  delegates to it only when participants is non-empty (single-LLM path untouched).
+- `ParticipantTurnCoordinator` (domain service) drives turn planning,
+  participant normalization, and per-speaker transcript transforms;
+  `ParticipantCompletionRunner` streams each turn through the existing mesh
+  fallback boundary; `ChatNotifier` delegates to them only when participants is
+  non-empty (single-LLM path untouched).
 
 Streaming: sequential for MVP (one participant streams, then the next); parallel /
 MoA aggregation is deferred to LL27.
