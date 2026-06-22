@@ -5570,6 +5570,15 @@ class ChatNotifier extends Notifier<ChatState> {
       origin: origin,
     );
     if (state.isLoading) {
+      final participantRuntime = state.participantTurnRuntime;
+      if (participantRuntime != null && !participantRuntime.paused) {
+        _participantTurnStopRequested = true;
+        state = state.copyWith(
+          participantTurnRuntime: participantRuntime.copyWith(
+            stopRequested: true,
+          ),
+        );
+      }
       _queuedChatMessages.add(queuedMessage);
       _syncQueuedChatMessagesState();
       appLog(

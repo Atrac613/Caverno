@@ -399,6 +399,109 @@ void main() {
     expect(chatNotifier.state.participantTurnRuntime, isNull);
   });
 
+  test(
+    'queued user input stops remaining participant turns and starts fresh pass',
+    () async {
+      final firstTurn = StreamController<String>();
+      final dataSource = _ParticipantStreamingChatDataSource(
+        manualStreams: [firstTurn],
+        chunkBatches: const [
+          ['Queued primary.'],
+          ['Queued reviewer.'],
+        ],
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final participantContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        participantContainer.dispose();
+        if (!firstTurn.isClosed) {
+          await firstTurn.close();
+        }
+      });
+      final chatNotifier = participantContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final conversationsNotifier = participantContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      final conversation = conversationsNotifier.ensureCurrentConversation()!;
+      await conversationsNotifier.updateConversationParticipants(
+        conversation.id,
+        participants: const [
+          ConversationParticipant(
+            id: 'primary',
+            displayName: 'Primary',
+            roleLabel: 'Facilitator',
+            model: 'primary-model',
+            order: 0,
+          ),
+          ConversationParticipant(
+            id: 'reviewer',
+            displayName: 'Reviewer',
+            roleLabel: 'Critic',
+            model: 'review-model',
+            order: 1,
+          ),
+        ],
+      );
+
+      final sendFuture = chatNotifier.sendMessage('Original topic');
+      for (var i = 0; i < 10 && dataSource.streamRequests.isEmpty; i += 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(dataSource.streamRequests, hasLength(1));
+
+      await chatNotifier.sendMessage('Interject with a new constraint');
+
+      expect(chatNotifier.state.queuedMessages, hasLength(1));
+      expect(chatNotifier.state.participantTurnRuntime?.stopRequested, isTrue);
+
+      firstTurn.add('Original primary.');
+      await firstTurn.close();
+      await sendFuture;
+
+      final userContents = chatNotifier.state.messages
+          .where((message) => message.role == MessageRole.user)
+          .map((message) => message.content)
+          .toList(growable: false);
+      final assistantContents = chatNotifier.state.messages
+          .where((message) => message.role == MessageRole.assistant)
+          .map((message) => message.content)
+          .toList(growable: false);
+
+      expect(userContents, [
+        'Original topic',
+        'Interject with a new constraint',
+      ]);
+      expect(assistantContents, [
+        'Original primary.',
+        'Queued primary.',
+        'Queued reviewer.',
+      ]);
+      expect(dataSource.streamRequests, hasLength(3));
+      expect(chatNotifier.state.queuedMessages, isEmpty);
+      expect(chatNotifier.state.isLoading, isFalse);
+      expect(chatNotifier.state.participantTurnRuntime, isNull);
+    },
+  );
+
   test('sendMessage prepares changed primary model before request', () async {
     final prepController = StreamController<String>();
     final preparedModelIds = <String>[];
