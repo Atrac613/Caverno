@@ -13824,17 +13824,50 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void cancelStreaming() {
-    final generation = _interactionGeneration;
     _streamSubscription?.cancel();
     _streamSubscription = null;
     _dismissAllPendingAskUserQuestions();
+
+    // Advance the interaction generation so the in-flight recursive
+    // tool-calling loop's generation guards (_isCurrentInteractionGeneration)
+    // start failing and it stops issuing further completions/tool calls.
+    // Previously this method left _interactionGeneration untouched, so the
+    // loop's captured generation stayed current and the stop was ignored — the
+    // loop kept running (and the session log kept growing) in the background
+    // even though the streaming output had been detached from the UI.
+    _beginInteractionGeneration();
+
+    // Drop any queued loop continuation so nothing re-enters the loop after the
+    // generation bump. A new turn resets these as well, but clearing them now
+    // prevents an already-scheduled continuation from acting before then.
+    _pendingContentToolResults.clear();
+    _pendingContentToolContinuationFallback = null;
+    _pendingToolExecutions.clear();
+    _contentToolContinuationCount = 0;
     _clearAllActiveResponses();
 
-    if (ref.mounted && state.messages.isNotEmpty) {
-      final lastMessage = state.messages.last;
-      if (lastMessage.isStreaming) {
-        unawaited(_finishStreaming(interactionGeneration: generation));
-      }
+    // The generation has advanced, so _finishStreaming would early-return on its
+    // own guard. Finalize the partial assistant bubble inline instead: keep
+    // whatever was streamed, drop an empty placeholder, clear the loading
+    // state, and persist what remains.
+    if (!ref.mounted || state.messages.isEmpty) return;
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    var changedMessages = false;
+    if (lastMessage.role == MessageRole.assistant &&
+        !_assistantMessageHasVisibleContent(lastMessage.content)) {
+      updatedMessages.removeAt(lastIndex);
+      changedMessages = true;
+    } else if (lastMessage.isStreaming) {
+      updatedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
+      changedMessages = true;
+    }
+    if (changedMessages) {
+      state = state.copyWith(messages: updatedMessages, isLoading: false);
+      unawaited(_saveMessages());
+    } else if (state.isLoading) {
+      state = state.copyWith(isLoading: false);
     }
   }
 
