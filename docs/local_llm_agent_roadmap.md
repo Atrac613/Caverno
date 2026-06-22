@@ -971,6 +971,13 @@ Implementation status:
   search, license/provenance review, and user-entered remote download targets,
   is deferred to MLIB1; LL9 keeps lifecycle actions scoped to already selected
   endpoint models and explicit backend actions.
+- Live lifecycle smoke follow-up added `tool/run_ll9_model_lifecycle_smoke.sh`,
+  which verifies the required `unload` -> `/v1/models` unloaded confirmation ->
+  `load` sequence against a real endpoint and can restore the original model.
+  Live evidence from 2026-06-22 used
+  `http://192.168.100.241:1234/v1`, switched `qwen3.6-27b-vision` to
+  `qwen3.6-35b-a3b-vision`, then restored `qwen3.6-27b-vision`; report:
+  `build/integration_test_reports/ll9_model_lifecycle_smoke_1782138124/`.
 
 ### LL10: Installed-Dependency Grounding
 
