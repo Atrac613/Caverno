@@ -11,6 +11,7 @@ extension ChatNotifierToolHandlerRegistry on ChatNotifier {
       _SshToolHandlerModule(this),
       _GitToolHandlerModule(this),
       _DeviceToolHandlerModule(this),
+      _SkillToolHandlerModule(this),
       _ConversationToolHandlerModule(
         this,
         interactionGeneration: interactionGeneration,
@@ -109,6 +110,17 @@ final class _DeviceToolHandlerModule implements ChatToolHandlerModule {
       'ble_connect': _notifier._handleBleConnect,
       'serial_open': _notifier._handleSerialOpen,
     };
+  }
+}
+
+final class _SkillToolHandlerModule implements ChatToolHandlerModule {
+  const _SkillToolHandlerModule(this._notifier);
+
+  final ChatNotifier _notifier;
+
+  @override
+  Map<String, ChatToolHandler> get handlers {
+    return {'save_skill': _notifier._handleSaveSkill};
   }
 }
 

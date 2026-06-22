@@ -59,23 +59,43 @@ class SkillMarkdownParser {
   }
 
   static String toMarkdown(Skill skill) {
+    return composeMarkdown(
+      name: skill.normalizedName,
+      description: skill.normalizedDescription,
+      whenToUse: skill.normalizedWhenToUse,
+      body: skill.content,
+    );
+  }
+
+  /// Builds skill markdown (front matter + body) from raw fields.
+  ///
+  /// The emitted front matter mirrors [parse], so a composed skill round-trips
+  /// back to the same name/description/whenToUse. This lets callers assemble a
+  /// skill from structured input (e.g. the `save_skill` tool) and persist it
+  /// through the same markdown path as the settings UI.
+  static String composeMarkdown({
+    required String name,
+    String description = '',
+    String whenToUse = '',
+    String body = '',
+  }) {
     final buffer = StringBuffer()
       ..writeln('---')
-      ..writeln('name: ${_escapeFrontMatterValue(skill.normalizedName)}');
-    if (skill.normalizedDescription.isNotEmpty) {
+      ..writeln('name: ${_escapeFrontMatterValue(name.trim())}');
+    if (description.trim().isNotEmpty) {
       buffer.writeln(
-        'description: ${_escapeFrontMatterValue(skill.normalizedDescription)}',
+        'description: ${_escapeFrontMatterValue(description.trim())}',
       );
     }
-    if (skill.normalizedWhenToUse.isNotEmpty) {
+    if (whenToUse.trim().isNotEmpty) {
       buffer.writeln(
-        'whenToUse: ${_escapeFrontMatterValue(skill.normalizedWhenToUse)}',
+        'whenToUse: ${_escapeFrontMatterValue(whenToUse.trim())}',
       );
     }
     buffer
       ..writeln('---')
       ..writeln()
-      ..write(skill.content.trim());
+      ..write(body.trim());
     return buffer.toString().trimRight();
   }
 

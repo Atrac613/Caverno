@@ -425,6 +425,48 @@ class _NotificationCall {
   final String body;
 }
 
+/// In-memory [SkillsNotifier] for save_skill tests: persists upserts in state
+/// (resolving updates by id) without a Hive-backed repository.
+class _RecordingSkillsNotifier extends SkillsNotifier {
+  @override
+  SkillsState build() => SkillsState.initial();
+
+  @override
+  Future<Skill> upsertMarkdown({
+    String? existingId,
+    required String markdown,
+    bool enabled = true,
+  }) async {
+    final parsed = SkillMarkdownParser.parse(markdown);
+    final now = DateTime(2026, 6, 22, 19, 30);
+    Skill? existing;
+    for (final skill in state.skills) {
+      if (skill.id == existingId) {
+        existing = skill;
+        break;
+      }
+    }
+    final saved = Skill(
+      id: existing?.id ?? 'skill-${state.skills.length + 1}',
+      name: parsed.name,
+      description: parsed.description,
+      whenToUse: parsed.whenToUse,
+      content: parsed.content,
+      enabled: existing?.enabled ?? enabled,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    );
+    state = SkillsState(
+      skills: [
+        for (final skill in state.skills)
+          if (skill.id != saved.id) skill,
+        saved,
+      ],
+    );
+    return saved;
+  }
+}
+
 class _ReleaseCheckSkillsNotifier extends SkillsNotifier {
   @override
   SkillsState build() {

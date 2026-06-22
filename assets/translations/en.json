@@ -773,6 +773,7 @@
     "tool_spawn_subagent": "Delegate a focused sub-task to a child subagent",
     "tool_get_subagent_result": "Retrieve the result of a background subagent",
     "tool_load_skill": "Load full instructions for a saved user skill",
+    "tool_save_skill": "Save the current workflow as a reusable user skill (requires approval)",
     "tool_search_past_conversations": "Search through past conversation history",
     "tool_recall_memory": "Recall saved memory entries",
     "tool_ping": "Ping a host to check reachability and latency",

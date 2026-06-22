@@ -25,6 +25,36 @@ whenToUse: Use before publishing a build
     expect(parsed.content, contains('Run verification.'));
   });
 
+  test('composeMarkdown round-trips through parse', () {
+    final markdown = SkillMarkdownParser.composeMarkdown(
+      name: 'iOS Release',
+      description: 'Ship an iOS build: tag, archive, notarize',
+      whenToUse: 'When cutting an iOS release',
+      body: '# Steps\n\n1. Bump version.\n2. Archive.',
+    );
+
+    final parsed = SkillMarkdownParser.parse(markdown);
+    expect(parsed.name, 'iOS Release');
+    expect(parsed.description, 'Ship an iOS build: tag, archive, notarize');
+    expect(parsed.whenToUse, 'When cutting an iOS release');
+    expect(parsed.content, contains('1. Bump version.'));
+  });
+
+  test('composeMarkdown omits empty optional front matter fields', () {
+    final markdown = SkillMarkdownParser.composeMarkdown(
+      name: 'Quick Note',
+      body: 'Just the body.',
+    );
+
+    expect(markdown, isNot(contains('description:')));
+    expect(markdown, isNot(contains('whenToUse:')));
+    final parsed = SkillMarkdownParser.parse(markdown);
+    expect(parsed.name, 'Quick Note');
+    expect(parsed.description, isEmpty);
+    expect(parsed.whenToUse, isEmpty);
+    expect(parsed.content, 'Just the body.');
+  });
+
   test('falls back to the first markdown heading when name is omitted', () {
     final parsed = SkillMarkdownParser.parse('''
 # Investigate flaky tests

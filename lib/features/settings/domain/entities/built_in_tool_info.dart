@@ -83,6 +83,11 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_load_skill',
       category: categorySkills,
     ),
+    BuiltInToolInfo(
+      name: 'save_skill',
+      descriptionKey: 'settings.tool_save_skill',
+      category: categorySkills,
+    ),
     // Memory
     BuiltInToolInfo(
       name: 'search_past_conversations',

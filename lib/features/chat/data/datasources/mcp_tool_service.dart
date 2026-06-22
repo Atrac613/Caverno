@@ -342,6 +342,9 @@ class McpToolService {
     if (_hasEnabledSkills) {
       _addIfEnabled(toolDefinitions, _loadSkillTool);
     }
+    if (skillRepository != null) {
+      _addIfEnabled(toolDefinitions, _saveSkillTool);
+    }
 
     // Built-in network tools (always available).
     _addIfEnabled(toolDefinitions, _pingTool);
@@ -594,6 +597,20 @@ class McpToolService {
       }
       appLog('[McpToolService] Skill loaded: ${result.length} chars');
       return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'save_skill') {
+      // save_skill is intercepted by ChatNotifier for an interactive,
+      // non-cacheable approval. Reaching here means there is no approval UI
+      // (e.g. a routine or other background context), so refuse rather than
+      // persist a skill without confirmation.
+      return McpToolResult(
+        toolName: name,
+        result: '',
+        isSuccess: false,
+        errorMessage:
+            'save_skill requires interactive approval and cannot run in this context',
+      );
     }
 
     if (name.startsWith('computer_')) {
@@ -2532,6 +2549,42 @@ class McpToolService {
             'description': 'Skill name when the id is unavailable.',
           },
         },
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _saveSkillTool => {
+    'type': 'function',
+    'function': {
+      'name': 'save_skill',
+      'description':
+          'Save the current conversation\'s workflow as a reusable user skill '
+          '(the inverse of load_skill). Use this when a repeatable, verified '
+          'procedure emerges that the user will want to reuse later. The user '
+          'must approve every save. Saving a name that already exists updates '
+          'that skill instead of creating a duplicate.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'name': {
+            'type': 'string',
+            'description': 'Short, unique skill name (e.g. "iOS Release").',
+          },
+          'description': {
+            'type': 'string',
+            'description': 'One-line summary of what the skill does.',
+          },
+          'when_to_use': {
+            'type': 'string',
+            'description': 'When this skill should be applied.',
+          },
+          'content': {
+            'type': 'string',
+            'description':
+                'The full skill instructions as markdown (the reusable steps).',
+          },
+        },
+        'required': ['name', 'content'],
       },
     },
   };

@@ -39,6 +39,7 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/entities/skill.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
+import 'package:caverno/features/chat/domain/services/skill_markdown_parser.dart';
 import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
@@ -4434,6 +4435,125 @@ void main() {
             .map((result) => result.name),
         everyElement('ask_user_question'),
       );
+    },
+  );
+
+  test(
+    'save_skill persists an approved skill and re-prompts on every save',
+    () async {
+      final firstCompletion = Completer<ChatCompletionResult>();
+      final secondCompletion = Completer<ChatCompletionResult>();
+      final dataSource = _QueuedAskQuestionToolChatDataSource(
+        initialCompletions: [firstCompletion, secondCompletion],
+        finalAnswers: const ['Saved the skill.', 'Updated the skill.'],
+      );
+      final repository = _FakeConversationRepository();
+      // Offer save_skill so the tool loop does not drop the call as unknown;
+      // the registry still routes it to ChatNotifier (never to this fallback).
+      final toolService = _FakeMcpToolService(results: const {'save_skill': ''});
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final skillContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(repository),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          skillsNotifierProvider.overrideWith(_RecordingSkillsNotifier.new),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(skillContainer.dispose);
+
+      final chatNotifier = skillContainer.read(chatNotifierProvider.notifier);
+
+      // First save authors a brand-new skill.
+      final firstSend = chatNotifier.sendMessage('Save this as a skill');
+      await Future<void>.delayed(Duration.zero);
+      firstCompletion.complete(
+        ChatCompletionResult(
+          content: '',
+          finishReason: 'tool_calls',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-save-1',
+              name: 'save_skill',
+              arguments: const {
+                'name': 'iOS Release',
+                'description': 'Ship an iOS build',
+                'when_to_use': 'When cutting an iOS release',
+                'content': '# Steps\n\n1. Bump version.\n2. Archive.',
+              },
+            ),
+          ],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final firstPending = chatNotifier.state.pendingFileOperation;
+      expect(firstPending, isNotNull);
+      expect(firstPending!.operation, 'Save Skill');
+      expect(firstPending.path, 'iOS Release');
+      expect(firstPending.preview, contains('1. Bump version.'));
+
+      chatNotifier.resolveFileOperation(id: firstPending.id, approved: true);
+      await firstSend;
+
+      final afterCreate = skillContainer.read(skillsNotifierProvider).skills;
+      expect(afterCreate, hasLength(1));
+      expect(afterCreate.single.normalizedName, 'iOS Release');
+      expect(afterCreate.single.content, contains('Bump version.'));
+
+      // Saving the same name again must prompt again (non-cacheable) and update
+      // the existing skill rather than create a duplicate.
+      final secondSend = chatNotifier.sendMessage('Update that skill');
+      await Future<void>.delayed(Duration.zero);
+      secondCompletion.complete(
+        ChatCompletionResult(
+          content: '',
+          finishReason: 'tool_calls',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-save-2',
+              name: 'save_skill',
+              arguments: const {
+                'name': 'iOS Release',
+                'content': '# Steps\n\n1. Bump version.\n2. Archive.\n3. Upload.',
+              },
+            ),
+          ],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final secondPending = chatNotifier.state.pendingFileOperation;
+      expect(
+        secondPending,
+        isNotNull,
+        reason: 'save_skill must never resolve from the approval cache',
+      );
+      expect(secondPending!.operation, 'Update Skill');
+
+      chatNotifier.resolveFileOperation(id: secondPending.id, approved: true);
+      await secondSend;
+
+      final afterUpdate = skillContainer.read(skillsNotifierProvider).skills;
+      expect(
+        afterUpdate,
+        hasLength(1),
+        reason: 'saving an existing name updates instead of duplicating',
+      );
+      expect(afterUpdate.single.content, contains('Upload.'));
     },
   );
 

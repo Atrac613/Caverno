@@ -81,6 +81,7 @@ class SystemPromptBuilder {
     final hasOsLogTool = uniqueToolNames.contains('os_log_read');
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
     final hasLoadSkillTool = uniqueToolNames.contains('load_skill');
+    final hasSaveSkillTool = uniqueToolNames.contains('save_skill');
     final hasComputerUseTools = uniqueToolNames.any(
       (name) => name.startsWith('computer_'),
     );
@@ -570,6 +571,13 @@ class SystemPromptBuilder {
         buffer.writeln(
           'When a listed user skill is relevant, call load_skill before '
           'using it so you can follow the full saved instructions.',
+        );
+      }
+      if (hasSaveSkillTool) {
+        buffer.writeln(
+          'When a repeatable, verified workflow emerges that the user will '
+          'likely reuse, offer to capture it with save_skill. The user must '
+          'approve every save; never call it for one-off tasks.',
         );
       }
       if (hasRunPythonScriptTool) {

@@ -773,6 +773,7 @@
     "tool_spawn_subagent": "集中したサブタスクを子サブエージェントに委譲",
     "tool_get_subagent_result": "バックグラウンドサブエージェントの結果を取得",
     "tool_load_skill": "Load full instructions for a saved user skill",
+    "tool_save_skill": "現在のワークフローを再利用可能なスキルとして保存（承認が必要）",
     "tool_search_past_conversations": "過去の会話履歴を検索",
     "tool_recall_memory": "保存されたメモリを呼び出し",
     "tool_ping": "ホストの到達性とレイテンシを確認",
