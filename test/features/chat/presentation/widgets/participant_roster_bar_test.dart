@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
 import 'package:caverno/features/chat/presentation/widgets/participant_roster_bar.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();
@@ -21,6 +22,7 @@ class _TestTranslationLoader extends AssetLoader {
 Future<void> _pumpRoster(
   WidgetTester tester, {
   required List<ConversationParticipant> participants,
+  List<NamedEndpoint> endpoints = const [],
   Set<String> referencedParticipantIds = const <String>{},
   ParticipantRosterChanged? onChanged,
 }) async {
@@ -52,7 +54,7 @@ Future<void> _pumpRoster(
                   child: ParticipantRosterBar(
                     participants: participants,
                     config: const ParticipantTurnConfig(),
-                    endpoints: const [],
+                    endpoints: endpoints,
                     primaryModel: 'primary-model',
                     referencedParticipantIds: referencedParticipantIds,
                     onChanged:
@@ -99,6 +101,55 @@ void main() {
     expect(find.text('Reviewer'), findsOneWidget);
     expect(find.text('Facilitator'), findsOneWidget);
     expect(find.text('Critic'), findsOneWidget);
+  });
+
+  testWidgets('adds a mesh participant from the invite sheet', (tester) async {
+    final endpoint = NamedEndpoint(
+      id: NamedEndpoint.buildId('http://pc2.example/v1'),
+      label: 'PC2',
+      baseUrl: 'http://pc2.example/v1',
+    ).normalizedForPersistence();
+    List<ConversationParticipant>? changedParticipants;
+    await _pumpRoster(
+      tester,
+      participants: const [],
+      endpoints: [endpoint],
+      onChanged: ({required participants, required config}) {
+        changedParticipants = participants;
+      },
+    );
+
+    await tester.tap(find.text('Participants'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Custom'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Senior engineer').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('PC2'), findsOneWidget);
+
+    await tester.tap(find.text('Default permissions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Auto review').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).at(2), 'review-model');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(changedParticipants, isNotNull);
+    expect(changedParticipants!.map((participant) => participant.endpointId), [
+      '',
+      endpoint.id,
+    ]);
+
+    final addedParticipant = changedParticipants!.last;
+    expect(addedParticipant.displayName, 'Senior Engineer');
+    expect(addedParticipant.roleLabel, 'Senior Engineer');
+    expect(addedParticipant.roleSystemPrompt, contains('senior engineer'));
+    expect(addedParticipant.model, 'review-model');
+    expect(addedParticipant.toolApprovalMode, ToolApprovalMode.autoReview);
   });
 
   testWidgets('disables a referenced participant instead of removing it', (
