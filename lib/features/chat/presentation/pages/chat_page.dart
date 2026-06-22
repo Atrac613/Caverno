@@ -64,6 +64,7 @@ import '../widgets/subagent_task_banner.dart';
 import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
+import '../widgets/participant_roster_bar.dart';
 import '../widgets/tool_perimeter_summary.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
@@ -1573,7 +1574,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     Widget buildMessageInput({bool floating = false}) {
-      return MessageInput(
+      final input = MessageInput(
         onSend: handleComposerSend,
         onCancel: () => chatNotifier.cancelStreaming(),
         isLoading: chatState.isLoading,
@@ -1647,6 +1648,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             ? () => _clearGoal(context)
             : null,
         isFloating: floating,
+      );
+      if (currentConversation == null) {
+        return input;
+      }
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ParticipantRosterBar(
+            participants: currentConversation.participants,
+            config: currentConversation.participantTurnConfig,
+            endpoints: settings.enabledNamedEndpoints,
+            primaryModel: settings.effectiveModel,
+            enabled: !chatState.isLoading,
+            onChanged: ({required participants, required config}) async {
+              await conversationsNotifier.updateConversationParticipants(
+                currentConversation.id,
+                participants: participants,
+                participantTurnConfig: config,
+              );
+            },
+          ),
+          input,
+        ],
       );
     }
 

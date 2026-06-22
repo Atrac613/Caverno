@@ -157,6 +157,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
         ? message.responseMetrics
         : null;
     final imageBytes = _imageBytesFor(message.imageBase64);
+    final hasParticipantHeader = !isUser && message.participantId != null;
     final bubble = Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.8,
@@ -175,6 +176,11 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (hasParticipantHeader)
+            Padding(
+              padding: EdgeInsets.only(bottom: hasBodyContent ? 8 : 0),
+              child: _ParticipantSpeakerHeader(message: message),
+            ),
           if (message.error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -397,6 +403,78 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     }
     await tts.setSpeechRate(settings.speechRate);
     await tts.speak(readableText);
+  }
+}
+
+class _ParticipantSpeakerHeader extends StatelessWidget {
+  const _ParticipantSpeakerHeader({required this.message});
+
+  final Message message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final name = _displayName(message);
+    final role = _roleLabel(message, name);
+    final color = Color(message.participantColorValue ?? 0xFF6750A4);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            name,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        if (role != null) ...[
+          const SizedBox(width: 6),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              child: Text(
+                role,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  static String _displayName(Message message) {
+    final value = message.participantDisplayName?.trim();
+    return value == null || value.isEmpty ? 'Assistant' : value;
+  }
+
+  static String? _roleLabel(Message message, String displayName) {
+    final value = message.participantRoleLabel?.trim();
+    if (value == null || value.isEmpty || value == displayName) {
+      return null;
+    }
+    return value;
   }
 }
 
