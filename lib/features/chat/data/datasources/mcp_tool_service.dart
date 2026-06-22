@@ -46,6 +46,7 @@ import 'wifi_tools.dart';
 /// Fetches tools dynamically from an MCP server and executes them.
 /// Falls back to SearXNG when the MCP server is unavailable.
 part 'mcp_tool_service_connection.dart';
+part 'mcp_tool_service_builtin_tool_definitions.dart';
 
 class McpToolService {
   static const _maxToolNameLength = 64;
@@ -327,8 +328,8 @@ class McpToolService {
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
     final toolDefinitions = <Map<String, dynamic>>[];
 
-    _addIfEnabled(toolDefinitions, _currentDatetimeTool);
-    _addIfEnabled(toolDefinitions, _askUserQuestionTool);
+    _addIfEnabled(toolDefinitions, _mcpToolCurrentDatetimeTool);
+    _addIfEnabled(toolDefinitions, _mcpToolAskUserQuestionTool);
     _addIfEnabled(toolDefinitions, _spawnSubagentTool);
     _addIfEnabled(toolDefinitions, _getSubagentResultTool);
 
@@ -472,7 +473,7 @@ class McpToolService {
       toolDefinitions.addAll(_cachedTools.map((t) => t.toOpenAiTool()));
     } else if (searxngClient != null) {
       // Fallback to the fixed SearXNG tool definition.
-      _addIfEnabled(toolDefinitions, _webSearchToolFallback);
+      _addIfEnabled(toolDefinitions, _mcpToolWebSearchToolFallback);
     }
 
     return ToolDefinitionSearchService.appendSearchToolIfUseful(
@@ -2378,98 +2379,6 @@ class McpToolService {
 
     _fileRollbackCheckpointStore.push(snapshot);
   }
-
-  /// Fallback `web_search` tool definition for SearXNG.
-  static Map<String, dynamic> get _webSearchToolFallback => {
-    'type': 'function',
-    'function': {
-      'name': 'web_search',
-      'description':
-          'Perform a web search on the Internet. Use this to look up the latest information, news, weather, etc.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'query': {'type': 'string', 'description': 'Search query'},
-        },
-        'required': ['query'],
-      },
-    },
-  };
-
-  /// Built-in local datetime tool definition.
-  static Map<String, dynamic> get _currentDatetimeTool => {
-    'type': 'function',
-    'function': {
-      'name': 'get_current_datetime',
-      'description':
-          'Returns the current local date/time and reference date ranges for interpreting relative expressions such as today/this week/recent.',
-      'parameters': {'type': 'object', 'properties': {}, 'required': []},
-    },
-  };
-
-  static Map<String, dynamic> get _askUserQuestionTool => {
-    'type': 'function',
-    'function': {
-      'name': 'ask_user_question',
-      'description':
-          'Ask the user a focused choice question before continuing. Use this when a requirement is ambiguous, multiple implementation directions are reasonable, or the user should compare previews before deciding.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'question': {
-            'type': 'string',
-            'description': 'The concise question to show to the user.',
-          },
-          'help': {
-            'type': 'string',
-            'description':
-                'Optional context explaining why the choice matters.',
-          },
-          'options': {
-            'type': 'array',
-            'description':
-                'Choice options. Include preview when side-by-side comparison would help.',
-            'items': {
-              'type': 'object',
-              'properties': {
-                'id': {
-                  'type': 'string',
-                  'description': 'Stable machine-readable option identifier.',
-                },
-                'label': {
-                  'type': 'string',
-                  'description': 'Short user-facing option label.',
-                },
-                'description': {
-                  'type': 'string',
-                  'description': 'One or two sentences about the tradeoff.',
-                },
-                'preview': {
-                  'type': 'string',
-                  'description':
-                      'Optional concrete preview, snippet, or before/after summary.',
-                },
-              },
-              'required': ['label'],
-            },
-          },
-          'allow_multiple': {
-            'type': 'boolean',
-            'description': 'Allow selecting more than one option.',
-          },
-          'allow_other': {
-            'type': 'boolean',
-            'description': 'Allow free-form Other input.',
-          },
-          'other_placeholder': {
-            'type': 'string',
-            'description': 'Placeholder for the Other input.',
-          },
-        },
-        'required': ['question'],
-      },
-    },
-  };
 
   static Map<String, dynamic> get _spawnSubagentTool => {
     'type': 'function',
