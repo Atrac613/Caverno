@@ -151,6 +151,7 @@ structurally unmotivated to build:
 | Local LLM | LL25 | later | M | LL24, LL7 | Auto difficulty routing: decide the primary model automatically — preferred shape is cascade escalation (answer with the fast/default model, escalate to the quality-preferred model on verification failure or tool-loop stall) over a per-turn classifier, with each route + escalation decision logged for tuning. |
 | Local LLM | LL26 | later | S-M | LL7, LL8, LL20 | Parallel Best-of-N candidate selection across the mesh (A0): generate candidates concurrently on resident endpoints (PC1/PC2) via LL20 slots over the LL8 mesh, then keep the verifier-passed candidate (LL7). A latency-neutral selection ensemble; concretizes the Best-of-N half of LL8's deferred fan-out. High-confidence and cheap, but sequenced after LL24. |
 | Local LLM | LL27 | later | L | LL26, LL12, LL19, LL1 | Collaborative multi-model orchestration over the mesh: layered aggregation (Mixture-of-Agents), role conductor, and debate so resident models cooperate on one turn. Guiding thesis: a Trinity-style role conductor (small coordinator → Thinker/Worker/Verifier on resident workers). Future research challenge, gated by the LL12/LL19 eval harness on "beats the best currently validated single-model path including latency". |
+| Local LLM | LL28 | next | M | LL1, LL8, LL3 | User-facing multi-participant group discussion: invite a second resident model (PC2) into the same thread as named participants with per-participant roles (facilitator / senior engineer / …), round-robin turn-taking (MVP), and selectable single-round / multi-round depth, reusing the LL8 mesh endpoint resolver (health fallback) and the existing `ToolApprovalMode` (manual / auto / full) for per-participant tools. The manually-driven, *visible* sibling of LL27 — user-judged, no eval gate; an auto-moderator turn policy is the bridge toward LL27. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
@@ -2152,6 +2153,65 @@ Full survey and candidate architectures (A0–A3): see
 Dependencies: LL26 (parallel selection substrate), LL12 / LL19 (eval gate), LL1
 (role→endpoint map), LL13 (mesh worktree agents). Related: EDGE2 (on-device
 coordinator as a micro-model task).
+
+### LL28: Multi-Participant Group Discussion (User-Facing)
+
+Status: `next`
+
+Goal:
+- Let the user invite another resident model (e.g. PC2) into the *same* chat
+  thread and run a role-based group discussion / brainstorm — LLM1 as
+  facilitator, LLM2 as senior engineer, etc. — with every participant visible in
+  one transcript. The manually-driven, *visible* sibling of LL27 (the hidden,
+  auto, eval-gated orchestration); here the user judges quality directly, so there
+  is no eval gate.
+
+Scope (MVP):
+- Participant model: a conversation carries an ordered list of
+  `DiscussionParticipant` (display name, role label + role system prompt,
+  endpoint id [empty = primary / PC1], model, per-participant `ToolApprovalMode`,
+  tools-enabled flag, color). Empty list == today's single-LLM behavior.
+- Message attribution: add nullable `Message.participantId`; render other speakers
+  to each model as user-role lines prefixed `[name · role]:` (the existing
+  re-send-as-user convention), prepend the role prompt via `SystemPromptBuilder`.
+- Turn-taking: round-robin in configured order, behind a single re-invokable
+  `nextSpeaker(context)` decision point so the future auto-moderator swaps in
+  without call-site churn.
+- Depth: both single-round (each model speaks once, floor returns to user) and
+  multi-round auto-discussion (loop up to `maxRounds` with stop / continue).
+- Tools: reuse the existing `ToolApprovalMode { defaultPermissions, autoReview,
+  fullAccess }` (== manual / auto / full) per participant via `ToolApprovalGate`
+  + `ToolApprovalCache`; off by default in MVP.
+- UI: participant roster + invite sheet (endpoint from `namedEndpoints`, model,
+  role preset, approval mode); per-speaker avatar / name / role chip on bubbles;
+  single / multi-round toggle + round counter.
+
+Reuses (substrate already shipped):
+- LL8 `MeshEndpointRouter` / `MeshSecondaryCompletionRunner` — per-participant
+  endpoint call with health fallback (PC2 down → graceful single-model).
+- LL1 role→endpoint mapping; LL3 / LL23 per-model harness profiles.
+- `ToolApprovalMode` + gate / cache; `SystemPromptBuilder`.
+
+New build:
+- `GroupDiscussionCoordinator` (domain service) driving turns; `ChatNotifier`
+  delegates to it only when participants is non-empty (single-LLM path untouched).
+
+Streaming: sequential for MVP (one participant streams, then the next); parallel /
+MoA aggregation is deferred to LL27.
+
+Phase 2 → LL27 bridge:
+- Auto-moderator next-speaker policy, convergence / stop heuristics, and optional
+  parallel aggregation converge toward the LL27 role conductor.
+
+Verification (when built):
+- Unit-test the coordinator (attribution, round-robin order, single vs multi
+  round, stop, PC2-down demotion) with a fake `ChatDataSource`.
+- Live: register PC2 as a mesh endpoint, invite with a role, brainstorm, confirm
+  attributed replies + graceful fallback (LAN: tunnel via loopback for
+  flutter_tester).
+
+Dependencies: LL1, LL8, LL3 / LL23. Related: LL27 (auto-orchestration sibling),
+LL24 / LL25 (per-turn primary-model routing).
 
 ## Future Platform Vision Milestone Notes
 
