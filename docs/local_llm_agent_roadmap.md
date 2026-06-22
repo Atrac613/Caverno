@@ -131,7 +131,7 @@ structurally unmotivated to build:
 | Local LLM | LL5 | done | M | F4, LL4 | Local semantic history search via `/v1/embeddings`, stored in the drift database. Semantic *code* search is a deferred follow-up. |
 | Local LLM | LL6 | done | M-L | F2, F3, LL3 | KV-cache-friendly prefix-stable request mode. |
 | Local LLM | LL7 | done | M | F2, LL3 | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. |
-| Local LLM | LL8 | done | M | LL1 | LAN inference mesh: discover/register OpenAI-compatible endpoints and route secondary calls per role with health fallback. Main-conversation fan-out is a deferred follow-up. |
+| Local LLM | LL8 | done | M | LL1 | LAN inference mesh: discover/register OpenAI-compatible endpoints and route secondary calls per role with health fallback. Main-conversation fan-out is a deferred follow-up; task-based primary-model routing is tracked as LL24/LL25. |
 | Local LLM | LL9 | done | M | — | Local stack manager: model load/unload control and hardware-aware model guidance. |
 | Local LLM | LL10 | done | M | — | Installed-dependency grounding: resolve APIs from the project's locked dependency sources, offline. |
 | Local LLM | LL11 | done | M-L | — | LSP bridge: post-edit diagnostics feedback and symbol data for the repo map. |
@@ -147,6 +147,10 @@ structurally unmotivated to build:
 | Local LLM | LL21 | done | M | LL3, LL18 | Continuous idle re-probing and profile history: full (non-bounded) probe on idle, time-series profile versions, model-drift / quant-swap detection. |
 | Local LLM | LL22 | done | M | LL4, LL6, LL18 | Idle warm-up and precompute: precompute repo map / embeddings and warm the KV cache so the first morning turn is instant. |
 | Local LLM | LL23 | done | M | LL3, LL6 | Declared per-model harness config: instruction surfaces (bootstrap/verify/recovery) and runtime control policy (loop caps, recovery middleware) as a mutable schema LL17 edits. Focused coding-goal repeat canary is green; broad main-gate PM5 still blocks on saved-validation command preservation and active-task target-scope drift. |
+| Local LLM | LL24 | next | S-M | LL1, LL8, LL23 | Task-based primary-model routing: select the main conversation model by assistant mode (plan/coding → stronger model, general → light default) through a single re-invokable route decision, reusing the LL1/LL8 endpoint resolver and the model-keyed LL3/LL23 profiles. |
+| Local LLM | LL25 | later | M | LL24, LL7 | Auto difficulty routing: decide the primary model automatically — preferred shape is cascade escalation (answer with the light model, escalate to the stronger model on verification failure or tool-loop stall) over a per-turn classifier, with each route + escalation decision logged for tuning. |
+| Local LLM | LL26 | later | S-M | LL7, LL8, LL20 | Parallel Best-of-N candidate selection across the mesh (A0): generate candidates concurrently on resident endpoints (PC1/PC2) via LL20 slots over the LL8 mesh, then keep the verifier-passed candidate (LL7). A latency-neutral selection ensemble; concretizes the Best-of-N half of LL8's deferred fan-out. High-confidence and cheap, but sequenced after LL24. |
+| Local LLM | LL27 | later | L | LL26, LL12, LL19, LL1 | Collaborative multi-model orchestration over the mesh: layered aggregation (Mixture-of-Agents), role conductor, and debate so resident models cooperate on one turn. Guiding thesis: a Trinity-style role conductor (small coordinator → Thinker/Worker/Verifier on resident workers). Future research challenge, gated by the LL12/LL19 eval harness on "beats single-strong-model including latency". |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
@@ -876,7 +880,10 @@ Implementation slices:
   primary-valid fallback model on demotion or mid-call failure.
 
 Deferred follow-up:
-- Fan out the main conversation (and Best-of-N candidates) across endpoints.
+- Fan out the main conversation across endpoints; the Best-of-N-candidates half
+  is concretized as LL26 (parallel selection across the mesh).
+- Task-based primary-model selection by mode/difficulty is tracked separately as
+  LL24 (explicit mode routing) and LL25 (auto difficulty / cascade escalation).
 - A periodic background health-check loop (today health is recorded from actual
   call outcomes, demoting after consecutive failures).
 
@@ -1197,6 +1204,14 @@ Follow-up (Self-Harness alignment):
   held-in / held-out split so LL17 can mine failures from held-in cases while
   validating proposals against an unseen held-out split, matching the paper's
   regression-gate protocol and reducing overfitting on small personal suites.
+
+Follow-up (orchestration gate enablement, for LL25/LL26/LL27):
+- The harness already scores wall-clock duration alongside pass rate, so the
+  "beats single-strong **including latency**" gates are measurable as-is — the
+  only residual work is letting an *orchestration recipe* (a multi-endpoint
+  A0/A1/A2 config: parallel selection, MoA-lite, or a role conductor) be driven
+  as a single replay candidate, so its end-to-end wall-clock and verification
+  pass rate are scored like any other candidate.
 
 ### LL13: Parallel Agents In Worktrees
 
@@ -1979,6 +1994,145 @@ Implementation status:
   Session-log triage for the continuation-stall signature is recorded in
   `docs/ll23_recovery_session_log_triage_2026-06-18.md`.
 
+
+### LL24: Task-Based Primary-Model Routing
+
+Status: `next`
+
+Scope:
+- Route the *primary* conversation turn (today LL1 only routes secondary roles) to
+  a model chosen by `AssistantMode`: plan/coding map to a stronger model, general
+  stays on the light default. An empty per-mode assignment falls back to the main
+  model, so the feature is opt-in and behaviour-preserving by default.
+- Resolve through a single `PrimaryModelRouter` (`RouteContext` → `ResolvedEndpoint`)
+  that reuses the LL1/LL8 `MeshEndpointRouter` for endpoint resolution and health
+  fallback.
+
+Acceptance criteria:
+- The resolved primary model auto-pulls its model-keyed LL3 capability profile and
+  LL23 harness config; no per-mode harness branching is added at call sites.
+- Route resolution happens at turn/step boundaries (re-invokable), never frozen
+  once per conversation, and emits a route reason to the session log.
+- A missing/disabled/unhealthy assigned endpoint degrades to the primary endpoint
+  without failing the active turn (inherited from `MeshEndpointRouter`).
+- Mid-conversation model swaps are bounded to step/turn boundaries to limit KV
+  cache loss (see LL6/LL22).
+
+Implementation slices:
+- `AppSettings` per-mode model + endpoint overrides (mirrors the LL1 role fields
+  and the `model_routing_settings_page.dart` UI pattern).
+- Pure `PrimaryModelRouter` domain service (`RouteContext` → `ResolvedEndpoint`).
+- Wire the router into `ChatNotifier` at the turn boundary; add route-reason
+  logging behind `enableLlmSessionLogs`.
+- Model-routing settings UI: per-mode rows alongside the existing LL1 role rows.
+
+Design seam (reserved for LL25):
+- The router is the single decision point and is re-invokable mid-turn, so LL25
+  adds a difficulty signal + escalation strategy without touching call sites.
+- A checkpoint that can request a re-route exists but is a no-op in LL24 (it always
+  declines to escalate).
+
+### LL25: Auto Difficulty Routing (Cascade Escalation)
+
+Status: `later`
+
+Scope:
+- Decide the primary model automatically instead of by explicit mode. Preferred
+  shape is cascade escalation: answer with the light model, then escalate to the
+  stronger model only when the turn is struggling — rather than paying an up-front
+  per-turn classifier call. On local hardware this avoids loading the heavy model
+  until it is actually needed.
+
+Escalation triggers (reuse existing signals):
+- LL7 verification feedback failure, tool-loop stall (`toolLoopMaxIterations`
+  reached), or explicit low-confidence from the light model.
+
+Alternative considered (a-priori routing):
+- A cheap classifier labels difficulty before answering: a heuristic (prompt
+  length, code blocks, keywords), an LL3-structured-output router call on the small
+  model, or an LL5-embedding classifier over labelled past turns. Higher per-turn
+  cost; retained as a fallback design if cascade re-run latency proves too high.
+
+Acceptance criteria:
+- Escalation only at step/turn boundaries (bounded KV-cache loss; see LL6/LL22).
+- Every route + escalation decision logs a reason usable as classifier training
+  signal (feeds the LL12/LL19 eval loop).
+- Escalation never overrides an explicit user model choice.
+
+Dependencies: LL24 (router seam), LL7 (verification signal). Related: LL3, LL5,
+LL12, LL19 for the a-priori classifier path; EDGE2 already names on-device routing
+as a micro-model task.
+
+### LL26: Parallel Best-of-N Selection Across The Mesh (A0)
+
+Status: `later` (high-confidence and cheap, but sequenced after LL24; promote to
+`next` once LL24 ships and the LL12 orchestration-recipe eval candidate exists)
+
+Scope:
+- Generate N candidates concurrently on resident mesh endpoints (PC1/PC2 …) using
+  the LL20 parallel slot substrate over LL8 routing, then keep the candidate that
+  passes verification (LL7). A *selection* ensemble — latency-neutral because the
+  workers run in parallel and each endpoint keeps its own KV cache.
+- The pragmatic near-term use of a multi-PC mesh; ships almost entirely on
+  existing parts (LL7 + LL8 + LL20). High-confidence win, no new coordinator layer.
+
+Acceptance criteria:
+- A downed endpoint degrades to fewer candidates without failing the turn (LL8).
+- Selection is verifier-grounded (compile / test / LSP), not a subjective vote.
+- No added per-turn latency vs a single strong model beyond the verifier pass.
+
+Implementation slices:
+- Fan candidate generation across mesh endpoints (extend LL7 Best-of-N onto LL8).
+- Verifier-pick + tie-break; record which endpoint won, for LL12/LL19 eval tuning.
+
+Optional extension — verifier-grounded synthesis pass:
+- Beyond pure selection, try a single *synthesis* pass over the top candidates
+  (one model re-writes a combined answer), then **re-verify the synthesized output**
+  so code keeps its ground truth — a coding-safe variant of OpenRouter Fusion's
+  judge→synthesis shape, without its "skip for coding" caveat.
+- Motivated by Fusion's DRACO finding that a model paired *with itself* gained
+  +6.7pts: synthesis helps even without model diversity, so this is cheap to try on
+  an already-resident pool. Keep it behind the eval gate (LL12/LL19) and accept it
+  only if `select+synthesize+re-verify` beats plain `select` on the user's tasks;
+  otherwise stay with selection. Full rationale: `docs/multi_model_orchestration_research.md`.
+
+### LL27: Collaborative Multi-Model Orchestration (Future Challenge)
+
+Status: `later` (retained thesis; eval-gated)
+
+Guiding thesis:
+- A **Trinity-style role conductor** — a small local coordinator that assigns
+  Thinker / Worker / Verifier roles to larger resident models on PC1/PC2 — is the
+  north star, the local-mesh analogue of Sakana Fugu. Kept as the design vision
+  even though it is deliberately not a committed near-term build (architecture A2
+  in the research doc).
+
+Scope (paradigms in play):
+- Layered aggregation: **Mixture-of-Agents** (parallel proposers → aggregator).
+- Role orchestration: AutoGen / MetaGPT-style Planner / Coder / Reviewer over LL1's
+  role→endpoint map and LL13's mesh-distributed worktree agents.
+- Debate for high-stakes plan / reasoning turns.
+- Message granularity only: token / logit fusion (DeePEn, distributed speculative
+  decoding) is ruled out over a LAN.
+
+Promotion gate (why it stays `later`):
+- Productize only if it beats a single strong model **including latency** on the
+  user's real tasks, measured with the LL12/LL19 eval harness. Orchestration must
+  be gated to plan / hard turns (LL24/LL25), never the default path.
+
+Known risks to validate before any build:
+- **Latency** — every paradigm adds round-trips; the slowest worker bounds the turn.
+- **Worker homogeneity** — same-family local models are correlated, shrinking the
+  ensemble upside; deliberately diversify the pool (different model lineages).
+- **Verification may beat ensembling for coding** — code has ground truth, so a
+  strong model + LL7 + LL11 LSP feedback can outperform debate / MoA.
+
+Full survey and candidate architectures (A0–A3): see
+`docs/multi_model_orchestration_research.md`.
+
+Dependencies: LL26 (parallel selection substrate), LL12 / LL19 (eval gate), LL1
+(role→endpoint map), LL13 (mesh worktree agents). Related: EDGE2 (on-device
+coordinator as a micro-model task).
 
 ## Future Platform Vision Milestone Notes
 
