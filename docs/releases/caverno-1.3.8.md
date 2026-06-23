@@ -23,6 +23,7 @@ Multi-participant chat coordination, semantic search (LL5), personal evaluation 
 
 - **Participant turn stability** — Fixed issues with participant turns being chat-only, serializing conversation messages correctly, and routing participant roles through the system prompt.
 - **Tool execution reliability** — Fixed `save_skill` inclusion in initial tool selection, constrained ask-user answer reuse by turn, and kept ask-user answers sticky per turn.
+- **Git commit guard** — Narrowed the `git_execute_command` commit preflight to only block when a *staged* file also has unstaged worktree edits (the stale-index footgun), instead of blocking any commit while unrelated files are unstaged or untracked. (`git_tools.dart`)
 - **Streaming and truncation handling** — Added flags for final answers truncated at the max-token limit and raised default max tokens from 4096 to 8192.
 - **Model lifecycle** — Added auto-preparation for switched primary models and logging for local model lifecycle actions.
 
