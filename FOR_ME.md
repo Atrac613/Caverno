@@ -222,7 +222,42 @@ designed, model just over-iterates. No change — another "don't touch" win.)
 Lesson: when you repeat an investigation, turn it into a tool. It pays for itself
 the first time it runs.
 
-### Lesson 7: the engineering mindset that kept paying off
+### Lesson 7: the flight recorder logs the cook's draft, not the plate that left the kitchen
+
+A coding session's log ended with the cook announcing "コミットが完了しました"
+(commit done) and a tidy table of what it "committed." `git status` told a
+different story: nothing was committed, both files still staged. Two threads came
+out of one log, and they pulled in opposite directions.
+
+The real bug was upstream. `git_execute_command` has a commit preflight
+(`git_tools.dart`) meant to stop a genuine footgun: committing a file whose
+*staged* snapshot is stale because the worktree has newer unstaged edits — the
+commit would silently drop them. Good intent, but it checked the whole worktree:
+it blocked `git commit` whenever *any* file anywhere was unstaged or untracked,
+even files unrelated to what you staged. So the cook staged the release note,
+tried to commit, got blocked by some unrelated `lib/**/*.dart` edit, re-staged,
+tried again, looped, and never landed it. The fix narrowed the guard to its real
+target: only block when a *staged* file *also* has unstaged worktree edits
+(porcelain `XY` both non-space). Unrelated dirty/untracked files no longer block
+the normal "stage a subset, commit it" workflow.
+
+The second thread is the trap, and it's the one worth remembering. I read
+"completed" in the log, assumed the lie had reached the user, and started building
+a turn-scoped "failure ledger" to catch success claims that contradict a failed
+tool result. Then I wrote the repro test before trusting myself — and it passed
+*without my change*. The existing completion-claim guards already replace that
+exact claim with an "unverified / not executed" notice. **The session log records
+the model's raw response, not the message `ChatNotifier` actually rendered after
+its post-response guards.** The cook had written down the dish it wished existed
+(exactly the failure mode flagged in this doc's opening), and the expediter had
+already caught the plate at the pass — the log just preserves the discarded draft.
+I reverted the ledger and kept the repro as a regression test. Lesson: when you
+debug from the flight recorder, the displayed truth lives at `state.messages`, not
+`response.content`. Reproduce at the UI layer before "fixing" a guard that already
+works — see [docs/session_logs.md](docs/session_logs.md) for the caveat now
+written down so the next investigator skips the detour.
+
+### Lesson 8: the engineering mindset that kept paying off
 
 - **Isolate to the smallest reproducer.** A 5-line `dart` probe cracked the
   Local Network Privacy mystery; a single-canary re-run proved reproducibility.

@@ -77,6 +77,18 @@ compact per-line metadata summary before reading large message payloads so a
 debugging turn does not spend most of its tool budget on repeated ad hoc
 parsing.
 
+`response.content` is the **raw model output**, not the message the user saw.
+After a response is received, `ChatNotifier` runs post-response guards that can
+rewrite or annotate the final assistant message before it is displayed — e.g.
+completion/success claims contradicted by a failed or missing tool result are
+replaced with an "unverified / not executed" notice
+(`_replaceFailedCommandSuccessClaimIfNeeded`, `_buildUnexecutedCommandActionToolResult`,
+`_appendUnexecutedToolRequestNoticeForContentIfNeeded`). So a log line such as
+"committed successfully" after a failed `git commit` may already have been
+neutralized on screen. Before concluding the model misled the user, reproduce
+the turn with a `sendMessage` test and assert on `state.messages.last.content`
+rather than trusting the logged `response.content`.
+
 For streaming operations wrapped by `SessionLoggingChatDataSource`, `stream_end`
 means Caverno finished reading the stream and wrote the accumulated text to the
 log. It is not an interruption signal by itself. Treat it as suspicious only
