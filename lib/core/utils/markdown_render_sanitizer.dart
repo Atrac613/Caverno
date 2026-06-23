@@ -138,7 +138,11 @@ class MarkdownRenderSanitizer {
   }
 
   /// Escapes HTML-like tags in a single line while leaving inline
-  /// backtick-delimited spans untouched.
+  /// backtick-delimited spans and TeX math spans untouched.
+  ///
+  /// Math is left verbatim so legitimate operators such as `<`/`>` inside
+  /// `$...$` (e.g. `$\langle x, y\rangle$`) are not corrupted into `&lt;`/`&gt;`
+  /// before the math renderer sees them.
   static String _escapeOutsideInlineCode(String line) {
     final buffer = StringBuffer();
     var inCode = false;
@@ -157,6 +161,13 @@ class MarkdownRenderSanitizer {
         continue;
       }
 
+      final mathEnd = _mathSpanEnd(line, i);
+      if (mathEnd != null) {
+        buffer.write(line.substring(i, mathEnd));
+        i = mathEnd;
+        continue;
+      }
+
       final match = _htmlLikeTagPattern.matchAsPrefix(line, i);
       if (match != null) {
         buffer.write('&lt;${match.group(1)}&gt;');
@@ -168,5 +179,48 @@ class MarkdownRenderSanitizer {
       i++;
     }
     return buffer.toString();
+  }
+
+  /// Returns the exclusive end index of a single-line TeX math span starting at
+  /// [start], or `null` when no closing delimiter exists on the line.
+  ///
+  /// Mirrors (loosely) the delimiters recognized by the math markdown syntaxes:
+  /// `$$...$$`, `$...$`, `\(...\)`, `\[...\]`. Multi-line display math is not
+  /// protected here, but `<`/`>` inside such blocks is vanishingly rare.
+  static int? _mathSpanEnd(String line, int start) {
+    final ch = line[start];
+    if (ch == r'$') {
+      // Display math: $$ ... $$
+      if (start + 1 < line.length && line[start + 1] == r'$') {
+        final close = line.indexOf(r'$$', start + 2);
+        if (close != -1) {
+          return close + 2;
+        }
+        return null;
+      }
+      // Inline math: $ ... $ with a non-space immediately after the opener.
+      if (start + 1 < line.length && line[start + 1].trim().isNotEmpty) {
+        final close = line.indexOf(r'$', start + 1);
+        if (close != -1 && close > start + 1) {
+          return close + 1;
+        }
+      }
+      return null;
+    }
+    if (ch == r'\' && start + 1 < line.length) {
+      final next = line[start + 1];
+      if (next == '(') {
+        final close = line.indexOf(r'\)', start + 2);
+        if (close != -1) {
+          return close + 2;
+        }
+      } else if (next == '[') {
+        final close = line.indexOf(r'\]', start + 2);
+        if (close != -1) {
+          return close + 2;
+        }
+      }
+    }
+    return null;
   }
 }

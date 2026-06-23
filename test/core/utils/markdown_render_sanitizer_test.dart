@@ -22,4 +22,17 @@ void main() {
       'Status: &lt;user@host&gt; and `<raw>`',
     );
   });
+
+  test('leaves angle brackets inside inline math untouched', () {
+    const markdown = r'The set $\langle x, y\rangle$ and <user@host>';
+    expect(
+      MarkdownRenderSanitizer.sanitize(markdown),
+      r'The set $\langle x, y\rangle$ and &lt;user@host&gt;',
+    );
+  });
+
+  test('leaves display math delimiters untouched', () {
+    const markdown = r'$$\vec{v} = <x, y>$$';
+    expect(MarkdownRenderSanitizer.sanitize(markdown), markdown);
+  });
 }

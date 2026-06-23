@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../core/utils/markdown_render_sanitizer.dart';
 import '../code_block_builder.dart';
+import '../math_markdown.dart';
 
 class PlanMarkdownPreview extends StatelessWidget {
   const PlanMarkdownPreview({
@@ -33,7 +34,11 @@ class PlanMarkdownPreview extends StatelessWidget {
           child: MarkdownBody(
             data: MarkdownRenderSanitizer.sanitize(markdown),
             selectable: false,
-            builders: {'pre': CodeBlockBuilder(theme: theme)},
+            inlineSyntaxes: MathMarkdown.inlineSyntaxes(),
+            builders: {
+              'pre': CodeBlockBuilder(theme: theme),
+              MathMarkdown.tag: MathElementBuilder(textColor: textColor),
+            },
             styleSheet: MarkdownStyleSheet(
               p: TextStyle(color: textColor, fontSize: 14, height: 1.5),
               h1: TextStyle(

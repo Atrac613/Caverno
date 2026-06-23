@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart';
@@ -103,6 +104,35 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('[broken\\'), findsOneWidget);
+  });
+
+  testWidgets('renders inline LaTeX math as a Math widget, not raw text', (
+    tester,
+  ) async {
+    await _pumpParsedContentView(
+      tester,
+      content: r'The complexity is $O(\sqrt{n})$ overall.',
+      isStreaming: false,
+    );
+
+    expect(tester.takeException(), isNull);
+    // The TeX span is rendered by flutter_math, so the raw delimiters must not
+    // survive as literal text.
+    expect(find.byType(Math), findsOneWidget);
+    expect(find.textContaining(r'$O(\sqrt{n})$'), findsNothing);
+  });
+
+  testWidgets('renders display math delimited by double dollars', (
+    tester,
+  ) async {
+    await _pumpParsedContentView(
+      tester,
+      content: r'$$\int_0^1 x^2 \, dx = \frac{1}{3}$$',
+      isStreaming: false,
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(Math), findsOneWidget);
   });
 
   testWidgets('notifies parent when a file reference link is selected', (
