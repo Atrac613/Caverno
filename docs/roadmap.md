@@ -73,6 +73,7 @@ handoffs can refer to the same unit of work over time.
 | Local LLM | LL20 | done | Parallel slot execution substrate: preserve provider extension fields, pin `id_slot`, run `--parallel N` candidates. | Unblocked LL7 (Best-of-N) and LL13 (parallel worktrees); compose the slot transport/discovery/executor providers. |
 | Local LLM | LL7 | done | Best-of-N patch generation gated by verification, plus overnight retry-until-green Routines. | Sequential checkpoint/verify with a consolidated report; a one-tap Routines UI preset and LL13-parallel generation are deferred follow-ups. |
 | Foundation | F4 | done | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS5 history search. | Migration + drift backend + FTS history search UI shipped and verified; retiring Hive is a deferred follow-up. Branch `feature/f4-drift-migration` integrated into main. |
+| Foundation | F6 | next | Guard the built-in tool catalog against silent tool-search omissions: every built-in tool must be explicitly classified as initial-load or intentionally deferred, enforced in CI. | First slice adds the exhaustiveness test over `BuiltInToolInfo`; optional follow-up makes `ToolDefinitionSearchService` initial-load category/flag-driven. |
 | Local LLM | LL5 | done | Local semantic history search via `/v1/embeddings`, stored in the F4 drift database. | Conversation history indexed + drift vector store + hybrid semantic/FTS history search UI + semantic-aware `search_past_conversations` shipped and device-verified; degrades to lexical FTS when no embeddings endpoint exists. Semantic *code* search is a deferred follow-up. Branch `feature/ll5-semantic-search` merged to main. |
 | Local LLM | LL8 | done | LAN inference mesh: discover and register OpenAI-compatible endpoints, route secondary calls per role with health fallback. | Discovery probe (unauthenticated `GET /v1/models`) + named-endpoint registry + mesh settings UI + per-role endpoint routing for secondary calls with primary fallback shipped and device-verified. Full-mesh main-conversation fan-out and a periodic health-check loop are deferred follow-ups. Branch `feature/ll8-lan-inference-mesh` is already integrated into main. |
 | Local LLM | LL9 | done | Local stack manager: model lifecycle controls and hardware-aware model guidance. | `Advanced > Local Stack` manages primary and LL8 endpoints across llama.cpp router, LM Studio, and Ollama, with role-model prepare, resource fit guidance, speedup guidance, and focused verification. |
@@ -95,7 +96,7 @@ handoffs can refer to the same unit of work over time.
 | Skills | SKILL2 | done | Drive skill lifecycle from chat with `/skill`, update-by-name, and diff-before-save review. | Shipped in `1a73c8b8`: `/skill` and `save-skill` route to `save_skill`, and existing-skill updates preview a diff before approval. |
 | Skills | SKILL3 | later | Mine recurring verified workflows into proposed skills during idle windows. | Wait for LL18/OBS1 evidence so proposals are grounded in traces and remain user-reviewed before adoption. |
 
-Remaining Foundation F5 and the future platform vision milestones are detailed in
+Remaining Foundation F5/F6 and the future platform vision milestones are detailed in
 `docs/local_llm_agent_roadmap.md`.
 
 ## Plan Mode Track

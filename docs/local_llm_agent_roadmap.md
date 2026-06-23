@@ -124,6 +124,7 @@ structurally unmotivated to build:
 | Foundation | F3 | done | M | — | Major dependency upgrades, `openai_dart` 6.x first. |
 | Foundation | F4 | done | L | — | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS history search. |
 | Foundation | F5 | later | ongoing | F2 | Continue large-file decomposition per `docs/large_file_refactor_plan.md` phases 2-4. |
+| Foundation | F6 | next | S | F1 | Built-in tool initial-load classification guard: a CI-enforced exhaustiveness test (plus optional category/flag-driven selection) so new built-in tools cannot be silently omitted from the dynamic tool-search initial set. |
 | Local LLM | LL1 | done | S | — | Per-role model routing (memory extraction, subagents, goal suggestions, approval auto-review on a small fast model). |
 | Local LLM | LL2 | done | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
 | Local LLM | LL3 | done | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
@@ -508,6 +509,46 @@ Deferred follow-up:
   release; Hive is retained as the migration source and runtime fallback until
   then.
 - LL5 stores embedding vectors in this same drift database.
+
+### F6: Built-In Tool Initial-Load Classification Guard
+
+Status: `next`
+
+Context:
+- In the default mode (prefix-stable tool loop off), `ToolDefinitionSearchService`
+  sends only an initial subset of tools plus `tool_search`; the subset is the
+  hand-maintained `_alwaysLoadedToolNames` set (`_shouldLoadInitially`).
+- That set must stay in sync with the built-in catalog
+  (`BuiltInToolInfo`, ~104 tools). Nothing enforces the sync, so a new built-in
+  tool is silently reachable only via `tool_search` until someone notices.
+- Confirmed misses: `save_skill` (SKILL1; fixed) and `resolve_installed_dependency`
+  (LL10) were never added to the initial set. The model never sees them and has
+  no signal to search for them, so the feature is effectively unreachable in the
+  default mode. The `http_post/put/patch/delete` deferral, by contrast, is a
+  deliberate read-verbs-loaded / write-verbs-deferred choice.
+
+Scope:
+- Add a CI-enforced exhaustiveness test: every `BuiltInToolInfo` name must be
+  explicitly classified as initial-load or intentionally deferred. An
+  unclassified built-in tool fails the test (the same shape as the F1 ratchet).
+- Introduce an explicit deferred set so deliberate deferral
+  (e.g. mutating HTTP verbs, heavy `run_python_script`) is distinguishable from
+  an accidental omission.
+- Optional follow-up: drive the initial-load decision from `BuiltInToolInfo`
+  category/`deferred` metadata so the duplicate `_alwaysLoadedToolNames` list is
+  removed and new built-in tools default to the safe (initial-load) direction.
+
+Acceptance criteria:
+- A new built-in tool added to `BuiltInToolInfo` without an initial/deferred
+  classification fails CI with an actionable message.
+- `save_skill` and `resolve_installed_dependency` are classified initial-load;
+  the deliberate `http_*` write-verb deferral is recorded as intentional.
+- No change to the deferred remote/MCP long-tail behavior or the weak-model
+  tool-count reduction goal of the dynamic tool-search mode.
+
+Next action:
+- Ships independently of F5; can land as one small slice. Pairs with MCP-GOV1
+  if its linter scope is later broadened from MCP tools to the built-in catalog.
 
 ### LL1: Per-Role Model Routing
 
@@ -3169,6 +3210,9 @@ Acceptance criteria:
 
 - All tracks obey the F1 ratchet: no milestone may push a budgeted file past
   its budget; extraction slices lower budgets in the same PR.
+- New built-in tools obey the F6 guard: every `BuiltInToolInfo` entry is
+  classified as tool-search initial-load or intentionally deferred, so a tool is
+  never silently hidden behind `tool_search`.
 - LL3 profiles are the single source of model-behavior tuning. LL4, LL6, LL7,
   LL12, LL15, and LL16 read the profile rather than adding per-feature model
   flags.
