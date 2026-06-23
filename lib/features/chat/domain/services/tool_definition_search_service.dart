@@ -78,6 +78,10 @@ class ToolDefinitionSearchService {
     'local_execute_command',
     'run_tests',
     'git_execute_command',
+    // Keep dependency grounding in the initial set so coding answers can be
+    // grounded in the project's installed sources without first calling
+    // tool_search (LL10). Covered by the F6 classification guard.
+    'resolve_installed_dependency',
     'ping6',
     'arp',
     'ndp',
@@ -306,10 +310,14 @@ class ToolDefinitionSearchService {
     List<Map<String, dynamic>> definitions,
   ) {
     final names = toolNamesFromDefinitions(definitions);
-    return names.where(_shouldLoadInitially).toSet()..add(toolName);
+    return names.where(shouldLoadInitially).toSet()..add(toolName);
   }
 
-  static bool _shouldLoadInitially(String toolName) {
+  /// Whether [toolName] is part of the initial tool-search selection (sent on
+  /// the first request) rather than deferred behind `tool_search`. Public so
+  /// the F6 classification guard can assert every built-in tool is either
+  /// initial-loaded or intentionally deferred.
+  static bool shouldLoadInitially(String toolName) {
     final normalized = toolName.trim().toLowerCase();
     return _alwaysLoadedToolNames.contains(normalized) ||
         normalized.startsWith('wifi_') ||

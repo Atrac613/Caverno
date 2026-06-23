@@ -124,7 +124,7 @@ structurally unmotivated to build:
 | Foundation | F3 | done | M | — | Major dependency upgrades, `openai_dart` 6.x first. |
 | Foundation | F4 | done | L | — | Migrate conversations/chat memory from Hive to drift (SQLite) with FTS history search. |
 | Foundation | F5 | later | ongoing | F2 | Continue large-file decomposition per `docs/large_file_refactor_plan.md` phases 2-4. |
-| Foundation | F6 | next | S | F1 | Built-in tool initial-load classification guard: a CI-enforced exhaustiveness test (plus optional category/flag-driven selection) so new built-in tools cannot be silently omitted from the dynamic tool-search initial set. |
+| Foundation | F6 | done | S | F1 | Built-in tool initial-load classification guard: a CI-enforced exhaustiveness test (plus optional category/flag-driven selection) so new built-in tools cannot be silently omitted from the dynamic tool-search initial set. |
 | Local LLM | LL1 | done | S | — | Per-role model routing (memory extraction, subagents, goal suggestions, approval auto-review on a small fast model). |
 | Local LLM | LL2 | done | S-M | — | Whole-turn checkpoints via shadow git, building on `rollback_last_file_change`. |
 | Local LLM | LL3 | done | M | F3 (openai_dart) | Model capability profiles with automatic probing on model registration. |
@@ -512,7 +512,7 @@ Deferred follow-up:
 
 ### F6: Built-In Tool Initial-Load Classification Guard
 
-Status: `next`
+Status: `done`
 
 Context:
 - In the default mode (prefix-stable tool loop off), `ToolDefinitionSearchService`
@@ -546,9 +546,23 @@ Acceptance criteria:
 - No change to the deferred remote/MCP long-tail behavior or the weak-model
   tool-count reduction goal of the dynamic tool-search mode.
 
-Next action:
-- Ships independently of F5; can land as one small slice. Pairs with MCP-GOV1
-  if its linter scope is later broadened from MCP tools to the built-in catalog.
+Evidence:
+- `ToolDefinitionSearchService.shouldLoadInitially` is now public, and
+  `resolve_installed_dependency` was added to `_alwaysLoadedToolNames`.
+- `test/features/chat/domain/services/tool_definition_search_service_test.dart`
+  adds the "built-in tool initial-load classification (F6)" group: every
+  `BuiltInToolRegistry.tools` entry must be initial-loaded or in the explicit
+  deferred categories (`computer_use`/`browser`/`ssh`/`serial`/`ble`/`system`)
+  or deferred names (`http_post`/`put`/`patch`/`delete`, `run_python_script`),
+  with positive assertions for `save_skill` and `resolve_installed_dependency`.
+- Focused test (14/14) and `flutter analyze` pass.
+
+Deferred optional follow-up:
+- The deferred classification currently lives in the guard test. Moving the
+  initial-load decision into `BuiltInToolRegistry` category/`deferred` metadata
+  (removing the hand-maintained `_alwaysLoadedToolNames` list so new tools
+  default to the safe initial-load direction) remains a follow-up. Pairs with
+  MCP-GOV1 if its linter scope is later broadened to the built-in catalog.
 
 ### LL1: Per-Role Model Routing
 

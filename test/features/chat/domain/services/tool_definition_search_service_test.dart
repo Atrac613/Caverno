@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
+import 'package:caverno/features/settings/domain/entities/built_in_tool_info.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -289,6 +290,75 @@ void main() {
       ]);
 
       expect(names, {'query_database'});
+    });
+  });
+
+  // F6 guard: every built-in tool must be explicitly classified as tool-search
+  // initial-load or intentionally deferred, so a new tool can never be silently
+  // hidden behind tool_search (as save_skill and resolve_installed_dependency
+  // were before this guard existed).
+  group('built-in tool initial-load classification (F6)', () {
+    // Built-in categories whose tools are intentionally deferred behind
+    // tool_search by default (heavy, rare, or platform-specific surfaces).
+    const deferredCategories = {
+      BuiltInToolRegistry.categoryComputerUse,
+      BuiltInToolRegistry.categoryBrowser,
+      BuiltInToolRegistry.categorySsh,
+      BuiltInToolRegistry.categorySerial,
+      BuiltInToolRegistry.categoryBle,
+      BuiltInToolRegistry.categorySystem,
+    };
+    // Individual built-in tools intentionally deferred even though their
+    // category is otherwise initial-loaded: mutating HTTP verbs and heavy
+    // script execution stay behind tool_search.
+    const deferredNames = {
+      'http_post',
+      'http_put',
+      'http_patch',
+      'http_delete',
+      'run_python_script',
+    };
+
+    test('every built-in tool is initial-load or intentionally deferred', () {
+      final unclassified = <String>[];
+      for (final info in BuiltInToolRegistry.tools) {
+        final initial = ToolDefinitionSearchService.shouldLoadInitially(
+          info.name,
+        );
+        final deferred =
+            deferredCategories.contains(info.category) ||
+            deferredNames.contains(info.name);
+        if (!initial && !deferred) {
+          unclassified.add('${info.name} (${info.category})');
+        }
+        expect(
+          initial && deferredNames.contains(info.name),
+          isFalse,
+          reason: '${info.name} is both initial-load and explicitly deferred',
+        );
+      }
+      expect(
+        unclassified,
+        isEmpty,
+        reason:
+            'These built-in tools are neither initial-loaded nor intentionally '
+            'deferred, so they would be silently hidden behind tool_search. Add '
+            'each to ToolDefinitionSearchService initial loading, or to the '
+            'deferred categories/names in this guard: $unclassified',
+      );
+    });
+
+    test('skill authoring and dependency grounding load initially', () {
+      expect(
+        ToolDefinitionSearchService.shouldLoadInitially('save_skill'),
+        isTrue,
+      );
+      expect(
+        ToolDefinitionSearchService.shouldLoadInitially(
+          'resolve_installed_dependency',
+        ),
+        isTrue,
+      );
     });
   });
 }
