@@ -246,7 +246,7 @@ void main() {
 
       expect(commitResult['exit_code'], 2);
       expect(commitResult['code'], 'git_commit_unstaged_changes');
-      expect(commitResult['error'], contains('unstaged or untracked changes'));
+      expect(commitResult['error'], contains('unstaged changes'));
 
       final headFile = decode(
         await GitTools.execute(
@@ -256,5 +256,67 @@ void main() {
       );
       expect(headFile['stdout'], 'version: 1.3.5+16\n');
     });
+
+    test(
+      'allows commit when only unrelated files are unstaged or untracked',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'git_tools_partial_stage_test_',
+        );
+        addTearDown(() async {
+          if (tempDir.existsSync()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
+
+        Map<String, dynamic> decode(String raw) =>
+            jsonDecode(raw) as Map<String, dynamic>;
+
+        Future<Map<String, dynamic>> run(String command) async => decode(
+          await GitTools.execute(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+        );
+
+        expect((await run('init'))['exit_code'], 0);
+        expect(
+          (await run('config user.email "canary@example.com"'))['exit_code'],
+          0,
+        );
+        expect((await run('config user.name "Canary Bot"'))['exit_code'], 0);
+
+        // Establish a base commit with one tracked file.
+        final tracked = File('${tempDir.path}/tracked.txt');
+        await tracked.writeAsString('base\n');
+        expect((await run('add tracked.txt'))['exit_code'], 0);
+        expect((await run('commit -m "base"'))['exit_code'], 0);
+
+        // Stage a NEW file we intend to commit, with a clean worktree for it.
+        final staged = File('${tempDir.path}/release-notes.md');
+        await staged.writeAsString('# Release notes\n');
+        expect((await run('add release-notes.md'))['exit_code'], 0);
+
+        // Leave an UNRELATED tracked file modified-but-unstaged and an
+        // unrelated untracked file present — mirroring the real-world repo
+        // state where lib/**/*.dart edits should not block a docs commit.
+        await tracked.writeAsString('base\nlocal edit\n');
+        await File('${tempDir.path}/scratch.tmp').writeAsString('wip\n');
+
+        final commitResult = await run('commit -m "Add release notes"');
+        expect(commitResult['exit_code'], 0);
+        expect(commitResult['code'], isNull);
+
+        // The staged file made it into the commit...
+        final headFile = await run('show HEAD:release-notes.md');
+        expect(headFile['stdout'], '# Release notes\n');
+
+        // ...while the unrelated unstaged edit and untracked file are left as-is.
+        expect(await tracked.readAsString(), 'base\nlocal edit\n');
+        final statusAfter = await run('status --porcelain');
+        expect(statusAfter['stdout'], contains(' M tracked.txt'));
+        expect(statusAfter['stdout'], contains('?? scratch.tmp'));
+      },
+    );
   });
 }

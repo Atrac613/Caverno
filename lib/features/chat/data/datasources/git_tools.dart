@@ -352,7 +352,7 @@ class GitTools {
     required String workingDirectory,
     required Map<String, String> environment,
   }) async {
-    if (!_requiresCleanWorktreeForCommit(args)) {
+    if (!_commitNeedsPartialStageCheck(args)) {
       return null;
     }
 
@@ -376,7 +376,7 @@ class GitTools {
       }
 
       final stdout = status.stdout as String;
-      if (!_hasUnstagedOrUntrackedChanges(stdout)) {
+      if (!_hasPartiallyStagedFiles(stdout)) {
         return null;
       }
       return jsonEncode({
@@ -385,8 +385,11 @@ class GitTools {
         'exit_code': 2,
         'code': 'git_commit_unstaged_changes',
         'error':
-            'git commit was blocked because the working tree has unstaged or untracked changes. '
-            'Run git status --short and stage the intended files with git add before committing.',
+            'git commit was blocked because one or more staged files still have '
+            'unstaged changes in the working tree; committing now would silently '
+            'omit those edits. Re-stage them with git add (or use git commit -a), '
+            'then commit again. Files only modified-but-unstaged or untracked do '
+            'not need staging unless you intend to commit them.',
         'status': stdout.length > _kMaxOutputChars
             ? stdout.substring(0, _kMaxOutputChars)
             : stdout,
@@ -411,7 +414,10 @@ class GitTools {
     }
   }
 
-  static bool _requiresCleanWorktreeForCommit(List<String> args) {
+  /// Whether a `git commit` invocation can leave a partially-staged file's
+  /// worktree edits behind. `commit -a` / `--all` re-stage every tracked file
+  /// before committing, so they cannot omit edits and skip the preflight.
+  static bool _commitNeedsPartialStageCheck(List<String> args) {
     if (args.isEmpty || args.first != 'commit') {
       return false;
     }
@@ -431,15 +437,26 @@ class GitTools {
     return true;
   }
 
-  static bool _hasUnstagedOrUntrackedChanges(String statusPorcelain) {
+  /// Returns true when any file is **partially staged**: it has staged content
+  /// in the index *and* further unstaged edits in the worktree. Committing such
+  /// a file records the stale index snapshot and silently drops the unstaged
+  /// delta — the footgun this preflight guards against.
+  ///
+  /// Files that are only unstaged-modified (` M`) or only untracked (`??`) are
+  /// not flagged: a normal `git commit` correctly leaves them untouched, so
+  /// blocking on them would break the standard "stage a subset, commit it"
+  /// workflow.
+  ///
+  /// Porcelain v1 status lines are `XY <path>`, where X is the index column and
+  /// Y the worktree column; a partially-staged file has both non-space.
+  static bool _hasPartiallyStagedFiles(String statusPorcelain) {
     for (final line in const LineSplitter().convert(statusPorcelain)) {
-      if (line.isEmpty || line.startsWith('!!')) {
+      if (line.length < 2 || line.startsWith('!!') || line.startsWith('??')) {
         continue;
       }
-      if (line.startsWith('??')) {
-        return true;
-      }
-      if (line.length >= 2 && line.codeUnitAt(1) != 0x20) {
+      final indexStatus = line.codeUnitAt(0);
+      final worktreeStatus = line.codeUnitAt(1);
+      if (indexStatus != 0x20 && worktreeStatus != 0x20) {
         return true;
       }
     }
