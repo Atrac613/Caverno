@@ -85,6 +85,7 @@ import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/model_edit_apply_telemetry_service.dart';
 import '../../domain/services/model_switch_handoff_brief_service.dart';
+import '../../domain/services/participant_tool_policy.dart';
 import '../../domain/services/participant_turn_coordinator.dart';
 import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_tool_policy.dart';
@@ -5300,7 +5301,9 @@ class ChatNotifier extends Notifier<ChatState> {
       return message;
     }
 
-    final strippedContent = ContentParser.stripToolArtifacts(message.content);
+    final strippedContent = ContentParser.stripModelHistoryArtifacts(
+      message.content,
+    );
     if (strippedContent == message.content) {
       return message;
     }
@@ -5421,6 +5424,8 @@ class ChatNotifier extends Notifier<ChatState> {
   List<ConversationParticipant> _pausedParticipantTurnParticipants = const [];
   ParticipantTurnConfig? _pausedParticipantTurnConfig;
   String? _pausedParticipantTurnConversationId;
+  String? _pausedParticipantTurnPreferredId;
+  String? _pausedParticipantTurnLastSpeakerId;
   ChatInteractionOrigin _activeInteractionOrigin = ChatInteractionOrigin.local;
 
   bool get _isRemoteInteraction =>
@@ -5543,6 +5548,8 @@ class ChatNotifier extends Notifier<ChatState> {
     _pausedParticipantTurnParticipants = const [];
     _pausedParticipantTurnConfig = null;
     _pausedParticipantTurnConversationId = null;
+    _pausedParticipantTurnPreferredId = null;
+    _pausedParticipantTurnLastSpeakerId = null;
   }
 
   Future<void> sendMessage(
@@ -13806,6 +13813,8 @@ class ChatNotifier extends Notifier<ChatState> {
     _pausedParticipantTurnParticipants = const [];
     _pausedParticipantTurnConfig = null;
     _pausedParticipantTurnConversationId = null;
+    _pausedParticipantTurnPreferredId = null;
+    _pausedParticipantTurnLastSpeakerId = null;
     _clearAllActiveResponses();
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;

@@ -41,6 +41,14 @@ _Message _$MessageFromJson(Map<String, dynamic> json) => _Message(
   participantDisplayName: json['participantDisplayName'] as String?,
   participantRoleLabel: json['participantRoleLabel'] as String?,
   participantColorValue: (json['participantColorValue'] as num?)?.toInt(),
+  participantToolNames:
+      (json['participantToolNames'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const <String>[],
+  handoffTargetParticipantId: json['handoffTargetParticipantId'] as String?,
+  handoffTargetDisplayName: json['handoffTargetDisplayName'] as String?,
+  handoffTargetRoleLabel: json['handoffTargetRoleLabel'] as String?,
   responseMetrics: json['responseMetrics'] == null
       ? null
       : MessageResponseMetrics.fromJson(
@@ -63,6 +71,10 @@ Map<String, dynamic> _$MessageToJson(_Message instance) => <String, dynamic>{
   'participantDisplayName': instance.participantDisplayName,
   'participantRoleLabel': instance.participantRoleLabel,
   'participantColorValue': instance.participantColorValue,
+  'participantToolNames': instance.participantToolNames,
+  'handoffTargetParticipantId': instance.handoffTargetParticipantId,
+  'handoffTargetDisplayName': instance.handoffTargetDisplayName,
+  'handoffTargetRoleLabel': instance.handoffTargetRoleLabel,
   'responseMetrics': instance.responseMetrics,
 };
 

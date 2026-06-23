@@ -18,6 +18,11 @@ class LlmSessionLogContext {
     this.routineId,
     this.routineRunId,
     this.phase,
+    this.participantId,
+    this.participantName,
+    this.participantRoleLabel,
+    this.participantToolsEnabled,
+    this.participantToolNames = const <String>[],
   });
 
   final WorkspaceMode workspaceMode;
@@ -27,6 +32,11 @@ class LlmSessionLogContext {
   final String? routineId;
   final String? routineRunId;
   final String? phase;
+  final String? participantId;
+  final String? participantName;
+  final String? participantRoleLabel;
+  final bool? participantToolsEnabled;
+  final List<String> participantToolNames;
 
   static LlmSessionLogContext? get current {
     return Zone.current[_llmSessionLogContextZoneKey] as LlmSessionLogContext?;
@@ -36,7 +46,35 @@ class LlmSessionLogContext {
     return runZoned(body, zoneValues: {_llmSessionLogContextZoneKey: context});
   }
 
+  LlmSessionLogContext withParticipant({
+    required String participantId,
+    required String participantName,
+    required String participantRoleLabel,
+    required bool toolsEnabled,
+    List<String> toolNames = const <String>[],
+    String? phase,
+  }) {
+    return LlmSessionLogContext(
+      workspaceMode: workspaceMode,
+      sessionId: sessionId,
+      sessionTitle: sessionTitle,
+      conversationId: conversationId,
+      routineId: routineId,
+      routineRunId: routineRunId,
+      phase: phase ?? this.phase,
+      participantId: participantId,
+      participantName: participantName,
+      participantRoleLabel: participantRoleLabel,
+      participantToolsEnabled: toolsEnabled,
+      participantToolNames: toolNames,
+    );
+  }
+
   Map<String, dynamic> toJson() {
+    final normalizedParticipantToolNames = participantToolNames
+        .map((name) => name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
     return {
       'workspaceMode': workspaceMode.name,
       'sessionId': sessionId,
@@ -49,6 +87,17 @@ class LlmSessionLogContext {
       if (routineRunId != null && routineRunId!.trim().isNotEmpty)
         'routineRunId': routineRunId!.trim(),
       if (phase != null && phase!.trim().isNotEmpty) 'phase': phase!.trim(),
+      if (participantId != null && participantId!.trim().isNotEmpty)
+        'participantId': participantId!.trim(),
+      if (participantName != null && participantName!.trim().isNotEmpty)
+        'participantName': participantName!.trim(),
+      if (participantRoleLabel != null &&
+          participantRoleLabel!.trim().isNotEmpty)
+        'participantRoleLabel': participantRoleLabel!.trim(),
+      if (participantToolsEnabled != null)
+        'participantToolsEnabled': participantToolsEnabled,
+      if (normalizedParticipantToolNames.isNotEmpty)
+        'participantToolNames': normalizedParticipantToolNames,
     };
   }
 }

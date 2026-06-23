@@ -274,6 +274,51 @@ void main() {
         isFalse,
       );
     });
+
+    test('records participant attribution in session log context', () async {
+      final store = LlmSessionLogStore(
+        rootDirectoryProvider: () async => tempDir,
+      );
+      final context =
+          const LlmSessionLogContext(
+            workspaceMode: WorkspaceMode.chat,
+            sessionId: 'discussion-1',
+            conversationId: 'discussion-1',
+          ).withParticipant(
+            participantId: 'reviewer',
+            participantName: 'Reviewer',
+            participantRoleLabel: 'Critic',
+            toolsEnabled: true,
+            toolNames: const ['read_file', ' ', 'web_search'],
+            phase: 'participant_turn',
+          );
+      final startedAt = DateTime(2026, 5, 26, 12);
+
+      await store.record(
+        context: context,
+        request: LlmSessionLogRequest(
+          operation: 'streamChatCompletionWithTools',
+          messages: [_message('user-1', MessageRole.user, 'Discuss this')],
+        ),
+        startedAt: startedAt,
+        finishedAt: startedAt,
+      );
+
+      final line = (await (await store.fileForContext(
+        context,
+      )).readAsLines()).single;
+      final decoded = jsonDecode(line) as Map<String, dynamic>;
+      final loggedContext = decoded['context'] as Map<String, dynamic>;
+      expect(loggedContext['phase'], 'participant_turn');
+      expect(loggedContext['participantId'], 'reviewer');
+      expect(loggedContext['participantName'], 'Reviewer');
+      expect(loggedContext['participantRoleLabel'], 'Critic');
+      expect(loggedContext['participantToolsEnabled'], isTrue);
+      expect(loggedContext['participantToolNames'], [
+        'read_file',
+        'web_search',
+      ]);
+    });
   });
 
   group('SessionLoggingChatDataSource', () {

@@ -100,6 +100,19 @@ void main() {
     expect(stripped, isNot(contains('arp')));
   });
 
+  test('stripModelHistoryArtifacts removes thinking and tool artifacts', () {
+    const content =
+        '<think>Hidden planning with private notes.</think>\n'
+        'Visible answer.\n'
+        '<tool_call>{"name":"read_file","arguments":{"path":"README.md"}}</tool_call>';
+
+    final stripped = ContentParser.stripModelHistoryArtifacts(content);
+
+    expect(stripped, 'Visible answer.');
+    expect(stripped, isNot(contains('Hidden planning')));
+    expect(stripped, isNot(contains('read_file')));
+  });
+
   test('extractCompletedToolCalls parses legacy malformed closing tokens', () {
     const content =
         '<|tool_call>call:write_file{path:"lan_devices.json",contents:"[]"}<tool_call|>';

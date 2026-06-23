@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/datasources/mesh_secondary_completion_runner.dart';
 import 'package:caverno/features/chat/data/datasources/participant_completion_runner.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
+import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
@@ -143,6 +144,79 @@ void main() {
 
     expect(chunks, ['a']);
   });
+
+  test('executes participant tools and streams the follow-up answer', () async {
+    final primary = _FakeChatDataSource(
+      'primary',
+      toolResponses: [
+        _ToolStreamResponse(
+          chunks: const [
+            '<tool_call>{"name":"read_file","arguments":{"path":"README.md"}}</tool_call>',
+          ],
+          completion: ChatCompletionResult(
+            content:
+                '<tool_call>{"name":"read_file","arguments":{"path":"README.md"}}</tool_call>',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'call_1',
+                name: 'read_file',
+                arguments: const {'path': 'README.md'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ),
+        _ToolStreamResponse(
+          chunks: const ['Final answer'],
+          completion: ChatCompletionResult(
+            content: 'Final answer',
+            finishReason: 'stop',
+          ),
+        ),
+      ],
+    );
+    final meshRunner = MeshSecondaryCompletionRunner<ChatDataSource>(
+      router: const MeshEndpointRouter(),
+      health: EndpointHealthTracker(),
+      buildEndpointDataSource: (baseUrl, apiKey) =>
+          _FakeChatDataSource(baseUrl),
+    );
+    final runner = ParticipantCompletionRunner(meshRunner: meshRunner);
+    final chunks = <String>[];
+    final toolCalls = <ToolCallInfo>[];
+
+    await runner.stream(
+      primary: primary,
+      settings: _settings(endpoints: const []),
+      request: ParticipantCompletionRequest(
+        participant: _participant(endpointId: ''),
+        messages: [_message('m1')],
+        model: 'primary-model',
+        temperature: 0.25,
+        maxTokens: 123,
+        toolDefinitions: [_toolDefinition('read_file')],
+        executeToolCall: (toolCall) async {
+          toolCalls.add(toolCall);
+          return const McpToolResult(
+            toolName: 'read_file',
+            result: 'README contents',
+            isSuccess: true,
+          );
+        },
+      ),
+      shouldContinue: () => true,
+      onChunk: chunks.add,
+    );
+
+    expect(chunks, ['Final answer']);
+    expect(toolCalls.single.name, 'read_file');
+    expect(primary.toolRequests, hasLength(2));
+    expect(_toolNames(primary.toolRequests.first.tools), ['read_file']);
+    expect(
+      primary.toolRequests.last.messages.last.content,
+      contains('README contents'),
+    );
+  });
 }
 
 class _StreamRequest {
@@ -159,13 +233,44 @@ class _StreamRequest {
   final int? maxTokens;
 }
 
+class _ToolStreamRequest {
+  const _ToolStreamRequest({
+    required this.messages,
+    required this.tools,
+    required this.model,
+    required this.temperature,
+    required this.maxTokens,
+  });
+
+  final List<Message> messages;
+  final List<Map<String, dynamic>> tools;
+  final String? model;
+  final double? temperature;
+  final int? maxTokens;
+}
+
+class _ToolStreamResponse {
+  const _ToolStreamResponse({required this.chunks, required this.completion});
+
+  final List<String> chunks;
+  final ChatCompletionResult completion;
+}
+
 class _FakeChatDataSource extends ChatDataSource {
-  _FakeChatDataSource(this.name, {this.chunks = const [], this.error});
+  _FakeChatDataSource(
+    this.name, {
+    this.chunks = const [],
+    this.toolResponses = const [],
+    this.error,
+  });
 
   final String name;
   final List<String> chunks;
+  final List<_ToolStreamResponse> toolResponses;
   final Object? error;
   final List<_StreamRequest> requests = [];
+  final List<_ToolStreamRequest> toolRequests = [];
+  int _toolResponseIndex = 0;
 
   @override
   Stream<String> streamChatCompletion({
@@ -208,7 +313,20 @@ class _FakeChatDataSource extends ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
-    throw UnimplementedError();
+    toolRequests.add(
+      _ToolStreamRequest(
+        messages: [...messages],
+        tools: [...tools],
+        model: model,
+        temperature: temperature,
+        maxTokens: maxTokens,
+      ),
+    );
+    final response = toolResponses[_toolResponseIndex++];
+    return StreamWithToolsResult(
+      stream: Stream<String>.fromIterable(response.chunks),
+      completion: Future<ChatCompletionResult>.value(response.completion),
+    );
   }
 
   @override
@@ -241,4 +359,23 @@ class _FakeChatDataSource extends ChatDataSource {
   }) {
     throw UnimplementedError();
   }
+}
+
+Map<String, dynamic> _toolDefinition(String name) {
+  return {
+    'type': 'function',
+    'function': {'name': name},
+  };
+}
+
+List<String> _toolNames(List<Map<String, dynamic>> definitions) {
+  return definitions
+      .map((definition) {
+        final function = definition['function'];
+        if (function is! Map) return null;
+        final name = function['name'];
+        return name is String ? name : null;
+      })
+      .nonNulls
+      .toList(growable: false);
 }

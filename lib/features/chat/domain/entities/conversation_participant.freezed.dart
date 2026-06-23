@@ -284,7 +284,7 @@ as int,
 /// @nodoc
 mixin _$ConversationParticipant {
 
- String get id; String get displayName; String get roleLabel; String get roleSystemPrompt; String get endpointId; String get model;@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode get toolApprovalMode; bool get toolsEnabled; int get colorValue; int get order; bool get enabled;
+ String get id; String get displayName; String get roleLabel; String get roleSystemPrompt; String get endpointId; String get model; bool get facilitatesTurns;@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode get toolApprovalMode; bool get toolsEnabled; int get colorValue; int get order; bool get enabled;
 /// Create a copy of ConversationParticipant
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -297,16 +297,16 @@ $ConversationParticipantCopyWith<ConversationParticipant> get copyWith => _$Conv
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationParticipant&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.roleLabel, roleLabel) || other.roleLabel == roleLabel)&&(identical(other.roleSystemPrompt, roleSystemPrompt) || other.roleSystemPrompt == roleSystemPrompt)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolApprovalMode, toolApprovalMode) || other.toolApprovalMode == toolApprovalMode)&&(identical(other.toolsEnabled, toolsEnabled) || other.toolsEnabled == toolsEnabled)&&(identical(other.colorValue, colorValue) || other.colorValue == colorValue)&&(identical(other.order, order) || other.order == order)&&(identical(other.enabled, enabled) || other.enabled == enabled));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationParticipant&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.roleLabel, roleLabel) || other.roleLabel == roleLabel)&&(identical(other.roleSystemPrompt, roleSystemPrompt) || other.roleSystemPrompt == roleSystemPrompt)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.model, model) || other.model == model)&&(identical(other.facilitatesTurns, facilitatesTurns) || other.facilitatesTurns == facilitatesTurns)&&(identical(other.toolApprovalMode, toolApprovalMode) || other.toolApprovalMode == toolApprovalMode)&&(identical(other.toolsEnabled, toolsEnabled) || other.toolsEnabled == toolsEnabled)&&(identical(other.colorValue, colorValue) || other.colorValue == colorValue)&&(identical(other.order, order) || other.order == order)&&(identical(other.enabled, enabled) || other.enabled == enabled));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,displayName,roleLabel,roleSystemPrompt,endpointId,model,toolApprovalMode,toolsEnabled,colorValue,order,enabled);
+int get hashCode => Object.hash(runtimeType,id,displayName,roleLabel,roleSystemPrompt,endpointId,model,facilitatesTurns,toolApprovalMode,toolsEnabled,colorValue,order,enabled);
 
 @override
 String toString() {
-  return 'ConversationParticipant(id: $id, displayName: $displayName, roleLabel: $roleLabel, roleSystemPrompt: $roleSystemPrompt, endpointId: $endpointId, model: $model, toolApprovalMode: $toolApprovalMode, toolsEnabled: $toolsEnabled, colorValue: $colorValue, order: $order, enabled: $enabled)';
+  return 'ConversationParticipant(id: $id, displayName: $displayName, roleLabel: $roleLabel, roleSystemPrompt: $roleSystemPrompt, endpointId: $endpointId, model: $model, facilitatesTurns: $facilitatesTurns, toolApprovalMode: $toolApprovalMode, toolsEnabled: $toolsEnabled, colorValue: $colorValue, order: $order, enabled: $enabled)';
 }
 
 
@@ -317,7 +317,7 @@ abstract mixin class $ConversationParticipantCopyWith<$Res>  {
   factory $ConversationParticipantCopyWith(ConversationParticipant value, $Res Function(ConversationParticipant) _then) = _$ConversationParticipantCopyWithImpl;
 @useResult
 $Res call({
- String id, String displayName, String roleLabel, String roleSystemPrompt, String endpointId, String model,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode toolApprovalMode, bool toolsEnabled, int colorValue, int order, bool enabled
+ String id, String displayName, String roleLabel, String roleSystemPrompt, String endpointId, String model, bool facilitatesTurns,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode toolApprovalMode, bool toolsEnabled, int colorValue, int order, bool enabled
 });
 
 
@@ -334,7 +334,7 @@ class _$ConversationParticipantCopyWithImpl<$Res>
 
 /// Create a copy of ConversationParticipant
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? displayName = null,Object? roleLabel = null,Object? roleSystemPrompt = null,Object? endpointId = null,Object? model = null,Object? toolApprovalMode = null,Object? toolsEnabled = null,Object? colorValue = null,Object? order = null,Object? enabled = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? displayName = null,Object? roleLabel = null,Object? roleSystemPrompt = null,Object? endpointId = null,Object? model = null,Object? facilitatesTurns = null,Object? toolApprovalMode = null,Object? toolsEnabled = null,Object? colorValue = null,Object? order = null,Object? enabled = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
@@ -342,7 +342,8 @@ as String,roleLabel: null == roleLabel ? _self.roleLabel : roleLabel // ignore: 
 as String,roleSystemPrompt: null == roleSystemPrompt ? _self.roleSystemPrompt : roleSystemPrompt // ignore: cast_nullable_to_non_nullable
 as String,endpointId: null == endpointId ? _self.endpointId : endpointId // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
-as String,toolApprovalMode: null == toolApprovalMode ? _self.toolApprovalMode : toolApprovalMode // ignore: cast_nullable_to_non_nullable
+as String,facilitatesTurns: null == facilitatesTurns ? _self.facilitatesTurns : facilitatesTurns // ignore: cast_nullable_to_non_nullable
+as bool,toolApprovalMode: null == toolApprovalMode ? _self.toolApprovalMode : toolApprovalMode // ignore: cast_nullable_to_non_nullable
 as ToolApprovalMode,toolsEnabled: null == toolsEnabled ? _self.toolsEnabled : toolsEnabled // ignore: cast_nullable_to_non_nullable
 as bool,colorValue: null == colorValue ? _self.colorValue : colorValue // ignore: cast_nullable_to_non_nullable
 as int,order: null == order ? _self.order : order // ignore: cast_nullable_to_non_nullable
@@ -432,10 +433,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String displayName,  String roleLabel,  String roleSystemPrompt,  String endpointId,  String model, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode toolApprovalMode,  bool toolsEnabled,  int colorValue,  int order,  bool enabled)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String displayName,  String roleLabel,  String roleSystemPrompt,  String endpointId,  String model,  bool facilitatesTurns, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode toolApprovalMode,  bool toolsEnabled,  int colorValue,  int order,  bool enabled)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ConversationParticipant() when $default != null:
-return $default(_that.id,_that.displayName,_that.roleLabel,_that.roleSystemPrompt,_that.endpointId,_that.model,_that.toolApprovalMode,_that.toolsEnabled,_that.colorValue,_that.order,_that.enabled);case _:
+return $default(_that.id,_that.displayName,_that.roleLabel,_that.roleSystemPrompt,_that.endpointId,_that.model,_that.facilitatesTurns,_that.toolApprovalMode,_that.toolsEnabled,_that.colorValue,_that.order,_that.enabled);case _:
   return orElse();
 
 }
@@ -453,10 +454,10 @@ return $default(_that.id,_that.displayName,_that.roleLabel,_that.roleSystemPromp
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String displayName,  String roleLabel,  String roleSystemPrompt,  String endpointId,  String model, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode toolApprovalMode,  bool toolsEnabled,  int colorValue,  int order,  bool enabled)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String displayName,  String roleLabel,  String roleSystemPrompt,  String endpointId,  String model,  bool facilitatesTurns, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode toolApprovalMode,  bool toolsEnabled,  int colorValue,  int order,  bool enabled)  $default,) {final _that = this;
 switch (_that) {
 case _ConversationParticipant():
-return $default(_that.id,_that.displayName,_that.roleLabel,_that.roleSystemPrompt,_that.endpointId,_that.model,_that.toolApprovalMode,_that.toolsEnabled,_that.colorValue,_that.order,_that.enabled);case _:
+return $default(_that.id,_that.displayName,_that.roleLabel,_that.roleSystemPrompt,_that.endpointId,_that.model,_that.facilitatesTurns,_that.toolApprovalMode,_that.toolsEnabled,_that.colorValue,_that.order,_that.enabled);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -473,10 +474,10 @@ return $default(_that.id,_that.displayName,_that.roleLabel,_that.roleSystemPromp
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String displayName,  String roleLabel,  String roleSystemPrompt,  String endpointId,  String model, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode toolApprovalMode,  bool toolsEnabled,  int colorValue,  int order,  bool enabled)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String displayName,  String roleLabel,  String roleSystemPrompt,  String endpointId,  String model,  bool facilitatesTurns, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode toolApprovalMode,  bool toolsEnabled,  int colorValue,  int order,  bool enabled)?  $default,) {final _that = this;
 switch (_that) {
 case _ConversationParticipant() when $default != null:
-return $default(_that.id,_that.displayName,_that.roleLabel,_that.roleSystemPrompt,_that.endpointId,_that.model,_that.toolApprovalMode,_that.toolsEnabled,_that.colorValue,_that.order,_that.enabled);case _:
+return $default(_that.id,_that.displayName,_that.roleLabel,_that.roleSystemPrompt,_that.endpointId,_that.model,_that.facilitatesTurns,_that.toolApprovalMode,_that.toolsEnabled,_that.colorValue,_that.order,_that.enabled);case _:
   return null;
 
 }
@@ -488,7 +489,7 @@ return $default(_that.id,_that.displayName,_that.roleLabel,_that.roleSystemPromp
 @JsonSerializable()
 
 class _ConversationParticipant extends ConversationParticipant {
-  const _ConversationParticipant({required this.id, this.displayName = '', this.roleLabel = '', this.roleSystemPrompt = '', this.endpointId = '', this.model = '', @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) this.toolApprovalMode = ToolApprovalMode.defaultPermissions, this.toolsEnabled = false, this.colorValue = 0xFF6750A4, this.order = 0, this.enabled = true}): super._();
+  const _ConversationParticipant({required this.id, this.displayName = '', this.roleLabel = '', this.roleSystemPrompt = '', this.endpointId = '', this.model = '', this.facilitatesTurns = false, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) this.toolApprovalMode = ToolApprovalMode.defaultPermissions, this.toolsEnabled = false, this.colorValue = 0xFF6750A4, this.order = 0, this.enabled = true}): super._();
   factory _ConversationParticipant.fromJson(Map<String, dynamic> json) => _$ConversationParticipantFromJson(json);
 
 @override final  String id;
@@ -497,6 +498,7 @@ class _ConversationParticipant extends ConversationParticipant {
 @override@JsonKey() final  String roleSystemPrompt;
 @override@JsonKey() final  String endpointId;
 @override@JsonKey() final  String model;
+@override@JsonKey() final  bool facilitatesTurns;
 @override@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) final  ToolApprovalMode toolApprovalMode;
 @override@JsonKey() final  bool toolsEnabled;
 @override@JsonKey() final  int colorValue;
@@ -516,16 +518,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationParticipant&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.roleLabel, roleLabel) || other.roleLabel == roleLabel)&&(identical(other.roleSystemPrompt, roleSystemPrompt) || other.roleSystemPrompt == roleSystemPrompt)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.model, model) || other.model == model)&&(identical(other.toolApprovalMode, toolApprovalMode) || other.toolApprovalMode == toolApprovalMode)&&(identical(other.toolsEnabled, toolsEnabled) || other.toolsEnabled == toolsEnabled)&&(identical(other.colorValue, colorValue) || other.colorValue == colorValue)&&(identical(other.order, order) || other.order == order)&&(identical(other.enabled, enabled) || other.enabled == enabled));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationParticipant&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.roleLabel, roleLabel) || other.roleLabel == roleLabel)&&(identical(other.roleSystemPrompt, roleSystemPrompt) || other.roleSystemPrompt == roleSystemPrompt)&&(identical(other.endpointId, endpointId) || other.endpointId == endpointId)&&(identical(other.model, model) || other.model == model)&&(identical(other.facilitatesTurns, facilitatesTurns) || other.facilitatesTurns == facilitatesTurns)&&(identical(other.toolApprovalMode, toolApprovalMode) || other.toolApprovalMode == toolApprovalMode)&&(identical(other.toolsEnabled, toolsEnabled) || other.toolsEnabled == toolsEnabled)&&(identical(other.colorValue, colorValue) || other.colorValue == colorValue)&&(identical(other.order, order) || other.order == order)&&(identical(other.enabled, enabled) || other.enabled == enabled));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,displayName,roleLabel,roleSystemPrompt,endpointId,model,toolApprovalMode,toolsEnabled,colorValue,order,enabled);
+int get hashCode => Object.hash(runtimeType,id,displayName,roleLabel,roleSystemPrompt,endpointId,model,facilitatesTurns,toolApprovalMode,toolsEnabled,colorValue,order,enabled);
 
 @override
 String toString() {
-  return 'ConversationParticipant(id: $id, displayName: $displayName, roleLabel: $roleLabel, roleSystemPrompt: $roleSystemPrompt, endpointId: $endpointId, model: $model, toolApprovalMode: $toolApprovalMode, toolsEnabled: $toolsEnabled, colorValue: $colorValue, order: $order, enabled: $enabled)';
+  return 'ConversationParticipant(id: $id, displayName: $displayName, roleLabel: $roleLabel, roleSystemPrompt: $roleSystemPrompt, endpointId: $endpointId, model: $model, facilitatesTurns: $facilitatesTurns, toolApprovalMode: $toolApprovalMode, toolsEnabled: $toolsEnabled, colorValue: $colorValue, order: $order, enabled: $enabled)';
 }
 
 
@@ -536,7 +538,7 @@ abstract mixin class _$ConversationParticipantCopyWith<$Res> implements $Convers
   factory _$ConversationParticipantCopyWith(_ConversationParticipant value, $Res Function(_ConversationParticipant) _then) = __$ConversationParticipantCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String displayName, String roleLabel, String roleSystemPrompt, String endpointId, String model,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode toolApprovalMode, bool toolsEnabled, int colorValue, int order, bool enabled
+ String id, String displayName, String roleLabel, String roleSystemPrompt, String endpointId, String model, bool facilitatesTurns,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode toolApprovalMode, bool toolsEnabled, int colorValue, int order, bool enabled
 });
 
 
@@ -553,7 +555,7 @@ class __$ConversationParticipantCopyWithImpl<$Res>
 
 /// Create a copy of ConversationParticipant
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? displayName = null,Object? roleLabel = null,Object? roleSystemPrompt = null,Object? endpointId = null,Object? model = null,Object? toolApprovalMode = null,Object? toolsEnabled = null,Object? colorValue = null,Object? order = null,Object? enabled = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? displayName = null,Object? roleLabel = null,Object? roleSystemPrompt = null,Object? endpointId = null,Object? model = null,Object? facilitatesTurns = null,Object? toolApprovalMode = null,Object? toolsEnabled = null,Object? colorValue = null,Object? order = null,Object? enabled = null,}) {
   return _then(_ConversationParticipant(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
@@ -561,7 +563,8 @@ as String,roleLabel: null == roleLabel ? _self.roleLabel : roleLabel // ignore: 
 as String,roleSystemPrompt: null == roleSystemPrompt ? _self.roleSystemPrompt : roleSystemPrompt // ignore: cast_nullable_to_non_nullable
 as String,endpointId: null == endpointId ? _self.endpointId : endpointId // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
-as String,toolApprovalMode: null == toolApprovalMode ? _self.toolApprovalMode : toolApprovalMode // ignore: cast_nullable_to_non_nullable
+as String,facilitatesTurns: null == facilitatesTurns ? _self.facilitatesTurns : facilitatesTurns // ignore: cast_nullable_to_non_nullable
+as bool,toolApprovalMode: null == toolApprovalMode ? _self.toolApprovalMode : toolApprovalMode // ignore: cast_nullable_to_non_nullable
 as ToolApprovalMode,toolsEnabled: null == toolsEnabled ? _self.toolsEnabled : toolsEnabled // ignore: cast_nullable_to_non_nullable
 as bool,colorValue: null == colorValue ? _self.colorValue : colorValue // ignore: cast_nullable_to_non_nullable
 as int,order: null == order ? _self.order : order // ignore: cast_nullable_to_non_nullable

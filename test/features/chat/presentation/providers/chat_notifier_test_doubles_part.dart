@@ -1491,12 +1491,24 @@ class _ParticipantStreamingChatDataSource
   _ParticipantStreamingChatDataSource({
     List<StreamController<String>> manualStreams = const [],
     List<List<String>> chunkBatches = const [],
+    List<_ParticipantToolStreamResponse> toolResponses = const [],
+    List<ChatCompletionResult> autoReviewResponses = const [],
   }) : _manualStreams = Queue<StreamController<String>>.from(manualStreams),
-       _chunkBatches = Queue<List<String>>.from(chunkBatches);
+       _chunkBatches = Queue<List<String>>.from(chunkBatches),
+       _toolResponses = Queue<_ParticipantToolStreamResponse>.from(
+         toolResponses,
+       ),
+       _autoReviewResponses = Queue<ChatCompletionResult>.from(
+         autoReviewResponses,
+       );
 
   final Queue<StreamController<String>> _manualStreams;
   final Queue<List<String>> _chunkBatches;
+  final Queue<_ParticipantToolStreamResponse> _toolResponses;
+  final Queue<ChatCompletionResult> _autoReviewResponses;
   final List<List<Message>> streamRequests = [];
+  final List<_ParticipantToolStreamRequest> toolStreamRequests = [];
+  final List<List<Message>> autoReviewRequestMessages = [];
   final List<String?> requestedModels = [];
 
   @override
@@ -1528,6 +1540,16 @@ class _ParticipantStreamingChatDataSource
     double? temperature,
     int? maxTokens,
   }) {
+    if ((tools == null || tools.isEmpty) &&
+        messages.isNotEmpty &&
+        messages.first.id == 'auto_review_policy') {
+      autoReviewRequestMessages.add(List<Message>.from(messages));
+      if (_autoReviewResponses.isNotEmpty) {
+        return Future<ChatCompletionResult>.value(
+          _autoReviewResponses.removeFirst(),
+        );
+      }
+    }
     throw UnimplementedError();
   }
 
@@ -1539,7 +1561,21 @@ class _ParticipantStreamingChatDataSource
     double? temperature,
     int? maxTokens,
   }) {
-    throw UnimplementedError();
+    toolStreamRequests.add(
+      _ParticipantToolStreamRequest(
+        messages: List<Message>.from(messages),
+        tools: List<Map<String, dynamic>>.from(tools),
+        model: model,
+        temperature: temperature,
+        maxTokens: maxTokens,
+      ),
+    );
+    requestedModels.add(model);
+    final response = _toolResponses.removeFirst();
+    return StreamWithToolsResult(
+      stream: Stream<String>.fromIterable(response.chunks),
+      completion: Future<ChatCompletionResult>.value(response.completion),
+    );
   }
 
   @override
@@ -1585,6 +1621,32 @@ class _ParticipantStreamingChatDataSource
   }) {
     throw UnimplementedError();
   }
+}
+
+class _ParticipantToolStreamRequest {
+  const _ParticipantToolStreamRequest({
+    required this.messages,
+    required this.tools,
+    required this.model,
+    required this.temperature,
+    required this.maxTokens,
+  });
+
+  final List<Message> messages;
+  final List<Map<String, dynamic>> tools;
+  final String? model;
+  final double? temperature;
+  final int? maxTokens;
+}
+
+class _ParticipantToolStreamResponse {
+  const _ParticipantToolStreamResponse({
+    this.chunks = const <String>[],
+    required this.completion,
+  });
+
+  final List<String> chunks;
+  final ChatCompletionResult completion;
 }
 
 class _ToolBatchChatDataSource implements ChatDataSource {

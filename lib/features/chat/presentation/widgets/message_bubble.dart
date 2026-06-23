@@ -156,6 +156,12 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     final responseMetrics = !isUser && !message.isStreaming
         ? message.responseMetrics
         : null;
+    final participantToolNames = !isUser && !message.isStreaming
+        ? _visibleParticipantToolNames(message.participantToolNames)
+        : const <String>[];
+    final handoffTargetLabel = !isUser && !message.isStreaming
+        ? _handoffTargetLabel(message)
+        : null;
     final imageBytes = _imageBytesFor(message.imageBase64);
     final hasParticipantHeader = !isUser && message.participantId != null;
     final bubble = Container(
@@ -263,6 +269,18 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
                       );
                     },
                   ),
+          if (handoffTargetLabel != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _ParticipantHandoffCueRow(targetLabel: handoffTargetLabel),
+            ),
+          if (participantToolNames.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _ParticipantToolSummaryRow(
+                toolNames: participantToolNames,
+              ),
+            ),
           if (responseMetrics != null &&
               _ResponseMetricsRow.hasVisibleMetrics(responseMetrics))
             Padding(
@@ -406,6 +424,42 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
   }
 }
 
+List<String> _visibleParticipantToolNames(List<String> toolNames) {
+  final seen = <String>{};
+  final visible = <String>[];
+  for (final toolName in toolNames) {
+    final normalized = toolName.trim();
+    if (normalized.isEmpty || !seen.add(normalized)) {
+      continue;
+    }
+    visible.add(normalized);
+  }
+  return visible;
+}
+
+String? _handoffTargetLabel(Message message) {
+  final targetId = message.handoffTargetParticipantId?.trim();
+  final targetName = message.handoffTargetDisplayName?.trim();
+  final targetRole = message.handoffTargetRoleLabel?.trim();
+  if ((targetId == null || targetId.isEmpty) &&
+      (targetName == null || targetName.isEmpty) &&
+      (targetRole == null || targetRole.isEmpty)) {
+    return null;
+  }
+
+  final name = targetName == null || targetName.isEmpty
+      ? (targetId == null || targetId.isEmpty ? null : targetId)
+      : targetName;
+  final role = targetRole == null || targetRole.isEmpty ? null : targetRole;
+  if (name == null || name.isEmpty) {
+    return role;
+  }
+  if (role == null || role.isEmpty || role == name) {
+    return name;
+  }
+  return '$name · $role';
+}
+
 class _ParticipantSpeakerHeader extends StatelessWidget {
   const _ParticipantSpeakerHeader({required this.message});
 
@@ -475,6 +529,109 @@ class _ParticipantSpeakerHeader extends StatelessWidget {
       return null;
     }
     return value;
+  }
+}
+
+class _ParticipantToolSummaryRow extends StatelessWidget {
+  const _ParticipantToolSummaryRow({required this.toolNames});
+
+  final List<String> toolNames;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Tooltip(
+          message: 'chat.participant_tools_used'.tr(),
+          child: Icon(Icons.manage_search_outlined, size: 14, color: color),
+        ),
+        Text(
+          'chat.participant_tools_used'.tr(),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        for (final toolName in toolNames)
+          _ParticipantToolNameChip(toolName: toolName),
+      ],
+    );
+  }
+}
+
+class _ParticipantHandoffCueRow extends StatelessWidget {
+  const _ParticipantHandoffCueRow({required this.targetLabel});
+
+  final String targetLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Icon(Icons.record_voice_over_outlined, size: 14, color: color),
+        Text(
+          'chat.participant_handoff_requested'.tr(
+            namedArgs: {'participant': targetLabel},
+          ),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ParticipantToolNameChip extends StatelessWidget {
+  const _ParticipantToolNameChip({required this.toolName});
+
+  final String toolName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Tooltip(
+      message: toolName,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.42),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: Text(
+              toolName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

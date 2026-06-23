@@ -52,6 +52,7 @@ class _FakeTtsService extends TtsService {
 Future<void> _pumpMessageBubble(
   WidgetTester tester, {
   required Message message,
+  bool settle = true,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   final preferences = await SharedPreferences.getInstance();
@@ -85,7 +86,11 @@ Future<void> _pumpMessageBubble(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }
 
 void main() {
@@ -196,5 +201,73 @@ void main() {
     expect(find.text('Reviewer'), findsOneWidget);
     expect(find.text('Critic'), findsOneWidget);
     expect(find.text('This proposal needs a rollback path.'), findsOneWidget);
+  });
+
+  testWidgets('shows participant tool summary after completion', (
+    tester,
+  ) async {
+    final message = Message(
+      id: 'participant-tool-message',
+      content: 'The current docs already cover the risky path.',
+      role: MessageRole.assistant,
+      timestamp: DateTime(2026, 6, 23, 12, 30),
+      participantId: 'researcher',
+      participantDisplayName: 'Researcher',
+      participantRoleLabel: 'Evidence',
+      participantToolNames: const [
+        'builtin_search',
+        'datetime_now',
+        'builtin_search',
+        ' ',
+      ],
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+
+    expect(find.text('Tools'), findsOneWidget);
+    expect(find.text('builtin_search'), findsOneWidget);
+    expect(find.text('datetime_now'), findsOneWidget);
+  });
+
+  testWidgets('shows participant handoff cue after completion', (tester) async {
+    final message = Message(
+      id: 'participant-handoff-message',
+      content:
+          'The implementation details should be covered next.\n'
+          'Engineer, what do you think about this risk?',
+      role: MessageRole.assistant,
+      timestamp: DateTime(2026, 6, 23, 12, 32),
+      participantId: 'primary',
+      participantDisplayName: 'Primary',
+      participantRoleLabel: 'Facilitator',
+      handoffTargetParticipantId: 'engineer',
+      handoffTargetDisplayName: 'Engineer',
+      handoffTargetRoleLabel: 'Senior Engineer',
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+
+    expect(
+      find.text('Asked Engineer · Senior Engineer to respond'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('hides participant tool summary while streaming', (tester) async {
+    final message = Message(
+      id: 'participant-streaming-tool-message',
+      content: 'Looking up the current context',
+      role: MessageRole.assistant,
+      timestamp: DateTime(2026, 6, 23, 12, 35),
+      isStreaming: true,
+      participantId: 'researcher',
+      participantDisplayName: 'Researcher',
+      participantToolNames: const ['builtin_search'],
+    );
+
+    await _pumpMessageBubble(tester, message: message, settle: false);
+
+    expect(find.text('Tools'), findsNothing);
+    expect(find.text('builtin_search'), findsNothing);
   });
 }

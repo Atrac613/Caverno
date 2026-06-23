@@ -230,6 +230,7 @@ class _ParticipantRuntimeControl extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final activeName = runtime.activeParticipantName.trim();
+    final activeToolName = runtime.activeToolName.trim();
     final label = runtime.paused
         ? 'chat.participant_paused_round'.tr(
             namedArgs: {
@@ -278,6 +279,24 @@ class _ParticipantRuntimeControl extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
+            if (activeToolName.isNotEmpty) ...[
+              const SizedBox(width: 4),
+              Icon(
+                Icons.manage_search_outlined,
+                size: 16,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'chat.participant_tool_active'.tr(
+                  namedArgs: {'tool': activeToolName},
+                ),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
             const SizedBox(width: 6),
             if (runtime.paused)
               Tooltip(
@@ -531,6 +550,7 @@ class _ParticipantRolePreset {
     required this.displayName,
     required this.roleLabel,
     required this.rolePrompt,
+    this.facilitatesTurns = false,
   });
 
   final String id;
@@ -538,6 +558,7 @@ class _ParticipantRolePreset {
   final String displayName;
   final String roleLabel;
   final String rolePrompt;
+  final bool facilitatesTurns;
 }
 
 const _customRolePresetId = 'custom';
@@ -550,6 +571,7 @@ const _participantRolePresets = <_ParticipantRolePreset>[
     roleLabel: 'Facilitator',
     rolePrompt:
         'Facilitate the discussion and help the participants converge on useful next steps.',
+    facilitatesTurns: true,
   ),
   _ParticipantRolePreset(
     id: 'senior_engineer',
@@ -603,6 +625,8 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
   late String _endpointId;
   String _rolePresetId = _customRolePresetId;
   late ToolApprovalMode _toolApprovalMode;
+  late bool _toolsEnabled;
+  late bool _facilitatesTurns;
   late int _colorValue;
   late bool _enabled;
 
@@ -620,6 +644,8 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
     _modelController = TextEditingController(text: participant.model);
     _endpointId = participant.endpointId;
     _toolApprovalMode = participant.toolApprovalMode;
+    _toolsEnabled = participant.toolsEnabled;
+    _facilitatesTurns = participant.isTurnFacilitator;
     _colorValue = participant.colorValue;
     _enabled = participant.enabled;
   }
@@ -700,6 +726,17 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
                 ),
               ),
               const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.record_voice_over_outlined),
+                title: Text('chat.participant_facilitates_turns'.tr()),
+                subtitle: Text(
+                  'chat.participant_facilitates_turns_description'.tr(),
+                ),
+                value: _facilitatesTurns,
+                onChanged: (value) => setState(() => _facilitatesTurns = value),
+              ),
+              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _endpointId,
                 decoration: InputDecoration(
@@ -752,6 +789,15 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
                   if (value == null) return;
                   setState(() => _toolApprovalMode = value);
                 },
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.manage_search_outlined),
+                title: Text('chat.participant_tools_enabled'.tr()),
+                subtitle: Text('chat.participant_tools_description'.tr()),
+                value: _toolsEnabled,
+                onChanged: (value) => setState(() => _toolsEnabled = value),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -846,7 +892,9 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
       roleSystemPrompt: _rolePromptController.text.trim(),
       endpointId: _endpointId.trim(),
       model: _modelController.text.trim(),
+      facilitatesTurns: _facilitatesTurns,
       toolApprovalMode: _toolApprovalMode,
+      toolsEnabled: _toolsEnabled,
       colorValue: _colorValue,
       enabled: _enabled,
     );
@@ -868,6 +916,7 @@ class _ParticipantEditorSheetState extends State<_ParticipantEditorSheet> {
       _displayNameController.text = preset.displayName;
       _roleLabelController.text = preset.roleLabel;
       _rolePromptController.text = preset.rolePrompt;
+      _facilitatesTurns = preset.facilitatesTurns;
     });
   }
 

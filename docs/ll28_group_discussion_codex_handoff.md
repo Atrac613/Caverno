@@ -2,10 +2,55 @@
 
 Filled from `docs/codex_task_template.md`. Roadmap entry: **LL28** in
 `docs/local_llm_agent_roadmap.md` (Milestone Index + notes section). This doc is
-the cold-start brief for implementing the MVP. LL28's first shipped experience is
-multi-participant group discussion, but the implementation should introduce a
-neutral participant-turn substrate that can later power coding pair programming
-without rewriting the core turn and attribution model.
+the implementation handoff for the MVP. LL28's first shipped experience is
+multi-participant group discussion, but the implementation introduces a neutral
+participant-turn substrate that can later power coding pair programming without
+rewriting the core turn, attribution, approval, and read-only tool model.
+
+## Current Implementation Snapshot
+
+Shipped on the `feature/ll28-participant-readonly-tools` line:
+
+- Participant identity, roster editing, participant persistence, attributed
+  message bubbles, single-round / multi-round turn depth, soft stop / continue,
+  and sequential per-participant streaming.
+- Primary assistant materialization when a remote-only roster is configured.
+- `ParticipantTurnCoordinator` as the neutral domain boundary for participant
+  normalization, round-robin planning when no facilitator is present,
+  facilitator-managed floor control, per-participant transcript transforms, role
+  identity prompts, and one-shot handoff routing.
+- `ParticipantCompletionRunner` as the mesh-aware completion boundary for
+  participant turns.
+- Facilitator detection is structured through `ConversationParticipant`
+  `facilitatesTurns`; role-label matching remains only as a compatibility
+  fallback for older saved participants.
+- Participant read-only tools, disabled by default, filtered to search,
+  datetime, conversation search, and read-only inspection. Tool execution reuses
+  the existing `ToolApprovalMode` values: manual, auto-review, and full-access.
+- Participant tool activity is visible while running; successful tool names are
+  persisted on the completed participant message and shown as compact message
+  metadata.
+- Facilitator handoff targets are persisted as a message snapshot and rendered as
+  a compact bubble cue, so re-opened history still shows who was invited to
+  respond without exposing the hidden `Handoff:` control marker.
+- LLM session logs include participant id, participant name, role label,
+  tool-enabled state, available tool names, and participant-turn phase.
+- Each participant turn receives explicit identity context: its own name and
+  role, the other available participants, and guidance to avoid speaking as
+  another participant.
+- When a facilitator is present, the facilitator manages the floor: no specialist
+  speaks unless the facilitator ends with `Handoff: <participant name or role>`.
+  Without a handoff, the floor returns to the user. The marker is stripped from
+  the visible transcript and used as a one-turn preferred next speaker. The
+  facilitator must include a natural visible invitation before the marker, for
+  example "Senior Engineer, what do you think about this implementation risk?",
+  so the handoff is understandable in the UI. If the facilitator-visible response
+  returns the floor to the user by ending in a question, an accidental final
+  handoff marker is stripped but ignored. If the response also ends with a target
+  invitation, that trailing invitation is stripped too so the user is not shown a
+  specialist question that will not be answered. The facilitator role prompt also
+  tells the model not to emit a handoff line when it is asking the user a question
+  or requesting clarification.
 
 ## Task
 
@@ -30,19 +75,25 @@ without rewriting the core turn and attribution model.
   - An **invite** action to add a member: choose an endpoint (from registered
     mesh endpoints / `namedEndpoints`), a model, a **role preset** (facilitator /
     senior engineer / critic / …, editable), and an approval mode.
-  - When the user posts, invited members reply in **round-robin order**; each
-    reply bubble is **attributed** (avatar + name + role chip) so "who said what"
-    is obvious.
-  - A **single-round ↔ multi-round** toggle: single-round = each member speaks
-    once then the floor returns to the user; multi-round = members auto-discuss up
-    to `maxRounds` with a visible **stop / continue** control and round counter.
+  - When the user posts, invited members reply with attributed bubbles (avatar +
+    name + role chip) so "who said what" is obvious. If no facilitator is present,
+    members speak in **round-robin order**. If a facilitator is present, the
+    facilitator speaks first and explicitly hands the floor to specialists only
+    when they are relevant.
+  - A **single-round ↔ multi-round** toggle: without a facilitator, single-round =
+    each member speaks once then the floor returns to the user; multi-round =
+    members auto-discuss up to `maxRounds`. With a facilitator, `maxRounds` caps
+    facilitator cycles (`Facilitator -> handed-off participant -> Facilitator`)
+    with a visible **stop / continue** control and round counter.
 - **Non-goals (defer; do NOT build in this MVP):**
   - Coding-mode pair programming. Keep the substrate compatible with it, but do
     not add coding-driver / reviewer workflows in the LL28 MVP.
   - Auto-moderator turn policy (who-speaks-next decided by a coordinator model).
   - Parallel / Mixture-of-Agents aggregation (sequential streaming only here).
-  - Per-participant tool calling beyond reusing the existing approval modes —
-    ship with tools **off by default**; do not invent a new approval system.
+  - Write-capable participant tools or a new participant approval system. The
+    shipped participant tool path is intentionally read-only, off by default, and
+    routed through the existing manual / auto-review / full-access approval
+    modes.
   - These belong to Phase 2 and converge toward **LL27** (auto orchestration).
 
 ## Context
@@ -52,7 +103,10 @@ without rewriting the core turn and attribution model.
     `String? participantId` plus a small persisted speaker snapshot
     (`participantDisplayName`, `participantRoleLabel`, `participantColorValue`)
     so historic bubbles remain attributed even after a participant is renamed,
-    disabled, or hidden (regenerate freezed/json).
+    disabled, or hidden. Handoff target snapshots
+    (`handoffTargetParticipantId`, `handoffTargetDisplayName`,
+    `handoffTargetRoleLabel`) preserve facilitator routing cues in history
+    without persisting the hidden marker (regenerate freezed/json).
   - `lib/features/chat/domain/entities/conversation.dart` — add
     `@Default([]) List<ConversationParticipant> participants` and a small
     `ParticipantTurnConfig` (turn policy, depth = singleRound | multiRound,
@@ -61,6 +115,7 @@ without rewriting the core turn and attribution model.
   - **New** `lib/features/chat/domain/entities/conversation_participant.dart`
     (Freezed): `id`, `displayName`, `roleLabel`, `roleSystemPrompt`,
     `endpointId` (empty = primary / PC1), `model`,
+    `bool facilitatesTurns` (true = participant manages speaking turns),
     `ToolApprovalMode toolApprovalMode` (default `defaultPermissions`),
     `bool toolsEnabled` (default `false`), `int colorValue`, `int order`,
     `bool enabled`. Keep the entity role-neutral: it represents an assistant
@@ -110,8 +165,8 @@ without rewriting the core turn and attribution model.
     `ToolApprovalCache`
     (`lib/features/chat/presentation/providers/tool_approval_cache.dart`), and
     `ToolApprovalAutoReviewService`.
-  - **System prompt:** prepend each participant's `roleSystemPrompt` via
-    `SystemPromptBuilder`.
+  - **System prompt:** prepend a generated participant identity prompt plus each
+    participant's `roleSystemPrompt` via `SystemPromptBuilder`.
   - **Attribution convention:** the chat loop already re-sends tool results as a
     **user-role** message (see CLAUDE.md "Tool Calling Flow") because some local
     servers handle tool/assistant-role poorly — reuse the same approach to attribute
@@ -135,15 +190,17 @@ without rewriting the core turn and attribution model.
   attribution fields.
 - **Turn planning:** A neutral coordinator decides which participant should speak
   next, tracks the runtime cursor, and transforms shared conversation state into a
-  participant-specific request view. The first policy is round-robin discussion;
-  future policies can add coding driver/reviewer turns or auto-moderation.
+  participant-specific request view. Without a facilitator, the first policy is
+  round-robin discussion. With a facilitator, the facilitator manages the floor:
+  specialists do not speak unless explicitly handed the next turn. Future policies
+  can add coding driver/reviewer turns or auto-moderation.
 - **Completion boundary:** A runner boundary owns streaming, mesh fallback,
   request logging, and provider-specific details. The coordinator should not know
   whether a turn is chat discussion, coding advice, or a future isolated-worktree
   action.
-- **Permission boundary:** Participant metadata may record an approval mode, but
-  tool execution and file edits stay behind the existing approval and coding
-  tool paths. The LL28 MVP keeps participant tools disabled by default.
+- **Permission boundary:** Participant metadata records an approval mode and a
+  `toolsEnabled` flag. Participant tools stay read-only and behind the existing
+  approval gate; file edits and privileged coding tools remain outside LL28.
 
 ## Implementation Notes
 
@@ -154,15 +211,18 @@ without rewriting the core turn and attribution model.
     0. **Normalize participants before a discussion starts.** If any invited
        non-primary participant exists and no primary participant exists, insert a
        primary participant with `endpointId == ''`, the current effective model,
-       display name "Primary Assistant", `order = 0`, and the default facilitator
-       role. Keep this participant editable in the roster. Deleting a participant
-       that already has messages should disable/archive it rather than hard-delete
-       the only attribution source.
+       display name "Primary Assistant", `order = 0`, the default facilitator
+       role, and `facilitatesTurns == true`. Keep this participant editable in
+       the roster. Deleting a participant that already has messages should
+       disable/archive it rather than hard-delete the only attribution source.
     1. **Per-participant message view (attribution).** When calling participant
        *X*: render *X*'s own past turns as `assistant`; render **every other**
        speaker (the user and other members) as `user` role with content prefixed
-       `[<displayName> · <roleLabel>]: …`; prepend *X*'s `roleSystemPrompt` via
-       `SystemPromptBuilder`. Keep this transform **pure** (transcript → per-X
+       `[<displayName> · <roleLabel>]: …`; prepend a generated participant
+       identity prompt and *X*'s `roleSystemPrompt` via `SystemPromptBuilder`.
+       The generated prompt must include *X*'s name / role, other participants,
+       a warning not to answer as another participant, and facilitator-specific
+       delegation guidance. Keep this transform **pure** (transcript → per-X
        `List<Message>`) so it is unit-testable.
     2. **Resolve + call through a boundary.** The coordinator should return a
        turn request (`participant`, transformed messages, model, endpoint id,
@@ -170,14 +230,40 @@ without rewriting the core turn and attribution model.
        streams it through the existing `_meshRunner` path. Tag the produced
        `Message.participantId = X.id` and persist the speaker snapshot fields on
        the message at creation time.
-    3. **Single-round:** iterate enabled participants once in `order`.
-    4. **Multi-round:** loop the order up to `maxRounds`, exposing a round counter
-       and a soft **stop** button. Stop should halt after the current streaming
-       participant finishes; the existing cancel action remains the hard abort
-       for the active stream. **Continue** clears the stop flag and resumes from
-       the saved cursor until `maxRounds` is reached. User interjection cancels
-       the remaining scheduled turns and starts a fresh discussion pass from the
-       new user message.
+    3. **No facilitator:** iterate enabled participants in `order`. Single-round
+       runs one pass; multi-round loops the order up to `maxRounds`.
+    4. **Facilitator present:** the facilitator speaks first. If the facilitator
+       does not hand off, the floor returns to the user. If the facilitator hands
+       off, only the resolved participant speaks next. In multi-round mode, the
+       floor then returns to the facilitator for the next cycle until `maxRounds`
+       is reached; in single-round mode, the handed-off participant completes the
+       pass. Use `facilitatesTurns` as the primary facilitator signal; legacy
+       role-label matching is only a migration fallback.
+    5. **Stop / continue:** expose a round counter and a soft **stop** button.
+       Stop should halt after the current streaming participant finishes; the
+       existing cancel action remains the hard abort for the active stream.
+       **Continue** clears the stop flag and resumes from the saved cursor,
+       including any pending facilitator handoff and the last speaker needed to
+       resume facilitator-managed floor control. User interjection cancels the
+       remaining scheduled turns and starts a fresh discussion pass from the new
+       user message.
+    6. **Facilitator handoff:** the facilitator may end its response with exactly
+       one final routing line, `Handoff: <participant name or role>`. The
+       coordinator resolves the target against enabled participants, strips the
+       routing line from the visible / persisted message, and applies the target
+       as a one-turn preferred next speaker. The visible content immediately
+       before the routing line should naturally invite the target participant to
+       respond, so the UI shows the handoff without exposing the control marker.
+       If the facilitator-visible content asks the user a question, the marker is
+       still stripped but the target is ignored so the floor returns to the user.
+       If the facilitator asks the user to choose, confirm, or clarify before a
+       target-addressed handoff line, suppress the handoff too and remove any
+       trailing target invitation; the response is waiting on the user, not the
+       specialist.
+       Non-facilitator handoff markers are not allowed to bypass the facilitator
+       when a facilitator is present. The facilitator role prompt should
+       explicitly forbid handoff lines on user-facing questions or clarification
+       requests.
   - **Isolate "who speaks next" behind one function**
     `nextSpeaker(context) -> participant?` returning round-robin order for MVP, so
     the Phase-2 auto-moderator or a coding driver/reviewer policy drops in by
@@ -194,6 +280,12 @@ without rewriting the core turn and attribution model.
     way that bypasses `_prepareMessagesForLLM`-equivalent behavior.
   - **Streaming = sequential** (one participant streams to completion, then the
     next) — reuses the current single-stream UI and reads like a real discussion.
+  - **Participant tools = read-only advisory support.** The participant runner
+    may include read-only tool definitions when `toolsEnabled` is true. Allowed
+    tools are search, datetime, conversation search, and read-only inspection.
+    Execution goes through `ToolApprovalGate` using each participant's
+    `ToolApprovalMode`; successful tool names are recorded on the participant's
+    completed message.
 - **Constraints:** Riverpod `Notifier` / `NotifierProvider` (not BLoC); Freezed
   immutable entities; widgets ≤ 200 lines and split large `build` methods;
   `const` constructors; i18n via `assets/translations/{en,ja}.json`.
@@ -256,15 +348,41 @@ Before finishing, confirm no parallel/duplicate path exists.
 
 - **Required behavior:**
   - Inviting PC2 with a role materializes the primary assistant in the roster if
-    needed, then posting a prompt yields **round-robin** replies from each enabled
-    member, each bubble attributed to the right participant.
-  - Single-round returns the floor to the user after one pass; multi-round loops
-    up to `maxRounds` and honors **stop / continue** using the soft-stop semantics
-    above.
+    needed, then posting a prompt yields attributed participant replies. Without
+    a facilitator, each enabled member speaks in round-robin order.
+  - With a facilitator, the facilitator manages speaking rights: specialists only
+    speak after a resolved `Handoff: <participant name or role>` line; otherwise
+    the floor returns to the user.
+  - Single-round returns the floor to the user after one non-facilitated pass or
+    one facilitator handoff cycle; multi-round loops up to `maxRounds` and honors
+    **stop / continue** using the soft-stop semantics above.
   - Participants + `ParticipantTurnConfig` persist on the `Conversation`;
     `participantId` and speaker snapshot fields persist on messages.
+  - Facilitator authority is represented by `ConversationParticipant`
+    `facilitatesTurns`, not only by localized or custom role labels; legacy
+    `Facilitator` / `Moderator` role labels continue to work as fallback.
   - Renaming, disabling, or hiding a participant does not make historic message
     bubbles lose their displayed speaker name, role, or color.
+  - Each participant sees explicit identity context for its own name and role,
+    plus the other participants in the conversation.
+  - A facilitator can delegate with `Handoff: <participant name or role>`; the
+    next turn prefers the resolved participant, and the routing marker is not
+    shown or persisted in the visible transcript. Unrelated specialists do not
+    speak merely because they are next in roster order.
+  - A facilitator handoff includes a natural visible invitation to the target
+    participant before the hidden routing marker, so the UI explains why the next
+    participant is responding.
+  - Facilitator handoff target snapshots persist on the facilitator message and
+    render as a compact UI cue after reopening the conversation.
+  - A facilitator question returns the floor to the user even if the model emits
+    a final handoff marker; the marker is removed from the visible transcript and
+    no specialist turn is scheduled.
+  - A mixed response that asks the user to choose or confirm while also inviting a
+    specialist does not schedule the specialist and removes the trailing specialist
+    invitation; the user-facing decision wins.
+  - Participant tools remain off by default. When enabled, only read-only
+    participant tools are exposed and the existing approval modes decide whether
+    execution proceeds.
 - **Edge cases:** zero participants == today's single-LLM behavior (no regression);
   one participant == effectively the classic flow with a name; duplicate-role
   labels allowed.
@@ -288,36 +406,47 @@ tool/codex_verify.sh
 For focused tests (coordinator behavior):
 
 ```bash
-tool/codex_verify.sh --test test/features/chat/participant_turn_coordinator_test.dart
+tool/codex_verify.sh --test test/features/chat/domain/services/participant_turn_coordinator_test.dart
 ```
 
 - **Unit:** test `ParticipantTurnCoordinator` with a fake completion boundary —
   primary participant normalization, attribution rendering, speaker snapshots,
-  round-robin order, single vs multi-round, and soft stop / continue cursor
-  behavior.
+  round-robin order, single vs multi-round, soft stop / continue cursor behavior,
+  role identity prompts, and handoff parsing / preferred next-speaker routing.
 - **Adapter:** test the participant completion runner boundary with fake mesh
-  routing so PC2-down demotion still completes through the existing fallback path.
+  routing so PC2-down demotion still completes through the existing fallback path;
+  cover participant read-only tool loops with fake tool calls and tool results.
+- **Presentation/provider:** focused `ChatNotifier` tests cover ordered
+  participant streaming, remote-only roster primary materialization, queued user
+  interjection, chat-only gating, participant role prompts flowing through the
+  existing system prompt preparation path, participant read-only tool approval,
+  persisted participant tool summaries, and facilitator handoff routing.
 - **Live (manual):** register PC2 as a mesh endpoint, invite it with a role, send
-  a brainstorm prompt, confirm PC1 + PC2 both reply correctly attributed; pull PC2
-  offline and confirm graceful single-model fallback. For flutter_tester reaching
-  a LAN IP, tunnel via loopback (memory `caverno-lan-canary-local-network-privacy`).
+  a brainstorm prompt, confirm PC1 + PC2 both reply correctly attributed; add a
+  facilitator + specialist roster and confirm `Handoff: <role>` routes the next
+  turn while the marker stays out of the visible transcript; pull PC2 offline and
+  confirm graceful single-model fallback. For flutter_tester reaching a LAN IP,
+  tunnel via loopback (memory `caverno-lan-canary-local-network-privacy`).
 - `flutter analyze` and `flutter test` clean; regenerated Freezed files committed.
 
 ## Handoff Notes
 
 - **Summary:** MVP = participant model + roles, round-robin, single/multi-round
-  toggle, sequential streaming, attributed bubbles, roster + invite UI, tools off
-  by default. The reusable substrate is participant turn coordination:
-  `ParticipantTurnCoordinator` owns planning, normalization, and transcript
-  transforms; a thin `ParticipantCompletionRunner` boundary owns streaming and
-  mesh fallback. The substrate (mesh router/runner, approval gate/cache, system
-  prompt builder, NamedEndpoint settings) already exists and should be reused, not
-  rebuilt.
+  toggle, sequential streaming, attributed bubbles, roster + invite UI,
+  read-only participant tools off by default, and facilitator handoff routing.
+  The reusable substrate is participant turn coordination:
+  `ParticipantTurnCoordinator` owns planning, normalization, transcript
+  transforms, identity prompts, and handoff parsing; a thin
+  `ParticipantCompletionRunner` boundary owns streaming, tool-aware participant
+  turns, and mesh fallback. The substrate (mesh router/runner, approval
+  gate/cache, system prompt builder, NamedEndpoint settings) already exists and
+  should be reused, not rebuilt.
 - **Scope discipline:** keep this to one focused review pass. If per-participant
-  tool loops, coding-driver behavior, or worktree execution grow large, split
+  write tools, coding-driver behavior, or worktree execution grow large, split
   them into follow-up tasks behind the existing approval modes.
 - **Risks / follow-ups:** turn latency (slowest member bounds the round);
   same-family local models are correlated (diversify for real ensemble value);
-  KV-cache loss on per-turn endpoint switches. Phase 2 (auto-moderator,
-  convergence heuristics, parallel/MoA aggregation) is the bridge to **LL27** —
-  design `nextSpeaker` so it slots in cleanly.
+  KV-cache loss on per-turn endpoint switches; marker-based handoff depends on
+  model compliance and should be validated with manual LL28 smoke logs. Phase 2
+  (auto-moderator, convergence heuristics, parallel/MoA aggregation) is the
+  bridge to **LL27** — design `nextSpeaker` so it slots in cleanly.

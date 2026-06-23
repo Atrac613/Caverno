@@ -71,6 +71,18 @@ part 'chat_notifier_turn_rollback_part.dart';
 part 'chat_notifier_context_surgery_part.dart';
 part 'chat_notifier_test_doubles_part.dart';
 
+List<String> _toolNames(List<Map<String, dynamic>> definitions) {
+  return definitions
+      .map((definition) {
+        final function = definition['function'];
+        if (function is! Map) return null;
+        final name = function['name'];
+        return name is String ? name : null;
+      })
+      .nonNulls
+      .toList(growable: false);
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -134,7 +146,7 @@ void main() {
   test('sendMessage streams attributed participant turns in order', () async {
     final dataSource = _ParticipantStreamingChatDataSource(
       chunkBatches: const [
-        ['Primary answer.'],
+        ['<think>Hidden planning.</think>\nPrimary answer.'],
         ['Reviewer answer.'],
       ],
     );
@@ -171,8 +183,8 @@ void main() {
         ConversationParticipant(
           id: 'primary',
           displayName: 'Primary',
-          roleLabel: 'Facilitator',
-          roleSystemPrompt: 'Facilitate the discussion.',
+          roleLabel: 'Coordinator',
+          roleSystemPrompt: 'Coordinate the discussion.',
           model: 'primary-model',
           colorValue: 0xFF6750A4,
           order: 0,
@@ -195,10 +207,13 @@ void main() {
         .where((message) => message.role == MessageRole.assistant)
         .toList(growable: false);
     expect(assistantMessages, hasLength(2));
-    expect(assistantMessages[0].content, 'Primary answer.');
+    expect(
+      assistantMessages[0].content,
+      '<think>Hidden planning.</think>\nPrimary answer.',
+    );
     expect(assistantMessages[0].participantId, 'primary');
     expect(assistantMessages[0].participantDisplayName, 'Primary');
-    expect(assistantMessages[0].participantRoleLabel, 'Facilitator');
+    expect(assistantMessages[0].participantRoleLabel, 'Coordinator');
     expect(assistantMessages[1].content, 'Reviewer answer.');
     expect(assistantMessages[1].participantId, 'reviewer');
     expect(assistantMessages[1].participantColorValue, 0xFF006A6A);
@@ -211,11 +226,43 @@ void main() {
     );
     expect(
       dataSource.streamRequests.first.first.content,
-      contains('Facilitate the discussion.'),
+      contains('Coordinate the discussion.'),
+    );
+    expect(
+      dataSource.streamRequests.first.first.content,
+      contains('- Name: Primary'),
+    );
+    expect(
+      dataSource.streamRequests.first.first.content,
+      contains('- Role: Coordinator'),
+    );
+    expect(
+      dataSource.streamRequests.first.first.content,
+      contains('- Reviewer · Critic'),
+    );
+    expect(
+      dataSource.streamRequests.first.first.content,
+      contains('Handoff: <participant name or role>'),
     );
     expect(
       dataSource.streamRequests.last.first.content,
       contains('Critique the proposal.'),
+    );
+    expect(
+      dataSource.streamRequests.last.first.content,
+      contains('- Name: Reviewer'),
+    );
+    expect(
+      dataSource.streamRequests.last.first.content,
+      contains('- Role: Critic'),
+    );
+    expect(
+      dataSource.streamRequests.last.first.content,
+      contains('- Primary · Coordinator'),
+    );
+    expect(
+      dataSource.streamRequests.last.first.content,
+      contains('yield the floor'),
     );
     expect(
       dataSource.streamRequests.first.where(
@@ -229,7 +276,759 @@ void main() {
           .join('\n'),
       contains('Primary'),
     );
+    expect(
+      dataSource.streamRequests.last
+          .map((message) => message.content)
+          .join('\n'),
+      isNot(contains('Hidden planning')),
+    );
     expect(chatNotifier.state.participantTurnRuntime, isNull);
+  });
+
+  test(
+    'facilitator without handoff returns the floor before specialists speak',
+    () async {
+      final dataSource = _ParticipantStreamingChatDataSource(
+        chunkBatches: const [
+          ['This can be answered without specialist input.'],
+          ['Unexpected engineer answer.'],
+        ],
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final participantContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(participantContainer.dispose);
+      final chatNotifier = participantContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final conversationsNotifier = participantContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      final conversation = conversationsNotifier.ensureCurrentConversation()!;
+      await conversationsNotifier.updateConversationParticipants(
+        conversation.id,
+        participants: const [
+          ConversationParticipant(
+            id: 'primary',
+            displayName: 'Primary',
+            roleLabel: 'Facilitator',
+            roleSystemPrompt: 'Facilitate the discussion.',
+            model: 'primary-model',
+            colorValue: 0xFF6750A4,
+            order: 0,
+          ),
+          ConversationParticipant(
+            id: 'engineer',
+            displayName: 'Engineer',
+            roleLabel: 'Senior Engineer',
+            roleSystemPrompt: 'Cover implementation details.',
+            model: 'engineer-model',
+            colorValue: 0xFF006A6A,
+            order: 1,
+          ),
+        ],
+      );
+
+      await chatNotifier.sendMessage('Discuss the proposal');
+
+      final assistantMessages = chatNotifier.state.messages
+          .where((message) => message.role == MessageRole.assistant)
+          .toList(growable: false);
+      expect(assistantMessages.map((message) => message.participantId), [
+        'primary',
+      ]);
+      expect(
+        assistantMessages.single.content,
+        'This can be answered without specialist input.',
+      );
+      expect(dataSource.requestedModels, ['primary-model']);
+      expect(dataSource.streamRequests, hasLength(1));
+      expect(
+        dataSource.streamRequests.single.first.content,
+        contains('the floor returns to the user'),
+      );
+    },
+  );
+
+  test(
+    'facilitator question handoff returns the floor before specialists speak',
+    () async {
+      final dataSource = _ParticipantStreamingChatDataSource(
+        chunkBatches: const [
+          ['Which area should we start with?\nHandoff: Senior Engineer'],
+          ['Unexpected engineer answer.'],
+        ],
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final participantContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(participantContainer.dispose);
+      final chatNotifier = participantContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final conversationsNotifier = participantContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      final conversation = conversationsNotifier.ensureCurrentConversation()!;
+      await conversationsNotifier.updateConversationParticipants(
+        conversation.id,
+        participants: const [
+          ConversationParticipant(
+            id: 'primary',
+            displayName: 'Primary',
+            roleLabel: 'Facilitator',
+            roleSystemPrompt: 'Facilitate the discussion.',
+            model: 'primary-model',
+            colorValue: 0xFF6750A4,
+            order: 0,
+          ),
+          ConversationParticipant(
+            id: 'engineer',
+            displayName: 'Engineer',
+            roleLabel: 'Senior Engineer',
+            roleSystemPrompt: 'Cover implementation details.',
+            model: 'engineer-model',
+            colorValue: 0xFF006A6A,
+            order: 1,
+          ),
+        ],
+      );
+
+      await chatNotifier.sendMessage('Discuss the proposal');
+
+      final assistantMessages = chatNotifier.state.messages
+          .where((message) => message.role == MessageRole.assistant)
+          .toList(growable: false);
+      expect(assistantMessages.map((message) => message.participantId), [
+        'primary',
+      ]);
+      expect(
+        assistantMessages.single.content,
+        'Which area should we start with?',
+      );
+      expect(assistantMessages.single.content, isNot(contains('Handoff:')));
+      expect(dataSource.requestedModels, ['primary-model']);
+      expect(dataSource.streamRequests, hasLength(1));
+    },
+  );
+
+  test(
+    'facilitator mixed user choice handoff returns the floor before specialists speak',
+    () async {
+      final dataSource = _ParticipantStreamingChatDataSource(
+        chunkBatches: const [
+          [
+            'Which scenario should we start with? Please choose one before we proceed.\n\n'
+                'Senior Engineer, what implementation risk would you highlight?\n'
+                'Handoff: Senior Engineer',
+          ],
+          ['Unexpected engineer answer.'],
+        ],
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final participantContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(participantContainer.dispose);
+      final chatNotifier = participantContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final conversationsNotifier = participantContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      final conversation = conversationsNotifier.ensureCurrentConversation()!;
+      await conversationsNotifier.updateConversationParticipants(
+        conversation.id,
+        participants: const [
+          ConversationParticipant(
+            id: 'primary',
+            displayName: 'Primary',
+            roleLabel: 'Facilitator',
+            roleSystemPrompt: 'Facilitate the discussion.',
+            model: 'primary-model',
+            colorValue: 0xFF6750A4,
+            order: 0,
+          ),
+          ConversationParticipant(
+            id: 'engineer',
+            displayName: 'Engineer',
+            roleLabel: 'Senior Engineer',
+            roleSystemPrompt: 'Cover implementation details.',
+            model: 'engineer-model',
+            colorValue: 0xFF006A6A,
+            order: 1,
+          ),
+        ],
+      );
+
+      await chatNotifier.sendMessage('Discuss the proposal');
+
+      final assistantMessages = chatNotifier.state.messages
+          .where((message) => message.role == MessageRole.assistant)
+          .toList(growable: false);
+      expect(assistantMessages.map((message) => message.participantId), [
+        'primary',
+      ]);
+      expect(
+        assistantMessages.single.content,
+        'Which scenario should we start with? Please choose one before we proceed.',
+      );
+      expect(assistantMessages.single.content, isNot(contains('Handoff:')));
+      expect(assistantMessages.single.handoffTargetParticipantId, isNull);
+      expect(dataSource.requestedModels, ['primary-model']);
+      expect(dataSource.streamRequests, hasLength(1));
+    },
+  );
+
+  test(
+    'participant handoff routes the next turn and hides the marker',
+    () async {
+      final dataSource = _ParticipantStreamingChatDataSource(
+        chunkBatches: const [
+          [
+            'The implementation details should be covered next.\n'
+                'Senior Engineer, what do you think about this risk?\n'
+                'Handoff: Senior Engineer',
+          ],
+          ['Engineering answer.'],
+        ],
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final participantContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(participantContainer.dispose);
+      final chatNotifier = participantContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final conversationsNotifier = participantContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      final conversation = conversationsNotifier.ensureCurrentConversation()!;
+      await conversationsNotifier.updateConversationParticipants(
+        conversation.id,
+        participants: const [
+          ConversationParticipant(
+            id: 'primary',
+            displayName: 'Primary',
+            roleLabel: 'Facilitator',
+            roleSystemPrompt: 'Facilitate the discussion.',
+            model: 'primary-model',
+            colorValue: 0xFF6750A4,
+            order: 0,
+          ),
+          ConversationParticipant(
+            id: 'critic',
+            displayName: 'Critic',
+            roleLabel: 'Critic',
+            roleSystemPrompt: 'Challenge weak assumptions.',
+            model: 'critic-model',
+            colorValue: 0xFFB3261E,
+            order: 1,
+          ),
+          ConversationParticipant(
+            id: 'engineer',
+            displayName: 'Engineer',
+            roleLabel: 'Senior Engineer',
+            roleSystemPrompt: 'Cover implementation details.',
+            model: 'engineer-model',
+            colorValue: 0xFF006A6A,
+            order: 2,
+          ),
+        ],
+      );
+
+      await chatNotifier.sendMessage('Discuss the implementation');
+
+      final assistantMessages = chatNotifier.state.messages
+          .where((message) => message.role == MessageRole.assistant)
+          .toList(growable: false);
+      expect(assistantMessages.map((message) => message.participantId), [
+        'primary',
+        'engineer',
+      ]);
+      expect(
+        assistantMessages.first.content,
+        'The implementation details should be covered next.\n'
+        'Senior Engineer, what do you think about this risk?',
+      );
+      expect(assistantMessages.first.content, isNot(contains('Handoff:')));
+      expect(
+        assistantMessages.first.content,
+        contains('Senior Engineer, what do you think'),
+      );
+      expect(assistantMessages.first.handoffTargetParticipantId, 'engineer');
+      expect(assistantMessages.first.handoffTargetDisplayName, 'Engineer');
+      expect(assistantMessages.first.handoffTargetRoleLabel, 'Senior Engineer');
+      expect(assistantMessages.last.content, 'Engineering answer.');
+      expect(dataSource.requestedModels, ['primary-model', 'engineer-model']);
+
+      final engineerTranscript = dataSource.streamRequests.last
+          .map((message) => message.content)
+          .join('\n');
+      expect(engineerTranscript, contains('Primary · Facilitator'));
+      expect(engineerTranscript, isNot(contains('Handoff: Senior Engineer')));
+    },
+  );
+
+  test(
+    'participant natural invitation routes the next turn without marker',
+    () async {
+      final dataSource = _ParticipantStreamingChatDataSource(
+        chunkBatches: const [
+          [
+            'The weak assumptions should be challenged next.\n'
+                'Critic, what risk is being overlooked?',
+          ],
+          ['Critical review.'],
+        ],
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final participantContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(participantContainer.dispose);
+      final chatNotifier = participantContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final conversationsNotifier = participantContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      final conversation = conversationsNotifier.ensureCurrentConversation()!;
+      await conversationsNotifier.updateConversationParticipants(
+        conversation.id,
+        participants: const [
+          ConversationParticipant(
+            id: 'primary',
+            displayName: 'Primary',
+            roleLabel: 'Facilitator',
+            roleSystemPrompt: 'Facilitate the discussion.',
+            model: 'primary-model',
+            colorValue: 0xFF6750A4,
+            order: 0,
+          ),
+          ConversationParticipant(
+            id: 'critic',
+            displayName: 'Critic',
+            roleLabel: 'Critic',
+            roleSystemPrompt: 'Challenge weak assumptions.',
+            model: 'critic-model',
+            colorValue: 0xFFB3261E,
+            order: 1,
+          ),
+        ],
+      );
+
+      await chatNotifier.sendMessage('Discuss the implementation');
+
+      final assistantMessages = chatNotifier.state.messages
+          .where((message) => message.role == MessageRole.assistant)
+          .toList(growable: false);
+      expect(assistantMessages.map((message) => message.participantId), [
+        'primary',
+        'critic',
+      ]);
+      expect(
+        assistantMessages.first.content,
+        'The weak assumptions should be challenged next.\n'
+        'Critic, what risk is being overlooked?',
+      );
+      expect(assistantMessages.first.handoffTargetParticipantId, 'critic');
+      expect(assistantMessages.last.content, 'Critical review.');
+      expect(dataSource.requestedModels, ['primary-model', 'critic-model']);
+    },
+  );
+
+  test(
+    'full participant approval stores successful tool names on the final message',
+    () async {
+      final dataSource = _ParticipantStreamingChatDataSource(
+        toolResponses: [
+          _ParticipantToolStreamResponse(
+            chunks: const [
+              '<tool_call>{"name":"read_file","arguments":{"path":"README.md"}}</tool_call>',
+            ],
+            completion: ChatCompletionResult(
+              content:
+                  '<tool_call>{"name":"read_file","arguments":{"path":"README.md"}}</tool_call>',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'call_read',
+                  name: 'read_file',
+                  arguments: const {'path': 'README.md'},
+                ),
+                ToolCallInfo(
+                  id: 'call_write',
+                  name: 'write_file',
+                  arguments: const {'path': 'README.md', 'content': 'oops'},
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+          ),
+          _ParticipantToolStreamResponse(
+            chunks: const ['Final review grounded in README.'],
+            completion: ChatCompletionResult(
+              content: 'Final review grounded in README.',
+              finishReason: 'stop',
+            ),
+          ),
+        ],
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'read_file': 'README contents',
+          'write_file': 'should not execute',
+        },
+      );
+      final participantContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(participantContainer.dispose);
+      final chatNotifier = participantContainer.read(
+        chatNotifierProvider.notifier,
+      );
+      final conversationsNotifier = participantContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      final conversation = conversationsNotifier.ensureCurrentConversation()!;
+      await conversationsNotifier.updateConversationParticipants(
+        conversation.id,
+        participants: const [
+          ConversationParticipant(
+            id: 'reviewer',
+            displayName: 'Reviewer',
+            roleLabel: 'Critic',
+            roleSystemPrompt: 'Critique the proposal.',
+            model: 'review-model',
+            toolApprovalMode: ToolApprovalMode.fullAccess,
+            toolsEnabled: true,
+            colorValue: 0xFF006A6A,
+            order: 0,
+          ),
+        ],
+      );
+
+      await chatNotifier.sendMessage('Review with evidence');
+
+      final assistantMessages = chatNotifier.state.messages
+          .where((message) => message.role == MessageRole.assistant)
+          .toList(growable: false);
+      expect(assistantMessages, hasLength(1));
+      expect(
+        assistantMessages.single.content,
+        'Final review grounded in README.',
+      );
+      expect(assistantMessages.single.participantId, 'reviewer');
+      expect(assistantMessages.single.participantToolNames, ['read_file']);
+      expect(toolService.executedToolNames, ['read_file']);
+      expect(dataSource.toolStreamRequests, hasLength(2));
+      expect(_toolNames(dataSource.toolStreamRequests.first.tools), [
+        'read_file',
+      ]);
+      expect(
+        dataSource.toolStreamRequests.last.messages.last.content,
+        contains('README contents'),
+      );
+      expect(
+        dataSource.toolStreamRequests.last.messages.last.content,
+        contains('participant_tools_require_read_only_allowlist'),
+      );
+    },
+  );
+
+  test('default participant approval waits for manual tool approval', () async {
+    final dataSource = _ParticipantStreamingChatDataSource(
+      toolResponses: [
+        _ParticipantToolStreamResponse(
+          completion: ChatCompletionResult(
+            content:
+                '<tool_call>{"name":"read_file","arguments":{"path":"README.md"}}</tool_call>',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'call_read',
+                name: 'read_file',
+                arguments: const {
+                  'path': 'README.md',
+                  'reason': 'Check the proposal evidence.',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ),
+        _ParticipantToolStreamResponse(
+          chunks: const ['Final answer after denial.'],
+          completion: ChatCompletionResult(
+            content: 'Final answer after denial.',
+            finishReason: 'stop',
+          ),
+        ),
+      ],
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolService = _FakeMcpToolService(
+      results: const {'read_file': 'README contents'},
+    );
+    final participantContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(participantContainer.dispose);
+    final chatNotifier = participantContainer.read(
+      chatNotifierProvider.notifier,
+    );
+    final conversationsNotifier = participantContainer.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final conversation = conversationsNotifier.ensureCurrentConversation()!;
+    await conversationsNotifier.updateConversationParticipants(
+      conversation.id,
+      participants: const [
+        ConversationParticipant(
+          id: 'reviewer',
+          displayName: 'Reviewer',
+          roleLabel: 'Critic',
+          roleSystemPrompt: 'Critique the proposal.',
+          model: 'review-model',
+          toolsEnabled: true,
+          order: 0,
+        ),
+      ],
+    );
+
+    final sendFuture = chatNotifier.sendMessage('Review with evidence');
+    await _waitForCondition(
+      () => chatNotifier.state.pendingParticipantToolApproval != null,
+    );
+
+    final pending = chatNotifier.state.pendingParticipantToolApproval;
+    expect(pending, isNotNull);
+    expect(pending!.participantName, 'Reviewer');
+    expect(pending.toolName, 'read_file');
+    expect(pending.arguments['path'], 'README.md');
+    expect(toolService.executedToolNames, isEmpty);
+
+    chatNotifier.resolveParticipantToolApproval(
+      id: pending.id,
+      approved: false,
+    );
+    await sendFuture;
+
+    final assistantMessage = chatNotifier.state.messages.last;
+    expect(assistantMessage.content, 'Final answer after denial.');
+    expect(assistantMessage.participantToolNames, isEmpty);
+    expect(toolService.executedToolNames, isEmpty);
+    expect(
+      dataSource.toolStreamRequests.last.messages.last.content,
+      contains('approval_denied'),
+    );
+  });
+
+  test('auto-review participant approval can deny tool execution', () async {
+    final dataSource = _ParticipantStreamingChatDataSource(
+      toolResponses: [
+        _ParticipantToolStreamResponse(
+          completion: ChatCompletionResult(
+            content:
+                '<tool_call>{"name":"read_file","arguments":{"path":"secrets.txt"}}</tool_call>',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'call_read',
+                name: 'read_file',
+                arguments: const {'path': 'secrets.txt'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ),
+        _ParticipantToolStreamResponse(
+          chunks: const ['Final answer after review denial.'],
+          completion: ChatCompletionResult(
+            content: 'Final answer after review denial.',
+            finishReason: 'stop',
+          ),
+        ),
+      ],
+      autoReviewResponses: [
+        ChatCompletionResult(
+          content:
+              '{"outcome":"deny","riskLevel":"medium","userAuthorization":"low","rationale":"The secret file lookup was not requested by the user."}',
+          finishReason: 'stop',
+        ),
+      ],
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolService = _FakeMcpToolService(
+      results: const {'read_file': 'secret contents'},
+    );
+    final participantContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(participantContainer.dispose);
+    final chatNotifier = participantContainer.read(
+      chatNotifierProvider.notifier,
+    );
+    final conversationsNotifier = participantContainer.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final conversation = conversationsNotifier.ensureCurrentConversation()!;
+    await conversationsNotifier.updateConversationParticipants(
+      conversation.id,
+      participants: const [
+        ConversationParticipant(
+          id: 'reviewer',
+          displayName: 'Reviewer',
+          roleLabel: 'Critic',
+          roleSystemPrompt: 'Critique the proposal.',
+          model: 'review-model',
+          toolApprovalMode: ToolApprovalMode.autoReview,
+          toolsEnabled: true,
+          order: 0,
+        ),
+      ],
+    );
+
+    await chatNotifier.sendMessage('Review with evidence');
+
+    expect(chatNotifier.state.pendingParticipantToolApproval, isNull);
+    expect(dataSource.autoReviewRequestMessages, hasLength(1));
+    expect(
+      dataSource.autoReviewRequestMessages.first.first.content,
+      contains('read-only participant tools'),
+    );
+    expect(toolService.executedToolNames, isEmpty);
+    final assistantMessage = chatNotifier.state.messages.last;
+    expect(assistantMessage.content, 'Final answer after review denial.');
+    expect(assistantMessage.participantToolNames, isEmpty);
+    expect(
+      dataSource.toolStreamRequests.last.messages.last.content,
+      contains('Auto-review denied'),
+    );
   });
 
   test(
@@ -294,17 +1093,16 @@ void main() {
       ]);
       expect(persistedParticipants.first.endpointId, isEmpty);
       expect(persistedParticipants.first.roleLabel, 'Facilitator');
+      expect(persistedParticipants.first.facilitatesTurns, isTrue);
 
       final assistantMessages = chatNotifier.state.messages
           .where((message) => message.role == MessageRole.assistant)
           .toList(growable: false);
       expect(assistantMessages.map((message) => message.participantId), [
         ParticipantTurnCoordinator.primaryParticipantId,
-        'reviewer',
       ]);
       expect(assistantMessages.map((message) => message.content), [
         'Primary answer.',
-        'Reviewer answer.',
       ]);
     },
   );
@@ -357,7 +1155,7 @@ void main() {
         ConversationParticipant(
           id: 'primary',
           displayName: 'Primary',
-          roleLabel: 'Facilitator',
+          roleLabel: 'Coordinator',
           model: 'primary-model',
           order: 0,
         ),
@@ -469,7 +1267,7 @@ void main() {
           ConversationParticipant(
             id: 'primary',
             displayName: 'Primary',
-            roleLabel: 'Facilitator',
+            roleLabel: 'Coordinator',
             model: 'primary-model',
             order: 0,
           ),

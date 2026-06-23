@@ -52,6 +52,7 @@ _ConversationParticipant _$ConversationParticipantFromJson(
   roleSystemPrompt: json['roleSystemPrompt'] as String? ?? '',
   endpointId: json['endpointId'] as String? ?? '',
   model: json['model'] as String? ?? '',
+  facilitatesTurns: json['facilitatesTurns'] as bool? ?? false,
   toolApprovalMode:
       $enumDecodeNullable(
         _$ToolApprovalModeEnumMap,
@@ -74,6 +75,7 @@ Map<String, dynamic> _$ConversationParticipantToJson(
   'roleSystemPrompt': instance.roleSystemPrompt,
   'endpointId': instance.endpointId,
   'model': instance.model,
+  'facilitatesTurns': instance.facilitatesTurns,
   'toolApprovalMode': _$ToolApprovalModeEnumMap[instance.toolApprovalMode]!,
   'toolsEnabled': instance.toolsEnabled,
   'colorValue': instance.colorValue,

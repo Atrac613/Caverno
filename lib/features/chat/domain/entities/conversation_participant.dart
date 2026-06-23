@@ -36,6 +36,7 @@ abstract class ConversationParticipant with _$ConversationParticipant {
     @Default('') String roleSystemPrompt,
     @Default('') String endpointId,
     @Default('') String model,
+    @Default(false) bool facilitatesTurns,
     @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)
     @Default(ToolApprovalMode.defaultPermissions)
     ToolApprovalMode toolApprovalMode,
@@ -49,6 +50,15 @@ abstract class ConversationParticipant with _$ConversationParticipant {
       _$ConversationParticipantFromJson(json);
 
   bool get isPrimary => endpointId.trim().isEmpty;
+
+  bool get isTurnFacilitator {
+    if (facilitatesTurns) {
+      return true;
+    }
+    final normalizedRole = effectiveRoleLabel.toLowerCase();
+    return normalizedRole.contains('facilitator') ||
+        normalizedRole.contains('moderator');
+  }
 
   String get effectiveDisplayName {
     final trimmed = displayName.trim();

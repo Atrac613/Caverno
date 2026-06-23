@@ -97,6 +97,7 @@ void main() {
           roleSystemPrompt: 'Challenge weak assumptions.',
           endpointId: 'pc2',
           model: 'review-model',
+          facilitatesTurns: true,
           colorValue: 0xFF006A6A,
           order: 1,
         ),
@@ -110,7 +111,29 @@ void main() {
     final restored = Conversation.fromJson(conversation.toJson());
 
     expect(restored.participants, conversation.participants);
+    expect(restored.participants.single.facilitatesTurns, isTrue);
+    expect(restored.participants.single.isTurnFacilitator, isTrue);
     expect(restored.participantTurnConfig, conversation.participantTurnConfig);
+  });
+
+  test('participant facilitator fallback supports legacy role labels', () {
+    const structured = ConversationParticipant(
+      id: 'lead',
+      roleLabel: 'Conversation Lead',
+      facilitatesTurns: true,
+    );
+    const legacy = ConversationParticipant(
+      id: 'legacy',
+      roleLabel: 'Moderator',
+    );
+    const regular = ConversationParticipant(
+      id: 'reviewer',
+      roleLabel: 'Reviewer',
+    );
+
+    expect(structured.isTurnFacilitator, isTrue);
+    expect(legacy.isTurnFacilitator, isTrue);
+    expect(regular.isTurnFacilitator, isFalse);
   });
 
   test('participant speaker snapshot survives message json roundtrip', () {
@@ -140,5 +163,35 @@ void main() {
     expect(restoredMessage.participantDisplayName, 'Reviewer');
     expect(restoredMessage.participantRoleLabel, 'Critic');
     expect(restoredMessage.participantColorValue, 0xFF006A6A);
+  });
+
+  test('participant handoff snapshot survives message json roundtrip', () {
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Participant discussion',
+      messages: [
+        Message(
+          id: 'message-1',
+          content: 'Engineer, what do you think?',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 6, 23, 12, 1),
+          participantId: 'primary',
+          participantDisplayName: 'Primary',
+          participantRoleLabel: 'Facilitator',
+          handoffTargetParticipantId: 'engineer',
+          handoffTargetDisplayName: 'Engineer',
+          handoffTargetRoleLabel: 'Senior Engineer',
+        ),
+      ],
+      createdAt: DateTime(2026, 6, 23, 12),
+      updatedAt: DateTime(2026, 6, 23, 12),
+    );
+
+    final restored = Conversation.fromJson(conversation.toJson());
+    final restoredMessage = restored.messages.single;
+
+    expect(restoredMessage.handoffTargetParticipantId, 'engineer');
+    expect(restoredMessage.handoffTargetDisplayName, 'Engineer');
+    expect(restoredMessage.handoffTargetRoleLabel, 'Senior Engineer');
   });
 }

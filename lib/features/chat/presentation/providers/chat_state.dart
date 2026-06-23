@@ -287,6 +287,27 @@ class PendingSerialOpen {
   final Completer<bool> completer;
 }
 
+/// Pending read-only participant tool execution awaiting user approval.
+class PendingParticipantToolApproval {
+  PendingParticipantToolApproval({
+    required this.id,
+    required this.participantName,
+    required this.participantRoleLabel,
+    required this.toolName,
+    required this.arguments,
+    required this.reason,
+    required this.completer,
+  });
+
+  final String id;
+  final String participantName;
+  final String participantRoleLabel;
+  final String toolName;
+  final Map<String, dynamic> arguments;
+  final String? reason;
+  final Completer<bool> completer;
+}
+
 class AskUserQuestionOption {
   const AskUserQuestionOption({
     required this.id,
@@ -512,6 +533,7 @@ abstract class ParticipantTurnRuntime with _$ParticipantTurnRuntime {
     @Default(false) bool multiRound,
     @Default(false) bool stopRequested,
     @Default(false) bool paused,
+    @Default('') String activeToolName,
   }) = _ParticipantTurnRuntime;
 }
 
@@ -550,6 +572,8 @@ abstract class ChatState with _$ChatState {
     PendingBleConnect? pendingBleConnect,
     // Serial port open UI flow — same Completer-based approval as BLE.
     PendingSerialOpen? pendingSerialOpen,
+    // Participant read-only tool UI flow.
+    PendingParticipantToolApproval? pendingParticipantToolApproval,
     // Generic model-initiated question UI flow.
     PendingAskUserQuestion? pendingAskUserQuestion,
     // Workflow planning choice UI flow.

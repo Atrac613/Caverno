@@ -8,7 +8,7 @@ enum ToolApprovalAutoReviewOutcome { allow, deny }
 /// Which permission boundary the auto-reviewer is judging. Swaps the system
 /// prompt so the same JSON contract serves coding writes, browser actions, and
 /// device/remote connections.
-enum ToolApprovalAutoReviewDomain { coding, browser, connection }
+enum ToolApprovalAutoReviewDomain { coding, browser, connection, participant }
 
 class ToolApprovalAutoReviewDecision {
   const ToolApprovalAutoReviewDecision({
@@ -129,6 +129,11 @@ class ToolApprovalAutoReviewService {
                 'Do not execute tools. Do not propose alternatives. Return only strict JSON with keys outcome, riskLevel, userAuthorization, and rationale. '
                 'Use outcome "allow" only when the action clearly advances the user request and targets a host/device the user asked to use, and is not a destructive, irreversible, or system-altering command. '
                 'Use outcome "deny" for destructive or irreversible commands, privilege escalation, credential exposure, or actions on hosts/devices unrelated to the user request.',
+          ToolApprovalAutoReviewDomain.participant =>
+            'You are Caverno approval auto-review for read-only participant tools. Review whether the requested search, datetime, past conversation search, or read-only inspection action may run for a non-primary participant. '
+                'Do not execute tools. Do not propose alternatives. Return only strict JSON with keys outcome, riskLevel, userAuthorization, and rationale. '
+                'Use outcome "allow" only when the action clearly advances the current user request, stays read-only, and is appropriate for the participant role. '
+                'Use outcome "deny" for unrelated lookups, excessive data exposure, credential or secret harvesting, or attempts to bypass the participant read-only tool boundary.',
         },
       ),
       Message(

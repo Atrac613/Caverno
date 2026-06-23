@@ -36,6 +36,10 @@ abstract class Message with _$Message {
     String? participantDisplayName,
     String? participantRoleLabel,
     int? participantColorValue,
+    @Default(<String>[]) List<String> participantToolNames,
+    String? handoffTargetParticipantId,
+    String? handoffTargetDisplayName,
+    String? handoffTargetRoleLabel,
     MessageResponseMetrics? responseMetrics,
   }) = _Message;
 

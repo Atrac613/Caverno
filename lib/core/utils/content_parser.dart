@@ -454,6 +454,22 @@ class ContentParser {
     return buffer.toString().trim();
   }
 
+  /// Removes non-transcript artifacts before content is sent back to a model.
+  static String stripModelHistoryArtifacts(String content) {
+    if (content.isEmpty) {
+      return content;
+    }
+
+    final result = parse(content);
+    final buffer = StringBuffer();
+    for (final segment in result.segments) {
+      if (segment.type == ContentType.text) {
+        buffer.write(segment.content);
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   static bool hasIncompleteToolCall(String content) {
     final result = parse(content);
     return result.hasIncompleteTag && result.incompleteTagType == 'tool_call';
