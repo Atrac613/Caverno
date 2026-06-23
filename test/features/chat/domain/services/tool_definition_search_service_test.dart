@@ -113,6 +113,7 @@ void main() {
       final definitions = [
         _tool('ask_user_question', 'Ask the user a choice question.'),
         _tool('load_skill', 'Load a saved user skill.'),
+        _tool('save_skill', 'Save a reusable skill from this conversation.'),
         _tool('spawn_subagent', 'Delegate a sub-task to a child agent.'),
         _tool('get_subagent_result', 'Get a background subagent result.'),
         for (var i = 0; i < 30; i++)
@@ -129,6 +130,9 @@ void main() {
       expect(selection.toolSearchEnabled, isTrue);
       expect(names, contains('ask_user_question'));
       expect(names, contains('load_skill'));
+      // Regression: save_skill must stay in the initial selection so in-chat
+      // skill authoring is reachable without the model first calling tool_search.
+      expect(names, contains('save_skill'));
       expect(names, contains('spawn_subagent'));
       expect(names, contains('get_subagent_result'));
       expect(names, contains(ToolDefinitionSearchService.toolName));

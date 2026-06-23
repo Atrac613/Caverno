@@ -46,6 +46,10 @@ class ToolDefinitionSearchService {
     'spawn_subagent',
     'get_subagent_result',
     'load_skill',
+    // Keep save_skill in the initial set so in-chat skill authoring is
+    // discoverable without the model first calling tool_search; the system
+    // prompt only injects save_skill guidance when the tool is selected.
+    'save_skill',
     'search_web',
     'search_news',
     'search_images',
