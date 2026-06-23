@@ -2,6 +2,151 @@ part of 'chat_notifier_test.dart';
 
 void registerChatNotifierGitGuardrailTests() {
   test(
+    'sendMessage marks Japanese commit completion claim without tool call as unexecuted',
+    () async {
+      // Reproduces the real session where the model answered a new "commit"
+      // turn with "コミットが完了しました" and a change table, but issued no tool
+      // call — the prior turn's commit had been blocked. The completion claim
+      // must be replaced with the unexecuted-command notice.
+      const finalContent =
+          'コミットが完了しました。\n\n**今回の変更:**\n\n| ファイル | コミット |\n'
+          '|---|---|\n| docs/releases/caverno-1.3.8.md | feat: Add release notes |\n'
+          '| pubspec.yaml | chore: Bump version to 1.3.8+19 |';
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: finalContent,
+        initialStreamChunks: const [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'git_execute_command': 'Execute a git command.'},
+        results: const {'git_execute_command': '{"exit_code":0}'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('commit');
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains(
+          'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action.',
+        ),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('コミットが完了しました')),
+      );
+    },
+  );
+
+  test(
+    'sendMessage neutralizes commit completion claim when a git commit fails '
+    'before an unrelated command succeeds',
+    () async {
+      // Regression guard: a failed `git commit` (exit 2) followed by an
+      // unrelated successful command (exit 0) must not let a streamed
+      // "コミットが完了しました" claim survive. The completion-claim guards strip
+      // the false claim and mark it unverified.
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-commit',
+            name: 'git_execute_command',
+            arguments: const {
+              'command': 'commit -m "docs: add release notes"',
+              'reason': 'Commit release notes',
+            },
+          ),
+        ],
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'tool-ls',
+            name: 'local_execute_command',
+            arguments: const {'command': 'ls'},
+          ),
+        ],
+        finalAnswerChunks: const ['コミットが完了しました。'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'git_execute_command': 'Execute a git command.',
+          'local_execute_command': 'Execute a local command.',
+        },
+        results: const {
+          'git_execute_command':
+              '{"command":"git commit -m \\"docs: add release notes\\"",'
+              '"exit_code":2,"code":"git_commit_unstaged_changes"}',
+          'local_execute_command':
+              '{"command":"ls","exit_code":0,"stdout":"a\\n"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('save and commit');
+
+      expect(
+        chatNotifier.state.messages.last.content,
+        isNot(contains('コミットが完了しました')),
+      );
+      expect(
+        chatNotifier.state.messages.last.content,
+        contains('unverified'),
+      );
+    },
+  );
+
+  test(
     'sendMessage marks Japanese git commit claim without tool call as unexecuted',
     () async {
       const finalContent = 'pubspec.yaml をステージしてコミットします。';
