@@ -73,6 +73,13 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
     if (!_hasCodingContinuationRecoveryTools(tools)) {
       return null;
     }
+    // A save_skill call already completed the task this turn, so the model's
+    // "skill created" summary is a legitimate terminal response, not an
+    // unexecuted coding continuation. Skip recovery to avoid forcing a
+    // redundant second save (and a second non-cacheable approval).
+    if (_lastSaveSkillGeneration == interactionGeneration) {
+      return null;
+    }
     if (requireContinuationRequest &&
         !_looksLikeContinuationOnlyUserRequest(
           _latestUserContentForGeneration(interactionGeneration),

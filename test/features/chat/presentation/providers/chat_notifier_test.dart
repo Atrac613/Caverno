@@ -3050,6 +3050,116 @@ void main() {
   );
 
   test(
+    'sendMessage skips continuation recovery after a save_skill completes the turn',
+    () async {
+      // A prose-only "skill created, next I will…" summary that, on its own,
+      // trips the coding continuation-recovery heuristic (target + action). The
+      // guard must suppress recovery because save_skill already executed the
+      // task this turn — otherwise the loop forces a redundant second save.
+      const continuationText =
+          'Skill saved. Next I will update the project file.';
+      final conversationRepository = _FakeConversationRepository();
+      final project = CodingProject(
+        id: 'project-save-skill-no-recovery',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 6, 23),
+        updatedAt: DateTime(2026, 6, 23),
+      );
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'author-release-skill',
+            name: 'save_skill',
+            arguments: const {
+              'name': 'iOS Release',
+              'description': 'Ship an iOS build',
+              'when_to_use': 'When cutting an iOS release',
+              'content': '# Steps\n\n1. Bump version.\n2. Archive.',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: continuationText, finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const ['Skill creation finished.'],
+      );
+      // read_file is offered so the recovery's tool-availability gate passes;
+      // without the save_skill guard, recovery would otherwise fire here.
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'save_skill': 'Save a reusable skill.',
+          'read_file': 'Read a local file.',
+        },
+        results: const {'save_skill': '', 'read_file': 'unexpected fallback'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          skillsNotifierProvider.overrideWith(_RecordingSkillsNotifier.new),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final chatNotifier = container.read(chatNotifierProvider.notifier);
+
+      final send = chatNotifier.sendMessage(
+        'Turn this conversation into a release skill',
+        bypassPlanMode: true,
+      );
+      // save_skill is non-cacheable: approve the pending write so the turn
+      // completes, then let the prose-only "stop" response settle.
+      for (var i = 0; i < 8; i++) {
+        final pending = chatNotifier.state.pendingFileOperation;
+        if (pending != null) {
+          chatNotifier.resolveFileOperation(id: pending.id, approved: true);
+          break;
+        }
+        await Future<void>.delayed(Duration.zero);
+      }
+      await send;
+
+      // The skill was authored exactly once.
+      expect(container.read(skillsNotifierProvider).skills, hasLength(1));
+      expect(toolService.executedToolNames, isNot(contains('read_file')));
+      // Only the save_skill tool-result batch was sent — no recovery batch.
+      expect(dataSource.toolResultBatches, hasLength(1));
+      for (final batch in dataSource.toolResultBatches) {
+        for (final result in batch) {
+          expect(result.name, isNot('coding_continuation_recovery'));
+          expect(result.result, isNot(contains('prose_only_coding_continuation')));
+        }
+      }
+    },
+  );
+
+  test(
     'sendMessage gates prose-only coding continuation before memory update',
     () async {
       const incompleteFinalAnswer =

@@ -83,6 +83,10 @@ extension ChatNotifierSkillHandlers on ChatNotifier {
       final saved = await ref
           .read(skillsNotifierProvider.notifier)
           .upsertMarkdown(existingId: existing?.id, markdown: markdown);
+      // Mark this turn as having authored a skill so coding continuation
+      // recovery does not treat the "skill created" summary as an unexecuted
+      // continuation and force a redundant second save.
+      _lastSaveSkillGeneration = _interactionGeneration;
       return McpToolResult(
         toolName: toolCall.name,
         result: jsonEncode({

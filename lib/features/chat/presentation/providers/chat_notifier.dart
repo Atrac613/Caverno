@@ -5403,6 +5403,11 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _forcePromptCompactionForNextRequest = false;
   bool _isDrainingQueuedMessages = false;
   int _interactionGeneration = 0;
+  // Interaction generation in which a save_skill tool call last succeeded. Used
+  // to suppress coding continuation-recovery: once a skill has been authored
+  // this turn, the model's "skill created" summary is a legitimate completion,
+  // not an unexecuted coding continuation that needs a forced retry.
+  int? _lastSaveSkillGeneration;
   String? _activeResponseConversationId;
   List<Message>? _activeResponseMessages;
   final Map<int, String> _activeResponseConversationIdsByGeneration =
