@@ -53,6 +53,42 @@ class BuiltInToolRegistry {
     categoryBrowser,
   ];
 
+  /// Built-in tool categories deferred from the initial tool-search selection
+  /// (heavy, rare, or platform-specific surfaces). Their tools stay reachable
+  /// via the `tool_search` tool on demand. See F6 in
+  /// `docs/local_llm_agent_roadmap.md`.
+  static const Set<String> toolSearchDeferredCategories = {
+    categoryComputerUse,
+    categoryBrowser,
+    categorySsh,
+    categorySerial,
+    categoryBle,
+    categorySystem,
+  };
+
+  /// Individual built-in tools deferred from the initial tool-search selection
+  /// even though their category is otherwise initial-loaded: mutating HTTP
+  /// verbs and heavy script execution stay behind `tool_search`.
+  static const Set<String> toolSearchDeferredToolNames = {
+    'http_post',
+    'http_put',
+    'http_patch',
+    'http_delete',
+    'run_python_script',
+  };
+
+  /// Registry tool names that load in the initial tool-search selection: every
+  /// catalog tool whose category and name are not deferred. New registry tools
+  /// default to the initial set (the safe direction) unless added to a deferred
+  /// set above, which prevents the silent tool-search omissions the F6 guard
+  /// was created for.
+  static final Set<String> toolSearchInitialToolNames = {
+    for (final tool in tools)
+      if (!toolSearchDeferredCategories.contains(tool.category) &&
+          !toolSearchDeferredToolNames.contains(tool.name))
+        tool.name,
+  };
+
   static const List<BuiltInToolInfo> tools = [
     // DateTime
     BuiltInToolInfo(

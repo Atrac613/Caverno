@@ -547,22 +547,35 @@ Acceptance criteria:
   tool-count reduction goal of the dynamic tool-search mode.
 
 Evidence:
-- `ToolDefinitionSearchService.shouldLoadInitially` is now public, and
-  `resolve_installed_dependency` was added to `_alwaysLoadedToolNames`.
+- `ToolDefinitionSearchService.shouldLoadInitially` is public, and
+  `resolve_installed_dependency` is restored to the initial set.
 - `test/features/chat/domain/services/tool_definition_search_service_test.dart`
   adds the "built-in tool initial-load classification (F6)" group: every
-  `BuiltInToolRegistry.tools` entry must be initial-loaded or in the explicit
-  deferred categories (`computer_use`/`browser`/`ssh`/`serial`/`ble`/`system`)
-  or deferred names (`http_post`/`put`/`patch`/`delete`, `run_python_script`),
-  with positive assertions for `save_skill` and `resolve_installed_dependency`.
-- Focused test (14/14) and `flutter analyze` pass.
+  `BuiltInToolRegistry.tools` entry must be initial-loaded or in the deferred
+  categories (`computer_use`/`browser`/`ssh`/`serial`/`ble`/`system`) or
+  deferred names (`http_post`/`put`/`patch`/`delete`, `run_python_script`), with
+  positive assertions for `save_skill` and `resolve_installed_dependency`,
+  non-registry forced tools, deferred tools, and unknown remote/MCP tools.
+- Focused test, `system_prompt_builder`, `tools_settings_page`, and
+  `chat_notifier` suites plus `flutter analyze` pass.
 
-Deferred optional follow-up:
-- The deferred classification currently lives in the guard test. Moving the
-  initial-load decision into `BuiltInToolRegistry` category/`deferred` metadata
-  (removing the hand-maintained `_alwaysLoadedToolNames` list so new tools
-  default to the safe initial-load direction) remains a follow-up. Pairs with
-  MCP-GOV1 if its linter scope is later broadened to the built-in catalog.
+Follow-up (done): metadata-driven initial load.
+- The deferral metadata is now owned by `BuiltInToolRegistry`
+  (`toolSearchDeferredCategories`, `toolSearchDeferredToolNames`,
+  `toolSearchInitialToolNames`). `ToolDefinitionSearchService.shouldLoadInitially`
+  derives the registry portion from it, so a new registry tool defaults to the
+  safe initial-load direction unless explicitly deferred. The hand-maintained
+  `_alwaysLoadedToolNames` allowlist (60 names) is removed.
+- It is a hybrid, not a full single-source: `BuiltInToolRegistry` is the
+  settings-UI catalog, not the complete built-in universe. 18 non-registry
+  built-ins (the `tool_search` meta tool, `search_web`/`news`/`images`,
+  `searxng_web_search`, `process_*`, and network-health diagnostics) remain in a
+  small explicit `_forcedInitialNonRegistryToolNames` set. The refactor is
+  behavior-preserving (initial set unchanged) and verified by the guard plus
+  non-registry/deferred/remote assertions.
+- Remaining option: fold those 18 into `BuiltInToolRegistry` for a true single
+  source (adds settings-UI toggles), and broaden MCP-GOV1's linter to the
+  built-in catalog.
 
 ### LL1: Per-Role Model Routing
 

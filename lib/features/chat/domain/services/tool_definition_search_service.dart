@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../settings/domain/entities/built_in_tool_info.dart';
 import '../entities/tool_call_info.dart';
 import 'tool_result_prompt_builder.dart';
 
@@ -37,66 +38,24 @@ class ToolDefinitionSearchService {
     'web_search',
   };
 
-  static const Set<String> _alwaysLoadedToolNames = {
+  /// Tools forced into the initial tool-search selection that are NOT in the
+  /// [BuiltInToolRegistry] catalog (they are not user-toggleable there): the
+  /// `tool_search` meta tool, web-search variants, background-process control,
+  /// and network-health diagnostics. Registry tools are derived from
+  /// [BuiltInToolRegistry.toolSearchInitialToolNames] instead (F6 follow-up),
+  /// so this set only lists the non-registry built-ins.
+  static const Set<String> _forcedInitialNonRegistryToolNames = {
     toolName,
-    'get_current_datetime',
-    'search_past_conversations',
-    'recall_memory',
-    'ask_user_question',
-    'spawn_subagent',
-    'get_subagent_result',
-    'load_skill',
-    // Keep save_skill in the initial set so in-chat skill authoring is
-    // discoverable without the model first calling tool_search; the system
-    // prompt only injects save_skill guidance when the tool is selected.
-    'save_skill',
     'search_web',
     'search_news',
     'search_images',
     'searxng_web_search',
-    'web_search',
-    'ping',
-    'whois_lookup',
-    'dns_lookup',
-    'port_check',
-    'ssl_certificate',
-    'http_status',
-    'traceroute',
-    'list_directory',
-    'read_file',
-    'write_file',
-    'edit_file',
-    'rollback_last_file_change',
     'process_start',
     'process_status',
     'process_tail',
     'process_wait',
     'process_list',
     'process_cancel',
-    'find_files',
-    'search_files',
-    'local_execute_command',
-    'run_tests',
-    'git_execute_command',
-    // Keep dependency grounding in the initial set so coding answers can be
-    // grounded in the project's installed sources without first calling
-    // tool_search (LL10). Covered by the F6 classification guard.
-    'resolve_installed_dependency',
-    'ping6',
-    'arp',
-    'ndp',
-    'route_lookup',
-    'interface_info',
-    'dns_query',
-    'http_get',
-    'http_head',
-    'path_mtu',
-    'mdns_browse',
-    'wifi_scan',
-    'wifi_get_scan_results',
-    'wifi_get_connection_info',
-    'lan_scan',
-    'lan_get_scan_results',
     'get_wifi_health',
     'get_wan_status',
     'get_dns_health',
@@ -301,7 +260,10 @@ class ToolDefinitionSearchService {
   ) {
     final names = toolNamesFromDefinitions(definitions);
     if (names.any(_searchToolNames.contains)) {
-      return names.intersection(_alwaysLoadedToolNames);
+      return names.intersection({
+        ..._forcedInitialNonRegistryToolNames,
+        ...BuiltInToolRegistry.toolSearchInitialToolNames,
+      });
     }
     return names;
   }
@@ -319,7 +281,8 @@ class ToolDefinitionSearchService {
   /// initial-loaded or intentionally deferred.
   static bool shouldLoadInitially(String toolName) {
     final normalized = toolName.trim().toLowerCase();
-    return _alwaysLoadedToolNames.contains(normalized) ||
+    return _forcedInitialNonRegistryToolNames.contains(normalized) ||
+        BuiltInToolRegistry.toolSearchInitialToolNames.contains(normalized) ||
         normalized.startsWith('wifi_') ||
         normalized.startsWith('get_wifi_') ||
         normalized.startsWith('wan_') ||

@@ -298,26 +298,10 @@ void main() {
   // hidden behind tool_search (as save_skill and resolve_installed_dependency
   // were before this guard existed).
   group('built-in tool initial-load classification (F6)', () {
-    // Built-in categories whose tools are intentionally deferred behind
-    // tool_search by default (heavy, rare, or platform-specific surfaces).
-    const deferredCategories = {
-      BuiltInToolRegistry.categoryComputerUse,
-      BuiltInToolRegistry.categoryBrowser,
-      BuiltInToolRegistry.categorySsh,
-      BuiltInToolRegistry.categorySerial,
-      BuiltInToolRegistry.categoryBle,
-      BuiltInToolRegistry.categorySystem,
-    };
-    // Individual built-in tools intentionally deferred even though their
-    // category is otherwise initial-loaded: mutating HTTP verbs and heavy
-    // script execution stay behind tool_search.
-    const deferredNames = {
-      'http_post',
-      'http_put',
-      'http_patch',
-      'http_delete',
-      'run_python_script',
-    };
+    // The deferral metadata is owned by BuiltInToolRegistry (single source of
+    // truth); shouldLoadInitially derives the initial set from it.
+    const deferredCategories = BuiltInToolRegistry.toolSearchDeferredCategories;
+    const deferredNames = BuiltInToolRegistry.toolSearchDeferredToolNames;
 
     test('every built-in tool is initial-load or intentionally deferred', () {
       final unclassified = <String>[];
@@ -332,9 +316,9 @@ void main() {
           unclassified.add('${info.name} (${info.category})');
         }
         expect(
-          initial && deferredNames.contains(info.name),
+          initial && deferred,
           isFalse,
-          reason: '${info.name} is both initial-load and explicitly deferred',
+          reason: '${info.name} is both initial-load and intentionally deferred',
         );
       }
       expect(
@@ -343,8 +327,8 @@ void main() {
         reason:
             'These built-in tools are neither initial-loaded nor intentionally '
             'deferred, so they would be silently hidden behind tool_search. Add '
-            'each to ToolDefinitionSearchService initial loading, or to the '
-            'deferred categories/names in this guard: $unclassified',
+            'each to a non-deferred BuiltInToolRegistry category, or to the '
+            'deferred categories/names: $unclassified',
       );
     });
 
@@ -358,6 +342,45 @@ void main() {
           'resolve_installed_dependency',
         ),
         isTrue,
+      );
+    });
+
+    test('non-registry built-in tools still load initially', () {
+      // These are not in BuiltInToolRegistry but must stay in the initial set.
+      for (final name in [
+        'search_web',
+        'process_start',
+        'get_dns_health',
+        'explain_network_slowdown_context',
+      ]) {
+        expect(
+          ToolDefinitionSearchService.shouldLoadInitially(name),
+          isTrue,
+          reason: '$name must remain initial-loaded',
+        );
+      }
+    });
+
+    test('deferred tools are not in the initial selection', () {
+      for (final name in [
+        'http_post',
+        'run_python_script',
+        'browser_open',
+        'computer_click',
+        'ssh_connect',
+      ]) {
+        expect(
+          ToolDefinitionSearchService.shouldLoadInitially(name),
+          isFalse,
+          reason: '$name should be deferred behind tool_search',
+        );
+      }
+    });
+
+    test('unknown remote/MCP tools are deferred', () {
+      expect(
+        ToolDefinitionSearchService.shouldLoadInitially('some_remote_mcp_tool'),
+        isFalse,
       );
     });
   });
