@@ -39,11 +39,11 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
-    # Force minimum deployment target to 12.0 for all pods to avoid
+    # Force minimum deployment target to 13.0 for all pods to avoid
     # Xcode errors when a pod (e.g. DKPhotoGallery) sets 9.0 which is
     # no longer supported by modern Xcode.
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
     end
   end
 end
