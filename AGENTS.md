@@ -180,7 +180,7 @@ Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
 ## Default Configuration
 
 - Base URL: `http://localhost:1234/v1`
-- Model: `mlx-community/GLM-4.7-Flash-4bit`
+- Model: `qwen3.6-27b-mtp-vision`
 - API Key: `no-key`
 - Temperature: 0.7, Max Tokens: 4096
 - MCP: enabled by default with `http://localhost:8081`

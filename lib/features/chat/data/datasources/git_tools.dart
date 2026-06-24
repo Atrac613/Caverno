@@ -265,9 +265,13 @@ class GitTools {
         'working_directory': workingDirectory,
         'exit_code': 2,
         'error':
-            'git_execute_command accepts one git subcommand per tool call. '
-            'Shell control operator "$shellOperator" is not supported. '
-            'Run separate git_execute_command calls instead.',
+            'git_execute_command accepts one git subcommand per tool call and '
+            'runs it without a shell, so the operator "$shellOperator" (pipes, '
+            'redirects, &&/;) is not supported. Do not retry the same command '
+            "unfiltered — filter with git's own arguments instead, e.g. "
+            '`tag --list "1.3.*" --sort=-v:refname`, `log -n 5 --oneline`, or '
+            '`branch --list "feature/*"`. Run separate git_execute_command '
+            'calls if you need multiple steps.',
       });
     }
 

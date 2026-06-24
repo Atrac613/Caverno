@@ -14,7 +14,7 @@ syncs replace only the entries managed by this file.
   "version": 1,
   "settings": {
     "baseUrl": "http://localhost:1234/v1",
-    "model": "mlx-community/GLM-4.7-Flash-4bit",
+    "model": "qwen3.6-27b-mtp-vision",
     "apiKey": "no-key",
     "temperature": 0.7,
     "maxTokens": 4096,

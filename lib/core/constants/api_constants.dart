@@ -2,7 +2,7 @@ class ApiConstants {
   ApiConstants._();
 
   static const String defaultBaseUrl = 'http://localhost:1234/v1';
-  static const String defaultModel = 'mlx-community/GLM-4.7-Flash-4bit';
+  static const String defaultModel = 'qwen3.6-27b-mtp-vision';
   static const String defaultApiKey = 'no-key';
   static const String appleFoundationModelsModelId = 'apple-foundation-models';
   static const String nvidiaNimBaseUrl = 'https://integrate.api.nvidia.com/v1';

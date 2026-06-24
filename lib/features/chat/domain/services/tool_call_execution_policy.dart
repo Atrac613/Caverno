@@ -371,11 +371,14 @@ class ToolCallExecutionPolicy {
     if (isReadOnlyInspectionTool(toolCall.name)) {
       return true;
     }
-    if (toolCall.name.trim().toLowerCase() != 'local_execute_command') {
-      return false;
-    }
-    final command = toolCommandArgument(toolCall.arguments);
-    return command != null && LocalShellTools.isReadOnly(command);
+    // Read-only command-execution tools count as inspection too: a read-only
+    // `local_execute_command` (e.g. `pwd`) and a read-only `git_execute_command`
+    // (e.g. `git status`, `git tag --list`) are probing the workspace, not
+    // mutating it. Without classifying git here, a model that loops on read-only
+    // git inspection never trips the duplicate-inspection / loop-exhaustion
+    // recovery, because those guards require *every* pending tool call to be
+    // read-only inspection.
+    return isReadOnlyCommandExecutionToolCall(toolCall);
   }
 
   bool isReadOnlyCommandExecutionToolCall(ToolCallInfo toolCall) {

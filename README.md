@@ -104,7 +104,7 @@ All settings are configurable in-app via the Settings page:
 | Setting | Default |
 |---------|---------|
 | Base URL | `http://localhost:1234/v1` |
-| Model | `mlx-community/GLM-4.7-Flash-4bit` |
+| Model | `qwen3.6-27b-mtp-vision` |
 | API Key | `no-key` |
 | Temperature | 0.7 |
 | Max Tokens | 4096 |

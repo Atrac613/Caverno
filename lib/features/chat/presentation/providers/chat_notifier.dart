@@ -4978,6 +4978,14 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   @visibleForTesting
+  String messageContentWithPrependedClaimCorrectionNoticeForTest(
+    String content,
+    String notice,
+  ) {
+    return _messageContentWithPrependedClaimCorrectionNotice(content, notice);
+  }
+
+  @visibleForTesting
   String buildToolLoopExhaustionRecoveryPromptForTest(
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
@@ -11910,7 +11918,12 @@ class ChatNotifier extends Notifier<ChatState> {
           !_looksLikeCommandSuccessClaim(lastMessage.content)) {
         return;
       }
-      updatedMessages[lastIndex] = lastMessage.copyWith(content: notice);
+      updatedMessages[lastIndex] = lastMessage.copyWith(
+        content: _messageContentWithPrependedClaimCorrectionNotice(
+          lastMessage.content,
+          notice,
+        ),
+      );
       _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
       return;
     }
@@ -11924,7 +11937,12 @@ class ChatNotifier extends Notifier<ChatState> {
         !_looksLikeCommandSuccessClaim(lastMessage.content)) {
       return;
     }
-    updatedMessages[lastIndex] = lastMessage.copyWith(content: notice);
+    updatedMessages[lastIndex] = lastMessage.copyWith(
+      content: _messageContentWithPrependedClaimCorrectionNotice(
+        lastMessage.content,
+        notice,
+      ),
+    );
     state = state.copyWith(messages: updatedMessages);
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
   }
@@ -11954,7 +11972,12 @@ class ChatNotifier extends Notifier<ChatState> {
           !_looksLikeCommandSuccessClaim(lastMessage.content)) {
         return;
       }
-      updatedMessages[lastIndex] = lastMessage.copyWith(content: notice);
+      updatedMessages[lastIndex] = lastMessage.copyWith(
+        content: _messageContentWithPrependedClaimCorrectionNotice(
+          lastMessage.content,
+          notice,
+        ),
+      );
       _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
       return;
     }
@@ -11968,7 +11991,12 @@ class ChatNotifier extends Notifier<ChatState> {
         !_looksLikeCommandSuccessClaim(lastMessage.content)) {
       return;
     }
-    updatedMessages[lastIndex] = lastMessage.copyWith(content: notice);
+    updatedMessages[lastIndex] = lastMessage.copyWith(
+      content: _messageContentWithPrependedClaimCorrectionNotice(
+        lastMessage.content,
+        notice,
+      ),
+    );
     state = state.copyWith(messages: updatedMessages);
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
   }
@@ -11984,6 +12012,30 @@ class ChatNotifier extends Notifier<ChatState> {
       return notice;
     }
     return '${content.trimRight()}\n\n$notice';
+  }
+
+  /// Prepends [notice] to [content] so a failed/timed-out command's correction
+  /// is read first while the assistant's original message stays visible.
+  ///
+  /// This guard previously replaced the whole message with [notice]. Because
+  /// [_looksLikeCommandSuccessClaim] matches any message that merely mentions
+  /// "success"/"completed"/"完了", a long legitimate answer was wiped down to a
+  /// single sentence and the chat log looked like it had vanished. Keeping the
+  /// original content below the correction preserves the transcript; placing the
+  /// correction first still frames the claim as unverified for both the reader
+  /// and the model on the next turn.
+  String _messageContentWithPrependedClaimCorrectionNotice(
+    String content,
+    String notice,
+  ) {
+    if (content.contains(notice)) {
+      return content;
+    }
+    final trimmed = content.trimRight();
+    if (trimmed.trim().isEmpty) {
+      return notice;
+    }
+    return '$notice\n\n$trimmed';
   }
 
   bool _looksLikeUnsupportedFileSideEffectClaim(

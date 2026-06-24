@@ -255,7 +255,7 @@ Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
 Defined in `lib/core/constants/api_constants.dart`:
 
 - Base URL: `http://localhost:1234/v1`
-- Model: `mlx-community/GLM-4.7-Flash-4bit`
+- Model: `qwen3.6-27b-mtp-vision`
 - API Key: `no-key`
 - Temperature: 0.7, Max Tokens: 4096
 - Assistant modes (`core/types/assistant_mode.dart`): `general` (default), `coding`, `plan`

@@ -163,6 +163,30 @@ void main() {
       expect(decoded['error'], contains('&&'));
     });
 
+    test('rejects a piped command with directive self-correction guidance',
+        () async {
+      final tempDir = await Directory.systemTemp.createTemp('git_tools_pipe_');
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      final raw = await GitTools.execute(
+        command: 'tag --list | sort -V | tail -10',
+        workingDirectory: tempDir.path,
+      );
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final error = decoded['error'] as String;
+
+      expect(decoded['exit_code'], 2);
+      // The model must learn to filter with git's own arguments rather than
+      // blindly retrying the unfiltered command, which is what caused the
+      // observed `tag --list` inspection loop.
+      expect(error, contains('Do not retry the same command'));
+      expect(error, contains('tag --list'));
+    });
+
     test('rejects commit when unstaged changes would be omitted', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'git_tools_stale_index_test_',

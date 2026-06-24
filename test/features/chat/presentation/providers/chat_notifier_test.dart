@@ -134,6 +134,37 @@ void main() {
   registerChatNotifierTurnRollbackTests();
   registerChatNotifierContextSurgeryTests();
 
+  test('failed-command correction notice keeps the original answer', () {
+    const notice =
+        'A command exited with non-zero exit code 1, so any success, upload, '
+        'release, pass, or completion claim is unverified. Treat the command '
+        'as failed until a later command-execution tool result exits '
+        'successfully.';
+    const original =
+        'Release completed successfully.\n\n'
+        '1. Ran the build\n2. Uploaded the archive\n3. Tagged the release';
+
+    final corrected = notifier
+        .messageContentWithPrependedClaimCorrectionNoticeForTest(
+          original,
+          notice,
+        );
+
+    // The original answer must remain visible (the chat log must not look
+    // wiped) and the correction must come first to frame it as unverified.
+    expect(corrected, startsWith(notice));
+    expect(corrected, contains(original));
+
+    // Running the guard again must not stack a second copy of the notice.
+    expect(
+      notifier.messageContentWithPrependedClaimCorrectionNoticeForTest(
+        corrected,
+        notice,
+      ),
+      corrected,
+    );
+  });
+
   test('sendMessage marks regular streaming requests as loading', () async {
     await notifier.sendMessage('Inspect the workspace');
 
@@ -10536,7 +10567,7 @@ with open(path, "rb") as file:
     }
   });
 
-  test('sendMessage blocks success claims after command timeout', () async {
+  test('sendMessage flags success claims as unverified after command timeout', () async {
     const command = 'fvm flutter test --no-pub';
     final toolDataSource = _QueuedToolLoopChatDataSource(
       initialToolCalls: [
@@ -10600,13 +10631,15 @@ with open(path, "rb") as file:
         toolDataSource.toolResultBatches.first.single.name,
         'local_execute_command',
       );
+      // The original answer stays visible with the timeout correction
+      // prepended, so the chat log is not wiped down to the notice.
       expect(
         toolNotifier.state.messages.last.content,
-        isNot(contains('Unit tests passed')),
+        startsWith('A command timed out'),
       );
       expect(
         toolNotifier.state.messages.last.content,
-        contains('A command timed out'),
+        contains('Unit tests passed'),
       );
     } finally {
       toolContainer.dispose();
@@ -14538,7 +14571,7 @@ with open(path, "rb") as file:
   );
 
   test(
-    'sendMessage replaces streamed success claim after non-zero command exit',
+    'sendMessage flags streamed success claim after non-zero command exit',
     () async {
       const command = 'bash tool/release_ios_macos.sh';
       final toolDataSource = _QueuedToolLoopChatDataSource(
@@ -14601,8 +14634,13 @@ with open(path, "rb") as file:
 
         expect(toolService.executedToolNames, ['local_execute_command']);
         final finalContent = toolNotifier.state.messages.last.content;
-        expect(finalContent, isNot(contains('upload completed successfully')));
-        expect(finalContent, isNot(contains('release is complete')));
+        // Correction is prepended; the original answer remains in the log.
+        expect(
+          finalContent,
+          startsWith('A command exited with non-zero exit code'),
+        );
+        expect(finalContent, contains('upload completed successfully'));
+        expect(finalContent, contains('release is complete'));
         expect(finalContent, contains('non-zero exit code'));
         expect(finalContent, contains('-15'));
       } finally {
@@ -14612,7 +14650,7 @@ with open(path, "rb") as file:
   );
 
   test(
-    'sendMessage replaces CJK committed claim after non-zero command exit',
+    'sendMessage flags CJK committed claim after non-zero command exit',
     () async {
       const command = 'git commit -m "fix: update settings"';
       final committedClaim = String.fromCharCodes(const [
@@ -14698,7 +14736,12 @@ with open(path, "rb") as file:
 
         expect(toolService.executedToolNames, ['local_execute_command']);
         final finalContent = toolNotifier.state.messages.last.content;
-        expect(finalContent, isNot(contains(committedClaim)));
+        // Correction is prepended; the original claim remains in the log.
+        expect(
+          finalContent,
+          startsWith('A command exited with non-zero exit code'),
+        );
+        expect(finalContent, contains(committedClaim));
         expect(finalContent, contains('non-zero exit code'));
         expect(finalContent, contains('1'));
       } finally {
@@ -14708,7 +14751,7 @@ with open(path, "rb") as file:
   );
 
   test(
-    'sendMessage replaces CJK normal operation claim after failed run_tests',
+    'sendMessage flags CJK normal operation claim after failed run_tests',
     () async {
       final normalOperationClaim = String.fromCharCodes(const [
         0x30c6,
@@ -14812,7 +14855,12 @@ with open(path, "rb") as file:
 
         expect(toolService.executedToolNames, ['local_execute_command']);
         final finalContent = toolNotifier.state.messages.last.content;
-        expect(finalContent, isNot(contains(normalOperationClaim)));
+        // Correction is prepended; the original claim remains in the log.
+        expect(
+          finalContent,
+          startsWith('A command exited with non-zero exit code'),
+        );
+        expect(finalContent, contains(normalOperationClaim));
         expect(finalContent, contains('non-zero exit code'));
         expect(finalContent, contains('1'));
       } finally {

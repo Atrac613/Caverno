@@ -78,6 +78,30 @@ void main() {
       );
     });
 
+    test('treats read-only git inspection as inspection but writes as not', () {
+      // Read-only git probing must count as inspection so repeated
+      // `git status` / `git tag --list` loops trip the duplicate-inspection
+      // and loop-exhaustion recovery guards.
+      expect(
+        policy.isReadOnlyInspectionToolCall(
+          _toolCall('git_execute_command', {'command': 'status'}),
+        ),
+        isTrue,
+      );
+      expect(
+        policy.isReadOnlyInspectionToolCall(
+          _toolCall('git_execute_command', {'command': 'tag --list'}),
+        ),
+        isTrue,
+      );
+      expect(
+        policy.isReadOnlyInspectionToolCall(
+          _toolCall('git_execute_command', {'command': 'commit -m "release"'}),
+        ),
+        isFalse,
+      );
+    });
+
     test('detects successful command tool results', () {
       expect(
         policy.toolResultHasSuccessfulExit(

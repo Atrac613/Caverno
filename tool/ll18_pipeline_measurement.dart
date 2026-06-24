@@ -23,7 +23,7 @@ import 'package:caverno/features/personal_eval/domain/services/personal_eval_rep
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 const _defaultBaseUrl = 'http://localhost:1234/v1';
-const _defaultModel = 'mlx-community/GLM-4.7-Flash-4bit';
+const _defaultModel = 'qwen3.6-27b-mtp-vision';
 
 Future<void> main(List<String> args) async {
   final opts = _Options.parse(args);
