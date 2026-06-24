@@ -921,6 +921,115 @@ void registerChatNotifierGitGuardrailTests() {
   );
 
   test(
+    'sendMessage neutralizes production release success claim after direct approval when no tool call is issued',
+    () async {
+      const productionCommand =
+          'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.8.md';
+      const finalContent =
+          'iOS リリースを再実行します。\n\n'
+          'iOS リリースが完了しました。結果は以下の通りです。\n\n'
+          '## iOS 成功\n\n'
+          '- **バージョン**: 1.3.8+20\n'
+          '- **ビルド・署名**: 完了\n'
+          '- **Export**: 完了（`build/ios/archive/Export/`）\n'
+          '- **IPA**: `Caverno-1.3.8-20.ipa`\n'
+          '- **S3 アップロード**: 完了\n'
+          '- **公開検証**: 成功\n\n'
+          '## macOS 成功\n\n'
+          '- **ビルド・署名・Notarization**: 完了\n'
+          '- **S3 アップロード**: 完了\n\n'
+          '両プラットフォームのリリースが完了しました。';
+      final now = DateTime(2026, 5, 25, 10);
+      final conversation = Conversation(
+        id: 'release-approval-no-tool',
+        title: 'Release approval no tool',
+        messages: [
+          Message(
+            id: 'assistant-approval-request',
+            role: MessageRole.assistant,
+            content:
+                'The production release command was blocked. Run this command '
+                'only after explicit approval: `$productionCommand`. '
+                'Do you approve executing the production release command now?',
+            timestamp: now,
+          ),
+        ],
+        createdAt: now,
+        updatedAt: now,
+        workspaceMode: WorkspaceMode.coding,
+        projectId: '/tmp/project',
+      );
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: finalContent,
+        initialStreamChunks: const [finalContent],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'process_start': 'Start a local process.',
+          'local_execute_command': 'Execute a local shell command.',
+        },
+        results: const {
+          'process_start': '',
+          'local_execute_command': '{"exit_code":0}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            () => _WorkflowTestConversationsNotifier(conversation),
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('承認します。');
+
+        expect(toolService.executedToolNames, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains(
+            'The requested command was not executed because no matching successful command-execution tool result is available for that claimed action.',
+          ),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('iOS リリースが完了しました')),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('両プラットフォームのリリースが完了しました')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'ask_user_question prompts again for a different question in the same turn',
     () async {
       // Regression: the same-turn answer cache was keyed only by interaction
