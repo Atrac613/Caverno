@@ -34,6 +34,9 @@ It also records a future platform vision layer. These milestones are deliberatel
   model-specific tool-prompt optimization.
 - `SKILL<number>` — In-chat skill authoring and lifecycle: create, edit, and
   mine reusable skills from the conversation instead of only the settings UI.
+- `TOOL<number>` — User-created Tools workspace: local-first mini applications
+  built from a Caverno-owned, capability-gated manifest runtime rather than
+  arbitrary generated code.
 - `THREAT<number>` — Endpoint threat posture: agent-as-malware-vector
   hardening, read-only host compromise triage, and idle-time local
   threat-intelligence pre-learning.
@@ -114,6 +117,12 @@ structurally unmotivated to build:
     triage. Vulnerability intel (what is patchable) and threat/IoC intel (what
     infection looks like) are different axes, and neither is the model's stale
     training data.
+15. **User-created Tools should be manifests, not code blobs.** Caverno can
+    become a local-first personal app workbench without letting an LLM write and
+    execute arbitrary Flutter, JavaScript, SQL, shell, native plugin, or network
+    code. A closed Tool manifest keeps generated screens, data, actions,
+    capabilities, permissions, and resource limits reviewable while the runtime
+    enforces Caverno's storage, approval, data-egress, and data-perimeter rules.
 
 ## Milestone Index
 
@@ -186,6 +195,14 @@ structurally unmotivated to build:
 | Skills | SKILL1 | done | S-M | F2 | In-chat skill authoring: a `save_skill` built-in tool persists a new or updated skill from the conversation behind a non-cacheable user approval. |
 | Skills | SKILL2 | done | M | SKILL1 | Chat-driven skill lifecycle: a `/skill` command plus update-by-name and diff preview before save. |
 | Skills | SKILL3 | later | M | SKILL1, LL18, OBS1 | Idle-time skill mining: distill recurring verified workflows from traces into proposed skills, user-reviewed before adoption. |
+| Tools | TOOL0 | next | S | F4 | Product vocabulary and navigation: add the Tools workspace entry point without changing existing LLM tool-calling behavior. |
+| Tools | TOOL1 | later | M | TOOL0 | Manifest schema, capability registry, policy engine, and validator for closed, versioned user-created Tools. |
+| Tools | TOOL2 | later | M | TOOL1, F4 | Local repository, record store, indexes, assets, execution logs, and storage-safety rules. |
+| Tools | TOOL3 | later | M | TOOL1, TOOL2 | Declarative runtime and read-only Flutter component renderer for saved Tool manifests. |
+| Tools | TOOL4 | later | M | TOOL3, SEC1, SEC2 | Action runner with confirmation gates, provenance tracking, manual fallback, and scoped writes. |
+| Tools | TOOL5 | later | S-M | TOOL3, TOOL4 | Receipt ledger MVP template using the same manifest runtime, storage, and permission gates as generated Tools. |
+| Tools | TOOL6 | later | M | TOOL5, LL3, COMPAT1 | Natural-language Tool builder that emits reviewable manifest drafts from approved templates and vocabularies. |
+| Tools | TOOL7 | later | S | TOOL0-TOOL6 | MVP release gate and store/privacy readiness for workspace switching, validation, persistence, rendering, confirmation, data-egress copy, and receipt-ledger behavior. |
 | Threat Posture | THREAT1 | later | M | F2, SEC1, SEC2 | Agent-as-malware-vector hardening: non-cacheable approval plus explicit resolved-command and destination-domain review for network-fetch-then-execute and persistence-write shapes in `local_shell`. |
 | Threat Posture | THREAT2 | later | M | F2, SEC1 | Read-only host compromise triage: a fixed-command `host_security_snapshot` IoC collector, a routine allowlist entry, and an AMOS-style TTP triage prompt/mode. |
 | Threat Posture | THREAT3 | later | L | THREAT2, LL10, LL18, LL5, SEC1 | Local threat-intelligence pre-learning: idle-orchestrated ingestion of CISA KEV / scoped NVD CVE feeds and malware advisories, map-reduced into a provenance-tracked local KB that feeds THREAT2 triage and installed-software vulnerability matching. |
@@ -364,6 +381,27 @@ Recommended ordering: SKILL1 and SKILL2 are complete. SKILL3 waits for the LL18
 idle orchestrator and OBS1 traces so mined proposals are grounded in real run
 evidence. SEC1 perimeter classification enriches all skill flows by flagging
 skill content authored from untrusted evidence.
+
+### Phase 12 — User-created local apps (TOOL)
+
+The Tools track turns natural-language app requests into local-first mini
+applications inside Caverno. It deliberately starts with a Caverno-owned
+manifest runtime instead of arbitrary generated Flutter or script code: screens,
+data collections, actions, capabilities, permissions, provenance, and resource
+limits are reviewable data, while the app owns storage, rendering, action
+execution, and confirmation gates. The MVP target is a receipt ledger Tool that
+exercises camera capture, on-device OCR, explicitly disclosed remote LLM parsing,
+local records, dashboard rendering, and deletion/storage safety without letting
+OCR or model output write records before user review.
+
+Recommended ordering: TOOL0 should land first as navigation and product
+vocabulary only. TOOL1-TOOL4 build the manifest, capability registry, policy
+engine, persistence, storage-safety, renderer, action-runner, provenance, and
+confirmation foundation. TOOL5 proves that foundation with a receipt-ledger
+template. TOOL6 adds natural-language generation only after approved templates,
+component vocabularies, and validators can reject unsafe manifests. TOOL7 is the
+limited-use release gate plus store/privacy readiness. The detailed MVP plan
+lives in `docs/tools_mvp_roadmap.md`.
 
 ## Milestone Notes
 
@@ -3269,6 +3307,13 @@ Acceptance criteria:
 - Skill writes (SKILL track) always pass through the same high-risk,
   non-cacheable approval as other persistence-class tools; skill content
   distilled from untrusted evidence is flagged under SEC1 and never auto-adopted.
+- User-created Tools run through the Caverno manifest runtime, not arbitrary
+  generated code. New Tool actions must declare registered capabilities, pass
+  schema and policy validation, stay within Caverno-owned resource limits, and
+  add a user-visible review surface before OCR or LLM-derived evidence can
+  mutate local records. Remote AI parsing is data egress and must be disclosed;
+  debug logs must not contain receipt images, raw OCR text, LLM prompts, parsed
+  personal data, or private Tool records.
 - Threat-posture milestones treat every external intelligence feed (CVE, KEV,
   advisories) as SEC1 untrusted content: ingested intel informs triage but never
   becomes an instruction with tool authority, and host triage tools (THREAT2)

@@ -17,6 +17,8 @@ handoffs can refer to the same unit of work over time.
   `EVAL-MOBILE<number>`, `MM<number>`, `MCP-GOV<number>`, and
   `SKILL<number>` for future platform vision milestones, also documented in
   `docs/local_llm_agent_roadmap.md`.
+- Use `TOOL<number>` for the user-created Tools workspace and manifest runtime
+  milestones documented in `docs/tools_mvp_roadmap.md`.
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
 - Every active milestone should record scope, acceptance criteria, verification
   evidence, and the next action.
@@ -52,6 +54,7 @@ handoffs can refer to the same unit of work over time.
 | Computer Use | M56 | done | Hand off the approved post-expansion rollout decision to the next user-operated rollout branch. | Use `bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh` for rollout decision handoff evidence. |
 | Remote Coding | RC0 | done | Ship the P0 LAN mobile control safety gate for existing desktop coding projects. | Use `dart run tool/remote_coding_p0_release_gate.dart` before P0 release review. |
 | Remote Coding | RC1 | later | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Keep light manual smoke as sufficient until P1 release evidence becomes a release priority. |
+| Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
 | Foundation | F3 | done | Keep major dependencies current, starting with `openai_dart` 6.x. | `openai_dart` is on 6.2.0; remaining major upgrades (serious_python 2, etc.) are tracked as isolated follow-up slices. |
@@ -96,8 +99,9 @@ handoffs can refer to the same unit of work over time.
 | Skills | SKILL2 | done | Drive skill lifecycle from chat with `/skill`, update-by-name, and diff-before-save review. | Shipped in `1a73c8b8`: `/skill` and `save-skill` route to `save_skill`, and existing-skill updates preview a diff before approval. |
 | Skills | SKILL3 | later | Mine recurring verified workflows into proposed skills during idle windows. | Wait for LL18/OBS1 evidence so proposals are grounded in traces and remain user-reviewed before adoption. |
 
-Remaining Foundation F5/F6 and the future platform vision milestones are detailed in
-`docs/local_llm_agent_roadmap.md`.
+Remaining Foundation F5/F6 and the future platform vision milestones are
+detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
+detailed in `docs/tools_mvp_roadmap.md`.
 
 ## Plan Mode Track
 
@@ -778,6 +782,7 @@ Future platform vision summary:
 | EVAL-MOBILE | EVAL-MOBILE1 | later | Measure coding agents on Flutter/mobile failures that match Caverno's product domain. |
 | MM | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as traceable multimodal evidence. |
 | SKILL | SKILL1-SKILL3 | done/later | In-chat skill authoring and `/skill` are done; idle-time skill mining remains deferred until trace-backed proposals are available. |
+| TOOL | TOOL0-TOOL7 | next/later | Build the user-created Tools workspace through a capability-gated local manifest runtime rather than arbitrary generated code. |
 
 These vision milestones should not displace the current `next` Local LLM
 milestone unless one is explicitly promoted through the normal operating loop.
