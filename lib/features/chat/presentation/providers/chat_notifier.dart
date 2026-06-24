@@ -7668,6 +7668,19 @@ class ChatNotifier extends Notifier<ChatState> {
             toolResults: [unexecutedCommandAction],
             interactionGeneration: generation,
           );
+        } else {
+          final unverifiedInspectionClaim =
+              _buildUnverifiedReadOnlyInspectionClaimToolResult(
+                candidateResponse: hiddenAssistantEvidence,
+                toolResults: const [],
+              );
+          if (unverifiedInspectionClaim != null) {
+            _latestCompletedToolResults = [unverifiedInspectionClaim];
+            _appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded(
+              toolResults: [unverifiedInspectionClaim],
+              interactionGeneration: generation,
+            );
+          }
         }
         await _finishStreaming(interactionGeneration: generation);
       }
@@ -10156,6 +10169,19 @@ class ChatNotifier extends Notifier<ChatState> {
             toolResults: finalToolResults,
             interactionGeneration: interactionGeneration,
           );
+        } else {
+          final unverifiedInspectionClaim =
+              _buildUnverifiedReadOnlyInspectionClaimToolResult(
+                candidateResponse: streamedFinalAnswer,
+                toolResults: finalToolResults,
+              );
+          if (unverifiedInspectionClaim != null) {
+            finalToolResults.add(unverifiedInspectionClaim);
+            _appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded(
+              toolResults: finalToolResults,
+              interactionGeneration: interactionGeneration,
+            );
+          }
         }
       }
     } else if (!hasTextResponse) {
@@ -11896,6 +11922,60 @@ class ChatNotifier extends Notifier<ChatState> {
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
   }
 
+  void _appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded({
+    required List<ToolResultInfo> toolResults,
+    int? interactionGeneration,
+  }) {
+    final generation = interactionGeneration ?? _interactionGeneration;
+    const notice =
+        'The local file or project state claim above is unverified because no successful read-only inspection tool result is available for that claim. '
+        'Treat any file existence, file content, directory listing, or path verification claim above as unverified.';
+    if (!_hasUnverifiedReadOnlyInspectionClaimResult(toolResults)) {
+      return;
+    }
+
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      final activeMessages = _activeResponseMessagesForGeneration(generation);
+      if (activeMessages == null || activeMessages.isEmpty) return;
+
+      final updatedMessages = [...activeMessages];
+      final lastIndex = updatedMessages.length - 1;
+      final lastMessage = updatedMessages[lastIndex];
+      if (lastMessage.role != MessageRole.assistant) {
+        return;
+      }
+      final content = _messageContentWithUnverifiedReadOnlyInspectionNotice(
+        lastMessage.content,
+        notice,
+      );
+      if (lastMessage.content == content) {
+        return;
+      }
+      updatedMessages[lastIndex] = lastMessage.copyWith(content: content);
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+      return;
+    }
+
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    if (lastMessage.role != MessageRole.assistant) {
+      return;
+    }
+    final content = _messageContentWithUnverifiedReadOnlyInspectionNotice(
+      lastMessage.content,
+      notice,
+    );
+    if (lastMessage.content == content) {
+      return;
+    }
+    updatedMessages[lastIndex] = lastMessage.copyWith(content: content);
+    state = state.copyWith(messages: updatedMessages);
+    _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+  }
+
   void _replaceTimedOutCommandSuccessClaimIfNeeded({
     required List<ToolResultInfo> toolResults,
     int? interactionGeneration,
@@ -12018,12 +12098,11 @@ class ChatNotifier extends Notifier<ChatState> {
   /// is read first while the assistant's original message stays visible.
   ///
   /// This guard previously replaced the whole message with [notice]. Because
-  /// [_looksLikeCommandSuccessClaim] matches any message that merely mentions
-  /// "success"/"completed"/"完了", a long legitimate answer was wiped down to a
-  /// single sentence and the chat log looked like it had vanished. Keeping the
-  /// original content below the correction preserves the transcript; placing the
-  /// correction first still frames the claim as unverified for both the reader
-  /// and the model on the next turn.
+  /// [_looksLikeCommandSuccessClaim] matches messages that merely mention a
+  /// completed or successful state, a long legitimate answer could be reduced
+  /// to a single sentence. Keeping the original content below the correction
+  /// preserves the transcript; placing the correction first still frames the
+  /// claim as unverified for both the reader and the model on the next turn.
   String _messageContentWithPrependedClaimCorrectionNotice(
     String content,
     String notice,
@@ -12036,6 +12115,19 @@ class ChatNotifier extends Notifier<ChatState> {
       return notice;
     }
     return '$notice\n\n$trimmed';
+  }
+
+  String _messageContentWithUnverifiedReadOnlyInspectionNotice(
+    String content,
+    String notice,
+  ) {
+    if (content.contains(notice)) {
+      return content;
+    }
+    if (_looksLikeCompletedReadOnlyInspectionClaim(content.trim())) {
+      return notice;
+    }
+    return '${content.trimRight()}\n\n$notice';
   }
 
   bool _looksLikeUnsupportedFileSideEffectClaim(
@@ -12099,6 +12191,22 @@ class ChatNotifier extends Notifier<ChatState> {
         final decoded = jsonDecode(toolResult.result);
         if (decoded is Map<String, dynamic>) {
           return decoded['code'] == 'unexecuted_command_action';
+        }
+      } catch (_) {
+        return false;
+      }
+      return false;
+    });
+  }
+
+  bool _hasUnverifiedReadOnlyInspectionClaimResult(
+    List<ToolResultInfo> toolResults,
+  ) {
+    return toolResults.any((toolResult) {
+      try {
+        final decoded = jsonDecode(toolResult.result);
+        if (decoded is Map<String, dynamic>) {
+          return decoded['code'] == 'unverified_read_only_inspection_claim';
         }
       } catch (_) {
         return false;

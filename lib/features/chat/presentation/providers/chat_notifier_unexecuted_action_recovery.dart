@@ -108,6 +108,33 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     );
   }
 
+  ToolResultInfo? _buildUnverifiedReadOnlyInspectionClaimToolResult({
+    required String candidateResponse,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final candidate = candidateResponse.trim();
+    if (!_looksLikeCompletedReadOnlyInspectionClaim(candidate) ||
+        _hasSuccessfulReadOnlyInspectionResult(toolResults)) {
+      return null;
+    }
+
+    return ToolResultInfo(
+      id: 'unverified_read_only_inspection_claim_${DateTime.now().microsecondsSinceEpoch}',
+      name: 'read_file',
+      arguments: {
+        'reason':
+            'The assistant claimed local file or project state was inspected, but no successful read-only inspection tool result is available for that claim.',
+      },
+      result: jsonEncode({
+        'ok': false,
+        'code': 'unverified_read_only_inspection_claim',
+        'error':
+            'The local file or project state claim is unverified. No successful read_file, inspect_file, list_directory, find_files, search_files, or read-only local_execute_command result is available for the claimed inspection.',
+        'claimedResponse': _clipForDiagnostic(candidate),
+      }),
+    );
+  }
+
   bool _looksLikeFileSideEffectRequest(String text) {
     final normalized = text.trim().toLowerCase();
     if (normalized.isEmpty) {
@@ -153,6 +180,27 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     });
   }
 
+  bool _hasSuccessfulReadOnlyInspectionResult(
+    List<ToolResultInfo> toolResults,
+  ) {
+    return toolResults.any((toolResult) {
+      final normalizedName = toolResult.name.trim().toLowerCase();
+      if (const {
+        'read_file',
+        'inspect_file',
+        'list_directory',
+        'find_files',
+        'search_files',
+      }.contains(normalizedName)) {
+        return _toolResultLooksSuccessfulForFinalAnswer(toolResult.result);
+      }
+      if (normalizedName == 'local_execute_command') {
+        return _toolResultHasSuccessfulExit(toolResult);
+      }
+      return false;
+    });
+  }
+
   String _fileSideEffectToolNameForResults(List<ToolResultInfo> toolResults) {
     final sawBrowserContext = toolResults.any(
       (toolResult) =>
@@ -167,6 +215,108 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       return normalized;
     }
     return '${normalized.substring(0, maxLength)}...';
+  }
+
+  bool _looksLikeCompletedReadOnlyInspectionClaim(String content) {
+    final trimmed = content.trim();
+    if (trimmed.isEmpty || trimmed.length > 1800) {
+      return false;
+    }
+    final normalized = trimmed.toLowerCase();
+    if (_containsAny(normalized, const [
+          'not found',
+          'not exist',
+          'does not exist',
+          'do not exist',
+          'not checked',
+          'not inspected',
+          'not verified',
+          'unverified',
+          'not executed',
+          'could not verify',
+        ]) ||
+        _containsAnyCodeUnitSequence(trimmed, const [
+          [0x672a, 0x691c, 0x8a3c],
+          [0x672a, 0x78ba, 0x8a8d],
+          [0x672a, 0x5b9f, 0x884c],
+          [0x898b, 0x3064, 0x304b, 0x308a, 0x307e, 0x305b, 0x3093],
+        ])) {
+      return false;
+    }
+
+    return _hasReadOnlyInspectionTargetMarker(normalized, trimmed) &&
+        _hasCompletedReadOnlyInspectionMarker(normalized, trimmed);
+  }
+
+  bool _hasReadOnlyInspectionTargetMarker(String normalized, String original) {
+    final hasEnglishTarget = _containsAny(normalized, const [
+      'file',
+      'directory',
+      'folder',
+      'path',
+      'project',
+      'workspace',
+      'source',
+      'repo',
+      'repository',
+      'pubspec',
+      '.dart',
+      '.yaml',
+      '.yml',
+      '.json',
+      '.jsonl',
+      '.md',
+      '.plist',
+      '/',
+      '\\',
+      '`',
+    ]);
+    if (hasEnglishTarget) {
+      return true;
+    }
+    return _containsAnyCodeUnitSequence(original, const [
+      [0x30d5, 0x30a1, 0x30a4, 0x30eb],
+      [0x30c7, 0x30a3, 0x30ec, 0x30af, 0x30c8, 0x30ea],
+      [0x30d5, 0x30a9, 0x30eb, 0x30c0],
+      [0x30d1, 0x30b9],
+      [0x30d7, 0x30ed, 0x30b8, 0x30a7, 0x30af, 0x30c8],
+      [0x30ea, 0x30dd, 0x30b8, 0x30c8, 0x30ea],
+      [0x5b58, 0x5728],
+      [0x5185, 0x5bb9],
+    ]);
+  }
+
+  bool _hasCompletedReadOnlyInspectionMarker(
+    String normalized,
+    String original,
+  ) {
+    final hasEnglishClaim = _containsAny(normalized, const [
+      'confirmed',
+      'verified',
+      'found',
+      'exists',
+      'exist',
+      'is present',
+      'are present',
+      'i checked',
+      'i inspected',
+      'i read',
+      'the file contains',
+      'the directory contains',
+      'the path exists',
+    ]);
+    if (hasEnglishClaim) {
+      return true;
+    }
+    return _containsAnyCodeUnitSequence(original, const [
+      [0x78ba, 0x8a8d, 0x3057, 0x307e, 0x3057, 0x305f],
+      [0x691c, 0x8a3c, 0x3057, 0x307e, 0x3057, 0x305f],
+      [0x8abf, 0x3079, 0x307e, 0x3057, 0x305f],
+      [0x8aad, 0x307f, 0x307e, 0x3057, 0x305f],
+      [0x898b, 0x3064, 0x3051, 0x307e, 0x3057, 0x305f],
+      [0x5b58, 0x5728, 0x3059, 0x308b],
+      [0x542b, 0x307e, 0x308c, 0x3066, 0x3044, 0x307e, 0x3059],
+    ]);
   }
 
   Set<String> _browserToolNamesFromDefinitions(

@@ -171,6 +171,40 @@ void main() {
       },
     );
 
+    test('separates memory extraction errors from chat-turn stop causes', () {
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'local_execute_command',
+          arguments: const {'command': 'inspect session log'},
+          result: jsonEncode({
+            'stdout':
+                'L49 request messages: memory_extractor_system, memory_extractor_user\n'
+                'L49 error: Failed to load model qwen/qwen3-coder-next\n'
+                'L53 finishReason: stop; toolCalls: 0',
+            'exit_code': 0,
+          }),
+        ),
+      ]);
+
+      expect(prompt, contains('separate the user-facing chat turn'));
+      expect(prompt, contains('background secondary calls'));
+      expect(prompt, contains('memory_extractor_system'));
+      expect(prompt, contains('post-response memory extraction calls'));
+      expect(
+        prompt,
+        contains('Do not cite their model-load, transport, or JSON errors'),
+      );
+      expect(prompt, contains('latest non-memory-extraction chat entry'));
+      expect(prompt, contains('code=tool_call_not_executed'));
+      expect(prompt, contains('harness diagnostic'));
+      expect(prompt, contains('target log evidence'));
+      expect(
+        prompt.indexOf('separate the user-facing chat turn'),
+        lessThan(prompt.indexOf('[Tool: local_execute_command]')),
+      );
+    });
+
     test(
       'does not flag analyzer errors superseded by a later edit on same file',
       () {
@@ -597,6 +631,69 @@ void main() {
       expect(prompt, contains('prior assistant hypotheses'));
       expect(prompt, contains('treat it as unverified'));
       expect(prompt, contains('Directory does not exist'));
+    });
+
+    test('marks zero-match discovery results as inconclusive', () {
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        ToolResultInfo(
+          id: 'find-1',
+          name: 'find_files',
+          arguments: const {'pattern': '*release*note*'},
+          result: jsonEncode({
+            'path': '/workspace',
+            'pattern': '*release*note*',
+            'matches': const <String>[],
+            'match_count': 0,
+          }),
+        ),
+        ToolResultInfo(
+          id: 'search-1',
+          name: 'search_files',
+          arguments: const {'query': 'Release notes'},
+          result: jsonEncode({
+            'path': '/workspace',
+            'query': 'Release notes',
+            'matches': const <String>[],
+            'match_count': 0,
+            'scanned_files': 42,
+          }),
+        ),
+      ]);
+
+      final findDecoded =
+          jsonDecode(budgeted.first.result) as Map<String, dynamic>;
+      final searchDecoded =
+          jsonDecode(budgeted.last.result) as Map<String, dynamic>;
+
+      expect(findDecoded['discovery_hint'], contains('exact filename glob'));
+      expect(findDecoded['discovery_hint'], contains('list_directory'));
+      expect(searchDecoded['discovery_hint'], contains('exact content query'));
+      expect(searchDecoded['discovery_hint'], contains('filename search'));
+
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt(budgeted);
+      expect(prompt, contains('zero matches only proves'));
+      expect(prompt, contains('Before saying a requested file or content'));
+    });
+
+    test('does not mark non-empty discovery results as inconclusive', () {
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        ToolResultInfo(
+          id: 'find-1',
+          name: 'find_files',
+          arguments: const {'pattern': '*.md'},
+          result: jsonEncode({
+            'path': '/workspace',
+            'pattern': '*.md',
+            'matches': const ['docs/releases/caverno-1.3.8.md'],
+            'match_count': 1,
+          }),
+        ),
+      ]);
+
+      final decoded =
+          jsonDecode(budgeted.single.result) as Map<String, dynamic>;
+
+      expect(decoded, isNot(contains('discovery_hint')));
     });
 
     test('redacts screenshot base64 from answer prompts', () {

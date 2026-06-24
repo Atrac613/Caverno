@@ -682,6 +682,134 @@ void main() {
     expect(repository.summaries.single.openLoops, isEmpty);
   });
 
+  test('genericizes one-off log investigation session summaries', () async {
+    final repository = _InMemoryChatMemoryRepository();
+    final service = SessionMemoryService(repository);
+
+    await service.updateFromConversation(
+      conversationId: 'conversation-log-summary',
+      messages: [
+        Message(
+          id: 'message-7',
+          content: 'Investigate the latest coding log stop reason.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 24, 18, 20),
+        ),
+        Message(
+          id: 'message-8',
+          content:
+              'Conclusion: the latest log response has finishReason stop and toolCalls 0.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 6, 24, 18, 26),
+        ),
+      ],
+      draft: const MemoryExtractionDraft(
+        summary:
+            'Investigating coding session log from Jun 24 16:06 to determine stop reason. Analyzed file a local session log (54 lines). Found empty finishReasons and a 2m47s gap at L50-L51. L53 content retrieved.',
+        openLoops: [
+          'Determine root cause of session stop at 16:06 based on log analysis',
+        ],
+        persona: [],
+        preferences: [],
+        doNot: [],
+        entries: [],
+      ),
+    );
+
+    expect(
+      repository.summaries.single.summary,
+      'Investigated a local session log stop reason.',
+    );
+    expect(repository.summaries.single.summary, isNot(contains('54 lines')));
+    expect(repository.summaries.single.summary, isNot(contains('L50')));
+    expect(
+      repository.summaries.single.summary,
+      isNot(contains('finishReason')),
+    );
+    expect(repository.summaries.single.openLoops, isEmpty);
+  });
+
+  test('drops truncated log analysis loops after a concrete stop answer', () async {
+    final repository = _InMemoryChatMemoryRepository();
+    final service = SessionMemoryService(repository);
+
+    await service.updateFromConversation(
+      conversationId: 'conversation-log-truncated-open-loop',
+      messages: [
+        Message(
+          id: 'message-log-user',
+          content: '16:06 の coding のログを確認。停止の理由を調査。',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 24, 20, 34),
+        ),
+        Message(
+          id: 'message-log-answer',
+          content:
+              'Conclusion: the latest non-memory-extraction chat entry has finishReason stop and toolCalls 0. The current investigation harness also reported tool_call_not_executed, but that is not the analyzed target session stop reason.',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 6, 24, 20, 55),
+        ),
+      ],
+      draft: const MemoryExtractionDraft(
+        summary: 'Investigated a local session log stop reason.',
+        openLoops: [
+          'Complete analysis of the final lines in session log 9c92bcd4...jsonl to determine the stop reason.',
+        ],
+        persona: [],
+        preferences: [],
+        doNot: [],
+        entries: [],
+      ),
+    );
+
+    expect(repository.summaries.single.openLoops, isEmpty);
+  });
+
+  test(
+    'does not fall back to rule-based memories for empty LLM drafts',
+    () async {
+      final repository = _InMemoryChatMemoryRepository();
+      final service = SessionMemoryService(repository);
+
+      final result = await service.updateFromConversation(
+        conversationId: 'conversation-empty-draft',
+        messages: [
+          Message(
+            id: 'message-9',
+            content: '16:06 の coding のログを確認。停止の理由を調査。',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 6, 24, 19, 11),
+          ),
+          Message(
+            id: 'message-10',
+            content:
+                'The local session log was inspected and the response was summarized.',
+            role: MessageRole.assistant,
+            timestamp: DateTime(2026, 6, 24, 19, 14),
+          ),
+        ],
+        draft: const MemoryExtractionDraft(
+          summary: 'Investigated a local session log.',
+          openLoops: [],
+          persona: [],
+          preferences: [],
+          doNot: [],
+          entries: [],
+        ),
+      );
+
+      expect(result.generationMethod, MemoryGenerationMethod.llm);
+      expect(result.addedMemoryCount, 0);
+      expect(result.queuedReviewCount, 0);
+      expect(repository.memories, isEmpty);
+      expect(repository.reviewQueue, isEmpty);
+      expect(
+        repository.summaries.single.summary,
+        'Investigated a local session log.',
+      );
+    },
+  );
+
   test('labels recent summaries as historical context', () {
     final repository = _InMemoryChatMemoryRepository();
     repository.summaries.add(

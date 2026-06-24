@@ -6221,6 +6221,135 @@ void main() {
   );
 
   test(
+    'sendMessage marks read-only inspection claims without tools as unverified',
+    () async {
+      const inspectionClaim =
+          '`exportOptions.plist` exists in both `ios/` and `macos/`. I confirmed the paths.';
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: inspectionClaim,
+        initialStreamChunks: const [inspectionClaim],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'read_file': 'Read a file from disk.',
+          'list_directory': 'List files in a directory.',
+        },
+        results: const {
+          'read_file': '{"content":"unused"}',
+          'list_directory': '{"entries":["unused"]}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('continue');
+
+        expect(toolService.executedToolNames, isEmpty);
+        final finalContent = toolNotifier.state.messages.last.content;
+        expect(finalContent, isNot(contains('I confirmed the paths')));
+        expect(
+          finalContent,
+          contains('local file or project state claim above is unverified'),
+        );
+        expect(
+          finalContent,
+          contains('no successful read-only inspection tool result'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage preserves inspection claims with successful read-only tools',
+    () async {
+      const finalClaim =
+          '`exportOptions.plist` exists in the inspected directory.';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-list',
+            name: 'list_directory',
+            arguments: const {'path': 'ios'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const [finalClaim],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'list_directory': '{"path":"ios","entries":["exportOptions.plist"]}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Check export options');
+
+        expect(toolService.executedToolNames, ['list_directory']);
+        final finalContent = toolNotifier.state.messages.last.content;
+        expect(finalContent, contains(finalClaim));
+        expect(finalContent, isNot(contains('claim above is unverified')));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage executes pending read-only inspection at tool loop limit',
     () async {
       final toolLoopResponses = [
@@ -6579,7 +6708,15 @@ void main() {
             .map((message) => message.content)
             .join('\n');
         expect(finalPrompt, contains('/tmp/session-log.jsonl'));
-        expect(finalPrompt, isNot(contains('tool_call_not_executed')));
+        expect(finalPrompt, isNot(contains('TASK NOT COMPLETE:')));
+        expect(
+          finalPrompt,
+          isNot(
+            contains(
+              'Tool call was requested after the bounded tool loop stopped',
+            ),
+          ),
+        );
         expect(
           toolNotifier.state.messages.last.content,
           contains('Final answer after running the pending local search.'),

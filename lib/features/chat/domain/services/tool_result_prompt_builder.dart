@@ -259,6 +259,13 @@ class ToolResultPromptBuilder {
         'needs a fresh browser_snapshot or browser_submit retry.',
       )
       ..writeln(
+        'For discovery tools such as find_files and search_files, zero '
+        'matches only proves that the exact pattern or query matched nothing. '
+        'Before saying a requested file or content is absent, verify with a '
+        'broader search, a direct path read, or list_directory on likely '
+        'parent directories.',
+      )
+      ..writeln(
         'When browser_save_data succeeds, report the saved file path from the '
         'tool result path field exactly. If the requested filename in the tool '
         'arguments differs from the returned filename or path, trust the result '
@@ -310,6 +317,25 @@ class ToolResultPromptBuilder {
         'tool-call tag, report the verified incomplete assistant tool request '
         'and keep server or network causes explicitly unverified unless the '
         'tool results include a concrete transport error.',
+      )
+      ..writeln(
+        'When interpreting Caverno LLM session logs, separate the user-facing '
+        'chat turn from background secondary calls. Entries whose request '
+        'messages are memory_extractor_system or memory_extractor_user are '
+        'post-response memory extraction calls. Do not cite their model-load, '
+        'transport, or JSON errors as the cause of the user-facing chat turn '
+        'stopping unless the provided log evidence explicitly shows that the '
+        'secondary call aborted that chat turn. Determine the chat outcome '
+        'from the latest non-memory-extraction chat entry using its '
+        'response.finishReason, response.toolCalls, response.error, and '
+        'response.content.',
+      )
+      ..writeln(
+        'If the current investigation turn itself reports '
+        'code=tool_call_not_executed or reason=bounded_tool_loop_exhausted, '
+        'do not cite that harness diagnostic as the stop reason for the '
+        'session log being analyzed. Keep the current-turn execution gap '
+        'separate from the target log evidence.',
       )
       ..writeln()
       ..write(
@@ -877,12 +903,13 @@ class ToolResultPromptBuilder {
       'local_execute_command' ||
       'run_tests' ||
       'git_execute_command' => _budgetCommandResult(decoded, budget: budget),
-      'search_files' => _budgetListResult(
+      'search_files' => _budgetDiscoveryResult(
         decoded,
         budget: budget,
         listKey: 'matches',
         countKey: 'match_count',
         nextOffsetKey: 'next_offset',
+        noMatchHint: _searchFilesNoMatchHint,
       ),
       'list_directory' => _budgetListResult(
         decoded,
@@ -890,11 +917,12 @@ class ToolResultPromptBuilder {
         listKey: 'entries',
         countKey: 'entry_count',
       ),
-      'find_files' => _budgetListResult(
+      'find_files' => _budgetDiscoveryResult(
         decoded,
         budget: budget,
         listKey: 'matches',
         countKey: 'match_count',
+        noMatchHint: _findFilesNoMatchHint,
       ),
       _ => _budgetJsonMap(decoded, budget: budget),
     };
@@ -979,6 +1007,56 @@ class ToolResultPromptBuilder {
     }
     return result;
   }
+
+  static Map<String, dynamic> _budgetDiscoveryResult(
+    Map<String, dynamic> decoded, {
+    required _ToolResultPromptBudget budget,
+    required String listKey,
+    required String countKey,
+    required String noMatchHint,
+    String? nextOffsetKey,
+  }) {
+    final result = _budgetListResult(
+      decoded,
+      budget: budget,
+      listKey: listKey,
+      countKey: countKey,
+      nextOffsetKey: nextOffsetKey,
+    );
+    if (_isZeroMatchDiscoveryResult(decoded, listKey, countKey) &&
+        !result.containsKey('discovery_hint')) {
+      result['discovery_hint'] = noMatchHint;
+    }
+    return result;
+  }
+
+  static bool _isZeroMatchDiscoveryResult(
+    Map<String, dynamic> decoded,
+    String listKey,
+    String countKey,
+  ) {
+    if (decoded.containsKey('error')) {
+      return false;
+    }
+    final items = decoded[listKey];
+    if (items is! List || items.isNotEmpty) {
+      return false;
+    }
+    final count = decoded[countKey];
+    return count == null || count == 0;
+  }
+
+  static const _findFilesNoMatchHint =
+      'No matches only means this exact filename glob returned nothing. '
+      'Do not conclude the requested file is absent until you inspect likely '
+      'parent directories with list_directory, try broader filename patterns, '
+      'or read a likely direct path.';
+
+  static const _searchFilesNoMatchHint =
+      'No matches only means this exact content query returned nothing. '
+      'Do not conclude the requested file or content is absent until you '
+      'broaden the query, inspect likely parent directories, try a filename '
+      'search, or read a likely direct path.';
 
   static Map<String, dynamic> _budgetJsonMap(
     Map<String, dynamic> decoded, {

@@ -78,6 +78,10 @@ void main() {
     expect(input, contains('git status or git log result only proves'));
     expect(input, contains('code=unexecuted_file_save'));
     expect(input, contains('missing file-operation tool action'));
+    expect(input, contains('code=tool_call_not_executed'));
+    expect(input, contains('bounded_tool_loop_exhausted'));
+    expect(input, contains('harness diagnostic'));
+    expect(input, contains('target session stop reason'));
     expect(input, contains('Do not summarize browser actions'));
     expect(input, contains('code=unexecuted_browser_action'));
     expect(input, contains('Treat search_past_conversations'));
@@ -317,6 +321,47 @@ void main() {
     expect(draft!.entries, hasLength(1));
     expect(draft.entries.single.text, contains('concise coding explanations'));
     expect(draft.entries.single.text, isNot(contains('browser-saves')));
+  });
+
+  test('parseDraft drops one-off local log investigation memories', () {
+    const raw = '''
+{
+  "summary":"Investigated coding session log from 2026-06-24 16:06. Analyzed file 9c92bcd4-af73-48fb-9fd3-c10a8e41ad7a.jsonl (54 lines).",
+  "open_loops":[],
+  "profile":{
+    "persona":[],
+    "preferences":[],
+    "do_not":[]
+  },
+  "memories":[
+    {
+      "text":"Coding session log file 9c92bcd4-af73-48fb-9fd3-c10a8e41ad7a.jsonl from 2026-06-24 16:06 contains 54 lines and ended with finishReason stop.",
+      "type":"fact",
+      "confidence":1.0,
+      "importance":0.6,
+      "ttl_days":30
+    },
+    {
+      "text":"The user prefers concrete next actions after log investigations.",
+      "type":"preference",
+      "confidence":0.9,
+      "importance":0.8,
+      "ttl_days":null
+    }
+  ]
+}
+''';
+
+    final draft = MemoryExtractionDraftService.parseDraft(raw);
+
+    expect(draft, isNotNull);
+    expect(draft!.summary, isNot(contains('.jsonl')));
+    expect(draft.summary, isNot(contains('9c92bcd4')));
+    expect(draft.entries, hasLength(1));
+    expect(
+      draft.entries.single.text,
+      'The user prefers concrete next actions after log investigations.',
+    );
   });
 
   test('parseDraft preserves unexecuted file save as an open loop', () {

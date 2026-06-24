@@ -72,13 +72,25 @@ class SessionMemoryService {
     caseSensitive: false,
   );
   static final RegExp _logInterruptionOpenLoopPattern = RegExp(
-    r'\b(identify|find|determine|investigate)\b.*\b(reason|cause|root cause|trigger)\b.*\b(log|session|conversation|interruption|stopped)\b|'
-    r'\b(log|session|conversation|interruption|stopped)\b.*\b(reason|cause|root cause|trigger)\b',
+    r'\b(complete|finish|continue|identify|find|determine|investigate|analy[sz]e|inspect)\b.*\b(reason|cause|root cause|trigger|final lines?|last lines?|stop|stopped|ended)\b.*\b(log|session|conversation|interruption|stopped)\b|'
+    r'\b(log|session|conversation|interruption|stopped)\b.*\b(complete|finish|continue|identify|find|determine|investigate|analy[sz]e|inspect|reason|cause|root cause|trigger|final lines?|last lines?|stop|stopped|ended)\b',
     caseSensitive: false,
   );
   static final RegExp _logInvestigationAnswerPattern = RegExp(
     r'\b(entry\s*\d+|finishreason|stream_end|tool_call|tool_use|incomplete assistant tool call|verified trigger|direct trigger|transport error|server timeout)\b|'
     r'<tool_call>|<tool_use>',
+    caseSensitive: false,
+  );
+  static final RegExp _logInvestigationSummaryTargetPattern = RegExp(
+    r'\b(coding session log|session log|coding log|log file|conversation log|local session log)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _logInvestigationSummaryDetailPattern = RegExp(
+    r'\b(investigat|analy[sz]|stop reason|root cause|interruption|finishreason|toolcalls?|entries|lines?|l\d+|badrequestexception|stream_end|gap|stopped)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _logInvestigationStopReasonPattern = RegExp(
+    r'\b(stop reason|root cause|interruption|stopped|why .*stop|why .*ended)\b',
     caseSensitive: false,
   );
   static final RegExp _explicitHistoryReferencePattern = RegExp(
@@ -240,7 +252,11 @@ class SessionMemoryService {
           )
         : MemorySessionSummary(
             conversationId: conversationId,
-            summary: _sanitizeStoredSessionText(draft.summary, maxLength: 160),
+            summary: _sanitizeStoredSessionText(
+              draft.summary,
+              maxLength: 160,
+              genericizeLogInvestigation: true,
+            ),
             openLoops: _filterDraftOpenLoops(
               draft.openLoops,
               normalizedMessages,
@@ -252,9 +268,11 @@ class SessionMemoryService {
     var updatedMemoryCount = 0;
     var reviewQueuedCount = 0;
     var profileUpdated = false;
-    var generationMethod = MemoryGenerationMethod.ruleBased;
+    var generationMethod = draft == null
+        ? MemoryGenerationMethod.ruleBased
+        : MemoryGenerationMethod.llm;
 
-    final extracted = draft != null && draft.entries.isNotEmpty
+    final extracted = draft != null
         ? _buildMemoriesFromDraft(
             conversationId: conversationId,
             draft: draft,
@@ -287,9 +305,6 @@ class SessionMemoryService {
     }
 
     if (filteredExtracted.isNotEmpty) {
-      if (draft != null) {
-        generationMethod = MemoryGenerationMethod.llm;
-      }
       final reviewItems = filteredExtracted
           .where(_shouldQueueForReview)
           .map(MemoryReviewItem.fromMemoryEntry)
@@ -314,7 +329,6 @@ class SessionMemoryService {
         profileUpdated = await _mergeProfile(immediateEntries, timestamp);
       }
     } else if (draft != null && draft.hasProfileUpdate) {
-      generationMethod = MemoryGenerationMethod.llm;
       profileUpdated = await _mergeProfileFromDraft(draft, timestamp);
     }
 
@@ -508,7 +522,11 @@ class SessionMemoryService {
 
     return MemorySessionSummary(
       conversationId: conversationId,
-      summary: summary,
+      summary: _sanitizeStoredSessionText(
+        summary,
+        maxLength: 160,
+        genericizeLogInvestigation: true,
+      ),
       openLoops: openLoops,
       updatedAt: now,
     );
@@ -518,16 +536,20 @@ class SessionMemoryService {
     List<String> rawOpenLoops,
     List<Message> messages,
   ) {
-    final normalizedOpenLoops = rawOpenLoops
-        .map((loop) => _sanitizeStoredSessionText(loop, maxLength: 80))
+    final openLoops = rawOpenLoops
+        .map((loop) {
+          final rawLoop = _normalizeSentence(loop);
+          if (rawLoop.isEmpty ||
+              _isCoveredByLatestAssistantTurn(rawLoop, messages)) {
+            return '';
+          }
+          return _sanitizeStoredSessionText(rawLoop, maxLength: 80);
+        })
         .where((loop) => loop.isNotEmpty)
-        .toList();
-    if (normalizedOpenLoops.isEmpty) return const [];
-
-    return normalizedOpenLoops
-        .where((loop) => !_isCoveredByLatestAssistantTurn(loop, messages))
         .take(3)
         .toList();
+    if (openLoops.isEmpty) return const [];
+    return openLoops;
   }
 
   bool _isCoveredByLatestAssistantTurn(
@@ -1139,11 +1161,29 @@ class SessionMemoryService {
     return text.replaceAll(_whitespaceRunPattern, ' ').trim();
   }
 
-  String _sanitizeStoredSessionText(String text, {required int maxLength}) {
-    final normalized = _normalizeSentence(text)
+  String _sanitizeStoredSessionText(
+    String text, {
+    required int maxLength,
+    bool genericizeLogInvestigation = false,
+  }) {
+    var normalized = _normalizeSentence(text)
         .replaceAll(_localPathPattern, '[local path]')
         .replaceAll(_relativeDownloadPathPattern, '[local path]');
+    if (genericizeLogInvestigation) {
+      normalized = _genericLogInvestigationSummary(normalized);
+    }
     return _truncate(normalized, maxLength);
+  }
+
+  String _genericLogInvestigationSummary(String text) {
+    if (!_logInvestigationSummaryTargetPattern.hasMatch(text) ||
+        !_logInvestigationSummaryDetailPattern.hasMatch(text)) {
+      return text;
+    }
+    if (_logInvestigationStopReasonPattern.hasMatch(text)) {
+      return 'Investigated a local session log stop reason.';
+    }
+    return 'Investigated a local session log.';
   }
 
   String _truncate(String text, int maxLength) {

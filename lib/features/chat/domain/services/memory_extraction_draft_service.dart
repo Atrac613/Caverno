@@ -51,6 +51,16 @@ class MemoryExtractionDraftService {
     r'\b(/users/|/tmp/|browser-saves|tool-results|application support|\.md|\.json|\.txt|\.csv|\.dart)\b.*\b(saved|wrote|created|updated|generated|exported)\b',
     caseSensitive: false,
   );
+  static final RegExp _oneOffLocalInvestigationMemoryPattern = RegExp(
+    r'\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl|\.jsonl|/users/|~/|\.caverno/session_logs)\b.*\b(analy[sz]ed|investigated|inspected|checked|contains?|entries|lines?|finishreason|ended|stopped)\b|'
+    r'\b(analy[sz]ed|investigated|inspected|checked|contains?|entries|lines?|finishreason|ended|stopped)\b.*\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl|\.jsonl|/users/|~/|\.caverno/session_logs)\b',
+    caseSensitive: false,
+  );
+  static final RegExp _exactLocalLogReferencePattern = RegExp(
+    r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl\b|'
+    r'(?:(?:/Users|/tmp|~)/[^\s,;)]*)?[^/\s,;)]*\.jsonl\b',
+    caseSensitive: false,
+  );
   static final RegExp _artifactCompletionMemoryPattern = RegExp(
     r'\b(saved|wrote|created|updated|generated|exported)\b.*\b(file|draft|release notes?|markdown|document|report|artifact)\b|'
     r'\b(file|draft|release notes?|markdown|document|report|artifact)\b.*\b(saved|wrote|created|updated|generated|exported)\b',
@@ -232,6 +242,9 @@ class MemoryExtractionDraftService {
       )
       ..writeln(
         '- If the latest tool results include code=unexecuted_command_action, do not summarize command, dry-run, test, validation, git, or release-script execution as completed. Include an open loop for the missing command-execution tool action.',
+      )
+      ..writeln(
+        '- If the latest tool results include code=tool_call_not_executed or reason=bounded_tool_loop_exhausted during a log investigation, treat it as a harness diagnostic for the current investigation turn, not as the analyzed target session stop reason. Do not add an open_loop for more log analysis when the latest assistant answer already gave a concrete stop-reason conclusion from executed log evidence.',
       )
       ..writeln(
         '- Do not summarize browser actions such as open, click, fill, submit, or navigation as completed unless the corresponding browser tool result above succeeded. If only browser_snapshot is present, or a browser result reports code=unexecuted_browser_action, treat the browser action as unexecuted.',
@@ -440,7 +453,9 @@ class MemoryExtractionDraftService {
   }
 
   static MemoryExtractionDraft _draftFromMap(Map<String, dynamic> map) {
-    final summary = (map['summary'] as String?)?.trim() ?? '';
+    final summary = _summaryWithoutExactLocalLogReferences(
+      (map['summary'] as String?)?.trim() ?? '',
+    );
     final openLoops = _stringList(map['open_loops'], maxLength: 3);
 
     final profile = map['profile'];
@@ -463,7 +478,9 @@ class MemoryExtractionDraftService {
         }
         final item = Map<String, dynamic>.from(raw);
         final text = (item['text'] as String?)?.trim() ?? '';
-        if (text.isEmpty || _isArtifactCompletionMemory(text)) {
+        if (text.isEmpty ||
+            _isArtifactCompletionMemory(text) ||
+            _isOneOffLocalInvestigationMemory(text)) {
           continue;
         }
         final type = (item['type'] as String?)?.trim() ?? 'topic';
@@ -542,7 +559,9 @@ class MemoryExtractionDraftService {
       if (label != 'summary') {
         continue;
       }
-      return _cleanStructuredValue(normalizedLine.substring(separator + 1));
+      return _summaryWithoutExactLocalLogReferences(
+        _cleanStructuredValue(normalizedLine.substring(separator + 1)),
+      );
     }
     return '';
   }
@@ -598,6 +617,7 @@ class MemoryExtractionDraftService {
       final text = _cleanStructuredValue(textMatch?.group(1) ?? '');
       if (text.isEmpty ||
           _isArtifactCompletionMemory(text) ||
+          _isOneOffLocalInvestigationMemory(text) ||
           !seenTexts.add(text.toLowerCase())) {
         continue;
       }
@@ -704,6 +724,20 @@ class MemoryExtractionDraftService {
 
   static bool _isSavedArtifactPathMemory(String text) {
     return _savedArtifactPathMemoryPattern.hasMatch(text);
+  }
+
+  static bool _isOneOffLocalInvestigationMemory(String text) {
+    return _oneOffLocalInvestigationMemoryPattern.hasMatch(text);
+  }
+
+  static String _summaryWithoutExactLocalLogReferences(String text) {
+    if (text.isEmpty || !_exactLocalLogReferencePattern.hasMatch(text)) {
+      return text;
+    }
+    return text
+        .replaceAll(_exactLocalLogReferencePattern, 'a local session log')
+        .replaceAll(_whitespaceRun, ' ')
+        .trim();
   }
 
   static bool _isArtifactCompletionMemory(String text) {

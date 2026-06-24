@@ -260,6 +260,15 @@ class SystemPromptBuilder {
           'directly instead of assuming an OpenAI choices[] wrapper. Start '
           'with compact per-line metadata before deeper content reads.',
         );
+        buffer.writeln(
+          'Separate user-facing chat turns from background secondary calls in '
+          'Caverno session logs. Entries whose request messages are '
+          'memory_extractor_system or memory_extractor_user are memory '
+          'extraction calls after a chat response; do not treat their model '
+          'load, transport, or JSON errors as the stop reason for the '
+          'user-facing chat turn unless another log entry explicitly shows '
+          'that they aborted that chat turn.',
+        );
       }
       if (hasDependencyGroundingTool) {
         buffer.writeln(

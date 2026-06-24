@@ -54,6 +54,13 @@ void main() {
     );
     expect(
       prompt,
+      contains(
+        'Separate user-facing chat turns from background secondary calls in Caverno session logs',
+      ),
+    );
+    expect(prompt, contains('memory_extractor_system'));
+    expect(
+      prompt,
       contains('call resolve_installed_dependency before guessing'),
     );
     expect(
