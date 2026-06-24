@@ -30,6 +30,7 @@ import '../../domain/services/system_prompt_builder.dart';
 import '../../domain/services/session_memory_service.dart';
 import '../../domain/services/skill_markdown_parser.dart';
 import '../../domain/services/skill_prompt_index_builder.dart';
+import '../../domain/services/skill_similarity_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/llm_provider_capabilities.dart';
 import '../../../settings/domain/services/llm_request_temperature_policy.dart';

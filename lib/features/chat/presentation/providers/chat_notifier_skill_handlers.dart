@@ -50,6 +50,45 @@ extension ChatNotifierSkillHandlers on ChatNotifier {
     // creating a duplicate.
     final existing = _findSkillByName(name);
 
+    // Near-duplicate guard: when authoring a NEW skill (no exact-name match),
+    // surface different-named-but-similar skills and return without saving so
+    // the agent can update the existing one (by reusing its exact name) instead
+    // of fragmenting into duplicates. allow_duplicate bypasses this.
+    final allowDuplicate = (arguments['allow_duplicate'] as bool?) ?? false;
+    if (existing == null && !allowDuplicate) {
+      final similar = SkillSimilarityService.findSimilar(
+        name: name,
+        description: description,
+        whenToUse: whenToUse,
+        existing: ref.read(skillsNotifierProvider).skills,
+      );
+      if (similar.isNotEmpty) {
+        return McpToolResult(
+          toolName: toolCall.name,
+          isSuccess: true,
+          result: jsonEncode({
+            'saved': false,
+            'action': 'similar_skill_found',
+            'matches': [
+              for (final match in similar)
+                {
+                  'id': match.skill.id,
+                  'name': match.skill.normalizedName,
+                  'score': double.parse(match.score.toStringAsFixed(2)),
+                  if (match.skill.normalizedDescription.isNotEmpty)
+                    'description': match.skill.normalizedDescription,
+                },
+            ],
+            'message':
+                'A similar skill already exists. To improve it, call save_skill '
+                'again using that skill\'s exact name (this updates it in place '
+                'with a diff for approval). To create a separate skill anyway, '
+                'call save_skill again with allow_duplicate set to true.',
+          }),
+        );
+      }
+    }
+
     // SKILL2: an update (edit/merge) previews a diff against the stored skill so
     // the user sees exactly what changes; a brand-new skill previews its full
     // body. Duplicating is just a save under a new name (no existing match).

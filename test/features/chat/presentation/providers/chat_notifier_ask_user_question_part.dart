@@ -627,6 +627,114 @@ void registerChatNotifierAskUserQuestionTests() {
   );
 
   test(
+    'save_skill reports a near-duplicate without saving instead of forking a new skill',
+    () async {
+      final firstCompletion = Completer<ChatCompletionResult>();
+      final secondCompletion = Completer<ChatCompletionResult>();
+      final dataSource = _QueuedAskQuestionToolChatDataSource(
+        initialCompletions: [firstCompletion, secondCompletion],
+        finalAnswers: const [
+          'Saved the skill.',
+          'A similar skill already exists.',
+        ],
+      );
+      final repository = _FakeConversationRepository();
+      final toolService = _FakeMcpToolService(
+        results: const {'save_skill': ''},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final skillContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(repository),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          skillsNotifierProvider.overrideWith(_RecordingSkillsNotifier.new),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(skillContainer.dispose);
+
+      final chatNotifier = skillContainer.read(chatNotifierProvider.notifier);
+
+      // Author the first skill (exact path, approved).
+      final firstSend = chatNotifier.sendMessage('Save this as a skill');
+      await Future<void>.delayed(Duration.zero);
+      firstCompletion.complete(
+        ChatCompletionResult(
+          content: '',
+          finishReason: 'tool_calls',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'save-original',
+              name: 'save_skill',
+              arguments: const {
+                'name': 'iOS Release',
+                'description': 'Ship an iOS build',
+                'content': '# Steps\n\n1. Archive.',
+              },
+            ),
+          ],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      final firstPending = chatNotifier.state.pendingFileOperation;
+      expect(firstPending, isNotNull);
+      chatNotifier.resolveFileOperation(id: firstPending!.id, approved: true);
+      await firstSend;
+      expect(skillContainer.read(skillsNotifierProvider).skills, hasLength(1));
+
+      // A similar, differently-named skill must be reported for reconciliation,
+      // never saved, and must not prompt for approval.
+      final secondSend = chatNotifier.sendMessage('Save a release skill');
+      await Future<void>.delayed(Duration.zero);
+      secondCompletion.complete(
+        ChatCompletionResult(
+          content: '',
+          finishReason: 'tool_calls',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'save-near-duplicate',
+              name: 'save_skill',
+              arguments: const {
+                'name': 'iOS macOS Release',
+                'content': '# Steps\n\n1. Archive.\n2. Notarize.',
+              },
+            ),
+          ],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        chatNotifier.state.pendingFileOperation,
+        isNull,
+        reason: 'a near-duplicate is reported, not written, so it never prompts',
+      );
+      await secondSend;
+
+      expect(
+        skillContainer.read(skillsNotifierProvider).skills,
+        hasLength(1),
+        reason: 'the near-duplicate must not be saved as a second skill',
+      );
+      final reconciliationResult = dataSource.toolResultBatches.last.single.result;
+      expect(reconciliationResult, contains('similar_skill_found'));
+      expect(reconciliationResult, contains('iOS Release'));
+    },
+  );
+
+  test(
     'coding ask-user-question response survives switching away and back',
     () async {
       final project = CodingProject(

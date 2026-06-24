@@ -2471,7 +2471,10 @@ class McpToolService {
           '(the inverse of load_skill). Use this when a repeatable, verified '
           'procedure emerges that the user will want to reuse later. The user '
           'must approve every save. Saving a name that already exists updates '
-          'that skill instead of creating a duplicate.',
+          'that skill instead of creating a duplicate. If a different-named but '
+          'similar skill already exists, the tool returns the matches without '
+          'saving; update the existing skill by reusing its exact name, or set '
+          'allow_duplicate to true to create a separate skill anyway.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -2491,6 +2494,13 @@ class McpToolService {
             'type': 'string',
             'description':
                 'The full skill instructions as markdown (the reusable steps).',
+          },
+          'allow_duplicate': {
+            'type': 'boolean',
+            'description':
+                'Set to true to save a new skill even when a similar one '
+                'already exists. Leave unset/false to be warned about '
+                'near-duplicates first.',
           },
         },
         'required': ['name', 'content'],
