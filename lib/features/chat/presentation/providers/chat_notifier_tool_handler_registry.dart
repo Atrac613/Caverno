@@ -12,6 +12,7 @@ extension ChatNotifierToolHandlerRegistry on ChatNotifier {
       _GitToolHandlerModule(this),
       _DeviceToolHandlerModule(this),
       _SkillToolHandlerModule(this),
+      _RoutineToolHandlerModule(this),
       _ConversationToolHandlerModule(
         this,
         interactionGeneration: interactionGeneration,
@@ -121,6 +122,17 @@ final class _SkillToolHandlerModule implements ChatToolHandlerModule {
   @override
   Map<String, ChatToolHandler> get handlers {
     return {'save_skill': _notifier._handleSaveSkill};
+  }
+}
+
+final class _RoutineToolHandlerModule implements ChatToolHandlerModule {
+  const _RoutineToolHandlerModule(this._notifier);
+
+  final ChatNotifier _notifier;
+
+  @override
+  Map<String, ChatToolHandler> get handlers {
+    return {'create_routine': _notifier._handleCreateRoutine};
   }
 }
 

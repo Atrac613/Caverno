@@ -56,6 +56,7 @@ class McpToolService {
     'recall_memory',
     'ask_user_question',
     'load_skill',
+    'create_routine',
     'ping',
     'ping6',
     'arp',
@@ -346,6 +347,9 @@ class McpToolService {
     if (skillRepository != null) {
       _addIfEnabled(toolDefinitions, _saveSkillTool);
     }
+    // ROUTINE1: scheduling a routine from chat. Intercepted by ChatNotifier for
+    // a non-cacheable approval; always offered like other built-ins.
+    _addIfEnabled(toolDefinitions, _createRoutineTool);
 
     // Built-in network tools (always available).
     _addIfEnabled(toolDefinitions, _pingTool);
@@ -611,6 +615,20 @@ class McpToolService {
         isSuccess: false,
         errorMessage:
             'save_skill requires interactive approval and cannot run in this context',
+      );
+    }
+
+    if (name == 'create_routine') {
+      // create_routine is intercepted by ChatNotifier for an interactive,
+      // non-cacheable approval. Reaching here means there is no approval UI
+      // (e.g. a routine or other background context), so refuse rather than
+      // schedule an autonomous routine without confirmation.
+      return McpToolResult(
+        toolName: name,
+        result: '',
+        isSuccess: false,
+        errorMessage:
+            'create_routine requires interactive approval and cannot run in this context',
       );
     }
 
@@ -2504,6 +2522,95 @@ class McpToolService {
           },
         },
         'required': ['name', 'content'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _createRoutineTool => {
+    'type': 'function',
+    'function': {
+      'name': 'create_routine',
+      'description':
+          'Schedule a recurring routine (an autonomous agent run) from the '
+          'conversation. Use this when the user describes a repeating task on a '
+          'schedule (e.g. "ping a host hourly and report the result"). The user '
+          'must approve every routine; the approval previews the schedule, '
+          'enabled tools, and delivery channels. The routine then runs '
+          'unattended on its schedule.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'name': {
+            'type': 'string',
+            'description': 'Short routine name (e.g. "Ping 192.168.0.1").',
+          },
+          'prompt': {
+            'type': 'string',
+            'description':
+                'The instruction the routine runs each time (e.g. "Ping '
+                '192.168.0.1 and report whether it is reachable").',
+          },
+          'schedule_mode': {
+            'type': 'string',
+            'enum': ['interval', 'daily'],
+            'description':
+                'interval = every N minutes/hours/days; daily = once per day '
+                'at a fixed time. Defaults to interval.',
+          },
+          'interval_value': {
+            'type': 'integer',
+            'description': 'For interval mode: how many units between runs.',
+            'minimum': 1,
+          },
+          'interval_unit': {
+            'type': 'string',
+            'enum': ['minutes', 'hours', 'days'],
+            'description': 'For interval mode: the unit. Defaults to hours.',
+          },
+          'time_of_day': {
+            'type': 'string',
+            'description':
+                'For daily mode: 24h "HH:MM" local time to run (e.g. "08:00").',
+          },
+          'tools_enabled': {
+            'type': 'boolean',
+            'description':
+                'Allow the routine to use tools (required for tasks like ping). '
+                'Defaults to false.',
+          },
+          'notify_on_completion': {
+            'type': 'boolean',
+            'description':
+                'Show a local notification when the run completes. Defaults to '
+                'true.',
+          },
+          'completion_action': {
+            'type': 'string',
+            'enum': ['none', 'google_chat', 'prompt_google_chat'],
+            'description':
+                'External delivery of the result. google_chat posts to the '
+                'configured Google Chat webhook. Defaults to none.',
+          },
+          'google_chat_rule': {
+            'type': 'string',
+            'enum': ['on_success', 'on_failure', 'always'],
+            'description':
+                'When to post to Google Chat (if completion_action uses it). '
+                'Defaults to on_failure.',
+          },
+          'workspace_directory': {
+            'type': 'string',
+            'description':
+                'Optional working directory for the routine run.',
+          },
+          'allow_workspace_writes': {
+            'type': 'boolean',
+            'description':
+                'Allow the routine to write in the workspace directory. '
+                'Defaults to false.',
+          },
+        },
+        'required': ['name', 'prompt'],
       },
     },
   };

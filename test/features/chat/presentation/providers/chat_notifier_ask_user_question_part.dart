@@ -735,6 +735,166 @@ void registerChatNotifierAskUserQuestionTests() {
   );
 
   test(
+    'create_routine schedules an approved routine from chat',
+    () async {
+      final firstCompletion = Completer<ChatCompletionResult>();
+      final dataSource = _QueuedAskQuestionToolChatDataSource(
+        initialCompletions: [firstCompletion],
+        finalAnswers: const ['Scheduled the routine.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'create_routine': ''},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          routinesNotifierProvider.overrideWith(_RecordingRoutinesNotifier.new),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final chatNotifier = container.read(chatNotifierProvider.notifier);
+      final send = chatNotifier.sendMessage(
+        'Ping 192.168.0.1 hourly and report the result',
+      );
+      await Future<void>.delayed(Duration.zero);
+      firstCompletion.complete(
+        ChatCompletionResult(
+          content: '',
+          finishReason: 'tool_calls',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-create-routine',
+              name: 'create_routine',
+              arguments: const {
+                'name': 'Ping 192.168.0.1',
+                'prompt': 'Ping 192.168.0.1 and report whether it is reachable.',
+                'schedule_mode': 'interval',
+                'interval_value': 1,
+                'interval_unit': 'hours',
+                'tools_enabled': true,
+                'notify_on_completion': true,
+                'completion_action': 'google_chat',
+                'google_chat_rule': 'always',
+              },
+            ),
+          ],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      // The autonomous routine requires an explicit, non-cacheable approval.
+      final pending = chatNotifier.state.pendingFileOperation;
+      expect(pending, isNotNull);
+      expect(pending!.operation, 'Create Routine');
+      expect(pending.preview, contains('every 1 hour'));
+      expect(pending.preview, contains('local notification'));
+      expect(pending.preview, contains('Google Chat'));
+
+      chatNotifier.resolveFileOperation(id: pending.id, approved: true);
+      await send;
+
+      final routines = container.read(routinesNotifierProvider).routines;
+      expect(routines, hasLength(1));
+      final routine = routines.single;
+      expect(routine.trimmedName, 'Ping 192.168.0.1');
+      expect(routine.scheduleMode, RoutineScheduleMode.interval);
+      expect(routine.intervalValue, 1);
+      expect(routine.intervalUnit, RoutineIntervalUnit.hours);
+      expect(routine.toolsEnabled, isTrue);
+      expect(routine.notifyOnCompletion, isTrue);
+      expect(routine.completionAction, RoutineCompletionAction.googleChat);
+      expect(routine.googleChatRule, RoutineGoogleChatRule.always);
+    },
+  );
+
+  test(
+    'create_routine is not scheduled when the user denies approval',
+    () async {
+      final firstCompletion = Completer<ChatCompletionResult>();
+      final dataSource = _QueuedAskQuestionToolChatDataSource(
+        initialCompletions: [firstCompletion],
+        finalAnswers: const ['Did not schedule the routine.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'create_routine': ''},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          routinesNotifierProvider.overrideWith(_RecordingRoutinesNotifier.new),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final chatNotifier = container.read(chatNotifierProvider.notifier);
+      final send = chatNotifier.sendMessage('Schedule a daily check');
+      await Future<void>.delayed(Duration.zero);
+      firstCompletion.complete(
+        ChatCompletionResult(
+          content: '',
+          finishReason: 'tool_calls',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-create-routine-denied',
+              name: 'create_routine',
+              arguments: const {
+                'name': 'Daily check',
+                'prompt': 'Run the daily check.',
+                'schedule_mode': 'daily',
+                'time_of_day': '08:00',
+              },
+            ),
+          ],
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final pending = chatNotifier.state.pendingFileOperation;
+      expect(pending, isNotNull);
+      expect(pending!.preview, contains('daily at 08:00'));
+      chatNotifier.resolveFileOperation(id: pending.id, approved: false);
+      await send;
+
+      expect(container.read(routinesNotifierProvider).routines, isEmpty);
+    },
+  );
+
+  test(
     'coding ask-user-question response survives switching away and back',
     () async {
       final project = CodingProject(

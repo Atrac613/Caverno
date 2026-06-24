@@ -14,9 +14,9 @@ handoffs can refer to the same unit of work over time.
   in `docs/local_llm_agent_roadmap.md`.
 - Use `API<number>`, `SEC<number>`, `MLIB<number>`, `OBS<number>`,
   `COMPAT<number>`, `HOOK<number>`, `EDGE<number>`,
-  `EVAL-MOBILE<number>`, `MM<number>`, `MCP-GOV<number>`, and
-  `SKILL<number>` for future platform vision milestones, also documented in
-  `docs/local_llm_agent_roadmap.md`.
+  `EVAL-MOBILE<number>`, `MM<number>`, `MCP-GOV<number>`,
+  `SKILL<number>`, and `ROUTINE<number>` for future platform vision
+  milestones, also documented in `docs/local_llm_agent_roadmap.md`.
 - Use `TOOL<number>` for the user-created Tools workspace and manifest runtime
   milestones documented in `docs/tools_mvp_roadmap.md`.
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
@@ -97,6 +97,8 @@ handoffs can refer to the same unit of work over time.
 | Platform Vision | MCP-GOV1 | later | Lint MCP tool contracts for schema clarity, dangerous capabilities, and weak-model tool-selection quality. | Start before SEC3 permission diff and MCP trust-registry UX. |
 | Skills | SKILL1 | done | Author skills from chat: capture the current conversation's workflow as a reusable skill via a `save_skill` tool behind a non-cacheable approval. | Shipped in `c029bf9d`: `save_skill` writes through `SkillsNotifier.upsertMarkdown`, requires fresh explicit approval, and focused tests cover create/update behavior. |
 | Skills | SKILL2 | done | Drive skill lifecycle from chat with `/skill`, update-by-name, and diff-before-save review. | Shipped in `1a73c8b8`: `/skill` and `save-skill` route to `save_skill`, and existing-skill updates preview a diff before approval. |
+| Routines | ROUTINE1 | next | Author scheduled routines from chat: a `create_routine` tool behind a non-cacheable approval (e.g. "ping 192.168.0.1 hourly; notify via Google Chat and a local notification"). | First slice ships `create_routine` writing through `RoutinesNotifier.createRoutine`, with approval surfacing schedule, tools, and delivery channels (Google Chat + local notification). |
+| Routines | ROUTINE2 | later | Manage routines from chat: list/update/enable/disable/delete plus a near-duplicate-by-name guard. | Start after ROUTINE1 ships; reuse the SKILL2 lifecycle pattern and the skill near-duplicate guard. |
 | Skills | SKILL3 | later | Mine recurring verified workflows into proposed skills during idle windows. | Wait for LL18/OBS1 evidence so proposals are grounded in traces and remain user-reviewed before adoption. |
 
 Remaining Foundation F5/F6 and the future platform vision milestones are
@@ -783,6 +785,7 @@ Future platform vision summary:
 | MM | MM1 | later | Treat screenshots, voice, OCR, and screen recordings as traceable multimodal evidence. |
 | SKILL | SKILL1-SKILL3 | done/later | In-chat skill authoring and `/skill` are done; idle-time skill mining remains deferred until trace-backed proposals are available. |
 | TOOL | TOOL0-TOOL7 | next/later | Build the user-created Tools workspace through a capability-gated local manifest runtime rather than arbitrary generated code. |
+| ROUTINE | ROUTINE1-ROUTINE2 | next/later | Create scheduled routines from chat (interval/daily, tools, Google Chat + local notification delivery), then manage their lifecycle from chat. |
 
 These vision milestones should not displace the current `next` Local LLM
 milestone unless one is explicitly promoted through the normal operating loop.

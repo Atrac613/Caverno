@@ -124,6 +124,12 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_save_skill',
       category: categorySkills,
     ),
+    // Routines
+    BuiltInToolInfo(
+      name: 'create_routine',
+      descriptionKey: 'settings.tool_create_routine',
+      category: categoryTasks,
+    ),
     // Memory
     BuiltInToolInfo(
       name: 'search_past_conversations',

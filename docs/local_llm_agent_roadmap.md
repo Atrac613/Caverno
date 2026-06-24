@@ -37,6 +37,9 @@ It also records a future platform vision layer. These milestones are deliberatel
 - `TOOL<number>` — User-created Tools workspace: local-first mini applications
   built from a Caverno-owned, capability-gated manifest runtime rather than
   arbitrary generated code.
+- `ROUTINE<number>` — In-chat scheduled-routine authoring and lifecycle: create
+  and manage recurring agent runs from the conversation instead of only the
+  routine editor UI.
 - `THREAT<number>` — Endpoint threat posture: agent-as-malware-vector
   hardening, read-only host compromise triage, and idle-time local
   threat-intelligence pre-learning.
@@ -203,6 +206,8 @@ structurally unmotivated to build:
 | Tools | TOOL5 | later | S-M | TOOL3, TOOL4 | Receipt ledger MVP template using the same manifest runtime, storage, and permission gates as generated Tools. |
 | Tools | TOOL6 | later | M | TOOL5, LL3, COMPAT1 | Natural-language Tool builder that emits reviewable manifest drafts from approved templates and vocabularies. |
 | Tools | TOOL7 | later | S | TOOL0-TOOL6 | MVP release gate and store/privacy readiness for workspace switching, validation, persistence, rendering, confirmation, data-egress copy, and receipt-ledger behavior. |
+| Routines | ROUTINE1 | next | M | F2, SKILL1 | In-chat scheduled-routine authoring: a `create_routine` built-in tool that schedules a recurring routine from the conversation behind a non-cacheable user approval. |
+| Routines | ROUTINE2 | later | M | ROUTINE1 | Chat-driven routine lifecycle: list/update/enable/disable/delete from chat plus a near-duplicate-by-name guard. |
 | Threat Posture | THREAT1 | later | M | F2, SEC1, SEC2 | Agent-as-malware-vector hardening: non-cacheable approval plus explicit resolved-command and destination-domain review for network-fetch-then-execute and persistence-write shapes in `local_shell`. |
 | Threat Posture | THREAT2 | later | M | F2, SEC1 | Read-only host compromise triage: a fixed-command `host_security_snapshot` IoC collector, a routine allowlist entry, and an AMOS-style TTP triage prompt/mode. |
 | Threat Posture | THREAT3 | later | L | THREAT2, LL10, LL18, LL5, SEC1 | Local threat-intelligence pre-learning: idle-orchestrated ingestion of CISA KEV / scoped NVD CVE feeds and malware advisories, map-reduced into a provenance-tracked local KB that feeds THREAT2 triage and installed-software vulnerability matching. |
@@ -364,7 +369,7 @@ UI is ambitious. MM1 should precede screenshot-to-issue and visual-regression
 features so multimodal artifacts inherit the same trace, redaction, and data
 perimeter rules from OBS1 and SEC1.
 
-### Phase 11 — In-chat capability authoring (SKILL)
+### Phase 11 — In-chat capability authoring (SKILL, ROUTINE)
 
 Caverno already lets the model *read* user skills mid-conversation: a
 lightweight skills index is injected into the system prompt and a `load_skill`
@@ -381,6 +386,26 @@ Recommended ordering: SKILL1 and SKILL2 are complete. SKILL3 waits for the LL18
 idle orchestrator and OBS1 traces so mined proposals are grounded in real run
 evidence. SEC1 perimeter classification enriches all skill flows by flagging
 skill content authored from untrusted evidence.
+
+The ROUTINE milestones extend the same in-chat authoring idea from inert skill
+markdown to *executable scheduled agents*. Today routines are created only
+through the routine editor UI (`showRoutineEditor` → `RoutinesNotifier`
+`.createRoutine`); the model cannot stand one up conversationally. ROUTINE1 adds
+a `create_routine` tool that maps a natural-language request to the `Routine`
+fields (name, prompt, `scheduleMode` interval/daily, `intervalValue` +
+`intervalUnit`, `timeOfDayMinutes`, `toolsEnabled`, `completionAction`,
+`notifyOnCompletion`, workspace flags) and persists through `createRoutine`,
+with `RoutineScheduleService` normalizing the schedule and the scheduler picking
+up the new `nextRunAt`. ROUTINE2 adds chat-driven list/update/enable/disable/
+delete and a near-duplicate-by-name guard.
+
+Because a routine is an autonomous, recurring, unattended run — a higher-risk
+write than a skill — ROUTINE1 reuses the SKILL1 non-cacheable approval but its
+preview must surface the schedule and next run, whether tools/workspace writes
+are enabled, and any external delivery (`completionAction: googleChat`). This
+stays inside the existing per-routine approval trust model (the editor UI
+already permits it); it does not open unattended agent-farm scheduling, which
+still waits on SEC1/OBS1.
 
 ### Phase 12 — User-created local apps (TOOL)
 
@@ -3164,6 +3189,62 @@ Acceptance criteria:
 - Mined skill content is treated as SEC1 evidence: it informs a proposal but is
   never auto-adopted as an authority-bearing instruction.
 
+### ROUTINE1: In-Chat Scheduled-Routine Authoring
+
+Status: `next`
+
+Context:
+- Routines (recurring agent runs) are created only through the routine editor UI
+  (`showRoutineEditor` → `RoutinesNotifier.createRoutine`). The chat surface has
+  a manual "create routine" button but no LLM/tool path, so the model cannot
+  schedule one from a conversation.
+- Worked example: "ping host 192.168.0.1 every hour for liveness monitoring;
+  report the result via Google Chat and a local notification." This maps to a
+  `Routine` with `scheduleMode: interval`, `intervalValue: 1`,
+  `intervalUnit: hours`, `toolsEnabled: true` (uses the always-loaded `ping`
+  tool), `completionAction: googleChat` with `googleChatRule: always`, and
+  `notifyOnCompletion: true` for the local notification.
+
+Scope:
+- Add a `create_routine` built-in tool (sibling of `save_skill`) that maps a
+  natural-language request to `Routine` fields — name, prompt, schedule
+  (`schedule_mode` interval/daily, `interval_value` + `interval_unit`,
+  `time_of_day`), `tools_enabled`, `completion_action` + `google_chat_rule`,
+  `notify_on_completion`, and optional workspace directory/write flags — and
+  persists through `RoutinesNotifier.createRoutine`. `RoutineScheduleService`
+  normalizes the schedule and the scheduler picks up the new `nextRunAt`.
+- Gate the write behind a non-cacheable approval whose preview surfaces the
+  schedule and next run, the prompt, whether tools/workspace writes are enabled,
+  and the delivery channels (Google Chat is external; local notification).
+- Add coding/general prompt guidance so the model offers to schedule a routine
+  when the user describes a recurring task.
+
+Acceptance criteria:
+- A routine described in chat is created, scheduled (correct `nextRunAt`), and
+  visible in the routines list; the worked ping example runs hourly and delivers
+  to Google Chat + local notification.
+- Every `create_routine` call requires explicit approval and never resolves from
+  the approval cache; the preview names the schedule, tools, and delivery
+  channels.
+- Invalid schedules are rejected with an actionable message; the round trip is
+  covered by focused tests.
+
+### ROUTINE2: Chat-Driven Routine Lifecycle
+
+Status: `later`
+
+Scope:
+- Add list/update/enable/disable/delete of routines from chat, reusing the
+  ROUTINE1 approval path for mutations.
+- Add a near-duplicate-by-name guard (mirroring the skill near-duplicate guard)
+  so a similar routine is surfaced for update instead of silently duplicated.
+
+Acceptance criteria:
+- Updates show what changes relative to the stored routine and never mutate
+  without confirmation.
+- Enabling/disabling and deleting a routine from chat reflect immediately in the
+  scheduler and the routines list.
+
 ### THREAT1: Agent-As-Malware-Vector Hardening
 
 Status: `later`
@@ -3314,6 +3395,11 @@ Acceptance criteria:
   mutate local records. Remote AI parsing is data egress and must be disclosed;
   debug logs must not contain receipt images, raw OCR text, LLM prompts, parsed
   personal data, or private Tool records.
+- Routine writes (ROUTINE track) create autonomous scheduled agents, so they
+  require a non-cacheable approval whose preview surfaces the schedule, enabled
+  tools/workspace writes, and any external delivery; they are never auto-created
+  or cached, and stay inside the per-routine approval trust model until SEC1/OBS1
+  gate broader unattended scheduling.
 - Threat-posture milestones treat every external intelligence feed (CVE, KEV,
   advisories) as SEC1 untrusted content: ingested intel informs triage but never
   becomes an instruction with tool authority, and host triage tools (THREAT2)

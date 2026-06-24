@@ -491,6 +491,52 @@ class _RecordingSkillsNotifier extends SkillsNotifier {
   }
 }
 
+/// In-memory [RoutinesNotifier] for create_routine tests: records created
+/// routines in state without touching SharedPreferences or the scheduler.
+class _RecordingRoutinesNotifier extends RoutinesNotifier {
+  @override
+  RoutinesState build() => const RoutinesState(routines: []);
+
+  @override
+  Future<void> createRoutine({
+    required String name,
+    required String prompt,
+    required int intervalValue,
+    required RoutineIntervalUnit intervalUnit,
+    required RoutineScheduleMode scheduleMode,
+    required int timeOfDayMinutes,
+    required bool enabled,
+    required bool notifyOnCompletion,
+    required bool toolsEnabled,
+    required RoutineCompletionAction completionAction,
+    required RoutineGoogleChatRule googleChatRule,
+    String workspaceDirectory = '',
+    bool allowWorkspaceWrites = false,
+  }) async {
+    final now = DateTime(2026, 6, 23, 22, 0);
+    final routine = Routine(
+      id: 'routine-${state.routines.length + 1}',
+      name: name.trim(),
+      prompt: prompt.trim(),
+      createdAt: now,
+      updatedAt: now,
+      enabled: enabled,
+      notifyOnCompletion: notifyOnCompletion,
+      toolsEnabled: toolsEnabled,
+      completionAction: completionAction,
+      googleChatRule: googleChatRule,
+      workspaceDirectory: workspaceDirectory,
+      allowWorkspaceWrites: allowWorkspaceWrites,
+      intervalValue: intervalValue,
+      intervalUnit: intervalUnit,
+      scheduleMode: scheduleMode,
+      timeOfDayMinutes: timeOfDayMinutes,
+      nextRunAt: now.add(const Duration(hours: 1)),
+    );
+    state = RoutinesState(routines: [...state.routines, routine]);
+  }
+}
+
 class _ReleaseCheckSkillsNotifier extends SkillsNotifier {
   @override
   SkillsState build() {

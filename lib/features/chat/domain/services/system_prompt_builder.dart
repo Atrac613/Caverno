@@ -91,6 +91,7 @@ class SystemPromptBuilder {
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
     final hasLoadSkillTool = uniqueToolNames.contains('load_skill');
     final hasSaveSkillTool = uniqueToolNames.contains('save_skill');
+    final hasCreateRoutineTool = uniqueToolNames.contains('create_routine');
     final hasComputerUseTools = uniqueToolNames.any(
       (name) => name.startsWith('computer_'),
     );
@@ -594,6 +595,14 @@ class SystemPromptBuilder {
           'When a repeatable, verified workflow emerges that the user will '
           'likely reuse, offer to capture it with save_skill. The user must '
           'approve every save; never call it for one-off tasks.',
+        );
+      }
+      if (hasCreateRoutineTool) {
+        buffer.writeln(
+          'When the user describes a recurring task on a schedule (e.g. a '
+          'periodic check or report), offer to schedule it with create_routine. '
+          'The user must approve every routine; never schedule one for a '
+          'one-off request.',
         );
       }
       if (hasRunPythonScriptTool) {

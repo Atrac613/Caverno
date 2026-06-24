@@ -57,6 +57,8 @@ import 'package:caverno/features/chat/presentation/providers/coding_projects_not
 import 'package:caverno/features/chat/presentation/providers/subagent_task_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/skills_notifier.dart';
+import 'package:caverno/features/routines/domain/entities/routine.dart';
+import 'package:caverno/features/routines/presentation/providers/routines_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/entities/local_model_lifecycle.dart';
 import 'package:caverno/features/settings/domain/services/primary_model_preparation_service.dart';
