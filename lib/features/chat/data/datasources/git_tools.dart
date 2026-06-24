@@ -301,6 +301,16 @@ class GitTools {
       if (commitPreflightError != null) {
         return commitPreflightError;
       }
+
+      final tagVersionPreflightError = await _tagVersionPreflightError(
+        args: args,
+        normalizedCommand: normalizedCommand,
+        workingDirectory: workingDirectory,
+        environment: environment,
+      );
+      if (tagVersionPreflightError != null) {
+        return tagVersionPreflightError;
+      }
     }
 
     try {
@@ -461,6 +471,158 @@ class GitTools {
       }
     }
     return false;
+  }
+
+  /// Matches a version-like token: `1.2.3` or `1.2.3+45`, with an optional
+  /// leading `v`. Group 1 is the `major.minor.patch` core, group 2 the optional
+  /// build number.
+  static final RegExp _versionLikeTokenPattern = RegExp(
+    r'^v?(\d+\.\d+\.\d+)(?:\+(\d+))?$',
+  );
+
+  /// Blocks creating a version-like git tag whose value disagrees with the
+  /// project's `pubspec.yaml` version, which would label the release with the
+  /// wrong version or build number (e.g. tagging `1.3.8+19` while pubspec says
+  /// `1.3.8+20`). Inert unless this is a tag-creation command, the repo has a
+  /// pubspec, and both the tag and the pubspec version parse as version tokens —
+  /// so non-Dart repos and non-version tag schemes are never affected.
+  static Future<String?> _tagVersionPreflightError({
+    required List<String> args,
+    required String normalizedCommand,
+    required String workingDirectory,
+    required Map<String, String> environment,
+  }) async {
+    final tagName = _versionTagNameForCreation(args);
+    if (tagName == null) {
+      return null;
+    }
+    final tagMatch = _versionLikeTokenPattern.firstMatch(tagName);
+    if (tagMatch == null) {
+      return null;
+    }
+
+    final pubspecVersion = await _pubspecVersion(
+      workingDirectory: workingDirectory,
+      environment: environment,
+    );
+    if (pubspecVersion == null) {
+      return null;
+    }
+    final pubspecMatch = _versionLikeTokenPattern.firstMatch(pubspecVersion);
+    if (pubspecMatch == null) {
+      return null;
+    }
+
+    final coreMismatch = tagMatch.group(1) != pubspecMatch.group(1);
+    final tagBuild = tagMatch.group(2);
+    final pubspecBuild = pubspecMatch.group(2);
+    final buildMismatch =
+        tagBuild != null && pubspecBuild != null && tagBuild != pubspecBuild;
+    if (!coreMismatch && !buildMismatch) {
+      return null;
+    }
+
+    return jsonEncode({
+      'command': 'git $normalizedCommand',
+      'working_directory': workingDirectory,
+      'exit_code': 2,
+      'code': 'git_tag_version_mismatch',
+      'error':
+          'git tag "$tagName" does not match the project version in '
+          'pubspec.yaml ("$pubspecVersion"); creating it would label the '
+          'release with the wrong version or build number. Re-read pubspec.yaml '
+          'and tag the exact version it declares ("$pubspecVersion"), or update '
+          'pubspec.yaml first if the intended version differs, then retry.',
+      'tag': tagName,
+      'pubspec_version': pubspecVersion,
+    });
+  }
+
+  /// Returns the tag name from a `git tag` creation command, or null when the
+  /// command is not creating exactly one tag at HEAD (listing, deletion,
+  /// verification, no name, or tagging an explicit commit-ish — where the
+  /// worktree pubspec may not correspond to the tagged commit).
+  static String? _versionTagNameForCreation(List<String> args) {
+    if (args.isEmpty || args.first != 'tag') {
+      return null;
+    }
+    const valueFlags = {'-m', '--message', '-F', '--file', '-u', '--local-user'};
+    const listingFlags = {
+      '-l',
+      '--list',
+      '-d',
+      '--delete',
+      '-v',
+      '--verify',
+      '-n',
+      '--contains',
+      '--no-contains',
+      '--points-at',
+      '--merged',
+      '--no-merged',
+    };
+    final positionals = <String>[];
+    for (var i = 1; i < args.length; i++) {
+      final arg = args[i];
+      if (listingFlags.contains(arg)) {
+        return null;
+      }
+      if (valueFlags.contains(arg)) {
+        i++; // skip the flag's value
+        continue;
+      }
+      if (arg.startsWith('-')) {
+        continue; // boolean flag (-a, -s, -f, --annotate, ...)
+      }
+      positionals.add(arg);
+    }
+    // Exactly one positional is the new tag name; a second positional is a
+    // commit-ish, so skip the worktree-pubspec comparison.
+    return positionals.length == 1 ? positionals.first : null;
+  }
+
+  /// Reads the `version:` value from the repository's `pubspec.yaml` (resolved
+  /// from the git top level, falling back to [workingDirectory]). Returns null
+  /// when there is no pubspec or no version line.
+  static Future<String?> _pubspecVersion({
+    required String workingDirectory,
+    required Map<String, String> environment,
+  }) async {
+    var root = workingDirectory;
+    try {
+      final topLevel = await Process.run(
+        'git',
+        ['rev-parse', '--show-toplevel'],
+        workingDirectory: workingDirectory,
+        environment: environment,
+      ).timeout(_kTimeout);
+      if (topLevel.exitCode == 0) {
+        final resolved = (topLevel.stdout as String).trim();
+        if (resolved.isNotEmpty) {
+          root = resolved;
+        }
+      }
+    } catch (_) {
+      // Fall back to the working directory.
+    }
+
+    final pubspec = File('$root/pubspec.yaml');
+    if (!pubspec.existsSync()) {
+      return null;
+    }
+    final String content;
+    try {
+      content = await pubspec.readAsString();
+    } catch (_) {
+      return null;
+    }
+    for (final line in const LineSplitter().convert(content)) {
+      final match = RegExp(r'^version:\s*(\S+)').firstMatch(line);
+      if (match != null) {
+        return match.group(1);
+      }
+    }
+    return null;
   }
 
   // -------------------------------------------------------------------------

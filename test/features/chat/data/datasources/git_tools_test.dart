@@ -318,5 +318,62 @@ void main() {
         expect(statusAfter['stdout'], contains('?? scratch.tmp'));
       },
     );
+
+    test('blocks a version tag that disagrees with pubspec.yaml', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'git_tools_tag_version_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      Map<String, dynamic> decode(String raw) =>
+          jsonDecode(raw) as Map<String, dynamic>;
+      Future<Map<String, dynamic>> run(String command) async => decode(
+        await GitTools.execute(command: command, workingDirectory: tempDir.path),
+      );
+
+      expect((await run('init'))['exit_code'], 0);
+      expect(
+        (await run('config user.email "canary@example.com"'))['exit_code'],
+        0,
+      );
+      expect((await run('config user.name "Canary Bot"'))['exit_code'], 0);
+
+      await File(
+        '${tempDir.path}/pubspec.yaml',
+      ).writeAsString('name: demo\nversion: 1.3.8+20\n');
+      expect((await run('add pubspec.yaml'))['exit_code'], 0);
+      expect((await run('commit -m "init"'))['exit_code'], 0);
+
+      // Build number disagrees (+19 vs pubspec +20): blocked.
+      final mismatch = await run('tag -a 1.3.8+19 -m "Release v1.3.8"');
+      expect(mismatch['exit_code'], 2);
+      expect(mismatch['code'], 'git_tag_version_mismatch');
+      expect(mismatch['error'], contains('1.3.8+20'));
+      expect(mismatch['pubspec_version'], '1.3.8+20');
+
+      // The tag must not have been created.
+      final tagsAfterBlock = await run('tag --list');
+      expect(tagsAfterBlock['stdout'], isNot(contains('1.3.8+19')));
+
+      // Core disagrees too: blocked.
+      final coreMismatch = await run('tag 1.4.0+20');
+      expect(coreMismatch['code'], 'git_tag_version_mismatch');
+
+      // Matching version is allowed and creates the tag.
+      final match = await run('tag -a 1.3.8+20 -m "Release v1.3.8"');
+      expect(match['exit_code'], 0);
+      expect(match['code'], isNull);
+      final tagsAfterMatch = await run('tag --list');
+      expect(tagsAfterMatch['stdout'], contains('1.3.8+20'));
+
+      // A non-version tag name is never subject to the check.
+      final nonVersion = await run('tag nightly');
+      expect(nonVersion['exit_code'], 0);
+      expect(nonVersion['code'], isNull);
+    });
   });
 }
