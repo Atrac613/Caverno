@@ -60,6 +60,62 @@ void main() {
       expect(fixture.logDirectory.listSync(), isNotEmpty);
     },
   );
+
+  test(
+    'blocks macOS release notes with a mismatched filename version',
+    () async {
+      final fixture = _ReleaseScriptFixture.create();
+
+      final result = await fixture.runReleaseScript(
+        arguments: [
+          '--only',
+          'macos',
+          '--dry-run',
+          '--no-pub-get',
+          '--build-name',
+          '1.2.3',
+          '--build-number',
+          '4',
+          '--macos-release-notes',
+          '${fixture.root.path}/docs/releases/caverno-9.8.7.md',
+        ],
+      );
+
+      expect(result.exitCode, 66);
+      expect(result.stderr, contains('macOS release notes version mismatch'));
+      expect(result.stderr, contains('is for 9.8.7'));
+      expect(result.stderr, contains('release build name is 1.2.3'));
+    },
+  );
+
+  test('allows an intentional macOS release notes version mismatch', () async {
+    final fixture = _ReleaseScriptFixture.create();
+
+    final result = await fixture.runReleaseScript(
+      arguments: [
+        '--only',
+        'macos',
+        '--dry-run',
+        '--no-pub-get',
+        '--build-name',
+        '1.2.3',
+        '--build-number',
+        '4',
+        '--macos-release-notes',
+        '${fixture.root.path}/docs/releases/caverno-9.8.7.md',
+      ],
+      environment: const {
+        'CAVERNO_ALLOW_RELEASE_NOTES_VERSION_MISMATCH': 'yes',
+      },
+    );
+
+    expect(result.exitCode, 0);
+    expect(result.stdout, contains('Version: 1.2.3+4'));
+    expect(
+      result.stdout,
+      contains('${fixture.root.path}/docs/releases/caverno-9.8.7.md'),
+    );
+  });
 }
 
 final class _ReleaseScriptFixture {
@@ -105,7 +161,10 @@ exit 0
 ''');
   }
 
-  Future<ProcessResult> runReleaseScript({required List<String> arguments}) {
+  Future<ProcessResult> runReleaseScript({
+    required List<String> arguments,
+    Map<String, String> environment = const {},
+  }) {
     final path = Platform.environment['PATH'] ?? '';
     return Process.run(
       'bash',
@@ -116,7 +175,7 @@ exit 0
         logDirectory.path,
       ],
       workingDirectory: Directory.current.path,
-      environment: {'PATH': '${bin.path}:$path'},
+      environment: {'PATH': '${bin.path}:$path', ...environment},
     );
   }
 

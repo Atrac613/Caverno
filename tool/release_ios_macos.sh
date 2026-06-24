@@ -24,6 +24,7 @@ MACOS_DOWNLOAD_URL_PREFIX="${CAVERNO_SPARKLE_DOWNLOAD_URL_PREFIX:-https://cavern
 MACOS_S3_URI="${CAVERNO_SPARKLE_S3_URI:-s3://caverno-macos-releases/caverno/macos}"
 MACOS_RELEASE_NOTES="${CAVERNO_SPARKLE_RELEASE_NOTES_PATH:-}"
 RELEASE_LOG_DIR="${CAVERNO_RELEASE_LOG_DIR:-}"
+ALLOW_RELEASE_NOTES_VERSION_MISMATCH="${CAVERNO_ALLOW_RELEASE_NOTES_VERSION_MISMATCH:-no}"
 
 usage() {
   cat <<'USAGE'
@@ -232,6 +233,18 @@ read_pubspec_version() {
   awk '/^version:[[:space:]]*/ { print $2; exit }' "${ROOT_DIR}/pubspec.yaml"
 }
 
+release_notes_version_from_path() {
+  local path="$1"
+  local basename
+  basename="$(basename "${path}")"
+  case "${basename}" in
+    caverno-*.md)
+      basename="${basename#caverno-}"
+      echo "${basename%.md}"
+      ;;
+  esac
+}
+
 PUBSPEC_VERSION="$(read_pubspec_version)"
 if [[ -z "${PUBSPEC_VERSION}" ]]; then
   echo "Could not read version from pubspec.yaml." >&2
@@ -267,6 +280,15 @@ fi
 if [[ "${DRY_RUN}" != "yes" && "${RUN_MACOS}" == "yes" && -n "${MACOS_RELEASE_NOTES}" && ! -f "${MACOS_RELEASE_NOTES}" ]]; then
   echo "macOS release notes not found: ${MACOS_RELEASE_NOTES}" >&2
   exit 66
+fi
+
+if [[ "${RUN_MACOS}" == "yes" && -n "${MACOS_RELEASE_NOTES}" && "${ALLOW_RELEASE_NOTES_VERSION_MISMATCH}" != "yes" ]]; then
+  RELEASE_NOTES_VERSION="$(release_notes_version_from_path "${MACOS_RELEASE_NOTES}")"
+  if [[ -n "${RELEASE_NOTES_VERSION}" && "${RELEASE_NOTES_VERSION}" != "${BUILD_NAME}" ]]; then
+    echo "macOS release notes version mismatch: ${MACOS_RELEASE_NOTES} is for ${RELEASE_NOTES_VERSION}, but the release build name is ${BUILD_NAME}." >&2
+    echo "Use matching release notes or set CAVERNO_ALLOW_RELEASE_NOTES_VERSION_MISMATCH=yes for an intentional mismatch." >&2
+    exit 66
+  fi
 fi
 
 if [[ "${DRY_RUN}" != "yes" && "${RUN_IOS}" == "yes" ]]; then
