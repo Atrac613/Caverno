@@ -165,6 +165,9 @@ structurally unmotivated to build:
 | Local LLM | LL26 | later | S-M | LL7, LL8, LL20 | Parallel Best-of-N candidate selection across the mesh (A0): generate candidates concurrently on resident endpoints (PC1/PC2) via LL20 slots over the LL8 mesh, then keep the verifier-passed candidate (LL7). A latency-neutral selection ensemble; concretizes the Best-of-N half of LL8's deferred fan-out. High-confidence and cheap, but sequenced after LL24. |
 | Local LLM | LL27 | later | L | LL26, LL12, LL19, LL1 | Collaborative multi-model orchestration over the mesh: layered aggregation (Mixture-of-Agents), role conductor, and debate so resident models cooperate on one turn. Guiding thesis: a Trinity-style role conductor (small coordinator → Thinker/Worker/Verifier on resident workers). Future research challenge, gated by the LL12/LL19 eval harness on "beats the best currently validated single-model path including latency". |
 | Local LLM | LL28 | done | M | LL1, LL8, LL3 | User-facing multi-participant group discussion: invite a second resident model (PC2) into the same thread as named participants with per-participant roles (facilitator / senior engineer / …), round-robin turn-taking when no facilitator is present, facilitator-managed handoff routing when one is present, and selectable single-round / multi-round depth, reusing the LL8 mesh endpoint resolver (health fallback) and the existing `ToolApprovalMode` (manual / auto / full) for read-only per-participant tools. The manually-driven, *visible* sibling of LL27 — user-judged, no eval gate; an auto-moderator turn policy is the bridge toward LL27. |
+| Local LLM | LL29 | next | S-M | F2, LL23 | Tool-loop failure recovery (degrade, don't abort): replace the whole-turn halt on a twice-failing tool call with escalating in-loop recovery — inject an action-oriented, tool-specific hint into the failing tool result and keep iterating (warn), make the hard turn-halt an opt-in circuit breaker, and distinguish exact-arg repeats, same-tool repeats, and read-only no-progress. Hardens the existing `toolFailureCounts` path in `ChatNotifier`. Inspired by the Hermes/Nous agent `tool_guardrails.py`. |
+| Local LLM | LL30 | next | M | LL14, LL6 | Compaction structural pre-pass: before summarization, run a no-LLM tool-result prune — dedupe identical tool outputs, replace old ones with informative one-line summaries that keep *what happened* (`[run_command] \`flutter test\` → exit 0, 47 lines`), truncate oversized tool-call arguments inside parsed JSON so the payload stays valid, and strip stale image payloads; switch the protected tail from a fixed message count to a token budget and add an anti-thrashing back-off. Extends LL14 with the Hermes `context_compressor._prune_old_tool_results` / `_summarize_tool_result` pattern. |
+| Local LLM | LL31 | next | S-M | F2, LL23 | Turn-exit reason and completion explainer: tag every tool-loop exit with a structured reason (`text_response` / `max_iterations` / `guardrail_halt` / `empty` / `partial`), replace an empty or truncated final response with a single user-visible explanation derived from that reason, and log a WARNING when a turn ends on a pending tool result (the "just stops" case). Inspired by the Hermes `turn_finalizer.py`. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
@@ -2376,6 +2379,167 @@ Verification:
 
 Dependencies: LL1, LL8, LL3 / LL23. Related: LL27 (auto-orchestration sibling),
 LL24 / LL25 (per-turn primary-model routing).
+
+## Complex-Task Robustness Track (LL29-LL31)
+
+These three milestones share one product goal: **when a task gets complex, the
+agent should degrade gracefully instead of producing unintended, blank, or
+silently-stopped results.** They were scoped from a comparison of Caverno's
+tool-calling loop against the Hermes/Nous open-source agent (the
+`tool_guardrails.py`, `context_compressor.py`, and `turn_finalizer.py`
+modules). Caverno already has the harder pieces — a security taint system,
+read-only dedup (LL14), false-completion guards, and `max_iterations` recovery
+with a final read-only inspection batch. The gaps below are the cheap, additive
+wins that most change how complex multi-step turns behave.
+
+Sequencing: LL29 first (highest behavior impact, lowest risk), then LL31
+(diagnosability), then LL30 (largest token win for tool-heavy turns). LL29 and
+LL31 both touch the `ChatNotifier` tool loop, so landing them together keeps the
+loop edits in one review surface.
+
+### LL29: Tool-Loop Failure Recovery (Degrade, Don't Abort)
+
+Status: `next`
+
+Problem:
+- The current loop ends the *entire turn* when one tool call fails twice with
+  identical arguments (`toolFailureCounts[key] >= 2` → `hasTextResponse = true;
+  break;` in `chat_notifier.dart`), emitting a generic "check your server
+  configuration" message. On a complex multi-step task, a single recoverable
+  mid-task hiccup discards every remaining step — a primary source of
+  "unintended results when tasks get complex".
+
+Scope:
+- Split the single failure threshold into graded actions, mirroring the Hermes
+  `ToolCallGuardrailController`: `warn` (default) keeps the loop running and
+  injects guidance; a hard `halt`/`block` becomes an opt-in circuit breaker
+  surfaced through the LL23 per-model runtime control policy (loop caps already
+  live there).
+- On a repeated failure, append an **action-oriented, tool-specific recovery
+  hint** to the failing tool result instead of killing the turn — e.g. for a
+  shell/command tool: "run a small diagnostic (`pwd && ls -la`), then try an
+  absolute path, a simpler command, or a different tool"; generic tools get a
+  "diagnose before retrying, try different arguments or a different tool" hint.
+- Distinguish three loop shapes using content-addressed signatures (tool name +
+  canonical-args hash): exact-arg repeat-failure, same-tool repeat-failure
+  (any args), and read-only no-progress (idempotent tool returning an identical
+  result hash). Reuse the existing `ToolCallExecutionPolicy` dedup-key builder
+  for the signature.
+- Keep the synthetic recovery result a real `role=tool` result so the next
+  model turn sees it as data, consistent with the existing dispatch path.
+
+Acceptance criteria:
+- A turn where an early tool fails twice but a later strategy would succeed no
+  longer aborts: the model receives the recovery hint and continues the loop
+  (covered by a `chat_notifier` loop test that asserts the loop survives a
+  twice-failing call and still reaches a later successful tool).
+- The hard halt only fires when the model-harness policy opts in, and when it
+  fires the user sees an explicit halt explanation (not a crash-like blank).
+- No regression in the existing duplicate-skip / `commandRetryGeneration`
+  behavior (repeatable command tools still get fresh keys per generation).
+
+Source: Hermes/Nous agent `agent/tool_guardrails.py`
+(`ToolCallGuardrailController`, `_tool_failure_recovery_hint`,
+`append_toolguard_guidance`) and `agent/tool_executor.py`
+(`_append_guardrail_observation` warn-injection vs. opt-in block).
+
+Next action: add a graded-decision helper next to
+`ToolLoopRecoveryPolicy` and rewire the `toolFailureCounts` branch in
+`chat_notifier.dart` from `break` to hint-injection + continue, gated by the
+LL23 runtime policy.
+
+### LL30: Compaction Structural Pre-Pass
+
+Status: `next`
+
+Problem:
+- `ConversationCompactionService` summarizes the conversation but does not first
+  prune tool results structurally, protects a fixed `recentMessagesToKeep = 8`
+  message tail (not a token budget), and has no anti-thrashing guard. On
+  tool-heavy complex turns, tool outputs dominate the token budget, so the
+  cheapest, largest savings are left on the table and LL14's stubbing only
+  triggers at compaction boundaries.
+
+Scope (no-LLM cheap pre-pass, applied before the existing summary, only at
+compaction boundaries to preserve LL6 prefix stability):
+- Dedupe identical tool-result contents (hash, keep the newest full copy,
+  replace older duplicates with a back-reference stub) — generalizes LL14's
+  read/search dedup to all tools.
+- Replace old tool results with **informative one-line summaries that preserve
+  *what happened*** rather than a content-free placeholder — e.g.
+  `[run_command] \`flutter test\` → exit 0, 47 lines`,
+  `[read_file] config.dart from line 1 (3,400 chars)`. Port the per-tool
+  summary table to Caverno's built-in tool names.
+- Truncate oversized tool-call arguments (large `write_file` / patch bodies)
+  **inside the parsed JSON structure** so the persisted call stays valid and
+  providers don't 400 on later turns.
+- Switch the protected tail from a fixed message count to a token budget with a
+  message-count floor; keep `recentMessagesToKeep` as the floor.
+- Add an anti-thrashing back-off: skip compaction when the last two passes each
+  saved under ~10% (record an ineffective-pass counter), surfacing a "start a
+  fresh session / focused compact" hint instead of looping.
+
+Acceptance criteria:
+- For a synthetic tool-heavy transcript, the pre-pass alone (no summary LLM
+  call) reduces estimated prompt tokens by a measured margin, recorded with a
+  `tool/` measurement script in the LL14 style.
+- One-line summaries retain the tool name, key argument, and outcome (exit code
+  / match count / byte count) — asserted by unit tests over the summary builder.
+- Argument truncation leaves every persisted tool call parseable as JSON.
+- Anti-thrashing prevents a no-op compaction from re-triggering every turn.
+
+Source: Hermes/Nous agent `agent/context_compressor.py`
+(`_prune_old_tool_results` three-pass prune, `_summarize_tool_result`,
+`_truncate_tool_call_args_json`, token-budget tail in `_find_tail_cut_by_tokens`,
+anti-thrashing in `should_compress`).
+
+Next action: implement the dedupe + one-line-summary passes as a pure helper
+beside `ConversationCompactionService`, unit-test the summary table, then wire
+it into the compaction entry point ahead of `_buildSummary`.
+
+### LL31: Turn-Exit Reason and Completion Explainer
+
+Status: `next`
+
+Problem:
+- The tool loop has many `break` / `hasTextResponse` exit points but no
+  structured record of *why* a turn ended, and an empty or truncated final
+  response reaches the user as a blank or fragmentary bubble with no
+  explanation — the "it just stops" experience on complex tasks.
+
+Scope:
+- Tag every loop exit with a structured `turnExitReason`
+  (`text_response(...)`, `max_iterations_reached(n/m)`, `guardrail_halt`,
+  `empty`, `partial`, `user_confirmation_block`, ...), set at each existing
+  break site.
+- Add a completion explainer that runs once after the loop: when the final
+  response is empty/`(empty)` or a short fragment with no terminating
+  punctuation, replace or append a single user-visible explanation derived from
+  `turnExitReason`. Gate it so healthy `text_response` exits stay silent (a
+  terse "Done." is never annotated).
+- Emit a WARNING-level diagnostic log when a turn ends with a pending tool
+  result as the last message (agent was mid-work), including the last tool name
+  — so the session-log triage tooling (`tool/triage_session_logs.py`) can find
+  "just stops" turns.
+- Reuse the existing false-completion / file-mutation guards as the
+  content-truth layer; LL31 only adds the *why-it-stopped* surface, it does not
+  re-judge success.
+
+Acceptance criteria:
+- A turn that ends empty after retries shows an actionable reason instead of a
+  blank bubble (loop test asserts the explainer text for representative exit
+  reasons).
+- A healthy short answer is left untouched (no explainer appended).
+- Mid-work stops produce a WARNING log line carrying the exit reason and last
+  tool name, discoverable by the session-log triage script.
+
+Source: Hermes/Nous agent `agent/turn_finalizer.py` (`_turn_exit_reason`
+taxonomy, turn-completion explainer, mid-work WARNING diagnostic, and the
+`completed` determination).
+
+Next action: thread a `turnExitReason` local through the `ChatNotifier` loop
+break sites, then add the post-loop explainer + mid-work warning as a single
+finalization step.
 
 ## Future Platform Vision Milestone Notes
 
