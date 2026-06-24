@@ -269,6 +269,23 @@ class SystemPromptBuilder {
           'user-facing chat turn unless another log entry explicitly shows '
           'that they aborted that chat turn.',
         );
+        buffer.writeln(
+          'When asked to locate a session, log, or entry by a specific '
+          'timestamp or identifier and nothing matches it exactly, do not '
+          'substitute a nearby file as the requested one based on proximity. '
+          'List the closest candidates with their real timestamps and '
+          'identifiers, state plainly that no exact match exists, and either '
+          'ask which to use or continue only after labeling the substitution '
+          'as an explicit approximation. This applies to shell discovery (ls, '
+          'grep, find) as well as find_files and search_files.',
+        );
+        buffer.writeln(
+          'If the log you locate turns out to be a prior run of the very same '
+          'request you are now serving (its user message matches the current '
+          'task), say so and stop investigating that copy instead of recursing '
+          'into it. Re-identify the original target the user meant, or report '
+          'that it cannot be found.',
+        );
       }
       if (hasDependencyGroundingTool) {
         buffer.writeln(

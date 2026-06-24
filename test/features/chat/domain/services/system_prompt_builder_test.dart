@@ -61,6 +61,19 @@ void main() {
     expect(prompt, contains('memory_extractor_system'));
     expect(
       prompt,
+      contains(
+        'do not '
+        'substitute a nearby file as the requested one based on proximity',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'stop investigating that copy instead of recursing',
+      ),
+    );
+    expect(
+      prompt,
       contains('call resolve_installed_dependency before guessing'),
     );
     expect(
