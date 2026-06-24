@@ -570,7 +570,8 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
   }
 
   bool _latestUserExplicitlyApprovedProductionRelease() {
-    for (final message in state.messages.reversed) {
+    for (var index = state.messages.length - 1; index >= 0; index -= 1) {
+      final message = state.messages[index];
       if (message.role != MessageRole.user) {
         continue;
       }
@@ -578,7 +579,28 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
       if (content.isEmpty) {
         continue;
       }
-      return _looksLikeExplicitProductionReleaseApproval(content);
+      if (_looksLikeExplicitProductionReleaseApproval(content)) {
+        return true;
+      }
+      return _looksLikeAffirmativeReleaseApprovalAnswer(content) &&
+          _previousAssistantAskedForProductionReleaseApproval(index);
+    }
+    return false;
+  }
+
+  bool _previousAssistantAskedForProductionReleaseApproval(int beforeIndex) {
+    for (var index = beforeIndex - 1; index >= 0; index -= 1) {
+      final message = state.messages[index];
+      final content = message.content.trim();
+      if (content.isEmpty) {
+        continue;
+      }
+      if (message.role == MessageRole.assistant) {
+        return _looksLikeProductionReleaseApprovalPrompt(content);
+      }
+      if (message.role == MessageRole.user) {
+        return false;
+      }
     }
     return false;
   }
@@ -646,22 +668,7 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
     if (RegExp(r'^\s*(release|ship)\b').hasMatch(lowerContent)) {
       return true;
     }
-    final mentionsRelease =
-        _containsAny(lowerContent, const [
-          'release',
-          'publish',
-          'upload',
-          'app store connect',
-          'sparkle',
-          's3',
-        ]) ||
-        _containsAnyCodeUnitSequence(content, const [
-          [0x30ea, 0x30ea, 0x30fc, 0x30b9],
-          [0x672c, 0x756a],
-          [0x516c, 0x958b],
-          [0x30a2, 0x30c3, 0x30d7, 0x30ed, 0x30fc, 0x30c9],
-        ]);
-    if (!mentionsRelease) {
+    if (!_mentionsProductionRelease(content)) {
       return false;
     }
     return _containsAny(lowerContent, const [
@@ -684,6 +691,65 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
           [0x3057, 0x3066],
           [0x304a, 0x9858, 0x3044],
           [0x3084, 0x3063, 0x3066],
+        ]);
+  }
+
+  bool _looksLikeProductionReleaseApprovalPrompt(String content) {
+    if (!_mentionsProductionRelease(content)) {
+      return false;
+    }
+    final lowerContent = content.toLowerCase();
+    final asksForApproval =
+        _containsAny(lowerContent, const [
+          'approve',
+          'approval',
+          'confirm',
+          'permission',
+          'authorize',
+          'run',
+          'execute',
+          'proceed',
+        ]) ||
+        content.contains('?') ||
+        content.contains(String.fromCharCode(0xff1f)) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x627f, 0x8a8d],
+          [0x8a31, 0x53ef],
+          [0x5b9f, 0x884c],
+          [0x9032, 0x3081],
+          [0x3057, 0x307e, 0x3059, 0x304b],
+        ]);
+    if (!asksForApproval) {
+      return false;
+    }
+    return _containsAny(lowerContent, const [
+          'production',
+          'prod',
+          'command',
+          'release',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x672c, 0x756a],
+          [0x30b3, 0x30de, 0x30f3, 0x30c9],
+          [0x30ea, 0x30ea, 0x30fc, 0x30b9],
+        ]);
+  }
+
+  bool _mentionsProductionRelease(String content) {
+    final lowerContent = content.toLowerCase();
+    return _containsAny(lowerContent, const [
+          'release',
+          'publish',
+          'upload',
+          'app store connect',
+          'sparkle',
+          's3',
+        ]) ||
+        _containsAnyCodeUnitSequence(content, const [
+          [0x30ea, 0x30ea, 0x30fc, 0x30b9],
+          [0x672c, 0x756a],
+          [0x516c, 0x958b],
+          [0x30a2, 0x30c3, 0x30d7, 0x30ed, 0x30fc, 0x30c9],
         ]);
   }
 

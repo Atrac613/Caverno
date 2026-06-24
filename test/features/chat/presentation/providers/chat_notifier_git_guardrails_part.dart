@@ -139,10 +139,7 @@ void registerChatNotifierGitGuardrailTests() {
         chatNotifier.state.messages.last.content,
         isNot(contains('コミットが完了しました')),
       );
-      expect(
-        chatNotifier.state.messages.last.content,
-        contains('unverified'),
-      );
+      expect(chatNotifier.state.messages.last.content, contains('unverified'));
     },
   );
 
@@ -816,6 +813,107 @@ void registerChatNotifierGitGuardrailTests() {
                 as Map<String, dynamic>;
         expect(productionResult, containsPair('command', productionCommand));
         expect(productionResult, containsPair('exit_code', 0));
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage accepts production release after direct user approval reply',
+    () async {
+      const productionCommand =
+          'bash tool/release_ios_macos.sh --macos-release-notes docs/releases/caverno-1.3.6.md';
+      final now = DateTime(2026, 5, 25, 10);
+      final conversation = Conversation(
+        id: 'release-approval-reply',
+        title: 'Release approval reply',
+        messages: [
+          Message(
+            id: 'assistant-approval-request',
+            role: MessageRole.assistant,
+            content:
+                'The production release command was blocked. Run this command '
+                'only after explicit approval: `$productionCommand`. '
+                'Do you approve executing the production release command now?',
+            timestamp: now,
+          ),
+        ],
+        createdAt: now,
+        updatedAt: now,
+        workspaceMode: WorkspaceMode.coding,
+        projectId: '/tmp/project',
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'release-production',
+            name: 'process_start',
+            arguments: const {
+              'command': productionCommand,
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Production release started.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Production release started.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'process_start': ''},
+        queuedResults: {
+          'process_start': [
+            jsonEncode({
+              'ok': true,
+              'job_id': 'release-job-1',
+              'command': productionCommand,
+              'working_directory': '/tmp/project',
+              'started_at': now.toIso8601String(),
+            }),
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            () => _WorkflowTestConversationsNotifier(conversation),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('承認します。続けてください。');
+
+        expect(toolService.executedToolNames, ['process_start']);
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        final productionResult =
+            jsonDecode(toolDataSource.toolResultBatches.single.single.result)
+                as Map<String, dynamic>;
+        expect(productionResult, containsPair('command', productionCommand));
+        expect(productionResult, containsPair('job_id', 'release-job-1'));
       } finally {
         toolContainer.dispose();
       }
