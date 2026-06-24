@@ -43,7 +43,7 @@ Multi-participant chat coordination, semantic search (LL5), personal evaluation 
 
 ## Version
 
-- `1.3.8+19` (proposed)
+- `1.3.8+20`
 
 ## Notes
 
