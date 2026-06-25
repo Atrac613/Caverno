@@ -757,7 +757,7 @@ return $default(_that.activeParticipantId,_that.activeParticipantName,_that.acti
 
 class _ParticipantTurnRuntime implements ParticipantTurnRuntime {
   const _ParticipantTurnRuntime({this.activeParticipantId, this.activeParticipantName = '', this.activeParticipantRoleLabel = '', this.activeParticipantColorValue, this.currentRound = 1, this.maxRounds = 1, this.multiRound = false, this.stopRequested = false, this.paused = false, this.activeToolName = ''});
-
+  
 
 @override final  String? activeParticipantId;
 @override@JsonKey() final  String activeParticipantName;
