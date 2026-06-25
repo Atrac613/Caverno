@@ -554,7 +554,7 @@ $ConversationCompactionArtifactCopyWith<$Res>? get compactionArtifact {
 @override
 @pragma('vm:prefer-inline')
 $ParticipantTurnConfigCopyWith<$Res> get participantTurnConfig {
-
+  
   return $ParticipantTurnConfigCopyWith<$Res>(_self.participantTurnConfig, (value) {
     return _then(_self.copyWith(participantTurnConfig: value));
   });
@@ -887,7 +887,7 @@ $ConversationCompactionArtifactCopyWith<$Res>? get compactionArtifact {
 @override
 @pragma('vm:prefer-inline')
 $ParticipantTurnConfigCopyWith<$Res> get participantTurnConfig {
-
+  
   return $ParticipantTurnConfigCopyWith<$Res>(_self.participantTurnConfig, (value) {
     return _then(_self.copyWith(participantTurnConfig: value));
   });
