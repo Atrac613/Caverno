@@ -78,6 +78,7 @@ import '../../domain/services/tool_approval_gate.dart';
 import '../../../../core/security/conversation_taint_state.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
+import '../../domain/services/tool_loop_exit_reason.dart';
 import '../../domain/services/truncation_notice.dart';
 import '../../domain/services/coding_command_output_guardrail_service.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
@@ -140,6 +141,7 @@ part 'chat_notifier_tool_result_telemetry.dart';
 part 'chat_notifier_tool_handler_registry.dart';
 part 'chat_notifier_turn_rollback_handlers.dart';
 part 'chat_notifier_turn_finalization_recovery.dart';
+part 'chat_notifier_turn_exit.dart';
 part 'chat_notifier_task_proposal_quality.dart';
 
 final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
@@ -5412,6 +5414,10 @@ class ChatNotifier extends Notifier<ChatState> {
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
   final Set<int> _turnFinalizationRecoveryGenerations = {};
+  // LL31: reason the current tool-calling turn ended, set by the loop at the
+  // break sites where it cannot be derived from terminal state and consumed by
+  // `_logTurnExitReason` during finalization.
+  ToolLoopExitReason? _turnExitReasonHint;
   Future<void> _contentToolExecutionTail = Future<void>.value();
   Future<void> _conversationMessagePersistenceTail = Future<void>.value();
   bool _forcePromptCompactionForNextRequest = false;
@@ -8788,6 +8794,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var hasTextResponse = false;
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
+    _turnExitReasonHint = null;
     final executedToolResults = <ToolResultInfo>[];
     var commandRetryGeneration = 0;
     var attemptedDuplicateInspectionRecovery = false;
@@ -8830,6 +8837,7 @@ class ChatNotifier extends Notifier<ChatState> {
           '[Tool] Blocking git write tool calls because the assistant asked '
           'for user confirmation',
         );
+        _turnExitReasonHint = ToolLoopExitReason.userConfirmationBlock;
         currentToolCalls = [];
         hasTextResponse = true;
         break;
@@ -9019,6 +9027,7 @@ class ChatNotifier extends Notifier<ChatState> {
               interactionGeneration,
               '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
             );
+            _turnExitReasonHint = ToolLoopExitReason.toolFailureAbort;
             hasTextResponse = true;
             break;
           }
@@ -12969,6 +12978,10 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
     if (!_isCurrentInteractionGeneration(generation)) return;
+    _logTurnExitReason(
+      finalizedMessages: updatedMessages,
+      shouldDropLastAssistant: shouldDropLastAssistant,
+    );
     state = state.copyWith(messages: updatedMessages, isLoading: false);
 
     // Persist messages.
