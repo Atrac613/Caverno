@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/widgets/conversation_drawer.dart';
@@ -208,6 +210,22 @@ class _DrawerCodingProjectsNotifier extends CodingProjectsNotifier {
   }
 }
 
+class _DrawerChatNotifier extends ChatNotifier {
+  _DrawerChatNotifier({
+    required this.initialState,
+    required this.initialConversationId,
+  });
+
+  final ChatState initialState;
+  final String? initialConversationId;
+
+  @override
+  ChatState build() {
+    conversationId = initialConversationId;
+    return initialState;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
@@ -334,6 +352,61 @@ void main() {
     },
   );
 
+  testWidgets('coding drawer marks the active LLM thread as working', (
+    tester,
+  ) async {
+    final project = _project(id: 'project-1', name: 'caverno');
+    final conversations = [
+      _conversation(
+        id: 'thread-1',
+        title: 'Idle thread',
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+      ),
+      _conversation(
+        id: 'thread-2',
+        title: 'Working thread',
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+        minutesAgo: 1,
+      ),
+    ];
+
+    await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: conversations,
+        currentConversationId: 'thread-1',
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+      projectsState: CodingProjectsState(
+        projects: [project],
+        selectedProjectId: project.id,
+      ),
+      chatState: const ChatState(messages: [], isLoading: true),
+      chatConversationId: 'thread-2',
+      settleAfterOpening: false,
+    );
+
+    expect(
+      find.byKey(const ValueKey('drawer-thread-thread-2-working-indicator')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('drawer-thread-thread-2-date-label')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('drawer-thread-thread-1-working-indicator')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('drawer-thread-thread-1-date-label')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('coding drawer collapses and reopens project threads', (
     tester,
   ) async {
@@ -447,6 +520,9 @@ Future<ProviderContainer> _pumpDrawerApp(
   required ConversationsState conversationsState,
   required CodingProjectsState projectsState,
   Map<String, Object> initialPreferences = const <String, Object>{},
+  ChatState chatState = const ChatState(messages: [], isLoading: false),
+  String? chatConversationId,
+  bool settleAfterOpening = true,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(900, 1400);
@@ -473,6 +549,12 @@ Future<ProviderContainer> _pumpDrawerApp(
       ),
       codingProjectsNotifierProvider.overrideWith(
         () => _DrawerCodingProjectsNotifier(projectsState),
+      ),
+      chatNotifierProvider.overrideWith(
+        () => _DrawerChatNotifier(
+          initialState: chatState,
+          initialConversationId: chatConversationId,
+        ),
       ),
     ],
   );
@@ -558,7 +640,11 @@ Future<ProviderContainer> _pumpDrawerApp(
   );
   await tester.pumpAndSettle();
   await tester.tap(find.byKey(const ValueKey('open-drawer')));
-  await tester.pumpAndSettle();
+  if (settleAfterOpening) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump(const Duration(milliseconds: 300));
+  }
   return container;
 }
 

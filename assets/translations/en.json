@@ -441,6 +441,7 @@
     "delete_all_threads_tooltip": "Delete all threads",
     "new_conversation": "New Conversation",
     "new_thread": "New Thread",
+    "thread_working_tooltip": "Assistant is working in this thread",
     "no_conversations": "No conversations",
     "no_threads": "No threads",
     "no_projects": "No projects yet",

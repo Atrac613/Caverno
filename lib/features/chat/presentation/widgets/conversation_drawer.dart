@@ -19,6 +19,7 @@ import '../../../settings/presentation/widgets/settings_modal.dart';
 import 'conversation_search_delegate.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
+import '../providers/chat_notifier.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../providers/conversations_notifier.dart';
 import '../providers/semantic_search_provider.dart';
@@ -74,6 +75,16 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     );
     final projectsState = ref.watch(codingProjectsNotifierProvider);
     final projectsNotifier = ref.read(codingProjectsNotifierProvider.notifier);
+    ref.watch(
+      chatNotifierProvider.select(
+        (state) => (
+          isLoading: state.isLoading,
+          isGeneratingWorkflowProposal: state.isGeneratingWorkflowProposal,
+          isGeneratingTaskProposal: state.isGeneratingTaskProposal,
+        ),
+      ),
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
 
     return Drawer(
       width: widget.width,
@@ -114,6 +125,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                         projectsState: projectsState,
                         conversationsState: conversationsState,
                         conversationsNotifier: conversationsNotifier,
+                        isConversationBusy: chatNotifier.isConversationBusy,
                         expandedProjectIds: _expandedProjectIds,
                         collapsedProjectIds: _collapsedProjectIds,
                         collapsedThreadLimit: _collapsedProjectThreadLimit,
@@ -556,6 +568,7 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.projectsState,
     required this.conversationsState,
     required this.conversationsNotifier,
+    required this.isConversationBusy,
     required this.expandedProjectIds,
     required this.collapsedProjectIds,
     required this.collapsedThreadLimit,
@@ -573,6 +586,7 @@ class _CodingProjectsSection extends StatelessWidget {
   final CodingProjectsState projectsState;
   final ConversationsState conversationsState;
   final ConversationsNotifier conversationsNotifier;
+  final bool Function(String conversationId) isConversationBusy;
   final Set<String> expandedProjectIds;
   final Set<String> collapsedProjectIds;
   final int collapsedThreadLimit;
@@ -629,6 +643,7 @@ class _CodingProjectsSection extends StatelessWidget {
                           project.id == conversationsState.activeProjectId,
                       selectedConversationId:
                           conversationsState.currentConversationId,
+                      isConversationBusy: isConversationBusy,
                       isExpanded: expandedProjectIds.contains(project.id),
                       isCollapsed: collapsedProjectIds.contains(project.id),
                       collapsedThreadLimit: collapsedThreadLimit,
@@ -672,6 +687,7 @@ class _ProjectThreadGroup extends StatelessWidget {
     required this.threads,
     required this.isSelected,
     required this.selectedConversationId,
+    required this.isConversationBusy,
     required this.isExpanded,
     required this.isCollapsed,
     required this.collapsedThreadLimit,
@@ -688,6 +704,7 @@ class _ProjectThreadGroup extends StatelessWidget {
   final List<Conversation> threads;
   final bool isSelected;
   final String? selectedConversationId;
+  final bool Function(String conversationId) isConversationBusy;
   final bool isExpanded;
   final bool isCollapsed;
   final int collapsedThreadLimit;
@@ -724,6 +741,7 @@ class _ProjectThreadGroup extends StatelessWidget {
           _ProjectThreadTile(
             conversation: thread,
             isSelected: thread.id == selectedConversationId,
+            isWorking: isConversationBusy(thread.id),
             onTap: () => onConversationSelected(thread.id),
             onDelete: () => onDeleteConversation(thread),
           ),
@@ -1051,12 +1069,14 @@ class _ProjectThreadTile extends StatelessWidget {
   const _ProjectThreadTile({
     required this.conversation,
     required this.isSelected,
+    required this.isWorking,
     required this.onTap,
     required this.onDelete,
   });
 
   final Conversation conversation;
   final bool isSelected;
+  final bool isWorking;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
@@ -1084,11 +1104,39 @@ class _ProjectThreadTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            _formatConversationDate(conversation.updatedAt),
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.onSurfaceVariant,
+          SizedBox(
+            width: 64,
+            child: Align(
+              alignment: isWorking
+                  ? AlignmentDirectional.center
+                  : AlignmentDirectional.centerEnd,
+              child: isWorking
+                  ? Tooltip(
+                      message: 'drawer.thread_working_tooltip'.tr(),
+                      child: SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(
+                          key: ValueKey(
+                            'drawer-thread-${conversation.id}-working-indicator',
+                          ),
+                          strokeWidth: 2,
+                          color: theme.colorScheme.primary,
+                          semanticsLabel: 'drawer.thread_working_tooltip'.tr(),
+                        ),
+                      ),
+                    )
+                  : Text(
+                      key: ValueKey(
+                        'drawer-thread-${conversation.id}-date-label',
+                      ),
+                      _formatConversationDate(conversation.updatedAt),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
             ),
           ),
           IconButton(
