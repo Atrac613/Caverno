@@ -34,6 +34,7 @@ import glob
 import json
 import os
 import time
+from collections import Counter
 
 # Score weights. Tuned so that a single truncation or transport error is
 # noticeable while noisy-but-normal tool errors barely register.
@@ -42,6 +43,24 @@ WEIGHT_TRANSPORT = 2.5
 WEIGHT_TOOL_LOOP = 2.0  # per repeat beyond the first two identical calls
 WEIGHT_OVERSIZED = 1.0
 WEIGHT_TOOL_ERROR = 0.25
+# LL31 turn-exit instrument: a turn that ended with no visible answer ("the
+# agent just stops") is a strong anomaly signal; abnormal-but-answered exits
+# (tool_failure_abort, max_iterations, length_truncated) get a lighter weight.
+WEIGHT_NO_ANSWER = 2.5
+WEIGHT_ABNORMAL_EXIT = 0.5
+
+# turn_exit reasons that are abnormal (everything except a healthy text answer).
+_ABNORMAL_EXIT_REASONS = frozenset({
+    "tool_failure_abort",
+    "max_iterations",
+    "guardrail_block",
+    "user_confirmation_block",
+    "streaming_cancelled",
+    "length_truncated",
+    "empty_response",
+    "partial_fragment",
+    "unknown",
+})
 
 OVERSIZED_CONTENT_CHARS = 8000
 TOOL_LOOP_MIN_RUN = 3  # a run shorter than this is normal exploration
@@ -111,7 +130,17 @@ def analyze(path: str) -> dict | None:
     run = 0
     prev_sig = None
     title = ""
+    no_answer = 0
+    exit_reasons: Counter = Counter()
     for entry in entries:
+        # LL31 turn-exit markers are separate, response-less entries.
+        if entry.get("operation") == "turn_exit":
+            turn_exit = entry.get("turnExit", {})
+            reason = turn_exit.get("reason") or "unknown"
+            exit_reasons[reason] += 1
+            if turn_exit.get("noVisibleAnswer"):
+                no_answer += 1
+            continue
         response = entry.get("response", {})
         title = title or entry.get("context", {}).get("sessionTitle", "")
         if response.get("finishReason") == "length":
@@ -132,12 +161,17 @@ def analyze(path: str) -> dict | None:
             prev_sig = sig
 
     loop_excess = max(0, max_run - (TOOL_LOOP_MIN_RUN - 1)) if max_run else 0
+    abnormal_exits = sum(
+        c for r, c in exit_reasons.items() if r in _ABNORMAL_EXIT_REASONS
+    )
     score = (
         fr_length * WEIGHT_FR_LENGTH
         + transport * WEIGHT_TRANSPORT
         + loop_excess * WEIGHT_TOOL_LOOP
         + oversized * WEIGHT_OVERSIZED
         + tool_errors * WEIGHT_TOOL_ERROR
+        + no_answer * WEIGHT_NO_ANSWER
+        + abnormal_exits * WEIGHT_ABNORMAL_EXIT
     )
     return {
         "path": path,
@@ -148,6 +182,8 @@ def analyze(path: str) -> dict | None:
         "max_tool_run": max_run,
         "oversized": oversized,
         "tool_errors": tool_errors,
+        "no_answer": no_answer,
+        "exit_reasons": dict(exit_reasons),
         "mtime": os.path.getmtime(path),
         "score": round(score, 2),
     }
@@ -185,24 +221,39 @@ def main() -> int:
         if row and row["score"] >= args.min_score:
             rows.append(row)
 
+    # Aggregate the LL31 exit-reason distribution across every scanned session
+    # (not just the printed top-N) — this is the evidence that gates LL29 vs
+    # LL30: it shows whether complex turns actually stop on tool_failure_abort,
+    # max_iterations, an empty answer, or normal text_response.
+    exit_totals: Counter = Counter()
+    for r in rows:
+        exit_totals.update(r.get("exit_reasons") or {})
+
     rows.sort(key=lambda r: (r["score"], r["mtime"]), reverse=True)
     rows = rows[: args.top]
 
     print(f"== Session log triage ({root}) ==")
     print(
-        f"{'score':>6}  {'len':>3} {'txp':>3} {'loop':>4} {'big':>3} {'err':>3}  "
-        f"{'n':>3}  session"
+        f"{'score':>6}  {'len':>3} {'txp':>3} {'loop':>4} {'big':>3} {'err':>3} "
+        f"{'stop':>4}  {'n':>3}  session"
     )
     for r in rows:
         ident = r["path"] if args.full else os.path.basename(r["path"])
         title = f"  {r['title']}" if r["title"] else ""
         print(
             f"{r['score']:>6}  {r['fr_length']:>3} {r['transport']:>3} "
-            f"{r['max_tool_run']:>4} {r['oversized']:>3} {r['tool_errors']:>3}  "
-            f"{r['entries']:>3}  {ident}{title}"
+            f"{r['max_tool_run']:>4} {r['oversized']:>3} {r['tool_errors']:>3} "
+            f"{r['no_answer']:>4}  {r['entries']:>3}  {ident}{title}"
         )
     if not rows:
         print("(no sessions matched)")
+
+    if exit_totals:
+        total = sum(exit_totals.values())
+        print(f"\n== Turn-exit reasons (LL31, {total} turns across all scanned) ==")
+        for reason, count in exit_totals.most_common():
+            mark = " *" if reason in _ABNORMAL_EXIT_REASONS else ""
+            print(f"  {count:>5} ({count / total:>5.1%})  {reason}{mark}")
     return 0
 
 

@@ -12978,10 +12978,12 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
     if (!_isCurrentInteractionGeneration(generation)) return;
-    _logTurnExitReason(
+    await _logTurnExitReason(
+      generation: generation,
       finalizedMessages: updatedMessages,
       shouldDropLastAssistant: shouldDropLastAssistant,
     );
+    if (!_isCurrentInteractionGeneration(generation)) return;
     state = state.copyWith(messages: updatedMessages, isLoading: false);
 
     // Persist messages.

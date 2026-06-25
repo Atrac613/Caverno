@@ -336,6 +336,44 @@ class LlmSessionLogStore {
     }
   }
 
+  /// Append a turn-level exit-reason marker (LL31 instrument).
+  ///
+  /// [record] writes one entry per LLM call; this writes one extra `turn_exit`
+  /// entry per finished tool-calling turn so `tool/triage_session_logs.py` can
+  /// surface the structured exit-reason distribution and flag turns that
+  /// stopped with no visible answer. Callers gate on [isEnabled] before calling.
+  Future<void> recordTurnExit({
+    required LlmSessionLogContext? context,
+    required String reason,
+    required bool noVisibleAnswer,
+    required DateTime at,
+  }) async {
+    try {
+      final effectiveContext = context ?? _fallbackContext();
+      final file = await fileForContext(effectiveContext);
+      final entry = {
+        'schemaName': schemaName,
+        'schemaVersion': schemaVersion,
+        'timestamp': at.toIso8601String(),
+        'context': effectiveContext.toJson(),
+        'operation': 'turn_exit',
+        'turnExit': {
+          'reason': reason,
+          'noVisibleAnswer': noVisibleAnswer,
+        },
+      };
+      final line = '${jsonEncode(_redactValue(entry))}\n';
+      await _prepareFileForWrite(
+        file,
+        incomingBytes: utf8.encode(line).length,
+        now: at,
+      );
+      await file.writeAsString(line, mode: FileMode.append, flush: true);
+    } catch (error) {
+      appLog('[SessionLog] Failed to write turn-exit entry: $error');
+    }
+  }
+
   /// Resolves the log file for [context].
   ///
   /// Set [create] to false to resolve the path without creating the workspace

@@ -14,13 +14,21 @@ part of 'chat_notifier.dart';
 const ToolLoopExitClassifier _toolLoopExitClassifier = ToolLoopExitClassifier();
 
 extension ChatNotifierTurnExit on ChatNotifier {
-  /// Classify and log the exit reason for the just-finalized turn, then clear
-  /// the per-turn hint the tool loop set. Called from `_finishStreaming` after
-  /// finalization recovery has declined and before the messages are persisted.
-  void _logTurnExitReason({
+  /// Classify, log, and persist the exit reason for the just-finalized turn,
+  /// then clear the per-turn hint the tool loop set. Called from
+  /// `_finishStreaming` after finalization recovery has declined and before the
+  /// messages are persisted.
+  ///
+  /// The reason is both `appLog`'d (debug console) and — when session logging is
+  /// enabled — written to the persisted `*.jsonl` via
+  /// [LlmSessionLogStore.recordTurnExit], so `tool/triage_session_logs.py` can
+  /// read the exit-reason distribution. Without the persisted write the
+  /// instrument would be invisible in release builds and to triage.
+  Future<void> _logTurnExitReason({
+    required int generation,
     required List<Message> finalizedMessages,
     required bool shouldDropLastAssistant,
-  }) {
+  }) async {
     final hint = _turnExitReasonHint;
     _turnExitReasonHint = null;
 
@@ -42,5 +50,19 @@ extension ChatNotifierTurnExit on ChatNotifier {
     } else {
       appLog('[TurnExit] reason=$token');
     }
+
+    if (!LlmSessionLogStore.isEnabled(
+      settingsEnabled: _settings.enableLlmSessionLogs,
+    )) {
+      return;
+    }
+    await ref
+        .read(llmSessionLogStoreProvider)
+        .recordTurnExit(
+          context: _llmSessionLogContextForGeneration(generation),
+          reason: token,
+          noVisibleAnswer: shouldDropLastAssistant,
+          at: DateTime.now(),
+        );
   }
 }
