@@ -441,6 +441,7 @@
     "delete_all_threads_tooltip": "このプロジェクトのスレッドを一括削除",
     "new_conversation": "新しい会話",
     "new_thread": "新しいスレッド",
+    "thread_working_tooltip": "このスレッドでアシスタントが作業中です",
     "no_conversations": "会話がありません",
     "no_threads": "スレッドがありません",
     "no_projects": "プロジェクトがまだありません",

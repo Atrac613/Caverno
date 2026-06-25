@@ -5472,6 +5472,23 @@ class ChatNotifier extends Notifier<ChatState> {
             _activeResponseConversationIdsByGeneration.containsKey(generation));
   }
 
+  bool isConversationBusy(String targetConversationId) {
+    final normalizedConversationId = targetConversationId.trim();
+    if (normalizedConversationId.isEmpty) {
+      return false;
+    }
+    if (_activeResponseGenerationForConversation(normalizedConversationId) !=
+        null) {
+      return true;
+    }
+    if (conversationId != normalizedConversationId) {
+      return false;
+    }
+    return state.isLoading ||
+        state.isGeneratingWorkflowProposal ||
+        state.isGeneratingTaskProposal;
+  }
+
   bool get _hasActiveResponse =>
       _activeResponseConversationId != null ||
       _activeResponseConversationIdsByGeneration.isNotEmpty;
