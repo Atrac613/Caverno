@@ -9,14 +9,16 @@ import 'package:flutter_test/flutter_test.dart';
 /// raise a budget to make this test pass; extract code instead, following
 /// docs/large_file_refactor_plan.md.
 ///
-/// NOTE (2026-06-25): chat_notifier.dart, chat_page.dart, mcp_tool_service.dart
-/// and chat_notifier_test.dart were already over their previous budgets on main
+/// NOTE (2026-06-25): chat_page.dart, mcp_tool_service.dart and
+/// chat_notifier_test.dart were already over their previous budgets on main
 /// before this gate ran against them. Their budgets are reconciled here to the
 /// exact current line counts (zero headroom, so the ratchet still blocks any
 /// further growth). Extraction back under the prior budgets is tracked as
-/// follow-up per docs/large_file_refactor_plan.md.
+/// follow-up per docs/large_file_refactor_plan.md. chat_notifier.dart was
+/// instead extracted (turn-finalization recovery moved to a part file), so its
+/// budget is lowered to 13700 rather than reconciled up.
 const Map<String, int> _lineBudgets = {
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 13994,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 13700,
   'lib/features/chat/presentation/pages/chat_page.dart': 8297,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 5270,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':

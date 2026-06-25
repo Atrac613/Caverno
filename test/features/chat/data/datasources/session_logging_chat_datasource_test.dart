@@ -97,6 +97,33 @@ void main() {
       expect(decoded['response']['content'], 'Done');
     });
 
+    test('recordTurnExit appends a turn_exit marker triage can read', () async {
+      final store = LlmSessionLogStore(
+        rootDirectoryProvider: () async => tempDir,
+      );
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.chat,
+        sessionId: 'conversation/9',
+      );
+
+      await store.recordTurnExit(
+        context: context,
+        reason: 'tool_failure_abort',
+        noVisibleAnswer: true,
+        at: DateTime(2026, 6, 25, 9),
+      );
+
+      final file = await store.fileForContext(context);
+      final lines = await file.readAsLines();
+      expect(lines, hasLength(1));
+      final decoded = jsonDecode(lines.single) as Map<String, dynamic>;
+      expect(decoded['schemaName'], LlmSessionLogStore.schemaName);
+      expect(decoded['operation'], 'turn_exit');
+      expect(decoded['turnExit']['reason'], 'tool_failure_abort');
+      expect(decoded['turnExit']['noVisibleAnswer'], true);
+      expect(decoded['context']['workspaceMode'], 'chat');
+    });
+
     test('redacts common secret patterns embedded in text', () async {
       final store = LlmSessionLogStore(
         rootDirectoryProvider: () async => tempDir,
