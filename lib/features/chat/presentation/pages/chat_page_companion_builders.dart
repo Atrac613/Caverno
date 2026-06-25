@@ -9,7 +9,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
     BuildContext context, {
     required Conversation currentConversation,
     required ChatState chatState,
-    required CodingProject activeProject,
+    CodingProject? activeProject,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -30,23 +30,110 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
     );
   }
 
+  /// Builds the companion panel.
+  ///
+  /// When [activeProject] is non-null (coding workspace) the panel shows the
+  /// full coding sections plus the session log. In chat workspace ([activeProject]
+  /// is null) only the session log section is rendered.
   Widget _buildCompanionPanel(
     BuildContext context, {
     required Conversation currentConversation,
     required ChatState chatState,
-    required CodingProject activeProject,
+    CodingProject? activeProject,
     bool inSheet = false,
     bool showLeadingBorder = true,
   }) {
     final theme = Theme.of(context);
-    final snapshotAsync = ref.watch(
-      codingEnvironmentSnapshotProvider(activeProject.normalizedRootPath),
-    );
-    final worktreeDiffAsync = ref.watch(
-      codingWorktreeDiffProvider(activeProject.normalizedRootPath),
-    );
-    final branchListAsync = ref.watch(
-      codingGitBranchListProvider(activeProject.normalizedRootPath),
+    final sections = <Widget>[];
+
+    if (activeProject != null) {
+      final rootPath = activeProject.normalizedRootPath;
+      final snapshotAsync = ref.watch(
+        codingEnvironmentSnapshotProvider(rootPath),
+      );
+      final worktreeDiffAsync = ref.watch(codingWorktreeDiffProvider(rootPath));
+      final branchListAsync = ref.watch(codingGitBranchListProvider(rootPath));
+
+      sections.addAll([
+        _buildCompanionSection(
+          context,
+          title: 'chat.companion_progress'.tr(),
+          children: _buildCompanionProgressChildren(
+            context,
+            currentConversation: currentConversation,
+            chatState: chatState,
+          ),
+        ),
+        const SizedBox(height: 18),
+        _buildCompanionSection(
+          context,
+          title: 'chat.companion_changes'.tr(),
+          trailing: IconButton(
+            onPressed: () =>
+                ref.invalidate(codingWorktreeDiffProvider(rootPath)),
+            icon: const Icon(Icons.refresh, size: 18),
+            tooltip: 'Refresh changes',
+          ),
+          children: _buildCompanionChangesChildren(
+            context,
+            currentConversation: currentConversation,
+            worktreeDiffAsync: worktreeDiffAsync,
+          ),
+        ),
+        const SizedBox(height: 18),
+        _buildCompanionSection(
+          context,
+          title: 'chat.companion_environment'.tr(),
+          trailing: IconButton(
+            onPressed: () {
+              ref.invalidate(codingEnvironmentSnapshotProvider(rootPath));
+              ref.invalidate(codingGitBranchListProvider(rootPath));
+            },
+            icon: const Icon(Icons.refresh, size: 18),
+            tooltip: 'chat.companion_refresh_environment'.tr(),
+          ),
+          children: [
+            _buildCompanionEnvironment(
+              context,
+              snapshotAsync: snapshotAsync,
+              branchListAsync: branchListAsync,
+              activeProject: activeProject,
+              inSheet: inSheet,
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _buildCompanionSection(
+          context,
+          title: 'chat.companion_sources'.tr(),
+          children: _buildCompanionSourceChildren(
+            context,
+            currentConversation: currentConversation,
+          ),
+        ),
+        const SizedBox(height: 18),
+      ]);
+    }
+
+    sections.add(
+      _buildCompanionSection(
+        context,
+        title: 'chat.companion_session_log'.tr(),
+        trailing: IconButton(
+          onPressed: () => ref.invalidate(
+            sessionLogDetailsProvider((
+              workspaceMode: currentConversation.workspaceMode,
+              sessionId: currentConversation.id,
+            )),
+          ),
+          icon: const Icon(Icons.refresh, size: 18),
+          tooltip: 'chat.companion_session_log_refresh'.tr(),
+        ),
+        children: _buildCompanionSessionLogChildren(
+          context,
+          currentConversation: currentConversation,
+        ),
+      ),
     );
 
     return DecoratedBox(
@@ -70,75 +157,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
           padding: EdgeInsets.fromLTRB(16, inSheet ? 0 : 16, 16, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildCompanionSection(
-                context,
-                title: 'chat.companion_progress'.tr(),
-                children: _buildCompanionProgressChildren(
-                  context,
-                  currentConversation: currentConversation,
-                  chatState: chatState,
-                ),
-              ),
-              const SizedBox(height: 18),
-              _buildCompanionSection(
-                context,
-                title: 'chat.companion_changes'.tr(),
-                trailing: IconButton(
-                  onPressed: () => ref.invalidate(
-                    codingWorktreeDiffProvider(
-                      activeProject.normalizedRootPath,
-                    ),
-                  ),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  tooltip: 'Refresh changes',
-                ),
-                children: _buildCompanionChangesChildren(
-                  context,
-                  currentConversation: currentConversation,
-                  worktreeDiffAsync: worktreeDiffAsync,
-                ),
-              ),
-              const SizedBox(height: 18),
-              _buildCompanionSection(
-                context,
-                title: 'chat.companion_environment'.tr(),
-                trailing: IconButton(
-                  onPressed: () {
-                    ref.invalidate(
-                      codingEnvironmentSnapshotProvider(
-                        activeProject.normalizedRootPath,
-                      ),
-                    );
-                    ref.invalidate(
-                      codingGitBranchListProvider(
-                        activeProject.normalizedRootPath,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.refresh, size: 18),
-                  tooltip: 'chat.companion_refresh_environment'.tr(),
-                ),
-                children: [
-                  _buildCompanionEnvironment(
-                    context,
-                    snapshotAsync: snapshotAsync,
-                    branchListAsync: branchListAsync,
-                    activeProject: activeProject,
-                    inSheet: inSheet,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              _buildCompanionSection(
-                context,
-                title: 'chat.companion_sources'.tr(),
-                children: _buildCompanionSourceChildren(
-                  context,
-                  currentConversation: currentConversation,
-                ),
-              ),
-            ],
+            children: sections,
           ),
         ),
       ),
@@ -760,6 +779,123 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
         ),
       ],
     ];
+  }
+
+  List<Widget> _buildCompanionSessionLogChildren(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) {
+    final detailsAsync = ref.watch(
+      sessionLogDetailsProvider((
+        workspaceMode: currentConversation.workspaceMode,
+        sessionId: currentConversation.id,
+      )),
+    );
+
+    return [
+      detailsAsync.when(
+        // Metadata is a near-instant stat() in production. Keep the loading
+        // state non-animating so widget tests (which suspend real file I/O
+        // under pumpAndSettle) settle instead of spinning forever.
+        loading: () => _buildCompanionEmptyText(
+          context,
+          'chat.companion_session_log_loading'.tr(),
+        ),
+        error: (error, stackTrace) =>
+            _buildCompanionEmptyText(context, error.toString()),
+        data: (details) {
+          if (!details.loggingEnabled) {
+            return _buildCompanionEmptyText(
+              context,
+              'chat.companion_session_log_disabled'.tr(),
+            );
+          }
+          final value = details.exists
+              ? details.formattedSize
+              : 'chat.companion_session_log_missing'.tr();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildCompanionInfoRow(
+                context,
+                icon: Icons.receipt_long_outlined,
+                label: details.fileName,
+                value: value,
+                dense: true,
+              ),
+              const SizedBox(height: 10),
+              _buildCompanionSessionLogPathRow(context, details: details),
+            ],
+          );
+        },
+      ),
+    ];
+  }
+
+  Widget _buildCompanionSessionLogPathRow(
+    BuildContext context, {
+    required SessionLogFileDetails details,
+  }) {
+    final theme = Theme.of(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 22,
+          height: 22,
+          child: Icon(
+            Icons.folder_outlined,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'chat.companion_session_log_path'.tr(),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              SelectableText(
+                details.path,
+                maxLines: 3,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 4),
+        IconButton(
+          onPressed: () =>
+              unawaited(_copyCompanionSessionLogPath(context, details.path)),
+          icon: const Icon(Icons.copy_rounded, size: 18),
+          tooltip: 'chat.companion_session_log_copy_path'.tr(),
+          visualDensity: VisualDensity.compact,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _copyCompanionSessionLogPath(
+    BuildContext context,
+    String path,
+  ) async {
+    await Clipboard.setData(ClipboardData(text: path));
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text('chat.companion_session_log_copied'.tr())),
+    );
   }
 
   Widget _buildCompanionInfoRow(

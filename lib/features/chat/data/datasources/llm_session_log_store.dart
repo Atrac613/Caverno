@@ -336,12 +336,22 @@ class LlmSessionLogStore {
     }
   }
 
-  Future<File> fileForContext(LlmSessionLogContext context) async {
+  /// Resolves the log file for [context].
+  ///
+  /// Set [create] to false to resolve the path without creating the workspace
+  /// directory as a side effect — useful for read-only views (e.g. the
+  /// companion panel) that only want to show where the log lives.
+  Future<File> fileForContext(
+    LlmSessionLogContext context, {
+    bool create = true,
+  }) async {
     final root = await _rootDirectoryProvider();
     final workspaceDirectory = Directory(
       '${root.path}/${_sanitizeFileSegment(context.workspaceMode.name)}',
     );
-    await workspaceDirectory.create(recursive: true);
+    if (create) {
+      await workspaceDirectory.create(recursive: true);
+    }
     final sessionId = context.sessionId.trim().isEmpty
         ? _fallbackSessionId
         : context.sessionId.trim();

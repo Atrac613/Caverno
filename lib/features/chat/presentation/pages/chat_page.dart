@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -54,6 +55,7 @@ import '../providers/chat_state.dart';
 import '../providers/coding_environment_snapshot_provider.dart';
 import '../providers/conversations_notifier.dart';
 import '../providers/custom_slash_commands_notifier.dart';
+import '../providers/session_log_details_provider.dart';
 import '../providers/worktree_agent_task_launcher.dart';
 import '../providers/worktree_agent_task_orchestrator.dart';
 import '../slash_commands/slash_command.dart';
@@ -340,7 +342,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required double availableWidth,
     required Conversation currentConversation,
     required ChatState chatState,
-    required CodingProject activeProject,
+    required CodingProject? activeProject,
   }) {
     final theme = Theme.of(context);
     final hasFileWorkspaceViewer = request != null;
@@ -420,7 +422,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required double availableWidth,
     required Conversation currentConversation,
     required ChatState chatState,
-    required CodingProject activeProject,
+    required CodingProject? activeProject,
   }) {
     final theme = Theme.of(context);
     return Row(
@@ -1498,10 +1500,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 !currentConversation.hasPlanArtifact &&
                 chatState.workflowProposalDraft == null &&
                 chatState.taskProposalDraft == null));
+    // The companion panel is available in coding (with a project) and in plain
+    // chat. Coding surfaces git/progress/sources plus the session log; chat
+    // surfaces only the session log section.
     final canShowCompanionPanel =
-        isCodingWorkspace &&
-        activeProject != null &&
-        currentConversation != null;
+        currentConversation != null &&
+        !isRoutinesWorkspace &&
+        !isMobileRemoteCoding &&
+        (!isCodingWorkspace || activeProject != null);
     final shouldShowCodingDraftComposer =
         isCodingWorkspace &&
         activeProject != null &&

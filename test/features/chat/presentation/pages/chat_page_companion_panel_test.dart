@@ -82,6 +82,40 @@ class _CompanionCodingProjectsNotifier extends CodingProjectsNotifier {
   }
 }
 
+class _ChatSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      demoMode: false,
+      mcpEnabled: false,
+    );
+  }
+}
+
+class _ChatConversationsNotifier extends ConversationsNotifier {
+  _ChatConversationsNotifier(this.conversation);
+
+  final Conversation conversation;
+
+  @override
+  ConversationsState build() {
+    return ConversationsState(
+      conversations: [conversation],
+      currentConversationId: conversation.id,
+      activeWorkspaceMode: WorkspaceMode.chat,
+      activeProjectId: null,
+    );
+  }
+}
+
+class _EmptyCodingProjectsNotifier extends CodingProjectsNotifier {
+  @override
+  CodingProjectsState build() {
+    return const CodingProjectsState(projects: [], selectedProjectId: null);
+  }
+}
+
 class _TestChatNotifier extends ChatNotifier {
   @override
   ChatState build() => ChatState.initial();
@@ -315,6 +349,8 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     expect(find.text('Progress'), findsOneWidget);
     expect(find.text('Environment'), findsOneWidget);
     expect(find.text('Sources'), findsOneWidget);
+    // The session log section is appended alongside the coding sections.
+    expect(find.text('Session log'), findsOneWidget);
     expect(find.text('1 of 2 complete'), findsOneWidget);
     expect(find.text('Inspect current parser state'), findsOneWidget);
     expect(find.text('Add parser regression coverage'), findsOneWidget);
@@ -368,6 +404,77 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
 
     expect(find.text('Progress'), findsNothing);
     expect(find.text('Uncommitted changes'), findsOneWidget);
+  });
+
+  testWidgets('wide chat workspace shows the session-log companion panel', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final now = DateTime(2026, 6, 24, 10, 0);
+    final conversation = Conversation(
+      id: 'chat-thread-1',
+      title: 'Chat companion thread',
+      messages: const [],
+      createdAt: now,
+      updatedAt: now,
+      workspaceMode: WorkspaceMode.chat,
+    );
+
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        settingsNotifierProvider.overrideWith(_ChatSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          () => _ChatConversationsNotifier(conversation),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          _EmptyCodingProjectsNotifier.new,
+        ),
+        chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+        routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        startLocale: const Locale('en'),
+        useOnlyLangCode: true,
+        saveLocale: false,
+        assetLoader: const _TestTranslationLoader(),
+        child: Builder(
+          builder: (context) {
+            return UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp(
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                home: const ChatPage(),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The companion toggle is offered in chat too.
+    expect(find.byIcon(Icons.view_sidebar_outlined), findsOneWidget);
+    // The chat companion panel surfaces only the session log section.
+    expect(find.text('Session log'), findsOneWidget);
+    expect(find.text('Progress'), findsNothing);
+    expect(find.text('Environment'), findsNothing);
+    expect(find.text('Sources'), findsNothing);
   });
 
   testWidgets('header action reverts the latest agent turn checkpoint', (

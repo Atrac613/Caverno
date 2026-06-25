@@ -206,9 +206,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
       );
     }
 
-    if (canShowCompanionPanel &&
-        companionConversation != null &&
-        companionProject != null) {
+    if (canShowCompanionPanel && companionConversation != null) {
       actions.add(
         actionButton(
           onPressed: () {
