@@ -14,6 +14,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 import '../../../../core/services/attachment_storage_service.dart';
 import '../../../../core/services/macos_main_app_permissions_service.dart';
 import '../../../../core/services/voice_providers.dart';
+import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -1581,11 +1582,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         _selectedFileContent != null ||
         _selectedFileDurablePath != null;
 
-    // Flat composer: no frame, no fill in the resting/focused state. The
-    // recording state keeps a transient error tint as an affordance.
+    // The composer is a rounded surface card with alert-sized corners; the
+    // inner TextField stays flat (filled: false). The recording state tints
+    // the card as a transient affordance.
     final composerColor = _isRecording
         ? theme.colorScheme.errorContainer.withValues(alpha: 0.3)
-        : Colors.transparent;
+        : theme.colorScheme.surfaceContainerHighest;
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -1662,7 +1664,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
             Container(
               decoration: BoxDecoration(
                 color: composerColor,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(context.radii.lg),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               child: Column(
