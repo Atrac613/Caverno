@@ -116,7 +116,7 @@ dependencies:
   # Embedded Python runtime for on-device LLM script execution
   # (iOS/Android/macOS/Windows/Linux). Runs a long-lived worker that the Dart
   # side drives over a loopback channel; see core/services/script_runtime.
-  serious_python: ^2.0.0
+  serious_python: ^4.1.0
   drift: ^2.34.0
   sqlite3_flutter_libs: ^0.6.0+eol
 
