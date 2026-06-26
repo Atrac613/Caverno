@@ -13,6 +13,7 @@ import 'core/services/login_shell_environment.dart';
 import 'core/services/macos_app_menu_service.dart';
 import 'core/services/window_manager_service.dart';
 import 'core/services/window_settings_service.dart';
+import 'core/theme/app_theme.dart';
 import 'core/utils/logger.dart';
 import 'features/chat/data/datasources/app_database.dart';
 import 'features/chat/data/repositories/cached_drift_conversation_repository.dart';
@@ -408,20 +409,8 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
           localizationsDelegates: context.localizationDelegates,
           supportedLocales: context.supportedLocales,
           locale: context.locale,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.blue,
-              brightness: Brightness.light,
-            ),
-            useMaterial3: true,
-          ),
-          darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.blue,
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
-          ),
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
           themeMode: ThemeMode.dark,
           home: const ChatPage(),
         ),
