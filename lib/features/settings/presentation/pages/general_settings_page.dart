@@ -69,7 +69,6 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
         fontWeight: FontWeight.bold,
-        color: Theme.of(context).colorScheme.primary,
       ),
     );
   }
