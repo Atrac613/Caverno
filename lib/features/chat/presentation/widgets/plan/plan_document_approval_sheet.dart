@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../../domain/services/conversation_plan_projection_service.dart';
+import '../../../../../core/theme/app_tokens.dart';
 
 class PlanDocumentApprovalSheet extends StatelessWidget {
   const PlanDocumentApprovalSheet({
@@ -113,7 +114,7 @@ class PlanDocumentApprovalSheet extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     height: 1.35,
-                    fontFamily: 'monospace',
+                    fontFamily: kMonoFontFamily,
                   ),
                 ),
               ),

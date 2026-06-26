@@ -167,9 +167,12 @@ Read them as `Theme.of(context).extension<AppSemanticColors>()!`.
 
 ## Typography
 
-One UI sans (`Inter` via `google_fonts`) and one mono (`JetBrains Mono`) for
-code, commit SHAs, branch names, diffs, and logs. The scale is tighter than
-Material's defaults to suit a dense dev tool.
+One UI sans (`Inter`, a deliberate follow-up — still the platform default) and
+one mono (`JetBrains Mono`, bundled in `assets/fonts/` and referenced via the
+`kMonoFontFamily` token) for code, commit SHAs, branch names, diffs, and logs.
+Fonts are bundled as assets rather than fetched at runtime because Caverno is
+offline-first. The scale is tighter than Material's defaults to suit a dense dev
+tool.
 
 | Token | Size / weight | Use |
 | --- | --- | --- |
@@ -268,7 +271,8 @@ Shared widgets to introduce (Caverno has no `lib/shared/`; place these in
 - Style in the component theme or a shared widget; pass a variant at the call
   site.
 - Keep one accent-filled control per view; everything else quiet.
-- Use mono (`code` style) for SHAs, branches, paths, diffs, logs.
+- Use `kMonoFontFamily` (bundled JetBrains Mono) for SHAs, branches, paths,
+  diffs, logs.
 - Update `en.json` and `ja.json` together for every string.
 
 **Don't**
@@ -282,6 +286,9 @@ Shared widgets to introduce (Caverno has no `lib/shared/`; place these in
 - Nest cards or ring a section with a border when whitespace + one hairline does
   the job.
 - Mute text with `opacity` — use `text_secondary` / `text_muted`.
+- Use the generic `'monospace'` family — it resolves to an inconsistent per-OS
+  face; use `kMonoFontFamily`. (`chat_page.dart` and its `part` files defer their
+  remaining uses until that library is extracted under the F1 ratchet.)
 
 ## Implementation pointers
 

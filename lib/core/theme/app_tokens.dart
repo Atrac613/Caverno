@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+/// Bundled monospace family (assets/fonts/JetBrainsMono-*.ttf). Use this for all
+/// code, diff, SHA, path, and log rendering instead of the generic 'monospace'
+/// alias, which resolves to an inconsistent per-OS face.
+const String kMonoFontFamily = 'JetBrainsMono';
+
 /// Design tokens for Caverno, exposed as [ThemeExtension]s so a single source
 /// of truth travels with [ThemeData] and interpolates on theme changes.
 ///

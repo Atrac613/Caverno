@@ -16,6 +16,7 @@ import '../../domain/entities/turn_diff.dart';
 import '../providers/coding_projects_notifier.dart';
 import 'file_workspace_viewer_sheet.dart';
 import 'parsed_content_view.dart';
+import '../../../../core/theme/app_tokens.dart';
 
 const double _messageImagePreviewWidth = 200;
 const double _messageImagePreviewHeight = 140;
@@ -960,7 +961,7 @@ class _ProjectAccessErrorCard extends StatelessWidget {
               style: TextStyle(
                 color: theme.colorScheme.onSurfaceVariant,
                 fontSize: 11,
-                fontFamily: 'monospace',
+                fontFamily: kMonoFontFamily,
               ),
             ),
           ],
@@ -1070,7 +1071,7 @@ class _UserMessageContentState extends State<_UserMessageContent> {
                   style: TextStyle(
                     color: widget.textColor.withValues(alpha: 0.9),
                     fontSize: 12,
-                    fontFamily: 'monospace',
+                    fontFamily: kMonoFontFamily,
                   ),
                 ),
               ),

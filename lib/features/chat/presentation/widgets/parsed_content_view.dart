@@ -11,6 +11,7 @@ import '../../domain/services/file_reference_extractor.dart';
 import 'code_block_builder.dart';
 import 'file_workspace_viewer_sheet.dart';
 import 'math_markdown.dart';
+import '../../../../core/theme/app_tokens.dart';
 
 /// Renders parsed content segments.
 /// `<think>` tags are shown in muted gray and tool tags as compact status cards.
@@ -182,7 +183,7 @@ class _ParsedContentViewState extends State<ParsedContentView> {
                   alpha: 0.3,
                 ),
                 fontSize: 13,
-                fontFamily: 'monospace',
+                fontFamily: kMonoFontFamily,
               ),
               codeblockDecoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerLow.withValues(

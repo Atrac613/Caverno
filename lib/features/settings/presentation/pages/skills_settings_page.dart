@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../chat/domain/entities/skill.dart';
 import '../../../chat/domain/services/skill_markdown_parser.dart';
 import '../../../chat/presentation/providers/skills_notifier.dart';
+import '../../../../core/theme/app_tokens.dart';
 
 class SkillsSettingsPage extends ConsumerWidget {
   const SkillsSettingsPage({super.key});
@@ -326,7 +327,7 @@ class _SkillEditorSheetState extends ConsumerState<_SkillEditorSheet> {
                     border: const OutlineInputBorder(),
                   ),
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFamily: 'monospace',
+                    fontFamily: kMonoFontFamily,
                   ),
                   onChanged: (_) {
                     if (_errorText != null) {

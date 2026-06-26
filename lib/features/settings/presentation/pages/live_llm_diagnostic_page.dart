@@ -11,6 +11,7 @@ import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
 import '../providers/live_llm_diagnostic_notifier.dart';
 import '../providers/settings_notifier.dart';
+import '../../../../core/theme/app_tokens.dart';
 
 const _foundationModelsCanaryCommand =
     'tool/run_foundation_models_live_canary.sh';
@@ -194,7 +195,7 @@ class _CopyableDiagnosticText extends StatelessWidget {
               SelectableText(
                 value,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                 ),
               ),
             ],
@@ -812,7 +813,7 @@ class _ProbeResultTile extends StatelessWidget {
               child: SelectableText(
                 modelContent,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                 ),
               ),
             ),

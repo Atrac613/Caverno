@@ -11,6 +11,7 @@ import '../../../../core/services/macos_computer_use_setup.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
 import '../widgets/computer_use_audit_log_summary.dart';
+import '../../../../core/theme/app_tokens.dart';
 
 class ComputerUseDebugPage extends ConsumerStatefulWidget {
   const ComputerUseDebugPage({super.key});
@@ -880,7 +881,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               _lastResult,
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+              ).textTheme.bodySmall?.copyWith(fontFamily: kMonoFontFamily),
             ),
           ],
         ),
