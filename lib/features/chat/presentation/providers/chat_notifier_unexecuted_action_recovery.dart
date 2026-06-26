@@ -135,6 +135,35 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     );
   }
 
+  /// Test-only seam for characterizing the unverified-read-only-inspection
+  /// guard deterministically (does a given claim + tool-result set fire it?).
+  @visibleForTesting
+  ToolResultInfo? buildUnverifiedReadOnlyInspectionClaimToolResultForTest({
+    required String candidateResponse,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    return _buildUnverifiedReadOnlyInspectionClaimToolResult(
+      candidateResponse: candidateResponse,
+      toolResults: toolResults,
+    );
+  }
+
+  /// Test-only seam: does the response read as a completed read-only inspection
+  /// claim (the first half of the guard trigger)?
+  @visibleForTesting
+  bool looksLikeCompletedReadOnlyInspectionClaimForTest(String content) {
+    return _looksLikeCompletedReadOnlyInspectionClaim(content);
+  }
+
+  /// Test-only seam: do the tool results count as a successful read-only
+  /// inspection (the second half — a `false` here is what makes the guard fire)?
+  @visibleForTesting
+  bool hasSuccessfulReadOnlyInspectionResultForTest(
+    List<ToolResultInfo> toolResults,
+  ) {
+    return _hasSuccessfulReadOnlyInspectionResult(toolResults);
+  }
+
   bool _looksLikeFileSideEffectRequest(String text) {
     final normalized = text.trim().toLowerCase();
     if (normalized.isEmpty) {
@@ -194,7 +223,15 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
       }.contains(normalizedName)) {
         return _toolResultLooksSuccessfulForFinalAnswer(toolResult.result);
       }
-      if (normalizedName == 'local_execute_command') {
+      // Any successful command execution (local/git/ssh/run_tests) is real
+      // system interaction that backs a project/repo-state inspection claim.
+      // Previously only `local_execute_command` was accepted here, so a claim
+      // verified via `git_execute_command` (a read-only repo inspection, proven
+      // by the regression test) was wrongly flagged as unverified. Use the
+      // canonical command-tool set so the inspection whitelist no longer drifts
+      // from `_isCommandExecutionTool`. `process_*` carry no successful exit
+      // code, so they fall through naturally.
+      if (_isCommandExecutionTool(normalizedName)) {
         return _toolResultHasSuccessfulExit(toolResult);
       }
       return false;
