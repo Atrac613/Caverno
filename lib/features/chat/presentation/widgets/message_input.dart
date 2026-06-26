@@ -1581,9 +1581,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         _selectedFileContent != null ||
         _selectedFileDurablePath != null;
 
+    // Flat composer: no frame, no fill in the resting/focused state. The
+    // recording state keeps a transient error tint as an affordance.
     final composerColor = _isRecording
         ? theme.colorScheme.errorContainer.withValues(alpha: 0.3)
-        : theme.colorScheme.surfaceContainerHighest;
+        : Colors.transparent;
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -1761,7 +1763,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                           hintText: _isRecording
                               ? 'message.listening'.tr()
                               : widget.inputHintKey.tr(),
+                          // Flat input: no fill (override the global filled
+                          // inputDecorationTheme), no border, no focus border.
+                          filled: false,
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
                           isCollapsed: true,
                           contentPadding: EdgeInsets.zero,
                         ),
