@@ -14,6 +14,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 import '../../../../core/services/attachment_storage_service.dart';
 import '../../../../core/services/macos_main_app_permissions_service.dart';
 import '../../../../core/services/voice_providers.dart';
+import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -1581,20 +1582,16 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         _selectedFileContent != null ||
         _selectedFileDurablePath != null;
 
+    // The composer is a rounded surface card with alert-sized corners; the
+    // inner TextField stays flat (filled: false). The recording state tints
+    // the card as a transient affordance.
     final composerColor = _isRecording
         ? theme.colorScheme.errorContainer.withValues(alpha: 0.3)
         : theme.colorScheme.surfaceContainerHighest;
 
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: widget.isFloating
-            ? Colors.transparent
-            : theme.colorScheme.surface,
-        border: widget.isFloating
-            ? null
-            : Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
-      ),
+      // Flat input area: no background fill and no top divider border.
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1667,7 +1664,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
             Container(
               decoration: BoxDecoration(
                 color: composerColor,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(context.radii.lg),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               child: Column(
@@ -1761,7 +1758,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                           hintText: _isRecording
                               ? 'message.listening'.tr()
                               : widget.inputHintKey.tr(),
+                          // Flat input: no fill (override the global filled
+                          // inputDecorationTheme), no border, no focus border.
+                          filled: false,
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
                           isCollapsed: true,
                           contentPadding: EdgeInsets.zero,
                         ),

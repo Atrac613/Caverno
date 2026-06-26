@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:markdown/markdown.dart' as md;
+import '../../../../core/theme/app_tokens.dart';
 
 /// Markdown extensions that render LaTeX math written by LLMs.
 ///
@@ -96,7 +97,7 @@ class MathElementBuilder extends MarkdownElementBuilder {
       // still legible instead of throwing or showing a raw exception string.
       onErrorFallback: (_) => Text(
         isBlock ? '\$\$$tex\$\$' : '\$$tex\$',
-        style: style.copyWith(fontFamily: 'monospace'),
+        style: style.copyWith(fontFamily: kMonoFontFamily),
       ),
     );
 

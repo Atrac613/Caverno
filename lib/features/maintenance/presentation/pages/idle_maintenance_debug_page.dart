@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/services/maintenance_pipeline.dart';
 import '../providers/manual_maintenance_run_notifier.dart';
+import '../../../../core/theme/app_tokens.dart';
 
 /// LL18 debug aid: lets the user trigger the maintenance pipeline on demand
 /// (bypassing the idle/power/window gate) and watch each stage as it runs.
@@ -68,7 +69,7 @@ class IdleMaintenanceDebugPage extends ConsumerWidget {
                 padding: const EdgeInsets.all(12),
                 child: SelectableText(
                   formatted.body,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  style: const TextStyle(fontFamily: kMonoFontFamily, fontSize: 12),
                 ),
               ),
             ),

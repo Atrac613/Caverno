@@ -12,6 +12,7 @@ import '../data/remote_coding_diagnostics.dart';
 import '../data/remote_coding_support_packet.dart';
 import '../domain/remote_coding_models.dart';
 import 'remote_coding_client_notifier.dart';
+import '../../../core/theme/app_tokens.dart';
 
 class RemoteCodingPage extends ConsumerStatefulWidget {
   const RemoteCodingPage({super.key});
@@ -207,7 +208,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
-                                  fontFamily: 'monospace',
+                                  fontFamily: kMonoFontFamily,
                                 ),
                               ),
                           ],
@@ -244,7 +245,7 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
                       child: SelectableText(
                         detail,
                         style: const TextStyle(
-                          fontFamily: 'monospace',
+                          fontFamily: kMonoFontFamily,
                           fontSize: 13,
                         ),
                       ),

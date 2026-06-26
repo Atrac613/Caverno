@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../../data/datasources/filesystem_tools.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/file_reference_extractor.dart';
+import '../../../../core/theme/app_tokens.dart';
 
 const int _maxFilePreviewBytes = 220000;
 
@@ -1133,7 +1134,7 @@ class _CodeLine extends StatelessWidget {
                 textAlign: TextAlign.right,
                 style: TextStyle(
                   color: theme.colorScheme.onSurfaceVariant,
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                   fontSize: 12,
                   height: 1.4,
                 ),
@@ -1145,7 +1146,7 @@ class _CodeLine extends StatelessWidget {
                 text.isEmpty ? ' ' : text,
                 style: TextStyle(
                   color: theme.colorScheme.onSurface,
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                   fontSize: 12,
                   height: 1.4,
                 ),
@@ -1176,7 +1177,7 @@ class _DiffCodeLine extends StatelessWidget {
             row.text,
             style: TextStyle(
               color: colors.foreground,
-              fontFamily: 'monospace',
+              fontFamily: kMonoFontFamily,
               fontSize: 12,
               fontWeight: FontWeight.w700,
               height: 1.35,
@@ -1200,7 +1201,7 @@ class _DiffCodeLine extends StatelessWidget {
                 row.text.isEmpty ? ' ' : row.text,
                 style: TextStyle(
                   color: colors.foreground,
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                   fontSize: 12,
                   height: 1.35,
                 ),
@@ -1253,7 +1254,7 @@ class _LineNumberCell extends StatelessWidget {
         textAlign: TextAlign.right,
         style: TextStyle(
           color: theme.colorScheme.onSurfaceVariant,
-          fontFamily: 'monospace',
+          fontFamily: kMonoFontFamily,
           fontSize: 12,
           height: 1.35,
         ),

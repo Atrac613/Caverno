@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
+import '../../../../core/theme/app_tokens.dart';
 
 /// Custom markdown element builder that renders fenced code blocks
 /// with a header bar containing the language label and a copy button.
@@ -151,7 +152,7 @@ class _CodeBlockWidgetState extends State<_CodeBlockWidget> {
               child: SelectableText(
                 widget.code,
                 style: TextStyle(
-                  fontFamily: 'monospace',
+                  fontFamily: kMonoFontFamily,
                   fontSize: 13,
                   height: 1.5,
                   color: theme.colorScheme.onSurface,

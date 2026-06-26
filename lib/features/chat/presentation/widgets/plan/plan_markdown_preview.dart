@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/utils/markdown_render_sanitizer.dart';
 import '../code_block_builder.dart';
 import '../math_markdown.dart';
+import '../../../../../core/theme/app_tokens.dart';
 
 class PlanMarkdownPreview extends StatelessWidget {
   const PlanMarkdownPreview({
@@ -69,7 +70,7 @@ class PlanMarkdownPreview extends StatelessWidget {
                   alpha: 0.3,
                 ),
                 fontSize: 13,
-                fontFamily: 'monospace',
+                fontFamily: kMonoFontFamily,
               ),
               codeblockDecoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerLow.withValues(

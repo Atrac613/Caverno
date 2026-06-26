@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/app_settings.dart';
 import '../providers/settings_notifier.dart';
+import '../../../../core/theme/app_tokens.dart';
 
 class LocalCommandPermissionRulesPage extends ConsumerWidget {
   const LocalCommandPermissionRulesPage({super.key});
@@ -82,7 +83,7 @@ class _RuleTile extends ConsumerWidget {
                   SelectableText(
                     rule.pattern,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      fontFamily: 'monospace',
+                      fontFamily: kMonoFontFamily,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -100,7 +101,7 @@ class _RuleTile extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
-                        fontFamily: 'monospace',
+                        fontFamily: kMonoFontFamily,
                       ),
                     ),
                   ],
