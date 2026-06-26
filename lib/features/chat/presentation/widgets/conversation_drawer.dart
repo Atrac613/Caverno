@@ -846,9 +846,7 @@ class _RoutineHomeTile extends StatelessWidget {
       dense: true,
       visualDensity: VisualDensity.compact,
       selected: isSelected,
-      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
-        alpha: 0.3,
-      ),
+      selectedTileColor: theme.hoverColor,
       leading: Icon(
         Icons.home_outlined,
         size: 20,
@@ -897,9 +895,7 @@ class _RoutineDrawerTile extends StatelessWidget {
       dense: true,
       visualDensity: VisualDensity.compact,
       selected: isSelected,
-      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
-        alpha: 0.3,
-      ),
+      selectedTileColor: theme.hoverColor,
       leading: Icon(
         routine.enabled ? Icons.schedule_outlined : Icons.pause_circle_outline,
         size: 20,
@@ -1007,9 +1003,7 @@ class _ProjectTile extends StatelessWidget {
       visualDensity: VisualDensity.compact,
       contentPadding: const EdgeInsetsDirectional.only(start: 16, end: 6),
       selected: isSelected,
-      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
-        alpha: 0.3,
-      ),
+      selectedTileColor: theme.hoverColor,
       leading: IconButton(
         key: ValueKey('drawer-project-${project.id}-toggle'),
         icon: Icon(
@@ -1089,9 +1083,7 @@ class _ProjectThreadTile extends StatelessWidget {
       visualDensity: VisualDensity.compact,
       contentPadding: const EdgeInsets.only(left: 44, right: 8),
       selected: isSelected,
-      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
-        alpha: 0.3,
-      ),
+      selectedTileColor: theme.hoverColor,
       title: Text(
         _conversationTitle(conversation),
         maxLines: 1,
@@ -1202,9 +1194,7 @@ class _ConversationTile extends StatelessWidget {
     return ListTile(
       key: ValueKey('drawer-conversation-${conversation.id}'),
       selected: isSelected,
-      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
-        alpha: 0.3,
-      ),
+      selectedTileColor: theme.hoverColor,
       leading: Icon(
         Icons.chat_bubble_outline,
         color: isSelected ? theme.colorScheme.primary : null,
