@@ -19,7 +19,7 @@ class AppTheme {
   static ThemeData _build(Brightness brightness, AppSemanticColors colors) {
     final isDark = brightness == Brightness.dark;
 
-    const accent = Color(0xFF6D6AF0);
+    const accent = Color(0xFF0288D1);
     const onAccent = Color(0xFFFFFFFF);
     const danger = Color(0xFFF85149);
     final bg = isDark ? const Color(0xFF0E0E11) : const Color(0xFFFAFAFB);

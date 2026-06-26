@@ -202,8 +202,8 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     warning: Color(0xFFD29922),
     diffAddedBg: Color(0x262EA043),
     diffRemovedBg: Color(0x26F85149),
-    accentHover: Color(0xFF5B57E8),
-    accentPressed: Color(0xFF4A46D6),
+    accentHover: Color(0xFF0277BD),
+    accentPressed: Color(0xFF01579B),
   );
 
   /// Mode-complete light counterpart; dark is the designed-for default.
@@ -218,8 +218,8 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     warning: Color(0xFF9A6700),
     diffAddedBg: Color(0x1A1A7F37),
     diffRemovedBg: Color(0x1ACF222E),
-    accentHover: Color(0xFF5B57E8),
-    accentPressed: Color(0xFF4A46D6),
+    accentHover: Color(0xFF0277BD),
+    accentPressed: Color(0xFF01579B),
   );
 
   @override

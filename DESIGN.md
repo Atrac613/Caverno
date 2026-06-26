@@ -5,16 +5,16 @@
 # mode-complete (see "Colors").
 name: Caverno
 description: >-
-  Dark-first, near-monochrome agentic coding client with a single indigo accent.
+  Dark-first, near-monochrome agentic coding client with a single blue accent.
   Flat over boxed, tight density, modest corners. Taste reference: the Codex
   desktop app.
 mode_default: dark
 
 color:
-  # Indigo / violet accent (the only saturated hue in the UI).
-  accent:           "#6D6AF0"
-  accent_hover:     "#5B57E8"
-  accent_pressed:   "#4A46D6"
+  # Blue accent (the only saturated hue in the UI).
+  accent:           "#0288D1"
+  accent_hover:     "#0277BD"
+  accent_pressed:   "#01579B"
   on_accent:        "#FFFFFF"
   # Surfaces — stepped value, not borders, separate layers (dark).
   bg:               "#0E0E11"   # page canvas
@@ -95,7 +95,7 @@ code does not match it yet — label the gap honestly:
 | Hardcoded `Colors.*` | ~84 | 0 (tokens / `ColorScheme` only) |
 | `EdgeInsets` literals | ~472 | reference `AppSpacing` |
 | `BorderRadius.circular` | ~177, inconsistent | reference `AppRadii` (4 / 6 / 10 / 14) |
-| Accent | stock `Colors.blue` | indigo / violet `#6D6AF0` |
+| Accent | stock `Colors.blue` | blue `#0288D1` |
 
 Migration is incremental: land the theme + token foundation first, then move the
 highest-offender widgets (`voice_mode_overlay.dart`, `chat_page.dart`,
@@ -125,13 +125,13 @@ Dark is the default and the designed-for mode. Light values exist so the token
 set is mode-complete, but dark is what we tune first.
 
 The palette is **near-monochrome**: surfaces are stepped grays separated by
-value (not borders), and a single indigo accent carries all brand/interactive
+value (not borders), and a single blue accent carries all brand/interactive
 emphasis. Reserve `success` / `danger` / `warning` for genuine state — never for
 decoration.
 
 ### Roles
 
-- **Accent (`#6D6AF0`)** — primary buttons, focused inputs, active nav, links,
+- **Accent (`#0288D1`)** — primary buttons, focused inputs, active nav, links,
   the send action. The only saturated hue. `on_accent` is white.
 - **Surfaces** — `bg` (page) < `surface_1` (sidebar, in-flow cards) <
   `surface_2` (raised cards, inputs, panels) < `surface_3` (popovers, menus,
