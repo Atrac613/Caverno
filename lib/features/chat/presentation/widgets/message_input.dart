@@ -1589,14 +1589,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: widget.isFloating
-            ? Colors.transparent
-            : theme.colorScheme.surface,
-        border: widget.isFloating
-            ? null
-            : Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
-      ),
+      // Flat input area: no background fill and no top divider border.
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
