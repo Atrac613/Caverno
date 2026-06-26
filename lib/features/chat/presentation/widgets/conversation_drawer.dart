@@ -471,9 +471,9 @@ class _WorkspaceTile extends StatelessWidget {
       visualDensity: VisualDensity.compact,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       selected: selected,
-      selectedTileColor: theme.colorScheme.primaryContainer.withValues(
-        alpha: 0.3,
-      ),
+      // Selected background matches the hover state layer; the accent is
+      // carried by the foreground (icon) instead of a tinted fill.
+      selectedTileColor: theme.hoverColor,
       leading: Icon(
         icon,
         size: 20,
