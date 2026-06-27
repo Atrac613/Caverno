@@ -1520,9 +1520,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 !currentConversation.hasPlanArtifact &&
                 chatState.workflowProposalDraft == null &&
                 chatState.taskProposalDraft == null));
-    // The companion panel is available in coding (with a project), plain chat,
-    // and a selected routine. Coding surfaces git/progress/sources plus the
-    // session log; chat and routines surface session-log sections.
     final canShowCompanionPanel =
         !isDashboardVisible &&
         !isMobileRemoteCoding &&
@@ -1739,9 +1736,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               canShowCompanionPanel &&
               _isCompanionSidebarVisible &&
               MediaQuery.sizeOf(context).width >= _companionSidebarBreakpoint;
-          if (!showRoutineCompanionSidebar) {
-            return detailView;
-          }
+          if (!showRoutineCompanionSidebar) return detailView;
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1912,7 +1907,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           chatState: chatState,
                           isPlanMode: isPlanMode,
                         ),
-                      // Token usage indicator
                       if (!shouldShowCodingDraftComposer &&
                           canCompose &&
                           shouldShowContextStatusWidget(chatState))
@@ -1924,7 +1918,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           messages: chatState.queuedMessages,
                           onRemove: chatNotifier.removeQueuedMessage,
                         ),
-                      // Input area
                       if (canCompose && !shouldShowCodingDraftComposer)
                         buildMessageInput(),
                     ],
