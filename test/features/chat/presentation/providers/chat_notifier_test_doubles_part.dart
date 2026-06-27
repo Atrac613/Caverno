@@ -1880,6 +1880,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
   final Map<int, Future<void>> toolLoopResponseGates;
   final List<String> finalAnswerChunks;
   final List<List<ToolResultInfo>> toolResultBatches = [];
+  final List<List<Message>> toolResultRequestMessages = [];
   final List<Message> finalAnswerMessages = <Message>[];
   final List<String?> assistantContents = [];
   double? initialToolTemperature;
@@ -1978,6 +1979,7 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
   }) async {
     toolLoopTemperatures.add(temperature);
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
+    toolResultRequestMessages.add(List<Message>.from(messages));
     assistantContents.add(assistantContent);
     final gate = toolLoopResponseGates[toolResultBatches.length];
     if (gate != null) {

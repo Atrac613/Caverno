@@ -11,6 +11,7 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
     required List<Map<String, dynamic>> tools,
     required int interactionGeneration,
     required bool requireContinuationRequest,
+    List<ToolResultInfo> executedToolResults = const [],
   }) async {
     final recoveryCode = _codingContinuationRecoveryCode(
       candidateResponse: candidateResponse,
@@ -40,6 +41,7 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
           content: _buildCodingContinuationRecoveryPrompt(
             candidateResponse,
             recoveryCode: recoveryCode,
+            executedToolResults: executedToolResults,
           ),
           timestamp: DateTime.now(),
         ),
@@ -274,7 +276,25 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
   String _buildCodingContinuationRecoveryPrompt(
     String candidateResponse, {
     required String recoveryCode,
+    List<ToolResultInfo> executedToolResults = const [],
   }) {
+    // When this turn already executed commands that did not cleanly succeed
+    // (a timeout or a non-zero exit), a blanket "treat that response as
+    // unexecuted" re-prompt makes the model restart the whole task and re-run
+    // steps that already completed. Branch to a non-destructive prompt that
+    // preserves prior progress and points the model at the specific failure.
+    final partialProgressNotice =
+        _codingContinuationRecoveryPartialProgressNotice(executedToolResults);
+    if (partialProgressNotice != null) {
+      return [
+        _codingContinuationRecoveryPromptLead(recoveryCode),
+        partialProgressNotice,
+        'Do not restart the task or re-run commands that already completed successfully.',
+        'Use the available tools now to investigate and resolve only the unresolved failure above, then report the final status.',
+        'Do not restate the plan and do not answer with future-tense prose.',
+        'Previous response: ${_clipForDiagnostic(candidateResponse)}',
+      ].join('\n');
+    }
     return [
       _codingContinuationRecoveryPromptLead(recoveryCode),
       'Treat that response as unexecuted.',
@@ -283,6 +303,39 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       'Do not restate the plan and do not answer with future-tense prose.',
       'Previous response: ${_clipForDiagnostic(candidateResponse)}',
     ].join('\n');
+  }
+
+  /// Builds a notice describing partial command progress for the recovery
+  /// re-prompt, or returns null when the default "treat as unexecuted" framing
+  /// is appropriate.
+  ///
+  /// Returns non-null only when this turn already executed a command tool that
+  /// ended in a timeout or a non-zero exit. Pure read-only inspection turns
+  /// (read_file / list_directory only) and turns where every command succeeded
+  /// fall through to null, so the default prompt is preserved for the
+  /// "planned but executed nothing" case.
+  String? _codingContinuationRecoveryPartialProgressNotice(
+    List<ToolResultInfo> executedToolResults,
+  ) {
+    if (executedToolResults.isEmpty) {
+      return null;
+    }
+    final hasTimeout = _hasTimedOutCommandResult(executedToolResults);
+    final hasFailedExit = _toolResultsContainFailedCommandValidation(
+      executedToolResults,
+    );
+    if (!hasTimeout && !hasFailedExit) {
+      return null;
+    }
+    final problems = <String>[
+      if (hasTimeout) 'a command timed out before completing',
+      if (hasFailedExit) 'a command exited with a non-zero status',
+    ];
+    final progressClause =
+        _hasSuccessfulCommandExecutionResult(executedToolResults)
+        ? 'Some commands in this turn already completed successfully, but '
+        : 'In this turn, ';
+    return '$progressClause${problems.join(' and ')}.';
   }
 
   String _codingContinuationRecoveryLogLabel(String recoveryCode) {

@@ -3083,6 +3083,139 @@ void main() {
   );
 
   test(
+    'continuation recovery after a failed command does not tell the model to restart',
+    () async {
+      // Repro of the "chat restarted" report: a command runs and fails this
+      // turn, then the model emits a prose-only continuation that trips the
+      // recovery heuristic. The blanket "treat that response as unexecuted"
+      // re-prompt used to make the model re-run already-completed steps. The
+      // re-prompt must instead preserve progress and point at the failure.
+      const continuationText =
+          'Next I will read the project Dart file to continue the work.';
+      final conversationRepository = _FakeConversationRepository();
+      final project = CodingProject(
+        id: 'project-failed-command-continuation',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 6, 18),
+        updatedAt: DateTime(2026, 6, 18),
+      );
+      final dataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'run-analyze',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'flutter analyze',
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: continuationText, finishReason: 'stop'),
+          ChatCompletionResult(
+            content: 'Investigating the analyzer failure.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'read-entrypoint',
+                name: 'read_file',
+                arguments: const {
+                  'path': '/tmp/project/lib/main.dart',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Resolved the analyzer failure.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['The analyzer failure is resolved.'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Execute a local command.',
+          'read_file': 'Read a local file.',
+        },
+        results: const {
+          'local_execute_command': 'unexpected fallback',
+          'read_file': 'unexpected fallback',
+        },
+        queuedResults: {
+          'local_execute_command': [
+            jsonEncode({
+              'command': 'flutter analyze',
+              'working_directory': '/tmp/project',
+              'exit_code': 1,
+              'stdout': '50614 issues found.',
+              'stderr': '',
+            }),
+          ],
+          'read_file': [
+            '{"path":"/tmp/project/lib/main.dart","content":"void main() {}"}',
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(toolContainer.dispose);
+
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final chatNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage('Run analyze', bypassPlanMode: true);
+
+      // Recovery still fires (the failed command is a real open problem).
+      expect(dataSource.toolResultBatches, hasLength(3));
+      expect(
+        dataSource.toolResultBatches[1].single.result,
+        contains('prose_only_coding_continuation'),
+      );
+      // The re-prompt for the recovery turn must use the non-destructive,
+      // progress-preserving framing instead of "treat as unexecuted".
+      final recoveryPrompt =
+          dataSource.toolResultRequestMessages[1].last.content;
+      expect(
+        recoveryPrompt,
+        contains('Do not restart the task or re-run commands'),
+      );
+      expect(
+        recoveryPrompt,
+        contains('a command exited with a non-zero status'),
+      );
+      expect(recoveryPrompt, isNot(contains('Treat that response as unexecuted')));
+    },
+  );
+
+  test(
     'sendMessage skips continuation recovery after a save_skill completes the turn',
     () async {
       // A prose-only "skill created, next I will…" summary that, on its own,
