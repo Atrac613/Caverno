@@ -70,6 +70,7 @@ extension ChatNotifierTurnExit on ChatNotifier {
           at: DateTime.now(),
           turnId: 'gen-$generation',
           assistantMessageId: assistantMessageId,
+          transforms: _appliedTurnTransforms.toList(growable: false),
         );
   }
 }

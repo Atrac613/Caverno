@@ -355,6 +355,7 @@ class LlmSessionLogStore {
     required DateTime at,
     String? turnId,
     String? assistantMessageId,
+    List<String>? transforms,
   }) async {
     try {
       final effectiveContext = context ?? _fallbackContext();
@@ -371,6 +372,11 @@ class LlmSessionLogStore {
           if (turnId != null && turnId.isNotEmpty) 'turnId': turnId,
           if (assistantMessageId != null && assistantMessageId.isNotEmpty)
             'assistantMessageId': assistantMessageId,
+          // Post-LLM transforms applied to the final message (guard notices,
+          // etc.) — explains why the on-screen content differs from the raw
+          // response, without inferring from leaked notice prose.
+          if (transforms != null && transforms.isNotEmpty)
+            'transforms': transforms,
         },
       };
       final line = '${jsonEncode(_redactValue(entry))}\n';

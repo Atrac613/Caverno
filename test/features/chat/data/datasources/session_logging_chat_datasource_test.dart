@@ -113,6 +113,7 @@ void main() {
         at: DateTime(2026, 6, 25, 9),
         turnId: 'gen-7',
         assistantMessageId: 'msg-42',
+        transforms: const ['unverified_read_only_inspection_notice'],
       );
 
       final file = await store.fileForContext(context);
@@ -127,6 +128,10 @@ void main() {
       // conversation message it finalized.
       expect(decoded['turnExit']['turnId'], 'gen-7');
       expect(decoded['turnExit']['assistantMessageId'], 'msg-42');
+      expect(
+        decoded['turnExit']['transforms'],
+        ['unverified_read_only_inspection_notice'],
+      );
       expect(decoded['context']['workspaceMode'], 'chat');
     });
 
@@ -152,6 +157,7 @@ void main() {
       final turnExit = decoded['turnExit'] as Map<String, dynamic>;
       expect(turnExit.containsKey('turnId'), isFalse);
       expect(turnExit.containsKey('assistantMessageId'), isFalse);
+      expect(turnExit.containsKey('transforms'), isFalse);
     });
 
     test('redacts common secret patterns embedded in text', () async {
