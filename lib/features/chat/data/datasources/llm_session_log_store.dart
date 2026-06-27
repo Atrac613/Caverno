@@ -342,11 +342,20 @@ class LlmSessionLogStore {
   /// entry per finished tool-calling turn so `tool/triage_session_logs.py` can
   /// surface the structured exit-reason distribution and flag turns that
   /// stopped with no visible answer. Callers gate on [isEnabled] before calling.
+  ///
+  /// [turnId] and [assistantMessageId] are turn-provenance correlation keys:
+  /// they let a `turn_exit` entry be joined to the conversation message it
+  /// finalized (the conversation store holds the final, post-transform UI
+  /// content), so the LLM session log and the on-screen conversation can be
+  /// traced to each other without inferring from leaked notice prose.
   Future<void> recordTurnExit({
     required LlmSessionLogContext? context,
     required String reason,
     required bool noVisibleAnswer,
     required DateTime at,
+    String? turnId,
+    String? assistantMessageId,
+    List<String>? transforms,
   }) async {
     try {
       final effectiveContext = context ?? _fallbackContext();
@@ -360,6 +369,14 @@ class LlmSessionLogStore {
         'turnExit': {
           'reason': reason,
           'noVisibleAnswer': noVisibleAnswer,
+          if (turnId != null && turnId.isNotEmpty) 'turnId': turnId,
+          if (assistantMessageId != null && assistantMessageId.isNotEmpty)
+            'assistantMessageId': assistantMessageId,
+          // Post-LLM transforms applied to the final message (guard notices,
+          // etc.) — explains why the on-screen content differs from the raw
+          // response, without inferring from leaked notice prose.
+          if (transforms != null && transforms.isNotEmpty)
+            'transforms': transforms,
         },
       };
       final line = '${jsonEncode(_redactValue(entry))}\n';

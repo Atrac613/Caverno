@@ -132,6 +132,7 @@ def analyze(path: str) -> dict | None:
     title = ""
     no_answer = 0
     exit_reasons: Counter = Counter()
+    transforms: Counter = Counter()
     for entry in entries:
         # LL31 turn-exit markers are separate, response-less entries.
         if entry.get("operation") == "turn_exit":
@@ -140,6 +141,11 @@ def analyze(path: str) -> dict | None:
             exit_reasons[reason] += 1
             if turn_exit.get("noVisibleAnswer"):
                 no_answer += 1
+            # Post-LLM transforms applied to the on-screen message (guard
+            # notices, etc.) — a direct record of guard firings, no longer
+            # inferred from leaked notice prose.
+            for t in turn_exit.get("transforms") or []:
+                transforms[t] += 1
             continue
         response = entry.get("response", {})
         title = title or entry.get("context", {}).get("sessionTitle", "")
@@ -184,6 +190,7 @@ def analyze(path: str) -> dict | None:
         "tool_errors": tool_errors,
         "no_answer": no_answer,
         "exit_reasons": dict(exit_reasons),
+        "transforms": dict(transforms),
         "mtime": os.path.getmtime(path),
         "score": round(score, 2),
     }
@@ -226,8 +233,10 @@ def main() -> int:
     # LL30: it shows whether complex turns actually stop on tool_failure_abort,
     # max_iterations, an empty answer, or normal text_response.
     exit_totals: Counter = Counter()
+    transform_totals: Counter = Counter()
     for r in rows:
         exit_totals.update(r.get("exit_reasons") or {})
+        transform_totals.update(r.get("transforms") or {})
 
     rows.sort(key=lambda r: (r["score"], r["mtime"]), reverse=True)
     rows = rows[: args.top]
@@ -254,6 +263,11 @@ def main() -> int:
         for reason, count in exit_totals.most_common():
             mark = " *" if reason in _ABNORMAL_EXIT_REASONS else ""
             print(f"  {count:>5} ({count / total:>5.1%})  {reason}{mark}")
+
+    if transform_totals:
+        print("\n== Post-LLM transforms applied to on-screen messages ==")
+        for name, count in transform_totals.most_common():
+            print(f"  {count:>5}  {name}")
     return 0
 
 

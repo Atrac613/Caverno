@@ -5418,6 +5418,10 @@ class ChatNotifier extends Notifier<ChatState> {
   // break sites where it cannot be derived from terminal state and consumed by
   // `_logTurnExitReason` during finalization.
   ToolLoopExitReason? _turnExitReasonHint;
+  // Turn provenance: transforms (guard notices, ...) applied to the turn's
+  // final message, recorded on the turn_exit record so the log explains why the
+  // on-screen content differs from the raw LLM output.
+  final Set<String> _appliedTurnTransforms = <String>{};
   Future<void> _contentToolExecutionTail = Future<void>.value();
   Future<void> _conversationMessagePersistenceTail = Future<void>.value();
   bool _forcePromptCompactionForNextRequest = false;
@@ -8812,6 +8816,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
     _turnExitReasonHint = null;
+    _appliedTurnTransforms.clear();
     final executedToolResults = <ToolResultInfo>[];
     var commandRetryGeneration = 0;
     var attemptedDuplicateInspectionRecovery = false;
@@ -11906,6 +11911,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_hasUnexecutedCommandActionResult(toolResults)) {
       return;
     }
+    _appliedTurnTransforms.add('unexecuted_command_action_notice');
 
     if (_isActiveResponseDetachedForGeneration(generation)) {
       final activeMessages = _activeResponseMessagesForGeneration(generation);
@@ -11960,6 +11966,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_hasUnverifiedReadOnlyInspectionClaimResult(toolResults)) {
       return;
     }
+    _appliedTurnTransforms.add('unverified_read_only_inspection_notice');
 
     if (_isActiveResponseDetachedForGeneration(generation)) {
       final activeMessages = _activeResponseMessagesForGeneration(generation);

@@ -32,9 +32,14 @@ extension ChatNotifierTurnExit on ChatNotifier {
     final hint = _turnExitReasonHint;
     _turnExitReasonHint = null;
 
-    final finalText = shouldDropLastAssistant || finalizedMessages.isEmpty
-        ? ''
-        : finalizedMessages.last.content;
+    final hasVisibleFinal =
+        !shouldDropLastAssistant && finalizedMessages.isNotEmpty;
+    final finalText = hasVisibleFinal ? finalizedMessages.last.content : '';
+    // Turn-provenance correlation keys: the assistant message id ties this
+    // record to the on-screen conversation message (which holds the final,
+    // post-transform content); `generation` identifies the turn.
+    final assistantMessageId =
+        hasVisibleFinal ? finalizedMessages.last.id : null;
     final reason = _toolLoopExitClassifier.classify(
       ToolLoopExitState(
         finalResponseText: finalText,
@@ -63,6 +68,9 @@ extension ChatNotifierTurnExit on ChatNotifier {
           reason: token,
           noVisibleAnswer: shouldDropLastAssistant,
           at: DateTime.now(),
+          turnId: 'gen-$generation',
+          assistantMessageId: assistantMessageId,
+          transforms: _appliedTurnTransforms.toList(growable: false),
         );
   }
 }
