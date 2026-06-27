@@ -1012,6 +1012,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       onOpenDashboard: _openDashboard,
       onCreateChatConversation: _createDrawerChatConversation,
       onCreateCodingThread: _createDrawerCodingThread,
+      isDashboardSelected: _showDashboard,
     );
   }
 

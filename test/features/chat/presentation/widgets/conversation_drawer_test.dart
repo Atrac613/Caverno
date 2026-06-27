@@ -250,10 +250,22 @@ void main() {
       projectsState: CodingProjectsState.initial(),
     );
 
+    expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Chat'), findsOneWidget);
     expect(find.text('Coding'), findsOneWidget);
     expect(find.text('Routines'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
+    expect(find.byKey(const ValueKey('drawer-dashboard')), findsNothing);
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('drawer-workspace-dashboard')))
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('drawer-workspace-chat')))
+            .dy,
+      ),
+    );
 
     await tester.tap(find.byKey(const ValueKey('drawer-settings')));
     await tester.pumpAndSettle();

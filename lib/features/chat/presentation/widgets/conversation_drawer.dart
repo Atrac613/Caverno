@@ -40,6 +40,7 @@ class ConversationDrawer extends ConsumerStatefulWidget {
     required this.onOpenDashboard,
     required this.onCreateChatConversation,
     required this.onCreateCodingThread,
+    this.isDashboardSelected = false,
     this.codingWorkspaceDrawerBuilder,
     this.closeOnAction = true,
     this.width,
@@ -53,6 +54,7 @@ class ConversationDrawer extends ConsumerStatefulWidget {
   final VoidCallback onOpenDashboard;
   final VoidCallback onCreateChatConversation;
   final ValueChanged<String> onCreateCodingThread;
+  final bool isDashboardSelected;
   final CodingWorkspaceDrawerBuilder? codingWorkspaceDrawerBuilder;
   final bool closeOnAction;
   final double? width;
@@ -99,6 +101,8 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
           children: [
             _WorkspaceSwitcher(
               activeWorkspaceMode: conversationsState.activeWorkspaceMode,
+              isDashboardSelected: widget.isDashboardSelected,
+              onDashboardSelected: () => _openDashboard(context),
               onSelected: (workspaceMode) =>
                   _selectWorkspace(context, workspaceMode),
             ),
@@ -189,7 +193,6 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
               },
             ),
             const Divider(height: 1),
-            _DashboardDrawerTile(onTap: () => _openDashboard(context)),
             _SearchDrawerTile(onTap: () => _openSearch(context)),
             _SettingsDrawerTile(onTap: () => _openSettings(context)),
           ],
@@ -426,10 +429,14 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
 class _WorkspaceSwitcher extends StatelessWidget {
   const _WorkspaceSwitcher({
     required this.activeWorkspaceMode,
+    required this.isDashboardSelected,
+    required this.onDashboardSelected,
     required this.onSelected,
   });
 
   final WorkspaceMode activeWorkspaceMode;
+  final bool isDashboardSelected;
+  final VoidCallback onDashboardSelected;
   final ValueChanged<WorkspaceMode> onSelected;
 
   @override
@@ -439,24 +446,37 @@ class _WorkspaceSwitcher extends StatelessWidget {
       child: Column(
         children: [
           _WorkspaceTile(
+            key: const ValueKey('drawer-workspace-dashboard'),
+            icon: Icons.insights_outlined,
+            label: 'chat.workspace_dashboard'.tr(),
+            selected: isDashboardSelected,
+            onTap: onDashboardSelected,
+          ),
+          _WorkspaceTile(
             key: const ValueKey('drawer-workspace-chat'),
             icon: Icons.chat_bubble_outline,
             label: 'chat.workspace_chat'.tr(),
-            selected: activeWorkspaceMode == WorkspaceMode.chat,
+            selected:
+                !isDashboardSelected &&
+                activeWorkspaceMode == WorkspaceMode.chat,
             onTap: () => onSelected(WorkspaceMode.chat),
           ),
           _WorkspaceTile(
             key: const ValueKey('drawer-workspace-coding'),
             icon: Icons.code,
             label: 'chat.workspace_coding'.tr(),
-            selected: activeWorkspaceMode == WorkspaceMode.coding,
+            selected:
+                !isDashboardSelected &&
+                activeWorkspaceMode == WorkspaceMode.coding,
             onTap: () => onSelected(WorkspaceMode.coding),
           ),
           _WorkspaceTile(
             key: const ValueKey('drawer-workspace-routines'),
             icon: Icons.schedule_outlined,
             label: 'chat.workspace_routines'.tr(),
-            selected: activeWorkspaceMode == WorkspaceMode.routines,
+            selected:
+                !isDashboardSelected &&
+                activeWorkspaceMode == WorkspaceMode.routines,
             onTap: () => onSelected(WorkspaceMode.routines),
           ),
         ],
@@ -1220,23 +1240,6 @@ class _ConversationTile extends StatelessWidget {
         onPressed: onDelete,
         tooltip: 'drawer.delete_tooltip'.tr(),
       ),
-      onTap: onTap,
-    );
-  }
-}
-
-class _DashboardDrawerTile extends StatelessWidget {
-  const _DashboardDrawerTile({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      key: const ValueKey('drawer-dashboard'),
-      dense: true,
-      leading: const Icon(Icons.insights_outlined),
-      title: Text('chat.workspace_dashboard'.tr()),
       onTap: onTap,
     );
   }
