@@ -168,6 +168,7 @@ structurally unmotivated to build:
 | Local LLM | LL29 | next | S-M | F2, LL23, LL31 | Tool-loop failure recovery (degrade, don't abort), gated on LL31 triage evidence: replace the whole-turn halt on a twice-failing tool call with escalating in-loop recovery — inject an action-oriented, tool-specific hint into the failing tool result and keep iterating (warn), make the hard turn-halt an opt-in circuit breaker, and distinguish exact-arg repeats, same-tool repeats, and read-only no-progress. Hardens the existing `toolFailureCounts` path in `ChatNotifier`. Inspired by the Hermes/Nous agent `tool_guardrails.py`. |
 | Local LLM | LL30 | next | M | LL14, LL6, LL31 | Compaction structural pre-pass, gated on LL31 triage evidence: before summarization, run a no-LLM tool-result prune — dedupe identical tool outputs, replace old ones with informative one-line summaries that keep *what happened* (`[run_command] \`flutter test\` → exit 0, 47 lines`), truncate oversized tool-call arguments inside parsed JSON so the payload stays valid, and strip stale image payloads; switch the protected tail from a fixed message count to a token budget and add an anti-thrashing back-off. Extends LL14 with the Hermes `context_compressor._prune_old_tool_results` / `_summarize_tool_result` pattern. |
 | Local LLM | LL31 | next | S-M | F2, LL23 | Turn-exit reason and completion explainer: tag every tool-loop exit with a structured reason (`text_response` / `max_iterations` / `guardrail_halt` / `empty` / `partial`), replace an empty or truncated final response with a single user-visible explanation derived from that reason, and log a WARNING when a turn ends on a pending tool result (the "just stops" case). Inspired by the Hermes `turn_finalizer.py`. |
+| Local LLM | LL33 | current | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
@@ -2563,6 +2564,54 @@ break sites, then add the post-loop explainer + mid-work warning as a single
 finalization step. Once it is emitting, run `tool/triage_session_logs.py` over
 real complex-task sessions to decide whether LL29, LL30, both, or neither is
 warranted.
+
+### LL33: Turn Provenance (session-log ↔ on-screen conversation)
+
+Status: `current`
+
+Problem:
+- The LLM session log (`*.jsonl`) records the raw LLM request/response; the
+  conversation store + UI hold the *final* content after the finalization
+  pipeline transforms it (guard notices, truncation notices, recovery
+  substitutions). There is no correlation key between the two and no record of
+  the transforms, so "what did the user actually see, and why does it differ
+  from the raw output" can only be *inferred* — e.g. from guard notice prose
+  that happens to leak into a follow-up memory-extraction request. During the
+  verification-guard investigation this gap caused repeated mis-diagnosis
+  (claimed firings that were instruction text; "no firings" that had actually
+  fired).
+
+Scope (extends the LL31 `turn_exit` instrument):
+- **Correlation keys (Level 1).** Stamp each `turn_exit` record with `turnId`
+  (`gen-N`) and the `assistantMessageId` of the conversation message it
+  finalized, so a logged turn can be joined to the on-screen message (which
+  holds the final, post-transform content). Budget-neutral — only the part file
+  and the store change.
+- **Transform record (Level 2).** A per-turn accumulator captures which post-LLM
+  transforms were applied to the final message (guard notices:
+  `unexecuted_command_action`, `unverified_read_only_inspection`) and writes them
+  to the record's `transforms[]`. `tool/triage_session_logs.py` aggregates a
+  "Post-LLM transforms" distribution, so guard firings are a direct signal.
+- **Deferred — event sourcing (Level 3).** A unified append-only turn event log
+  (request → response → transforms → final message, all correlated) is the
+  clean end state but a large change; gated on Level 1+2 proving insufficient.
+
+Acceptance criteria:
+- A `turn_exit` record can be joined to the conversation message it produced
+  via `assistantMessageId` (store tests assert the keys are written when
+  provided, omitted otherwise).
+- Applied guard notices appear in `transforms[]` and in the triage distribution
+  (verified by a triage smoke run over synthetic transform records).
+- `chat_notifier.dart` stays within its F1 budget (accumulator field + per-turn
+  reset + two guard-notice tag sites only).
+
+Source: the verification-guard investigation (the `git_execute_command`
+false-positive fix). The notice-prose detection method it relied on is exactly
+what `transforms[]` replaces with a first-class signal.
+
+Next action: extend `transforms[]` to the remaining finalization transforms
+(file-save notice, max-token truncation, finalization recovery) and consider a
+small triage join that prints the on-screen final content for a flagged turn.
 
 ## Future Platform Vision Milestone Notes
 
