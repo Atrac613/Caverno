@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../core/utils/markdown_render_sanitizer.dart';
 import '../code_block_builder.dart';
+import '../markdown_style_helpers.dart';
 import '../math_markdown.dart';
 import '../../../../../core/theme/app_tokens.dart';
 
@@ -100,9 +101,7 @@ class PlanMarkdownPreview extends StatelessWidget {
                 color: theme.colorScheme.primary,
                 decoration: TextDecoration.underline,
               ),
-              tableBorder: TableBorder.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.3),
-              ),
+              tableBorder: markdownTableBorder(theme),
               tableHead: TextStyle(
                 color: textColor,
                 fontWeight: FontWeight.bold,
