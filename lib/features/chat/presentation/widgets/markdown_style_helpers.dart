@@ -10,7 +10,7 @@ TableBorder markdownTableBorder(ThemeData theme) {
 BorderSide markdownTableBorderSide(ThemeData theme) {
   final appColors = theme.extension<AppSemanticColors>();
   return BorderSide(
-    color: appColors?.hairlineStrong ?? theme.colorScheme.outline,
+    color: appColors?.textMuted ?? theme.colorScheme.onSurfaceVariant,
     width: 0.5,
   );
 }

@@ -159,7 +159,7 @@ void main() {
     expect(border!.top, expectedSide);
     expect(border.horizontalInside, expectedSide);
     expect(border.verticalInside, expectedSide);
-    expect(border.top.color, appColors.hairlineStrong);
+    expect(border.top.color, appColors.textMuted);
     expect(border.top.width, 0.5);
   });
 
