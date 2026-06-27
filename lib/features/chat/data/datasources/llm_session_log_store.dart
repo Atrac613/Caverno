@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../../../core/constants/build_info.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
@@ -225,7 +226,8 @@ class LlmSessionLogStore {
   final LlmSessionLogRetentionPolicy _retentionPolicy;
 
   static const schemaName = 'caverno_llm_session_log_entry';
-  static const schemaVersion = 1;
+  // v2 adds the `build` field (git commit/dirty/builtAt provenance).
+  static const schemaVersion = 2;
   static const enabledEnvironmentKey = 'CAVERNO_SESSION_LOG_ENABLED';
   static const _fallbackSessionId = 'unscoped';
   static final RegExp _safeFileNamePattern = RegExp(r'[^A-Za-z0-9._-]+');
@@ -325,6 +327,7 @@ class LlmSessionLogStore {
         'startedAt': startedAt.toIso8601String(),
         'finishedAt': finishedAt.toIso8601String(),
         'durationMs': finishedAt.difference(startedAt).inMilliseconds,
+        'build': BuildInfo.toJson(),
         'context': effectiveContext.toJson(),
         'operation': request.operation,
         'request': _requestToJson(request),
@@ -375,6 +378,7 @@ class LlmSessionLogStore {
         'schemaName': schemaName,
         'schemaVersion': schemaVersion,
         'timestamp': at.toIso8601String(),
+        'build': BuildInfo.toJson(),
         'context': effectiveContext.toJson(),
         'operation': 'turn_exit',
         'turnExit': {

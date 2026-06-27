@@ -84,6 +84,11 @@ void main() {
 
       final decoded = jsonDecode(lines.single) as Map<String, dynamic>;
       expect(decoded['schemaName'], LlmSessionLogStore.schemaName);
+      expect(decoded['schemaVersion'], LlmSessionLogStore.schemaVersion);
+      // Build provenance: defaults apply because tests are not built via
+      // tool/safe-flutter's --dart-define injection.
+      expect(decoded['build']['commit'], 'unknown');
+      expect(decoded['build']['dirty'], false);
       expect(decoded['context']['workspaceMode'], 'coding');
       expect(decoded['context']['sessionId'], 'conversation/1');
       expect(
@@ -121,6 +126,7 @@ void main() {
       expect(lines, hasLength(1));
       final decoded = jsonDecode(lines.single) as Map<String, dynamic>;
       expect(decoded['schemaName'], LlmSessionLogStore.schemaName);
+      expect(decoded['build']['commit'], 'unknown');
       expect(decoded['operation'], 'turn_exit');
       expect(decoded['turnExit']['reason'], 'tool_failure_abort');
       expect(decoded['turnExit']['noVisibleAnswer'], true);

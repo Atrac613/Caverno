@@ -16,6 +16,10 @@ Signals (per session):
 
 Each signal is weighted into a score; sessions are printed worst-first.
 
+The ``build`` column shows the git commit the binary was built from (schema v2+;
+a ``*`` suffix means the build had uncommitted changes, ``—`` means the log
+predates build provenance or the binary was not built via tool/safe-flutter).
+
 Locations match the app: honors CAVERNO_SESSION_LOG_DIR, else
 CAVERNO_HOME (default ~/.caverno) + /session_logs.
 
@@ -130,6 +134,10 @@ def analyze(path: str) -> dict | None:
     run = 0
     prev_sig = None
     title = ""
+    # Build provenance (schema v2+); v1 logs have no `build` block.
+    build = next((e["build"] for e in entries if e.get("build")), {})
+    commit = build.get("commit") or "—"
+    dirty = bool(build.get("dirty"))
     no_answer = 0
     exit_reasons: Counter = Counter()
     transforms: Counter = Counter()
@@ -193,6 +201,8 @@ def analyze(path: str) -> dict | None:
         "transforms": dict(transforms),
         "mtime": os.path.getmtime(path),
         "score": round(score, 2),
+        "commit": commit,
+        "dirty": dirty,
     }
 
 
@@ -244,15 +254,17 @@ def main() -> int:
     print(f"== Session log triage ({root}) ==")
     print(
         f"{'score':>6}  {'len':>3} {'txp':>3} {'loop':>4} {'big':>3} {'err':>3} "
-        f"{'stop':>4}  {'n':>3}  session"
+        f"{'stop':>4}  {'n':>3}  {'build':>9}  session"
     )
     for r in rows:
         ident = r["path"] if args.full else os.path.basename(r["path"])
         title = f"  {r['title']}" if r["title"] else ""
+        # `*` marks a build made with uncommitted changes (commit is not exact).
+        build = r["commit"] + ("*" if r["dirty"] else "")
         print(
             f"{r['score']:>6}  {r['fr_length']:>3} {r['transport']:>3} "
             f"{r['max_tool_run']:>4} {r['oversized']:>3} {r['tool_errors']:>3} "
-            f"{r['no_answer']:>4}  {r['entries']:>3}  {ident}{title}"
+            f"{r['no_answer']:>4}  {r['entries']:>3}  {build:>9}  {ident}{title}"
         )
     if not rows:
         print("(no sessions matched)")

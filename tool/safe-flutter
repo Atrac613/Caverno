@@ -81,6 +81,28 @@ EOF
   exit 1
 fi
 
+# Inject build provenance (git commit / dirty / build time) so the running
+# binary — and every session log it writes — can be traced back to the exact
+# source it was built from. Only build-class subcommands accept --dart-define,
+# and only they produce a binary, so the injection is scoped to them. Values
+# are read at runtime via BuildInfo (lib/core/constants/build_info.dart).
+case "${1:-}" in
+  run|build|drive|test|attach|install)
+    BUILD_COMMIT="$(git -C "$WORKTREE" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    if git -C "$WORKTREE" diff --quiet --ignore-submodules 2>/dev/null \
+       && git -C "$WORKTREE" diff --cached --quiet --ignore-submodules 2>/dev/null
+    then
+      BUILD_DIRTY=false
+    else
+      BUILD_DIRTY=true
+    fi
+    set -- "$@" \
+      --dart-define=CAVERNO_BUILD_COMMIT="$BUILD_COMMIT" \
+      --dart-define=CAVERNO_BUILD_DIRTY="$BUILD_DIRTY" \
+      --dart-define=CAVERNO_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    ;;
+esac
+
 # Delegate to the real flutter. Prefer fvm when the worktree pins a
 # Flutter SDK version, so the wrapper matches whatever the project
 # expects.
