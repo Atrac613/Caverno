@@ -26,11 +26,14 @@
 
 set -euo pipefail
 
-# Resolve worktree root. Fall back to the script's parent when not in a
-# git working tree (e.g., archived snapshot). Group the fallback in a
-# subshell so the `&& pwd` does not run for both branches.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKTREE="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd "$SCRIPT_DIR/.." && pwd))"
+# Resolve the worktree being built from the current working directory, NOT
+# from this script's own path. flutter operates on the project in $PWD, so the
+# macOS guard must check that worktree's sentinel. Deriving the worktree from
+# ${BASH_SOURCE[0]} silently bypassed the guard when invoked through an
+# absolute-path alias (e.g. the documented `caverno-flutter` alias), which
+# always resolved to the alias target's worktree regardless of where the build
+# actually runs. Fall back to $PWD when not inside a git working tree.
+WORKTREE="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 # Detect whether the invocation targets macOS. Only exact-token matches
 # qualify so that `--target=lib/main_macos.dart` and similar paths do not
