@@ -176,17 +176,6 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
           );
     final actions = <Widget>[];
 
-    if (!_showDashboard) {
-      actions.add(
-        actionButton(
-          key: const ValueKey('open-dashboard-action'),
-          onPressed: _openDashboard,
-          icon: Icons.insights_outlined,
-          tooltip: 'dashboard.title'.tr(),
-        ),
-      );
-    }
-
     if (revertableTurnDiff != null) {
       actions.add(
         actionButton(
