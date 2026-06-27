@@ -250,10 +250,22 @@ void main() {
       projectsState: CodingProjectsState.initial(),
     );
 
+    expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Chat'), findsOneWidget);
     expect(find.text('Coding'), findsOneWidget);
     expect(find.text('Routines'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
+    expect(find.byKey(const ValueKey('drawer-dashboard')), findsNothing);
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('drawer-workspace-dashboard')))
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('drawer-workspace-chat')))
+            .dy,
+      ),
+    );
 
     await tester.tap(find.byKey(const ValueKey('drawer-settings')));
     await tester.pumpAndSettle();
@@ -296,6 +308,43 @@ void main() {
     final conversationsState = container.read(conversationsNotifierProvider);
     expect(conversationsState.activeWorkspaceMode, WorkspaceMode.coding);
     expect(conversationsState.activeProjectId, project.id);
+  });
+
+  testWidgets('dashboard selection hides workspace-specific drawer content', (
+    tester,
+  ) async {
+    final project = _project(id: 'project-1', name: 'sample_app');
+    await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: [
+          _conversation(
+            id: 'thread-1',
+            title: 'Fix parser',
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+          ),
+        ],
+        currentConversationId: 'thread-1',
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+      projectsState: CodingProjectsState(
+        projects: [project],
+        selectedProjectId: project.id,
+      ),
+      isDashboardSelected: true,
+    );
+
+    expect(
+      find.byKey(const ValueKey('drawer-workspace-dashboard')),
+      findsOneWidget,
+    );
+    expect(find.text('Projects'), findsNothing);
+    expect(find.text('sample_app'), findsNothing);
+    expect(find.text('Fix parser'), findsNothing);
+    expect(find.byKey(const ValueKey('drawer-search')), findsOneWidget);
+    expect(find.byKey(const ValueKey('drawer-settings')), findsOneWidget);
   });
 
   testWidgets(
@@ -522,6 +571,7 @@ Future<ProviderContainer> _pumpDrawerApp(
   Map<String, Object> initialPreferences = const <String, Object>{},
   ChatState chatState = const ChatState(messages: [], isLoading: false),
   String? chatConversationId,
+  bool isDashboardSelected = false,
   bool settleAfterOpening = true,
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -621,6 +671,23 @@ Future<ProviderContainer> _pumpDrawerApp(
                         .selectConversation(conversationId);
                   },
                   onAddCodingProject: () async {},
+                  onOpenDashboard: () {},
+                  onCreateChatConversation: () {
+                    container
+                        .read(conversationsNotifierProvider.notifier)
+                        .createNewConversation(
+                          workspaceMode: WorkspaceMode.chat,
+                        );
+                  },
+                  onCreateCodingThread: (projectId) {
+                    container
+                        .read(conversationsNotifierProvider.notifier)
+                        .startDraftConversation(
+                          workspaceMode: WorkspaceMode.coding,
+                          projectId: projectId,
+                        );
+                  },
+                  isDashboardSelected: isDashboardSelected,
                 ),
                 body: Builder(
                   builder: (context) {

@@ -82,17 +82,18 @@ void main() {
     expect(find.byType(RoutineEditorSheet), findsOneWidget);
   });
 
-  testWidgets('desktop routines workspace omits the FAB and keeps the drawer create button', (
-    tester,
-  ) async {
-    await _pumpRoutinesWorkspace(tester, size: const Size(1200, 900));
+  testWidgets(
+    'desktop routines workspace omits the FAB and keeps the drawer create button',
+    (tester) async {
+      await _pumpRoutinesWorkspace(tester, size: const Size(1200, 900));
 
-    // The persistent drawer is always visible on wide layouts and provides its
-    // own create button, so the floating action button would be redundant.
-    expect(find.byType(FloatingActionButton), findsNothing);
-    expect(find.byType(ConversationDrawer), findsOneWidget);
-    expect(find.byTooltip('New routine'), findsOneWidget);
-  });
+      // The persistent drawer is always visible on wide layouts and provides its
+      // own create button, so the floating action button would be redundant.
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(find.byType(ConversationDrawer), findsOneWidget);
+      expect(find.byTooltip('New routine'), findsOneWidget);
+    },
+  );
 }
 
 Future<void> _pumpRoutinesWorkspace(
@@ -139,7 +140,7 @@ Future<void> _pumpRoutinesWorkspace(
               localizationsDelegates: context.localizationDelegates,
               supportedLocales: context.supportedLocales,
               locale: context.locale,
-              home: const ChatPage(),
+              home: const ChatPage(showDashboardOnStartup: false),
             ),
           );
         },

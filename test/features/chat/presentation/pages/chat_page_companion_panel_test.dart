@@ -327,7 +327,7 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
                 localizationsDelegates: context.localizationDelegates,
                 supportedLocales: context.supportedLocales,
                 locale: context.locale,
-                home: const ChatPage(),
+                home: const ChatPage(showDashboardOnStartup: false),
               ),
             );
           },
@@ -459,7 +459,7 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
                 localizationsDelegates: context.localizationDelegates,
                 supportedLocales: context.supportedLocales,
                 locale: context.locale,
-                home: const ChatPage(),
+                home: const ChatPage(showDashboardOnStartup: false),
               ),
             );
           },
@@ -581,7 +581,7 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
                 localizationsDelegates: context.localizationDelegates,
                 supportedLocales: context.supportedLocales,
                 locale: context.locale,
-                home: const ChatPage(),
+                home: const ChatPage(showDashboardOnStartup: false),
               ),
             );
           },

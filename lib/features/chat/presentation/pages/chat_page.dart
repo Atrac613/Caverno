@@ -18,6 +18,7 @@ import '../../../../core/services/browser_session_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
+import '../../../dashboard/presentation/widgets/dashboard_view.dart';
 import '../../../routines/presentation/pages/routine_detail_view.dart';
 import '../../../routines/presentation/pages/routines_home_page.dart';
 import '../../../routines/presentation/providers/routine_scheduler.dart';
@@ -84,57 +85,17 @@ part 'chat_page_browser_builders.dart';
 part 'chat_page_companion_builders.dart';
 part 'chat_page_goal_builders.dart';
 part 'chat_page_header_builders.dart';
+part 'chat_page_mobile_support.dart';
 part 'chat_page_plan_builders.dart';
+part 'chat_page_support.dart';
 part 'chat_page_turn_rollback_support.dart';
 part 'chat_page_workflow_builders.dart';
 part 'chat_page_workflow_support.dart';
 
-@visibleForTesting
-bool Function()? debugRemoteCodingMobilePlatformOverride;
-
-@visibleForTesting
-bool isRemoteCodingMobilePlatform() {
-  final override = debugRemoteCodingMobilePlatformOverride;
-  if (override != null) {
-    return override();
-  }
-  return !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-}
-
-@visibleForTesting
-bool shouldPresentDesktopApproval(ChatInteractionOrigin origin) {
-  return origin == ChatInteractionOrigin.local;
-}
-
-@visibleForTesting
-bool shouldShowContextStatusWidget(ChatState chatState) {
-  return chatState.messages.isNotEmpty ||
-      chatState.queuedMessages.isNotEmpty ||
-      chatState.promptTokens > 0 ||
-      chatState.completionTokens > 0 ||
-      chatState.totalTokens > 0 ||
-      chatState.estimatedPromptTokens > 0 ||
-      chatState.contextSurgerySnapshot.hasData;
-}
-
-class _WorktreeAgentCommandArgs {
-  const _WorktreeAgentCommandArgs({
-    required this.prompt,
-    this.verificationCommand = '',
-    this.hasVerificationMarker = false,
-    this.runAfterQueue = false,
-  });
-
-  final String prompt;
-  final String verificationCommand;
-  final bool hasVerificationMarker;
-  final bool runAfterQueue;
-}
-
-enum _RightSidebarTab { companion, files }
-
 class ChatPage extends ConsumerStatefulWidget {
-  const ChatPage({super.key});
+  const ChatPage({super.key, this.showDashboardOnStartup = true});
+
+  final bool showDashboardOnStartup;
 
   @override
   ConsumerState<ChatPage> createState() => _ChatPageState();
@@ -160,6 +121,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _isScrollToBottomScheduled = false;
   bool _scheduledScrollShouldAnimate = false;
   bool _autoFollowBottom = true;
+  late bool _showDashboard;
   FileWorkspaceViewerRequest? _fileWorkspaceViewerRequest;
   _RightSidebarTab _rightSidebarTab = _RightSidebarTab.companion;
   int _droppedImageAttachmentId = 0;
@@ -200,6 +162,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   void initState() {
     super.initState();
+    _showDashboard = widget.showDashboardOnStartup;
     ref.read(routineSchedulerProvider);
   }
 
@@ -267,6 +230,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _toggleCompanionSidebar() {
     setState(() {
       _isCompanionSidebarVisible = !_isCompanionSidebarVisible;
+    });
+  }
+
+  void _openDashboard() {
+    if (!mounted) {
+      _showDashboard = true;
+      return;
+    }
+    setState(() {
+      _showDashboard = true;
+    });
+  }
+
+  void _leaveDashboard() {
+    if (!_showDashboard) {
+      return;
+    }
+    if (!mounted) {
+      _showDashboard = false;
+      return;
+    }
+    setState(() {
+      _showDashboard = false;
     });
   }
 
@@ -460,6 +446,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _switchWorkspaceMode(WorkspaceMode workspaceMode) async {
+    _leaveDashboard();
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
@@ -513,6 +500,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     String projectId, {
     bool createFreshOnFirstOpen = false,
   }) async {
+    _leaveDashboard();
     ref.read(codingProjectsNotifierProvider.notifier).selectProject(projectId);
     ref
         .read(conversationsNotifierProvider.notifier)
@@ -649,11 +637,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return SlashCommandExecutionResult.handled;
       case SlashCommandAction.newConversation:
         if (isCodingWorkspace && activeProject != null) {
+          _leaveDashboard();
           conversationsNotifier.startDraftConversation(
             workspaceMode: WorkspaceMode.coding,
             projectId: activeProject.id,
           );
         } else {
+          _leaveDashboard();
           conversationsNotifier.createNewConversation(
             workspaceMode: conversationsState.activeWorkspaceMode,
             projectId: activeProject?.id,
@@ -906,6 +896,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _selectDrawerConversation(String conversationId) async {
+    _leaveDashboard();
     final conversationsState = ref.read(conversationsNotifierProvider);
     final conversation = conversationsState.conversations
         .where((item) => item.id == conversationId)
@@ -946,6 +937,23 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  void _createDrawerChatConversation() {
+    _leaveDashboard();
+    ref
+        .read(conversationsNotifierProvider.notifier)
+        .createNewConversation(workspaceMode: WorkspaceMode.chat);
+  }
+
+  void _createDrawerCodingThread(String projectId) {
+    _leaveDashboard();
+    ref
+        .read(conversationsNotifierProvider.notifier)
+        .startDraftConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: projectId,
+        );
+  }
+
   Widget _buildConversationDrawer({
     required bool closeOnAction,
     double? width,
@@ -962,6 +970,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       onCodingProjectSelected: _activateCodingProject,
       onConversationSelected: _selectDrawerConversation,
       onAddCodingProject: _pickAndActivateProject,
+      onOpenDashboard: _openDashboard,
+      onCreateChatConversation: _createDrawerChatConversation,
+      onCreateCodingThread: _createDrawerCodingThread,
+      isDashboardSelected: _showDashboard,
     );
   }
 
@@ -1438,14 +1450,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
 
     final settings = ref.watch(settingsNotifierProvider);
+    final isDashboardVisible = _showDashboard;
     final isRoutinesWorkspace =
+        !isDashboardVisible &&
         conversationsState.activeWorkspaceMode == WorkspaceMode.routines;
     final isCodingWorkspace =
+        !isDashboardVisible &&
         conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
     // Chat-mode permission selector gates the shared approval for high-risk
     // chat tools (browser, SSH, BLE, serial). Only shown when at least one of
     // them is exposed.
     final showChatApprovalMode =
+        !isDashboardVisible &&
         !isCodingWorkspace &&
         !isRoutinesWorkspace &&
         settings.exposesGatedChatTools;
@@ -1462,7 +1478,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       conversationsState.activeProjectId,
     );
     final currentConversation = conversationsState.currentConversation;
-    final isPlanMode = currentConversation?.isPlanningSession ?? false;
+    final isPlanMode =
+        !isDashboardVisible &&
+        (currentConversation?.isPlanningSession ?? false);
     final effectiveAssistantMode = isPlanMode
         ? AssistantMode.plan
         : switch (settings.assistantMode) {
@@ -1470,17 +1488,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               isCodingWorkspace ? AssistantMode.coding : AssistantMode.general,
             final mode => mode,
           };
-    final rawTitle =
-        currentConversation?.title ??
-        (isCodingWorkspace && activeProject != null
-            ? defaultConversationTitle
-            : 'Caverno');
+    final rawTitle = isDashboardVisible
+        ? 'dashboard.title'.tr()
+        : currentConversation?.title ??
+              (isCodingWorkspace && activeProject != null
+                  ? defaultConversationTitle
+                  : 'Caverno');
     final currentTitle = rawTitle == defaultConversationTitle
         ? (isCodingWorkspace
               ? 'chat.new_thread'.tr()
               : 'chat.new_conversation'.tr())
         : rawTitle;
-    final canCompose = !isCodingWorkspace || activeProject != null;
+    final canCompose =
+        !isDashboardVisible && (!isCodingWorkspace || activeProject != null);
     final shouldShowPlanFooterCard =
         isCodingWorkspace &&
         activeProject != null &&
@@ -1505,6 +1525,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     // surfaces only the session log section.
     final canShowCompanionPanel =
         currentConversation != null &&
+        !isDashboardVisible &&
         !isRoutinesWorkspace &&
         !isMobileRemoteCoding &&
         (!isCodingWorkspace || activeProject != null);
@@ -1546,6 +1567,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         _composerPrefillText = '';
         _composerPrefillVersion++;
       });
+      _leaveDashboard();
       final languageCode = context.locale.languageCode;
       if (isCodingWorkspace &&
           currentConversation != null &&
@@ -1703,7 +1725,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     Widget buildWorkspaceBody() {
-      return isRoutinesWorkspace
+      return isDashboardVisible
+          ? const DashboardView()
+          : isRoutinesWorkspace
           ? (selectedRoutine != null
                 ? RoutineDetailView(
                     key: ValueKey('routine-detail-${selectedRoutine.id}'),
@@ -1990,64 +2014,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return _wrapWithMobileKeyboardDismiss(scaffold);
   }
 
-  Widget _wrapWithMobileKeyboardDismiss(Widget child) {
-    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
-      return child;
-    }
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (event) {
-        _dismissKeyboardIfTapIsOutsideFocusedRegion(event.position);
-      },
-      child: child,
-    );
-  }
-
-  void _dismissKeyboardIfTapIsOutsideFocusedRegion(Offset position) {
-    final primaryFocus = FocusManager.instance.primaryFocus;
-    if (primaryFocus == null || !primaryFocus.hasFocus) {
-      return;
-    }
-
-    final focusContext = primaryFocus.context;
-    final renderObject = focusContext?.findRenderObject();
-    if (renderObject is RenderBox && renderObject.attached) {
-      final focusedRect = MatrixUtils.transformRect(
-        renderObject.getTransformTo(null),
-        Offset.zero & renderObject.size,
-      );
-      if (focusedRect.contains(position)) {
-        return;
-      }
-    }
-
-    primaryFocus.unfocus();
-  }
-
   Future<void> _createRoutineFromHome(BuildContext context) async {
     final createdId = await showRoutineEditor(context, ref);
     if (createdId == null || !mounted) {
       return;
     }
     ref.read(routinesNotifierProvider.notifier).selectRoutine(createdId);
-  }
-
-  String _formatTokenCount(int count) {
-    if (count >= 1000000) {
-      return '${(count / 1000000).toStringAsFixed(1)}M';
-    }
-    if (count >= 1000) {
-      return '${(count / 1000).toStringAsFixed(1)}k';
-    }
-    return count.toString();
-  }
-
-  String _formatGitCommandForDisplay(String command) {
-    final normalized = GitTools.normalizeCommand(command);
-    if (normalized.isEmpty) {
-      return 'git';
-    }
-    return 'git $normalized';
   }
 
   Future<void> _editPlanInChat(
@@ -2075,14 +2047,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
       _scrollToBottom();
     });
-  }
-
-  String _buildPlanEditSeed(Conversation currentConversation) {
-    final planArtifact = currentConversation.effectivePlanArtifact;
-    if (planArtifact.hasApproved) {
-      return 'Please revise the saved plan for this thread based on the following adjustment:\n- ';
-    }
-    return 'Please adjust the current draft plan for this thread as follows:\n- ';
   }
 
   Future<void> _cancelPlanReview(

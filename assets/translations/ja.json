@@ -14,6 +14,24 @@
     "close": "閉じる",
     "back": "戻る"
   },
+  "dashboard": {
+    "title": "ダッシュボード",
+    "range_all": "全期間",
+    "range_30d": "30日",
+    "range_7d": "7日",
+    "sessions": "セッション",
+    "messages": "メッセージ",
+    "total_tokens": "総トークン",
+    "active_days": "アクティブ日数",
+    "current_streak": "現在の連続日数",
+    "longest_streak": "最長連続日数",
+    "peak_hour": "ピーク時間",
+    "activity": "アクティビティ",
+    "activity_tooltip": "{date}: {count}件のメッセージ",
+    "streak_days": "{count}日",
+    "fun_fact": "『ハリー・ポッターと賢者の石』の約{multiple}倍のトークンを使いました。",
+    "empty": "チャットを始めると活動状況が表示されます。"
+  },
   "chat": {
     "empty_state": "メッセージを送信してチャットを開始",
     "new_conversation": "新しい会話",
@@ -106,6 +124,7 @@
     "participant_rounds": "{count} ラウンド",
     "participant_select_color": "色を選択",
     "workspace_chat": "チャット",
+    "workspace_dashboard": "ダッシュボード",
     "workspace_coding": "コーディング",
     "workspace_routines": "Routines",
     "projects": "プロジェクト",
