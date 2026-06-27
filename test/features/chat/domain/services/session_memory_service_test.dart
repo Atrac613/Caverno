@@ -608,6 +608,75 @@ void main() {
     ]);
   });
 
+  test(
+    'deduplicates Japanese compound and inserted profile items while keeping antonyms',
+    () {
+      // Japanese profile items have no spaces, so the token-subset check cannot
+      // tokenize them and bigram similarity is diluted by a shared role suffix,
+      // letting near-duplicates accumulate. Affix-tiling subsumption collapses a
+      // bare trait into its role-suffixed compound and a mid-string insertion
+      // into its more specific variant, while antonym variants stay distinct.
+
+      // Bare trait ("values actionable plans").
+      final planFocusedShort = String.fromCharCodes(const [
+        0x5b9f, 0x884c, 0x53ef, 0x80fd, 0x306a, 0x8a08, 0x753b, 0x3092, 0x91cd,
+        0x8996,
+      ]);
+      // Same trait suffixed with the "Flutter BLE developer" role.
+      final planFocusedCompound = String.fromCharCodes(const [
+        0x5b9f, 0x884c, 0x53ef, 0x80fd, 0x306a, 0x8a08, 0x753b, 0x3092, 0x91cd,
+        0x8996, 0x3059, 0x308b, 0x0046, 0x006c, 0x0075, 0x0074, 0x0074, 0x0065,
+        0x0072, 0x0020, 0x0042, 0x004c, 0x0045, 0x958b, 0x767a, 0x8005,
+      ]);
+      // A distinct trait sharing the same role suffix (must stay separate).
+      final autoProgressionRole = String.fromCharCodes(const [
+        0x81ea, 0x52d5, 0x9032, 0x884c, 0x3092, 0x597d, 0x3080, 0x0046, 0x006c,
+        0x0075, 0x0074, 0x0074, 0x0065, 0x0072, 0x0020, 0x0042, 0x004c, 0x0045,
+        0x958b, 0x767a, 0x8005,
+      ]);
+      // Do-not item ("do not ask for redundant permission").
+      final approvalShort = String.fromCharCodes(const [
+        0x627f, 0x8a8d, 0x5f8c, 0x306e, 0x5197, 0x9577, 0x306a, 0x8a31, 0x53ef,
+        0x3092, 0x6c42, 0x3081, 0x306a, 0x3044,
+      ]);
+      // Same item with "natural language" inserted in the middle.
+      final approvalInserted = String.fromCharCodes(const [
+        0x627f, 0x8a8d, 0x5f8c, 0x306e, 0x5197, 0x9577, 0x306a, 0x81ea, 0x7136,
+        0x8a00, 0x8a9e, 0x8a31, 0x53ef, 0x3092, 0x6c42, 0x3081, 0x306a, 0x3044,
+      ]);
+      // Antonym pair: "release notes required" vs "release notes NOT required".
+      final releaseNotesRequired = String.fromCharCodes(const [
+        0x30ea, 0x30ea, 0x30fc, 0x30b9, 0x30ce, 0x30fc, 0x30c8, 0x306f, 0x5fc5,
+        0x8981,
+      ]);
+      final releaseNotesNotRequired = String.fromCharCodes(const [
+        0x30ea, 0x30ea, 0x30fc, 0x30b9, 0x30ce, 0x30fc, 0x30c8, 0x306f, 0x4e0d,
+        0x8981,
+      ]);
+
+      final repository = _InMemoryChatMemoryRepository();
+      repository.profile = UserMemoryProfile(
+        persona: [planFocusedCompound, planFocusedShort, autoProgressionRole],
+        preferences: [releaseNotesRequired, releaseNotesNotRequired],
+        doNot: [approvalInserted, approvalShort],
+        updatedAt: DateTime(2026, 6, 2, 10),
+      );
+      final service = SessionMemoryService(repository);
+
+      final loaded = service.loadProfile();
+
+      // Bare trait collapses into its role-suffixed compound; distinct trait kept.
+      expect(loaded.persona, [planFocusedCompound, autoProgressionRole]);
+      // Mid-string insertion collapses into the more specific variant.
+      expect(loaded.doNot, [approvalInserted]);
+      // Antonyms must never be merged.
+      expect(loaded.preferences, [
+        releaseNotesRequired,
+        releaseNotesNotRequired,
+      ]);
+    },
+  );
+
   test('drops draft open loops covered by the latest assistant answer', () async {
     final repository = _InMemoryChatMemoryRepository();
     final service = SessionMemoryService(repository);
