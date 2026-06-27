@@ -310,6 +310,43 @@ void main() {
     expect(conversationsState.activeProjectId, project.id);
   });
 
+  testWidgets('dashboard selection hides workspace-specific drawer content', (
+    tester,
+  ) async {
+    final project = _project(id: 'project-1', name: 'sample_app');
+    await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: [
+          _conversation(
+            id: 'thread-1',
+            title: 'Fix parser',
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+          ),
+        ],
+        currentConversationId: 'thread-1',
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+      projectsState: CodingProjectsState(
+        projects: [project],
+        selectedProjectId: project.id,
+      ),
+      isDashboardSelected: true,
+    );
+
+    expect(
+      find.byKey(const ValueKey('drawer-workspace-dashboard')),
+      findsOneWidget,
+    );
+    expect(find.text('Projects'), findsNothing);
+    expect(find.text('sample_app'), findsNothing);
+    expect(find.text('Fix parser'), findsNothing);
+    expect(find.byKey(const ValueKey('drawer-search')), findsOneWidget);
+    expect(find.byKey(const ValueKey('drawer-settings')), findsOneWidget);
+  });
+
   testWidgets(
     'coding drawer groups project threads and expands older threads',
     (tester) async {
@@ -534,6 +571,7 @@ Future<ProviderContainer> _pumpDrawerApp(
   Map<String, Object> initialPreferences = const <String, Object>{},
   ChatState chatState = const ChatState(messages: [], isLoading: false),
   String? chatConversationId,
+  bool isDashboardSelected = false,
   bool settleAfterOpening = true,
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -649,6 +687,7 @@ Future<ProviderContainer> _pumpDrawerApp(
                           projectId: projectId,
                         );
                   },
+                  isDashboardSelected: isDashboardSelected,
                 ),
                 body: Builder(
                   builder: (context) {
