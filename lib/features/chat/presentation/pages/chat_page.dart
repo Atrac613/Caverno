@@ -8,7 +8,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -19,6 +18,7 @@ import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../dashboard/presentation/widgets/dashboard_view.dart';
+import '../../../routines/domain/entities/routine.dart';
 import '../../../routines/presentation/pages/routine_detail_view.dart';
 import '../../../routines/presentation/pages/routines_home_page.dart';
 import '../../../routines/presentation/providers/routine_scheduler.dart';
@@ -56,7 +56,6 @@ import '../providers/chat_state.dart';
 import '../providers/coding_environment_snapshot_provider.dart';
 import '../providers/conversations_notifier.dart';
 import '../providers/custom_slash_commands_notifier.dart';
-import '../providers/session_log_details_provider.dart';
 import '../providers/worktree_agent_task_launcher.dart';
 import '../providers/worktree_agent_task_orchestrator.dart';
 import '../slash_commands/slash_command.dart';
@@ -71,6 +70,7 @@ import '../widgets/participant_roster_bar.dart';
 import '../widgets/tool_perimeter_summary.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
+import '../widgets/session_log_details_section.dart';
 import '../widgets/token_usage_indicator.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
 import '../widgets/plan/plan_document_editor_sheet.dart';
@@ -1520,15 +1520,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 !currentConversation.hasPlanArtifact &&
                 chatState.workflowProposalDraft == null &&
                 chatState.taskProposalDraft == null));
-    // The companion panel is available in coding (with a project) and in plain
-    // chat. Coding surfaces git/progress/sources plus the session log; chat
-    // surfaces only the session log section.
+    // The companion panel is available in coding (with a project), plain chat,
+    // and a selected routine. Coding surfaces git/progress/sources plus the
+    // session log; chat and routines surface session-log sections.
     final canShowCompanionPanel =
-        currentConversation != null &&
         !isDashboardVisible &&
-        !isRoutinesWorkspace &&
         !isMobileRemoteCoding &&
-        (!isCodingWorkspace || activeProject != null);
+        ((isRoutinesWorkspace && selectedRoutine != null) ||
+            (currentConversation != null &&
+                !isRoutinesWorkspace &&
+                (!isCodingWorkspace || activeProject != null)));
     final shouldShowCodingDraftComposer =
         isCodingWorkspace &&
         activeProject != null &&
@@ -1724,18 +1725,52 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       );
     }
 
+    Widget buildRoutineDetailBody(Routine routine) {
+      final detailView = RoutineDetailView(
+        key: ValueKey('routine-detail-${routine.id}'),
+        routineId: routine.id,
+        onClose: () =>
+            ref.read(routinesNotifierProvider.notifier).selectRoutine(null),
+      );
+
+      return LayoutBuilder(
+        builder: (context, _) {
+          final showRoutineCompanionSidebar =
+              canShowCompanionPanel &&
+              _isCompanionSidebarVisible &&
+              MediaQuery.sizeOf(context).width >= _companionSidebarBreakpoint;
+          if (!showRoutineCompanionSidebar) {
+            return detailView;
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: detailView),
+              VerticalDivider(
+                width: 1,
+                thickness: 1,
+                color: Theme.of(context).dividerColor,
+              ),
+              SizedBox(
+                width: _companionSidebarWidth,
+                child: _buildRoutineCompanionPanel(
+                  context,
+                  routine: routine,
+                  showLeadingBorder: false,
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
     Widget buildWorkspaceBody() {
       return isDashboardVisible
           ? const DashboardView()
           : isRoutinesWorkspace
           ? (selectedRoutine != null
-                ? RoutineDetailView(
-                    key: ValueKey('routine-detail-${selectedRoutine.id}'),
-                    routineId: selectedRoutine.id,
-                    onClose: () => ref
-                        .read(routinesNotifierProvider.notifier)
-                        .selectRoutine(null),
-                  )
+                ? buildRoutineDetailBody(selectedRoutine)
                 : const RoutinesHomePage())
           : isMobileRemoteCoding
           ? const RemoteCodingPage()
@@ -1746,9 +1781,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 builder: (context, constraints) {
                   final showCompanionSidebar =
                       canShowCompanionPanel &&
+                      currentConversation != null &&
                       _isCompanionSidebarVisible &&
                       MediaQuery.sizeOf(context).width >=
                           _companionSidebarBreakpoint;
+                  final sidebarConversation = showCompanionSidebar
+                      ? currentConversation
+                      : null;
                   final chatContent = Column(
                     children: [
                       // Error banner
@@ -1896,7 +1935,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           chatContent,
                           request: _fileWorkspaceViewerRequest,
                           availableWidth: constraints.maxWidth,
-                          currentConversation: currentConversation,
+                          currentConversation: sidebarConversation!,
                           chatState: chatState,
                           activeProject: activeProject,
                         )
@@ -1947,6 +1986,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   canShowCompanionPanel: canShowCompanionPanel,
                   isWideForCompanion: isWideForCompanion,
                   currentConversation: currentConversation,
+                  selectedRoutine: selectedRoutine,
                   conversationsState: conversationsState,
                   conversationsNotifier: conversationsNotifier,
                   chatState: chatState,
@@ -1981,6 +2021,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 canShowCompanionPanel: canShowCompanionPanel,
                 isWideForCompanion: isWideForCompanion,
                 currentConversation: currentConversation,
+                selectedRoutine: selectedRoutine,
                 chatState: chatState,
                 compact: false,
               ),

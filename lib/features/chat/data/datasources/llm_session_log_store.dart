@@ -38,6 +38,17 @@ class LlmSessionLogContext {
   final bool? participantToolsEnabled;
   final List<String> participantToolNames;
 
+  static String routinePlanSessionId(String routineId) {
+    return 'routine-plan-${routineId.trim()}';
+  }
+
+  static String routineRunSessionId({
+    required String routineId,
+    required String runId,
+  }) {
+    return 'routine-${routineId.trim()}-run-${runId.trim()}';
+  }
+
   static LlmSessionLogContext? get current {
     return Zone.current[_llmSessionLogContextZoneKey] as LlmSessionLogContext?;
   }
