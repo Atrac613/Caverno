@@ -10,6 +10,7 @@ import '../../../../core/utils/markdown_render_sanitizer.dart';
 import '../../domain/services/file_reference_extractor.dart';
 import 'code_block_builder.dart';
 import 'file_workspace_viewer_sheet.dart';
+import 'markdown_style_helpers.dart';
 import 'math_markdown.dart';
 import '../../../../core/theme/app_tokens.dart';
 
@@ -213,9 +214,7 @@ class _ParsedContentViewState extends State<ParsedContentView> {
                 color: theme.colorScheme.primary,
                 decoration: TextDecoration.underline,
               ),
-              tableBorder: TableBorder.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.3),
-              ),
+              tableBorder: markdownTableBorder(theme),
               tableHead: TextStyle(
                 color: widget.textColor,
                 fontWeight: FontWeight.bold,

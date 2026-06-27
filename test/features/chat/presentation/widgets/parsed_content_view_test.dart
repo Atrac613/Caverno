@@ -6,7 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/core/theme/app_theme.dart';
+import 'package:caverno/core/theme/app_tokens.dart';
 import 'package:caverno/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart';
+import 'package:caverno/features/chat/presentation/widgets/markdown_style_helpers.dart';
 import 'package:caverno/features/chat/presentation/widgets/parsed_content_view.dart';
 
 class _TestTranslationLoader extends AssetLoader {
@@ -28,6 +31,7 @@ Future<void> _pumpParsedContentView(
   WidgetTester tester, {
   required String content,
   required bool isStreaming,
+  ThemeData? theme,
   String? fileReferenceRootPath,
   ValueChanged<FileWorkspaceViewerRequest>? onOpenFileWorkspaceViewer,
 }) async {
@@ -43,6 +47,7 @@ Future<void> _pumpParsedContentView(
       child: Builder(
         builder: (context) {
           return MaterialApp(
+            theme: theme,
             localizationsDelegates: context.localizationDelegates,
             supportedLocales: context.supportedLocales,
             locale: context.locale,
@@ -133,6 +138,29 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(Math), findsOneWidget);
+  });
+
+  testWidgets('renders markdown tables with visible border color', (
+    tester,
+  ) async {
+    await _pumpParsedContentView(
+      tester,
+      theme: AppTheme.dark,
+      content: '| Name | Value |\n| --- | --- |\n| Alpha | 1 |',
+      isStreaming: false,
+    );
+
+    final table = tester.widget<Table>(find.byType(Table));
+    final border = table.border;
+    final expectedSide = markdownTableBorderSide(AppTheme.dark);
+    final appColors = AppTheme.dark.extension<AppSemanticColors>()!;
+
+    expect(border, isNotNull);
+    expect(border!.top, expectedSide);
+    expect(border.horizontalInside, expectedSide);
+    expect(border.verticalInside, expectedSide);
+    expect(border.top.color, appColors.hairlineStrong);
+    expect(border.top.width, 0.5);
   });
 
   testWidgets('notifies parent when a file reference link is selected', (
