@@ -17,6 +17,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
     required bool canShowCompanionPanel,
     required bool isWideForCompanion,
     required Conversation? currentConversation,
+    required Routine? selectedRoutine,
     required ConversationsState conversationsState,
     required ConversationsNotifier conversationsNotifier,
     required ChatState chatState,
@@ -48,6 +49,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
             canShowCompanionPanel: canShowCompanionPanel,
             isWideForCompanion: isWideForCompanion,
             currentConversation: currentConversation,
+            selectedRoutine: selectedRoutine,
             chatState: chatState,
             compact: true,
           ),
@@ -135,6 +137,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
     required bool canShowCompanionPanel,
     required bool isWideForCompanion,
     required Conversation? currentConversation,
+    required Routine? selectedRoutine,
     required ChatState chatState,
     required bool compact,
   }) {
@@ -158,6 +161,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
 
     final companionConversation = currentConversation;
     final companionProject = activeProject;
+    final companionRoutine = selectedRoutine;
     final latestUserPrompt = _latestUserPrompt(currentConversation);
     final sessionLoggingEnabled =
         LlmSessionLogStore.isEnabled(
@@ -171,17 +175,6 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
             chatState: chatState,
           );
     final actions = <Widget>[];
-
-    if (!_showDashboard) {
-      actions.add(
-        actionButton(
-          key: const ValueKey('open-dashboard-action'),
-          onPressed: _openDashboard,
-          icon: Icons.insights_outlined,
-          tooltip: 'dashboard.title'.tr(),
-        ),
-      );
-    }
 
     if (revertableTurnDiff != null) {
       actions.add(
@@ -217,12 +210,23 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
       );
     }
 
-    if (canShowCompanionPanel && companionConversation != null) {
+    if (canShowCompanionPanel &&
+        (companionConversation != null || companionRoutine != null)) {
       actions.add(
         actionButton(
           onPressed: () {
             if (isWideForCompanion) {
               _toggleCompanionSidebar();
+              return;
+            }
+            if (companionRoutine != null) {
+              _showRoutineCompanionPanelSheet(
+                context,
+                routine: companionRoutine,
+              );
+              return;
+            }
+            if (companionConversation == null) {
               return;
             }
             _showCompanionPanelSheet(

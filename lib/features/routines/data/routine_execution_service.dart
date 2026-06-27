@@ -339,8 +339,11 @@ class RoutineExecutionService {
     required String phase,
   }) {
     final sessionId = runId == null
-        ? 'routine-plan-${routine.id}'
-        : 'routine-${routine.id}-run-$runId';
+        ? LlmSessionLogContext.routinePlanSessionId(routine.id)
+        : LlmSessionLogContext.routineRunSessionId(
+            routineId: routine.id,
+            runId: runId,
+          );
     return LlmSessionLogContext(
       workspaceMode: WorkspaceMode.routines,
       sessionId: sessionId,

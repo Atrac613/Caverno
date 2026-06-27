@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_store.dart';
+import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
@@ -17,7 +19,10 @@ import 'package:caverno/features/chat/presentation/providers/coding_environment_
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
+import 'package:caverno/features/chat/presentation/providers/session_log_details_provider.dart';
+import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
+import 'package:caverno/features/routines/presentation/providers/routines_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -106,6 +111,38 @@ class _ChatConversationsNotifier extends ConversationsNotifier {
       activeWorkspaceMode: WorkspaceMode.chat,
       activeProjectId: null,
     );
+  }
+}
+
+class _RoutineSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      demoMode: false,
+      enableLlmSessionLogs: true,
+      mcpEnabled: false,
+    );
+  }
+}
+
+class _RoutineWorkspaceConversationsNotifier extends ConversationsNotifier {
+  @override
+  ConversationsState build() {
+    return ConversationsState.initial().copyWith(
+      activeWorkspaceMode: WorkspaceMode.routines,
+    );
+  }
+}
+
+class _RoutineCompanionRoutinesNotifier extends RoutinesNotifier {
+  _RoutineCompanionRoutinesNotifier(this.routine);
+
+  final Routine routine;
+
+  @override
+  RoutinesState build() {
+    return RoutinesState(routines: [routine], selectedRoutineId: routine.id);
   }
 }
 
@@ -475,6 +512,163 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     expect(find.text('Progress'), findsNothing);
     expect(find.text('Environment'), findsNothing);
     expect(find.text('Sources'), findsNothing);
+  });
+
+  testWidgets('wide routines workspace shows routine session logs', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final tempRoot = Directory.systemTemp.createTempSync(
+      'routine_companion_logs_test_',
+    );
+    addTearDown(() {
+      if (tempRoot.existsSync()) {
+        tempRoot.deleteSync(recursive: true);
+      }
+    });
+
+    final store = LlmSessionLogStore(
+      rootDirectoryProvider: () async {
+        return tempRoot;
+      },
+    );
+    final now = DateTime(2026, 6, 24, 11, 0);
+    final routine = Routine(
+      id: 'routine-1',
+      name: 'Morning summary',
+      prompt: 'Summarize overnight changes.',
+      createdAt: now,
+      updatedAt: now,
+      nextRunAt: DateTime(3026, 6, 24, 11),
+      lastRunAt: now,
+      runs: [
+        RoutineRunRecord(
+          id: 'run-1',
+          startedAt: now,
+          finishedAt: now.add(const Duration(seconds: 2)),
+          preview: 'Summary ready',
+          output: 'Summary ready',
+        ),
+      ],
+    );
+    late File planLog;
+    late File runLog;
+    final planRequest = (
+      workspaceMode: WorkspaceMode.routines,
+      sessionId: LlmSessionLogContext.routinePlanSessionId(routine.id),
+    );
+    final runRequest = (
+      workspaceMode: WorkspaceMode.routines,
+      sessionId: LlmSessionLogContext.routineRunSessionId(
+        routineId: routine.id,
+        runId: 'run-1',
+      ),
+    );
+    await tester.runAsync(() async {
+      planLog = await store.fileForContext(
+        LlmSessionLogContext(
+          workspaceMode: planRequest.workspaceMode,
+          sessionId: planRequest.sessionId,
+        ),
+      );
+      await planLog.writeAsString('{"phase":"plan"}\n');
+      runLog = await store.fileForContext(
+        LlmSessionLogContext(
+          workspaceMode: runRequest.workspaceMode,
+          sessionId: runRequest.sessionId,
+        ),
+      );
+      await runLog.writeAsString('{"phase":"run"}\n');
+    });
+
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        settingsNotifierProvider.overrideWith(_RoutineSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _RoutineWorkspaceConversationsNotifier.new,
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          _EmptyCodingProjectsNotifier.new,
+        ),
+        routinesNotifierProvider.overrideWith(
+          () => _RoutineCompanionRoutinesNotifier(routine),
+        ),
+        chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+        routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
+        llmSessionLogStoreProvider.overrideWithValue(store),
+      ],
+    );
+    late VoidCallback closePlanLogSubscription;
+    late VoidCallback closeRunLogSubscription;
+    await tester.runAsync(() async {
+      final planLogSubscription = container.listen(
+        sessionLogDetailsProvider(planRequest),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      final runLogSubscription = container.listen(
+        sessionLogDetailsProvider(runRequest),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      closePlanLogSubscription = planLogSubscription.close;
+      closeRunLogSubscription = runLogSubscription.close;
+      await container.read(sessionLogDetailsProvider(planRequest).future);
+      await container.read(sessionLogDetailsProvider(runRequest).future);
+    });
+    addTearDown(() {
+      closePlanLogSubscription();
+      closeRunLogSubscription();
+      container.dispose();
+    });
+
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        startLocale: const Locale('en'),
+        useOnlyLangCode: true,
+        saveLocale: false,
+        assetLoader: const _TestTranslationLoader(),
+        child: Builder(
+          builder: (context) {
+            return UncontrolledProviderScope(
+              container: container,
+              child: MaterialApp(
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                home: const ChatPage(showDashboardOnStartup: false),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    for (var frame = 0; frame < 5; frame++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    expect(find.text('Morning summary'), findsWidgets);
+    expect(find.byIcon(Icons.view_sidebar_outlined), findsOneWidget);
+    expect(find.text('Session log'), findsOneWidget);
+    expect(find.text('Plan draft'), findsOneWidget);
+    expect(find.text('Latest run'), findsOneWidget);
+    expect(find.textContaining('routine-plan-routine-1.jsonl'), findsWidgets);
+    expect(
+      find.textContaining('routine-routine-1-run-run-1.jsonl'),
+      findsWidgets,
+    );
+    expect(find.text(planLog.path), findsOneWidget);
+    expect(find.text(runLog.path), findsOneWidget);
   });
 
   testWidgets('header action reverts the latest agent turn checkpoint', (

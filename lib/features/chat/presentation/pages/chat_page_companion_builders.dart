@@ -116,23 +116,15 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
     }
 
     sections.add(
-      _buildCompanionSection(
-        context,
-        title: 'chat.companion_session_log'.tr(),
-        trailing: IconButton(
-          onPressed: () => ref.invalidate(
-            sessionLogDetailsProvider((
+      SessionLogDetailsSection(
+        entries: [
+          SessionLogDetailsEntry(
+            request: (
               workspaceMode: currentConversation.workspaceMode,
               sessionId: currentConversation.id,
-            )),
+            ),
           ),
-          icon: const Icon(Icons.refresh, size: 18),
-          tooltip: 'chat.companion_session_log_refresh'.tr(),
-        ),
-        children: _buildCompanionSessionLogChildren(
-          context,
-          currentConversation: currentConversation,
-        ),
+        ],
       ),
     );
 
@@ -158,6 +150,89 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: sections,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRoutineCompanionPanelSheet(
+    BuildContext context, {
+    required Routine routine,
+  }) {
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return FractionallySizedBox(
+          heightFactor: 0.82,
+          child: _buildRoutineCompanionPanel(
+            sheetContext,
+            routine: routine,
+            inSheet: true,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRoutineCompanionPanel(
+    BuildContext context, {
+    required Routine routine,
+    bool inSheet = false,
+    bool showLeadingBorder = true,
+  }) {
+    final theme = Theme.of(context);
+    final latestRun = routine.latestRun;
+    final entries = [
+      SessionLogDetailsEntry(
+        label: 'routines.session_log_plan'.tr(),
+        request: (
+          workspaceMode: WorkspaceMode.routines,
+          sessionId: LlmSessionLogContext.routinePlanSessionId(routine.id),
+        ),
+      ),
+      if (latestRun == null)
+        SessionLogDetailsEntry(
+          label: 'routines.session_log_latest_run'.tr(),
+          unavailableValue: 'routines.session_log_no_runs'.tr(),
+        )
+      else
+        SessionLogDetailsEntry(
+          label: 'routines.session_log_latest_run'.tr(),
+          request: (
+            workspaceMode: WorkspaceMode.routines,
+            sessionId: LlmSessionLogContext.routineRunSessionId(
+              routineId: routine.id,
+              runId: latestRun.id,
+            ),
+          ),
+        ),
+    ];
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: inSheet ? 0 : 0.32,
+        ),
+        border: inSheet || !showLeadingBorder
+            ? null
+            : Border(
+                left: BorderSide(
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.8,
+                  ),
+                ),
+              ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(16, inSheet ? 0 : 16, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [SessionLogDetailsSection(entries: entries)],
           ),
         ),
       ),
@@ -779,123 +854,6 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
         ),
       ],
     ];
-  }
-
-  List<Widget> _buildCompanionSessionLogChildren(
-    BuildContext context, {
-    required Conversation currentConversation,
-  }) {
-    final detailsAsync = ref.watch(
-      sessionLogDetailsProvider((
-        workspaceMode: currentConversation.workspaceMode,
-        sessionId: currentConversation.id,
-      )),
-    );
-
-    return [
-      detailsAsync.when(
-        // Metadata is a near-instant stat() in production. Keep the loading
-        // state non-animating so widget tests (which suspend real file I/O
-        // under pumpAndSettle) settle instead of spinning forever.
-        loading: () => _buildCompanionEmptyText(
-          context,
-          'chat.companion_session_log_loading'.tr(),
-        ),
-        error: (error, stackTrace) =>
-            _buildCompanionEmptyText(context, error.toString()),
-        data: (details) {
-          if (!details.loggingEnabled) {
-            return _buildCompanionEmptyText(
-              context,
-              'chat.companion_session_log_disabled'.tr(),
-            );
-          }
-          final value = details.exists
-              ? details.formattedSize
-              : 'chat.companion_session_log_missing'.tr();
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildCompanionInfoRow(
-                context,
-                icon: Icons.receipt_long_outlined,
-                label: details.fileName,
-                value: value,
-                dense: true,
-              ),
-              const SizedBox(height: 10),
-              _buildCompanionSessionLogPathRow(context, details: details),
-            ],
-          );
-        },
-      ),
-    ];
-  }
-
-  Widget _buildCompanionSessionLogPathRow(
-    BuildContext context, {
-    required SessionLogFileDetails details,
-  }) {
-    final theme = Theme.of(context);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 22,
-          height: 22,
-          child: Icon(
-            Icons.folder_outlined,
-            size: 16,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'chat.companion_session_log_path'.tr(),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              SelectableText(
-                details.path,
-                maxLines: 3,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontFamily: 'monospace',
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 4),
-        IconButton(
-          onPressed: () =>
-              unawaited(_copyCompanionSessionLogPath(context, details.path)),
-          icon: const Icon(Icons.copy_rounded, size: 18),
-          tooltip: 'chat.companion_session_log_copy_path'.tr(),
-          visualDensity: VisualDensity.compact,
-        ),
-      ],
-    );
-  }
-
-  Future<void> _copyCompanionSessionLogPath(
-    BuildContext context,
-    String path,
-  ) async {
-    await Clipboard.setData(ClipboardData(text: path));
-    if (!context.mounted) {
-      return;
-    }
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(content: Text('chat.companion_session_log_copied'.tr())),
-    );
   }
 
   Widget _buildCompanionInfoRow(
