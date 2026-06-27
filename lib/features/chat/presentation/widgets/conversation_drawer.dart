@@ -37,6 +37,9 @@ class ConversationDrawer extends ConsumerStatefulWidget {
     required this.onCodingProjectSelected,
     required this.onConversationSelected,
     required this.onAddCodingProject,
+    required this.onOpenDashboard,
+    required this.onCreateChatConversation,
+    required this.onCreateCodingThread,
     this.codingWorkspaceDrawerBuilder,
     this.closeOnAction = true,
     this.width,
@@ -47,6 +50,9 @@ class ConversationDrawer extends ConsumerStatefulWidget {
   final Future<void> Function(String projectId) onCodingProjectSelected;
   final Future<void> Function(String conversationId) onConversationSelected;
   final Future<void> Function() onAddCodingProject;
+  final VoidCallback onOpenDashboard;
+  final VoidCallback onCreateChatConversation;
+  final ValueChanged<String> onCreateCodingThread;
   final CodingWorkspaceDrawerBuilder? codingWorkspaceDrawerBuilder;
   final bool closeOnAction;
   final double? width;
@@ -101,7 +107,10 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
               child: switch (conversationsState.activeWorkspaceMode) {
                 WorkspaceMode.chat => _ChatConversationSection(
                   conversationsState: conversationsState,
-                  conversationsNotifier: conversationsNotifier,
+                  onCreateConversation: () {
+                    widget.onCreateChatConversation();
+                    _closeDrawerIfNeeded(context);
+                  },
                   onConversationSelected: (conversationId) =>
                       _selectConversation(context, conversationId),
                   onDeleteConversation: (conversation) => _showDeleteDialog(
@@ -114,7 +123,6 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                     conversationsNotifier,
                     isCodingWorkspace: false,
                   ),
-                  closeDrawer: () => _closeDrawerIfNeeded(context),
                 ),
                 WorkspaceMode.coding =>
                   widget.codingWorkspaceDrawerBuilder?.call(
@@ -124,7 +132,6 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                       _CodingProjectsSection(
                         projectsState: projectsState,
                         conversationsState: conversationsState,
-                        conversationsNotifier: conversationsNotifier,
                         isConversationBusy: chatNotifier.isConversationBusy,
                         expandedProjectIds: _expandedProjectIds,
                         collapsedProjectIds: _collapsedProjectIds,
@@ -139,6 +146,10 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                         },
                         onConversationSelected: (conversationId) =>
                             _selectConversation(context, conversationId),
+                        onCreateThread: (projectId) {
+                          widget.onCreateCodingThread(projectId);
+                          _closeDrawerIfNeeded(context);
+                        },
                         onDeleteConversation: (conversation) =>
                             _showDeleteDialog(
                               context,
@@ -171,7 +182,6 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                           });
                           _persistCollapsedProjectIds();
                         },
-                        closeDrawer: () => _closeDrawerIfNeeded(context),
                       ),
                 WorkspaceMode.routines => _RoutinesSection(
                   closeDrawer: () => _closeDrawerIfNeeded(context),
@@ -179,6 +189,7 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
               },
             ),
             const Divider(height: 1),
+            _DashboardDrawerTile(onTap: () => _openDashboard(context)),
             _SearchDrawerTile(onTap: () => _openSearch(context)),
             _SettingsDrawerTile(onTap: () => _openSettings(context)),
           ],
@@ -213,6 +224,11 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     );
     if (selectedId == null || !context.mounted) return;
     await _selectConversation(context, selectedId);
+  }
+
+  void _openDashboard(BuildContext context) {
+    widget.onOpenDashboard();
+    _closeDrawerIfNeeded(context);
   }
 
   /// LL5: when semantic search is enabled, rank history by embedding similarity
@@ -489,19 +505,17 @@ class _WorkspaceTile extends StatelessWidget {
 class _ChatConversationSection extends StatelessWidget {
   const _ChatConversationSection({
     required this.conversationsState,
-    required this.conversationsNotifier,
+    required this.onCreateConversation,
     required this.onConversationSelected,
     required this.onDeleteConversation,
     required this.onDeleteAll,
-    required this.closeDrawer,
   });
 
   final ConversationsState conversationsState;
-  final ConversationsNotifier conversationsNotifier;
+  final VoidCallback onCreateConversation;
   final Future<void> Function(String conversationId) onConversationSelected;
   final ValueChanged<Conversation> onDeleteConversation;
   final VoidCallback onDeleteAll;
-  final VoidCallback closeDrawer;
 
   @override
   Widget build(BuildContext context) {
@@ -525,12 +539,7 @@ class _ChatConversationSection extends StatelessWidget {
             _HeaderIconButton(
               icon: Icons.add,
               tooltip: 'drawer.new_conversation'.tr(),
-              onPressed: () {
-                conversationsNotifier.createNewConversation(
-                  workspaceMode: WorkspaceMode.chat,
-                );
-                closeDrawer();
-              },
+              onPressed: onCreateConversation,
             ),
           ],
         ),
@@ -567,38 +576,36 @@ class _CodingProjectsSection extends StatelessWidget {
   const _CodingProjectsSection({
     required this.projectsState,
     required this.conversationsState,
-    required this.conversationsNotifier,
     required this.isConversationBusy,
     required this.expandedProjectIds,
     required this.collapsedProjectIds,
     required this.collapsedThreadLimit,
     required this.onAddProject,
     required this.onProjectSelected,
+    required this.onCreateThread,
     required this.onConversationSelected,
     required this.onDeleteConversation,
     required this.onDeleteAllThreads,
     required this.onDeleteProject,
     required this.onToggleProjectExpanded,
     required this.onToggleProjectCollapsed,
-    required this.closeDrawer,
   });
 
   final CodingProjectsState projectsState;
   final ConversationsState conversationsState;
-  final ConversationsNotifier conversationsNotifier;
   final bool Function(String conversationId) isConversationBusy;
   final Set<String> expandedProjectIds;
   final Set<String> collapsedProjectIds;
   final int collapsedThreadLimit;
   final Future<void> Function() onAddProject;
   final Future<void> Function(String projectId) onProjectSelected;
+  final ValueChanged<String> onCreateThread;
   final Future<void> Function(String conversationId) onConversationSelected;
   final ValueChanged<Conversation> onDeleteConversation;
   final VoidCallback onDeleteAllThreads;
   final ValueChanged<CodingProject> onDeleteProject;
   final ValueChanged<String> onToggleProjectExpanded;
   final ValueChanged<String> onToggleProjectCollapsed;
-  final VoidCallback closeDrawer;
 
   @override
   Widget build(BuildContext context) {
@@ -648,13 +655,7 @@ class _CodingProjectsSection extends StatelessWidget {
                       isCollapsed: collapsedProjectIds.contains(project.id),
                       collapsedThreadLimit: collapsedThreadLimit,
                       onProjectSelected: () => onProjectSelected(project.id),
-                      onCreateThread: () {
-                        conversationsNotifier.startDraftConversation(
-                          workspaceMode: WorkspaceMode.coding,
-                          projectId: project.id,
-                        );
-                        closeDrawer();
-                      },
+                      onCreateThread: () => onCreateThread(project.id),
                       onDeleteProject: () => onDeleteProject(project),
                       onConversationSelected: onConversationSelected,
                       onDeleteConversation: onDeleteConversation,
@@ -1219,6 +1220,23 @@ class _ConversationTile extends StatelessWidget {
         onPressed: onDelete,
         tooltip: 'drawer.delete_tooltip'.tr(),
       ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _DashboardDrawerTile extends StatelessWidget {
+  const _DashboardDrawerTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: const ValueKey('drawer-dashboard'),
+      dense: true,
+      leading: const Icon(Icons.insights_outlined),
+      title: Text('chat.workspace_dashboard'.tr()),
       onTap: onTap,
     );
   }

@@ -14,6 +14,24 @@
     "close": "Close",
     "back": "Back"
   },
+  "dashboard": {
+    "title": "Dashboard",
+    "range_all": "All",
+    "range_30d": "30d",
+    "range_7d": "7d",
+    "sessions": "Sessions",
+    "messages": "Messages",
+    "total_tokens": "Total tokens",
+    "active_days": "Active days",
+    "current_streak": "Current streak",
+    "longest_streak": "Longest streak",
+    "peak_hour": "Peak hour",
+    "activity": "Activity",
+    "activity_tooltip": "{date}: {count} messages",
+    "streak_days": "{count}d",
+    "fun_fact": "You've used ~{multiple}x more tokens than Harry Potter and the Philosopher's Stone.",
+    "empty": "Start chatting to see your activity stats."
+  },
   "chat": {
     "empty_state": "Send a message to start chatting",
     "new_conversation": "New Conversation",
@@ -106,6 +124,7 @@
     "participant_rounds": "{count} rounds",
     "participant_select_color": "Select color",
     "workspace_chat": "Chat",
+    "workspace_dashboard": "Dashboard",
     "workspace_coding": "Coding",
     "workspace_routines": "Routines",
     "projects": "Projects",

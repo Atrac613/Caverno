@@ -18,6 +18,7 @@ import '../../../../core/services/browser_session_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
+import '../../../dashboard/presentation/widgets/dashboard_view.dart';
 import '../../../routines/presentation/pages/routine_detail_view.dart';
 import '../../../routines/presentation/pages/routines_home_page.dart';
 import '../../../routines/presentation/providers/routine_scheduler.dart';
@@ -160,6 +161,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _isScrollToBottomScheduled = false;
   bool _scheduledScrollShouldAnimate = false;
   bool _autoFollowBottom = true;
+  bool _showDashboard = true;
   FileWorkspaceViewerRequest? _fileWorkspaceViewerRequest;
   _RightSidebarTab _rightSidebarTab = _RightSidebarTab.companion;
   int _droppedImageAttachmentId = 0;
@@ -267,6 +269,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _toggleCompanionSidebar() {
     setState(() {
       _isCompanionSidebarVisible = !_isCompanionSidebarVisible;
+    });
+  }
+
+  void _openDashboard() {
+    if (!mounted) {
+      _showDashboard = true;
+      return;
+    }
+    setState(() {
+      _showDashboard = true;
+    });
+  }
+
+  void _leaveDashboard() {
+    if (!_showDashboard) {
+      return;
+    }
+    if (!mounted) {
+      _showDashboard = false;
+      return;
+    }
+    setState(() {
+      _showDashboard = false;
     });
   }
 
@@ -460,6 +485,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _switchWorkspaceMode(WorkspaceMode workspaceMode) async {
+    _leaveDashboard();
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
@@ -513,6 +539,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     String projectId, {
     bool createFreshOnFirstOpen = false,
   }) async {
+    _leaveDashboard();
     ref.read(codingProjectsNotifierProvider.notifier).selectProject(projectId);
     ref
         .read(conversationsNotifierProvider.notifier)
@@ -649,11 +676,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return SlashCommandExecutionResult.handled;
       case SlashCommandAction.newConversation:
         if (isCodingWorkspace && activeProject != null) {
+          _leaveDashboard();
           conversationsNotifier.startDraftConversation(
             workspaceMode: WorkspaceMode.coding,
             projectId: activeProject.id,
           );
         } else {
+          _leaveDashboard();
           conversationsNotifier.createNewConversation(
             workspaceMode: conversationsState.activeWorkspaceMode,
             projectId: activeProject?.id,
@@ -906,6 +935,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _selectDrawerConversation(String conversationId) async {
+    _leaveDashboard();
     final conversationsState = ref.read(conversationsNotifierProvider);
     final conversation = conversationsState.conversations
         .where((item) => item.id == conversationId)
@@ -946,6 +976,23 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  void _createDrawerChatConversation() {
+    _leaveDashboard();
+    ref
+        .read(conversationsNotifierProvider.notifier)
+        .createNewConversation(workspaceMode: WorkspaceMode.chat);
+  }
+
+  void _createDrawerCodingThread(String projectId) {
+    _leaveDashboard();
+    ref
+        .read(conversationsNotifierProvider.notifier)
+        .startDraftConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: projectId,
+        );
+  }
+
   Widget _buildConversationDrawer({
     required bool closeOnAction,
     double? width,
@@ -962,6 +1009,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       onCodingProjectSelected: _activateCodingProject,
       onConversationSelected: _selectDrawerConversation,
       onAddCodingProject: _pickAndActivateProject,
+      onOpenDashboard: _openDashboard,
+      onCreateChatConversation: _createDrawerChatConversation,
+      onCreateCodingThread: _createDrawerCodingThread,
     );
   }
 
@@ -1438,14 +1488,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
 
     final settings = ref.watch(settingsNotifierProvider);
+    final isDashboardVisible = _showDashboard;
     final isRoutinesWorkspace =
+        !isDashboardVisible &&
         conversationsState.activeWorkspaceMode == WorkspaceMode.routines;
     final isCodingWorkspace =
+        !isDashboardVisible &&
         conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
     // Chat-mode permission selector gates the shared approval for high-risk
     // chat tools (browser, SSH, BLE, serial). Only shown when at least one of
     // them is exposed.
     final showChatApprovalMode =
+        !isDashboardVisible &&
         !isCodingWorkspace &&
         !isRoutinesWorkspace &&
         settings.exposesGatedChatTools;
@@ -1462,7 +1516,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       conversationsState.activeProjectId,
     );
     final currentConversation = conversationsState.currentConversation;
-    final isPlanMode = currentConversation?.isPlanningSession ?? false;
+    final isPlanMode =
+        !isDashboardVisible &&
+        (currentConversation?.isPlanningSession ?? false);
     final effectiveAssistantMode = isPlanMode
         ? AssistantMode.plan
         : switch (settings.assistantMode) {
@@ -1470,17 +1526,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               isCodingWorkspace ? AssistantMode.coding : AssistantMode.general,
             final mode => mode,
           };
-    final rawTitle =
-        currentConversation?.title ??
-        (isCodingWorkspace && activeProject != null
-            ? defaultConversationTitle
-            : 'Caverno');
+    final rawTitle = isDashboardVisible
+        ? 'dashboard.title'.tr()
+        : currentConversation?.title ??
+              (isCodingWorkspace && activeProject != null
+                  ? defaultConversationTitle
+                  : 'Caverno');
     final currentTitle = rawTitle == defaultConversationTitle
         ? (isCodingWorkspace
               ? 'chat.new_thread'.tr()
               : 'chat.new_conversation'.tr())
         : rawTitle;
-    final canCompose = !isCodingWorkspace || activeProject != null;
+    final canCompose =
+        !isDashboardVisible && (!isCodingWorkspace || activeProject != null);
     final shouldShowPlanFooterCard =
         isCodingWorkspace &&
         activeProject != null &&
@@ -1505,6 +1563,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     // surfaces only the session log section.
     final canShowCompanionPanel =
         currentConversation != null &&
+        !isDashboardVisible &&
         !isRoutinesWorkspace &&
         !isMobileRemoteCoding &&
         (!isCodingWorkspace || activeProject != null);
@@ -1546,6 +1605,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         _composerPrefillText = '';
         _composerPrefillVersion++;
       });
+      _leaveDashboard();
       final languageCode = context.locale.languageCode;
       if (isCodingWorkspace &&
           currentConversation != null &&
@@ -1703,7 +1763,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     Widget buildWorkspaceBody() {
-      return isRoutinesWorkspace
+      return isDashboardVisible
+          ? const DashboardView()
+          : isRoutinesWorkspace
           ? (selectedRoutine != null
                 ? RoutineDetailView(
                     key: ValueKey('routine-detail-${selectedRoutine.id}'),

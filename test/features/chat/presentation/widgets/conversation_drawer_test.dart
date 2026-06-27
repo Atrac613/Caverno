@@ -621,6 +621,22 @@ Future<ProviderContainer> _pumpDrawerApp(
                         .selectConversation(conversationId);
                   },
                   onAddCodingProject: () async {},
+                  onOpenDashboard: () {},
+                  onCreateChatConversation: () {
+                    container
+                        .read(conversationsNotifierProvider.notifier)
+                        .createNewConversation(
+                          workspaceMode: WorkspaceMode.chat,
+                        );
+                  },
+                  onCreateCodingThread: (projectId) {
+                    container
+                        .read(conversationsNotifierProvider.notifier)
+                        .startDraftConversation(
+                          workspaceMode: WorkspaceMode.coding,
+                          projectId: projectId,
+                        );
+                  },
                 ),
                 body: Builder(
                   builder: (context) {
