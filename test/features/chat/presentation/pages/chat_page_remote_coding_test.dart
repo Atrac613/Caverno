@@ -569,7 +569,7 @@ Future<ProviderContainer> _pumpCodingWorkspace(
               localizationsDelegates: context.localizationDelegates,
               supportedLocales: context.supportedLocales,
               locale: context.locale,
-              home: const ChatPage(),
+              home: const ChatPage(showDashboardOnStartup: false),
             ),
           );
         },

@@ -85,57 +85,17 @@ part 'chat_page_browser_builders.dart';
 part 'chat_page_companion_builders.dart';
 part 'chat_page_goal_builders.dart';
 part 'chat_page_header_builders.dart';
+part 'chat_page_mobile_support.dart';
 part 'chat_page_plan_builders.dart';
+part 'chat_page_support.dart';
 part 'chat_page_turn_rollback_support.dart';
 part 'chat_page_workflow_builders.dart';
 part 'chat_page_workflow_support.dart';
 
-@visibleForTesting
-bool Function()? debugRemoteCodingMobilePlatformOverride;
-
-@visibleForTesting
-bool isRemoteCodingMobilePlatform() {
-  final override = debugRemoteCodingMobilePlatformOverride;
-  if (override != null) {
-    return override();
-  }
-  return !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-}
-
-@visibleForTesting
-bool shouldPresentDesktopApproval(ChatInteractionOrigin origin) {
-  return origin == ChatInteractionOrigin.local;
-}
-
-@visibleForTesting
-bool shouldShowContextStatusWidget(ChatState chatState) {
-  return chatState.messages.isNotEmpty ||
-      chatState.queuedMessages.isNotEmpty ||
-      chatState.promptTokens > 0 ||
-      chatState.completionTokens > 0 ||
-      chatState.totalTokens > 0 ||
-      chatState.estimatedPromptTokens > 0 ||
-      chatState.contextSurgerySnapshot.hasData;
-}
-
-class _WorktreeAgentCommandArgs {
-  const _WorktreeAgentCommandArgs({
-    required this.prompt,
-    this.verificationCommand = '',
-    this.hasVerificationMarker = false,
-    this.runAfterQueue = false,
-  });
-
-  final String prompt;
-  final String verificationCommand;
-  final bool hasVerificationMarker;
-  final bool runAfterQueue;
-}
-
-enum _RightSidebarTab { companion, files }
-
 class ChatPage extends ConsumerStatefulWidget {
-  const ChatPage({super.key});
+  const ChatPage({super.key, this.showDashboardOnStartup = true});
+
+  final bool showDashboardOnStartup;
 
   @override
   ConsumerState<ChatPage> createState() => _ChatPageState();
@@ -161,7 +121,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _isScrollToBottomScheduled = false;
   bool _scheduledScrollShouldAnimate = false;
   bool _autoFollowBottom = true;
-  bool _showDashboard = true;
+  late bool _showDashboard;
   FileWorkspaceViewerRequest? _fileWorkspaceViewerRequest;
   _RightSidebarTab _rightSidebarTab = _RightSidebarTab.companion;
   int _droppedImageAttachmentId = 0;
@@ -202,6 +162,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   void initState() {
     super.initState();
+    _showDashboard = widget.showDashboardOnStartup;
     ref.read(routineSchedulerProvider);
   }
 
@@ -2053,64 +2014,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return _wrapWithMobileKeyboardDismiss(scaffold);
   }
 
-  Widget _wrapWithMobileKeyboardDismiss(Widget child) {
-    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
-      return child;
-    }
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (event) {
-        _dismissKeyboardIfTapIsOutsideFocusedRegion(event.position);
-      },
-      child: child,
-    );
-  }
-
-  void _dismissKeyboardIfTapIsOutsideFocusedRegion(Offset position) {
-    final primaryFocus = FocusManager.instance.primaryFocus;
-    if (primaryFocus == null || !primaryFocus.hasFocus) {
-      return;
-    }
-
-    final focusContext = primaryFocus.context;
-    final renderObject = focusContext?.findRenderObject();
-    if (renderObject is RenderBox && renderObject.attached) {
-      final focusedRect = MatrixUtils.transformRect(
-        renderObject.getTransformTo(null),
-        Offset.zero & renderObject.size,
-      );
-      if (focusedRect.contains(position)) {
-        return;
-      }
-    }
-
-    primaryFocus.unfocus();
-  }
-
   Future<void> _createRoutineFromHome(BuildContext context) async {
     final createdId = await showRoutineEditor(context, ref);
     if (createdId == null || !mounted) {
       return;
     }
     ref.read(routinesNotifierProvider.notifier).selectRoutine(createdId);
-  }
-
-  String _formatTokenCount(int count) {
-    if (count >= 1000000) {
-      return '${(count / 1000000).toStringAsFixed(1)}M';
-    }
-    if (count >= 1000) {
-      return '${(count / 1000).toStringAsFixed(1)}k';
-    }
-    return count.toString();
-  }
-
-  String _formatGitCommandForDisplay(String command) {
-    final normalized = GitTools.normalizeCommand(command);
-    if (normalized.isEmpty) {
-      return 'git';
-    }
-    return 'git $normalized';
   }
 
   Future<void> _editPlanInChat(
@@ -2138,14 +2047,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
       _scrollToBottom();
     });
-  }
-
-  String _buildPlanEditSeed(Conversation currentConversation) {
-    final planArtifact = currentConversation.effectivePlanArtifact;
-    if (planArtifact.hasApproved) {
-      return 'Please revise the saved plan for this thread based on the following adjustment:\n- ';
-    }
-    return 'Please adjust the current draft plan for this thread as follows:\n- ';
   }
 
   Future<void> _cancelPlanReview(
