@@ -111,6 +111,8 @@ void main() {
         reason: 'tool_failure_abort',
         noVisibleAnswer: true,
         at: DateTime(2026, 6, 25, 9),
+        turnId: 'gen-7',
+        assistantMessageId: 'msg-42',
       );
 
       final file = await store.fileForContext(context);
@@ -121,7 +123,35 @@ void main() {
       expect(decoded['operation'], 'turn_exit');
       expect(decoded['turnExit']['reason'], 'tool_failure_abort');
       expect(decoded['turnExit']['noVisibleAnswer'], true);
+      // Turn-provenance correlation keys link this entry to the on-screen
+      // conversation message it finalized.
+      expect(decoded['turnExit']['turnId'], 'gen-7');
+      expect(decoded['turnExit']['assistantMessageId'], 'msg-42');
       expect(decoded['context']['workspaceMode'], 'chat');
+    });
+
+    test('recordTurnExit omits provenance keys when not provided', () async {
+      final store = LlmSessionLogStore(
+        rootDirectoryProvider: () async => tempDir,
+      );
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.chat,
+        sessionId: 'conversation/10',
+      );
+
+      await store.recordTurnExit(
+        context: context,
+        reason: 'empty_response',
+        noVisibleAnswer: true,
+        at: DateTime(2026, 6, 25, 10),
+      );
+
+      final decoded = jsonDecode(
+        (await (await store.fileForContext(context)).readAsLines()).single,
+      ) as Map<String, dynamic>;
+      final turnExit = decoded['turnExit'] as Map<String, dynamic>;
+      expect(turnExit.containsKey('turnId'), isFalse);
+      expect(turnExit.containsKey('assistantMessageId'), isFalse);
     });
 
     test('redacts common secret patterns embedded in text', () async {
