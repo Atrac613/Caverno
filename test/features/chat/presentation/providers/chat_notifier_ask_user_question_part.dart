@@ -114,6 +114,69 @@ void registerChatNotifierAskUserQuestionTests() {
   });
 
   test(
+    'sending a new message dismisses a stale pending ask_user_question',
+    () async {
+      // Repro of the remote/mobile report: the dialog never surfaces, the user
+      // bypasses it by typing the answer as a chat message. The pending question
+      // must be dismissed (its awaiting future unblocked, the dialog cleared)
+      // instead of being orphaned and left open.
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialFinishReason: 'stop',
+        initialCompletionContent: 'Done.',
+        initialStreamChunks: const ['Done.'],
+      );
+      final repository = _FakeConversationRepository();
+      final toolService = _FakeMcpToolService(
+        results: const {'ask_user_question': ''},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(repository),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+
+      // A pending question is awaiting an answer (as during a paused tool loop).
+      final answerFuture = chatNotifier.requestAskUserQuestion(
+        question: 'Which version?',
+        help: '',
+        options: const [
+          AskUserQuestionOption(id: 'bump', label: '1.3.11+22'),
+        ],
+        allowMultiple: false,
+        allowOther: true,
+        otherPlaceholder: '',
+      );
+      expect(chatNotifier.state.pendingAskUserQuestion, isNotNull);
+
+      // The user bypasses the dialog and types the answer as a chat message.
+      await chatNotifier.sendMessage('1.3.11+22');
+
+      // The stale question is gone (dialog cleared) and its awaiting future was
+      // unblocked with no answer rather than being orphaned.
+      expect(chatNotifier.state.pendingAskUserQuestion, isNull);
+      expect(await answerFuture, isNull);
+    },
+  );
+
+  test(
     'ask-user-question reuses the first answer when the model asks again',
     () async {
       final dataSource = _ToolBatchChatDataSource(

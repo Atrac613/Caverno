@@ -21,10 +21,21 @@ class RemoteCodingPage extends ConsumerStatefulWidget {
   ConsumerState<RemoteCodingPage> createState() => _RemoteCodingPageState();
 }
 
+class _RemoteQuestionResult {
+  const _RemoteQuestionResult({
+    required this.selectedOptionIds,
+    required this.otherText,
+  });
+
+  final List<String> selectedOptionIds;
+  final String otherText;
+}
+
 class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final Set<String> _presentedApprovalIds = <String>{};
+  final Set<String> _presentedQuestionIds = <String>{};
 
   @override
   void dispose() {
@@ -42,6 +53,18 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               _showApprovalSheet(next);
+            }
+          });
+        }
+      },
+    );
+    ref.listen<RemoteCodingQuestion?>(
+      remoteCodingClientProvider.select((state) => state.pendingQuestion),
+      (previous, next) {
+        if (next != null && _presentedQuestionIds.add(next.id)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _showQuestionSheet(next);
             }
           });
         }
@@ -283,6 +306,218 @@ class _RemoteCodingPageState extends ConsumerState<RemoteCodingPage> {
     await ref
         .read(remoteCodingClientProvider.notifier)
         .resolveApproval(approvalId: approval.id, approved: approved ?? false);
+  }
+
+  Future<void> _showQuestionSheet(RemoteCodingQuestion question) async {
+    final selectedIds = <String>{};
+    final otherController = TextEditingController();
+    final result = await showModalBottomSheet<_RemoteQuestionResult>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return StatefulBuilder(
+          builder: (statefulContext, setSheetState) {
+            final hasAnswer =
+                selectedIds.isNotEmpty ||
+                otherController.text.trim().isNotEmpty;
+            return Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    16,
+                    20,
+                    16 + MediaQuery.of(sheetContext).viewInsets.bottom,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.help_outline),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              question.question,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (question.help.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          question.help,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final option in question.options)
+                                _buildQuestionOptionTile(
+                                  theme: theme,
+                                  option: option,
+                                  selected: selectedIds.contains(option.id),
+                                  multiSelect: question.allowMultiple,
+                                  onTap: () => setSheetState(() {
+                                    if (question.allowMultiple) {
+                                      if (!selectedIds.remove(option.id)) {
+                                        selectedIds.add(option.id);
+                                      }
+                                    } else {
+                                      selectedIds
+                                        ..clear()
+                                        ..add(option.id);
+                                    }
+                                  }),
+                                ),
+                              if (question.allowOther) ...[
+                                const SizedBox(height: 4),
+                                TextField(
+                                  controller: otherController,
+                                  minLines: 1,
+                                  maxLines: 4,
+                                  decoration: InputDecoration(
+                                    hintText: question.otherPlaceholder.isNotEmpty
+                                        ? question.otherPlaceholder
+                                        : 'Other (type an answer)',
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                  onChanged: (_) => setSheetState(() {}),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () =>
+                                  Navigator.pop(sheetContext, null),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: FilledButton.icon(
+                              onPressed: hasAnswer
+                                  ? () => Navigator.pop(
+                                      sheetContext,
+                                      _RemoteQuestionResult(
+                                        selectedOptionIds: selectedIds.toList(),
+                                        otherText: otherController.text.trim(),
+                                      ),
+                                    )
+                                  : null,
+                              icon: const Icon(Icons.send),
+                              label: const Text('Send'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    otherController.dispose();
+
+    await ref
+        .read(remoteCodingClientProvider.notifier)
+        .resolveQuestion(
+          questionId: question.id,
+          selectedOptionIds: result?.selectedOptionIds ?? const <String>[],
+          otherText: result?.otherText ?? '',
+          cancelled: result == null,
+        );
+  }
+
+  Widget _buildQuestionOptionTile({
+    required ThemeData theme,
+    required RemoteCodingQuestionOption option,
+    required bool selected,
+    required bool multiSelect,
+    required VoidCallback onTap,
+  }) {
+    final IconData icon = multiSelect
+        ? (selected ? Icons.check_box : Icons.check_box_outline_blank)
+        : (selected ? Icons.radio_button_checked : Icons.radio_button_off);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: selected
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.65)
+            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(option.label),
+                      if (option.description.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          option.description.trim(),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _copyClientSupportPacket(RemoteCodingClientState state) async {

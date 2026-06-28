@@ -60,6 +60,7 @@ class RemoteCodingProtocol {
     'sendMessage',
     'cancelStreaming',
     'resolveApproval',
+    'resolveQuestion',
     'requestSnapshot',
   };
 
@@ -70,6 +71,8 @@ class RemoteCodingProtocol {
     'conversationsChanged',
     'approvalRequested',
     'approvalResolved',
+    'questionRequested',
+    'questionResolved',
     'error',
     'disconnected',
   };

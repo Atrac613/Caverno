@@ -43,6 +43,7 @@ void main() {
         'sendMessage',
         'cancelStreaming',
         'resolveApproval',
+        'resolveQuestion',
         'requestSnapshot',
       }),
     );

@@ -5613,6 +5613,13 @@ class ChatNotifier extends Notifier<ChatState> {
     if (content.trim().isEmpty && imageBase64 == null) return;
     if (!ref.mounted) return;
 
+    // A fresh user message means any unanswered ask_user_question is being
+    // bypassed (the user typed the answer instead of using the dialog — common
+    // on remote/mobile where the dialog may not surface). Dismiss it now so its
+    // awaiting tool loop unblocks and the pending dialog clears, instead of the
+    // question being orphaned (still open on the desktop) and the turn stalling.
+    _dismissAllPendingAskUserQuestions();
+
     final queuedMessage = QueuedChatMessage(
       id: _uuid.v4(),
       content: content,

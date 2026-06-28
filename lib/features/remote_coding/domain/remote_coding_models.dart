@@ -258,6 +258,85 @@ class RemoteCodingApproval {
   };
 }
 
+class RemoteCodingQuestionOption {
+  const RemoteCodingQuestionOption({
+    required this.id,
+    required this.label,
+    this.description = '',
+    this.preview = '',
+  });
+
+  final String id;
+  final String label;
+  final String description;
+  final String preview;
+
+  factory RemoteCodingQuestionOption.fromJson(Map<String, dynamic> json) {
+    return RemoteCodingQuestionOption(
+      id: (json['id'] as String?)?.trim() ?? '',
+      label: (json['label'] as String?)?.trim() ?? '',
+      description: (json['description'] as String?)?.trim() ?? '',
+      preview: (json['preview'] as String?)?.trim() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'label': label,
+    if (description.isNotEmpty) 'description': description,
+    if (preview.isNotEmpty) 'preview': preview,
+  };
+}
+
+/// A pending `ask_user_question` mirrored to a remote client. Distinct from
+/// [RemoteCodingApproval] because a question carries selectable options, an
+/// optional free-text answer, and single/multi-select semantics rather than a
+/// binary approve/deny.
+class RemoteCodingQuestion {
+  const RemoteCodingQuestion({
+    required this.id,
+    required this.question,
+    this.help = '',
+    this.options = const <RemoteCodingQuestionOption>[],
+    this.allowMultiple = false,
+    this.allowOther = true,
+    this.otherPlaceholder = '',
+  });
+
+  final String id;
+  final String question;
+  final String help;
+  final List<RemoteCodingQuestionOption> options;
+  final bool allowMultiple;
+  final bool allowOther;
+  final String otherPlaceholder;
+
+  factory RemoteCodingQuestion.fromJson(Map<String, dynamic> json) {
+    return RemoteCodingQuestion(
+      id: (json['id'] as String?)?.trim() ?? '',
+      question: (json['question'] as String?)?.trim() ?? '',
+      help: (json['help'] as String?)?.trim() ?? '',
+      options: (json['options'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(RemoteCodingQuestionOption.fromJson)
+          .toList(growable: false),
+      allowMultiple: json['allowMultiple'] == true,
+      allowOther: json['allowOther'] != false,
+      otherPlaceholder: (json['otherPlaceholder'] as String?)?.trim() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'question': question,
+    if (help.isNotEmpty) 'help': help,
+    'options': options.map((option) => option.toJson()).toList(),
+    'allowMultiple': allowMultiple,
+    'allowOther': allowOther,
+    if (otherPlaceholder.isNotEmpty) 'otherPlaceholder': otherPlaceholder,
+  };
+}
+
 class RemoteCodingProjectSummary {
   const RemoteCodingProjectSummary({
     required this.id,

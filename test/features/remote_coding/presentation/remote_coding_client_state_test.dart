@@ -9,6 +9,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('RemoteCodingQuestion survives a JSON round-trip', () {
+    const question = RemoteCodingQuestion(
+      id: 'question-1',
+      question: 'Which version?',
+      help: 'Pick one.',
+      options: [
+        RemoteCodingQuestionOption(
+          id: 'opt-a',
+          label: 'A',
+          description: 'first',
+          preview: 'pa',
+        ),
+        RemoteCodingQuestionOption(id: 'opt-b', label: 'B'),
+      ],
+      allowMultiple: true,
+      allowOther: false,
+      otherPlaceholder: 'custom',
+    );
+
+    final decoded = RemoteCodingQuestion.fromJson(question.toJson());
+    expect(decoded.id, question.id);
+    expect(decoded.question, question.question);
+    expect(decoded.help, question.help);
+    expect(decoded.options.length, 2);
+    expect(decoded.options.first.id, 'opt-a');
+    expect(decoded.options.first.description, 'first');
+    expect(decoded.options.first.preview, 'pa');
+    expect(decoded.allowMultiple, isTrue);
+    expect(decoded.allowOther, isFalse);
+    expect(decoded.otherPlaceholder, 'custom');
+  });
+
   test('copyWith can clear stale remote selection IDs', () {
     const state = RemoteCodingClientState(
       selectedProjectId: 'project-1',
@@ -118,6 +150,46 @@ void main() {
         expect(state.pendingApproval?.id, 'approval-1');
       },
     );
+
+    test('restores and clears pending ask_user_question state', () async {
+      final notifier = container.read(remoteCodingClientProvider.notifier);
+
+      await notifier.applySnapshotForTest({
+        'snapshotSequence': 3,
+        'isLoading': false,
+        'pendingQuestion': {
+          'id': 'question-1',
+          'question': 'Which version?',
+          'help': 'Pick a release version.',
+          'options': [
+            {'id': 'opt-bump', 'label': '1.3.11+22', 'description': 'Bump'},
+            {'id': 'opt-keep', 'label': '1.3.2+13'},
+          ],
+          'allowMultiple': false,
+          'allowOther': true,
+          'otherPlaceholder': 'Custom version',
+        },
+      });
+
+      final question = container.read(remoteCodingClientProvider).pendingQuestion;
+      expect(question?.id, 'question-1');
+      expect(question?.question, 'Which version?');
+      expect(question?.options.length, 2);
+      expect(question?.options.first.id, 'opt-bump');
+      expect(question?.allowMultiple, isFalse);
+      expect(question?.allowOther, isTrue);
+      expect(question?.otherPlaceholder, 'Custom version');
+
+      // A later snapshot without the question (it was answered) clears it.
+      await notifier.applySnapshotForTest({
+        'snapshotSequence': 4,
+        'isLoading': false,
+      });
+      expect(
+        container.read(remoteCodingClientProvider).pendingQuestion,
+        isNull,
+      );
+    });
 
     test(
       'ignores older snapshots after reconnect state has advanced',

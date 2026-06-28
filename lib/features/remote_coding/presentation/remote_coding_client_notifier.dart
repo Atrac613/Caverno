@@ -30,6 +30,7 @@ class RemoteCodingClientState {
     this.isLoading = false,
     this.queuedCount = 0,
     this.pendingApproval,
+    this.pendingQuestion,
     this.snapshotSequence = 0,
     this.snapshotGeneratedAt,
     this.reconnectAttempt = 0,
@@ -48,6 +49,7 @@ class RemoteCodingClientState {
   final bool isLoading;
   final int queuedCount;
   final RemoteCodingApproval? pendingApproval;
+  final RemoteCodingQuestion? pendingQuestion;
   final int snapshotSequence;
   final DateTime? snapshotGeneratedAt;
   final int reconnectAttempt;
@@ -69,6 +71,7 @@ class RemoteCodingClientState {
     bool? isLoading,
     int? queuedCount,
     RemoteCodingApproval? pendingApproval,
+    RemoteCodingQuestion? pendingQuestion,
     int? snapshotSequence,
     DateTime? snapshotGeneratedAt,
     int? reconnectAttempt,
@@ -78,6 +81,7 @@ class RemoteCodingClientState {
     bool clearSelectedProjectId = false,
     bool clearCurrentConversationId = false,
     bool clearPendingApproval = false,
+    bool clearPendingQuestion = false,
     bool clearSnapshotGeneratedAt = false,
     bool clearNextReconnectAt = false,
   }) {
@@ -99,6 +103,9 @@ class RemoteCodingClientState {
       pendingApproval: clearPendingApproval
           ? null
           : (pendingApproval ?? this.pendingApproval),
+      pendingQuestion: clearPendingQuestion
+          ? null
+          : (pendingQuestion ?? this.pendingQuestion),
       snapshotSequence: snapshotSequence ?? this.snapshotSequence,
       snapshotGeneratedAt: clearSnapshotGeneratedAt
           ? null
@@ -295,6 +302,21 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
     return _sendCommand('resolveApproval', {
       'approvalId': approvalId,
       'approved': approved,
+    });
+  }
+
+  Future<void> resolveQuestion({
+    required String questionId,
+    List<String> selectedOptionIds = const <String>[],
+    String otherText = '',
+    bool cancelled = false,
+  }) {
+    return _sendCommand('resolveQuestion', {
+      'questionId': questionId,
+      'cancelled': cancelled,
+      if (!cancelled) 'selectedOptionIds': selectedOptionIds,
+      if (!cancelled && otherText.trim().isNotEmpty)
+        'otherText': otherText.trim(),
     });
   }
 
@@ -571,6 +593,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
                 .map(Message.fromJson)
                 .toList(growable: false);
       final approvalJson = payload['pendingApproval'];
+      final questionJson = payload['pendingQuestion'];
       state = state.copyWith(
         status: RemoteCodingConnectionStatus.connected,
         projects: projects,
@@ -585,6 +608,9 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         pendingApproval: approvalJson is Map<String, dynamic>
             ? RemoteCodingApproval.fromJson(approvalJson)
             : null,
+        pendingQuestion: questionJson is Map<String, dynamic>
+            ? RemoteCodingQuestion.fromJson(questionJson)
+            : null,
         snapshotSequence: snapshotSequence != null && snapshotSequence > 0
             ? snapshotSequence
             : null,
@@ -592,6 +618,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         reconnectAttempt: 0,
         pendingCommandCount: _pendingCommandTimers.length,
         clearPendingApproval: approvalJson == null,
+        clearPendingQuestion: questionJson == null,
         clearError: true,
         clearNextReconnectAt: true,
       );

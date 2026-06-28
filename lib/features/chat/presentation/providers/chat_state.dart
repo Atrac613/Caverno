@@ -379,6 +379,7 @@ class PendingAskUserQuestion {
     required this.allowOther,
     required this.otherPlaceholder,
     required this.completer,
+    this.origin = ChatInteractionOrigin.local,
   });
 
   final String id;
@@ -390,6 +391,11 @@ class PendingAskUserQuestion {
   final bool allowOther;
   final String otherPlaceholder;
   final Completer<AskUserQuestionAnswer?> completer;
+
+  /// Where the turn that raised this question originated. Mirrors the pending
+  /// approval models so a question is only surfaced to a paired remote device
+  /// when the turn itself came from that device.
+  final ChatInteractionOrigin origin;
 }
 
 class WorkflowPlanningDecisionOption {
