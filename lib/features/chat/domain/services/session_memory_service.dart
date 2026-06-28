@@ -140,6 +140,10 @@ class SessionMemoryService {
   static const int _profileTokenSubsetMinTokens = 3;
   static const double _profileTokenSubsetThreshold = 0.86;
 
+  /// Minimum length of the shorter item before affix-tiling subsumption dedup
+  /// applies, so trivially short fragments are never merged into longer items.
+  static const int _profileSubsumptionMinShorterLength = 6;
+
   final ChatMemoryRepository _repository;
   final _uuid = const Uuid();
 
@@ -1071,6 +1075,10 @@ class SessionMemoryService {
       if (normalizedItem == normalizedCandidate ||
           _profileItemsHaveTokenSubset(normalizedItem, normalizedCandidate) ||
           _profileItemsContainEachOther(normalizedItem, normalizedCandidate) ||
+          _profileItemSubsumesByAffixTiling(
+            normalizedItem,
+            normalizedCandidate,
+          ) ||
           _semanticSimilarity(normalizedItem, normalizedCandidate) >= 0.82) {
         return index;
       }
@@ -1083,6 +1091,47 @@ class SessionMemoryService {
       return false;
     }
     return left.contains(right) || right.contains(left);
+  }
+
+  /// Returns true when one normalized profile item is the other with extra text
+  /// only added at the start, end, or middle — i.e. a shared prefix and suffix
+  /// fully tile the shorter item. This catches role-suffixed compound
+  /// duplicates ("plan-focused" vs "plan-focused Flutter BLE developer") and
+  /// mid-string insertions ("redundant approval" vs "redundant natural-language
+  /// approval") whose character bigram similarity is diluted below the 0.82
+  /// merge threshold — a gap that especially affects space-free Japanese items
+  /// the token-subset check cannot tokenize.
+  ///
+  /// It is antonym-safe by construction: negated or substituted variants
+  /// ("required" vs "not required", 必要 vs 不要, 求める vs 求めない) always leave
+  /// a substituted character that neither the prefix nor the suffix can cover,
+  /// so the shared affixes never tile the shorter item completely.
+  bool _profileItemSubsumesByAffixTiling(String left, String right) {
+    if (left.isEmpty || right.isEmpty || left == right) {
+      return false;
+    }
+    final shorter = left.length <= right.length ? left : right;
+    final longer = left.length <= right.length ? right : left;
+    // Equal length without being identical means a pure substitution
+    // (including antonym flips), never a subsumption.
+    if (longer.length == shorter.length) {
+      return false;
+    }
+    if (shorter.length < _profileSubsumptionMinShorterLength) {
+      return false;
+    }
+    var prefix = 0;
+    while (prefix < shorter.length &&
+        shorter.codeUnitAt(prefix) == longer.codeUnitAt(prefix)) {
+      prefix += 1;
+    }
+    var suffix = 0;
+    while (suffix < shorter.length - prefix &&
+        shorter.codeUnitAt(shorter.length - 1 - suffix) ==
+            longer.codeUnitAt(longer.length - 1 - suffix)) {
+      suffix += 1;
+    }
+    return prefix + suffix == shorter.length;
   }
 
   bool _profileItemsHaveTokenSubset(String left, String right) {

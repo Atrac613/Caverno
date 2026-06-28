@@ -25,7 +25,7 @@ const Map<String, int> _lineBudgets = {
       3300,
   'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 2900,
   'lib/features/chat/data/datasources/network_tools.dart': 2600,
-  'test/features/chat/presentation/providers/chat_notifier_test.dart': 19263,
+  'test/features/chat/presentation/providers/chat_notifier_test.dart': 18718,
 };
 
 void main() {

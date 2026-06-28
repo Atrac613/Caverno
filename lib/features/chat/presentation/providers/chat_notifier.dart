@@ -9883,6 +9883,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 tools: tools,
                 interactionGeneration: interactionGeneration,
                 requireContinuationRequest: false,
+                executedToolResults: executedToolResults,
               );
           if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
           if (!ref.mounted) return;
