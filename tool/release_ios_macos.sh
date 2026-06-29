@@ -372,7 +372,8 @@ MACOS_STATUS="skipped"
 run_release_lane() {
   local lane="$1"
   local failure_pattern="$2"
-  shift 2
+  local benign_crash_pattern="$3"
+  shift 3
 
   if [[ "${DRY_RUN}" == "yes" ]]; then
     "$@"
@@ -399,6 +400,17 @@ run_release_lane() {
   if [[ -n "${failure_pattern}" ]] && grep -Eiq "${failure_pattern}" "${log_path}"; then
     echo "Detected ${lane} release failure marker in ${log_path}." >&2
     return 1
+  fi
+  # `flutter build ipa` with ExportOptions destination=upload uploads the build
+  # straight to App Store Connect and never writes build/ios/ipa, then crashes
+  # measuring that missing directory (a flutter-tool limitation, not a release
+  # failure). The upload has already completed by the time it crashes, and any
+  # real upload failure would have matched the failure_pattern above, so treat
+  # this known post-upload crash as success.
+  if [[ "${command_status}" -ne 0 && -n "${benign_crash_pattern}" ]] &&
+    grep -Eiq "${benign_crash_pattern}" "${log_path}"; then
+    echo "Ignoring known post-upload tooling crash in ${lane} lane; the App Store Connect upload already completed. Verify the build in App Store Connect." >&2
+    return 0
   fi
   return "${command_status}"
 }
@@ -494,9 +506,16 @@ run_pub_get
 
 if [[ "${RUN_IOS}" == "yes" ]]; then
   IOS_STATUS="succeeded"
+  # Only a direct upload triggers flutter's post-upload build/ios/ipa crash; an
+  # export run writes the IPA normally and must not be force-passed.
+  ios_benign_crash_pattern=""
+  if [[ "${IOS_EXPORT_DESTINATION}" == "upload" ]]; then
+    ios_benign_crash_pattern='PathNotFoundException.*build/ios/ipa|Directory listing failed.*build/ios/ipa'
+  fi
   if ! run_release_lane \
     ios \
     'Encountered error while creating the IPA|error: exportArchive|The bundle version must be higher|Upload failed|App Store Connect.*(error|failed)|ITMS-[0-9]+|ipatool failed' \
+    "${ios_benign_crash_pattern}" \
     release_ios; then
     IOS_STATUS="failed"
   fi
@@ -504,7 +523,7 @@ fi
 
 if [[ "${RUN_MACOS}" == "yes" ]]; then
   MACOS_STATUS="succeeded"
-  if ! run_release_lane macos '' release_macos; then
+  if ! run_release_lane macos '' '' release_macos; then
     MACOS_STATUS="failed"
   fi
 fi

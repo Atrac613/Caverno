@@ -62,6 +62,58 @@ void main() {
   );
 
   test(
+    'treats the post-upload flutter crash as success for a direct upload',
+    () async {
+      final fixture = _ReleaseScriptFixture.create();
+      fixture.writeFvmWithPostUploadCrash();
+
+      final result = await fixture.runReleaseScript(
+        arguments: [
+          '--only',
+          'ios',
+          '--no-pub-get',
+          '--ios-export-root',
+          '${fixture.root.path}/ios-export',
+        ],
+      );
+
+      // The upload completed; the trailing build/ios/ipa crash must not be
+      // reported as a release failure.
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('iOS: succeeded'));
+      expect(result.stdout, contains('overall: succeeded'));
+      expect(
+        result.stderr,
+        contains('Ignoring known post-upload tooling crash'),
+      );
+    },
+  );
+
+  test(
+    'still fails a direct upload when a real export error is emitted',
+    () async {
+      // The benign-crash override must not mask a genuine upload failure: the
+      // failure marker is checked first even on the default upload destination.
+      final fixture = _ReleaseScriptFixture.create();
+      fixture.writeFvmWithIosExportFailure();
+
+      final result = await fixture.runReleaseScript(
+        arguments: [
+          '--only',
+          'ios',
+          '--no-pub-get',
+          '--ios-export-root',
+          '${fixture.root.path}/ios-export',
+        ],
+      );
+
+      expect(result.exitCode, 1);
+      expect(result.stdout, contains('overall: partial_failure'));
+      expect(result.stderr, contains('Detected ios release failure marker'));
+    },
+  );
+
+  test(
     'blocks macOS release notes with a mismatched filename version',
     () async {
       final fixture = _ReleaseScriptFixture.create();
@@ -144,6 +196,18 @@ echo "Encountered error while creating the IPA:"
 echo "error: exportArchive The provided entity includes an attribute with a value that has already been used."
 echo "The bundle version must be higher than the previously uploaded version: '17'."
 exit 0
+''');
+  }
+
+  void writeFvmWithPostUploadCrash() {
+    // Mirrors `flutter build ipa` with ExportOptions destination=upload: it
+    // uploads to App Store Connect, then crashes measuring the build/ios/ipa
+    // directory it never wrote, exiting non-zero after a successful upload.
+    _writeExecutable('fvm', '''
+#!/usr/bin/env bash
+echo "Building App Store IPA..."
+echo "Oops; flutter has exited unexpectedly: \\"PathNotFoundException: Directory listing failed, path = '/tmp/proj/build/ios/ipa/' (OS Error: No such file or directory, errno = 2)\\"."
+exit 1
 ''');
   }
 
