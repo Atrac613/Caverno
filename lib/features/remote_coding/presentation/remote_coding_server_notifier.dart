@@ -98,10 +98,17 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       _broadcastSnapshot('conversationsChanged');
     });
     ref.listen<ChatState>(chatNotifierProvider, (previous, next) {
-      if (previous?.pendingFileOperation?.id != next.pendingFileOperation?.id ||
+      final approvalChanged =
+          previous?.pendingFileOperation?.id != next.pendingFileOperation?.id ||
           previous?.pendingLocalCommand?.id != next.pendingLocalCommand?.id ||
-          previous?.pendingGitCommand?.id != next.pendingGitCommand?.id) {
+          previous?.pendingGitCommand?.id != next.pendingGitCommand?.id;
+      final questionChanged =
+          previous?.pendingAskUserQuestion?.id !=
+          next.pendingAskUserQuestion?.id;
+      if (approvalChanged) {
         _broadcastSnapshot('approvalRequested');
+      } else if (questionChanged) {
+        _broadcastSnapshot('questionRequested');
       } else {
         _broadcastSnapshot('chatStateChanged');
       }
@@ -331,6 +338,8 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
         client.sendSnapshot(id: message.id, payload: _buildSnapshot());
       case 'resolveApproval':
         _handleResolveApproval(client, message);
+      case 'resolveQuestion':
+        _handleResolveQuestion(client, message);
       case 'requestSnapshot':
         client.sendSnapshot(id: message.id, payload: _buildSnapshot());
     }
@@ -598,6 +607,65 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
     _broadcastSnapshot('approvalResolved');
   }
 
+  void _handleResolveQuestion(
+    _RemoteCodingSocketClient client,
+    RemoteCodingProtocolMessage message,
+  ) {
+    final questionId = (message.payload['questionId'] as String?)?.trim() ?? '';
+    final chatState = ref.read(chatNotifierProvider);
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final pending = chatState.pendingAskUserQuestion;
+    if (pending == null || pending.id != questionId) {
+      client.sendError(
+        id: message.id,
+        code: 'question_not_found',
+        message: 'Remote question is no longer pending.',
+      );
+      return;
+    }
+
+    final cancelled = message.payload['cancelled'] == true;
+    final answer = cancelled
+        ? null
+        : _parseRemoteQuestionAnswer(pending, message.payload);
+    chatNotifier.resolveAskUserQuestion(id: questionId, answer: answer);
+
+    client.send(
+      type: 'questionResolved',
+      id: message.id,
+      payload: {'questionId': questionId, 'cancelled': cancelled},
+    );
+    _broadcastSnapshot('questionResolved');
+  }
+
+  AskUserQuestionAnswer _parseRemoteQuestionAnswer(
+    PendingAskUserQuestion pending,
+    Map<String, dynamic> payload,
+  ) {
+    final selectedIds =
+        (payload['selectedOptionIds'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<String>()
+            .map((id) => id.trim())
+            .where((id) => id.isNotEmpty)
+            .toSet();
+    final selections = pending.options
+        .where((option) => selectedIds.contains(option.id))
+        .map(
+          (option) => AskUserQuestionSelection(
+            id: option.id,
+            label: option.label,
+            description: option.description,
+            preview: option.preview,
+          ),
+        )
+        .toList(growable: false);
+    return AskUserQuestionAnswer(
+      question: pending.question,
+      selectedOptions: selections,
+      otherText: (payload['otherText'] as String?)?.trim() ?? '',
+    );
+  }
+
   CodingProject? _findProject(String? id) {
     final normalizedId = id?.trim();
     if (normalizedId == null || normalizedId.isEmpty) return null;
@@ -649,7 +717,36 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       'isLoading': chatState.isLoading,
       'queuedCount': chatState.queuedMessages.length,
       'pendingApproval': _pendingRemoteApproval(chatState)?.toJson(),
+      'pendingQuestion': _pendingRemoteQuestion(chatState)?.toJson(),
     };
+  }
+
+  /// Maps a remote-origin `ask_user_question` into the wire model. Mirrors
+  /// [_pendingRemoteApproval]'s origin gate so a desktop-initiated question is
+  /// not surfaced on a paired device.
+  RemoteCodingQuestion? _pendingRemoteQuestion(ChatState chatState) {
+    final pending = chatState.pendingAskUserQuestion;
+    if (pending == null || pending.origin != ChatInteractionOrigin.remote) {
+      return null;
+    }
+    return RemoteCodingQuestion(
+      id: pending.id,
+      question: pending.question,
+      help: pending.help,
+      options: pending.options
+          .map(
+            (option) => RemoteCodingQuestionOption(
+              id: option.id,
+              label: option.label,
+              description: option.description,
+              preview: option.preview,
+            ),
+          )
+          .toList(growable: false),
+      allowMultiple: pending.allowMultiple,
+      allowOther: pending.allowOther,
+      otherPlaceholder: pending.otherPlaceholder,
+    );
   }
 
   RemoteCodingApproval? _pendingRemoteApproval(ChatState chatState) {

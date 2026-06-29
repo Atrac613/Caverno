@@ -249,6 +249,72 @@ class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
   }
 }
 
+class _ConnectedRemoteCodingQuestionClientNotifier
+    extends RemoteCodingClientNotifier {
+  static final _generatedAt = DateTime(2026, 6, 3, 12);
+  final List<String> resolvedQuestionIds = <String>[];
+
+  @override
+  RemoteCodingClientState build() {
+    return RemoteCodingClientState(
+      status: RemoteCodingConnectionStatus.connected,
+      host: RemoteCodingHost(
+        id: 'desktop-1',
+        name: 'Desktop',
+        host: '192.168.1.10',
+        port: 8767,
+        createdAt: _generatedAt,
+        updatedAt: _generatedAt,
+      ),
+      projects: const [
+        RemoteCodingProjectSummary(
+          id: 'project-1',
+          name: 'Caverno',
+          rootPath: '/workspace/caverno',
+        ),
+      ],
+      selectedProjectId: 'project-1',
+      threads: [
+        RemoteCodingThreadSummary(
+          id: 'thread-1',
+          title: 'Mobile question thread',
+          projectId: 'project-1',
+          updatedAt: _generatedAt,
+        ),
+      ],
+      currentConversationId: 'thread-1',
+      pendingQuestion: const RemoteCodingQuestion(
+        id: 'question-1',
+        question: 'Which fruit?',
+        help: 'Pick one for the smoke test.',
+        options: [
+          RemoteCodingQuestionOption(id: 'apple', label: 'Apple'),
+          RemoteCodingQuestionOption(id: 'banana', label: 'Banana'),
+          RemoteCodingQuestionOption(id: 'cherry', label: 'Cherry'),
+          RemoteCodingQuestionOption(id: 'date', label: 'Date'),
+          RemoteCodingQuestionOption(id: 'elderberry', label: 'Elderberry'),
+          RemoteCodingQuestionOption(id: 'fig', label: 'Fig'),
+          RemoteCodingQuestionOption(id: 'grape', label: 'Grape'),
+          RemoteCodingQuestionOption(id: 'honeydew', label: 'Honeydew'),
+        ],
+        allowOther: false,
+      ),
+      snapshotGeneratedAt: _generatedAt,
+    );
+  }
+
+  @override
+  Future<void> resolveQuestion({
+    required String questionId,
+    List<String> selectedOptionIds = const <String>[],
+    String otherText = '',
+    bool cancelled = false,
+  }) async {
+    resolvedQuestionIds.add(questionId);
+    state = state.copyWith(clearPendingQuestion: true);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
@@ -257,9 +323,11 @@ void main() {
     debugRemoteCodingMobilePlatformOverride = null;
   });
 
-  test('desktop approval UI is only used for local-origin requests', () {
+  test('desktop prompt UI is only used for local-origin requests', () {
     expect(shouldPresentDesktopApproval(ChatInteractionOrigin.local), isTrue);
     expect(shouldPresentDesktopApproval(ChatInteractionOrigin.remote), isFalse);
+    expect(shouldPresentDesktopQuestion(ChatInteractionOrigin.local), isTrue);
+    expect(shouldPresentDesktopQuestion(ChatInteractionOrigin.remote), isFalse);
   });
 
   test('mobile remote coding platform decision can be tested explicitly', () {
@@ -367,6 +435,47 @@ void main() {
       find.byKey(const ValueKey('remote-drawer-thread-thread-2')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('mobile remote coding presents an already pending question', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => true;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        remoteCodingClientProvider.overrideWith(
+          _ConnectedRemoteCodingQuestionClientNotifier.new,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: RemoteCodingPage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Which fruit?'), findsOneWidget);
+    expect(find.text('Pick one for the smoke test.'), findsOneWidget);
+    expect(find.text('Apple'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    final notifier =
+        container.read(remoteCodingClientProvider.notifier)
+            as _ConnectedRemoteCodingQuestionClientNotifier;
+    expect(notifier.resolvedQuestionIds, ['question-1']);
   });
 
   testWidgets('desktop coding tab keeps local project controls', (

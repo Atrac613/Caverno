@@ -1403,7 +1403,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     ref.listen<PendingAskUserQuestion?>(
       chatNotifierProvider.select((s) => s.pendingAskUserQuestion),
       (prev, next) {
-        if (next != null && prev?.id != next.id) {
+        if (next != null &&
+            shouldPresentDesktopQuestion(next.origin) &&
+            prev?.id != next.id) {
           _showApprovalDialogOnce(
             next.id,
             () => _showAskUserQuestionDialog(context, next),

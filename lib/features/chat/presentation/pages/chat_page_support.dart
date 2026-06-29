@@ -18,6 +18,11 @@ bool shouldPresentDesktopApproval(ChatInteractionOrigin origin) {
 }
 
 @visibleForTesting
+bool shouldPresentDesktopQuestion(ChatInteractionOrigin origin) {
+  return origin == ChatInteractionOrigin.local;
+}
+
+@visibleForTesting
 bool shouldShowContextStatusWidget(ChatState chatState) {
   return chatState.messages.isNotEmpty ||
       chatState.queuedMessages.isNotEmpty ||

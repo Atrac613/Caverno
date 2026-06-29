@@ -140,6 +140,7 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
       allowOther: allowOther,
       otherPlaceholder: otherPlaceholder,
       completer: completer,
+      origin: _activeInteractionOrigin,
     );
     if (resolvedTargetConversationId != null) {
       _pendingAskUserQuestionsByThread[resolvedTargetConversationId] = pending;
