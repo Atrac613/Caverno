@@ -14,6 +14,9 @@ import '../../chat/presentation/providers/chat_notifier.dart';
 import '../../chat/presentation/providers/chat_state.dart';
 import '../../chat/presentation/providers/coding_projects_notifier.dart';
 import '../../chat/presentation/providers/conversations_notifier.dart';
+import '../../dashboard/domain/entities/dashboard_stats.dart';
+import '../../dashboard/domain/services/dashboard_stats_calculator.dart';
+import '../../dashboard/domain/services/dashboard_stats_codec.dart';
 import '../data/remote_coding_pairing_registry.dart';
 import '../data/remote_coding_protocol.dart';
 import '../data/remote_coding_repository.dart';
@@ -693,6 +696,13 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
             currentConversation?.normalizedProjectId == selectedProjectId
         ? chatState.messages
         : const <Message>[];
+    final dashboardStatsByRange = {
+      for (final range in DashboardRange.values)
+        range: DashboardStatsCalculator.compute(
+          conversations: conversationsState.conversations,
+          range: range,
+        ),
+    };
 
     return {
       'snapshotSequence': _snapshotSequence,
@@ -714,6 +724,9 @@ class RemoteCodingServerNotifier extends Notifier<RemoteCodingServerState> {
       'conversations': visibleConversations.map(_conversationToJson).toList(),
       'currentConversationId': currentConversation?.id,
       'messages': messages.map((message) => message.toJson()).toList(),
+      'dashboardStatsByRange': DashboardStatsCodec.encodeByRange(
+        dashboardStatsByRange,
+      ),
       'isLoading': chatState.isLoading,
       'queuedCount': chatState.queuedMessages.length,
       'pendingApproval': _pendingRemoteApproval(chatState)?.toJson(),

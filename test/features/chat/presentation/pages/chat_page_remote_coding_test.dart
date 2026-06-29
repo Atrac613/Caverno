@@ -163,8 +163,32 @@ class _TestChatNotifier extends ChatNotifier {
 class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
   static final _generatedAt = DateTime(2026, 6, 3, 12);
 
+  static List<RemoteCodingThreadSummary> _threadsForProject(String projectId) {
+    if (projectId == 'project-1') {
+      return [
+        for (var index = 1; index <= 7; index += 1)
+          RemoteCodingThreadSummary(
+            id: 'thread-$index',
+            title: 'Mobile drawer thread $index',
+            projectId: 'project-1',
+            updatedAt: _generatedAt.subtract(Duration(minutes: index)),
+          ),
+      ];
+    }
+
+    return [
+      RemoteCodingThreadSummary(
+        id: 'thread-2',
+        title: 'Other remote thread',
+        projectId: projectId,
+        updatedAt: _generatedAt,
+      ),
+    ];
+  }
+
   @override
   RemoteCodingClientState build() {
+    final threads = _threadsForProject('project-1');
     return RemoteCodingClientState(
       status: RemoteCodingConnectionStatus.connected,
       host: RemoteCodingHost(
@@ -188,14 +212,7 @@ class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
         ),
       ],
       selectedProjectId: 'project-1',
-      threads: [
-        RemoteCodingThreadSummary(
-          id: 'thread-1',
-          title: 'Mobile drawer thread',
-          projectId: 'project-1',
-          updatedAt: _generatedAt,
-        ),
-      ],
+      threads: threads,
       currentConversationId: 'thread-1',
       snapshotGeneratedAt: _generatedAt,
     );
@@ -208,18 +225,11 @@ class _ConnectedRemoteCodingClientNotifier extends RemoteCodingClientNotifier {
 
   @override
   Future<void> selectProject(String projectId) async {
-    final thread = RemoteCodingThreadSummary(
-      id: projectId == 'project-2' ? 'thread-2' : 'thread-1',
-      title: projectId == 'project-2'
-          ? 'Other remote thread'
-          : 'Mobile drawer thread',
-      projectId: projectId,
-      updatedAt: _generatedAt,
-    );
+    final threads = _threadsForProject(projectId);
     state = state.copyWith(
       selectedProjectId: projectId,
-      threads: [thread],
-      currentConversationId: thread.id,
+      threads: threads,
+      currentConversationId: threads.first.id,
     );
   }
 
@@ -418,8 +428,82 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.byKey(const ValueKey('remote-drawer-thread-thread-5')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('remote-drawer-thread-thread-6')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('remote-drawer-project-project-1-show-more')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const ValueKey('drawer-project-project-1')),
       findsNothing,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('remote-drawer-project-project-1-show-more')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('remote-drawer-thread-thread-6')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('remote-drawer-thread-thread-7')),
+      findsOneWidget,
+    );
+    expect(find.text('Show less'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('remote-drawer-project-project-1-show-more')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('remote-drawer-thread-thread-6')),
+      findsNothing,
+    );
+    expect(find.text('Show more'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('remote-drawer-project-project-1')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(remoteCodingClientProvider).selectedProjectId,
+      'project-1',
+    );
+    expect(
+      find.byKey(const ValueKey('remote-drawer-thread-thread-1')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('remote-drawer-project-project-1-show-more')),
+      findsNothing,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('remote-drawer-project-project-1')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('remote-drawer-thread-thread-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('remote-drawer-thread-thread-6')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('remote-drawer-project-project-1-show-more')),
+      findsOneWidget,
     );
 
     await tester.tap(

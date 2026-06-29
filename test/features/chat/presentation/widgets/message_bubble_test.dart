@@ -127,6 +127,33 @@ void main() {
     expect(timestampRect.top, greaterThan(messageRect.bottom));
   });
 
+  testWidgets('shows timestamp and copy action on touch tap', (tester) async {
+    final message = Message(
+      id: 'touch-message',
+      content: 'Tap to reveal actions',
+      role: MessageRole.user,
+      timestamp: DateTime(2026, 4, 18, 21, 2),
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+    final timestampFinder = find.textContaining('9:02');
+
+    expect(timestampFinder, findsNothing);
+    expect(find.byIcon(Icons.content_copy_outlined), findsNothing);
+
+    await tester.tap(find.text('Tap to reveal actions'));
+    await tester.pumpAndSettle();
+
+    expect(timestampFinder, findsOneWidget);
+    expect(find.byIcon(Icons.content_copy_outlined), findsOneWidget);
+
+    await tester.tap(find.text('Tap to reveal actions'));
+    await tester.pumpAndSettle();
+
+    expect(timestampFinder, findsNothing);
+    expect(find.byIcon(Icons.content_copy_outlined), findsNothing);
+  });
+
   testWidgets('keeps attached image bytes stable across rebuilds', (
     tester,
   ) async {

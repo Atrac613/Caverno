@@ -806,13 +806,53 @@ class _RemoteTroubleshootingCard extends StatelessWidget {
   }
 }
 
-class RemoteCodingDrawerSection extends ConsumerWidget {
+class RemoteCodingDrawerSection extends ConsumerStatefulWidget {
   const RemoteCodingDrawerSection({super.key, required this.closeDrawer});
 
   final VoidCallback closeDrawer;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RemoteCodingDrawerSection> createState() =>
+      _RemoteCodingDrawerSectionState();
+}
+
+class _RemoteCodingDrawerSectionState
+    extends ConsumerState<RemoteCodingDrawerSection> {
+  static const int _collapsedProjectThreadLimit = 5;
+
+  final Set<String> _expandedProjectIds = <String>{};
+  final Set<String> _collapsedProjectIds = <String>{};
+
+  void _toggleProjectExpanded(String projectId) {
+    setState(() {
+      if (!_expandedProjectIds.add(projectId)) {
+        _expandedProjectIds.remove(projectId);
+      }
+    });
+  }
+
+  void _handleProjectTapped(
+    RemoteCodingClientState state,
+    RemoteCodingClientNotifier notifier,
+    String projectId,
+  ) {
+    if (projectId == state.selectedProjectId) {
+      setState(() {
+        if (!_collapsedProjectIds.add(projectId)) {
+          _collapsedProjectIds.remove(projectId);
+        }
+      });
+      return;
+    }
+
+    setState(() {
+      _collapsedProjectIds.remove(projectId);
+    });
+    unawaited(notifier.selectProject(projectId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(remoteCodingClientProvider);
     final notifier = ref.read(remoteCodingClientProvider.notifier);
 
@@ -845,19 +885,28 @@ class RemoteCodingDrawerSection extends ConsumerWidget {
                   itemCount: state.projects.length,
                   itemBuilder: (context, index) {
                     final project = state.projects[index];
+                    final isSelected = project.id == state.selectedProjectId;
+                    final isCollapsed = _collapsedProjectIds.contains(
+                      project.id,
+                    );
                     return _RemoteProjectThreadGroup(
                       project: project,
                       threads: _remoteThreadsForProject(state, project.id),
-                      isSelected: project.id == state.selectedProjectId,
+                      isSelected: isSelected,
+                      isThreadListVisible: isSelected && !isCollapsed,
+                      isExpanded: _expandedProjectIds.contains(project.id),
+                      collapsedThreadLimit: _collapsedProjectThreadLimit,
                       selectedThreadId: state.currentConversationId,
                       onProjectSelected: () =>
-                          unawaited(notifier.selectProject(project.id)),
+                          _handleProjectTapped(state, notifier, project.id),
+                      onToggleExpanded: () =>
+                          _toggleProjectExpanded(project.id),
                       onCreateThread: () {
-                        closeDrawer();
+                        widget.closeDrawer();
                         unawaited(notifier.createThread(projectId: project.id));
                       },
                       onThreadSelected: (threadId) {
-                        closeDrawer();
+                        widget.closeDrawer();
                         unawaited(notifier.selectConversation(threadId));
                       },
                     );
@@ -949,8 +998,12 @@ class _RemoteProjectThreadGroup extends StatelessWidget {
     required this.project,
     required this.threads,
     required this.isSelected,
+    required this.isThreadListVisible,
+    required this.isExpanded,
+    required this.collapsedThreadLimit,
     required this.selectedThreadId,
     required this.onProjectSelected,
+    required this.onToggleExpanded,
     required this.onCreateThread,
     required this.onThreadSelected,
   });
@@ -958,13 +1011,24 @@ class _RemoteProjectThreadGroup extends StatelessWidget {
   final RemoteCodingProjectSummary project;
   final List<RemoteCodingThreadSummary> threads;
   final bool isSelected;
+  final bool isThreadListVisible;
+  final bool isExpanded;
+  final int collapsedThreadLimit;
   final String? selectedThreadId;
   final VoidCallback onProjectSelected;
+  final VoidCallback onToggleExpanded;
   final VoidCallback onCreateThread;
   final ValueChanged<String> onThreadSelected;
 
   @override
   Widget build(BuildContext context) {
+    final visibleThreads = !isThreadListVisible
+        ? const <RemoteCodingThreadSummary>[]
+        : isExpanded
+        ? threads
+        : threads.take(collapsedThreadLimit).toList(growable: false);
+    final hiddenThreadCount = threads.length - collapsedThreadLimit;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -974,20 +1038,25 @@ class _RemoteProjectThreadGroup extends StatelessWidget {
           onTap: onProjectSelected,
           onCreateThread: onCreateThread,
         ),
-        if (isSelected)
-          for (final thread in threads)
-            _RemoteThreadTile(
-              thread: thread,
-              isSelected: thread.id == selectedThreadId,
-              onTap: () => onThreadSelected(thread.id),
-            ),
-        if (isSelected && threads.isEmpty)
+        for (final thread in visibleThreads)
+          _RemoteThreadTile(
+            thread: thread,
+            isSelected: thread.id == selectedThreadId,
+            onTap: () => onThreadSelected(thread.id),
+          ),
+        if (isThreadListVisible && threads.isEmpty)
           const Padding(
             padding: EdgeInsets.fromLTRB(52, 4, 16, 8),
             child: Text(
               'No threads yet.',
               style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
+          ),
+        if (isThreadListVisible && hiddenThreadCount > 0)
+          _RemoteShowMoreThreadsTile(
+            projectId: project.id,
+            isExpanded: isExpanded,
+            onTap: onToggleExpanded,
           ),
       ],
     );
@@ -1093,6 +1162,35 @@ class _RemoteThreadTile extends StatelessWidget {
           fontSize: 12,
           color: theme.colorScheme.onSurfaceVariant,
         ),
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _RemoteShowMoreThreadsTile extends StatelessWidget {
+  const _RemoteShowMoreThreadsTile({
+    required this.projectId,
+    required this.isExpanded,
+    required this.onTap,
+  });
+
+  final String projectId;
+  final bool isExpanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: ValueKey('remote-drawer-project-$projectId-show-more'),
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsets.only(left: 52, right: 16),
+      title: Text(
+        isExpanded ? 'Show less' : 'Show more',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: Theme.of(context).colorScheme.primary),
       ),
       onTap: onTap,
     );

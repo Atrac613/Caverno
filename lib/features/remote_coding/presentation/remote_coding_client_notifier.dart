@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../chat/domain/entities/message.dart';
+import '../../dashboard/domain/entities/dashboard_stats.dart';
+import '../../dashboard/domain/services/dashboard_stats_codec.dart';
 import '../data/remote_coding_connection_messages.dart';
 import '../data/remote_coding_protocol.dart';
 import '../data/remote_coding_repository.dart';
@@ -31,6 +33,7 @@ class RemoteCodingClientState {
     this.queuedCount = 0,
     this.pendingApproval,
     this.pendingQuestion,
+    this.dashboardStatsByRange = const <DashboardRange, DashboardStats>{},
     this.snapshotSequence = 0,
     this.snapshotGeneratedAt,
     this.reconnectAttempt = 0,
@@ -50,6 +53,7 @@ class RemoteCodingClientState {
   final int queuedCount;
   final RemoteCodingApproval? pendingApproval;
   final RemoteCodingQuestion? pendingQuestion;
+  final Map<DashboardRange, DashboardStats> dashboardStatsByRange;
   final int snapshotSequence;
   final DateTime? snapshotGeneratedAt;
   final int reconnectAttempt;
@@ -72,6 +76,7 @@ class RemoteCodingClientState {
     int? queuedCount,
     RemoteCodingApproval? pendingApproval,
     RemoteCodingQuestion? pendingQuestion,
+    Map<DashboardRange, DashboardStats>? dashboardStatsByRange,
     int? snapshotSequence,
     DateTime? snapshotGeneratedAt,
     int? reconnectAttempt,
@@ -106,6 +111,8 @@ class RemoteCodingClientState {
       pendingQuestion: clearPendingQuestion
           ? null
           : (pendingQuestion ?? this.pendingQuestion),
+      dashboardStatsByRange:
+          dashboardStatsByRange ?? this.dashboardStatsByRange,
       snapshotSequence: snapshotSequence ?? this.snapshotSequence,
       snapshotGeneratedAt: clearSnapshotGeneratedAt
           ? null
@@ -596,6 +603,9 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
                 .toList(growable: false);
       final approvalJson = payload['pendingApproval'];
       final questionJson = payload['pendingQuestion'];
+      final dashboardStatsByRange = DashboardStatsCodec.decodeByRange(
+        payload['dashboardStatsByRange'],
+      );
       state = state.copyWith(
         status: RemoteCodingConnectionStatus.connected,
         projects: projects,
@@ -613,6 +623,7 @@ class RemoteCodingClientNotifier extends Notifier<RemoteCodingClientState> {
         pendingQuestion: questionJson is Map<String, dynamic>
             ? RemoteCodingQuestion.fromJson(questionJson)
             : null,
+        dashboardStatsByRange: dashboardStatsByRange,
         snapshotSequence: snapshotSequence != null && snapshotSequence > 0
             ? snapshotSequence
             : null,

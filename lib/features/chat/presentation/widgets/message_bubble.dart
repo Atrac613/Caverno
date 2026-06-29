@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind, PointerUpEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,6 +48,7 @@ class MessageBubble extends ConsumerStatefulWidget {
 
 class _MessageBubbleState extends ConsumerState<MessageBubble> {
   bool _isHovering = false;
+  bool _isActionRowPinned = false;
   bool _copied = false;
   int _copyFeedbackToken = 0;
   String? _cachedImageBase64;
@@ -118,6 +120,13 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     setState(() => _copied = false);
   }
 
+  void _handleBubblePointerUp(PointerUpEvent event) {
+    if (event.kind == PointerDeviceKind.mouse) {
+      return;
+    }
+    setState(() => _isActionRowPinned = !_isActionRowPinned);
+  }
+
   Uint8List? _imageBytesFor(String? imageBase64) {
     if (imageBase64 == null || imageBase64.isEmpty) {
       _cachedImageBase64 = null;
@@ -165,6 +174,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
         : null;
     final imageBytes = _imageBytesFor(message.imageBase64);
     final hasParticipantHeader = !isUser && message.participantId != null;
+    final showActionRow = _isHovering || _isActionRowPinned;
     final bubble = Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.8,
@@ -377,11 +387,15 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
           children: [
-            bubble,
+            Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerUp: _handleBubblePointerUp,
+              child: bubble,
+            ),
             AnimatedSize(
               duration: const Duration(milliseconds: 160),
               curve: Curves.easeOut,
-              child: _isHovering
+              child: showActionRow
                   ? Padding(
                       padding: EdgeInsets.only(
                         top: 2,

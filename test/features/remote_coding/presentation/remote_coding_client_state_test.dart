@@ -1,4 +1,6 @@
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/dashboard/domain/entities/dashboard_stats.dart';
+import 'package:caverno/features/dashboard/domain/services/dashboard_stats_codec.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_protocol.dart';
 import 'package:caverno/features/remote_coding/data/remote_coding_repository.dart';
 import 'package:caverno/features/remote_coding/domain/remote_coding_models.dart';
@@ -125,6 +127,22 @@ void main() {
           ],
           'currentConversationId': 'thread-1',
           'messages': [message.toJson()],
+          'dashboardStatsByRange': DashboardStatsCodec.encodeByRange({
+            DashboardRange.all: DashboardStats(
+              sessionCount: 4,
+              messageCount: 8,
+              totalTokens: 1600,
+              activeDays: 2,
+              currentStreakDays: 1,
+              longestStreakDays: 2,
+              heatmap: ActivityHeatmap(
+                startDay: DateTime(2026, 5, 20),
+                endDay: DateTime(2026, 5, 26),
+                dailyCounts: const [1, 0, 2],
+                dailyBuckets: const [2, 0, 4],
+              ),
+            ),
+          }),
           'isLoading': true,
           'queuedCount': 2,
           'pendingApproval': {
@@ -145,6 +163,14 @@ void main() {
         expect(state.threads.single.id, 'thread-1');
         expect(state.currentConversationId, 'thread-1');
         expect(state.messages.single.content, 'Remote answer');
+        expect(
+          state.dashboardStatsByRange[DashboardRange.all]?.messageCount,
+          8,
+        );
+        expect(
+          state.dashboardStatsByRange[DashboardRange.all]?.heatmap.dailyCounts,
+          [1, 0, 2],
+        );
         expect(state.isLoading, isTrue);
         expect(state.queuedCount, 2);
         expect(state.pendingApproval?.id, 'approval-1');

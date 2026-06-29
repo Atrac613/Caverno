@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
@@ -23,6 +26,39 @@ class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
 class _TestConversationsNotifier extends ConversationsNotifier {
   @override
   ConversationsState build() => ConversationsState.initial();
+}
+
+class _DashboardConversationsNotifier extends ConversationsNotifier {
+  @override
+  ConversationsState build() {
+    final conversation = Conversation(
+      id: 'chat-1',
+      title: 'Desktop chat',
+      messages: [
+        Message(
+          id: 'user-1',
+          content: 'Hello',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 6, 1, 9),
+        ),
+        Message(
+          id: 'assistant-1',
+          content: 'Hi',
+          role: MessageRole.assistant,
+          timestamp: DateTime(2026, 6, 1, 9, 1),
+          responseMetrics: const MessageResponseMetrics(totalTokens: 2048),
+        ),
+      ],
+      createdAt: DateTime(2026, 6, 1, 9),
+      updatedAt: DateTime(2026, 6, 1, 9, 1),
+    );
+    return ConversationsState(
+      conversations: [conversation],
+      currentConversationId: conversation.id,
+      activeWorkspaceMode: WorkspaceMode.chat,
+      activeProjectId: null,
+    );
+  }
 }
 
 class _TestChatNotifier extends ChatNotifier {
@@ -112,6 +148,85 @@ void main() {
               message.payload['code'] == 'pairing_failed',
         ),
       );
+    } finally {
+      await subscription?.cancel();
+      await socket?.close();
+      container.dispose();
+    }
+  });
+
+  test('authenticated snapshots include desktop dashboard stats', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final port = await _unusedPort();
+    const rawToken = 'mobile-token';
+    final device = RemoteCodingPairedDevice(
+      id: 'device-1',
+      name: 'Phone',
+      tokenHash: RemoteCodingSecurity.hashToken(rawToken),
+      createdAt: DateTime(2026, 5, 26, 12),
+      lastSeenAt: DateTime(2026, 5, 26, 12),
+    );
+    await RemoteCodingRepository(prefs).saveServerSettings(
+      RemoteCodingServerSettings(
+        enabled: true,
+        port: port,
+        pairedDevices: [device],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        codingProjectsNotifierProvider.overrideWith(
+          _TestCodingProjectsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _DashboardConversationsNotifier.new,
+        ),
+        chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+      ],
+    );
+
+    WebSocket? socket;
+    StreamSubscription<dynamic>? subscription;
+    final messages = <RemoteCodingProtocolMessage>[];
+    try {
+      container.read(remoteCodingServerProvider);
+      await _waitUntil(
+        () => container.read(remoteCodingServerProvider).isRunning,
+      );
+
+      socket = await WebSocket.connect('ws://127.0.0.1:$port/ws');
+      subscription = socket.listen((raw) {
+        if (raw is String) {
+          messages.add(RemoteCodingProtocolMessage.decode(raw));
+        }
+      });
+      socket.add(
+        RemoteCodingProtocol.encode(
+          type: 'auth',
+          id: 'auth-dashboard',
+          payload: const {'token': rawToken},
+        ),
+      );
+      await _waitUntil(
+        () => messages.any(
+          (message) =>
+              message.id == 'auth-dashboard' && message.type == 'snapshot',
+        ),
+      );
+
+      final snapshot = messages.firstWhere(
+        (message) =>
+            message.id == 'auth-dashboard' && message.type == 'snapshot',
+      );
+      final statsByRange =
+          snapshot.payload['dashboardStatsByRange'] as Map<String, dynamic>;
+      final allStats = statsByRange['all'] as Map<String, dynamic>;
+
+      expect(allStats['sessionCount'], 1);
+      expect(allStats['messageCount'], 2);
+      expect(allStats['totalTokens'], 2048);
     } finally {
       await subscription?.cancel();
       await socket?.close();
