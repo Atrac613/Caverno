@@ -209,6 +209,31 @@ void main() {
     expect(find.text('Stop reason: Stop'), findsOneWidget);
   });
 
+  testWidgets('renders assistant messages without a bubble fill', (
+    tester,
+  ) async {
+    final message = Message(
+      id: 'plain-assistant-message',
+      content: 'Plain assistant answer.',
+      role: MessageRole.assistant,
+      timestamp: DateTime(2026, 6, 29, 19, 20),
+    );
+
+    await _pumpMessageBubble(tester, message: message);
+
+    final theme = Theme.of(tester.element(find.byType(MessageBubble)));
+    final legacyAssistantBubbleContainers = tester
+        .widgetList<Container>(find.byType(Container))
+        .where((container) {
+          final decoration = container.decoration;
+          return decoration is BoxDecoration &&
+              decoration.color == theme.colorScheme.surfaceContainerHighest;
+        });
+
+    expect(find.text('Plain assistant answer.'), findsOneWidget);
+    expect(legacyAssistantBubbleContainers, isEmpty);
+  });
+
   testWidgets('shows participant speaker snapshot for attributed assistant', (
     tester,
   ) async {

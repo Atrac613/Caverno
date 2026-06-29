@@ -175,21 +175,29 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     final imageBytes = _imageBytesFor(message.imageBase64);
     final hasParticipantHeader = !isUser && message.participantId != null;
     final showActionRow = _isHovering || _isActionRowPinned;
+    final viewportWidth = MediaQuery.of(context).size.width;
+    final assistantHorizontalMargin = viewportWidth >= 840 ? 56.0 : 20.0;
     final bubble = Container(
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width * 0.8,
+      width: isUser ? null : double.infinity,
+      constraints: isUser
+          ? BoxConstraints(maxWidth: viewportWidth * 0.8)
+          : const BoxConstraints(),
+      margin: EdgeInsets.symmetric(
+        vertical: isUser ? 4 : 12,
+        horizontal: isUser ? 8 : assistantHorizontalMargin,
       ),
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-      decoration: BoxDecoration(
-        color: isUser
-            ? theme.colorScheme.primary
-            : theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16).copyWith(
-          bottomRight: isUser ? const Radius.circular(4) : null,
-          bottomLeft: !isUser ? const Radius.circular(4) : null,
-        ),
+      padding: EdgeInsets.symmetric(
+        vertical: isUser ? 10 : 6,
+        horizontal: isUser ? 14 : 0,
       ),
+      decoration: isUser
+          ? BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(
+                16,
+              ).copyWith(bottomRight: const Radius.circular(4)),
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
