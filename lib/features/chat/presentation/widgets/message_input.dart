@@ -37,6 +37,9 @@ class MessageInputImageAttachment {
 }
 
 typedef CodingGoalSwitchChanged = void Function(bool enabled, String draftText);
+typedef WorktreeSessionSendHandler = FutureOr<String> Function(String prompt);
+
+enum MessageInputWorktreeMode { local, newWorktree }
 
 class MessageInput extends ConsumerStatefulWidget {
   const MessageInput({
@@ -62,6 +65,7 @@ class MessageInput extends ConsumerStatefulWidget {
     this.onCodingGoalMarkBlocked,
     this.onCodingGoalReactivate,
     this.onCodingGoalClear,
+    this.onWorktreeSessionSend,
     this.slashCommands = const <SlashCommandDefinition>[],
     this.onSlashCommand,
     this.isFloating = false,
@@ -99,6 +103,7 @@ class MessageInput extends ConsumerStatefulWidget {
   final VoidCallback? onCodingGoalMarkBlocked;
   final VoidCallback? onCodingGoalReactivate;
   final VoidCallback? onCodingGoalClear;
+  final WorktreeSessionSendHandler? onWorktreeSessionSend;
   final List<SlashCommandDefinition> slashCommands;
   final SlashCommandHandler? onSlashCommand;
   final bool isFloating;
@@ -128,6 +133,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   List<SlashCommandDefinition> _slashSuggestions = const [];
   int _selectedSlashSuggestionIndex = 0;
   String? _dismissedSlashSuggestionsForText;
+  MessageInputWorktreeMode _worktreeMode = MessageInputWorktreeMode.local;
 
   // Shell-like input history. `_historyIndex == -1` means not browsing;
   // otherwise it points into `_inputHistory`. `_savedDraft` preserves the
@@ -283,6 +289,15 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     return _selectedImageBytes != null ||
         _selectedFileContent != null ||
         _selectedFileDurablePath != null;
+  }
+
+  bool get _worktreeControlsEnabled {
+    return widget.isCodingWorkspace && widget.onWorktreeSessionSend != null;
+  }
+
+  bool get _shouldSendWorktreeSession {
+    return _worktreeControlsEnabled &&
+        _worktreeMode == MessageInputWorktreeMode.newWorktree;
   }
 
   List<SlashCommandDefinition> _buildSlashSuggestions() {
@@ -1078,11 +1093,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       return;
     }
 
-    String? imageBase64;
-    if (_selectedImageBytes != null) {
-      imageBase64 = base64Encode(_selectedImageBytes!);
-    }
-
     // Embed small file content inline; reference large files by durable path.
     String finalText = text;
     if (_selectedFileContent != null) {
@@ -1098,6 +1108,21 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       finalText = text.isEmpty ? ref : '$ref\n\n$text';
     }
 
+    if (_shouldSendWorktreeSession) {
+      if (_selectedImageBytes != null) {
+        _showSlashCommandFeedback('message.worktree_image_unavailable'.tr());
+        _focusNode.requestFocus();
+        return;
+      }
+      await _sendWorktreeSession(finalText, historyText: text);
+      return;
+    }
+
+    String? imageBase64;
+    if (_selectedImageBytes != null) {
+      imageBase64 = base64Encode(_selectedImageBytes!);
+    }
+
     widget.onSend(
       finalText,
       imageBase64,
@@ -1110,6 +1135,43 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     _clearImage();
     _clearFile();
     _focusNode.requestFocus();
+  }
+
+  Future<void> _sendWorktreeSession(
+    String prompt, {
+    required String historyText,
+  }) async {
+    final handler = widget.onWorktreeSessionSend;
+    if (handler == null) {
+      _showSlashCommandFeedback('chat.slash_agent_unavailable'.tr());
+      _focusNode.requestFocus();
+      return;
+    }
+
+    try {
+      final branch = (await handler(prompt)).trim();
+      if (!mounted) return;
+      _showSlashCommandFeedback(
+        'message.worktree_session_started'.tr(
+          namedArgs: {
+            'branch': branch.isEmpty
+                ? 'message.worktree_session_branch_unknown'.tr()
+                : branch,
+          },
+        ),
+      );
+      _pushToHistory(historyText);
+      _controller.clear();
+      _clearImage();
+      _clearFile();
+      _focusNode.requestFocus();
+    } catch (e) {
+      if (!mounted) return;
+      _showSlashCommandFeedback(
+        'message.worktree_session_failed'.tr(namedArgs: {'error': '$e'}),
+      );
+      _focusNode.requestFocus();
+    }
   }
 
   Future<void> _toggleRecording() async {
@@ -1215,6 +1277,106 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       ToolApprovalMode.fullAccess =>
         'settings.chat_approval_full_access_desc'.tr(),
     };
+  }
+
+  String _worktreeModeLabel(MessageInputWorktreeMode mode) {
+    return switch (mode) {
+      MessageInputWorktreeMode.local => 'message.worktree_mode_local'.tr(),
+      MessageInputWorktreeMode.newWorktree => 'message.worktree_mode_new'.tr(),
+    };
+  }
+
+  String _worktreeModeDescription(MessageInputWorktreeMode mode) {
+    return switch (mode) {
+      MessageInputWorktreeMode.local => 'message.worktree_mode_local_desc'.tr(),
+      MessageInputWorktreeMode.newWorktree =>
+        'message.worktree_mode_new_desc'.tr(),
+    };
+  }
+
+  IconData _worktreeModeIcon(MessageInputWorktreeMode mode) {
+    return switch (mode) {
+      MessageInputWorktreeMode.local => Icons.computer_outlined,
+      MessageInputWorktreeMode.newWorktree => Icons.account_tree_outlined,
+    };
+  }
+
+  Widget _buildWorktreeModeSelector(BuildContext context, ThemeData theme) {
+    final enabled = !widget.isLoading && _worktreeControlsEnabled;
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.6,
+      child: PopupMenuButton<MessageInputWorktreeMode>(
+        enabled: enabled,
+        tooltip: 'message.worktree_mode_tooltip'.tr(
+          namedArgs: {'value': _worktreeModeLabel(_worktreeMode)},
+        ),
+        padding: EdgeInsets.zero,
+        onSelected: (value) {
+          setState(() {
+            _worktreeMode = value;
+          });
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem<MessageInputWorktreeMode>(
+            enabled: false,
+            child: Text(
+              'message.worktree_start_in'.tr(),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          for (final value in MessageInputWorktreeMode.values)
+            CheckedPopupMenuItem<MessageInputWorktreeMode>(
+              height: 64,
+              value: value,
+              checked: _worktreeMode == value,
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(_worktreeModeIcon(value)),
+                title: Text(_worktreeModeLabel(value)),
+                subtitle: Text(_worktreeModeDescription(value)),
+              ),
+            ),
+        ],
+        child: _buildComposerControlChip(
+          theme: theme,
+          icon: _worktreeModeIcon(_worktreeMode),
+          label: _worktreeModeLabel(_worktreeMode),
+          key: const ValueKey('worktree-mode-selector'),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComposerControlChip({
+    required ThemeData theme,
+    required IconData icon,
+    required String label,
+    Key? key,
+    bool showChevron = true,
+  }) {
+    return Container(
+      key: key,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 6),
+          Text(label, style: theme.textTheme.labelLarge),
+          if (showChevron) ...[
+            const SizedBox(width: 4),
+            const Icon(Icons.keyboard_arrow_down, size: 18),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _buildSlashCommandSuggestions(BuildContext context, ThemeData theme) {
@@ -1948,6 +2110,23 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
+                                if (_worktreeControlsEnabled) ...[
+                                  _buildWorktreeModeSelector(context, theme),
+                                  if (_worktreeMode ==
+                                      MessageInputWorktreeMode.newWorktree) ...[
+                                    const SizedBox(width: 8),
+                                    _buildComposerControlChip(
+                                      theme: theme,
+                                      icon: Icons.call_split_outlined,
+                                      label: 'main',
+                                      key: const ValueKey(
+                                        'worktree-base-branch-chip',
+                                      ),
+                                      showChevron: false,
+                                    ),
+                                  ],
+                                  const SizedBox(width: 8),
+                                ],
                               ],
                               if (widget.showChatApprovalMode) ...[
                                 Opacity(

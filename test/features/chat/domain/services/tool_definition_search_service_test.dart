@@ -318,7 +318,8 @@ void main() {
         expect(
           initial && deferred,
           isFalse,
-          reason: '${info.name} is both initial-load and intentionally deferred',
+          reason:
+              '${info.name} is both initial-load and intentionally deferred',
         );
       }
       expect(
@@ -340,6 +341,15 @@ void main() {
       expect(
         ToolDefinitionSearchService.shouldLoadInitially(
           'resolve_installed_dependency',
+        ),
+        isTrue,
+      );
+    });
+
+    test('worktree finish tool loads initially', () {
+      expect(
+        ToolDefinitionSearchService.shouldLoadInitially(
+          'git_finish_worktree_session',
         ),
         isTrue,
       );

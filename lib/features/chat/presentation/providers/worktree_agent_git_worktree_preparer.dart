@@ -47,6 +47,7 @@ class WorktreeAgentGitWorktreePreparer {
   Future<WorktreeAgentGitWorktreePrepareResult> prepare({
     required String projectRootPath,
     required WorktreeAgentTask task,
+    bool syncBase = true,
   }) async {
     final validationError = _validate(
       projectRootPath: projectRootPath,
@@ -74,19 +75,32 @@ class WorktreeAgentGitWorktreePreparer {
       final effectiveRoot = repositoryRoot.isEmpty
           ? projectRootPath.trim()
           : repositoryRoot;
+      final localBaseRef = task.baseBranch.trim().isEmpty
+          ? 'main'
+          : task.baseBranch.trim();
+      final baseRef = syncBase
+          ? await _resolveBaseRef(
+              repositoryRoot: effectiveRoot,
+              baseBranch: localBaseRef,
+            )
+          : localBaseRef;
       final parentPath = _parentPath(task.normalizedWorktreePath);
       if (parentPath.isNotEmpty) {
         await _ensureParentDirectory(parentPath);
       }
 
-      final worktreeResult = await runProcess('git', [
-        'worktree',
-        'add',
-        '-b',
-        task.branchName.trim(),
-        task.normalizedWorktreePath,
-        task.baseBranch.trim().isEmpty ? 'main' : task.baseBranch.trim(),
-      ], workingDirectory: effectiveRoot);
+      var worktreeResult = await _addWorktree(
+        repositoryRoot: effectiveRoot,
+        task: task,
+        baseRef: baseRef,
+      );
+      if (worktreeResult.exitCode != 0 && baseRef != localBaseRef) {
+        worktreeResult = await _addWorktree(
+          repositoryRoot: effectiveRoot,
+          task: task,
+          baseRef: localBaseRef,
+        );
+      }
       if (worktreeResult.exitCode != 0) {
         return WorktreeAgentGitWorktreePrepareResult.failed(
           _processErrorText(
@@ -95,6 +109,7 @@ class WorktreeAgentGitWorktreePreparer {
           ),
         );
       }
+      await _lockWorktree(repositoryRoot: effectiveRoot, task: task);
 
       return WorktreeAgentGitWorktreePrepareResult.succeeded(
         repositoryRoot: effectiveRoot,
@@ -134,6 +149,80 @@ class WorktreeAgentGitWorktreePreparer {
     return null;
   }
 
+  Future<String> _resolveBaseRef({
+    required String repositoryRoot,
+    required String baseBranch,
+  }) async {
+    final upstreamResult = await runProcess('git', [
+      'rev-parse',
+      '--abbrev-ref',
+      '--symbolic-full-name',
+      '$baseBranch@{upstream}',
+    ], workingDirectory: repositoryRoot);
+    final upstreamRef = _stdoutText(upstreamResult).trim();
+    if (upstreamResult.exitCode == 0 &&
+        _isSafeGitArgument(upstreamRef) &&
+        upstreamRef.contains('/')) {
+      await _fetchRemoteRef(repositoryRoot: repositoryRoot, ref: upstreamRef);
+      return upstreamRef;
+    }
+
+    final remoteRef = _remoteTrackingRefForBase(baseBranch);
+    if (remoteRef != null &&
+        await _fetchRemoteRef(repositoryRoot: repositoryRoot, ref: remoteRef)) {
+      return remoteRef;
+    }
+    return baseBranch;
+  }
+
+  Future<bool> _fetchRemoteRef({
+    required String repositoryRoot,
+    required String ref,
+  }) async {
+    final slashIndex = ref.indexOf('/');
+    if (slashIndex <= 0 || slashIndex == ref.length - 1) {
+      return false;
+    }
+    final result = await runProcess('git', [
+      'fetch',
+      ref.substring(0, slashIndex),
+      ref.substring(slashIndex + 1),
+    ], workingDirectory: repositoryRoot);
+    return result.exitCode == 0;
+  }
+
+  Future<ProcessResult> _addWorktree({
+    required String repositoryRoot,
+    required WorktreeAgentTask task,
+    required String baseRef,
+  }) {
+    return runProcess('git', [
+      'worktree',
+      'add',
+      '-b',
+      task.branchName.trim(),
+      task.normalizedWorktreePath,
+      baseRef,
+    ], workingDirectory: repositoryRoot);
+  }
+
+  Future<void> _lockWorktree({
+    required String repositoryRoot,
+    required WorktreeAgentTask task,
+  }) async {
+    try {
+      await runProcess('git', [
+        'worktree',
+        'lock',
+        '--reason',
+        'caverno task=${task.id}',
+        task.normalizedWorktreePath,
+      ], workingDirectory: repositoryRoot);
+    } catch (_) {
+      // Worktree locks are best-effort; a lock failure should not block coding.
+    }
+  }
+
   static bool _isSafeGitArgument(String value) {
     final normalized = value.trim();
     return normalized.isNotEmpty &&
@@ -160,6 +249,12 @@ class WorktreeAgentGitWorktreePreparer {
 
   static Future<void> _defaultEnsureParentDirectory(String path) {
     return Directory(path).create(recursive: true);
+  }
+
+  static String? _remoteTrackingRefForBase(String baseBranch) {
+    if (baseBranch.startsWith('refs/')) return null;
+    if (baseBranch.contains('/')) return baseBranch;
+    return 'origin/$baseBranch';
   }
 
   static String _stdoutText(ProcessResult result) => result.stdout.toString();

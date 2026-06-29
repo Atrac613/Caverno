@@ -109,6 +109,22 @@ void main() {
       );
     });
 
+    test('blocks worktree finish tool', () {
+      final result = policy.enforce(
+        _toolCall('git_finish_worktree_session', {
+          'worktree_path': '/tmp/repo-worktree',
+        }),
+        isPlanningSession: true,
+        resolveArguments: _identityResolver,
+      );
+
+      expect(result, isNotNull);
+      expect(
+        result!.errorMessage,
+        'Planning mode cannot merge or remove git worktree sessions.',
+      );
+    });
+
     test('allows computer observation tools and blocks computer actions', () {
       final observationResult = policy.enforce(
         _toolCall('computer_screenshot'),

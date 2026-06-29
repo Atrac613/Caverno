@@ -985,7 +985,7 @@ class ChatNotifier extends Notifier<ChatState> {
     String? participantRolePrompt,
   }) {
     final now = DateTime.now();
-    final activeCodingProject = _getActiveCodingProject();
+    final activeCodingProject = _getEffectiveCodingProject();
     final currentConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
@@ -1336,7 +1336,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   String? _getActiveProjectRootPath() {
-    return _getActiveCodingProject()?.rootPath.trim();
+    return _getEffectiveCodingProject()?.rootPath.trim();
   }
 
   void _dispatchExternalToolHook(
@@ -3158,7 +3158,7 @@ class ChatNotifier extends Notifier<ChatState> {
       currentConversation: currentConversation,
       messages: state.messages,
       languageCode: languageCode,
-      project: _getActiveCodingProject(),
+      project: _getEffectiveCodingProject(),
       researchContextBlock: researchContext.hasContent
           ? researchContext.toPromptBlock()
           : null,
@@ -3183,7 +3183,7 @@ class ChatNotifier extends Notifier<ChatState> {
       currentConversation: currentConversation,
       messages: state.messages,
       languageCode: languageCode,
-      project: _getActiveCodingProject(),
+      project: _getEffectiveCodingProject(),
       researchContextBlock: researchContext.hasContent
           ? researchContext.toPromptBlock()
           : null,
@@ -5189,15 +5189,22 @@ class ChatNotifier extends Notifier<ChatState> {
         }
         return resolvedArguments;
       }(),
-      'git_execute_command' => () {
+      'git_execute_command' || 'git_finish_worktree_session' => () {
         final resolvedWorkingDirectory = resolvePathArg(
           'working_directory',
           allowEmpty: true,
           aliases: const ['cwd'],
         );
+        final resolvedWorktreePath = resolvePathArg(
+          'worktree_path',
+          allowEmpty: true,
+        );
         final resolvedArguments = <String, dynamic>{...arguments};
         if (resolvedWorkingDirectory != null) {
           resolvedArguments['working_directory'] = resolvedWorkingDirectory;
+        }
+        if (resolvedWorktreePath != null) {
+          resolvedArguments['worktree_path'] = resolvedWorktreePath;
         }
         return resolvedArguments;
       }(),

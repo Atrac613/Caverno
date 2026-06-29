@@ -99,6 +99,7 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
           ) ??
           WorkspaceMode.chat,
       projectId: json['projectId'] as String? ?? '',
+      worktreePath: json['worktreePath'] as String? ?? '',
       executionMode:
           $enumDecodeNullable(
             _$ConversationExecutionModeEnumMap,
@@ -161,6 +162,7 @@ Map<String, dynamic> _$ConversationToJson(
   'updatedAt': instance.updatedAt.toIso8601String(),
   'workspaceMode': _$WorkspaceModeEnumMap[instance.workspaceMode]!,
   'projectId': instance.projectId,
+  'worktreePath': instance.worktreePath,
   'executionMode': _$ConversationExecutionModeEnumMap[instance.executionMode]!,
   'workflowStage': _$ConversationWorkflowStageEnumMap[instance.workflowStage]!,
   'workflowSpec': _workflowSpecToJson(instance.workflowSpec),

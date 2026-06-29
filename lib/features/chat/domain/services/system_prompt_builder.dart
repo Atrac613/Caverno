@@ -89,6 +89,9 @@ class SystemPromptBuilder {
     final hasOsSystemInfoTool = uniqueToolNames.contains('os_get_system_info');
     final hasOsLogTool = uniqueToolNames.contains('os_log_read');
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
+    final hasGitFinishWorktreeTool = uniqueToolNames.contains(
+      'git_finish_worktree_session',
+    );
     final hasLoadSkillTool = uniqueToolNames.contains('load_skill');
     final hasSaveSkillTool = uniqueToolNames.contains('save_skill');
     final hasCreateRoutineTool = uniqueToolNames.contains('create_routine');
@@ -416,6 +419,14 @@ class SystemPromptBuilder {
           'Use git_execute_command for repository inspection and git write '
           'operations instead of generic shell commands when possible.',
         );
+        if (hasLocalShellTool || hasBackgroundProcessTools) {
+          buffer.writeln(
+            'Direct git write operations such as add, commit, checkout, '
+            'merge, rebase, branch changes, worktree changes, tag creation, '
+            'or reset must use git_execute_command, not local_execute_command '
+            'or process_start.',
+          );
+        }
         buffer.writeln(
           'Each git_execute_command call must contain exactly one git '
           'subcommand without shell operators such as &&, ;, |, or '
@@ -431,6 +442,14 @@ class SystemPromptBuilder {
           'git_execute_command (for example, "tag --list" or '
           '"for-each-ref refs/tags --format=%(refname:short)") and choose a '
           'new tag name that matches the repository\'s existing tag format.',
+        );
+      }
+      if (hasGitFinishWorktreeTool) {
+        buffer.writeln(
+          'When the user asks to merge, close, finish, or clean up the '
+          'current worktree coding session, use git_finish_worktree_session '
+          'after all intended changes are committed instead of guessing where '
+          'the base branch is checked out.',
         );
       }
       if (hasProjectReadTools || hasLocalShellTool || hasGitTool) {

@@ -22,6 +22,7 @@ void main() {
         'os_get_system_info',
         'os_log_read',
         'git_execute_command',
+        'git_finish_worktree_session',
       ],
       projectName: 'caverno',
       projectRootPath: '/Users/noguwo/Documents/Workspace/Flutter/caverno',
@@ -68,9 +69,7 @@ void main() {
     );
     expect(
       prompt,
-      contains(
-        'stop investigating that copy instead of recursing',
-      ),
+      contains('stop investigating that copy instead of recursing'),
     );
     expect(
       prompt,
@@ -108,7 +107,19 @@ void main() {
     );
     expect(
       prompt,
+      contains(
+        'Direct git write operations such as add, commit, checkout, merge',
+      ),
+    );
+    expect(
+      prompt,
       contains('Before creating a git tag, inspect existing tags'),
+    );
+    expect(
+      prompt,
+      contains(
+        'use git_finish_worktree_session after all intended changes are committed',
+      ),
     );
     expect(
       prompt,

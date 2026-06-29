@@ -100,6 +100,7 @@ class _DrawerConversationsNotifier extends ConversationsNotifier {
   void createNewConversation({
     WorkspaceMode? workspaceMode,
     String? projectId,
+    String worktreePath = '',
   }) {
     final resolvedWorkspaceMode = workspaceMode ?? state.activeWorkspaceMode;
     final resolvedProjectId = _normalizeProjectId(
@@ -115,6 +116,7 @@ class _DrawerConversationsNotifier extends ConversationsNotifier {
       updatedAt: now,
       workspaceMode: resolvedWorkspaceMode,
       projectId: resolvedProjectId ?? '',
+      worktreePath: worktreePath,
     );
 
     state = state.copyWith(

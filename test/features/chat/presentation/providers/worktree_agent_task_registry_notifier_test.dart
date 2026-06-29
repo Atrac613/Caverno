@@ -65,6 +65,7 @@ void main() {
         prompt: 'Fix the failing test.',
         codingProjectId: 'project-1',
         baseBranch: 'main',
+        assignmentId: 'assignment-1',
         branchName: 'feature/ll13-fix-test',
         worktreePath: '/tmp/caverno-worktrees/fix-test',
         checkpointLineageId: 'checkpoint-1',
@@ -74,6 +75,7 @@ void main() {
 
       final task = await notifier().registerAssignment(plan);
 
+      expect(task.id, 'assignment-1');
       expect(task.branchName, 'feature/ll13-fix-test');
       expect(task.worktreePath, '/tmp/caverno-worktrees/fix-test');
       expect(task.codingProjectId, 'project-1');

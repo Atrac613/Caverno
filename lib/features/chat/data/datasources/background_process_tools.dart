@@ -35,6 +35,13 @@ class BackgroundProcessTools {
         'error': 'Working directory does not exist: $workingDirectory',
       });
     }
+    final gitWriteBlockedResult = LocalShellTools.gitWriteCommandBlockedResult(
+      command: normalizedCommand,
+      workingDirectory: directory.absolute.path,
+    );
+    if (gitWriteBlockedResult != null) {
+      return gitWriteBlockedResult;
+    }
 
     final existingJob = _runningJobFor(
       command: normalizedCommand,

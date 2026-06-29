@@ -102,10 +102,20 @@ extension _ChatPageTurnRollbackSupport on _ChatPageState {
 
   void _refreshCodingEnvironmentSnapshot() {
     final project = ref.read(codingProjectsNotifierProvider).selectedProject;
-    final rootPath = project?.rootPath.trim();
-    if (rootPath == null || rootPath.isEmpty) {
+    if (project == null) {
       return;
     }
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final effectiveProject = conversation == null
+        ? project
+        : _effectiveCodingProjectForConversation(
+            currentConversation: conversation,
+            activeProject: project,
+          );
+    final rootPath = effectiveProject.normalizedRootPath;
+    if (rootPath.isEmpty) return;
     ref.invalidate(codingEnvironmentSnapshotProvider(rootPath));
     ref.invalidate(codingWorktreeDiffProvider(rootPath));
   }

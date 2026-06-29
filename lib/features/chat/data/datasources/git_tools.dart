@@ -243,6 +243,7 @@ class GitTools {
   static Future<String> execute({
     required String command,
     required String workingDirectory,
+    String? reason,
   }) async {
     final normalizedCommand = normalizeCommand(command);
 
@@ -315,6 +316,26 @@ class GitTools {
       if (tagVersionPreflightError != null) {
         return tagVersionPreflightError;
       }
+
+      final mergePreflightError = await _mergePreflightError(
+        args: args,
+        normalizedCommand: normalizedCommand,
+        workingDirectory: workingDirectory,
+        environment: environment,
+        reason: reason,
+      );
+      if (mergePreflightError != null) {
+        return mergePreflightError;
+      }
+
+      final worktreeRemovePreflightError = _worktreeRemovePreflightError(
+        args: args,
+        normalizedCommand: normalizedCommand,
+        workingDirectory: workingDirectory,
+      );
+      if (worktreeRemovePreflightError != null) {
+        return worktreeRemovePreflightError;
+      }
     }
 
     try {
@@ -358,6 +379,579 @@ class GitTools {
         'error': e.toString(),
       });
     }
+  }
+
+  static Future<String> finishWorktreeSession({
+    required String worktreePath,
+    String baseBranch = 'main',
+    bool removeWorktree = true,
+    String? mergeMessage,
+  }) async {
+    final normalizedWorktreePath = worktreePath.trim();
+    final normalizedBaseBranch = _normalizeBranchName(baseBranch.trim());
+    if (normalizedWorktreePath.isEmpty || normalizedBaseBranch.isEmpty) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'git_finish_worktree_invalid_arguments',
+        'error': 'worktree_path and base_branch are required.',
+      });
+    }
+
+    final worktreeDir = Directory(normalizedWorktreePath);
+    if (!worktreeDir.existsSync()) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'git_finish_worktree_path_not_found',
+        'worktree_path': normalizedWorktreePath,
+        'error': 'Worktree path does not exist: $normalizedWorktreePath',
+      });
+    }
+
+    final environment = await LoginShellEnvironment.instance.environment();
+    final currentBranchResult = await _runGitCommand(
+      const ['branch', '--show-current'],
+      workingDirectory: worktreeDir.absolute.path,
+      environment: environment,
+    );
+    if (currentBranchResult.exitCode != 0) {
+      return _finishWorktreeErrorResult(
+        code: 'git_finish_worktree_branch_failed',
+        error: 'Could not determine the current worktree branch.',
+        worktreePath: worktreeDir.absolute.path,
+        commandResult: currentBranchResult,
+      );
+    }
+    final currentBranch = currentBranchResult.stdout.trim();
+    if (currentBranch.isEmpty) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'git_finish_worktree_detached_head',
+        'worktree_path': worktreeDir.absolute.path,
+        'error': 'The selected worktree is detached and cannot be finished.',
+      });
+    }
+    if (_normalizeBranchName(currentBranch) == normalizedBaseBranch) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'git_finish_worktree_base_branch_selected',
+        'worktree_path': worktreeDir.absolute.path,
+        'base_branch': normalizedBaseBranch,
+        'current_branch': currentBranch,
+        'error':
+            'The selected worktree is already on the base branch; there is no '
+            'feature branch to merge.',
+      });
+    }
+
+    final worktreeStatus = await _runGitCommand(
+      const ['status', '--porcelain'],
+      workingDirectory: worktreeDir.absolute.path,
+      environment: environment,
+    );
+    if (worktreeStatus.exitCode != 0) {
+      return _finishWorktreeErrorResult(
+        code: 'git_finish_worktree_status_failed',
+        error: 'Could not inspect worktree status before merge.',
+        worktreePath: worktreeDir.absolute.path,
+        baseBranch: normalizedBaseBranch,
+        currentBranch: currentBranch,
+        commandResult: worktreeStatus,
+      );
+    }
+    if (worktreeStatus.stdout.trim().isNotEmpty) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'git_finish_worktree_dirty',
+        'worktree_path': worktreeDir.absolute.path,
+        'base_branch': normalizedBaseBranch,
+        'current_branch': currentBranch,
+        'status': worktreeStatus.stdout,
+        'error':
+            'The worktree has uncommitted changes. Commit, stash, or discard '
+            'them before finishing the worktree session.',
+      });
+    }
+
+    final worktreeListResult = await _runGitCommand(
+      const ['worktree', 'list', '--porcelain'],
+      workingDirectory: worktreeDir.absolute.path,
+      environment: environment,
+    );
+    if (worktreeListResult.exitCode != 0) {
+      return _finishWorktreeErrorResult(
+        code: 'git_finish_worktree_list_failed',
+        error: 'Could not read git worktree list.',
+        worktreePath: worktreeDir.absolute.path,
+        baseBranch: normalizedBaseBranch,
+        currentBranch: currentBranch,
+        commandResult: worktreeListResult,
+      );
+    }
+
+    final entries = _parseWorktreeListPorcelain(worktreeListResult.stdout);
+    final normalizedCurrentPath = _normalizeFilesystemPath(
+      worktreeDir.absolute.path,
+    );
+    final currentEntry = entries
+        .where((entry) => entry.normalizedPath == normalizedCurrentPath)
+        .firstOrNull;
+    if (currentEntry == null) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'git_finish_worktree_not_registered',
+        'worktree_path': worktreeDir.absolute.path,
+        'base_branch': normalizedBaseBranch,
+        'current_branch': currentBranch,
+        'worktrees': entries.map((entry) => entry.toJson()).toList(),
+        'error': 'The selected path is not registered in git worktree list.',
+      });
+    }
+
+    final baseEntry = entries
+        .where(
+          (entry) => _normalizeBranchName(entry.branch) == normalizedBaseBranch,
+        )
+        .firstOrNull;
+    if (baseEntry == null) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'git_finish_worktree_base_not_found',
+        'worktree_path': worktreeDir.absolute.path,
+        'base_branch': normalizedBaseBranch,
+        'current_branch': currentBranch,
+        'worktrees': entries.map((entry) => entry.toJson()).toList(),
+        'error':
+            'No git worktree is currently checked out on the base branch '
+            '"$normalizedBaseBranch".',
+      });
+    }
+
+    final baseStatus = await _runGitCommand(
+      const ['status', '--porcelain'],
+      workingDirectory: baseEntry.path,
+      environment: environment,
+    );
+    if (baseStatus.exitCode != 0) {
+      return _finishWorktreeErrorResult(
+        code: 'git_finish_worktree_base_status_failed',
+        error: 'Could not inspect base worktree status before merge.',
+        worktreePath: worktreeDir.absolute.path,
+        basePath: baseEntry.path,
+        baseBranch: normalizedBaseBranch,
+        currentBranch: currentBranch,
+        commandResult: baseStatus,
+      );
+    }
+    if (baseStatus.stdout.trim().isNotEmpty) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'git_finish_worktree_base_dirty',
+        'worktree_path': worktreeDir.absolute.path,
+        'base_worktree_path': baseEntry.path,
+        'base_branch': normalizedBaseBranch,
+        'current_branch': currentBranch,
+        'status': baseStatus.stdout,
+        'error':
+            'The base worktree has uncommitted changes. Clean it before '
+            'merging the worktree branch.',
+      });
+    }
+
+    final mergeArgs = <String>['merge', '--no-edit'];
+    final trimmedMessage = mergeMessage?.trim();
+    if (trimmedMessage != null && trimmedMessage.isNotEmpty) {
+      mergeArgs.addAll(['-m', trimmedMessage]);
+    }
+    mergeArgs.add(currentBranch);
+    final mergeResult = await _runGitCommand(
+      mergeArgs,
+      workingDirectory: baseEntry.path,
+      environment: environment,
+    );
+    if (mergeResult.exitCode != 0) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'git_finish_worktree_merge_failed',
+        'worktree_path': worktreeDir.absolute.path,
+        'base_worktree_path': baseEntry.path,
+        'base_branch': normalizedBaseBranch,
+        'current_branch': currentBranch,
+        'merge': mergeResult.toJson(),
+        'error': 'Failed to merge the worktree branch into the base worktree.',
+      });
+    }
+
+    _GitCommandRun? unlockResult;
+    _GitCommandRun? removeResult;
+    if (removeWorktree) {
+      unlockResult = await _runGitCommand(
+        ['worktree', 'unlock', worktreeDir.absolute.path],
+        workingDirectory: baseEntry.path,
+        environment: environment,
+      );
+      removeResult = await _runGitCommand(
+        ['worktree', 'remove', worktreeDir.absolute.path],
+        workingDirectory: baseEntry.path,
+        environment: environment,
+      );
+      if (removeResult.exitCode != 0) {
+        return jsonEncode({
+          'ok': false,
+          'code': 'git_finish_worktree_remove_failed',
+          'worktree_path': worktreeDir.absolute.path,
+          'base_worktree_path': baseEntry.path,
+          'base_branch': normalizedBaseBranch,
+          'current_branch': currentBranch,
+          'merge': mergeResult.toJson(),
+          'unlock': unlockResult.toJson(),
+          'remove': removeResult.toJson(),
+          'error': 'Merged the branch, but failed to remove the worktree path.',
+        });
+      }
+    }
+
+    return jsonEncode({
+      'ok': true,
+      'code': 'git_finish_worktree_completed',
+      'worktree_path': worktreeDir.absolute.path,
+      'base_worktree_path': baseEntry.path,
+      'base_branch': normalizedBaseBranch,
+      'current_branch': currentBranch,
+      'worktree_branch': currentEntry.branch,
+      'removed_worktree': removeWorktree,
+      'merge': mergeResult.toJson(),
+      if (unlockResult != null && unlockResult.exitCode == 0)
+        'unlock': unlockResult.toJson(),
+      if (removeResult != null) 'remove': removeResult.toJson(),
+    });
+  }
+
+  static String? _worktreeRemovePreflightError({
+    required List<String> args,
+    required String normalizedCommand,
+    required String workingDirectory,
+  }) {
+    if (args.length < 3 || args[0] != 'worktree' || args[1] != 'remove') {
+      return null;
+    }
+    final forceCount = args
+        .skip(2)
+        .fold<int>(0, (count, arg) => count + _worktreeRemoveForceCount(arg));
+    if (forceCount < 2) {
+      return null;
+    }
+    return jsonEncode({
+      'command': 'git $normalizedCommand',
+      'working_directory': workingDirectory,
+      'exit_code': 2,
+      'code': 'git_worktree_force_remove_blocked',
+      'error':
+          'git worktree remove was blocked because double-force removal can '
+          'discard a locked Caverno worktree without merging it through the '
+          'base worktree.',
+      'required_action':
+          'Use git_finish_worktree_session for worktree completion after all '
+          'intended changes are committed. Only remove a worktree manually '
+          'outside Caverno when you intentionally want to discard it.',
+    });
+  }
+
+  static int _worktreeRemoveForceCount(String arg) {
+    if (arg == '--force' || arg == '-f') {
+      return 1;
+    }
+    if (arg.length > 2 && arg.startsWith('-') && !arg.startsWith('--')) {
+      final shortFlags = arg.substring(1);
+      if (RegExp(r'^f+$').hasMatch(shortFlags)) {
+        return shortFlags.length;
+      }
+    }
+    return 0;
+  }
+
+  static Future<String?> _mergePreflightError({
+    required List<String> args,
+    required String normalizedCommand,
+    required String workingDirectory,
+    required Map<String, String> environment,
+    required String? reason,
+  }) async {
+    final mergeTargets = _mergeTargets(args);
+    if (mergeTargets.isEmpty) {
+      return null;
+    }
+
+    try {
+      final branchResult = await Process.run(
+        'git',
+        ['branch', '--show-current'],
+        workingDirectory: workingDirectory,
+        environment: environment,
+      ).timeout(_kTimeout);
+      if (branchResult.exitCode != 0) {
+        return null;
+      }
+      final currentBranch = (branchResult.stdout as String).trim();
+      if (currentBranch.isEmpty) {
+        return null;
+      }
+      final normalizedCurrent = _normalizeBranchName(currentBranch);
+      for (final target in mergeTargets) {
+        if (_normalizeBranchName(target) != normalizedCurrent) {
+          continue;
+        }
+        return jsonEncode({
+          'command': 'git $normalizedCommand',
+          'working_directory': workingDirectory,
+          'exit_code': 2,
+          'code': 'git_merge_current_branch',
+          'error':
+              'git merge was blocked because the command would merge the '
+              'current branch "$currentBranch" into itself, which only reports '
+              'Already up to date and does not merge it into another branch. '
+              'If the intent is to merge this branch into main, inspect '
+              'git worktree list and run the merge from the worktree where '
+              'main is checked out.',
+          'current_branch': currentBranch,
+          'merge_target': target,
+        });
+      }
+      final intendedTargetBranch = _intendedMergeDestinationBranch(
+        args: args,
+        normalizedCommand: normalizedCommand,
+        reason: reason,
+      );
+      if (intendedTargetBranch != null &&
+          _normalizeBranchName(intendedTargetBranch) != normalizedCurrent) {
+        return jsonEncode({
+          'command': 'git $normalizedCommand',
+          'working_directory': workingDirectory,
+          'exit_code': 2,
+          'code': 'git_merge_wrong_target_worktree',
+          'error':
+              'git merge was blocked because the command context indicates '
+              'that the merge should land on "$intendedTargetBranch", but the '
+              'working directory is currently on "$currentBranch". Inspect '
+              'git worktree list and run the merge from the worktree where '
+              '"$intendedTargetBranch" is checked out.',
+          'current_branch': currentBranch,
+          'intended_target_branch': intendedTargetBranch,
+          'merge_targets': mergeTargets,
+        });
+      }
+      return null;
+    } on TimeoutException {
+      return jsonEncode({
+        'command': 'git $normalizedCommand',
+        'working_directory': workingDirectory,
+        'exit_code': 2,
+        'code': 'git_merge_preflight_timeout',
+        'error': 'Timed out while checking the current branch before merge.',
+      });
+    } catch (e) {
+      return jsonEncode({
+        'command': 'git $normalizedCommand',
+        'working_directory': workingDirectory,
+        'exit_code': 2,
+        'code': 'git_merge_preflight_failed',
+        'error': 'Failed to check the current branch before merge: $e',
+      });
+    }
+  }
+
+  static String? _intendedMergeDestinationBranch({
+    required List<String> args,
+    required String normalizedCommand,
+    required String? reason,
+  }) {
+    if (args.isEmpty || args.first != 'merge') {
+      return null;
+    }
+    if (_mergeTargets(
+      args,
+    ).any((target) => _normalizeBranchName(target) == 'main')) {
+      return null;
+    }
+    final context = [
+      normalizedCommand,
+      reason?.trim() ?? '',
+    ].where((value) => value.isNotEmpty).join(' ').toLowerCase();
+    if (context.isEmpty || !RegExp(r'\bmain\b').hasMatch(context)) {
+      return null;
+    }
+    return 'main';
+  }
+
+  static List<String> _mergeTargets(List<String> args) {
+    if (args.isEmpty || args.first != 'merge') {
+      return const <String>[];
+    }
+    const actionFlags = {'--abort', '--continue', '--quit', '--skip'};
+    const flagPrefixesWithValues = {
+      '--message=',
+      '--gpg-sign=',
+      '--strategy=',
+      '--strategy-option=',
+      '--into-name=',
+      '--cleanup=',
+      '--file=',
+      '--log=',
+    };
+    const valueFlags = {
+      '-m',
+      '--message',
+      '--strategy',
+      '-s',
+      '--strategy-option',
+      '-X',
+      '--into-name',
+      '--cleanup',
+      '-F',
+      '--file',
+    };
+    final targets = <String>[];
+    for (var index = 1; index < args.length; index++) {
+      final arg = args[index];
+      if (arg == '--') {
+        targets.addAll(args.skip(index + 1));
+        break;
+      }
+      if (actionFlags.contains(arg)) {
+        return const <String>[];
+      }
+      if (valueFlags.contains(arg)) {
+        index += 1;
+        continue;
+      }
+      if (flagPrefixesWithValues.any(arg.startsWith)) {
+        continue;
+      }
+      if (arg.startsWith('-')) {
+        continue;
+      }
+      targets.add(arg);
+    }
+    return targets;
+  }
+
+  static String _normalizeBranchName(String branchName) {
+    var normalized = branchName.trim();
+    if (normalized.startsWith('refs/heads/')) {
+      normalized = normalized.substring('refs/heads/'.length);
+    }
+    return normalized;
+  }
+
+  static String _normalizeFilesystemPath(String path) {
+    var normalized = Directory(path).absolute.path;
+    try {
+      normalized = Directory(normalized).resolveSymbolicLinksSync();
+    } catch (_) {
+      // Fall back to the absolute path when the entry no longer exists.
+    }
+    while (normalized.length > 1 &&
+        (normalized.endsWith('/') || normalized.endsWith('\\'))) {
+      normalized = normalized.substring(0, normalized.length - 1);
+    }
+    return normalized;
+  }
+
+  static Future<_GitCommandRun> _runGitCommand(
+    List<String> args, {
+    required String workingDirectory,
+    required Map<String, String> environment,
+  }) async {
+    final command = 'git ${args.join(' ')}';
+    try {
+      final result = await Process.run(
+        'git',
+        args,
+        workingDirectory: workingDirectory,
+        environment: environment,
+      ).timeout(_kTimeout);
+      return _GitCommandRun(
+        command: command,
+        workingDirectory: workingDirectory,
+        exitCode: result.exitCode,
+        stdout: result.stdout is String ? result.stdout as String : '',
+        stderr: result.stderr is String ? result.stderr as String : '',
+      );
+    } on TimeoutException {
+      return _GitCommandRun(
+        command: command,
+        workingDirectory: workingDirectory,
+        exitCode: 124,
+        stdout: '',
+        stderr:
+            'Command timed out after ${_kTimeout.inSeconds} seconds. Avoid '
+            'interactive git commands.',
+      );
+    } catch (error) {
+      return _GitCommandRun(
+        command: command,
+        workingDirectory: workingDirectory,
+        exitCode: 1,
+        stdout: '',
+        stderr: error.toString(),
+      );
+    }
+  }
+
+  static String _finishWorktreeErrorResult({
+    required String code,
+    required String error,
+    required String worktreePath,
+    required _GitCommandRun commandResult,
+    String? basePath,
+    String? baseBranch,
+    String? currentBranch,
+  }) {
+    final payload = <String, dynamic>{
+      'ok': false,
+      'code': code,
+      'worktree_path': worktreePath,
+      'command_result': commandResult.toJson(),
+      'error': error,
+    };
+    if (basePath != null) {
+      payload['base_worktree_path'] = basePath;
+    }
+    if (baseBranch != null) {
+      payload['base_branch'] = baseBranch;
+    }
+    if (currentBranch != null) {
+      payload['current_branch'] = currentBranch;
+    }
+    return jsonEncode(payload);
+  }
+
+  static List<_GitWorktreeEntry> _parseWorktreeListPorcelain(String output) {
+    final entries = <_GitWorktreeEntry>[];
+    String? path;
+    var branch = '';
+
+    void flush() {
+      final currentPath = path?.trim();
+      if (currentPath != null && currentPath.isNotEmpty) {
+        entries.add(_GitWorktreeEntry(path: currentPath, branch: branch));
+      }
+      path = null;
+      branch = '';
+    }
+
+    for (final line in const LineSplitter().convert(output)) {
+      if (line.startsWith('worktree ')) {
+        flush();
+        path = line.substring('worktree '.length).trim();
+        continue;
+      }
+      if (line.startsWith('branch ')) {
+        branch = line.substring('branch '.length).trim();
+      }
+    }
+    flush();
+
+    return entries;
   }
 
   static Future<String?> _commitPreflightError({
@@ -550,7 +1144,14 @@ class GitTools {
     if (args.isEmpty || args.first != 'tag') {
       return null;
     }
-    const valueFlags = {'-m', '--message', '-F', '--file', '-u', '--local-user'};
+    const valueFlags = {
+      '-m',
+      '--message',
+      '-F',
+      '--file',
+      '-u',
+      '--local-user',
+    };
     const listingFlags = {
       '-l',
       '--list',
@@ -674,5 +1275,52 @@ class GitTools {
     }
 
     return args;
+  }
+}
+
+class _GitCommandRun {
+  const _GitCommandRun({
+    required this.command,
+    required this.workingDirectory,
+    required this.exitCode,
+    required this.stdout,
+    required this.stderr,
+  });
+
+  final String command;
+  final String workingDirectory;
+  final int exitCode;
+  final String stdout;
+  final String stderr;
+
+  Map<String, dynamic> toJson() {
+    final stdoutTruncated = stdout.length > GitTools._kMaxOutputChars;
+    final stderrTruncated = stderr.length > GitTools._kMaxOutputChars;
+    return {
+      'command': command,
+      'working_directory': workingDirectory,
+      'exit_code': exitCode,
+      'stdout': stdoutTruncated
+          ? stdout.substring(0, GitTools._kMaxOutputChars)
+          : stdout,
+      'stderr': stderrTruncated
+          ? stderr.substring(0, GitTools._kMaxOutputChars)
+          : stderr,
+      if (stdoutTruncated) 'stdout_truncated': true,
+      if (stderrTruncated) 'stderr_truncated': true,
+    };
+  }
+}
+
+class _GitWorktreeEntry {
+  const _GitWorktreeEntry({required this.path, required this.branch});
+
+  final String path;
+  final String branch;
+
+  String get normalizedPath => GitTools._normalizeFilesystemPath(path);
+
+  Map<String, dynamic> toJson() {
+    return {'path': path, if (branch.isNotEmpty) 'branch': branch};
   }
 }

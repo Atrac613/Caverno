@@ -105,6 +105,7 @@ void main() {
       if (Platform.isMacOS || Platform.isLinux || Platform.isWindows) {
         expect(functionNames, contains('os_get_system_info'));
         expect(functionNames, contains('run_tests'));
+        expect(functionNames, contains('git_finish_worktree_session'));
       }
       if (Platform.isMacOS || Platform.isLinux) {
         expect(functionNames, contains('os_log_read'));
@@ -275,6 +276,75 @@ void main() {
         expect(jsonDecode(result.result), containsPair('status', 'running'));
       },
     );
+
+    test('blocks direct git writes through local_execute_command', () async {
+      final service = McpToolService();
+
+      final result = await service.executeTool(
+        name: 'local_execute_command',
+        arguments: const {
+          'command': 'git merge feature/python-hello-world-3',
+          'working_directory': '/tmp',
+        },
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(
+        result.errorMessage,
+        'Use git_execute_command for git write commands',
+      );
+      final payload = jsonDecode(result.result) as Map<String, dynamic>;
+      expect(payload['code'], 'local_shell_git_write_blocked');
+      expect(payload['git_subcommand'], 'merge feature/python-hello-world-3');
+    });
+
+    test(
+      'blocks direct git writes before background local command start',
+      () async {
+        final fakeTools = _FakeBackgroundProcessTools(statusResults: const {});
+        final service = McpToolService(backgroundProcessTools: fakeTools);
+
+        final result = await service.executeTool(
+          name: 'local_execute_command',
+          arguments: const {
+            'command': 'git worktree remove /tmp/worktree',
+            'working_directory': '/tmp',
+            'background': true,
+            'label': 'remove worktree',
+          },
+        );
+
+        expect(result.isSuccess, isFalse);
+        expect(fakeTools.startCalls, isEmpty);
+        final payload = jsonDecode(result.result) as Map<String, dynamic>;
+        expect(payload['code'], 'local_shell_git_write_blocked');
+        expect(payload['git_subcommand'], 'worktree remove /tmp/worktree');
+        expect(
+          payload['required_action'],
+          contains('git_finish_worktree_session'),
+        );
+      },
+    );
+
+    test('blocks direct git writes before process_start', () async {
+      final fakeTools = _FakeBackgroundProcessTools(statusResults: const {});
+      final service = McpToolService(backgroundProcessTools: fakeTools);
+
+      final result = await service.executeTool(
+        name: 'process_start',
+        arguments: const {
+          'command': 'git checkout main',
+          'working_directory': '/tmp',
+          'label': 'checkout main',
+        },
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(fakeTools.startCalls, isEmpty);
+      final payload = jsonDecode(result.result) as Map<String, dynamic>;
+      expect(payload['code'], 'local_shell_git_write_blocked');
+      expect(payload['git_subcommand'], 'checkout main');
+    });
 
     test(
       'waits for a background local_execute_command process to complete',
@@ -610,6 +680,81 @@ packages:
       expect(result.isSuccess, isTrue);
       expect(decoded['exit_code'], 0);
       expect(Directory('${tempDir.path}/.git').existsSync(), isTrue);
+    });
+
+    test('finishes a worktree session from the base worktree', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'mcp_tool_service_finish_worktree_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+      final baseDir = Directory('${tempDir.path}/repo')..createSync();
+      final worktreeDir = Directory('${tempDir.path}/repo-worktree');
+
+      await _runGit(['init', '-b', 'main'], workingDirectory: baseDir.path);
+      await _runGit([
+        'config',
+        'user.email',
+        'test@example.com',
+      ], workingDirectory: baseDir.path);
+      await _runGit([
+        'config',
+        'user.name',
+        'Test User',
+      ], workingDirectory: baseDir.path);
+      await File('${baseDir.path}/README.md').writeAsString('base\n');
+      await _runGit(['add', 'README.md'], workingDirectory: baseDir.path);
+      await _runGit([
+        'commit',
+        '-m',
+        'Initial commit',
+      ], workingDirectory: baseDir.path);
+      await _runGit([
+        'worktree',
+        'add',
+        '-b',
+        'feature/worktree-finish',
+        worktreeDir.path,
+      ], workingDirectory: baseDir.path);
+      await File('${worktreeDir.path}/feature.txt').writeAsString('done\n');
+      await _runGit(['add', 'feature.txt'], workingDirectory: worktreeDir.path);
+      await _runGit([
+        'commit',
+        '-m',
+        'Add feature file',
+      ], workingDirectory: worktreeDir.path);
+      await _runGit([
+        'worktree',
+        'lock',
+        '--reason',
+        'test lock',
+        worktreeDir.path,
+      ], workingDirectory: baseDir.path);
+
+      final service = McpToolService();
+      final result = await service.executeTool(
+        name: 'git_finish_worktree_session',
+        arguments: {
+          'worktree_path': worktreeDir.path,
+          'base_branch': 'main',
+          'remove_worktree': true,
+        },
+      );
+
+      final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+      expect(result.isSuccess, isTrue);
+      expect(decoded['code'], 'git_finish_worktree_completed');
+      expect(decoded['base_worktree_path'], baseDir.resolveSymbolicLinksSync());
+      expect(decoded['current_branch'], 'feature/worktree-finish');
+      expect(decoded['removed_worktree'], isTrue);
+      expect((decoded['merge'] as Map<String, dynamic>)['exit_code'], 0);
+      expect((decoded['unlock'] as Map<String, dynamic>)['exit_code'], 0);
+      expect((decoded['remove'] as Map<String, dynamic>)['exit_code'], 0);
+      expect(File('${baseDir.path}/feature.txt').readAsStringSync(), 'done\n');
+      expect(worktreeDir.existsSync(), isFalse);
     });
 
     test('returns failure for non-zero git command results', () async {
@@ -1195,4 +1340,24 @@ class _FakeMcpClient extends McpClient {
     calledToolNames.add(name);
     return results[name] ?? '';
   }
+}
+
+Future<ProcessResult> _runGit(
+  List<String> args, {
+  required String workingDirectory,
+}) async {
+  final result = await Process.run(
+    'git',
+    args,
+    workingDirectory: workingDirectory,
+  );
+  expect(
+    result.exitCode,
+    0,
+    reason:
+        'git ${args.join(' ')} failed in $workingDirectory\n'
+        'stdout: ${result.stdout}\n'
+        'stderr: ${result.stderr}',
+  );
+  return result;
 }

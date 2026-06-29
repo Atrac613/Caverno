@@ -18,6 +18,7 @@ import 'package:caverno/features/chat/presentation/providers/worktree_agent_git_
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_executor.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
 import 'package:caverno/features/chat/presentation/slash_commands/slash_command_prompt_template.dart';
+import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 import 'package:caverno/features/routines/presentation/providers/routine_scheduler.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
@@ -51,6 +52,11 @@ class _SlashSettingsNotifier extends SettingsNotifier {
       demoMode: false,
       mcpEnabled: false,
     );
+  }
+
+  @override
+  Future<void> updateAssistantMode(AssistantMode assistantMode) async {
+    state = state.copyWith(assistantMode: assistantMode);
   }
 }
 
@@ -110,6 +116,7 @@ class _SlashConversationsNotifier extends ConversationsNotifier {
   void createNewConversation({
     WorkspaceMode? workspaceMode,
     String? projectId,
+    String worktreePath = '',
   }) {
     createCount += 1;
     final resolvedWorkspace = workspaceMode ?? state.activeWorkspaceMode;
@@ -121,6 +128,7 @@ class _SlashConversationsNotifier extends ConversationsNotifier {
       updatedAt: DateTime(2026, 5, 31, 10, createCount),
       workspaceMode: resolvedWorkspace,
       projectId: projectId ?? '',
+      worktreePath: worktreePath,
     );
     state = state.copyWith(
       conversations: [conversation, ...state.conversations],
@@ -182,6 +190,31 @@ class _SlashCodingProjectsNotifier extends CodingProjectsNotifier {
       projects: [project],
       selectedProjectId: project.id,
     );
+  }
+
+  @override
+  Future<CodingProject?> addProject(String rootPath) async {
+    final normalizedRootPath = rootPath.trim();
+    if (normalizedRootPath.isEmpty) return null;
+    for (final project in state.projects) {
+      if (project.normalizedRootPath == normalizedRootPath) {
+        state = state.copyWith(selectedProjectId: project.id);
+        return project;
+      }
+    }
+    final now = DateTime(2026, 5, 31, 11, state.projects.length);
+    final project = CodingProject(
+      id: 'project-${state.projects.length + 1}',
+      name: normalizedRootPath.split('/').last,
+      rootPath: normalizedRootPath,
+      createdAt: now,
+      updatedAt: now,
+    );
+    state = state.copyWith(
+      projects: [project, ...state.projects],
+      selectedProjectId: project.id,
+    );
+    return project;
   }
 }
 
@@ -474,6 +507,98 @@ void main() {
         'Worktree agent task queued and run started: '
         'feature/ll13-fix-flaky-widget-test',
       ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('composer new worktree starts a normal coding session', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/Users/test/Workspace/caverno',
+      createdAt: DateTime(2026, 5, 31, 10),
+      updatedAt: DateTime(2026, 5, 31, 10),
+    );
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final gitCalls = <List<String>>[];
+    final runProcess = _gitRunner(calls: gitCalls);
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+      runProcess: runProcess,
+      worktreeAgentPreparer: WorktreeAgentGitWorktreePreparer(
+        runProcess: runProcess,
+        ensureParentDirectory: (_) async {},
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('worktree-mode-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(
+        CheckedPopupMenuItem<MessageInputWorktreeMode>,
+        'New worktree',
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _submitComposerText(tester, 'Build the composer UI');
+
+    final projectsState = container.read(codingProjectsNotifierProvider);
+    final selectedProject = projectsState.selectedProject;
+    expect(projectsState.projects, hasLength(1));
+    expect(selectedProject?.rootPath, '/Users/test/Workspace/caverno');
+    expect(selectedProject?.id, 'project-1');
+    expect(chatNotifier.sentMessages, ['Build the composer UI']);
+    expect(
+      container.read(conversationsNotifierProvider).activeProjectId,
+      'project-1',
+    );
+    final currentConversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    expect(currentConversation?.projectId, 'project-1');
+    expect(
+      currentConversation?.normalizedWorktreePath,
+      '/Users/test/Workspace/caverno-worktrees/build-the-composer-ui',
+    );
+    expect(
+      container.read(worktreeAgentTaskRegistryNotifierProvider).tasks,
+      isEmpty,
+    );
+    expect(
+      gitCalls,
+      contains(
+        equals([
+          'git',
+          'worktree',
+          'add',
+          '-b',
+          'feature/build-the-composer-ui',
+          '/Users/test/Workspace/caverno-worktrees/build-the-composer-ui',
+          'main',
+        ]),
+      ),
+    );
+    expect(
+      find.text('Switched to worktree: feature/build-the-composer-ui'),
       findsOneWidget,
     );
   });
@@ -798,8 +923,10 @@ Future<ProviderContainer> _pumpSlashChatPage(
 CodingEnvironmentProcessRunner _gitRunner({
   List<String> branches = const <String>[],
   List<String> worktreePaths = const <String>[],
+  List<List<String>>? calls,
 }) {
   return (executable, arguments, {workingDirectory}) async {
+    calls?.add([executable, ...arguments]);
     if (executable != 'git') {
       return ProcessResult(1, 1, '', 'unexpected executable');
     }

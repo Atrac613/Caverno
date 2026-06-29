@@ -20,6 +20,34 @@ class LocalShellTools {
     return command.replaceAll(_modelControlTokenPattern, '').trim();
   }
 
+  static String? gitWriteCommandBlockedResult({
+    required String command,
+    required String workingDirectory,
+  }) {
+    final normalizedCommand = normalizeCommand(command);
+    final gitWriteCommand = _firstDirectGitWriteCommand(normalizedCommand);
+    if (gitWriteCommand == null) {
+      return null;
+    }
+    return jsonEncode({
+      'ok': false,
+      'code': 'local_shell_git_write_blocked',
+      'command': normalizedCommand,
+      'working_directory': workingDirectory,
+      'git_command': gitWriteCommand.gitCommand,
+      'git_subcommand': gitWriteCommand.gitSubcommand,
+      'exit_code': 2,
+      'error':
+          'Direct git write commands are blocked in local shell execution '
+          'because they bypass repository safety preflights.',
+      'required_action':
+          'Use git_execute_command with the git_subcommand value and the same '
+          'working_directory. For worktree completion after commits are ready, '
+          'use git_finish_worktree_session instead of merging or removing the '
+          'worktree manually.',
+    });
+  }
+
   static bool isReadOnly(String command) {
     final trimmed = normalizeCommand(command);
     if (trimmed.isEmpty) return false;
@@ -74,6 +102,13 @@ class LocalShellTools {
     final normalizedCommand = normalizeCommand(command);
     if (normalizedCommand.isEmpty) {
       return jsonEncode({'error': 'Command is required'});
+    }
+    final gitWriteBlockedResult = gitWriteCommandBlockedResult(
+      command: normalizedCommand,
+      workingDirectory: directory.absolute.path,
+    );
+    if (gitWriteBlockedResult != null) {
+      return gitWriteBlockedResult;
     }
 
     if (_canExecuteInternally(normalizedCommand)) {
@@ -290,6 +325,155 @@ class LocalShellTools {
     }
 
     return segments;
+  }
+
+  static _DirectGitWriteCommand? _firstDirectGitWriteCommand(String command) {
+    for (final segment in _splitShellCommandSegments(command)) {
+      final args = _splitArgs(segment);
+      if (args.length < 2) {
+        continue;
+      }
+      final executable = _basename(args.first).toLowerCase();
+      if (executable != 'git') {
+        continue;
+      }
+      final gitSubcommandArgs = _gitArgsAfterGlobalOptions(args);
+      if (gitSubcommandArgs.isEmpty) {
+        continue;
+      }
+      final gitSubcommand = gitSubcommandArgs.join(' ');
+      if (GitTools.isReadOnly(gitSubcommand)) {
+        continue;
+      }
+      return _DirectGitWriteCommand(
+        gitCommand: args.join(' '),
+        gitSubcommand: gitSubcommand,
+      );
+    }
+    return null;
+  }
+
+  static List<String> _splitShellCommandSegments(String command) {
+    final segments = <String>[];
+    final buffer = StringBuffer();
+    String? quoteChar;
+
+    for (var i = 0; i < command.length; i++) {
+      final char = command[i];
+
+      if (quoteChar != null) {
+        if (quoteChar == '"' && char == '\\') {
+          buffer.write(char);
+          if (i + 1 < command.length) {
+            i += 1;
+            buffer.write(command[i]);
+          }
+          continue;
+        }
+        if (char == quoteChar) {
+          quoteChar = null;
+        }
+        buffer.write(char);
+        continue;
+      }
+
+      if (char == '"' || char == "'") {
+        quoteChar = char;
+        buffer.write(char);
+        continue;
+      }
+
+      if (char == '&' && i + 1 < command.length && command[i + 1] == '&') {
+        _appendShellCommandSegment(segments, buffer);
+        i += 1;
+        continue;
+      }
+      if (char == '|' && i + 1 < command.length && command[i + 1] == '|') {
+        _appendShellCommandSegment(segments, buffer);
+        i += 1;
+        continue;
+      }
+      if (char == ';' || char == '|' || char == '\n') {
+        _appendShellCommandSegment(segments, buffer);
+        continue;
+      }
+
+      buffer.write(char);
+    }
+
+    _appendShellCommandSegment(segments, buffer);
+    return segments;
+  }
+
+  static void _appendShellCommandSegment(
+    List<String> segments,
+    StringBuffer buffer,
+  ) {
+    final segment = buffer.toString().trim();
+    if (segment.isNotEmpty) {
+      segments.add(segment);
+    }
+    buffer.clear();
+  }
+
+  static List<String> _gitArgsAfterGlobalOptions(List<String> gitArgs) {
+    var index = 1;
+    while (index < gitArgs.length) {
+      final arg = gitArgs[index];
+      if (_gitGlobalFlags.contains(arg)) {
+        index += 1;
+        continue;
+      }
+      if (_gitGlobalOptionsWithValue.contains(arg)) {
+        index += 2;
+        continue;
+      }
+      if (_gitGlobalOptionPrefixesWithValue.any(arg.startsWith)) {
+        index += 1;
+        continue;
+      }
+      break;
+    }
+    return index >= gitArgs.length
+        ? const <String>[]
+        : gitArgs.skip(index).toList();
+  }
+
+  static const Set<String> _gitGlobalFlags = {
+    '--bare',
+    '--help',
+    '--literal-pathspecs',
+    '--no-optional-locks',
+    '--no-pager',
+    '--paginate',
+    '--version',
+  };
+
+  static const Set<String> _gitGlobalOptionsWithValue = {
+    '-C',
+    '-c',
+    '--config-env',
+    '--exec-path',
+    '--git-dir',
+    '--html-path',
+    '--info-path',
+    '--man-path',
+    '--namespace',
+    '--super-prefix',
+    '--work-tree',
+  };
+
+  static const Set<String> _gitGlobalOptionPrefixesWithValue = {
+    '--config-env=',
+    '--exec-path=',
+    '--git-dir=',
+    '--namespace=',
+    '--super-prefix=',
+    '--work-tree=',
+  };
+
+  static String _basename(String path) {
+    return path.split(RegExp(r'[\\/]')).last;
   }
 
   static Future<String> _executeInternally({
@@ -1238,6 +1422,16 @@ class LocalShellTools {
 
     return absoluteCandidate.substring(prefix.length);
   }
+}
+
+class _DirectGitWriteCommand {
+  const _DirectGitWriteCommand({
+    required this.gitCommand,
+    required this.gitSubcommand,
+  });
+
+  final String gitCommand;
+  final String gitSubcommand;
 }
 
 class _BoundedOutputBuffer {

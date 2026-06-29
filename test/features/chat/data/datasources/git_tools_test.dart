@@ -163,29 +163,33 @@ void main() {
       expect(decoded['error'], contains('&&'));
     });
 
-    test('rejects a piped command with directive self-correction guidance',
-        () async {
-      final tempDir = await Directory.systemTemp.createTemp('git_tools_pipe_');
-      addTearDown(() async {
-        if (tempDir.existsSync()) {
-          await tempDir.delete(recursive: true);
-        }
-      });
+    test(
+      'rejects a piped command with directive self-correction guidance',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'git_tools_pipe_',
+        );
+        addTearDown(() async {
+          if (tempDir.existsSync()) {
+            await tempDir.delete(recursive: true);
+          }
+        });
 
-      final raw = await GitTools.execute(
-        command: 'tag --list | sort -V | tail -10',
-        workingDirectory: tempDir.path,
-      );
-      final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      final error = decoded['error'] as String;
+        final raw = await GitTools.execute(
+          command: 'tag --list | sort -V | tail -10',
+          workingDirectory: tempDir.path,
+        );
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        final error = decoded['error'] as String;
 
-      expect(decoded['exit_code'], 2);
-      // The model must learn to filter with git's own arguments rather than
-      // blindly retrying the unfiltered command, which is what caused the
-      // observed `tag --list` inspection loop.
-      expect(error, contains('Do not retry the same command'));
-      expect(error, contains('tag --list'));
-    });
+        expect(decoded['exit_code'], 2);
+        // The model must learn to filter with git's own arguments rather than
+        // blindly retrying the unfiltered command, which is what caused the
+        // observed `tag --list` inspection loop.
+        expect(error, contains('Do not retry the same command'));
+        expect(error, contains('tag --list'));
+      },
+    );
 
     test('rejects commit when unstaged changes would be omitted', () async {
       final tempDir = await Directory.systemTemp.createTemp(
@@ -343,6 +347,142 @@ void main() {
       },
     );
 
+    test('blocks merging the current branch into itself', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'git_tools_self_merge_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      Map<String, dynamic> decode(String raw) =>
+          jsonDecode(raw) as Map<String, dynamic>;
+      Future<Map<String, dynamic>> run(String command) async => decode(
+        await GitTools.execute(
+          command: command,
+          workingDirectory: tempDir.path,
+        ),
+      );
+
+      expect((await run('init'))['exit_code'], 0);
+      expect(
+        (await run('config user.email "canary@example.com"'))['exit_code'],
+        0,
+      );
+      expect((await run('config user.name "Canary Bot"'))['exit_code'], 0);
+
+      await File('${tempDir.path}/hello.txt').writeAsString('hello\n');
+      expect((await run('add hello.txt'))['exit_code'], 0);
+      expect((await run('commit -m "base"'))['exit_code'], 0);
+      expect((await run('checkout -b feature/self'))['exit_code'], 0);
+
+      final mergeResult = await run(
+        'merge feature/self -m "Merge feature/self into main"',
+      );
+
+      expect(mergeResult['exit_code'], 2);
+      expect(mergeResult['code'], 'git_merge_current_branch');
+      expect(mergeResult['current_branch'], 'feature/self');
+      expect(mergeResult['merge_target'], 'feature/self');
+      expect(mergeResult['error'], contains('merge the current branch'));
+      expect(mergeResult['error'], contains('git worktree list'));
+    });
+
+    test('blocks main merge intent from a non-main worktree', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'git_tools_wrong_merge_worktree_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      Map<String, dynamic> decode(String raw) =>
+          jsonDecode(raw) as Map<String, dynamic>;
+      Future<Map<String, dynamic>> run(
+        String command, {
+        String? reason,
+      }) async => decode(
+        await GitTools.execute(
+          command: command,
+          workingDirectory: tempDir.path,
+          reason: reason,
+        ),
+      );
+
+      expect((await run('init'))['exit_code'], 0);
+      expect((await run('branch -M main'))['exit_code'], 0);
+      expect(
+        (await run('config user.email "canary@example.com"'))['exit_code'],
+        0,
+      );
+      expect((await run('config user.name "Canary Bot"'))['exit_code'], 0);
+
+      await File('${tempDir.path}/base.txt').writeAsString('base\n');
+      expect((await run('add base.txt'))['exit_code'], 0);
+      expect((await run('commit -m "base"'))['exit_code'], 0);
+      final baseHead = await run('rev-parse HEAD');
+
+      expect((await run('checkout -b feature/source'))['exit_code'], 0);
+      await File('${tempDir.path}/hello.txt').writeAsString('hello\n');
+      expect((await run('add hello.txt'))['exit_code'], 0);
+      expect((await run('commit -m "add hello"'))['exit_code'], 0);
+
+      expect((await run('checkout main'))['exit_code'], 0);
+      expect((await run('checkout -b feature/other'))['exit_code'], 0);
+
+      final mergeResult = await run(
+        'merge feature/source -m "feat: add hello"',
+        reason: 'Merge feature/source into main',
+      );
+
+      expect(mergeResult['exit_code'], 2);
+      expect(mergeResult['code'], 'git_merge_wrong_target_worktree');
+      expect(mergeResult['current_branch'], 'feature/other');
+      expect(mergeResult['intended_target_branch'], 'main');
+      expect(mergeResult['merge_targets'], ['feature/source']);
+      expect(mergeResult['error'], contains('working directory is currently'));
+      expect(mergeResult['error'], contains('main'));
+
+      final headAfter = await run('rev-parse HEAD');
+      expect(headAfter['stdout'], baseHead['stdout']);
+    });
+
+    test('blocks double-force worktree removal in managed git tool', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'git_tools_force_remove_worktree_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      Map<String, dynamic> decode(String raw) =>
+          jsonDecode(raw) as Map<String, dynamic>;
+      Future<Map<String, dynamic>> run(String command) async => decode(
+        await GitTools.execute(
+          command: command,
+          workingDirectory: tempDir.path,
+        ),
+      );
+
+      expect((await run('init'))['exit_code'], 0);
+
+      final result = await run('worktree remove -f -f /tmp/caverno-worktree');
+
+      expect(result['exit_code'], 2);
+      expect(result['code'], 'git_worktree_force_remove_blocked');
+      expect(result['error'], contains('double-force removal'));
+      expect(
+        result['required_action'],
+        contains('git_finish_worktree_session'),
+      );
+    });
+
     test('blocks a version tag that disagrees with pubspec.yaml', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'git_tools_tag_version_test_',
@@ -356,7 +496,10 @@ void main() {
       Map<String, dynamic> decode(String raw) =>
           jsonDecode(raw) as Map<String, dynamic>;
       Future<Map<String, dynamic>> run(String command) async => decode(
-        await GitTools.execute(command: command, workingDirectory: tempDir.path),
+        await GitTools.execute(
+          command: command,
+          workingDirectory: tempDir.path,
+        ),
       );
 
       expect((await run('init'))['exit_code'], 0);

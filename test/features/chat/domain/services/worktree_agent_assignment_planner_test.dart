@@ -34,6 +34,23 @@ void main() {
       );
     });
 
+    test('uses assignment id path segments for farm-safe worktrees', () {
+      final plan = planner.plan(
+        title: 'Fix flaky widget test',
+        prompt: 'Repair the failing widget test.',
+        projectRootPath: '/Users/test/Workspace/caverno',
+        existingTasks: const [],
+        assignmentId: 'ABCDEF12-3456-7890-abcd-ef1234567890',
+      );
+
+      expect(plan.assignmentId, 'ABCDEF12-3456-7890-abcd-ef1234567890');
+      expect(plan.branchName, 'feature/ll13-fix-flaky-widget-test-abcdef12');
+      expect(
+        plan.worktreePath,
+        '/Users/test/Workspace/caverno-worktrees/abcdef12/caverno',
+      );
+    });
+
     test('adds suffixes for reserved branches and active worktrees', () {
       final existing = _task(
         id: 'task-1',

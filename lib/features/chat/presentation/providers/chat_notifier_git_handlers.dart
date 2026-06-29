@@ -104,6 +104,136 @@ extension ChatNotifierGitHandlers on ChatNotifier {
         : _rememberToolApprovalResult(toolCall.name, gitArguments, result);
   }
 
+  Future<McpToolResult> _handleGitFinishWorktreeSession(
+    ToolCallInfo toolCall,
+  ) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final conversationWorktreePath =
+        ref
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.normalizedWorktreePath ??
+        '';
+    final requestedWorktreePath =
+        (resolvedArguments['worktree_path'] as String?)?.trim() ?? '';
+    final worktreePath = requestedWorktreePath.isNotEmpty
+        ? requestedWorktreePath
+        : conversationWorktreePath;
+    final baseBranch =
+        (resolvedArguments['base_branch'] as String?)?.trim().isNotEmpty ??
+            false
+        ? (resolvedArguments['base_branch'] as String).trim()
+        : 'main';
+    final removeWorktree = _boolArgument(
+      resolvedArguments['remove_worktree'],
+      defaultValue: true,
+    );
+    final mergeMessage =
+        (resolvedArguments['merge_message'] as String?)?.trim() ?? '';
+
+    if (worktreePath.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage:
+            'worktree_path is required or the current conversation must be associated with a worktree',
+      );
+    }
+
+    final finishArguments = <String, dynamic>{
+      ...resolvedArguments,
+      'worktree_path': worktreePath,
+      'base_branch': baseBranch,
+      'remove_worktree': removeWorktree,
+      if (mergeMessage.isNotEmpty) 'merge_message': mergeMessage,
+    };
+
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      finishArguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
+    final reason = toolCall.arguments['reason'] as String?;
+    final gate = await _resolveToolApprovalGate(
+      toolCall: toolCall,
+      actionKind: 'git_finish_worktree_session',
+      mode: _settings.codingApprovalMode,
+      reviewDomain: ToolApprovalAutoReviewDomain.coding,
+      fullAccessEligible: true,
+      buildReviewRequest: () async => _buildAutoReviewRequest(
+        toolCall: toolCall,
+        actionKind: 'git_finish_worktree_session',
+        arguments: finishArguments,
+        workingDirectory: worktreePath,
+        reason: reason,
+      ),
+    );
+    if (gate.isDenied) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        finishArguments,
+        _autoReviewDeniedResult(
+          toolName: toolCall.name,
+          rationale: gate.deniedRationale!,
+        ),
+      );
+    }
+    if (gate.needsManual) {
+      final commandSummary = removeWorktree
+          ? 'finish worktree session: merge into $baseBranch and remove $worktreePath'
+          : 'finish worktree session: merge into $baseBranch';
+      final approved = await requestGitCommand(
+        command: commandSummary,
+        workingDirectory: worktreePath,
+        reason: reason,
+      );
+      if (!approved) {
+        return _rememberToolApprovalResult(
+          toolCall.name,
+          finishArguments,
+          McpToolResult(
+            toolName: toolCall.name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'User denied worktree session completion',
+          ),
+        );
+      }
+    }
+
+    final result = await _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: finishArguments,
+    );
+    return gate.bypassedApproval
+        ? result
+        : _rememberToolApprovalResult(toolCall.name, finishArguments, result);
+  }
+
+  bool _boolArgument(Object? value, {required bool defaultValue}) {
+    return switch (value) {
+      null => defaultValue,
+      bool boolValue => boolValue,
+      num numberValue => numberValue != 0,
+      String stringValue => switch (stringValue.trim().toLowerCase()) {
+        'true' || '1' || 'yes' || 'y' => true,
+        'false' || '0' || 'no' || 'n' => false,
+        _ => defaultValue,
+      },
+      _ => defaultValue,
+    };
+  }
+
   bool _toolResultsSatisfyCurrentGoalGitLifecycle(
     List<ToolResultInfo> toolResults,
   ) {

@@ -55,6 +55,7 @@ Future<SharedPreferences> _pumpMessageInput(
   VoidCallback? onCodingGoalMarkBlocked,
   VoidCallback? onCodingGoalReactivate,
   VoidCallback? onCodingGoalClear,
+  WorktreeSessionSendHandler? onWorktreeSessionSend,
   List<SlashCommandDefinition> slashCommands = const <SlashCommandDefinition>[],
   SlashCommandHandler? onSlashCommand,
 }) async {
@@ -107,6 +108,7 @@ Future<SharedPreferences> _pumpMessageInput(
                         onCodingGoalMarkBlocked: onCodingGoalMarkBlocked,
                         onCodingGoalReactivate: onCodingGoalReactivate,
                         onCodingGoalClear: onCodingGoalClear,
+                        onWorktreeSessionSend: onWorktreeSessionSend,
                         slashCommands: slashCommands,
                         onSlashCommand: onSlashCommand,
                       );
@@ -940,5 +942,59 @@ void main() {
     );
     expect(storedSettings.codingApprovalMode, ToolApprovalMode.autoReview);
     expect(find.byTooltip('Permission mode: Auto-review'), findsOneWidget);
+  });
+
+  testWidgets('starts a new worktree session from composer text', (
+    tester,
+  ) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+    final localMessages = <String>[];
+    final worktreePrompts = <String>[];
+
+    await _pumpMessageInput(
+      tester,
+      isLoading: isLoading,
+      onCancel: () {},
+      isCodingWorkspace: true,
+      onSend: (message, _, _, _, _) {
+        localMessages.add(message);
+      },
+      onWorktreeSessionSend: (prompt) async {
+        worktreePrompts.add(prompt);
+        return 'feature/composer-ui';
+      },
+    );
+
+    expect(find.text('Work locally'), findsOneWidget);
+    expect(find.byTooltip('Start in: Work locally'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('worktree-mode-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(
+        CheckedPopupMenuItem<MessageInputWorktreeMode>,
+        'New worktree',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('New worktree'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('worktree-base-branch-chip')),
+      findsOneWidget,
+    );
+
+    await tester.enterText(find.byType(TextField), 'Build the composer UI');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pumpAndSettle();
+
+    expect(localMessages, isEmpty);
+    expect(worktreePrompts, ['Build the composer UI']);
+    expect(
+      find.text('Switched to worktree: feature/composer-ui'),
+      findsOneWidget,
+    );
   });
 }

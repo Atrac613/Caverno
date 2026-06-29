@@ -74,3 +74,44 @@ String _buildPlanEditSeed(Conversation currentConversation) {
   }
   return 'Please adjust the current draft plan for this thread as follows:\n- ';
 }
+
+extension _ChatPageWorktreeComposerSupport on _ChatPageState {
+  Future<String> _startWorktreeSessionFromComposer(
+    String prompt,
+    CodingProject activeProject, {
+    required String languageCode,
+  }) async {
+    final result = await ref
+        .read(codingWorktreeSessionLauncherProvider)
+        .create(
+          CodingWorktreeSessionLaunchRequest(
+            title: _worktreeAgentTaskTitle(prompt),
+            prompt: prompt,
+            codingProjectId: activeProject.id,
+            projectRootPath: activeProject.normalizedRootPath,
+          ),
+        );
+    _leaveDashboard();
+    ref
+        .read(conversationsNotifierProvider.notifier)
+        .createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: activeProject.id,
+          worktreePath: result.plan.worktreePath,
+        );
+    final currentAssistantMode = ref
+        .read(settingsNotifierProvider)
+        .assistantMode;
+    if (currentAssistantMode == AssistantMode.general) {
+      await ref
+          .read(settingsNotifierProvider.notifier)
+          .updateAssistantMode(AssistantMode.coding);
+    }
+    unawaited(
+      ref
+          .read(chatNotifierProvider.notifier)
+          .sendMessage(prompt, languageCode: languageCode),
+    );
+    return result.plan.branchName;
+  }
+}

@@ -55,6 +55,8 @@ void main() {
     expect(updated.startedAt, isNotNull);
     expect(calls.map((call) => call.arguments), [
       ['rev-parse', '--show-toplevel'],
+      ['rev-parse', '--abbrev-ref', '--symbolic-full-name', 'main@{upstream}'],
+      ['fetch', 'origin', 'main'],
       [
         'worktree',
         'add',
@@ -62,6 +64,13 @@ void main() {
         'feature/ll13-fix-test',
         '/tmp/caverno-worktrees/fix-test',
         'main',
+      ],
+      [
+        'worktree',
+        'lock',
+        '--reason',
+        'caverno task=${task.id}',
+        '/tmp/caverno-worktrees/fix-test',
       ],
     ]);
   });
@@ -130,6 +139,22 @@ WorktreeAgentGitWorktreePreparer _preparer({
       );
       if (_argumentsEqual(arguments, const ['rev-parse', '--show-toplevel'])) {
         return ProcessResult(1, 0, '/repo', '');
+      }
+      if (_argumentsEqual(arguments, const [
+        'rev-parse',
+        '--abbrev-ref',
+        '--symbolic-full-name',
+        'main@{upstream}',
+      ])) {
+        return ProcessResult(2, 128, '', 'no upstream');
+      }
+      if (_argumentsEqual(arguments, const ['fetch', 'origin', 'main'])) {
+        return ProcessResult(3, 128, '', 'offline');
+      }
+      if (arguments.length >= 2 &&
+          arguments[0] == 'worktree' &&
+          arguments[1] == 'lock') {
+        return ProcessResult(4, 0, '', '');
       }
       return worktreeAddResult;
     },

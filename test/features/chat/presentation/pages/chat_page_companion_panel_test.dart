@@ -443,6 +443,175 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
     expect(find.text('Uncommitted changes'), findsOneWidget);
   });
 
+  testWidgets(
+    'worktree coding thread scopes companion environment to worktree',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1400, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final projectDir = Directory.systemTemp.createTempSync(
+        'chat_page_companion_project_test_',
+      );
+      final worktreeDir = Directory.systemTemp.createTempSync(
+        'chat_page_companion_worktree_test_',
+      );
+      addTearDown(() {
+        if (projectDir.existsSync()) {
+          projectDir.deleteSync(recursive: true);
+        }
+        if (worktreeDir.existsSync()) {
+          worktreeDir.deleteSync(recursive: true);
+        }
+      });
+
+      final now = DateTime(2026, 5, 28, 9, 25);
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'example_app',
+        rootPath: projectDir.path,
+        createdAt: now,
+        updatedAt: now,
+      );
+      final conversation = Conversation(
+        id: 'thread-1',
+        title: 'Worktree companion thread',
+        messages: const [],
+        createdAt: now,
+        updatedAt: now,
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+        worktreePath: worktreeDir.path,
+      );
+
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final preferences = await SharedPreferences.getInstance();
+      var currentBranch = 'feature/worktree-thread';
+      final gitCommands = <String>[];
+      final workingDirectories = <String?>[];
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            () => _CompanionConversationsNotifier(conversation),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _CompanionCodingProjectsNotifier(project),
+          ),
+          chatNotifierProvider.overrideWith(_TestChatNotifier.new),
+          routineSchedulerProvider.overrideWith(RoutineSchedulerController.new),
+          codingEnvironmentProcessRunnerProvider.overrideWithValue((
+            executable,
+            arguments, {
+            workingDirectory,
+          }) async {
+            gitCommands.add(arguments.join(' '));
+            workingDirectories.add(workingDirectory);
+            return switch (arguments.join(' ')) {
+              'rev-parse --show-toplevel' => ProcessResult(
+                1,
+                0,
+                '${worktreeDir.path}\n',
+                '',
+              ),
+              'branch --show-current' => ProcessResult(
+                1,
+                0,
+                '$currentBranch\n',
+                '',
+              ),
+              'for-each-ref --format=%(refname:short) refs/heads' =>
+                ProcessResult(
+                  1,
+                  0,
+                  'main\nfeature/worktree-thread\nfeature/next-worktree\n',
+                  '',
+                ),
+              'status --short' => ProcessResult(1, 0, '', ''),
+              'diff --shortstat' => ProcessResult(1, 0, '', ''),
+              'diff --cached --shortstat' => ProcessResult(1, 0, '', ''),
+              'diff --numstat HEAD --' => ProcessResult(1, 0, '', ''),
+              'diff --no-ext-diff --unified=3 HEAD --' => ProcessResult(
+                1,
+                0,
+                '',
+                '',
+              ),
+              'ls-files --others --exclude-standard -z' => ProcessResult(
+                1,
+                0,
+                '',
+                '',
+              ),
+              'checkout feature/next-worktree' => () {
+                currentBranch = 'feature/next-worktree';
+                return ProcessResult(
+                  1,
+                  0,
+                  'Switched to branch feature/next-worktree\n',
+                  '',
+                );
+              }(),
+              _ => ProcessResult(1, 1, '', 'unexpected git command'),
+            };
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        EasyLocalization(
+          supportedLocales: const [Locale('en')],
+          path: 'assets/translations',
+          fallbackLocale: const Locale('en'),
+          startLocale: const Locale('en'),
+          useOnlyLangCode: true,
+          saveLocale: false,
+          assetLoader: const _TestTranslationLoader(),
+          child: Builder(
+            builder: (context) {
+              return UncontrolledProviderScope(
+                container: container,
+                child: MaterialApp(
+                  localizationsDelegates: context.localizationDelegates,
+                  supportedLocales: context.supportedLocales,
+                  locale: context.locale,
+                  home: const ChatPage(showDashboardOnStartup: false),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Environment'), findsOneWidget);
+      expect(find.text(worktreeDir.path), findsOneWidget);
+      expect(find.text(projectDir.path), findsNothing);
+      expect(find.text('feature/worktree-thread'), findsOneWidget);
+      expect(workingDirectories.whereType<String>(), isNotEmpty);
+      expect(
+        workingDirectories.whereType<String>(),
+        isNot(contains(projectDir.path)),
+      );
+      expect(
+        workingDirectories.whereType<String>(),
+        everyElement(worktreeDir.path),
+      );
+
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('feature/next-worktree').last);
+      await tester.pumpAndSettle();
+
+      expect(currentBranch, 'feature/next-worktree');
+      expect(gitCommands, contains('checkout feature/next-worktree'));
+      expect(find.text('Switched to feature/next-worktree.'), findsOneWidget);
+    },
+  );
+
   testWidgets('wide chat workspace shows the session-log companion panel', (
     tester,
   ) async {

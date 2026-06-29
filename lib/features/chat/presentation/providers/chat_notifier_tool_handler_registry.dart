@@ -96,7 +96,10 @@ final class _GitToolHandlerModule implements ChatToolHandlerModule {
 
   @override
   Map<String, ChatToolHandler> get handlers {
-    return {'git_execute_command': _notifier._handleGitExecuteCommand};
+    return {
+      'git_execute_command': _notifier._handleGitExecuteCommand,
+      'git_finish_worktree_session': _notifier._handleGitFinishWorktreeSession,
+    };
   }
 }
 

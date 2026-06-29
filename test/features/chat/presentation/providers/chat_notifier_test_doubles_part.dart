@@ -302,6 +302,15 @@ class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
   CodingProjectsState build() => CodingProjectsState.initial();
 }
 
+class _FixedConversationsNotifier extends ConversationsNotifier {
+  _FixedConversationsNotifier(this.initialState);
+
+  final ConversationsState initialState;
+
+  @override
+  ConversationsState build() => initialState;
+}
+
 class _FixedCodingProjectsNotifier extends CodingProjectsNotifier {
   _FixedCodingProjectsNotifier(this.project);
 

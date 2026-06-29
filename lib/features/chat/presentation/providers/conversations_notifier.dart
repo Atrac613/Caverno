@@ -239,6 +239,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   bool _isReusableEmptyConversation(Conversation conversation) {
     return conversation.title == defaultConversationTitle &&
         conversation.messages.isEmpty &&
+        !conversation.usesWorktree &&
         !conversation.hasWorkflowContext &&
         !conversation.hasGoal &&
         !conversation.hasPlanArtifact &&
@@ -262,6 +263,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   Conversation _createConversation({
     required WorkspaceMode workspaceMode,
     required String? projectId,
+    String worktreePath = '',
   }) {
     final now = DateTime.now();
     return Conversation(
@@ -272,6 +274,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: now,
       workspaceMode: workspaceMode,
       projectId: projectId ?? '',
+      worktreePath: worktreePath,
     );
   }
 
@@ -343,6 +346,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   void createNewConversation({
     WorkspaceMode? workspaceMode,
     String? projectId,
+    String worktreePath = '',
   }) {
     final resolvedWorkspaceMode = workspaceMode ?? state.activeWorkspaceMode;
     if (!resolvedWorkspaceMode.usesConversations) {
@@ -354,6 +358,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final conversation = _createConversation(
       workspaceMode: resolvedWorkspaceMode,
       projectId: resolvedProjectId,
+      worktreePath: worktreePath,
     );
 
     state = state.copyWith(

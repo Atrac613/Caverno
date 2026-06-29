@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -16,6 +17,7 @@ class WorktreeAgentTaskLaunchRequest {
     this.codingProjectId = '',
     this.projectRootPath = '',
     this.baseBranch = 'main',
+    this.assignmentId = '',
     this.branchPrefix = WorktreeAgentAssignmentPlanner.defaultBranchPrefix,
     this.worktreeRootPath = '',
     this.checkpointLineageId = '',
@@ -30,6 +32,7 @@ class WorktreeAgentTaskLaunchRequest {
   final String codingProjectId;
   final String projectRootPath;
   final String baseBranch;
+  final String assignmentId;
   final String branchPrefix;
   final String worktreeRootPath;
   final String checkpointLineageId;
@@ -94,6 +97,9 @@ class WorktreeAgentTaskLauncher {
     final codingProjectId = request.codingProjectId.trim().isEmpty
         ? (project?.id ?? '')
         : request.codingProjectId.trim();
+    final assignmentId = request.assignmentId.trim().isEmpty
+        ? const Uuid().v4()
+        : request.assignmentId.trim();
 
     final planner = _ref.read(worktreeAgentAssignmentPlannerProvider);
     final plan = planner.plan(
@@ -103,6 +109,7 @@ class WorktreeAgentTaskLauncher {
       existingTasks: registryState.tasks,
       codingProjectId: codingProjectId,
       baseBranch: request.baseBranch,
+      assignmentId: assignmentId,
       branchPrefix: request.branchPrefix,
       worktreeRootPath: request.worktreeRootPath,
       checkpointLineageId: request.checkpointLineageId,

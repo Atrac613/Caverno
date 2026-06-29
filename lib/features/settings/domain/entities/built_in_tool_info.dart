@@ -427,6 +427,11 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_git_execute_command',
       category: categoryGit,
     ),
+    BuiltInToolInfo(
+      name: 'git_finish_worktree_session',
+      descriptionKey: 'settings.tool_git_finish_worktree_session',
+      category: categoryGit,
+    ),
     // Web Search
     BuiltInToolInfo(
       name: 'web_search',

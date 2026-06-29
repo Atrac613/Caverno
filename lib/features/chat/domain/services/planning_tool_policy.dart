@@ -97,6 +97,11 @@ class PlanningToolPolicy {
                     ? 'Planning mode only allows read-only git commands.'
                     : 'Planning mode blocked git command: git $command',
               );
+      case 'git_finish_worktree_session':
+        return _buildDeniedResult(
+          toolCall,
+          detail: 'Planning mode cannot merge or remove git worktree sessions.',
+        );
       default:
         return _isDeniedToolName(toolCall.name)
             ? _buildDeniedResult(toolCall)

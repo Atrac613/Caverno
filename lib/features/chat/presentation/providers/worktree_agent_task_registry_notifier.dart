@@ -83,6 +83,7 @@ class WorktreeAgentTaskRegistryNotifier
   }
 
   Future<WorktreeAgentTask> registerTask({
+    String id = '',
     required String title,
     required String prompt,
     required String branchName,
@@ -105,9 +106,10 @@ class WorktreeAgentTaskRegistryNotifier
     }
     _ensureWorktreeAvailable(normalizedWorktreePath);
 
+    final normalizedId = id.trim();
     final now = DateTime.now();
     final task = WorktreeAgentTask(
-      id: _uuid.v4(),
+      id: normalizedId.isEmpty ? _uuid.v4() : normalizedId,
       title: title.trim(),
       prompt: prompt.trim(),
       codingProjectId: codingProjectId.trim(),
@@ -128,6 +130,7 @@ class WorktreeAgentTaskRegistryNotifier
     WorktreeAgentAssignmentPlan plan,
   ) {
     return registerTask(
+      id: plan.assignmentId,
       title: plan.title,
       prompt: plan.prompt,
       branchName: plan.branchName,

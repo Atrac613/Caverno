@@ -55,6 +55,7 @@ import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/coding_environment_snapshot_provider.dart';
 import '../providers/conversations_notifier.dart';
+import '../providers/coding_worktree_session_launcher.dart';
 import '../providers/custom_slash_commands_notifier.dart';
 import '../providers/worktree_agent_task_launcher.dart';
 import '../providers/worktree_agent_task_orchestrator.dart';
@@ -129,7 +130,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   MessageInputImageAttachment? _droppedImageAttachment;
   String? _pendingCodingGoalConversationId;
   String? _codingGoalSuggestionConversationId;
-
   static const double _companionSidebarBreakpoint = 1180;
   static const double _companionSidebarWidth = 344;
   static const double _persistentDrawerBreakpoint = 900;
@@ -141,11 +141,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   static const double _compactBrowserPanelHeightFraction = 0.55;
   static const double _compactBrowserChatReserveHeight = 220;
 
-  /// The built-in browser webview is built once and reused so toggling the
-  /// pane (or moving between wide and compact layouts) preserves the live page.
+  /// Reused browser webview preserves the live page while panes toggle.
   final GlobalKey _browserWebViewKey = GlobalKey();
   Widget? _browserWebView;
-
   static const Set<String> _imageDropExtensions = {
     '.png',
     '.jpg',
@@ -158,7 +156,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     '.tiff',
     '.bmp',
   };
-
   @override
   void initState() {
     super.initState();
@@ -1459,9 +1456,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final isCodingWorkspace =
         !isDashboardVisible &&
         conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
-    // Chat-mode permission selector gates the shared approval for high-risk
-    // chat tools (browser, SSH, BLE, serial). Only shown when at least one of
-    // them is exposed.
     final showChatApprovalMode =
         !isDashboardVisible &&
         !isCodingWorkspace &&
@@ -1546,7 +1540,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final usePersistentDrawer =
         !isMobileRemoteCoding &&
         MediaQuery.sizeOf(context).width >= _persistentDrawerBreakpoint;
-
     void handleComposerSend(
       String message,
       String? imageBase64,
@@ -1648,6 +1641,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         composerPrefillText: _composerPrefillText,
         composerPrefillVersion: _composerPrefillVersion,
         droppedImageAttachment: _droppedImageAttachment,
+        onWorktreeSessionSend: isCodingWorkspace && activeProject != null
+            ? (prompt) => _startWorktreeSessionFromComposer(
+                prompt,
+                activeProject,
+                languageCode: context.locale.languageCode,
+              )
+            : null,
         codingGoal: isCodingWorkspace ? currentConversation?.goal : null,
         isCodingGoalSetupPending:
             isCodingWorkspace &&

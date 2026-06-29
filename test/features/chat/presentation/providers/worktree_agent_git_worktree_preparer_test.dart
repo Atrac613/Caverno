@@ -6,49 +6,174 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('WorktreeAgentGitWorktreePreparer', () {
-    test('creates the parent directory and runs git worktree add', () async {
-      final calls = <_GitCall>[];
-      final ensuredParents = <String>[];
-      final preparer = WorktreeAgentGitWorktreePreparer(
-        ensureParentDirectory: (path) async {
-          ensuredParents.add(path);
-        },
-        runProcess: (executable, arguments, {workingDirectory}) async {
-          calls.add(
-            _GitCall(arguments: arguments, workingDirectory: workingDirectory),
-          );
-          if (_argumentsEqual(arguments, const [
+    test(
+      'syncs the base branch before creating and locking a worktree',
+      () async {
+        final calls = <_GitCall>[];
+        final ensuredParents = <String>[];
+        final preparer = WorktreeAgentGitWorktreePreparer(
+          ensureParentDirectory: (path) async {
+            ensuredParents.add(path);
+          },
+          runProcess: (executable, arguments, {workingDirectory}) async {
+            calls.add(
+              _GitCall(
+                arguments: arguments,
+                workingDirectory: workingDirectory,
+              ),
+            );
+            if (_argumentsEqual(arguments, const [
+              'rev-parse',
+              '--show-toplevel',
+            ])) {
+              return ProcessResult(1, 0, '/repo', '');
+            }
+            if (_argumentsEqual(arguments, const [
+              'rev-parse',
+              '--abbrev-ref',
+              '--symbolic-full-name',
+              'main@{upstream}',
+            ])) {
+              return ProcessResult(2, 0, 'origin/main\n', '');
+            }
+            if (_argumentsEqual(arguments, const ['fetch', 'origin', 'main'])) {
+              return ProcessResult(3, 0, '', '');
+            }
+            if (_argumentsEqual(arguments, const [
+              'worktree',
+              'add',
+              '-b',
+              'feature/ll13-fix-test',
+              '/tmp/caverno-worktrees/fix-test',
+              'origin/main',
+            ])) {
+              expect(workingDirectory, '/repo');
+              return ProcessResult(4, 0, 'Preparing worktree', '');
+            }
+            if (_argumentsEqual(arguments, const [
+              'worktree',
+              'lock',
+              '--reason',
+              'caverno task=task-1',
+              '/tmp/caverno-worktrees/fix-test',
+            ])) {
+              return ProcessResult(5, 0, '', '');
+            }
+            return ProcessResult(6, 1, '', 'unexpected command');
+          },
+        );
+
+        final result = await preparer.prepare(
+          projectRootPath: '/repo/app',
+          task: _task(),
+        );
+
+        expect(result.success, isTrue);
+        expect(result.repositoryRoot, '/repo');
+        expect(ensuredParents, ['/tmp/caverno-worktrees']);
+        expect(calls.map((call) => call.arguments), [
+          ['rev-parse', '--show-toplevel'],
+          [
             'rev-parse',
-            '--show-toplevel',
-          ])) {
-            return ProcessResult(1, 0, '/repo', '');
-          }
-          if (_argumentsEqual(arguments, const [
+            '--abbrev-ref',
+            '--symbolic-full-name',
+            'main@{upstream}',
+          ],
+          ['fetch', 'origin', 'main'],
+          [
             'worktree',
             'add',
             '-b',
             'feature/ll13-fix-test',
             '/tmp/caverno-worktrees/fix-test',
-            'main',
-          ])) {
-            expect(workingDirectory, '/repo');
-            return ProcessResult(2, 0, 'Preparing worktree', '');
-          }
-          return ProcessResult(3, 1, '', 'unexpected command');
-        },
-      );
+            'origin/main',
+          ],
+          [
+            'worktree',
+            'lock',
+            '--reason',
+            'caverno task=task-1',
+            '/tmp/caverno-worktrees/fix-test',
+          ],
+        ]);
+        expect(calls.first.workingDirectory, '/repo/app');
+      },
+    );
 
-      final result = await preparer.prepare(
-        projectRootPath: '/repo/app',
-        task: _task(),
-      );
+    test(
+      'falls back to the local base branch when remote sync fails',
+      () async {
+        final calls = <_GitCall>[];
+        final preparer = WorktreeAgentGitWorktreePreparer(
+          ensureParentDirectory: (_) async {},
+          runProcess: (executable, arguments, {workingDirectory}) async {
+            calls.add(
+              _GitCall(
+                arguments: arguments,
+                workingDirectory: workingDirectory,
+              ),
+            );
+            if (_argumentsEqual(arguments, const [
+              'rev-parse',
+              '--show-toplevel',
+            ])) {
+              return ProcessResult(1, 0, '/repo', '');
+            }
+            if (_argumentsEqual(arguments, const [
+              'rev-parse',
+              '--abbrev-ref',
+              '--symbolic-full-name',
+              'main@{upstream}',
+            ])) {
+              return ProcessResult(2, 128, '', 'no upstream');
+            }
+            if (_argumentsEqual(arguments, const ['fetch', 'origin', 'main'])) {
+              return ProcessResult(3, 128, '', 'offline');
+            }
+            if (_argumentsEqual(arguments, const [
+              'worktree',
+              'add',
+              '-b',
+              'feature/ll13-fix-test',
+              '/tmp/caverno-worktrees/fix-test',
+              'main',
+            ])) {
+              return ProcessResult(4, 0, 'Preparing worktree', '');
+            }
+            if (_argumentsEqual(arguments, const [
+              'worktree',
+              'lock',
+              '--reason',
+              'caverno task=task-1',
+              '/tmp/caverno-worktrees/fix-test',
+            ])) {
+              return ProcessResult(5, 0, '', '');
+            }
+            return ProcessResult(6, 1, '', 'unexpected command');
+          },
+        );
 
-      expect(result.success, isTrue);
-      expect(result.repositoryRoot, '/repo');
-      expect(ensuredParents, ['/tmp/caverno-worktrees']);
-      expect(calls, hasLength(2));
-      expect(calls.first.workingDirectory, '/repo/app');
-    });
+        final result = await preparer.prepare(
+          projectRootPath: '/repo/app',
+          task: _task(),
+        );
+
+        expect(result.success, isTrue);
+        expect(
+          calls.any(
+            (call) => _argumentsEqual(call.arguments, const [
+              'worktree',
+              'add',
+              '-b',
+              'feature/ll13-fix-test',
+              '/tmp/caverno-worktrees/fix-test',
+              'main',
+            ]),
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('rejects non-queued tasks before running git commands', () async {
       final preparer = WorktreeAgentGitWorktreePreparer(
@@ -79,7 +204,18 @@ void main() {
           ])) {
             return ProcessResult(1, 0, '/repo', '');
           }
-          return ProcessResult(2, 128, '', 'fatal: invalid reference: main');
+          if (_argumentsEqual(arguments, const [
+            'rev-parse',
+            '--abbrev-ref',
+            '--symbolic-full-name',
+            'main@{upstream}',
+          ])) {
+            return ProcessResult(2, 128, '', 'no upstream');
+          }
+          if (_argumentsEqual(arguments, const ['fetch', 'origin', 'main'])) {
+            return ProcessResult(3, 128, '', 'offline');
+          }
+          return ProcessResult(4, 128, '', 'fatal: invalid reference: main');
         },
       );
 

@@ -28,6 +28,8 @@ import 'ble_tools.dart';
 import 'conversation_search_tool.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'filesystem_tools.dart';
+import 'git_execute_command_tool.dart';
+import 'git_finish_worktree_session_tool.dart';
 import 'git_tools.dart';
 import 'installed_dependency_grounding_service.dart';
 import 'lan_scan_tools.dart';
@@ -97,7 +99,8 @@ class McpToolService {
     'process_list',
     'run_python_script',
     'run_tests',
-    'git_execute_command',
+    GitExecuteCommandTool.toolName,
+    GitFinishWorktreeSessionTool.toolName,
     ...OsLogTools.allToolNames,
     'ssh_connect',
     'ssh_execute_command',
@@ -420,7 +423,11 @@ class McpToolService {
 
     // Git tools (desktop only — requires system git binary via Process.run).
     if (GitTools.isDesktopPlatform) {
-      _addIfEnabled(toolDefinitions, _gitExecuteCommandTool);
+      _addIfEnabled(toolDefinitions, GitExecuteCommandTool.toolDefinition);
+      _addIfEnabled(
+        toolDefinitions,
+        GitFinishWorktreeSessionTool.toolDefinition,
+      );
     }
 
     // SSH remote server tools (always available — the session is managed
@@ -908,6 +915,19 @@ class McpToolService {
           errorMessage: 'command and working_directory are required',
         );
       }
+      final gitWriteBlockedResult =
+          LocalShellTools.gitWriteCommandBlockedResult(
+            command: command,
+            workingDirectory: workingDirectory,
+          );
+      if (gitWriteBlockedResult != null) {
+        return McpToolResult(
+          toolName: name,
+          result: gitWriteBlockedResult,
+          isSuccess: false,
+          errorMessage: 'Use git_execute_command for git write commands',
+        );
+      }
       final isBackground = _asBool(arguments['background']);
       if (isBackground) {
         final tools = backgroundProcessTools;
@@ -945,6 +965,19 @@ class McpToolService {
           result: '',
           isSuccess: false,
           errorMessage: 'command and working_directory are required',
+        );
+      }
+      final gitWriteBlockedResult =
+          LocalShellTools.gitWriteCommandBlockedResult(
+            command: command,
+            workingDirectory: workingDirectory,
+          );
+      if (gitWriteBlockedResult != null) {
+        return McpToolResult(
+          toolName: name,
+          result: gitWriteBlockedResult,
+          isSuccess: false,
+          errorMessage: 'Use git_execute_command for git write commands',
         );
       }
       final tools = backgroundProcessTools;
@@ -1784,6 +1817,7 @@ class McpToolService {
         final result = await GitTools.execute(
           command: command,
           workingDirectory: workingDirectory,
+          reason: (arguments['reason'] as String?)?.trim(),
         );
         final failureMessage = _commandResultFailureMessage(
           result,
@@ -1809,6 +1843,10 @@ class McpToolService {
           errorMessage: e.toString(),
         );
       }
+    }
+
+    if (name == GitFinishWorktreeSessionTool.toolName) {
+      return GitFinishWorktreeSessionTool.execute(arguments);
     }
 
     // SSH remote server tools.
@@ -2600,8 +2638,7 @@ class McpToolService {
           },
           'workspace_directory': {
             'type': 'string',
-            'description':
-                'Optional working directory for the routine run.',
+            'description': 'Optional working directory for the routine run.',
           },
           'allow_workspace_writes': {
             'type': 'boolean',
@@ -4323,7 +4360,7 @@ class McpToolService {
     'function': {
       'name': 'local_execute_command',
       'description':
-          'Execute a local shell command inside the current project. Read-only commands may run immediately; commands that can modify files or state require user approval. Prefer file tools for file discovery and reading; prefer absolute paths or working_directory over shell-only features such as pipes, redirection, environment variables, or command substitution. Do not use shell commands (cat, stty, screen, xxd, etc.) on serial port devices such as /dev/tty.*, /dev/cu.*, or COM ports — they block on serial I/O and are platform-fragile; use the dedicated serial_* tools (serial_list_ports, serial_open, serial_read, serial_decode, serial_write, serial_close) instead.',
+          'Execute a local shell command inside the current project. Read-only commands may run immediately; commands that can modify files or state require user approval. Use git_execute_command for git write operations such as add, commit, checkout, merge, rebase, branch changes, worktree changes, tag creation, or reset. Prefer file tools for file discovery and reading; prefer absolute paths or working_directory over shell-only features such as pipes, redirection, environment variables, or command substitution. Do not use shell commands (cat, stty, screen, xxd, etc.) on serial port devices such as /dev/tty.*, /dev/cu.*, or COM ports — they block on serial I/O and are platform-fragile; use the dedicated serial_* tools (serial_list_ports, serial_open, serial_read, serial_decode, serial_write, serial_close) instead.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -4364,7 +4401,7 @@ class McpToolService {
     'function': {
       'name': 'process_start',
       'description':
-          'Start a long-running local shell command as a background process and return a job_id immediately. Use this instead of local_execute_command for builds, releases, deploys, uploads, long tests, or commands expected to run longer than about one minute. Pair this with process_list/process_status/process_tail/process_wait to observe completion. Starting a process may modify files or external state and requires the same approval as local_execute_command.',
+          'Start a long-running local shell command as a background process and return a job_id immediately. Use this instead of local_execute_command for builds, releases, deploys, uploads, long tests, or commands expected to run longer than about one minute. Use git_execute_command, not process_start, for git write operations. Pair this with process_list/process_status/process_tail/process_wait to observe completion. Starting a process may modify files or external state and requires the same approval as local_execute_command.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -4562,53 +4599,6 @@ class McpToolService {
                 'Short human-readable reason shown in the approval dialog when approval is required.',
           },
         },
-      },
-    },
-  };
-
-  // ---------------------------------------------------------------------------
-  // Built-in tool: git_execute_command (desktop only)
-  // ---------------------------------------------------------------------------
-
-  static Map<String, dynamic> get _gitExecuteCommandTool => {
-    'type': 'function',
-    'function': {
-      'name': 'git_execute_command',
-      'description':
-          'Execute a git command in a local repository, or initialize one '
-          'with git init (desktop only — '
-          'macOS, Linux, Windows). Read-only commands (status, log, diff, '
-          'show, branch, tag, remote, blame, etc.) run immediately. Write '
-          'operations (commit, push, pull, checkout, merge, rebase, reset, '
-          'etc.) require user approval before execution. Always use '
-          'non-interactive flags (e.g. commit -m "message", not bare commit).',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'command': {
-            'type': 'string',
-            'description':
-                'Git subcommand and arguments (without the leading "git"), '
-                'exactly one git subcommand per call. Do not use shell '
-                'operators such as &&, ;, |, or redirection. '
-                'e.g. "status", "log --oneline -20", "diff HEAD~1", '
-                '"commit -m \\"fix typo\\"".',
-          },
-          'working_directory': {
-            'type': 'string',
-            'description':
-                'Absolute path to the git repository working directory. '
-                'Optional when a coding project is currently selected; the '
-                'project root can be used as the default.',
-          },
-          'reason': {
-            'type': 'string',
-            'description':
-                'Short human-readable explanation shown to the user in the '
-                'confirmation dialog (only used for write operations).',
-          },
-        },
-        'required': ['command'],
       },
     },
   };

@@ -240,6 +240,7 @@ abstract class Conversation with _$Conversation {
     @Default(WorkspaceMode.chat)
     WorkspaceMode workspaceMode,
     @Default('') String projectId,
+    @Default('') String worktreePath,
     @JsonKey(unknownEnumValue: ConversationExecutionMode.normal)
     @Default(ConversationExecutionMode.normal)
     ConversationExecutionMode executionMode,
@@ -295,6 +296,10 @@ abstract class Conversation with _$Conversation {
     final trimmed = projectId.trim();
     return trimmed.isEmpty ? null : trimmed;
   }
+
+  String get normalizedWorktreePath => worktreePath.trim();
+
+  bool get usesWorktree => normalizedWorktreePath.isNotEmpty;
 
   bool get isPlanningSession =>
       executionMode == ConversationExecutionMode.planning;

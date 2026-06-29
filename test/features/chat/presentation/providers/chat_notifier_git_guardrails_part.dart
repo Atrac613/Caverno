@@ -1,6 +1,78 @@
 part of 'chat_notifier_test.dart';
 
 void registerChatNotifierGitGuardrailTests() {
+  test('worktree conversations scope project tools to the worktree root', () {
+    final localController = StreamController<String>();
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'Project',
+      rootPath: '/tmp/project',
+      createdAt: DateTime(2026, 5, 31, 10),
+      updatedAt: DateTime(2026, 5, 31, 10),
+    );
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Worktree thread',
+      messages: const <Message>[],
+      createdAt: DateTime(2026, 5, 31, 10),
+      updatedAt: DateTime(2026, 5, 31, 10),
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      worktreePath: '/tmp/project-worktrees/worktree-thread',
+    );
+    final localContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          () => _FixedConversationsNotifier(
+            ConversationsState(
+              conversations: [conversation],
+              currentConversationId: conversation.id,
+              activeWorkspaceMode: WorkspaceMode.coding,
+              activeProjectId: project.id,
+            ),
+          ),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(
+          _StreamingChatDataSource(localController),
+        ),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(() async {
+      localContainer.dispose();
+      if (localController.hasListener) {
+        await localController.close();
+      } else {
+        unawaited(localController.close());
+      }
+    });
+
+    final scopedNotifier = localContainer.read(chatNotifierProvider.notifier);
+    expect(
+      scopedNotifier.resolveProjectScopedArgumentsForTest(
+        'git_execute_command',
+        {'command': 'status --short'},
+      ),
+      containsPair(
+        'working_directory',
+        '/tmp/project-worktrees/worktree-thread',
+      ),
+    );
+  });
+
   test(
     'sendMessage marks Japanese commit completion claim without tool call as unexecuted',
     () async {

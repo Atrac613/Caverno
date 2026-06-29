@@ -5,6 +5,21 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierPromptContext on ChatNotifier {
+  CodingProject? _getEffectiveCodingProject() {
+    final project = _getActiveCodingProject();
+    if (project == null) {
+      return null;
+    }
+    final worktreePath = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.normalizedWorktreePath;
+    if (worktreePath == null || worktreePath.isEmpty) {
+      return project;
+    }
+    return project.copyWith(rootPath: worktreePath);
+  }
+
   String? _loadAgentsMd(AssistantMode assistantMode, CodingProject? project) {
     if (!_settings.enableAgentsMd || assistantMode == AssistantMode.general) {
       return null;

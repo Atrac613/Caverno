@@ -46,16 +46,22 @@ void main() {
       const WorktreeAgentTaskLaunchRequest(
         title: 'Fix flaky widget test',
         prompt: 'Repair the failing widget test.',
+        assignmentId: '01234567-89ab-cdef-0123-456789abcdef',
         checkpointLineageId: 'checkpoint-1',
         verificationCommand: 'fvm flutter test test/widget_test.dart',
       ),
     );
 
-    expect(result.plan.branchName, 'feature/ll13-fix-flaky-widget-test');
+    expect(
+      result.plan.branchName,
+      'feature/ll13-fix-flaky-widget-test-01234567',
+    );
     expect(
       result.plan.worktreePath,
-      '/Users/test/Workspace/caverno-worktrees/fix-flaky-widget-test',
+      '/Users/test/Workspace/caverno-worktrees/01234567/caverno',
     );
+    expect(result.plan.assignmentId, result.task.id);
+    expect(result.task.id, '01234567-89ab-cdef-0123-456789abcdef');
     expect(result.task.codingProjectId, 'project-1');
     expect(result.task.endpointId, 'mesh-1');
     expect(result.task.checkpointLineageId, 'checkpoint-1');
@@ -186,9 +192,9 @@ void main() {
     container = _container(
       prefs,
       runProcess: _gitRunner(
-        branches: const ['feature/custom-fix-flaky-widget-test'],
+        branches: const ['feature/custom-fix-flaky-widget-test-fedcba98'],
         worktreePaths: const [
-          '/Users/test/Workspace/caverno-worktrees/fix-flaky-widget-test',
+          '/Users/test/Workspace/caverno-worktrees/fedcba98/caverno',
         ],
       ),
     );
@@ -199,16 +205,20 @@ void main() {
         prompt: 'Repair the failing widget test.',
         codingProjectId: 'external-project',
         projectRootPath: '/Users/test/Workspace/caverno',
+        assignmentId: 'fedcba98-7654-3210-fedc-ba9876543210',
         branchPrefix: 'feature/custom',
         endpointId: 'mesh-explicit',
         verificationCommand: 'fvm flutter analyze',
       ),
     );
 
-    expect(result.task.branchName, 'feature/custom-fix-flaky-widget-test-2');
+    expect(
+      result.task.branchName,
+      'feature/custom-fix-flaky-widget-test-fedcba98-2',
+    );
     expect(
       result.task.worktreePath,
-      '/Users/test/Workspace/caverno-worktrees/fix-flaky-widget-test-2',
+      '/Users/test/Workspace/caverno-worktrees/fedcba98/caverno-2',
     );
     expect(result.task.codingProjectId, 'external-project');
     expect(result.task.endpointId, 'mesh-explicit');
@@ -233,13 +243,14 @@ void main() {
           title: 'Fix docs',
           prompt: 'Update docs.',
           projectRootPath: '/Users/test/Workspace/other',
+          assignmentId: 'aabbccdd-1111-2222-3333-444455556666',
         ),
       );
 
       expect(result.task.codingProjectId, isEmpty);
       expect(
         result.task.worktreePath,
-        '/Users/test/Workspace/other-worktrees/fix-docs',
+        '/Users/test/Workspace/other-worktrees/aabbccdd/other',
       );
     },
   );

@@ -4,6 +4,17 @@
 
 part of 'chat_page.dart';
 
+CodingProject _effectiveCodingProjectForConversation({
+  required Conversation currentConversation,
+  required CodingProject activeProject,
+}) {
+  final worktreePath = currentConversation.normalizedWorktreePath;
+  if (worktreePath.isEmpty) {
+    return activeProject;
+  }
+  return activeProject.copyWith(rootPath: worktreePath);
+}
+
 extension _ChatPageCompanionBuilders on _ChatPageState {
   Future<void> _showCompanionPanelSheet(
     BuildContext context, {
@@ -47,7 +58,11 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
     final sections = <Widget>[];
 
     if (activeProject != null) {
-      final rootPath = activeProject.normalizedRootPath;
+      final effectiveProject = _effectiveCodingProjectForConversation(
+        currentConversation: currentConversation,
+        activeProject: activeProject,
+      );
+      final rootPath = effectiveProject.normalizedRootPath;
       final snapshotAsync = ref.watch(
         codingEnvironmentSnapshotProvider(rootPath),
       );
@@ -97,7 +112,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
               context,
               snapshotAsync: snapshotAsync,
               branchListAsync: branchListAsync,
-              activeProject: activeProject,
+              activeProject: effectiveProject,
               inSheet: inSheet,
             ),
           ],
@@ -530,7 +545,8 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
               DropdownButtonFormField<String>(
                 key: ValueKey(
                   'companion-branch-dropdown-'
-                  '${activeProject.id}-${branches.join('|')}-$selectedBranch',
+                  '${activeProject.id}-${activeProject.normalizedRootPath}-'
+                  '${branches.join('|')}-$selectedBranch',
                 ),
                 initialValue: selectedBranch,
                 isExpanded: true,

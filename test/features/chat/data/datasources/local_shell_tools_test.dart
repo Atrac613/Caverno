@@ -36,6 +36,27 @@ void main() {
     expect(LocalShellTools.isReadOnly('sed -i s/foo/bar/g file.txt'), isFalse);
   });
 
+  test('detects direct git writes in local shell commands', () async {
+    final raw = await LocalShellTools.execute(
+      command: 'cd /tmp && git merge feature/python-hello-world-3',
+      workingDirectory: Directory.systemTemp.path,
+    );
+
+    final result = jsonDecode(raw) as Map<String, dynamic>;
+    expect(result['code'], 'local_shell_git_write_blocked');
+    expect(result['git_subcommand'], 'merge feature/python-hello-world-3');
+    expect(result['required_action'], contains('git_finish_worktree_session'));
+  });
+
+  test('does not block direct git read commands', () {
+    final blockedResult = LocalShellTools.gitWriteCommandBlockedResult(
+      command: 'git -C /tmp status --short',
+      workingDirectory: Directory.systemTemp.path,
+    );
+
+    expect(blockedResult, isNull);
+  });
+
   test('executes chained read-only commands internally', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'local_shell_tools_test_',
