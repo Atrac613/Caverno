@@ -840,46 +840,51 @@ class NetworkTools {
 
     for (var ttl = 1; ttl <= maxHops; ttl++) {
       final ping = Ping(host, count: 1, timeout: timeoutSeconds, ttl: ttl);
-      PingData? data;
+      PingResponse? response;
+      PingError? error;
       await for (final event in ping.stream) {
-        if (event.response != null || event.error != null) {
-          data = event;
-          break;
+        switch (event) {
+          case PingResponse():
+            response = event;
+          case PingError():
+            error = event;
+          case PingSummary():
         }
+        if (response != null || error != null) break;
       }
 
-      if (data == null) {
+      if (response == null && error == null) {
         hops.add({'hop': ttl, 'status': 'timeout'});
         continue;
       }
 
-      if (data.error != null) {
+      if (error != null) {
         // TTL exceeded responses often come back as errors with the
         // intermediate router IP embedded in the message.
         hops.add({
           'hop': ttl,
           'status': 'ttl_exceeded',
-          'message': data.error!.message,
+          'message': _pingErrorMessage(error),
         });
         continue;
       }
 
-      final resp = data.response!;
+      final resp = response!;
       final ms = resp.time?.inMicroseconds != null
-          ? (resp.time!.inMicroseconds / 1000.0)
+          ? resp.time!.inMicroseconds / 1000.0
           : null;
       hops.add({
         'hop': ttl,
-        'ip': resp.ip?.toString(),
+        'ip': resp.ip,
         if (ms != null) 'time_ms': double.parse(ms.toStringAsFixed(2)),
         'ttl': resp.ttl,
       });
 
       // Reached the destination.
-      if (resp.ip?.toString() != null) {
+      if (resp.ip != null) {
         try {
           final resolved = await InternetAddress.lookup(host);
-          if (resolved.any((r) => r.address == resp.ip.toString())) {
+          if (resolved.any((r) => r.address == resp.ip)) {
             break;
           }
         } catch (_) {
@@ -963,33 +968,33 @@ class NetworkTools {
     final times = <double>[];
 
     await for (final event in ping.stream) {
-      if (event.response != null) {
-        final response = event.response!;
-        effectiveResolvedIp ??= response.ip?.toString();
-        transmitted++;
-        if (response.time != null) {
-          received++;
-          final ms = response.time!.inMicroseconds / 1000.0;
-          times.add(ms);
+      switch (event) {
+        case PingResponse():
+          effectiveResolvedIp ??= event.ip;
+          transmitted++;
+          if (event.time != null) {
+            received++;
+            final ms = event.time!.inMicroseconds / 1000.0;
+            times.add(ms);
+            results.add({
+              'seq': event.seq,
+              'ttl': event.ttl,
+              'time_ms': double.parse(ms.toStringAsFixed(2)),
+            });
+          } else {
+            results.add({'seq': event.seq, 'status': 'timeout'});
+          }
+        case PingError():
+          transmitted++;
           results.add({
-            'seq': response.seq,
-            'ttl': response.ttl,
-            'time_ms': double.parse(ms.toStringAsFixed(2)),
+            'seq': event.seq ?? transmitted,
+            'status': 'error',
+            'message': _pingErrorMessage(event),
           });
-        } else {
-          results.add({'seq': response.seq, 'status': 'timeout'});
-        }
-      } else if (event.error != null) {
-        transmitted++;
-        results.add({
-          'seq': transmitted,
-          'status': 'error',
-          'message': event.error!.message,
-        });
-      } else if (event.summary != null) {
-        // Use summary data if available.
-        transmitted = event.summary!.transmitted;
-        received = event.summary!.received;
+        case PingSummary():
+          // Use summary data if available.
+          transmitted = event.transmitted;
+          received = event.received;
       }
     }
 
@@ -1025,6 +1030,10 @@ class NetworkTools {
     };
 
     return jsonEncode(payload);
+  }
+
+  static String _pingErrorMessage(PingError error) {
+    return error.message ?? error.error.message;
   }
 
   static Future<({String pingTarget, String resolvedIp})> _resolveIpv6Target(
