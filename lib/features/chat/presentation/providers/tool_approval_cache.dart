@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../domain/entities/mcp_tool_entity.dart';
+import '../../domain/services/tool_call_execution_policy.dart';
 
 /// Caches approval-backed tool results within a single assistant turn.
 ///
@@ -8,7 +9,10 @@ import '../../domain/entities/mcp_tool_entity.dart';
 /// when it repeats an identical tool call after the user already approved
 /// or denied it.
 class ToolApprovalCache {
-  static const Set<String> _nonSemanticArgumentKeys = {'reason'};
+  // Shares the loop's non-semantic key set so approval caching and tool-loop
+  // dedup cannot disagree on whether `reason` is meaningful.
+  static const Set<String> _nonSemanticArgumentKeys =
+      ToolCallExecutionPolicy.nonSemanticArgumentKeys;
 
   final Map<String, McpToolResult> _resultsByKey = {};
 

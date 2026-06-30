@@ -9907,6 +9907,17 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  String _toolFailureKey(
+    ToolCallInfo toolCall, {
+    int commandRetryGeneration = 0,
+  }) {
+    return _toolCallExecutionPolicy.toolFailureKey(
+      toolCall,
+      commandRetryGeneration: commandRetryGeneration,
+      resolveProjectPath: _normalizeToolPathForDedup,
+    );
+  }
+
   bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {
     return _toolCallExecutionPolicy.shouldAllowRepeatedToolExecution(toolCall);
   }

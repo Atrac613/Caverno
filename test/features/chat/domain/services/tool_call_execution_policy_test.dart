@@ -20,6 +20,68 @@ void main() {
       expect(first, second);
     });
 
+    test('execution key keeps reason so re-narrated inspection can re-run', () {
+      // Two read-only inspections at the same retry generation are distinguished
+      // only by `reason` (e.g. `git status` after a commit, then after a
+      // revert). The execution key must keep `reason` so the second is not
+      // skipped as a duplicate.
+      final afterCommit = policy.toolExecutionKey(
+        _toolCall('git_execute_command', {
+          'command': 'status',
+          'reason': 'Inspect status after commit.',
+        }),
+      );
+      final afterRevert = policy.toolExecutionKey(
+        _toolCall('git_execute_command', {
+          'command': 'status',
+          'reason': 'Inspect final status after revert.',
+        }),
+      );
+
+      expect(afterCommit, isNot(afterRevert));
+    });
+
+    test('failure key ignores reason so retried denials collapse to one', () {
+      // The model rewording `reason` between identical commands must not mint a
+      // fresh failure key, otherwise the consecutive-failure abort never fires
+      // and it re-issues the same (e.g. denied) command indefinitely.
+      final first = policy.toolFailureKey(
+        _toolCall('local_execute_command', {
+          'command': 'python3 hello.py',
+          'reason': 'output hello world',
+        }),
+      );
+      final second = policy.toolFailureKey(
+        _toolCall('local_execute_command', {
+          'command': 'python3 hello.py',
+          'reason': 'run hello.py to print Hello World',
+        }),
+      );
+      final bare = policy.toolFailureKey(
+        _toolCall('local_execute_command', {'command': 'python3 hello.py'}),
+      );
+
+      expect(first, second);
+      expect(first, bare);
+    });
+
+    test('failure key still distinguishes different commands', () {
+      final hello = policy.toolFailureKey(
+        _toolCall('local_execute_command', {
+          'command': 'python3 hello.py',
+          'reason': 'same reason',
+        }),
+      );
+      final inline = policy.toolFailureKey(
+        _toolCall('local_execute_command', {
+          'command': "python3 -c \"print('Hello, World!')\"",
+          'reason': 'same reason',
+        }),
+      );
+
+      expect(hello, isNot(inline));
+    });
+
     test('adds command retry generation only for repeatable commands', () {
       final commandKey = policy.toolExecutionKey(
         _toolCall('local_execute_command', {'command': 'fvm flutter test'}),

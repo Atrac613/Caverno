@@ -9,6 +9,15 @@ typedef ProjectPathResolver = String? Function(String path);
 class ToolCallExecutionPolicy {
   const ToolCallExecutionPolicy();
 
+  /// Argument keys that carry model-authored narration rather than execution
+  /// semantics. Stripped from the consecutive-failure key ([toolFailureKey])
+  /// and from [ToolApprovalCache], so a model that re-issues the *same*
+  /// failing/denied command while rewording `reason` is still counted as
+  /// repeating one action. Kept in [toolExecutionKey] (the success-dedup key)
+  /// so a re-narrated read-only inspection can still legitimately re-run.
+  /// Sharing the set keeps the two derivations from drifting apart.
+  static const Set<String> nonSemanticArgumentKeys = {'reason'};
+
   String toolExecutionKey(
     ToolCallInfo toolCall, {
     int commandRetryGeneration = 0,
@@ -25,16 +34,44 @@ class ToolCallExecutionPolicy {
     return baseKey;
   }
 
+  /// Key for consecutive-failure tracking, distinct from [toolExecutionKey].
+  ///
+  /// [toolExecutionKey] keeps model narration so a re-narrated read-only
+  /// inspection (e.g. `git status` after a commit, then after a revert) can
+  /// legitimately re-run. Failure tracking needs the opposite: a model that
+  /// retries the *same* failing/denied command under reworded `reason` text is
+  /// repeating one action, so [nonSemanticArgumentKeys] are stripped here.
+  /// Without this, the `toolFailureCounts >= 2` abort never fires against a
+  /// model that varies its narration on each retry.
+  String toolFailureKey(
+    ToolCallInfo toolCall, {
+    int commandRetryGeneration = 0,
+    ProjectPathResolver? resolveProjectPath,
+  }) {
+    final baseKey = toolCallDedupKey(
+      toolCall.name,
+      toolCall.arguments,
+      resolveProjectPath: resolveProjectPath,
+      excludeNonSemanticKeys: true,
+    );
+    if (isRepeatableCommandTool(toolCall)) {
+      return '$baseKey#commandRetryGeneration=$commandRetryGeneration';
+    }
+    return baseKey;
+  }
+
   String toolCallDedupKey(
     String name,
     Object? arguments, {
     ProjectPathResolver? resolveProjectPath,
+    bool excludeNonSemanticKeys = false,
   }) {
     final normalizedName = name.trim().toLowerCase();
     final normalizedArguments = _normalizeToolArgumentsForDedup(
       normalizedName,
       arguments,
       resolveProjectPath: resolveProjectPath,
+      excludeNonSemanticKeys: excludeNonSemanticKeys,
     );
     return '$normalizedName:${_normalizeToolExecutionValue(normalizedArguments)}';
   }
@@ -406,11 +443,15 @@ class ToolCallExecutionPolicy {
     String toolName,
     Object? arguments, {
     ProjectPathResolver? resolveProjectPath,
+    bool excludeNonSemanticKeys = false,
   }) {
     if (arguments is! Map) {
       return arguments;
     }
     final normalized = <String, dynamic>{...arguments};
+    if (excludeNonSemanticKeys) {
+      normalized.removeWhere((key, _) => nonSemanticArgumentKeys.contains(key));
+    }
     if (_usesProjectScopedPathArgument(toolName)) {
       final normalizedPath = _normalizeToolPathForDedup(
         normalized['path'],

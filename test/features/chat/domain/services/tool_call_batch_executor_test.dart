@@ -95,6 +95,37 @@ void main() {
       expect(dispatchCount, 1);
       expect(failures[key], 2);
     });
+
+    test('aborts a denied command retried under a reworded reason', () async {
+      // Regression: a model that re-issues the same denied command while
+      // rewording `reason` must still trip the consecutive-failure abort.
+      // Previously each re-narration minted a fresh key, so the count never
+      // reached 2 and the loop re-issued the denied command indefinitely.
+      final firstAttempt = _toolCall('local_execute_command', {
+        'command': 'python3 hello.py',
+        'reason': 'output hello world',
+      });
+      final secondAttempt = _toolCall('local_execute_command', {
+        'command': 'python3 hello.py',
+        'reason': 'run hello.py to print Hello World',
+      });
+      final failures = <String, int>{};
+
+      final result = await executor.execute(
+        toolCalls: [firstAttempt, secondAttempt],
+        dispatchToolCall: (toolCall) async => McpToolResult(
+          toolName: toolCall.name,
+          result: 'Auto-review denied this action.',
+          isSuccess: false,
+          errorMessage: 'Auto-review denied: not authorized',
+        ),
+        executedToolCallKeys: <String>{},
+        toolFailureCounts: failures,
+      );
+
+      expect(result.abortLoop, isTrue);
+      expect(failures[policy.toolFailureKey(firstAttempt)], 2);
+    });
   });
 }
 
