@@ -20,9 +20,6 @@ import 'script_runtime.dart';
 class PythonScriptRuntime implements ScriptRuntime {
   PythonScriptRuntime();
 
-  /// Bundled worker archive (a zip with `main.py` at its root). Built from
-  /// `lib/core/services/script_runtime/worker/`; see project build docs.
-  static const String _assetPath = 'assets/python/app.zip';
   static const Duration _startupTimeout = Duration(seconds: 25);
   static const Duration _healthPollInterval = Duration(milliseconds: 150);
 
@@ -63,7 +60,6 @@ class PythonScriptRuntime implements ScriptRuntime {
       // completes. We await readiness via /health instead of awaiting run().
       unawaited(
         SeriousPython.run(
-          _assetPath,
           environmentVariables: {
             'CAVERNO_PORT': '$_port',
             'CAVERNO_TOKEN': _token!,
