@@ -372,20 +372,22 @@ void main() {
         .read(worktreeAgentTaskRegistryNotifierProvider)
         .tasks;
     expect(tasks, hasLength(1));
-    expect(tasks.single.status.name, 'queued');
-    expect(tasks.single.title, 'Fix flaky widget test');
-    expect(tasks.single.prompt, 'Fix flaky widget test');
-    expect(tasks.single.verificationCommand, isEmpty);
-    expect(tasks.single.codingProjectId, 'project-1');
-    expect(tasks.single.branchName, 'feature/ll13-fix-flaky-widget-test');
-    expect(
-      tasks.single.worktreePath,
-      '/Users/test/Workspace/caverno-worktrees/fix-flaky-widget-test',
+    final task = tasks.single;
+    expect(task.status.name, 'queued');
+    expect(task.title, 'Fix flaky widget test');
+    expect(task.prompt, 'Fix flaky widget test');
+    expect(task.verificationCommand, isEmpty);
+    expect(task.codingProjectId, 'project-1');
+    final assignmentSuffix = _expectBranchWithShortAssignmentId(
+      task.branchName,
+      'feature/ll13-fix-flaky-widget-test-',
     );
     expect(
-      find.text(
-        'Worktree agent task queued: feature/ll13-fix-flaky-widget-test',
-      ),
+      task.worktreePath,
+      '/Users/test/Workspace/caverno-worktrees/$assignmentSuffix/caverno',
+    );
+    expect(
+      find.text('Worktree agent task queued: ${task.branchName}'),
       findsOneWidget,
     );
     expect(find.text('1 worktree agent task(s)'), findsOneWidget);
@@ -434,7 +436,10 @@ void main() {
     expect(task.title, 'Fix flaky widget test');
     expect(task.prompt, 'Fix flaky widget test');
     expect(task.verificationCommand, 'fvm flutter test test/widget_test.dart');
-    expect(task.branchName, 'feature/ll13-fix-flaky-widget-test');
+    _expectBranchWithShortAssignmentId(
+      task.branchName,
+      'feature/ll13-fix-flaky-widget-test-',
+    );
   });
 
   testWidgets('/agent --run starts the queued worktree task', (tester) async {
@@ -505,7 +510,7 @@ void main() {
     expect(
       find.text(
         'Worktree agent task queued and run started: '
-        'feature/ll13-fix-flaky-widget-test',
+        '${task.branchName}',
       ),
       findsOneWidget,
     );
@@ -575,10 +580,22 @@ void main() {
         .read(conversationsNotifierProvider)
         .currentConversation;
     expect(currentConversation?.projectId, 'project-1');
-    expect(
-      currentConversation?.normalizedWorktreePath,
-      '/Users/test/Workspace/caverno-worktrees/build-the-composer-ui',
+    final worktreeAddCall = gitCalls.singleWhere(
+      (call) =>
+          call.length >= 7 &&
+          call[0] == 'git' &&
+          call[1] == 'worktree' &&
+          call[2] == 'add' &&
+          call[3] == '-b',
     );
+    final branchName = worktreeAddCall[4];
+    final assignmentSuffix = _expectBranchWithShortAssignmentId(
+      branchName,
+      'feature/build-the-composer-ui-',
+    );
+    final worktreePath =
+        '/Users/test/Workspace/caverno-worktrees/$assignmentSuffix/caverno';
+    expect(currentConversation?.normalizedWorktreePath, worktreePath);
     expect(
       container.read(worktreeAgentTaskRegistryNotifierProvider).tasks,
       isEmpty,
@@ -591,16 +608,13 @@ void main() {
           'worktree',
           'add',
           '-b',
-          'feature/build-the-composer-ui',
-          '/Users/test/Workspace/caverno-worktrees/build-the-composer-ui',
+          branchName,
+          worktreePath,
           'main',
         ]),
       ),
     );
-    expect(
-      find.text('Switched to worktree: feature/build-the-composer-ui'),
-      findsOneWidget,
-    );
+    expect(find.text('Switched to worktree: $branchName'), findsOneWidget);
   });
 
   testWidgets('/agent requires a task before --verify', (tester) async {
@@ -963,6 +977,13 @@ bool _argumentsEqual(List<String> left, List<String> right) {
 
 String _worktreePorcelain(List<String> paths) {
   return paths.map((path) => 'worktree $path\nHEAD abc123\n').join();
+}
+
+String _expectBranchWithShortAssignmentId(String branchName, String prefix) {
+  expect(branchName, startsWith(prefix));
+  final suffix = branchName.substring(prefix.length);
+  expect(suffix, matches(RegExp(r'^[0-9a-f]{8}$')));
+  return suffix;
 }
 
 Future<void> _submitComposerText(WidgetTester tester, String text) async {
