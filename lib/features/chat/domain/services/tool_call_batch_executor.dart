@@ -38,6 +38,13 @@ class ToolCallBatchExecutor {
         toolCall,
         commandRetryGeneration: commandRetryGeneration,
       );
+      // Failure tracking ignores model narration (`reason`) so a retried denied
+      // command counts as one repeating action and trips the abort; success
+      // dedup keeps narration so a re-narrated inspection can still re-run.
+      final toolFailureKey = _toolCallExecutionPolicy.toolFailureKey(
+        toolCall,
+        commandRetryGeneration: commandRetryGeneration,
+      );
       if (executedToolCallKeys.contains(toolCallKey)) {
         continue;
       }
@@ -60,10 +67,10 @@ class ToolCallBatchExecutor {
 
       if (result.isSuccess) {
         executedToolCallKeys.add(toolCallKey);
-        toolFailureCounts.remove(toolCallKey);
+        toolFailureCounts.remove(toolFailureKey);
       } else {
-        final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
-        toolFailureCounts[toolCallKey] = failureCount;
+        final failureCount = (toolFailureCounts[toolFailureKey] ?? 0) + 1;
+        toolFailureCounts[toolFailureKey] = failureCount;
         if (failureCount >= 2) {
           abortLoop = true;
           break;

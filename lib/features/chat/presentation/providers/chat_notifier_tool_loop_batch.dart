@@ -208,6 +208,13 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         toolCall,
         commandRetryGeneration: nextCommandRetryGeneration,
       );
+      // Failure tracking ignores model narration (`reason`) so a retried denied
+      // command counts as one repeating action; success dedup keeps narration so
+      // a re-narrated read-only inspection can still re-run.
+      final toolFailureKey = _toolFailureKey(
+        toolCall,
+        commandRetryGeneration: nextCommandRetryGeneration,
+      );
       if (scheduledResult.error != null) {
         final error = scheduledResult.error!;
         appLog('[Tool] Error: $error');
@@ -251,7 +258,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
 
       if (result.isSuccess) {
         executedToolCallKeys.add(toolCallKey);
-        toolFailureCounts.remove(toolCallKey);
+        toolFailureCounts.remove(toolFailureKey);
         if (_advancesCommandRetryGeneration(toolCall)) {
           nextCommandRetryGeneration += 1;
         }
@@ -259,15 +266,27 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         await _recordMalformedToolCallRuntimeFeedback(
           '${result.errorMessage ?? ''}\n${result.result}',
         );
-        final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
-        toolFailureCounts[toolCallKey] = failureCount;
+        final failureCount = (toolFailureCounts[toolFailureKey] ?? 0) + 1;
+        toolFailureCounts[toolFailureKey] = failureCount;
         if (failureCount >= 2) {
+          final isDenial = _isApprovalDenialResult(result);
           appLog(
-            '[Tool] Same tool (${toolCall.name}) failed $failureCount times consecutively, ending loop',
+            '[Tool] Same tool (${toolCall.name}) '
+            '${isDenial ? 'was denied' : 'failed'} '
+            '$failureCount times consecutively, ending loop',
           );
+          // A repeated approval denial is a policy decision, not a broken
+          // endpoint: re-issuing the identical command will always be denied,
+          // so guide toward approval / a different approach instead of telling
+          // the user to check their server configuration.
           _appendToLastMessageForGeneration(
             interactionGeneration,
-            '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
+            isDenial
+                ? '\nThe command (${toolCall.name}) was blocked by approval and '
+                      'will keep being blocked if re-issued unchanged. Approve it '
+                      'manually or take a different approach.\n'
+                      'Reason: ${result.errorMessage}\n'
+                : '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
           );
           _turnExitReasonHint = ToolLoopExitReason.toolFailureAbort;
           return _ToolLoopBatchExecutionResult.textResponse(
@@ -332,6 +351,19 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       pendingBatchCalls: pendingBatchCalls,
       commandRetryGeneration: nextCommandRetryGeneration,
     );
+  }
+
+  /// Whether a failed tool result is an approval denial (auto-review, manual,
+  /// or a saved permission rule) rather than a genuine execution error. Used to
+  /// phrase the consecutive-failure abort correctly: a denial is a policy stop,
+  /// not a broken endpoint.
+  bool _isApprovalDenialResult(McpToolResult result) {
+    if (result.isSuccess) {
+      return false;
+    }
+    final haystack = '${result.errorMessage ?? ''}\n${result.result}'
+        .toLowerCase();
+    return haystack.contains('denied') || haystack.contains('auto-review');
   }
 
   Future<ToolResultInfo?> _persistToolResultForPrompt(
