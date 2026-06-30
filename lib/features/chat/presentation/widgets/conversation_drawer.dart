@@ -1086,7 +1086,7 @@ class _ProjectTile extends StatelessWidget {
   }
 }
 
-class _ProjectThreadTile extends StatelessWidget {
+class _ProjectThreadTile extends StatefulWidget {
   const _ProjectThreadTile({
     required this.conversation,
     required this.isSelected,
@@ -1102,72 +1102,88 @@ class _ProjectThreadTile extends StatelessWidget {
   final VoidCallback onDelete;
 
   @override
+  State<_ProjectThreadTile> createState() => _ProjectThreadTileState();
+}
+
+class _ProjectThreadTileState extends State<_ProjectThreadTile> {
+  bool _isHovering = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      key: ValueKey('drawer-thread-${conversation.id}'),
-      dense: true,
-      visualDensity: VisualDensity.compact,
-      contentPadding: const EdgeInsets.only(left: 44, right: 8),
-      selected: isSelected,
-      selectedTileColor: theme.hoverColor,
-      title: Text(
-        _conversationTitle(conversation),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+    final conversation = widget.conversation;
+    final showDeleteAction = _isHovering;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      child: ListTile(
+        key: ValueKey('drawer-thread-${conversation.id}'),
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        contentPadding: const EdgeInsets.only(left: 44, right: 8),
+        selected: widget.isSelected,
+        selectedTileColor: theme.hoverColor,
+        title: Text(
+          _conversationTitle(conversation),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: widget.isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 64,
-            child: Align(
-              alignment: isWorking
-                  ? AlignmentDirectional.center
-                  : AlignmentDirectional.centerEnd,
-              child: isWorking
-                  ? Tooltip(
-                      message: 'drawer.thread_working_tooltip'.tr(),
-                      child: SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(
-                          key: ValueKey(
-                            'drawer-thread-${conversation.id}-working-indicator',
-                          ),
-                          strokeWidth: 2,
-                          color: theme.colorScheme.primary,
-                          semanticsLabel: 'drawer.thread_working_tooltip'.tr(),
+        trailing: SizedBox(
+          width: 64,
+          child: Align(
+            alignment: widget.isWorking && !showDeleteAction
+                ? AlignmentDirectional.center
+                : AlignmentDirectional.centerEnd,
+            child: showDeleteAction
+                ? IconButton(
+                    key: ValueKey(
+                      'drawer-thread-${conversation.id}-delete-button',
+                    ),
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    tooltip: 'drawer.delete_tooltip'.tr(),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 32,
+                      height: 32,
+                    ),
+                    onPressed: widget.onDelete,
+                  )
+                : widget.isWorking
+                ? Tooltip(
+                    message: 'drawer.thread_working_tooltip'.tr(),
+                    child: SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(
+                        key: ValueKey(
+                          'drawer-thread-${conversation.id}-working-indicator',
                         ),
-                      ),
-                    )
-                  : Text(
-                      key: ValueKey(
-                        'drawer-thread-${conversation.id}-date-label',
-                      ),
-                      _formatConversationDate(conversation.updatedAt),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: theme.colorScheme.onSurfaceVariant,
+                        strokeWidth: 2,
+                        color: theme.colorScheme.primary,
+                        semanticsLabel: 'drawer.thread_working_tooltip'.tr(),
                       ),
                     ),
-            ),
+                  )
+                : Text(
+                    key: ValueKey(
+                      'drawer-thread-${conversation.id}-date-label',
+                    ),
+                    _formatConversationDate(conversation.updatedAt),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            tooltip: 'drawer.delete_tooltip'.tr(),
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-            onPressed: onDelete,
-          ),
-        ],
+        ),
+        onTap: widget.onTap,
       ),
-      onTap: onTap,
     );
   }
 }

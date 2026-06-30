@@ -14,6 +14,7 @@ import 'package:caverno/features/settings/presentation/providers/model_list_prov
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:caverno/features/settings/presentation/widgets/settings_modal.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -402,6 +403,60 @@ void main() {
       expect(find.text('Show less'), findsOneWidget);
     },
   );
+
+  testWidgets('coding drawer swaps thread date for delete action on hover', (
+    tester,
+  ) async {
+    final project = _project(id: 'project-1', name: 'caverno');
+    final conversations = [
+      _conversation(
+        id: 'thread-1',
+        title: 'Hover thread',
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+      ),
+    ];
+
+    await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: conversations,
+        currentConversationId: 'thread-1',
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+      projectsState: CodingProjectsState(
+        projects: [project],
+        selectedProjectId: project.id,
+      ),
+    );
+
+    final dateLabel = find.byKey(
+      const ValueKey('drawer-thread-thread-1-date-label'),
+    );
+    final deleteButton = find.byKey(
+      const ValueKey('drawer-thread-thread-1-delete-button'),
+    );
+    final threadTile = find.byKey(const ValueKey('drawer-thread-thread-1'));
+
+    expect(dateLabel, findsOneWidget);
+    expect(deleteButton, findsNothing);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(threadTile));
+    await tester.pumpAndSettle();
+
+    expect(dateLabel, findsNothing);
+    expect(deleteButton, findsOneWidget);
+
+    await gesture.moveTo(const Offset(1, 1));
+    await tester.pumpAndSettle();
+
+    expect(dateLabel, findsOneWidget);
+    expect(deleteButton, findsNothing);
+  });
 
   testWidgets('coding drawer marks the active LLM thread as working', (
     tester,
