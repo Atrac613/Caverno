@@ -105,6 +105,91 @@ class WorktreeAgentTaskBanner extends ConsumerWidget {
   }
 }
 
+class WorktreeAgentTaskPanelSection extends ConsumerWidget {
+  const WorktreeAgentTaskPanelSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(worktreeAgentTaskRegistryNotifierProvider);
+    final tasks = state.visibleTasks;
+    if (tasks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final notifier = ref.read(
+      worktreeAgentTaskRegistryNotifierProvider.notifier,
+    );
+    final runState = ref.watch(worktreeAgentTaskRunControllerProvider);
+    final hasFinished = state.finishedTasks.isNotEmpty;
+    final hasQueued = tasks.any(
+      (task) => task.status == WorktreeAgentTaskStatus.queued,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'worktree_agent.sheet_title'.tr(),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (hasQueued)
+                IconButton(
+                  onPressed: runState.isRunning
+                      ? null
+                      : () async {
+                          await ref
+                              .read(
+                                worktreeAgentTaskRunControllerProvider.notifier,
+                              )
+                              .startAndExecuteReady(
+                                const WorktreeAgentTaskRunRequest(),
+                              );
+                        },
+                  icon: runState.isRunning
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.play_arrow, size: 18),
+                  tooltip: runState.isRunning
+                      ? 'worktree_agent.run_ready_running'.tr()
+                      : 'worktree_agent.run_ready'.tr(),
+                ),
+              if (hasFinished)
+                IconButton(
+                  onPressed: notifier.clearFinished,
+                  icon: const Icon(Icons.clear_all, size: 18),
+                  tooltip: 'worktree_agent.clear_finished'.tr(),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _WorktreeAgentRunSummary(runState: runState),
+          if (runState.isRunning ||
+              runState.lastResult != null ||
+              runState.errorMessage.isNotEmpty)
+            const SizedBox(height: 10),
+          for (final task in tasks) ...[
+            _WorktreeAgentTaskTile(task: task),
+            if (task != tasks.last) const Divider(height: 18),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _WorktreeAgentTaskSheet extends ConsumerWidget {
   const _WorktreeAgentTaskSheet();
 

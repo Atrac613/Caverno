@@ -2042,7 +2042,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       body: Column(
         children: [
           const SubagentTaskBanner(),
-          const WorktreeAgentTaskBanner(),
           Expanded(child: buildScaffoldBody()),
         ],
       ),
