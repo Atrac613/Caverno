@@ -435,8 +435,8 @@ class LanScanService {
     try {
       final ping = Ping(ip, count: 1, timeout: timeoutSec);
       await for (final event in ping.stream) {
-        if (event.response != null && event.response!.time != null) {
-          responseTimeMs = event.response!.time!.inMicroseconds / 1000.0;
+        if (event is PingResponse && event.time != null) {
+          responseTimeMs = event.time!.inMicroseconds / 1000.0;
           alive = true;
         }
         break;
