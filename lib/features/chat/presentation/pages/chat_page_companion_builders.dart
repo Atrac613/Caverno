@@ -79,6 +79,7 @@ extension _ChatPageCompanionBuilders on _ChatPageState {
             chatState: chatState,
           ),
         ),
+        const WorktreeAgentTaskPanelSection(),
         const SizedBox(height: 18),
         _buildCompanionSection(
           context,

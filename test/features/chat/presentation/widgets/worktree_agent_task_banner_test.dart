@@ -156,6 +156,42 @@ void main() {
     expect(find.text('Cancel'), findsNothing);
   });
 
+  testWidgets('panel section renders visible tasks inline', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await WorktreeAgentTaskRepository(prefs).saveAll([
+      WorktreeAgentTask(
+        id: 'task-1',
+        status: WorktreeAgentTaskStatus.completed,
+        title: 'Update tool approval tests',
+        prompt: 'Update the tool approval tests.',
+        branchName: 'feature/ll13-tool-approval-tests',
+        worktreePath: '/tmp/caverno-worktrees/tool-approval-tests',
+        resultSummary: 'Updated the focused tests.',
+        verifiedGreen: true,
+        verificationSummary: 'Verification passed: fvm flutter test.',
+        createdAt: DateTime.utc(2026, 6, 19),
+        updatedAt: DateTime.utc(2026, 6, 19),
+        finishedAt: DateTime.utc(2026, 6, 19, 1),
+      ),
+    ]);
+
+    await _pumpPanel(tester, prefs);
+
+    expect(find.text('Worktree agent tasks'), findsOneWidget);
+    expect(find.text('Update tool approval tests'), findsOneWidget);
+    expect(
+      find.textContaining('feature/ll13-tool-approval-tests'),
+      findsOneWidget,
+    );
+    expect(find.text('Verification passed'), findsOneWidget);
+    expect(find.text('Verification passed: fvm flutter test.'), findsOneWidget);
+    expect(
+      find.text('1 worktree agent task(s) ready for review'),
+      findsNothing,
+    );
+  });
+
   testWidgets('keeps non-green completed tasks visible as finished', (
     tester,
   ) async {
@@ -335,6 +371,37 @@ Future<void> _pumpBanner(
   WorktreeAgentGitWorktreePreparer? worktreePreparer,
   WorktreeAgentTaskExecutionDelegate? executionDelegate,
 }) async {
+  await _pumpWorktreeAgentWidget(
+    tester,
+    prefs,
+    child: const WorktreeAgentTaskBanner(),
+    worktreePreparer: worktreePreparer,
+    executionDelegate: executionDelegate,
+  );
+}
+
+Future<void> _pumpPanel(
+  WidgetTester tester,
+  SharedPreferences prefs, {
+  WorktreeAgentGitWorktreePreparer? worktreePreparer,
+  WorktreeAgentTaskExecutionDelegate? executionDelegate,
+}) async {
+  await _pumpWorktreeAgentWidget(
+    tester,
+    prefs,
+    child: const WorktreeAgentTaskPanelSection(),
+    worktreePreparer: worktreePreparer,
+    executionDelegate: executionDelegate,
+  );
+}
+
+Future<void> _pumpWorktreeAgentWidget(
+  WidgetTester tester,
+  SharedPreferences prefs, {
+  required Widget child,
+  WorktreeAgentGitWorktreePreparer? worktreePreparer,
+  WorktreeAgentTaskExecutionDelegate? executionDelegate,
+}) async {
   await tester.pumpWidget(
     EasyLocalization(
       supportedLocales: const [Locale('en')],
@@ -362,7 +429,7 @@ Future<void> _pumpBanner(
               localizationsDelegates: context.localizationDelegates,
               supportedLocales: context.supportedLocales,
               locale: context.locale,
-              home: const Scaffold(body: WorktreeAgentTaskBanner()),
+              home: Scaffold(body: child),
             ),
           );
         },

@@ -390,7 +390,7 @@ void main() {
       find.text('Worktree agent task queued: ${task.branchName}'),
       findsOneWidget,
     );
-    expect(find.text('1 worktree agent task(s)'), findsOneWidget);
+    expect(find.text('1 worktree agent task(s)'), findsNothing);
   });
 
   testWidgets('/agent stores an optional verification command', (tester) async {
