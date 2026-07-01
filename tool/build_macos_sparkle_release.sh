@@ -293,14 +293,21 @@ sign_embedded_python_binaries() {
   )
   local python_framework="${APP_PATH}/Contents/Frameworks/Python.framework"
   local serious_python_framework="${APP_PATH}/Contents/Frameworks/serious_python_darwin.framework"
+  # serious_python >= 4.x stages the embedded interpreter under
+  # Contents/Resources/python.bundle instead of inside
+  # serious_python_darwin.framework. Its lib-dynload/*.so are Mach-O binaries
+  # that notarization requires to be individually signed with a hardened
+  # runtime; the app-level re-sign is not --deep, so leaf signing must cover
+  # this location or notary rejects with "The binary is not signed".
+  local resources_python_bundle="${APP_PATH}/Contents/Resources/python.bundle"
   local items=()
   local frameworks=()
   local item
 
   if [[ "${DRY_RUN}" == "yes" ]]; then
     items+=(
-      "${python_framework}/Versions/3.12/Resources/Python.app/Contents/MacOS/Python"
-      "${serious_python_framework}/Versions/A/Resources/python.bundle/lib/python3.12/lib-dynload/_struct.cpython-312-darwin.so"
+      "${python_framework}/Versions/Current/Resources/Python.app/Contents/MacOS/Python"
+      "${resources_python_bundle}/Contents/Resources/stdlib/lib-dynload/_struct.cpython-314-darwin.so"
     )
     frameworks+=("${python_framework}" "${serious_python_framework}")
   else
@@ -323,6 +330,15 @@ sign_embedded_python_binaries() {
           -print0
       )
       frameworks+=("${serious_python_framework}")
+    fi
+    if [[ -d "${resources_python_bundle}" ]]; then
+      while IFS= read -r -d '' item; do
+        items+=("${item}")
+      done < <(
+        find "${resources_python_bundle}" -type f \
+          \( -name "*.so" -o -name "*.dylib" \) \
+          -print0
+      )
     fi
   fi
 
