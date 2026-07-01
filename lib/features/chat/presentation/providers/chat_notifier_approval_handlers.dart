@@ -87,19 +87,44 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
         );
         return ToolApprovalGateDecision.needsManualApproval;
       }
+      if (decision.isAllowed) {
+        await _recordApprovalAudit(
+          toolCall: toolCall,
+          actionKind: actionKind,
+          domain: reviewDomain,
+          mode: mode,
+          outcome: 'allowed',
+          decisionSource: 'auto_review',
+          rationale: decision.rationale,
+          riskLevel: decision.riskLevel,
+        );
+        return ToolApprovalGateDecision.autoReviewAllowed;
+      }
+      // Denied. In an escalatable domain (see _domainEscalatesDeniedActionToManual)
+      // a user-driven denial escalates to manual approval (the human decides)
+      // instead of dead-ending the turn; a denial with untrusted content in
+      // context stays a hard deny so untrusted input can never reach a human
+      // rubber-stamp. See [ToolApprovalGateDecision.fromAutoReviewDenial].
+      final gateDecision = _domainEscalatesDeniedActionToManual(reviewDomain)
+          ? ToolApprovalGateDecision.fromAutoReviewDenial(
+              decision.rationale,
+              hasUntrustedInfluence:
+                  _conversationTaintState.hasUntrustedInfluence,
+            )
+          : ToolApprovalGateDecision.denied(decision.rationale);
       await _recordApprovalAudit(
         toolCall: toolCall,
         actionKind: actionKind,
         domain: reviewDomain,
         mode: mode,
-        outcome: decision.isAllowed ? 'allowed' : 'denied',
+        outcome: gateDecision.escalatedFromAutoReviewDenial
+            ? 'denied_escalated_manual'
+            : 'denied',
         decisionSource: 'auto_review',
         rationale: decision.rationale,
         riskLevel: decision.riskLevel,
       );
-      return decision.isAllowed
-          ? ToolApprovalGateDecision.autoReviewAllowed
-          : ToolApprovalGateDecision.denied(decision.rationale);
+      return gateDecision;
     }
     // Default mode is a user-driven manual decision; not recorded here.
     return ToolApprovalGateDecision.needsManualApproval;
@@ -205,6 +230,50 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
       appLog('[AutoReview] Reviewer failed: $error');
       return null;
     }
+  }
+
+  /// Whether an auto-review denial in [domain] escalates to manual user
+  /// approval (the user decides) instead of a hard deny.
+  ///
+  /// Scoped to `coding`: the user directly drives local shell / file / git
+  /// actions, those have a well-established manual-approval prompt, and a denied
+  /// build/run command dead-ending the turn is the reported pain point. Other
+  /// domains stay hard-deny for now: `browser` denials can be phishing-shaped
+  /// (e.g. a credential-submit click) where routing to a user who may rubber-
+  /// stamp it is riskier, `connection` is not the reported need, and
+  /// `participant` (sub-agent) denials must never interrupt the user.
+  bool _domainEscalatesDeniedActionToManual(
+    ToolApprovalAutoReviewDomain domain,
+  ) {
+    return domain == ToolApprovalAutoReviewDomain.coding;
+  }
+
+  /// Manual-prompt warning title for a gate decision: a dedicated heading when
+  /// the prompt only exists because auto-review escalated a denial, otherwise
+  /// the handler's own [fallback] risk-warning title.
+  String? _escalatedApprovalWarningTitle(
+    ToolApprovalGateDecision gate,
+    String? fallback,
+  ) {
+    return gate.escalatedFromAutoReviewDenial
+        ? 'Auto-review flagged this action'
+        : fallback;
+  }
+
+  /// Manual-prompt warning body for a gate decision: prepends the reviewer's
+  /// rationale when the prompt is an escalated auto-review denial, so the user
+  /// sees *why* approval is being requested before deciding.
+  String? _escalatedApprovalWarningMessage(
+    ToolApprovalGateDecision gate,
+    String? fallback,
+  ) {
+    final rationale = gate.autoReviewEscalationRationale;
+    if (rationale == null) {
+      return fallback;
+    }
+    return fallback == null || fallback.isEmpty
+        ? rationale
+        : '$rationale\n\n$fallback';
   }
 
   McpToolResult _autoReviewDeniedResult({
