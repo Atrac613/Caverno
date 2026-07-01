@@ -554,6 +554,17 @@ class GitTools {
         'error':
             'The base worktree has uncommitted changes. Clean it before '
             'merging the worktree branch.',
+        // Structured recovery so the model targets the BASE worktree (not the
+        // current one) and uses git_execute_command (local-shell git writes are
+        // blocked), matching the local_shell_git_write_blocked pattern. Observed
+        // failure: the model cleaned the wrong worktree and never retried.
+        'required_action':
+            'Clean the base worktree — NOT the current one. Run '
+            'git_execute_command with git_subcommand "clean -fd" (or '
+            '"stash --include-untracked" to keep the files) and '
+            'working_directory "${baseEntry.path}". Do not use local shell git '
+            'and do not clean the current worktree. Then retry '
+            'git_finish_worktree_session.',
       });
     }
 
