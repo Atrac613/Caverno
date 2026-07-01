@@ -451,6 +451,71 @@ void main() {
       expect(headAfter['stdout'], baseHead['stdout']);
     });
 
+    test('base-dirty worktree finish returns a structured recovery hint',
+        () async {
+      final root = await Directory.systemTemp.createTemp(
+        'git_tools_finish_base_dirty_',
+      );
+      addTearDown(() async {
+        if (root.existsSync()) {
+          await root.delete(recursive: true);
+        }
+      });
+
+      final basePath = '${root.path}/base';
+      await Directory(basePath).create(recursive: true);
+
+      Future<void> git(List<String> args, {String? cwd}) async {
+        final result = await Process.run(
+          'git',
+          args,
+          workingDirectory: cwd ?? basePath,
+        );
+        expect(
+          result.exitCode,
+          0,
+          reason: 'git ${args.join(' ')} failed: ${result.stderr}',
+        );
+      }
+
+      await git(['init']);
+      await git(['branch', '-M', 'main']);
+      await git(['config', 'user.email', 'canary@example.com']);
+      await git(['config', 'user.name', 'Canary Bot']);
+      await File('$basePath/base.txt').writeAsString('base\n');
+      await git(['add', 'base.txt']);
+      await git(['commit', '-m', 'base']);
+
+      // A feature worktree with a committed change, ready to merge.
+      final worktreePath = '${root.path}/wt';
+      await git(['worktree', 'add', '-b', 'feature/source', worktreePath]);
+      await File('$worktreePath/hello.txt').writeAsString('hello\n');
+      await git(['add', 'hello.txt'], cwd: worktreePath);
+      await git(['commit', '-m', 'add hello'], cwd: worktreePath);
+
+      // Dirty the BASE worktree so the merge is blocked.
+      await File('$basePath/.DS_Store').writeAsString('junk\n');
+
+      final result =
+          jsonDecode(
+                await GitTools.finishWorktreeSession(
+                  worktreePath: worktreePath,
+                  baseBranch: 'main',
+                ),
+              )
+              as Map<String, dynamic>;
+
+      expect(result['code'], 'git_finish_worktree_base_dirty');
+      final requiredAction = result['required_action'] as String;
+      // Steers to the BASE worktree via git_execute_command, then retry — the
+      // recovery the model fumbled (it cleaned the wrong worktree, used blocked
+      // local-shell git, and never retried the tool).
+      expect(requiredAction, contains(result['base_worktree_path'] as String));
+      expect(requiredAction, contains('git_execute_command'));
+      expect(requiredAction, contains('clean -fd'));
+      expect(requiredAction, contains('git_finish_worktree_session'));
+    });
+
     test('blocks double-force worktree removal in managed git tool', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'git_tools_force_remove_worktree_test_',
