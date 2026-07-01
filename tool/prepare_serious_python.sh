@@ -63,13 +63,32 @@ if [ -n "${DARWIN:-}" ] && [ -f "$DARWIN/prepare_ios.sh" ]; then
   echo "Apple plugin: $DARWIN"
 
   # Keep the interpreter version in lockstep with the podspec.
-  PYV="$(sed -nE 's/.*python_version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
-    "$DARWIN/serious_python_darwin.podspec" 2>/dev/null | head -1)"
-  PYV="${PYV:-3.12}"
+  prepare_args=()
+  versions_file="$DARWIN/python_versions.properties"
+  if [ -f "$versions_file" ]; then
+    read_property() {
+      awk -F= -v key="$1" '$1 == key { print substr($0, index($0, "=") + 1); exit }' "$versions_file"
+    }
+
+    PYV="${SERIOUS_PYTHON_VERSION:-$(read_property default_python_version)}"
+    PYFULL="${SERIOUS_PYTHON_FULL_VERSION:-$(read_property "$PYV.full_version")}"
+    PYDATE="${SERIOUS_PYTHON_BUILD_DATE:-$(read_property python_build_release_date)}"
+    DBV="${DART_BRIDGE_VERSION:-$(read_property dart_bridge_version)}"
+    if [ -z "$PYV" ] || [ -z "$PYFULL" ] || [ -z "$PYDATE" ] || [ -z "$DBV" ]; then
+      echo "error: unable to resolve serious_python runtime versions from $versions_file." >&2
+      exit 1
+    fi
+    prepare_args=("$PYV" "$PYFULL" "$PYDATE" "$DBV")
+  else
+    PYV="$(sed -nE 's/.*python_version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+      "$DARWIN/serious_python_darwin.podspec" 2>/dev/null | head -1)"
+    PYV="${PYV:-3.12}"
+    prepare_args=("$PYV")
+  fi
 
   # Download + extract Python.xcframework and the stdlib (no-op once staged).
-  ( cd "$DARWIN" && bash prepare_ios.sh "$PYV" )
-  ( cd "$DARWIN" && bash prepare_macos.sh "$PYV" )
+  ( cd "$DARWIN" && bash prepare_ios.sh "${prepare_args[@]}" )
+  ( cd "$DARWIN" && bash prepare_macos.sh "${prepare_args[@]}" )
 
   # sync_site_packages.sh copies USER native site-packages from the stub dirs
   # into the dist. Caverno keeps those empty, so the script logs a benign
