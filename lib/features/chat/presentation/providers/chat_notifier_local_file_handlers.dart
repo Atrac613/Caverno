@@ -557,8 +557,11 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         command: command,
         workingDirectory: workingDirectory,
         reason: reason,
-        warningTitle: riskWarning?.title,
-        warningMessage: riskWarning?.message,
+        warningTitle: _escalatedApprovalWarningTitle(gate, riskWarning?.title),
+        warningMessage: _escalatedApprovalWarningMessage(
+          gate,
+          riskWarning?.message,
+        ),
       );
 
       if (approval.shouldRemember && !_isRemoteInteraction) {
@@ -700,8 +703,11 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         command: command,
         workingDirectory: workingDirectory,
         reason: reason,
-        warningTitle: riskWarning?.title,
-        warningMessage: riskWarning?.message,
+        warningTitle: _escalatedApprovalWarningTitle(gate, riskWarning?.title),
+        warningMessage: _escalatedApprovalWarningMessage(
+          gate,
+          riskWarning?.message,
+        ),
       );
 
       if (approval.shouldRemember && !_isRemoteInteraction) {

@@ -26,13 +26,23 @@ class ToolApprovalGateDecision {
     this.outcome, {
     this.deniedRationale,
     this.bypassedApproval = false,
+    this.escalatedFromAutoReviewDenial = false,
   });
 
   final ToolApprovalGateOutcome outcome;
 
-  /// Reviewer rationale; non-null only when [outcome] is
-  /// [ToolApprovalGateOutcome.denied].
+  /// Reviewer rationale. Non-null when [outcome] is
+  /// [ToolApprovalGateOutcome.denied], or when an auto-review denial was
+  /// escalated to manual approval (see [escalatedFromAutoReviewDenial]) so the
+  /// manual prompt can explain why approval is being requested.
   final String? deniedRationale;
+
+  /// True when auto-review denied the action but the gate routed it to manual
+  /// approval instead of a hard deny, because the action was user-driven (no
+  /// untrusted content in context). [deniedRationale] carries the reviewer's
+  /// reason. The [outcome] is [ToolApprovalGateOutcome.needsManualApproval], so
+  /// handlers fall through their existing interactive approval flow unchanged.
+  final bool escalatedFromAutoReviewDenial;
 
   /// True when full access ran the tool with no approval step at all. Callers
   /// use this to SKIP per-turn result caching, so repeated identical calls
@@ -60,9 +70,42 @@ class ToolApprovalGateDecision {
         deniedRationale: rationale,
       );
 
+  /// Auto-review denied, but the decision is escalated to the user instead of
+  /// a hard deny. Behaves as [needsManual]; carries the reviewer [rationale].
+  factory ToolApprovalGateDecision.autoReviewDenialEscalatedToManual(
+    String rationale,
+  ) => ToolApprovalGateDecision._(
+    ToolApprovalGateOutcome.needsManualApproval,
+    deniedRationale: rationale,
+    escalatedFromAutoReviewDenial: true,
+  );
+
+  /// Resolves an auto-review *denial* into a gate decision.
+  ///
+  /// A user-driven denial ([hasUntrustedInfluence] false) escalates to manual
+  /// approval so the human — the legitimate authority — can decide, instead of
+  /// dead-ending the turn. A denial with untrusted content in context hard-
+  /// denies: untrusted (remote/MCP) content must never drive a privileged
+  /// action, not even via a human rubber-stamp, so it is never offered for
+  /// manual approval here.
+  factory ToolApprovalGateDecision.fromAutoReviewDenial(
+    String rationale, {
+    required bool hasUntrustedInfluence,
+  }) {
+    if (hasUntrustedInfluence) {
+      return ToolApprovalGateDecision.denied(rationale);
+    }
+    return ToolApprovalGateDecision.autoReviewDenialEscalatedToManual(rationale);
+  }
+
   bool get runsDirectly => outcome == ToolApprovalGateOutcome.runDirectly;
 
   bool get isDenied => outcome == ToolApprovalGateOutcome.denied;
 
   bool get needsManual => outcome == ToolApprovalGateOutcome.needsManualApproval;
+
+  /// Reviewer rationale to show in the manual prompt when this decision was
+  /// escalated from an auto-review denial; null otherwise.
+  String? get autoReviewEscalationRationale =>
+      escalatedFromAutoReviewDenial ? deniedRationale : null;
 }

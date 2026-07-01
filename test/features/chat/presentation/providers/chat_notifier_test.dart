@@ -73,6 +73,7 @@ part 'chat_notifier_turn_rollback_part.dart';
 part 'chat_notifier_context_surgery_part.dart';
 part 'chat_notifier_test_doubles_part.dart';
 part 'chat_notifier_continuation_recovery_part.dart';
+part 'chat_notifier_auto_review_escalation_part.dart';
 
 List<String> _toolNames(List<Map<String, dynamic>> definitions) {
   return definitions
@@ -135,6 +136,7 @@ void main() {
   registerChatNotifierTurnRollbackTests();
   registerChatNotifierContextSurgeryTests();
   registerChatNotifierContinuationRecoveryTests();
+  registerChatNotifierAutoReviewEscalationTests();
 
   test('failed-command correction notice keeps the original answer', () {
     const notice =
@@ -18542,89 +18544,6 @@ void main() {
       }
     },
   );
-
-  test('auto-review denies local commands without executing them', () async {
-    final conversationRepository = _FakeConversationRepository();
-    final toolDataSource = _ToolBatchChatDataSource(
-      initialToolCalls: [
-        ToolCallInfo(
-          id: 'tool-1',
-          name: 'local_execute_command',
-          arguments: const {
-            'command': 'rm -rf build',
-            'working_directory': '/tmp/project',
-          },
-        ),
-      ],
-      autoReviewResponses: [
-        ChatCompletionResult(
-          content:
-              '{"outcome":"deny","riskLevel":"high","userAuthorization":"unknown","rationale":"The deletion is not clearly authorized."}',
-          finishReason: 'stop',
-        ),
-      ],
-    );
-    final toolService = _FakeMcpToolService(
-      results: const {'local_execute_command': 'unexpected command'},
-    );
-    final project = CodingProject(
-      id: 'project-1',
-      name: 'Project',
-      rootPath: '/tmp/project',
-      createdAt: DateTime(2026, 5, 26),
-      updatedAt: DateTime(2026, 5, 26),
-    );
-    final appLifecycleService = _MockAppLifecycleService();
-    when(() => appLifecycleService.isInBackground).thenReturn(false);
-    final toolContainer = ProviderContainer(
-      overrides: [
-        settingsNotifierProvider.overrideWith(
-          _ToolEnabledAutoReviewSettingsNotifier.new,
-        ),
-        conversationRepositoryProvider.overrideWithValue(
-          conversationRepository,
-        ),
-        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
-        sessionMemoryServiceProvider.overrideWithValue(
-          _TestSessionMemoryService(),
-        ),
-        codingProjectsNotifierProvider.overrideWith(
-          () => _FixedCodingProjectsNotifier(project),
-        ),
-        mcpToolServiceProvider.overrideWithValue(toolService),
-        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-        backgroundTaskServiceProvider.overrideWithValue(
-          _TestBackgroundTaskService(),
-        ),
-      ],
-    );
-
-    try {
-      toolContainer
-          .read(conversationsNotifierProvider.notifier)
-          .activateWorkspace(
-            workspaceMode: WorkspaceMode.coding,
-            projectId: project.id,
-            createIfMissing: true,
-          );
-      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
-
-      await toolNotifier.sendMessage(
-        'Clean build outputs',
-        bypassPlanMode: true,
-      );
-      await Future<void>.delayed(Duration.zero);
-
-      expect(toolNotifier.state.pendingLocalCommand, isNull);
-      expect(toolService.executedToolNames, isEmpty);
-      expect(toolDataSource.toolResultBatches, hasLength(1));
-      final result = toolDataSource.toolResultBatches.single.single;
-      expect(result.result, contains('Auto-review denied this action'));
-      expect(result.result, contains('not clearly authorized'));
-    } finally {
-      toolContainer.dispose();
-    }
-  });
 
   test(
     'auto-review malformed output falls back to manual git approval',
