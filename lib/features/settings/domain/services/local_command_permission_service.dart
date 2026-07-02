@@ -410,6 +410,15 @@ class LocalCommandPermissionService {
         continue;
       }
 
+      if (char == '&') {
+        final segment = buffer.toString().trim();
+        if (segment.isNotEmpty) {
+          segments.add(segment);
+        }
+        buffer.clear();
+        continue;
+      }
+
       if (char == '|' ||
           char == ';' ||
           char == '\n' ||

