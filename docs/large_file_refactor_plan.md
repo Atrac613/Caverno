@@ -13,7 +13,7 @@ again before starting a new refactor branch.
 | File | Lines | Primary concern |
 |------|------:|-----------------|
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9607 | Chat orchestration, tool loops, memory, workflows, persistence |
-| `lib/features/chat/presentation/pages/chat_page.dart` | 8296 | Chat screen layout, drawers, modals, input wiring, plan UI |
+| `lib/features/chat/presentation/pages/chat_page.dart` | 5217 | Chat screen layout, drawers, modals, input wiring, plan UI |
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 5260 | Tool registry, MCP execution, built-in tool adapters |
 | `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 3270 | Computer Use settings layout and validation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
@@ -98,6 +98,49 @@ Candidate slices:
 3. Extract plan timeline and review-sheet host sections only when they are not
    already covered by dedicated plan widgets.
 4. Extract message list affordances that do not own page-level state.
+
+Tranche 1 status (2026-07-02):
+
+- Approval listener registration moved to
+  `lib/features/chat/presentation/pages/chat_page_approval_listeners.dart`.
+- SSH, Git, local command, Computer Use, file operation, participant tool, BLE,
+  and serial approval sheets moved to standalone widgets under
+  `lib/features/chat/presentation/widgets/approval/`:
+  `ssh_connect_approval_sheet.dart`, `ssh_command_approval_sheet.dart`,
+  `git_command_approval_sheet.dart`, `local_command_approval_sheet.dart`,
+  `computer_use_action_approval_sheet.dart`,
+  `file_operation_approval_sheet.dart`,
+  `participant_tool_approval_sheet.dart`,
+  `ble_connect_approval_sheet.dart`, and `serial_open_approval_sheet.dart`.
+- Workflow status label/color helpers moved to
+  `lib/features/chat/presentation/widgets/workflow_status_presentation.dart`
+  behind page-side delegates.
+- Desktop image drag/drop handling moved to
+  `lib/features/chat/presentation/widgets/chat_image_drop_target.dart`; the page
+  still owns dropped attachment identity.
+- Focused widget/unit coverage now exists for the new approval sheets, workflow
+  status presentation helpers, and image drop target.
+- Measured main-file reduction: `chat_page.dart` went from 8296 lines at tranche
+  start to 5217 lines after the tranche, a reduction of 3079 lines.
+
+Later tranche roadmap:
+
+1. Tranche 2: workflow task run coordinator. Extract `_runWorkflowTask`,
+   `_runWorkflowTaskValidation`, `_continueToNextPendingTaskIfNeeded`, the eight
+   `_maybeRecoverFrom*` heuristics,
+   `_maybePromoteCompletionFromValidationToolResults`, and the
+   `_captureExecutionProgress*` pair into a presentation-layer coordinator class
+   that holds notifier handles plus an `isMounted` callback. Precondition: add
+   characterization tests first because recovery heuristics are currently pinned
+   only indirectly.
+2. Tranche 3: plan review and approval actions. Extract `_editPlanInChat`,
+   `_cancelPlanReview`, `_approveCurrentPlanAndStart`, workflow editor handlers,
+   and task-menu handlers.
+3. Tranche 4: slash command handler, pinned by
+   `test/features/chat/presentation/pages/chat_page_slash_commands_test.dart`.
+4. Tranche 5: `build()` scaffold decomposition plus right-sidebar layout helpers
+   (`_buildRightSidebarPanel` and `_wrapWithRightSidebar`), following the
+   existing `chat_page_*_builders.dart` idiom.
 
 Exit criteria:
 
