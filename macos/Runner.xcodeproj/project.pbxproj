@@ -280,6 +280,7 @@
 				C0DE10000000000000000012 /* Embed Computer Use Helper */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				3F5DC2351297B1A148E5C3F5 /* [CP] Embed Pods Frameworks */,
+				D59360A9D495AC21CA585DB4 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -494,6 +495,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "set -eu\nHELPER_APP=\"${BUILT_PRODUCTS_DIR}/Caverno Computer Use.app\"\nDESTINATION=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers\"\nEMBEDDED_HELPER=\"$DESTINATION/Caverno Computer Use.app\"\nLAUNCH_AGENT_SOURCE=\"${PROJECT_DIR}/Runner/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist\"\nLAUNCH_AGENT_DESTINATION=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchAgents\"\nLSREGISTER=\"/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister\"\nif [ ! -d \"$HELPER_APP\" ]; then\n  echo \"error: Missing built Caverno Computer Use helper at $HELPER_APP\" >&2\n  exit 1\nfi\nif [ ! -f \"$LAUNCH_AGENT_SOURCE\" ]; then\n  echo \"error: Missing Caverno Computer Use launch agent at $LAUNCH_AGENT_SOURCE\" >&2\n  exit 1\nfi\nmkdir -p \"$DESTINATION\"\nrm -rf \"$EMBEDDED_HELPER\"\nditto \"$HELPER_APP\" \"$EMBEDDED_HELPER\"\nmkdir -p \"$LAUNCH_AGENT_DESTINATION\"\nditto \"$LAUNCH_AGENT_SOURCE\" \"$LAUNCH_AGENT_DESTINATION/com.noguwo.apps.caverno.computer-use.plist\"\nif [ \"$HELPER_APP\" != \"$EMBEDDED_HELPER\" ] && [ -d \"$HELPER_APP\" ]; then\n  rm -rf \"$HELPER_APP\"\nfi\nif [ -x \"$LSREGISTER\" ]; then\n  \"$LSREGISTER\" -u \"$HELPER_APP\" >/dev/null 2>&1 || true\n  \"$LSREGISTER\" -f -R \"$EMBEDDED_HELPER\" >/dev/null 2>&1 || true\nfi\n";
+		};
+		D59360A9D495AC21CA585DB4 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources.sh\"\n";
+			showEnvVarsInLog = 0;
 		};
 		DD6EB039698032212F7B1B02 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;

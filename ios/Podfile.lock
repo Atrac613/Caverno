@@ -78,7 +78,7 @@ PODS:
   - SDWebImage (5.21.7):
     - SDWebImage/Core (= 5.21.7)
   - SDWebImage/Core (5.21.7)
-  - serious_python_darwin (2.0.0):
+  - serious_python_darwin (4.1.1):
     - Flutter
     - FlutterMacOS
   - shared_preferences_foundation (0.0.1):
@@ -199,7 +199,7 @@ SPEC CHECKSUMS:
   OrderedSet: e539b66b644ff081c73a262d24ad552a69be3a94
   record_ios: 41f9412c3311401689babe6d7ba69362f10b8325
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
-  serious_python_darwin: 70f8397e669131fbce88939638ba26f39b0b1c0c
+  serious_python_darwin: d40e51430f28465735ec6df546723a2eb211055b
   shared_preferences_foundation: 5086985c1d43c5ba4d5e69a4e8083a389e2909e6
   speech_to_text: 87bf9298952e8d9073be1b6aade6d5758db5170c
   super_native_extensions: 4916b3c627a9c7fffdc48a23a9eca0b1ac228fa7
