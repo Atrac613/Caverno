@@ -95,6 +95,36 @@ void main() {
     );
     expect(decoded.enableLlmSessionLogs, isTrue);
   });
+
+  testWidgets('configures feedback endpoint upload from Debug settings', (
+    tester,
+  ) async {
+    final prefs = await _setUpPreferences();
+    await _pumpPage(
+      tester,
+      prefs,
+      computerUseBuilder: (_) =>
+          const Scaffold(body: Center(child: Text('Computer Use destination'))),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-menu-debug')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send feedback to endpoint'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('feedback-endpoint-url-field')),
+      'https://feedback.example.com/caverno',
+    );
+    await tester.pumpAndSettle();
+
+    final rawSettings = prefs.getString('app_settings');
+    expect(rawSettings, isNotNull);
+    final decoded = AppSettings.fromJson(
+      jsonDecode(rawSettings!) as Map<String, dynamic>,
+    );
+    expect(decoded.feedbackUploadEnabled, isTrue);
+    expect(decoded.feedbackEndpointUrl, 'https://feedback.example.com/caverno');
+  });
 }
 
 Future<SharedPreferences> _setUpPreferences() async {

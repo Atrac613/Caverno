@@ -47,6 +47,112 @@ class _WorktreeAgentCommandArgs {
   final bool runAfterQueue;
 }
 
+extension _ChatPageSlashCommandSupport on _ChatPageState {
+  Future<SlashCommandExecutionResult> _submitFeedbackCommand(
+    Conversation? currentConversation,
+    String feedbackText,
+  ) async {
+    final settings = ref.read(settingsNotifierProvider);
+    if (!settings.feedbackUploadEnabled) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_feedback_disabled'.tr(),
+      );
+    }
+    if (!settings.isFeedbackUploadConfigured) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_feedback_not_configured'.tr(),
+      );
+    }
+    if (currentConversation == null) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_feedback_no_session'.tr(),
+      );
+    }
+    final loggingEnabled =
+        LlmSessionLogStore.isEnabled(
+          settingsEnabled: settings.enableLlmSessionLogs,
+        ) &&
+        !settings.demoMode;
+    if (!loggingEnabled) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_feedback_requires_logs'.tr(),
+      );
+    }
+
+    final context = LlmSessionLogContext(
+      workspaceMode: currentConversation.workspaceMode,
+      sessionId: currentConversation.id,
+      sessionTitle: currentConversation.title,
+      conversationId: currentConversation.id,
+      phase: 'feedback',
+    );
+    final sessionLogFile = await ref
+        .read(llmSessionLogStoreProvider)
+        .fileForContext(context, create: false);
+
+    try {
+      final result = await ref
+          .read(feedbackSubmissionServiceProvider)
+          .submit(
+            FeedbackSubmissionInput(
+              endpointUrl: settings.normalizedFeedbackEndpointUrl,
+              feedbackText: feedbackText,
+              sessionLogFile: sessionLogFile,
+              context: context,
+              conversationMessageCount: currentConversation.messages.length,
+            ),
+          );
+      return SlashCommandExecutionResult(
+        feedbackMessage: 'chat.slash_feedback_sent'.tr(
+          namedArgs: {'key': result.objectKey},
+        ),
+      );
+    } on FeedbackSubmissionException catch (error) {
+      if (error.message == FeedbackSubmissionService.missingSessionLogMessage) {
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage: 'chat.slash_feedback_no_session_log'.tr(),
+        );
+      }
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_feedback_failed'.tr(
+          namedArgs: {'error': error.message},
+        ),
+      );
+    } catch (error) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_feedback_failed'.tr(
+          namedArgs: {'error': '$error'},
+        ),
+      );
+    }
+  }
+
+  _WorktreeAgentCommandArgs _parseWorktreeAgentCommandArgs(String args) {
+    final trimmed = args.trim();
+    final match = RegExp(r'(^|\s)--verify(?:\s+|$)').firstMatch(trimmed);
+    final verifyMarkerStart = match == null
+        ? trimmed.length
+        : match.start + (match.group(1)?.length ?? 0);
+    final prefix = trimmed.substring(0, verifyMarkerStart).trim();
+    final runMarker = RegExp(r'(^|\s)--run(?=\s|$)');
+    final runAfterQueue = runMarker.hasMatch(prefix);
+    final prompt = prefix.replaceFirst(runMarker, ' ').trim();
+    if (match == null) {
+      return _WorktreeAgentCommandArgs(
+        prompt: prompt,
+        runAfterQueue: runAfterQueue,
+      );
+    }
+
+    return _WorktreeAgentCommandArgs(
+      prompt: prompt,
+      verificationCommand: trimmed.substring(match.end).trim(),
+      hasVerificationMarker: true,
+      runAfterQueue: runAfterQueue,
+    );
+  }
+}
+
 enum _RightSidebarTab { companion, files }
 
 String _formatTokenCount(int count) {

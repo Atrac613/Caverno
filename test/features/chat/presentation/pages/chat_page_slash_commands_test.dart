@@ -3,10 +3,13 @@ import 'dart:io';
 
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
+import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/feedback_submission_service.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -14,6 +17,7 @@ import 'package:caverno/features/chat/presentation/providers/coding_environment_
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/custom_slash_commands_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/feedback_submission_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_git_worktree_preparer.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_executor.dart';
 import 'package:caverno/features/chat/presentation/providers/worktree_agent_task_registry_notifier.dart';
@@ -45,9 +49,13 @@ class _TestTranslationLoader extends AssetLoader {
 }
 
 class _SlashSettingsNotifier extends SettingsNotifier {
+  _SlashSettingsNotifier([this.initialSettings]);
+
+  final AppSettings? initialSettings;
+
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return (initialSettings ?? AppSettings.defaults()).copyWith(
       assistantMode: AssistantMode.general,
       demoMode: false,
       mcpEnabled: false,
@@ -215,6 +223,43 @@ class _SlashCodingProjectsNotifier extends CodingProjectsNotifier {
       selectedProjectId: project.id,
     );
     return project;
+  }
+}
+
+class _FakeFeedbackSubmissionClient implements FeedbackSubmissionClient {
+  final inputs = <FeedbackSubmissionInput>[];
+  Object? error;
+
+  @override
+  Future<FeedbackSubmissionResult> submit(FeedbackSubmissionInput input) async {
+    inputs.add(input);
+    final error = this.error;
+    if (error != null) {
+      throw error;
+    }
+    return FeedbackSubmissionResult(
+      submissionId: 'upload',
+      objectKey: 'feedback/2026/07/02/upload.json',
+      uri: Uri.parse('https://example.com/upload.json'),
+      payloadBytes: 42,
+      submittedBytes: 30,
+      sessionLogBytes: 21,
+    );
+  }
+}
+
+class _FakeLlmSessionLogStore extends LlmSessionLogStore {
+  _FakeLlmSessionLogStore(this.file)
+    : super(rootDirectoryProvider: () async => Directory.systemTemp);
+
+  final File file;
+
+  @override
+  Future<File> fileForContext(
+    LlmSessionLogContext context, {
+    bool create = true,
+  }) async {
+    return file;
   }
 }
 
@@ -717,6 +762,73 @@ void main() {
     expect(chatNotifier.cancelCount, 1);
   });
 
+  testWidgets('/feedback uploads the current session log and feedback text', (
+    tester,
+  ) async {
+    final logFile = File('/tmp/caverno-feedback-test/conversation-1.jsonl');
+    final logStore = _FakeLlmSessionLogStore(logFile);
+    final conversation = _chatConversation(
+      messages: [
+        Message(
+          id: 'user-1',
+          content: 'Why did this fail?',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 7, 2, 9),
+        ),
+      ],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.chat,
+        activeProjectId: null,
+      ),
+    );
+    final feedbackClient = _FakeFeedbackSubmissionClient();
+    final chatNotifier = _SlashChatNotifier();
+    await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      settings: AppSettings.defaults().copyWith(
+        enableLlmSessionLogs: true,
+        feedbackUploadEnabled: true,
+        feedbackEndpointUrl: 'https://feedback.example.com/caverno',
+      ),
+      sessionLogStore: logStore,
+      feedbackSubmissionClient: feedbackClient,
+      settleAfterPump: false,
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.tap(find.byType(TextField));
+    await tester.enterText(
+      find.byType(TextField),
+      '/feedback The model ignored the error.',
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _pumpUntil(tester, () => feedbackClient.inputs.isNotEmpty);
+    await tester.pump();
+
+    expect(feedbackClient.inputs, hasLength(1));
+    final input = feedbackClient.inputs.single;
+    expect(input.endpointUrl, 'https://feedback.example.com/caverno');
+    expect(input.feedbackText, 'The model ignored the error.');
+    expect(input.sessionLogFile.path, logFile.path);
+    expect(input.context.conversationId, conversation.id);
+    expect(input.conversationMessageCount, 1);
+    expect(
+      find.text('Feedback uploaded: feedback/2026/07/02/upload.json'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '',
+    );
+  });
+
   testWidgets('prompt slash commands expand arguments into prompt messages', (
     tester,
   ) async {
@@ -875,7 +987,11 @@ Future<ProviderContainer> _pumpSlashChatPage(
   WidgetTester tester, {
   required _SlashConversationsNotifier conversationsNotifier,
   required _SlashChatNotifier chatNotifier,
+  AppSettings? settings,
   _SlashCodingProjectsNotifier? codingProjectsNotifier,
+  LlmSessionLogStore? sessionLogStore,
+  FeedbackSubmissionClient? feedbackSubmissionClient,
+  bool settleAfterPump = true,
   CodingEnvironmentProcessRunner? runProcess,
   WorktreeAgentGitWorktreePreparer? worktreeAgentPreparer,
   WorktreeAgentTaskExecutionDelegate? worktreeAgentDelegate,
@@ -895,7 +1011,15 @@ Future<ProviderContainer> _pumpSlashChatPage(
         worktreeAgentTaskExecutionDelegateProvider.overrideWithValue(
           worktreeAgentDelegate,
         ),
-      settingsNotifierProvider.overrideWith(_SlashSettingsNotifier.new),
+      if (sessionLogStore != null)
+        llmSessionLogStoreProvider.overrideWithValue(sessionLogStore),
+      if (feedbackSubmissionClient != null)
+        feedbackSubmissionServiceProvider.overrideWithValue(
+          feedbackSubmissionClient,
+        ),
+      settingsNotifierProvider.overrideWith(
+        () => _SlashSettingsNotifier(settings),
+      ),
       conversationsNotifierProvider.overrideWith(() => conversationsNotifier),
       codingProjectsNotifierProvider.overrideWith(
         () => codingProjectsNotifier ?? _SlashCodingProjectsNotifier(),
@@ -930,7 +1054,11 @@ Future<ProviderContainer> _pumpSlashChatPage(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settleAfterPump) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
   return container;
 }
 

@@ -739,6 +739,8 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String embeddingsModel,
     @Default(false) bool showMemoryUpdates,
     @Default(false) bool enableLlmSessionLogs,
+    @Default(false) bool feedbackUploadEnabled,
+    @Default('') String feedbackEndpointUrl,
     @Default(false) bool demoMode,
     @Default(false) bool onboardingCompleted,
     @Default(false) bool browserToolsEnabled,
@@ -819,6 +821,11 @@ abstract class AppSettings with _$AppSettings {
 
   String get effectiveApprovalAutoReviewModel =>
       _resolveRoleModel(approvalAutoReviewModel);
+
+  String get normalizedFeedbackEndpointUrl => feedbackEndpointUrl.trim();
+
+  bool get isFeedbackUploadConfigured =>
+      feedbackUploadEnabled && normalizedFeedbackEndpointUrl.isNotEmpty;
 
   ModelCapabilityProfile? get effectiveModelCapabilityProfile {
     return modelCapabilityProfileFor(

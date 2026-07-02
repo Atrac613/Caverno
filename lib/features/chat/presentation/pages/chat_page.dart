@@ -33,6 +33,7 @@ import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/file_rollback_checkpoint_store.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/llm_session_log_store.dart';
+import '../../data/datasources/session_logging_chat_datasource.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
@@ -50,6 +51,7 @@ import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
+import '../../domain/services/feedback_submission_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
@@ -57,6 +59,7 @@ import '../providers/coding_environment_snapshot_provider.dart';
 import '../providers/conversations_notifier.dart';
 import '../providers/coding_worktree_session_launcher.dart';
 import '../providers/custom_slash_commands_notifier.dart';
+import '../providers/feedback_submission_provider.dart';
 import '../providers/worktree_agent_task_launcher.dart';
 import '../providers/worktree_agent_task_orchestrator.dart';
 import '../slash_commands/slash_command.dart';
@@ -565,6 +568,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         enabledWhileLoading: true,
       ),
       SlashCommandDefinition(
+        name: 'feedback',
+        action: SlashCommandAction.feedback,
+        description: 'chat.slash_feedback_desc'.tr(),
+        argumentHint: '<feedback>',
+        argumentRequirement: SlashCommandArgumentRequirement.required,
+      ),
+      SlashCommandDefinition(
         name: 'agent',
         action: SlashCommandAction.worktreeAgent,
         description: 'chat.slash_agent_desc'.tr(),
@@ -701,6 +711,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return SlashCommandExecutionResult(
           feedbackMessage: 'chat.slash_cancelled'.tr(),
         );
+      case SlashCommandAction.feedback:
+        return _submitFeedbackCommand(currentConversation, invocation.args);
       case SlashCommandAction.worktreeAgent:
         if (!isCodingWorkspace || activeProject == null) {
           return SlashCommandExecutionResult.keepInput(
@@ -780,31 +792,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ),
         );
     }
-  }
-
-  _WorktreeAgentCommandArgs _parseWorktreeAgentCommandArgs(String args) {
-    final trimmed = args.trim();
-    final match = RegExp(r'(^|\s)--verify(?:\s+|$)').firstMatch(trimmed);
-    final verifyMarkerStart = match == null
-        ? trimmed.length
-        : match.start + (match.group(1)?.length ?? 0);
-    final prefix = trimmed.substring(0, verifyMarkerStart).trim();
-    final runMarker = RegExp(r'(^|\s)--run(?=\s|$)');
-    final runAfterQueue = runMarker.hasMatch(prefix);
-    final prompt = prefix.replaceFirst(runMarker, ' ').trim();
-    if (match == null) {
-      return _WorktreeAgentCommandArgs(
-        prompt: prompt,
-        runAfterQueue: runAfterQueue,
-      );
-    }
-
-    return _WorktreeAgentCommandArgs(
-      prompt: prompt,
-      verificationCommand: trimmed.substring(match.end).trim(),
-      hasVerificationMarker: true,
-      runAfterQueue: runAfterQueue,
-    );
   }
 
   String _worktreeAgentTaskTitle(String prompt) {

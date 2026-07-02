@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/macos_update_service.dart';
+import '../../domain/entities/app_settings.dart';
 import '../providers/settings_notifier.dart';
 import 'computer_use_debug_page.dart';
 import 'live_llm_diagnostic_page.dart';
@@ -43,6 +44,8 @@ class DebugSettingsPage extends ConsumerWidget {
                   onChanged: notifier.updateEnableLlmSessionLogs,
                 ),
                 const Divider(height: 1),
+                _FeedbackUploadSettings(settings: settings, notifier: notifier),
+                const Divider(height: 1),
                 _MacosUpdateTile(service: updateService),
                 const Divider(height: 1),
                 ListTile(
@@ -81,6 +84,95 @@ class DebugSettingsPage extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FeedbackUploadSettings extends StatefulWidget {
+  const _FeedbackUploadSettings({
+    required this.settings,
+    required this.notifier,
+  });
+
+  final AppSettings settings;
+  final SettingsNotifier notifier;
+
+  @override
+  State<_FeedbackUploadSettings> createState() =>
+      _FeedbackUploadSettingsState();
+}
+
+class _FeedbackUploadSettingsState extends State<_FeedbackUploadSettings> {
+  late final TextEditingController _endpointController;
+
+  @override
+  void initState() {
+    super.initState();
+    _endpointController = TextEditingController(
+      text: widget.settings.feedbackEndpointUrl,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_FeedbackUploadSettings oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_endpointController.text != widget.settings.feedbackEndpointUrl) {
+      _endpointController.text = widget.settings.feedbackEndpointUrl;
+    }
+  }
+
+  @override
+  void dispose() {
+    _endpointController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = widget.settings;
+    final notifier = widget.notifier;
+    return Column(
+      children: [
+        SwitchListTile(
+          title: Text('settings.feedback_upload_enabled'.tr()),
+          subtitle: Text('settings.feedback_upload_enabled_desc'.tr()),
+          value: settings.feedbackUploadEnabled,
+          onChanged: notifier.updateFeedbackUploadEnabled,
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              children: [
+                TextField(
+                  key: const ValueKey('feedback-endpoint-url-field'),
+                  controller: _endpointController,
+                  decoration: InputDecoration(
+                    labelText: 'settings.feedback_endpoint_url'.tr(),
+                    border: const OutlineInputBorder(),
+                    helperText: 'settings.feedback_endpoint_url_helper'.tr(),
+                  ),
+                  keyboardType: TextInputType.url,
+                  onChanged: notifier.updateFeedbackEndpointUrl,
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'settings.feedback_endpoint_credentials_helper'.tr(),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          crossFadeState: settings.feedbackUploadEnabled
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 160),
+        ),
+      ],
     );
   }
 }

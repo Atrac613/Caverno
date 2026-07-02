@@ -829,6 +829,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateFeedbackUploadEnabled(bool value) async {
+    state = state.copyWith(feedbackUploadEnabled: value);
+    await _repository.save(state);
+  }
+
+  Future<void> updateFeedbackEndpointUrl(String value) async {
+    state = state.copyWith(feedbackEndpointUrl: value.trim());
+    await _repository.save(state);
+  }
+
   Future<void> updateDemoMode(bool demoMode) async {
     state = state.copyWith(demoMode: demoMode);
     await _repository.save(state);
