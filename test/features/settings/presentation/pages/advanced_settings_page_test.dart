@@ -93,7 +93,7 @@ void main() {
     final decoded = AppSettings.fromJson(
       jsonDecode(rawSettings!) as Map<String, dynamic>,
     );
-    expect(decoded.enableLlmSessionLogs, isTrue);
+    expect(decoded.enableLlmSessionLogs, isFalse);
   });
 
   testWidgets('configures feedback endpoint upload from Debug settings', (

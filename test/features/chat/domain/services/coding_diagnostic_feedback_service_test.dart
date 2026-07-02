@@ -463,6 +463,74 @@ environment:
         expect(bridge['degrade_reason'], 'primary_failed');
       },
     );
+
+    test(
+      'falls back when the primary provider returns no diagnostics',
+      () async {
+        final root = await Directory.systemTemp.createTemp(
+          'caverno_diagnostic_feedback_empty_lsp_fallback_',
+        );
+        addTearDown(() => root.delete(recursive: true));
+        final editedFile = await _writeFile(
+          root,
+          'lib/main.dart',
+          'void main() {}\n',
+        );
+
+        final service = CodingDiagnosticFeedbackService(
+          provider: LanguageDiagnosticsBridgeFallbackProvider(
+            primary: _SnapshotDiagnosticProvider(
+              providerName: 'lsp_server',
+              projectRoot: root.path,
+              changedPaths: const ['lib/main.dart'],
+              diagnostics: const [],
+              bridge: const LanguageDiagnosticsBridgeMetadata(
+                providerName: 'lsp_server',
+                protocol: 'lsp',
+                status: 'ready',
+                capabilities: LanguageDiagnosticsBridgeCapabilities(
+                  diagnostics: true,
+                  documentSymbols: true,
+                  goToDefinition: true,
+                ),
+              ),
+            ),
+            fallback: _SnapshotDiagnosticProvider(
+              providerName: 'dart_analyzer',
+              projectRoot: root.path,
+              changedPaths: const ['lib/main.dart'],
+              diagnostics: [
+                CodeDiagnostic(
+                  absolutePath: editedFile.path,
+                  severity: 'Error',
+                  line: 1,
+                  column: 1,
+                  message: 'Fallback diagnostic.',
+                  code: 'fallback_error',
+                  source: 'dart',
+                ),
+              ],
+              bridge: LanguageDiagnosticsBridgeMetadata.dartAnalyzerCli(),
+            ),
+          ),
+        );
+
+        final result = await service.buildFeedbackToolResult(
+          projectRoot: root.path,
+          changedPaths: [editedFile.path],
+        );
+
+        expect(result, isNotNull);
+        final payload = jsonDecode(result!.result) as Map<String, dynamic>;
+        expect(payload['provider'], 'dart_analyzer');
+        expect(payload['diagnostic_count'], 1);
+        final bridge =
+            payload['language_diagnostics_bridge'] as Map<String, dynamic>;
+        expect(bridge['status'], 'degraded');
+        expect(bridge['attempted_primary_provider'], 'lsp_server');
+        expect(bridge['degrade_reason'], 'primary_empty');
+      },
+    );
   });
 }
 

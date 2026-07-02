@@ -741,7 +741,7 @@ abstract class AppSettings with _$AppSettings {
     @Default(false) bool enableSemanticSearch,
     @Default('') String embeddingsModel,
     @Default(false) bool showMemoryUpdates,
-    @Default(false) bool enableLlmSessionLogs,
+    @Default(true) bool enableLlmSessionLogs,
     @Default(true) bool feedbackUploadEnabled,
     @Default(defaultFeedbackEndpointUrl) String feedbackEndpointUrl,
     @Default(false) bool demoMode,

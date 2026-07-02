@@ -79,7 +79,10 @@ class FeedbackSubmissionService implements FeedbackSubmissionClient {
 
     final now = _clock().toUtc();
     final submissionId = _safeSegment(_idFactory(), fallback: 'feedback');
-    final sessionLogContent = await input.sessionLogFile.readAsString();
+    final rawSessionLogContent = await input.sessionLogFile.readAsString();
+    final sessionLogContent = LlmSessionLogStore.redactSessionLogContent(
+      rawSessionLogContent,
+    );
     final payload = _buildPayload(
       input: input,
       submissionId: submissionId,
@@ -129,14 +132,19 @@ class FeedbackSubmissionService implements FeedbackSubmissionClient {
     required DateTime now,
     required String sessionLogContent,
   }) {
-    final contextJson = input.context.toJson();
+    final contextJson = Map<String, dynamic>.from(
+      LlmSessionLogStore.redactSensitiveValue(input.context.toJson()) as Map,
+    );
+    final feedbackText = LlmSessionLogStore.redactSensitiveText(
+      input.feedbackText.trim(),
+    );
     return {
       'schemaName': 'caverno_feedback_submission',
       'schemaVersion': 1,
       'submissionId': submissionId,
       'timestamp': now.toIso8601String(),
       'build': BuildInfo.toJson(),
-      'feedback': {'text': input.feedbackText.trim()},
+      'feedback': {'text': feedbackText},
       'context': contextJson,
       'conversation': {
         'workspaceMode':
@@ -146,7 +154,9 @@ class FeedbackSubmissionService implements FeedbackSubmissionClient {
         'messageCount': input.conversationMessageCount,
       },
       'sessionLog': {
-        'path': input.sessionLogFile.path,
+        'path': LlmSessionLogStore.redactSensitiveText(
+          input.sessionLogFile.path,
+        ),
         'byteLength': utf8.encode(sessionLogContent).length,
         'lineCount': sessionLogContent.isEmpty
             ? 0
