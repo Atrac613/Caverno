@@ -7,17 +7,18 @@ otherwise.
 
 ## Current Inventory
 
-The initial inventory was captured with `wc -l` and should be refreshed before
-starting a refactor branch.
+The live inventory below was refreshed on 2026-07-02 with `wc -l`. Refresh it
+again before starting a new refactor branch.
 
 | File | Lines | Primary concern |
 |------|------:|-----------------|
-| `lib/features/chat/presentation/providers/chat_notifier.dart` | 8728 | Chat orchestration, tool loops, memory, workflows, persistence |
-| `lib/features/chat/presentation/pages/chat_page.dart` | 7593 | Chat screen layout, drawers, modals, input wiring, plan UI |
-| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 4080 | Tool registry, MCP execution, built-in tool adapters |
+| `lib/features/chat/presentation/providers/chat_notifier.dart` | 9607 | Chat orchestration, tool loops, memory, workflows, persistence |
+| `lib/features/chat/presentation/pages/chat_page.dart` | 8296 | Chat screen layout, drawers, modals, input wiring, plan UI |
+| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 5260 | Tool registry, MCP execution, built-in tool adapters |
 | `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 3270 | Computer Use settings layout and validation |
-| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2862 | Debug UI, diagnostics rendering, action controls |
-| `lib/features/chat/data/datasources/network_tools.dart` | 2569 | Network discovery, scanning, and command handling |
+| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
+| `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
+| `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18637 | Broad chat orchestration regression coverage |
 
 ## Refactor Rules
 
@@ -53,6 +54,31 @@ Candidate slices:
 4. Extract workflow proposal, approval, and recovery coordination.
    - Destination: existing conversation plan execution services where possible.
    - Tests: Plan Mode proposal, guardrail, and execution coordinator tests.
+
+Tranche 1 status (2026-07-02):
+
+- `PlanningResearchCollector` plus `chat_notifier_planning_research.dart`
+  extracted task-research context assembly.
+- `proposal_parsing_text_utils.dart`, `WorkflowProposalParser`, and
+  `TaskProposalParser` moved proposal text parsing out of the notifier.
+- `ProposalOptionExtraction` plus
+  `chat_notifier_proposal_option_extraction.dart` moved planning-decision option
+  parsing behind a focused boundary.
+- `FinalAnswerClaimDetector` moved unexecuted-action claim detection out of the
+  notifier and into reusable command guardrail, terminal-response, and recovery
+  paths.
+- `ActiveResponseRegistry` moved generation-keyed active-response conversation
+  and message tracking out of the notifier.
+- The `chat_notifier.dart` ratchet budget is now 9607 lines and should continue
+  shrinking as each follow-up slice lands.
+
+Next follow-up candidates:
+
+- Tool-loop request preparation and result-prompt construction.
+- Conversation persistence and title update helpers.
+- Assistant-response memory extraction orchestration.
+- Workflow approval and recovery coordination after the parser boundaries have
+  settled.
 
 Exit criteria:
 

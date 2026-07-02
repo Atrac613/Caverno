@@ -60,12 +60,6 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
     );
   }
 
-  bool _containsFileMutationCompletionMarker(String response) {
-    return _terminalToolResponsePolicy.containsFileMutationCompletionMarker(
-      response,
-    );
-  }
-
   bool _shouldAcceptTerminalSkillToolRoleResponse(
     String response,
     List<ToolResultInfo> toolResults,
@@ -106,12 +100,6 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
   bool _hasSuccessfulLoadSkillResult(List<ToolResultInfo> toolResults) {
     return _terminalToolResponsePolicy.hasSuccessfulLoadSkillResult(
       toolResults,
-    );
-  }
-
-  bool _toolResultLooksSuccessfulForFinalAnswer(String result) {
-    return _terminalToolResponsePolicy.toolResultLooksSuccessfulForFinalAnswer(
-      result,
     );
   }
 

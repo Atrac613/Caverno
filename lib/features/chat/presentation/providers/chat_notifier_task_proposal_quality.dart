@@ -1,7 +1,7 @@
 // Same-library extension on [ChatNotifier]: task / workflow proposal quality
 // delegates to the extracted quality service while keeping private notifier
 // call sites stable during the decomposition.
-// ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+// ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member, unused_element
 
 part of 'chat_notifier.dart';
 
@@ -43,7 +43,7 @@ extension ChatNotifierTaskProposalQuality on ChatNotifier {
 
   WorkflowTaskProposalDraft _finalizeTaskProposalDraft(
     WorkflowTaskProposalDraft proposal, {
-    required _PlanningResearchContext researchContext,
+    required PlanningResearchContext researchContext,
   }) {
     return _taskProposalQualityService.finalizeTaskProposalDraft(
       proposal,

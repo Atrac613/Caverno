@@ -15,10 +15,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// exact current line counts (zero headroom, so the ratchet still blocks any
 /// further growth). Extraction back under the prior budgets is tracked as
 /// follow-up per docs/large_file_refactor_plan.md. chat_notifier.dart was
-/// instead extracted (turn-finalization recovery moved to a part file), so its
-/// budget is lowered to 13700 rather than reconciled up.
+/// instead extracted, so its budget is lowered as slices land rather than
+/// reconciled up.
 const Map<String, int> _lineBudgets = {
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 13700,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 9607,
   'lib/features/chat/presentation/pages/chat_page.dart': 8297,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 5270,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':
