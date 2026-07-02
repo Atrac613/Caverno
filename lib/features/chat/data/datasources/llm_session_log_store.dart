@@ -309,6 +309,38 @@ class LlmSessionLogStore {
     };
   }
 
+  static dynamic redactSensitiveValue(dynamic value) {
+    return _redactValue(value);
+  }
+
+  static String redactSensitiveText(String value) {
+    return _redactString(value);
+  }
+
+  static String redactSessionLogContent(String content) {
+    if (content.isEmpty) {
+      return content;
+    }
+    final endsWithNewline = content.endsWith('\n');
+    final lines = content.split('\n');
+    if (endsWithNewline) {
+      lines.removeLast();
+    }
+    final redactedLines = lines.map(_redactSessionLogLine).join('\n');
+    return endsWithNewline ? '$redactedLines\n' : redactedLines;
+  }
+
+  static String _redactSessionLogLine(String line) {
+    if (line.trim().isEmpty) {
+      return line;
+    }
+    try {
+      return jsonEncode(_redactValue(jsonDecode(line)));
+    } catch (_) {
+      return _redactString(line);
+    }
+  }
+
   Future<void> record({
     required LlmSessionLogContext? context,
     required LlmSessionLogRequest request,
@@ -521,7 +553,7 @@ class LlmSessionLogStore {
     }
   }
 
-  dynamic _redactValue(dynamic value, [String? parentKey]) {
+  static dynamic _redactValue(dynamic value, [String? parentKey]) {
     final normalizedKey = parentKey
         ?.replaceAll(RegExp(r'[^A-Za-z0-9_]'), '')
         .toLowerCase();
@@ -544,7 +576,7 @@ class LlmSessionLogStore {
     return value;
   }
 
-  String _redactString(String value) {
+  static String _redactString(String value) {
     var redacted = value.replaceAll(
       _privateKeyPattern,
       '[redacted-private-key]',

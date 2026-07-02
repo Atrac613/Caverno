@@ -56,8 +56,8 @@ class ToolApprovalAuditRetentionPolicy {
 /// Append-only, local-only audit trail for **automated** high-risk tool
 /// approvals (full access auto-runs and LLM auto-review verdicts).
 ///
-/// Unlike [LlmSessionLogStore] (opt-in, captures full prompts/responses), this
-/// is always on, lightweight (one JSON line per automated decision), and
+/// Unlike [LlmSessionLogStore] (captures full prompts/responses), this is
+/// always on, lightweight (one JSON line per automated decision), and
 /// records the *verdict* so you can later answer "which request was allowed or
 /// denied, and why". Manual approvals are intentionally not recorded here — the
 /// user made those decisions interactively.
@@ -73,7 +73,8 @@ class ToolApprovalAuditLog {
   }) : _rootDirectoryProvider =
            rootDirectoryProvider ?? _defaultRootDirectoryProvider,
        _retentionPolicy =
-           retentionPolicy ?? ToolApprovalAuditRetentionPolicy.fromEnvironment(),
+           retentionPolicy ??
+           ToolApprovalAuditRetentionPolicy.fromEnvironment(),
        // Default to a no-op under `flutter test` so unrelated tests never touch
        // the developer's home directory. Tests that assert on output inject an
        // explicit [rootDirectoryProvider], which re-enables writing.

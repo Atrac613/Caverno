@@ -57,8 +57,8 @@ Enable coding mode in a thread with a selected coding project, then verify:
 
 ## Logging And Privacy
 
-- Session logs remain opt-in and are not committed.
-- If session logs are enabled for debugging, confirm the goal suggestion request
-  and response are useful for triage and do not include unexpected extra context.
+- Session logs are enabled by default, remain local, and are not committed.
+- Confirm the goal suggestion request and response are useful for triage and do
+  not include unexpected extra context.
 - The goal objective shown in the composer matches the draft or clarification
   that triggered the suggestion.

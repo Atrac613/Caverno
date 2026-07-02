@@ -472,7 +472,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   enableSemanticSearch: json['enableSemanticSearch'] as bool? ?? false,
   embeddingsModel: json['embeddingsModel'] as String? ?? '',
   showMemoryUpdates: json['showMemoryUpdates'] as bool? ?? false,
-  enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? false,
+  enableLlmSessionLogs: json['enableLlmSessionLogs'] as bool? ?? true,
   feedbackUploadEnabled: json['feedbackUploadEnabled'] as bool? ?? true,
   feedbackEndpointUrl:
       json['feedbackEndpointUrl'] as String? ?? defaultFeedbackEndpointUrl,

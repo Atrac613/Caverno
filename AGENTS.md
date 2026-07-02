@@ -123,9 +123,8 @@ The tool calling implementation in `ChatNotifier._sendWithTools()` /
 
 Caverno records Chat, Coding, and Routines LLM request/response exchanges as
 JSONL session logs for later debugging and Codex analysis.
-- Logs are opt-in. They are disabled by default unless the user enables
-  Advanced > Debug > Save LLM session logs or sets
-  `CAVERNO_SESSION_LOG_ENABLED=1`.
+- Logs are enabled by default. The user can disable Advanced > Debug > Save LLM
+  session logs, or set `CAVERNO_SESSION_LOG_ENABLED=0` to force logging off.
 - Default location: `$HOME/.caverno/session_logs/`
 - Override: `CAVERNO_SESSION_LOG_DIR`
 - Retention controls: `CAVERNO_SESSION_LOG_MAX_FILE_BYTES`,

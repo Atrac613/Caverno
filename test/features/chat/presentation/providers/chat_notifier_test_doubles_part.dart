@@ -3,10 +3,14 @@
 // chat_notifier_test.dart (F1 test-file ratchet), no behavior change.
 part of 'chat_notifier_test.dart';
 
+AppSettings _baseTestSettings() {
+  return AppSettings.defaults().copyWith(enableLlmSessionLogs: false);
+}
+
 class _TestSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       mcpEnabled: false,
       demoMode: false,
@@ -2092,7 +2096,7 @@ class _NoToolStreamingWithToolsDataSource implements ChatDataSource {
 class _ToolEnabledSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
@@ -2103,7 +2107,7 @@ class _ToolEnabledSettingsNotifier extends SettingsNotifier {
 class _ToolEnabledHighTemperatureSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       temperature: 1.7,
       mcpEnabled: true,
@@ -2115,7 +2119,7 @@ class _ToolEnabledHighTemperatureSettingsNotifier extends SettingsNotifier {
 class _AppleToolEnabledSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       llmProvider: LlmProvider.appleFoundationModels,
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
@@ -2140,7 +2144,7 @@ Future<void> _waitForCondition(
 class _ToolEnabledNoConfirmSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
@@ -2155,7 +2159,7 @@ class _ToolEnabledNoConfirmSettingsNotifier extends SettingsNotifier {
 class _ToolEnabledNoVerificationSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
@@ -2172,7 +2176,7 @@ class _ToolEnabledRequestOnlyVerificationSettingsNotifier
     extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
@@ -2189,7 +2193,7 @@ class _ToolEnabledRequestOnlyVerificationSettingsNotifier
 class _ToolEnabledRemoteDenySettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
@@ -2213,7 +2217,7 @@ class _ToolEnabledRemoteDenySettingsNotifier extends SettingsNotifier {
 class _ToolEnabledAutoReviewSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
@@ -2225,7 +2229,7 @@ class _ToolEnabledAutoReviewSettingsNotifier extends SettingsNotifier {
 class _ToolEnabledChatFullAccessSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
@@ -2238,7 +2242,7 @@ class _ToolEnabledChatFullAccessSettingsNotifier extends SettingsNotifier {
 class _ToolEnabledChatAutoReviewSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
@@ -2251,7 +2255,7 @@ class _ToolEnabledChatAutoReviewSettingsNotifier extends SettingsNotifier {
 class _ContentToolSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.general,
       mcpEnabled: false,
       demoMode: false,
@@ -2264,7 +2268,7 @@ class _ContentToolSettingsNotifier extends SettingsNotifier {
 class _AppleContentToolSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       llmProvider: LlmProvider.appleFoundationModels,
       assistantMode: AssistantMode.general,
       mcpEnabled: false,
@@ -2278,7 +2282,7 @@ class _AppleContentToolSettingsNotifier extends SettingsNotifier {
 class _PlanSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
-    return AppSettings.defaults().copyWith(
+    return _baseTestSettings().copyWith(
       assistantMode: AssistantMode.plan,
       mcpEnabled: false,
       demoMode: false,

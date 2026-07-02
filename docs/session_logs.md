@@ -13,9 +13,11 @@ after the fact.
 
 ## Enablement
 
-Session logs are opt-in. They are disabled by default, including release builds.
+Session logs are enabled by default, including release builds, so feedback and
+diagnostic flows can include the current session trace when the user submits
+feedback.
 
-- In the app, enable them from Advanced > Debug > Save LLM session logs.
+- In the app, disable them from Advanced > Debug > Save LLM session logs.
 - For local diagnostics, set `CAVERNO_SESSION_LOG_ENABLED=1`.
 - Set `CAVERNO_SESSION_LOG_ENABLED=0` to force logging off even when the app
   setting is enabled.

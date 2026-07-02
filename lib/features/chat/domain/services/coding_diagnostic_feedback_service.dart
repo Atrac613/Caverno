@@ -405,7 +405,15 @@ class LanguageDiagnosticsBridgeFallbackProvider
         changedPaths: changedPaths,
       );
       if (primarySnapshot != null) {
-        return primarySnapshot;
+        if (primarySnapshot.diagnostics.isNotEmpty) {
+          return primarySnapshot;
+        }
+        return await _collectFallback(
+              projectRoot: projectRoot,
+              changedPaths: changedPaths,
+              reason: 'primary_empty',
+            ) ??
+            primarySnapshot;
       }
       return _collectFallback(
         projectRoot: projectRoot,

@@ -429,18 +429,18 @@ void main() {
     expect(decoded.chatApprovalMode, ToolApprovalMode.defaultPermissions);
   });
 
-  test('defaults LLM session logs to disabled and persists opt in', () {
-    expect(AppSettings.defaults().enableLlmSessionLogs, isFalse);
+  test('defaults LLM session logs to enabled and persists opt out', () {
+    expect(AppSettings.defaults().enableLlmSessionLogs, isTrue);
 
     final settings = AppSettings.defaults().copyWith(
-      enableLlmSessionLogs: true,
+      enableLlmSessionLogs: false,
     );
 
     final decoded = AppSettings.fromJson(
       jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
     );
 
-    expect(decoded.enableLlmSessionLogs, isTrue);
+    expect(decoded.enableLlmSessionLogs, isFalse);
   });
 
   test('defaults onboarding to incomplete and persists completion', () {
