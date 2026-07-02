@@ -165,14 +165,6 @@ String _formatTokenCount(int count) {
   return count.toString();
 }
 
-String _formatGitCommandForDisplay(String command) {
-  final normalized = GitTools.normalizeCommand(command);
-  if (normalized.isEmpty) {
-    return 'git';
-  }
-  return 'git $normalized';
-}
-
 String _buildPlanEditSeed(Conversation currentConversation) {
   final planArtifact = currentConversation.effectivePlanArtifact;
   if (planArtifact.hasApproved) {
