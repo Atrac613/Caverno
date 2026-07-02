@@ -713,7 +713,11 @@ try:
         response.read()
 except urllib.error.HTTPError as error:
     error_body = error.read().decode("utf-8", errors="replace")
-    if error.code == 409 and "ResourceConflictException" in error_body:
+    normalized_error = error_body.lower()
+    if error.code == 409 and (
+        "resourceconflictexception" in normalized_error or
+        "statement id" in normalized_error and "already exists" in normalized_error
+    ):
         sys.exit(0)
     print(error_body, file=sys.stderr)
     sys.exit(1)
