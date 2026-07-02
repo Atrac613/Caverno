@@ -1294,8 +1294,9 @@ void main() {
             )
             .map((file) => file.readAsStringSync())
             .join('\n');
-    final chatPageSource = File(
-      'lib/features/chat/presentation/pages/chat_page.dart',
+    final approvalSheetSource = File(
+      'lib/features/chat/presentation/widgets/approval/'
+      'computer_use_action_approval_sheet.dart',
     ).readAsStringSync();
     final toolServiceSource = File(
       'lib/features/chat/data/datasources/mcp_tool_service.dart',
@@ -1312,9 +1313,9 @@ void main() {
       chatNotifierSource,
       contains('_computerUseApprovalExactTextContext'),
     );
-    expect(chatPageSource, contains('Target review'));
-    expect(chatPageSource, contains('Exact text'));
-    expect(chatPageSource, contains('Latest observation context'));
+    expect(approvalSheetSource, contains('Target review'));
+    expect(approvalSheetSource, contains('Exact text'));
+    expect(approvalSheetSource, contains('Latest observation context'));
     expect(toolServiceSource, contains("'appName'"));
     expect(toolServiceSource, contains("'windowTitle'"));
     expect(promptSource, contains('target appName, windowTitle, role, label'));
@@ -1335,8 +1336,9 @@ void main() {
             )
             .map((file) => file.readAsStringSync())
             .join('\n');
-    final chatPageSource = File(
-      'lib/features/chat/presentation/pages/chat_page.dart',
+    final approvalSheetSource = File(
+      'lib/features/chat/presentation/widgets/approval/'
+      'computer_use_action_approval_sheet.dart',
     ).readAsStringSync();
     final toolServiceSource = File(
       'lib/features/chat/data/datasources/mcp_tool_service.dart',
@@ -1352,7 +1354,7 @@ void main() {
     expect(policySource, contains('destructive_target_blocked'));
     expect(chatNotifierSource, contains('action_policy_blocked'));
     expect(chatNotifierSource, contains('approvalBlockers'));
-    expect(chatPageSource, contains('Destructive action'));
+    expect(approvalSheetSource, contains('Destructive action'));
     expect(toolServiceSource, contains("'secure_field'"));
     expect(toolServiceSource, contains("'credential'"));
     expect(toolServiceSource, contains("'payment'"));
