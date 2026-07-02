@@ -80,6 +80,7 @@ import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
 import '../widgets/participant_roster_bar.dart';
 import '../widgets/tool_perimeter_summary.dart';
+import '../widgets/workflow_status_presentation.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../widgets/session_log_details_section.dart';
@@ -5205,177 +5206,63 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         latestTask.status == ConversationWorkflowTaskStatus.blocked;
   }
 
-  String _workflowProjectionStatusLabelKey(Conversation currentConversation) {
-    if (currentConversation.isWorkflowProjectionFresh) {
-      return 'chat.plan_document_projection_fresh';
-    }
-    if (currentConversation.isWorkflowProjectionStale) {
-      return 'chat.plan_document_projection_stale';
-    }
-    return 'chat.plan_document_projection_unavailable';
-  }
+  String _workflowProjectionStatusLabelKey(Conversation currentConversation) =>
+      WorkflowStatusPresentation.workflowProjectionStatusLabelKey(
+        currentConversation,
+      );
 
   String _planDocumentEditLabelKey(
     Conversation currentConversation, {
     required bool isPlanMode,
-  }) {
-    final artifact = currentConversation.effectivePlanArtifact;
-    if (isPlanMode || artifact.hasPendingEdits) {
-      return 'chat.plan_document_edit_draft';
-    }
-    if (artifact.hasApproved) {
-      return 'chat.plan_document_edit_approved';
-    }
-    return 'chat.plan_document_edit';
-  }
+  }) => WorkflowStatusPresentation.planDocumentEditLabelKey(
+    currentConversation,
+    isPlanMode: isPlanMode,
+  );
 
   String _planDocumentHeaderEditTooltipKey(
     Conversation currentConversation, {
     required bool isPlanMode,
-  }) {
-    final artifact = currentConversation.effectivePlanArtifact;
-    if (isPlanMode || artifact.hasPendingEdits) {
-      return 'chat.plan_document_edit_draft';
-    }
-    if (artifact.hasApproved) {
-      return 'chat.plan_document_edit_approved';
-    }
-    return 'chat.plan_document_edit';
-  }
+  }) => WorkflowStatusPresentation.planDocumentHeaderEditTooltipKey(
+    currentConversation,
+    isPlanMode: isPlanMode,
+  );
 
   Color _workflowProjectionStatusColor(
     BuildContext context,
     Conversation currentConversation,
-  ) {
-    final scheme = Theme.of(context).colorScheme;
-    if (currentConversation.isWorkflowProjectionFresh) {
-      return Colors.green.shade700;
-    }
-    if (currentConversation.isWorkflowProjectionStale) {
-      return scheme.tertiary;
-    }
-    return scheme.error;
-  }
+  ) => WorkflowStatusPresentation.workflowProjectionStatusColor(
+    context,
+    currentConversation,
+  );
 
-  String _workflowStageLabel(ConversationWorkflowStage stage) {
-    return switch (stage) {
-      ConversationWorkflowStage.idle => 'chat.workflow_stage_idle'.tr(),
-      ConversationWorkflowStage.clarify => 'chat.workflow_stage_clarify'.tr(),
-      ConversationWorkflowStage.plan => 'chat.workflow_stage_plan'.tr(),
-      ConversationWorkflowStage.tasks => 'chat.workflow_stage_tasks'.tr(),
-      ConversationWorkflowStage.implement =>
-        'chat.workflow_stage_implement'.tr(),
-      ConversationWorkflowStage.review => 'chat.workflow_stage_review'.tr(),
-    };
-  }
+  String _workflowStageLabel(ConversationWorkflowStage stage) =>
+      WorkflowStatusPresentation.workflowStageLabel(stage);
 
-  String _workflowTaskStatusLabel(ConversationWorkflowTaskStatus status) {
-    return switch (status) {
-      ConversationWorkflowTaskStatus.pending =>
-        'chat.workflow_task_status_pending'.tr(),
-      ConversationWorkflowTaskStatus.inProgress =>
-        'chat.workflow_task_status_in_progress'.tr(),
-      ConversationWorkflowTaskStatus.completed =>
-        'chat.workflow_task_status_completed'.tr(),
-      ConversationWorkflowTaskStatus.blocked =>
-        'chat.workflow_task_status_blocked'.tr(),
-    };
-  }
+  String _workflowTaskStatusLabel(ConversationWorkflowTaskStatus status) =>
+      WorkflowStatusPresentation.workflowTaskStatusLabel(status);
 
   String _workflowValidationStatusLabel(
     ConversationExecutionValidationStatus status,
-  ) {
-    return switch (status) {
-      ConversationExecutionValidationStatus.unknown =>
-        'chat.workflow_task_validation_status_unknown'.tr(),
-      ConversationExecutionValidationStatus.passed =>
-        'chat.workflow_task_validation_status_passed'.tr(),
-      ConversationExecutionValidationStatus.failed =>
-        'chat.workflow_task_validation_status_failed'.tr(),
-    };
-  }
-
-  String _workflowTaskEventLabel(ConversationExecutionTaskEventType type) {
-    return switch (type) {
-      ConversationExecutionTaskEventType.started =>
-        'chat.workflow_task_event_started'.tr(),
-      ConversationExecutionTaskEventType.validated =>
-        'chat.workflow_task_event_validated'.tr(),
-      ConversationExecutionTaskEventType.blocked =>
-        'chat.workflow_task_event_blocked'.tr(),
-      ConversationExecutionTaskEventType.unblocked =>
-        'chat.workflow_task_event_unblocked'.tr(),
-      ConversationExecutionTaskEventType.completed =>
-        'chat.workflow_task_event_completed'.tr(),
-      ConversationExecutionTaskEventType.replanned =>
-        'chat.workflow_task_event_replanned'.tr(),
-    };
-  }
+  ) => WorkflowStatusPresentation.workflowValidationStatusLabel(status);
 
   String _workflowTaskEventSummary(
     BuildContext context,
     ConversationExecutionTaskEvent event,
-  ) {
-    final timestamp = DateFormat(
-      'MM/dd HH:mm',
-    ).format(event.createdAt.toLocal());
-    final summary =
-        event.normalizedSummary ??
-        event.normalizedValidationSummary ??
-        event.normalizedBlockedReason ??
-        _workflowTaskStatusLabel(event.status);
-    return '$timestamp · ${_workflowTaskEventLabel(event.type)} · $summary';
-  }
+  ) => WorkflowStatusPresentation.workflowTaskEventSummary(context, event);
 
   String _planDocumentDiffEntryLabel(
     BuildContext context,
     ConversationPlanTaskDiffEntry entry,
-  ) {
-    final prefix = switch (entry.type) {
-      ConversationPlanTaskDiffType.added =>
-        'chat.plan_document_diff_entry_added'.tr(),
-      ConversationPlanTaskDiffType.removed =>
-        'chat.plan_document_diff_entry_removed'.tr(),
-      ConversationPlanTaskDiffType.changed =>
-        'chat.plan_document_diff_entry_changed'.tr(),
-    };
-    final beforeTitle = entry.beforeTask?.title.trim();
-    final afterTitle = entry.afterTask?.title.trim();
-
-    if (entry.type == ConversationPlanTaskDiffType.changed &&
-        beforeTitle != null &&
-        afterTitle != null &&
-        beforeTitle != afterTitle) {
-      return '$prefix: $beforeTitle -> $afterTitle';
-    }
-    return '$prefix: ${entry.displayTitle}';
-  }
+  ) => WorkflowStatusPresentation.planDocumentDiffEntryLabel(context, entry);
 
   Color _workflowTaskStatusColor(
     BuildContext context,
     ConversationWorkflowTaskStatus status,
-  ) {
-    final scheme = Theme.of(context).colorScheme;
-    return switch (status) {
-      ConversationWorkflowTaskStatus.pending => scheme.secondary,
-      ConversationWorkflowTaskStatus.inProgress => scheme.primary,
-      ConversationWorkflowTaskStatus.completed => Colors.green.shade700,
-      ConversationWorkflowTaskStatus.blocked => scheme.error,
-    };
-  }
+  ) => WorkflowStatusPresentation.workflowTaskStatusColor(context, status);
 
   ConversationWorkflowStage? _recommendedWorkflowStage(
     ConversationWorkflowStage stage,
-  ) {
-    return switch (stage) {
-      ConversationWorkflowStage.idle => ConversationWorkflowStage.clarify,
-      ConversationWorkflowStage.clarify => ConversationWorkflowStage.plan,
-      ConversationWorkflowStage.plan => ConversationWorkflowStage.tasks,
-      ConversationWorkflowStage.tasks => ConversationWorkflowStage.implement,
-      ConversationWorkflowStage.implement => ConversationWorkflowStage.review,
-      ConversationWorkflowStage.review => null,
-    };
-  }
+  ) => WorkflowStatusPresentation.recommendedWorkflowStage(stage);
 
   Future<void> _showSshConnectDialog(
     BuildContext context,
