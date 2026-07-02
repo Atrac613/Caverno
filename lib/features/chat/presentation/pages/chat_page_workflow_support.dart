@@ -1434,28 +1434,6 @@ class _WorkflowQuickAction {
   final String promptKey;
 }
 
-class _ComputerUseRiskStyle {
-  const _ComputerUseRiskStyle({
-    required this.icon,
-    required this.warningIcon,
-    required this.approveIcon,
-    required this.containerColor,
-    required this.iconColor,
-    required this.accentColor,
-    required this.buttonColor,
-    required this.buttonForegroundColor,
-  });
-
-  final IconData icon;
-  final IconData warningIcon;
-  final IconData approveIcon;
-  final Color containerColor;
-  final Color iconColor;
-  final Color accentColor;
-  final Color buttonColor;
-  final Color buttonForegroundColor;
-}
-
 const List<_WorkflowQuickAction> _workflowQuickActions = [
   _WorkflowQuickAction(
     labelKey: 'chat.workflow_quick_clarify',
