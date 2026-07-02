@@ -109,10 +109,18 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('settings-menu-debug')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Send feedback to endpoint'));
-    await tester.pumpAndSettle();
+
+    final endpointField = find.byKey(
+      const ValueKey('feedback-endpoint-url-field'),
+    );
+    expect(endpointField, findsOneWidget);
+    expect(
+      tester.widget<TextField>(endpointField).controller?.text,
+      defaultFeedbackEndpointUrl,
+    );
+
     await tester.enterText(
-      find.byKey(const ValueKey('feedback-endpoint-url-field')),
+      endpointField,
       'https://feedback.example.com/caverno',
     );
     await tester.pumpAndSettle();

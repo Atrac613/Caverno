@@ -8,6 +8,9 @@ import '../../../../core/types/assistant_mode.dart';
 part 'app_settings.freezed.dart';
 part 'app_settings.g.dart';
 
+const defaultFeedbackEndpointUrl =
+    'https://hvu27dbkjku36mfqcgo6eenvti0gkdvv.lambda-url.ap-northeast-1.on.aws/';
+
 /// Transport type for an MCP server.
 enum McpServerType { http, stdio }
 
@@ -739,8 +742,8 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String embeddingsModel,
     @Default(false) bool showMemoryUpdates,
     @Default(false) bool enableLlmSessionLogs,
-    @Default(false) bool feedbackUploadEnabled,
-    @Default('') String feedbackEndpointUrl,
+    @Default(true) bool feedbackUploadEnabled,
+    @Default(defaultFeedbackEndpointUrl) String feedbackEndpointUrl,
     @Default(false) bool demoMode,
     @Default(false) bool onboardingCompleted,
     @Default(false) bool browserToolsEnabled,
