@@ -224,6 +224,75 @@ class PayloadTooLarge(Exception):
     pass
 
 
+SENSITIVE_KEY_RE = re.compile(
+    r"(?:^|[_-])(?:api[_-]?key|authorization|auth[_-]?token|access[_-]?token|"
+    r"refresh[_-]?token|id[_-]?token|token|secret|password|passwd|private[_-]?key|"
+    r"client[_-]?secret|session[_-]?token|cookie|set[_-]?cookie)(?:$|[_-])",
+    re.IGNORECASE,
+)
+PRIVATE_KEY_RE = re.compile(
+    r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----",
+    re.IGNORECASE | re.DOTALL,
+)
+AUTH_HEADER_RE = re.compile(
+    r"(?im)^(\s*(?:authorization|proxy-authorization)\s*:\s*)(.+)$"
+)
+BEARER_RE = re.compile(r"\b[Bb]earer\s+[A-Za-z0-9._~+/=-]{12,}")
+OPENAI_KEY_RE = re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b")
+GITHUB_TOKEN_RE = re.compile(
+    r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b"
+)
+JWT_RE = re.compile(
+    r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"
+)
+URL_CREDENTIAL_RE = re.compile(r"([a-z][a-z0-9+.-]*://)([^/@\s:]+):([^/@\s]+)@")
+SENSITIVE_QUERY_RE = re.compile(
+    r"(?i)([?&](?:api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|"
+    r"token|secret|password|client[_-]?secret)=)[^&#\s]+"
+)
+ENV_SECRET_RE = re.compile(
+    r"(?im)^(\s*[A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|PRIVATE_KEY)"
+    r"[A-Z0-9_]*\s*=\s*)(.+)$"
+)
+
+
+def _is_sensitive_key(key):
+    return bool(SENSITIVE_KEY_RE.search(str(key or "")))
+
+
+def _redact_text(value):
+    if not value:
+        return value
+    text = str(value)
+    text = PRIVATE_KEY_RE.sub("[REDACTED_PRIVATE_KEY]", text)
+    text = AUTH_HEADER_RE.sub(r"\1[REDACTED_AUTHORIZATION]", text)
+    text = BEARER_RE.sub("Bearer [REDACTED_TOKEN]", text)
+    text = OPENAI_KEY_RE.sub("[REDACTED_OPENAI_API_KEY]", text)
+    text = GITHUB_TOKEN_RE.sub("[REDACTED_GITHUB_TOKEN]", text)
+    text = JWT_RE.sub("[REDACTED_JWT]", text)
+    text = URL_CREDENTIAL_RE.sub(r"\1[REDACTED_USER]:[REDACTED_PASSWORD]@", text)
+    text = SENSITIVE_QUERY_RE.sub(r"\1[REDACTED]", text)
+    text = ENV_SECRET_RE.sub(r"\1[REDACTED]", text)
+    return text
+
+
+def _redact_value(value, key=None):
+    if _is_sensitive_key(key):
+        if value in (None, ""):
+            return value
+        return "[REDACTED]"
+    if isinstance(value, dict):
+        return {
+            item_key: _redact_value(item_value, item_key)
+            for item_key, item_value in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_value(item) for item in value]
+    if isinstance(value, str):
+        return _redact_text(value)
+    return value
+
+
 def _headers():
     return {
         "content-type": "application/json",
@@ -395,8 +464,17 @@ def handler(event, context):
         if payload.get("schemaName") != "caverno_feedback_submission":
             return _response(400, {"ok": False, "error": "invalid_schema"})
 
+        redacted_payload = _redact_value(payload)
+        body = json.dumps(
+            redacted_payload,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        if len(body) > MAX_UNCOMPRESSED_BYTES:
+            return _response(413, {"ok": False, "error": "payload_too_large"})
+
         submission_id = _safe_segment(
-            payload.get("submissionId") or uuid.uuid4(),
+            _redact_text(payload.get("submissionId") or uuid.uuid4()),
             "feedback",
         )
         now = time.gmtime()
