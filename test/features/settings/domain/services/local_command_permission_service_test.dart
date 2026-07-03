@@ -196,6 +196,24 @@ void main() {
         )?.title,
         'Database destructive operation',
       );
+      expect(
+        LocalCommandPermissionService.riskWarningFor(
+          'stat x & rm -rf /tmp/caverno_probe',
+        )?.title,
+        'Recursive file deletion',
+      );
+      expect(
+        LocalCommandPermissionService.requiresExplicitApproval(
+          'grep foo bar & rm -rf /tmp/caverno_probe',
+        ),
+        isTrue,
+      );
+      expect(
+        LocalCommandPermissionService.riskWarningFor(
+          "printf 'safe & sound' && git status",
+        ),
+        isNull,
+      );
     });
 
     test('reports additional git risks', () {

@@ -254,7 +254,7 @@ class LocalShellTools {
   }
 
   static bool _hasUnsafeShellSyntax(String command) {
-    const blockedTokens = ['|', '||', ';', '>', '<', '`', r'$', '\n'];
+    const blockedTokens = ['|', '||', '&', ';', '>', '<', '`', r'$', '\n'];
     return blockedTokens.any(command.contains);
   }
 
@@ -386,6 +386,10 @@ class LocalShellTools {
       if (char == '&' && i + 1 < command.length && command[i + 1] == '&') {
         _appendShellCommandSegment(segments, buffer);
         i += 1;
+        continue;
+      }
+      if (char == '&') {
+        _appendShellCommandSegment(segments, buffer);
         continue;
       }
       if (char == '|' && i + 1 < command.length && command[i + 1] == '|') {
