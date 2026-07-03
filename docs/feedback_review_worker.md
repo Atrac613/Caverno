@@ -40,13 +40,18 @@ CAVERNO_FEEDBACK_REVIEW_DEFAULT_BRANCH=main
 
 ## Local Worker
 
-Classification-only run:
+Safe dry-run queue inspection:
 
 ```bash
 dart run tool/feedback_review_worker.dart \
   --queue-url "$CAVERNO_FEEDBACK_REVIEW_QUEUE_URL" \
-  --status-table "$CAVERNO_FEEDBACK_REVIEW_STATUS_TABLE"
+  --status-table "$CAVERNO_FEEDBACK_REVIEW_STATUS_TABLE" \
+  --no-delete
 ```
+
+`--no-delete` keeps processed SQS messages in the queue so the same payload can
+be inspected again before the worker is allowed to consume review jobs. Omit it
+when the worker should delete successfully processed messages.
 
 Prepare a Codex fix without publishing:
 

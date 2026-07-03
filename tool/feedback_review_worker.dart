@@ -451,16 +451,7 @@ class FeedbackReviewWorker {
 
     final codexResult = await _runWithStdin(
       'codex',
-      [
-        'exec',
-        '--cd',
-        worktreePath,
-        '--sandbox',
-        'workspace-write',
-        '--ask-for-approval',
-        'never',
-        '-',
-      ],
+      ['exec', '--cd', worktreePath, '--sandbox', 'workspace-write', '-'],
       prompt,
       workingDirectory: worktreePath,
     );
