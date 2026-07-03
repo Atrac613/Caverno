@@ -59,9 +59,16 @@ void main() {
       expect(result.jobs.single.status, 'auto_fix_pending');
       expect(result.jobs.single.classification, 'autoFixCandidate');
 
-      final jobDir = Directory('${directory.path}/jobs/feedback-1');
+      final jobDir = Directory(result.jobs.single.jobDirPath);
       expect(File('${jobDir.path}/payload.json').existsSync(), isTrue);
       expect(File('${jobDir.path}/classification.json').existsSync(), isTrue);
+      expect(File('${jobDir.path}/run.json').existsSync(), isTrue);
+      expect(result.jobs.single.workerRunId, isNotEmpty);
+      expect(jobDir.path, contains('${directory.path}/jobs/feedback-1/'));
+      if (!Platform.isWindows) {
+        expect(_posixMode(jobDir.path), 448);
+        expect(_posixMode('${jobDir.path}/payload.json'), 384);
+      }
       final prompt = File('${jobDir.path}/codex_prompt.md').readAsStringSync();
       expect(prompt, contains('The model ignored the error.'));
       expect(prompt, contains('Do not commit, push, or create a pull request'));
@@ -170,12 +177,169 @@ void main() {
         isNotEmpty,
       );
 
-      final jobDir = Directory('${directory.path}/jobs/feedback-2');
+      final jobDir = Directory(result.jobs.single.jobDirPath);
       final retryDecision = File(
         '${jobDir.path}/retry_decision.json',
       ).readAsStringSync();
       expect(retryDecision, contains('manual_review'));
     });
+
+    test('keeps repeated archives for the same submission separate', () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'feedback-review-worker-archives-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+
+      final payloadFile = File('${directory.path}/payload.json')
+        ..writeAsStringSync(
+          jsonEncode({
+            'schemaName': 'caverno_feedback_submission',
+            'submissionId': 'feedback-archive',
+            'feedback': {'text': 'The model ignored the error.'},
+          }),
+        );
+      final messageFile = File('${directory.path}/message.json')
+        ..writeAsStringSync(
+          jsonEncode({
+            'schemaName': 'caverno_feedback_review_job',
+            'schemaVersion': 1,
+            'submissionId': 'feedback-archive',
+            'payload': {
+              'bucket': 'feedback-bucket',
+              'key': 'feedback/2026/07/03/feedback-archive.json',
+              'localPath': payloadFile.path,
+            },
+            'repo': {
+              'owner': 'Atrac613',
+              'name': 'Caverno',
+              'defaultBranch': 'main',
+            },
+            'createdAt': '2026-07-03T00:00:00Z',
+          }),
+        );
+      final options = FeedbackReviewWorkerOptions.parse([
+        '--sample-message',
+        messageFile.path,
+        '--jobs-dir',
+        '${directory.path}/jobs',
+      ]);
+
+      final first = await runFeedbackReviewWorker(
+        options: options,
+        processRunner: _failingProcessRunner,
+      );
+      final second = await runFeedbackReviewWorker(
+        options: options,
+        processRunner: _failingProcessRunner,
+      );
+
+      expect(
+        first.jobs.single.jobDirPath,
+        isNot(second.jobs.single.jobDirPath),
+      );
+      expect(Directory(first.jobs.single.jobDirPath).existsSync(), isTrue);
+      expect(Directory(second.jobs.single.jobDirPath).existsSync(), isTrue);
+      expect(
+        Directory(
+          '${directory.path}/jobs/feedback-archive',
+        ).listSync().whereType<Directory>(),
+        hasLength(2),
+      );
+    });
+
+    test(
+      'stops before worktree add when the generated branch exists',
+      () async {
+        final directory = Directory.systemTemp.createTempSync(
+          'feedback-review-worker-branch-collision-',
+        );
+        addTearDown(() => directory.deleteSync(recursive: true));
+
+        final payloadFile = File('${directory.path}/payload.json')
+          ..writeAsStringSync(
+            jsonEncode({
+              'schemaName': 'caverno_feedback_submission',
+              'submissionId': 'feedback-branch',
+              'feedback': {'text': 'Bug: the command failed with an error.'},
+            }),
+          );
+        final reviewJob = {
+          'schemaName': 'caverno_feedback_review_job',
+          'schemaVersion': 1,
+          'submissionId': 'feedback-branch',
+          'payload': {
+            'bucket': 'feedback-bucket',
+            'key': 'feedback/2026/07/03/feedback-branch.json',
+            'localPath': payloadFile.path,
+          },
+          'repo': {
+            'owner': 'Atrac613',
+            'name': 'Caverno',
+            'defaultBranch': 'main',
+          },
+          'createdAt': '2026-07-03T00:00:00Z',
+        };
+        final calls = <List<String>>[];
+
+        final result = await runFeedbackReviewWorker(
+          options: FeedbackReviewWorkerOptions.parse([
+            '--queue-url',
+            'https://sqs.example.com/123/review',
+            '--jobs-dir',
+            '${directory.path}/jobs',
+            '--enable-codex',
+            '--repo-root',
+            directory.path,
+            '--worktree-root',
+            '${directory.path}/worktrees',
+          ]),
+          processRunner: (executable, arguments, {workingDirectory}) async {
+            calls.add([executable, ...arguments]);
+            if (executable == 'aws' &&
+                arguments.length >= 2 &&
+                arguments[0] == 'sqs' &&
+                arguments[1] == 'receive-message') {
+              return ProcessResult(
+                0,
+                0,
+                jsonEncode({
+                  'Messages': [
+                    {
+                      'Body': jsonEncode(reviewJob),
+                      'ReceiptHandle': 'receipt-branch',
+                      'Attributes': {'ApproximateReceiveCount': '1'},
+                    },
+                  ],
+                }),
+                '',
+              );
+            }
+            if (executable == 'git' &&
+                arguments.length >= 2 &&
+                arguments[0] == 'rev-parse') {
+              return ProcessResult(0, 0, 'existing-branch', '');
+            }
+            throw StateError(
+              'Unexpected process call: $executable ${arguments.join(' ')}',
+            );
+          },
+        );
+
+        expect(result.failedCount, 1);
+        expect(result.jobs.single.status, 'branch_collision');
+        expect(result.jobs.single.error, contains('feature/feedback-'));
+        expect(
+          calls.where(
+            (call) =>
+                call.length >= 3 &&
+                call[0] == 'git' &&
+                call[1] == 'worktree' &&
+                call[2] == 'add',
+          ),
+          isEmpty,
+        );
+      },
+    );
 
     test(
       'loads Codex publish metadata and removes the worktree file',
@@ -225,6 +389,10 @@ void main() {
       expect(metadata.source, 'fallback_invalid_title');
     });
   });
+}
+
+int _posixMode(String path) {
+  return FileStat.statSync(path).mode & 511;
 }
 
 Future<ProcessResult> _failingProcessRunner(

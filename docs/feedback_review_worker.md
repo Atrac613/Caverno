@@ -12,7 +12,8 @@ feedback token described below.
 2. Lambda stores the redacted payload in S3.
 3. Lambda sends a small `caverno_feedback_review_job` message to SQS.
 4. A local worker long-polls SQS, downloads the payload, classifies it, and
-   writes a local job archive under `~/.caverno/feedback_worker/jobs/`.
+   writes a private local job archive under
+   `~/.caverno/feedback_worker/jobs/<submissionId>/<runId>/`.
 5. Auto-fix candidates can optionally run Codex in an isolated git worktree.
 6. Publishing is disabled unless `--publish` is passed explicitly.
 
@@ -71,6 +72,13 @@ the worker skips another Codex run and marks the job as `needs_manual_review`.
 This keeps repeated deterministic failures from spending more local automation
 time while still leaving the job archive and status record available for review.
 
+Job archives can contain sensitive feedback payloads, prompt context, session
+log tails, verification logs, and Codex output. Keep `--jobs-dir` on a local
+disk that is not synced to shared storage. On POSIX systems the worker sets
+archive directories to `0700` and archive files to `0600`. Each processing run
+gets a unique `runId`, so repeated deliveries for the same `submissionId` are
+kept as separate archive directories instead of overwriting prior evidence.
+
 Prepare a Codex fix without publishing:
 
 ```bash
@@ -95,6 +103,12 @@ dart run tool/feedback_review_worker.dart \
 `--publish` is intentionally separate from `--enable-codex` so the first worker
 rollout can consume queue messages and archive evidence without writing git
 history or opening pull requests.
+
+Codex worktrees and branches also include the same unique `runId` suffix:
+`feature/feedback-<submissionId>-<runId>` and
+`<worktree-root>/<submissionId>-<runId>`. If the generated branch or worktree
+path already exists, the worker stops with `branch_collision` or
+`worktree_collision` instead of reusing it.
 
 When Codex makes changes, the worker asks it to write
 `.caverno_feedback_publish.json` with a Conventional Commit title and a short

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 const feedbackReviewWorkerUsage = '''
 Usage:
@@ -31,6 +32,7 @@ const _defaultVerifyCommand = 'tool/codex_verify.sh --no-codegen';
 const _manualReviewAfterReceiveCount = 2;
 const _fallbackPublishTitle = 'fix: Address feedback submission';
 const _maxPublishTitleLength = 72;
+const _maxGitSegmentLength = 48;
 
 final _publishTitlePattern = RegExp(
   r'^(feat|fix|refactor|docs|chore|test|style|perf|ci|build)'
@@ -348,21 +350,33 @@ class FeedbackReviewWorker {
     _SqsReviewMessage message,
   ) async {
     late final FeedbackReviewJob job;
+    late final FeedbackReviewWorkerRunIdentity runIdentity;
     late final Map<String, dynamic> payload;
     late final Directory jobDir;
     try {
       job = FeedbackReviewJob.fromJson(message.body);
+      runIdentity = FeedbackReviewWorkerRunIdentity.create(job.submissionId);
       payload = await _loadFeedbackPayload(job);
-      jobDir = Directory(
-        '${options.jobsDirPath}/${_safeSegment(job.submissionId, 'feedback')}',
+      final jobsRoot = Directory(options.jobsDirPath);
+      final submissionDir = Directory(
+        '${jobsRoot.path}/${runIdentity.archiveSubmissionSegment}',
       );
-      await jobDir.create(recursive: true);
-      await File(
-        '${jobDir.path}/job.json',
-      ).writeAsString(_prettyJson(job.json));
-      await File(
-        '${jobDir.path}/payload.json',
-      ).writeAsString(_prettyJson(payload));
+      jobDir = Directory('${submissionDir.path}/${runIdentity.runId}');
+      await _createPrivateDirectory(jobsRoot);
+      await _createPrivateDirectory(submissionDir);
+      await _createPrivateDirectory(jobDir);
+      await _writePrivateString(
+        File('${jobDir.path}/run.json'),
+        _prettyJson(runIdentity.toJson()),
+      );
+      await _writePrivateString(
+        File('${jobDir.path}/job.json'),
+        _prettyJson(job.json),
+      );
+      await _writePrivateString(
+        File('${jobDir.path}/payload.json'),
+        _prettyJson(payload),
+      );
     } catch (error) {
       return FeedbackReviewJobResult.failed(
         submissionId: message.bestEffortSubmissionId,
@@ -373,10 +387,11 @@ class FeedbackReviewWorker {
 
     final classification = FeedbackReviewClassifier.classify(payload);
     final prompt = _buildCodexPrompt(job: job, payload: payload);
-    await File(
-      '${jobDir.path}/classification.json',
-    ).writeAsString(_prettyJson(classification.toJson()));
-    await File('${jobDir.path}/codex_prompt.md').writeAsString(prompt);
+    await _writePrivateString(
+      File('${jobDir.path}/classification.json'),
+      _prettyJson(classification.toJson()),
+    );
+    await _writePrivateString(File('${jobDir.path}/codex_prompt.md'), prompt);
 
     var status = classification.statusWhenCodexDisabled;
     var success = true;
@@ -390,7 +405,8 @@ class FeedbackReviewWorker {
         error =
             'Skipped Codex after prior failed delivery '
             '(ApproximateReceiveCount=${message.receiveCount}).';
-        await File('${jobDir.path}/retry_decision.json').writeAsString(
+        await _writePrivateString(
+          File('${jobDir.path}/retry_decision.json'),
           _prettyJson({
             'decision': 'manual_review',
             'reason': error,
@@ -400,6 +416,7 @@ class FeedbackReviewWorker {
       } else {
         final codexResult = await _runCodexFlow(
           job: job,
+          runIdentity: runIdentity,
           jobDir: jobDir,
           prompt: prompt,
         );
@@ -418,10 +435,12 @@ class FeedbackReviewWorker {
       jobDirPath: jobDir.path,
       error: error,
       publishTitle: publishTitle,
+      workerRunId: runIdentity.runId,
     );
-    await File(
-      '${jobDir.path}/result.json',
-    ).writeAsString(_prettyJson(result.toJson()));
+    await _writePrivateString(
+      File('${jobDir.path}/result.json'),
+      _prettyJson(result.toJson()),
+    );
     await _putStatus(job: job, result: result);
     return result;
   }
@@ -454,14 +473,32 @@ class FeedbackReviewWorker {
 
   Future<_CodexFlowResult> _runCodexFlow({
     required FeedbackReviewJob job,
+    required FeedbackReviewWorkerRunIdentity runIdentity,
     required Directory jobDir,
     required String prompt,
   }) async {
-    final branchName =
-        'feature/feedback-${_safeSegment(job.submissionId, 'job')}';
-    final worktreePath =
-        '${options.worktreeRootPath}/${_safeSegment(job.submissionId, 'job')}';
-    await Directory(options.worktreeRootPath).create(recursive: true);
+    final branchName = runIdentity.branchName;
+    final worktreePath = runIdentity.worktreePath(options.worktreeRootPath);
+    await _createPrivateDirectory(Directory(options.worktreeRootPath));
+    if (await FileSystemEntity.type(worktreePath) !=
+        FileSystemEntityType.notFound) {
+      return _CodexFlowResult.failed(
+        status: 'worktree_collision',
+        error: 'Worktree path already exists: $worktreePath',
+      );
+    }
+    final branchCheckResult = await _runGit([
+      'rev-parse',
+      '--verify',
+      'refs/heads/$branchName',
+    ], workingDirectory: options.repoRootPath);
+    if (branchCheckResult.exitCode == 0) {
+      return _CodexFlowResult.failed(
+        status: 'branch_collision',
+        error: 'Git branch already exists: $branchName',
+      );
+    }
+
     final worktreeResult = await _runGit([
       'worktree',
       'add',
@@ -483,12 +520,14 @@ class FeedbackReviewWorker {
       prompt,
       workingDirectory: worktreePath,
     );
-    await File(
-      '${jobDir.path}/codex_stdout.log',
-    ).writeAsString(codexResult.stdout);
-    await File(
-      '${jobDir.path}/codex_stderr.log',
-    ).writeAsString(codexResult.stderr);
+    await _writePrivateString(
+      File('${jobDir.path}/codex_stdout.log'),
+      codexResult.stdout,
+    );
+    await _writePrivateString(
+      File('${jobDir.path}/codex_stderr.log'),
+      codexResult.stderr,
+    );
     if (codexResult.exitCode != 0) {
       return _CodexFlowResult.failed(
         status: 'codex_failed',
@@ -501,17 +540,19 @@ class FeedbackReviewWorker {
           worktreePath: worktreePath,
           submissionId: job.submissionId,
         );
-    await File(
-      '${jobDir.path}/publish_metadata.json',
-    ).writeAsString(_prettyJson(publishMetadata.toJson()));
+    await _writePrivateString(
+      File('${jobDir.path}/publish_metadata.json'),
+      _prettyJson(publishMetadata.toJson()),
+    );
 
     final statusResult = await _runGit([
       'status',
       '--short',
     ], workingDirectory: worktreePath);
-    await File(
-      '${jobDir.path}/git_status.txt',
-    ).writeAsString(statusResult.stdout.toString());
+    await _writePrivateString(
+      File('${jobDir.path}/git_status.txt'),
+      statusResult.stdout.toString(),
+    );
     if (statusResult.stdout.toString().trim().isEmpty) {
       return const _CodexFlowResult(success: true, status: 'codex_no_changes');
     }
@@ -520,12 +561,14 @@ class FeedbackReviewWorker {
       '-lc',
       options.verifyCommand,
     ], workingDirectory: worktreePath);
-    await File(
-      '${jobDir.path}/verify_stdout.log',
-    ).writeAsString(verifyResult.stdout.toString());
-    await File(
-      '${jobDir.path}/verify_stderr.log',
-    ).writeAsString(verifyResult.stderr.toString());
+    await _writePrivateString(
+      File('${jobDir.path}/verify_stdout.log'),
+      verifyResult.stdout.toString(),
+    );
+    await _writePrivateString(
+      File('${jobDir.path}/verify_stderr.log'),
+      verifyResult.stderr.toString(),
+    );
     if (verifyResult.exitCode != 0) {
       return _CodexFlowResult.failed(
         status: 'verification_failed',
@@ -651,6 +694,9 @@ class FeedbackReviewWorker {
     if (result.publishTitle.isNotEmpty) {
       item['publishTitle'] = {'S': _truncate(result.publishTitle, 256)};
     }
+    if (result.workerRunId.isNotEmpty) {
+      item['workerRunId'] = {'S': result.workerRunId};
+    }
     await _runAws([
       'dynamodb',
       'put-item',
@@ -746,6 +792,7 @@ class FeedbackReviewJobResult {
     this.jobDirPath = '',
     this.error = '',
     this.publishTitle = '',
+    this.workerRunId = '',
   });
 
   const FeedbackReviewJobResult.failed({
@@ -766,6 +813,7 @@ class FeedbackReviewJobResult {
   final String jobDirPath;
   final String error;
   final String publishTitle;
+  final String workerRunId;
 
   Map<String, dynamic> toJson() {
     return {
@@ -776,6 +824,7 @@ class FeedbackReviewJobResult {
       if (jobDirPath.isNotEmpty) 'jobDir': jobDirPath,
       if (error.isNotEmpty) 'error': error,
       if (publishTitle.isNotEmpty) 'publishTitle': publishTitle,
+      if (workerRunId.isNotEmpty) 'workerRunId': workerRunId,
     };
   }
 }
@@ -851,6 +900,46 @@ class FeedbackReviewRepo {
           ? 'main'
           : _asString(json['defaultBranch']),
     );
+  }
+}
+
+class FeedbackReviewWorkerRunIdentity {
+  const FeedbackReviewWorkerRunIdentity({
+    required this.submissionId,
+    required this.archiveSubmissionSegment,
+    required this.gitSegment,
+    required this.runId,
+  });
+
+  final String submissionId;
+  final String archiveSubmissionSegment;
+  final String gitSegment;
+  final String runId;
+
+  String get branchName => 'feature/feedback-$gitSegment-$runId';
+
+  String worktreePath(String worktreeRootPath) {
+    return '$worktreeRootPath/$gitSegment-$runId';
+  }
+
+  factory FeedbackReviewWorkerRunIdentity.create(String submissionId) {
+    final archiveSegment = _safeSegment(submissionId, 'feedback');
+    return FeedbackReviewWorkerRunIdentity(
+      submissionId: submissionId,
+      archiveSubmissionSegment: archiveSegment,
+      gitSegment: _truncateGitSegment(archiveSegment),
+      runId: _newWorkerRunId(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'submissionId': submissionId,
+      'archiveSubmissionSegment': archiveSubmissionSegment,
+      'gitSegment': gitSegment,
+      'runId': runId,
+      'branchName': branchName,
+    };
   }
 }
 
@@ -1261,6 +1350,51 @@ bool _isAsciiText(String value) {
   return value.runes.every(
     (rune) => rune == 0x09 || rune == 0x0a || rune >= 0x20 && rune <= 0x7e,
   );
+}
+
+String _truncateGitSegment(String value) {
+  if (value.length <= _maxGitSegmentLength) {
+    return value;
+  }
+  return value
+      .substring(0, _maxGitSegmentLength)
+      .replaceAll(RegExp(r'^[-.]+|[-.]+$'), '');
+}
+
+String _newWorkerRunId() {
+  final random = Random.secure();
+  final randomHex = List.generate(
+    4,
+    (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+  ).join();
+  final timestamp = DateTime.now().toUtc().microsecondsSinceEpoch.toRadixString(
+    36,
+  );
+  return '$timestamp-$randomHex';
+}
+
+Future<void> _createPrivateDirectory(Directory directory) async {
+  await directory.create(recursive: true);
+  await _setPrivateMode(directory.path, '700');
+}
+
+Future<void> _writePrivateString(File file, String contents) async {
+  await _createPrivateDirectory(file.parent);
+  await file.writeAsString(contents);
+  await _setPrivateMode(file.path, '600');
+}
+
+Future<void> _setPrivateMode(String path, String mode) async {
+  if (Platform.isWindows) {
+    return;
+  }
+  final result = await Process.run('chmod', [mode, path]);
+  if (result.exitCode != 0) {
+    throw FileSystemException(
+      'Failed to set private mode $mode: ${result.stderr}',
+      path,
+    );
+  }
 }
 
 String _safeSegment(String value, String fallback) {
