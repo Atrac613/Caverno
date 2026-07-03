@@ -65,6 +65,8 @@ void main() {
       final prompt = File('${jobDir.path}/codex_prompt.md').readAsStringSync();
       expect(prompt, contains('The model ignored the error.'));
       expect(prompt, contains('Do not commit, push, or create a pull request'));
+      expect(prompt, contains('.caverno_feedback_publish.json'));
+      expect(prompt, contains('English Conventional Commit title'));
     });
 
     test('classifies positive feedback as no action', () {
@@ -173,6 +175,54 @@ void main() {
         '${jobDir.path}/retry_decision.json',
       ).readAsStringSync();
       expect(retryDecision, contains('manual_review'));
+    });
+
+    test(
+      'loads Codex publish metadata and removes the worktree file',
+      () async {
+        final directory = Directory.systemTemp.createTempSync(
+          'feedback-review-worker-metadata-',
+        );
+        addTearDown(() => directory.deleteSync(recursive: true));
+
+        final metadataFile =
+            File(
+              '${directory.path}/.caverno_feedback_publish.json',
+            )..writeAsStringSync(
+              jsonEncode({
+                'schemaName': 'caverno_feedback_publish_metadata',
+                'schemaVersion': 1,
+                'title': 'fix: Preserve feedback auth token',
+                'body': 'Pass the configured feedback token with submissions.',
+              }),
+            );
+
+        final metadata = await FeedbackReviewPublishMetadata.loadFromWorktree(
+          worktreePath: directory.path,
+          submissionId: 'feedback-3',
+        );
+
+        expect(metadata.title, 'fix: Preserve feedback auth token');
+        expect(
+          metadata.body,
+          'Pass the configured feedback token with submissions.',
+        );
+        expect(metadata.source, 'codex');
+        expect(metadataFile.existsSync(), isFalse);
+      },
+    );
+
+    test('falls back when Codex publish title is invalid', () {
+      final metadata = FeedbackReviewPublishMetadata.fromJson({
+        'schemaName': 'caverno_feedback_publish_metadata',
+        'schemaVersion': 1,
+        'title': '修正しました',
+        'body': 'Update the feedback review worker.',
+      }, submissionId: 'feedback-4');
+
+      expect(metadata.title, 'fix: Address feedback submission');
+      expect(metadata.body, 'Update the feedback review worker.');
+      expect(metadata.source, 'fallback_invalid_title');
     });
   });
 }

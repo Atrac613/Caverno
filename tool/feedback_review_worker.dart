@@ -25,8 +25,18 @@ Options:
 
 const _reviewJobSchemaName = 'caverno_feedback_review_job';
 const _statusSchemaName = 'caverno_feedback_review_worker_result';
+const _publishMetadataSchemaName = 'caverno_feedback_publish_metadata';
+const _publishMetadataFileName = '.caverno_feedback_publish.json';
 const _defaultVerifyCommand = 'tool/codex_verify.sh --no-codegen';
 const _manualReviewAfterReceiveCount = 2;
+const _fallbackPublishTitle = 'fix: Address feedback submission';
+const _maxPublishTitleLength = 72;
+
+final _publishTitlePattern = RegExp(
+  r'^(feat|fix|refactor|docs|chore|test|style|perf|ci|build)'
+  r'(\([A-Za-z0-9._-]+\))?'
+  r'!?: .+$',
+);
 
 typedef FeedbackWorkerProcessRunner =
     Future<ProcessResult> Function(
@@ -371,6 +381,7 @@ class FeedbackReviewWorker {
     var status = classification.statusWhenCodexDisabled;
     var success = true;
     var error = '';
+    var publishTitle = '';
     if (classification.kind ==
             FeedbackReviewClassificationKind.autoFixCandidate &&
         options.enableCodex) {
@@ -395,6 +406,7 @@ class FeedbackReviewWorker {
         status = codexResult.status;
         success = codexResult.success;
         error = codexResult.error;
+        publishTitle = codexResult.publishTitle;
       }
     }
 
@@ -405,6 +417,7 @@ class FeedbackReviewWorker {
       classification: classification.kind.name,
       jobDirPath: jobDir.path,
       error: error,
+      publishTitle: publishTitle,
     );
     await File(
       '${jobDir.path}/result.json',
@@ -483,6 +496,15 @@ class FeedbackReviewWorker {
       );
     }
 
+    final publishMetadata =
+        await FeedbackReviewPublishMetadata.loadFromWorktree(
+          worktreePath: worktreePath,
+          submissionId: job.submissionId,
+        );
+    await File(
+      '${jobDir.path}/publish_metadata.json',
+    ).writeAsString(_prettyJson(publishMetadata.toJson()));
+
     final statusResult = await _runGit([
       'status',
       '--short',
@@ -512,9 +534,10 @@ class FeedbackReviewWorker {
     }
 
     if (!options.publish) {
-      return const _CodexFlowResult(
+      return _CodexFlowResult(
         success: true,
         status: 'ready_for_manual_publish',
+        publishTitle: publishMetadata.title,
       );
     }
 
@@ -522,6 +545,7 @@ class FeedbackReviewWorker {
       job: job,
       branchName: branchName,
       worktreePath: worktreePath,
+      publishMetadata: publishMetadata,
     );
     return publishResult;
   }
@@ -530,6 +554,7 @@ class FeedbackReviewWorker {
     required FeedbackReviewJob job,
     required String branchName,
     required String worktreePath,
+    required FeedbackReviewPublishMetadata publishMetadata,
   }) async {
     final addResult = await _runGit([
       'add',
@@ -549,13 +574,12 @@ class FeedbackReviewWorker {
     if (diffResult.exitCode == 0) {
       return const _CodexFlowResult(success: true, status: 'codex_no_changes');
     }
-    final subject = 'fix: Address feedback submission';
     final commitResult = await _runGit([
       'commit',
       '-m',
-      subject,
+      publishMetadata.title,
       '-m',
-      'Apply the automated fix prepared from feedback submission ${job.submissionId}.',
+      publishMetadata.commitBody(submissionId: job.submissionId),
     ], workingDirectory: worktreePath);
     if (commitResult.exitCode != 0) {
       return _CodexFlowResult.failed(
@@ -575,12 +599,10 @@ class FeedbackReviewWorker {
         error: pushResult.stderr.toString(),
       );
     }
-    final prBody = [
-      'Automated draft PR for Caverno feedback submission `${job.submissionId}`.',
-      '',
-      'Verification:',
-      '- `${options.verifyCommand}`',
-    ].join('\n');
+    final prBody = publishMetadata.pullRequestBody(
+      submissionId: job.submissionId,
+      verifyCommand: options.verifyCommand,
+    );
     final prResult = await processRunner('gh', [
       'pr',
       'create',
@@ -590,7 +612,7 @@ class FeedbackReviewWorker {
       '--head',
       branchName,
       '--title',
-      subject,
+      publishMetadata.title,
       '--body',
       prBody,
     ], workingDirectory: worktreePath);
@@ -600,7 +622,11 @@ class FeedbackReviewWorker {
         error: prResult.stderr.toString(),
       );
     }
-    return const _CodexFlowResult(success: true, status: 'pr_created');
+    return _CodexFlowResult(
+      success: true,
+      status: 'pr_created',
+      publishTitle: publishMetadata.title,
+    );
   }
 
   Future<void> _putStatus({
@@ -621,6 +647,9 @@ class FeedbackReviewWorker {
     };
     if (result.error.isNotEmpty) {
       item['error'] = {'S': _truncate(result.error, 1024)};
+    }
+    if (result.publishTitle.isNotEmpty) {
+      item['publishTitle'] = {'S': _truncate(result.publishTitle, 256)};
     }
     await _runAws([
       'dynamodb',
@@ -716,6 +745,7 @@ class FeedbackReviewJobResult {
     this.classification = '',
     this.jobDirPath = '',
     this.error = '',
+    this.publishTitle = '',
   });
 
   const FeedbackReviewJobResult.failed({
@@ -735,6 +765,7 @@ class FeedbackReviewJobResult {
   final String classification;
   final String jobDirPath;
   final String error;
+  final String publishTitle;
 
   Map<String, dynamic> toJson() {
     return {
@@ -744,6 +775,7 @@ class FeedbackReviewJobResult {
       if (classification.isNotEmpty) 'classification': classification,
       if (jobDirPath.isNotEmpty) 'jobDir': jobDirPath,
       if (error.isNotEmpty) 'error': error,
+      if (publishTitle.isNotEmpty) 'publishTitle': publishTitle,
     };
   }
 }
@@ -934,6 +966,120 @@ class FeedbackReviewClassification {
   }
 }
 
+class FeedbackReviewPublishMetadata {
+  const FeedbackReviewPublishMetadata({
+    required this.title,
+    required this.body,
+    required this.source,
+  });
+
+  final String title;
+  final String body;
+  final String source;
+
+  factory FeedbackReviewPublishMetadata.fallback({
+    required String submissionId,
+    String source = 'fallback',
+  }) {
+    return FeedbackReviewPublishMetadata(
+      title: _fallbackPublishTitle,
+      body:
+          'Apply the automated fix prepared from feedback submission '
+          '$submissionId.',
+      source: source,
+    );
+  }
+
+  factory FeedbackReviewPublishMetadata.fromJson(
+    Object? value, {
+    required String submissionId,
+  }) {
+    final fallback = FeedbackReviewPublishMetadata.fallback(
+      submissionId: submissionId,
+    );
+    if (value is! Map) {
+      return FeedbackReviewPublishMetadata.fallback(
+        submissionId: submissionId,
+        source: 'fallback_invalid_metadata',
+      );
+    }
+
+    final json = Map<String, dynamic>.from(value);
+    final schemaName = _asString(json['schemaName']);
+    if (schemaName.isNotEmpty && schemaName != _publishMetadataSchemaName) {
+      return FeedbackReviewPublishMetadata.fallback(
+        submissionId: submissionId,
+        source: 'fallback_invalid_schema',
+      );
+    }
+
+    final title = _normalizePublishTitle(_asString(json['title']));
+    final body = _normalizePublishBody(_asString(json['body']));
+    return FeedbackReviewPublishMetadata(
+      title: title.isEmpty ? fallback.title : title,
+      body: body.isEmpty ? fallback.body : body,
+      source: title.isEmpty ? 'fallback_invalid_title' : 'codex',
+    );
+  }
+
+  static Future<FeedbackReviewPublishMetadata> loadFromWorktree({
+    required String worktreePath,
+    required String submissionId,
+  }) async {
+    final file = File('$worktreePath/$_publishMetadataFileName');
+    if (!await file.exists()) {
+      return FeedbackReviewPublishMetadata.fallback(submissionId: submissionId);
+    }
+
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      return FeedbackReviewPublishMetadata.fromJson(
+        decoded,
+        submissionId: submissionId,
+      );
+    } on FormatException {
+      return FeedbackReviewPublishMetadata.fallback(
+        submissionId: submissionId,
+        source: 'fallback_invalid_metadata',
+      );
+    } finally {
+      await file.delete();
+    }
+  }
+
+  String commitBody({required String submissionId}) {
+    return [
+      body,
+      '',
+      'Prepared from feedback submission $submissionId.',
+    ].join('\n');
+  }
+
+  String pullRequestBody({
+    required String submissionId,
+    required String verifyCommand,
+  }) {
+    return [
+      body,
+      '',
+      'Feedback submission: `$submissionId`',
+      '',
+      'Verification:',
+      '- `$verifyCommand`',
+    ].join('\n');
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'schemaName': _publishMetadataSchemaName,
+      'schemaVersion': 1,
+      'title': title,
+      'body': body,
+      'source': source,
+    };
+  }
+}
+
 class _SqsReviewMessage {
   const _SqsReviewMessage({
     required this.body,
@@ -996,6 +1142,7 @@ class _CodexFlowResult {
     required this.success,
     required this.status,
     this.error = '',
+    this.publishTitle = '',
   });
 
   const _CodexFlowResult.failed({required String status, required String error})
@@ -1004,6 +1151,7 @@ class _CodexFlowResult {
   final bool success;
   final String status;
   final String error;
+  final String publishTitle;
 }
 
 class _ProcessTextResult {
@@ -1035,6 +1183,19 @@ String _buildCodexPrompt({
     '- Follow AGENTS.md and repository conventions.',
     '- Do not commit, push, or create a pull request; the worker owns publishing.',
     '- Run relevant focused checks when possible and report what ran.',
+    '- If you make repository changes, write $_publishMetadataFileName in the repository root.',
+    '- Base the metadata title on the actual diff you created.',
+    '- The metadata title must be an English Conventional Commit title and must be 72 characters or shorter.',
+    '',
+    'Publish metadata file format:',
+    '```json',
+    _prettyJson({
+      'schemaName': _publishMetadataSchemaName,
+      'schemaVersion': 1,
+      'title': 'fix: Describe the actual feedback fix',
+      'body': 'Summarize what changed and why.',
+    }),
+    '```',
     '',
     'Submission id: ${job.submissionId}',
     'Repository: ${job.repo.owner}/${job.repo.name}',
@@ -1075,6 +1236,31 @@ String _asString(Object? value) {
   if (value == null) return '';
   if (value is String) return value.trim();
   return value.toString().trim();
+}
+
+String _normalizePublishTitle(String raw) {
+  final normalized = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (normalized.isEmpty ||
+      normalized.length > _maxPublishTitleLength ||
+      !_isAsciiText(normalized) ||
+      !_publishTitlePattern.hasMatch(normalized)) {
+    return '';
+  }
+  return normalized;
+}
+
+String _normalizePublishBody(String raw) {
+  final normalized = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
+  if (normalized.isEmpty || !_isAsciiText(normalized)) {
+    return '';
+  }
+  return _truncate(normalized, 4000);
+}
+
+bool _isAsciiText(String value) {
+  return value.runes.every(
+    (rune) => rune == 0x09 || rune == 0x0a || rune >= 0x20 && rune <= 0x7e,
+  );
 }
 
 String _safeSegment(String value, String fallback) {

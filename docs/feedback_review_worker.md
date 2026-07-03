@@ -95,3 +95,12 @@ dart run tool/feedback_review_worker.dart \
 `--publish` is intentionally separate from `--enable-codex` so the first worker
 rollout can consume queue messages and archive evidence without writing git
 history or opening pull requests.
+
+When Codex makes changes, the worker asks it to write
+`.caverno_feedback_publish.json` with a Conventional Commit title and a short
+body based on the actual diff. The worker reads that file, stores a sanitized
+copy as `publish_metadata.json` in the job archive, deletes the worktree copy
+before staging files, and uses the validated title for both the commit and draft
+PR. If the file is missing or the title is not English Conventional Commit text
+within 72 characters, publishing falls back to `fix: Address feedback
+submission`.
