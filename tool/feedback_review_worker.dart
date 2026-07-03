@@ -26,6 +26,7 @@ Options:
 const _reviewJobSchemaName = 'caverno_feedback_review_job';
 const _statusSchemaName = 'caverno_feedback_review_worker_result';
 const _defaultVerifyCommand = 'tool/codex_verify.sh --no-codegen';
+const _manualReviewAfterReceiveCount = 2;
 
 typedef FeedbackWorkerProcessRunner =
     Future<ProcessResult> Function(
@@ -373,14 +374,28 @@ class FeedbackReviewWorker {
     if (classification.kind ==
             FeedbackReviewClassificationKind.autoFixCandidate &&
         options.enableCodex) {
-      final codexResult = await _runCodexFlow(
-        job: job,
-        jobDir: jobDir,
-        prompt: prompt,
-      );
-      status = codexResult.status;
-      success = codexResult.success;
-      error = codexResult.error;
+      if (message.receiveCount >= _manualReviewAfterReceiveCount) {
+        status = 'needs_manual_review';
+        error =
+            'Skipped Codex after prior failed delivery '
+            '(ApproximateReceiveCount=${message.receiveCount}).';
+        await File('${jobDir.path}/retry_decision.json').writeAsString(
+          _prettyJson({
+            'decision': 'manual_review',
+            'reason': error,
+            'receiveCount': message.receiveCount,
+          }),
+        );
+      } else {
+        final codexResult = await _runCodexFlow(
+          job: job,
+          jobDir: jobDir,
+          prompt: prompt,
+        );
+        status = codexResult.status;
+        success = codexResult.success;
+        error = codexResult.error;
+      }
     }
 
     final result = FeedbackReviewJobResult(
@@ -924,11 +939,13 @@ class _SqsReviewMessage {
     required this.body,
     required this.receiptHandle,
     required this.source,
+    required this.receiveCount,
   });
 
   final Map<String, dynamic> body;
   final String receiptHandle;
   final String source;
+  final int receiveCount;
 
   String get bestEffortSubmissionId => _asString(body['submissionId']);
 
@@ -940,6 +957,7 @@ class _SqsReviewMessage {
     final receiptHandle = _asString(
       json['ReceiptHandle'] ?? json['receiptHandle'],
     );
+    final receiveCount = _parseReceiveCount(json);
     if (rawBody is String && rawBody.trim().isNotEmpty) {
       final decoded = jsonDecode(rawBody);
       if (decoded is! Map<String, dynamic>) {
@@ -949,13 +967,27 @@ class _SqsReviewMessage {
         body: decoded,
         receiptHandle: receiptHandle,
         source: source,
+        receiveCount: receiveCount,
       );
     }
     return _SqsReviewMessage(
       body: Map<String, dynamic>.from(json),
       receiptHandle: receiptHandle,
       source: source,
+      receiveCount: receiveCount,
     );
+  }
+
+  static int _parseReceiveCount(Map<String, dynamic> json) {
+    final attributes = json['Attributes'] ?? json['attributes'];
+    if (attributes is Map) {
+      final value = attributes['ApproximateReceiveCount'];
+      final parsed = int.tryParse(_asString(value));
+      if (parsed != null && parsed > 0) {
+        return parsed;
+      }
+    }
+    return 1;
   }
 }
 

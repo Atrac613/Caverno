@@ -66,6 +66,11 @@ dart run tool/feedback_review_worker.dart \
 be inspected again before the worker is allowed to consume review jobs. Omit it
 when the worker should delete successfully processed messages.
 
+If an auto-fix job is redelivered after a prior Codex or verification failure,
+the worker skips another Codex run and marks the job as `needs_manual_review`.
+This keeps repeated deterministic failures from spending more local automation
+time while still leaving the job archive and status record available for review.
+
 Prepare a Codex fix without publishing:
 
 ```bash
