@@ -964,6 +964,8 @@
     "feedback_upload_enabled_desc": "Allow /feedback to POST the current LLM session log and your feedback text to a backend endpoint.",
     "feedback_endpoint_url": "Feedback endpoint URL",
     "feedback_endpoint_url_helper": "HTTPS endpoint that stores Caverno feedback in the release backend.",
+    "feedback_endpoint_auth_token": "Feedback auth token",
+    "feedback_endpoint_auth_token_helper": "Shared token sent as x-caverno-feedback-token. Leave empty only for local or unauthenticated endpoints.",
     "feedback_endpoint_credentials_helper": "The app does not store AWS credentials. The backend endpoint owns S3 writes.",
     "tool_ssh_connect": "Connect to an SSH server",
     "tool_ssh_execute_command": "Execute a command on an SSH server",

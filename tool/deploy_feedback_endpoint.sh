@@ -13,12 +13,21 @@ require_command python3
 require_command zip
 
 ALLOW_PUBLIC_FUNCTION_URL="${CAVERNO_FEEDBACK_ALLOW_PUBLIC_FUNCTION_URL:-0}"
+ALLOW_UNAUTHENTICATED_POST="${CAVERNO_FEEDBACK_ALLOW_UNAUTHENTICATED_POST:-0}"
 ALLOWED_ORIGIN="${CAVERNO_FEEDBACK_ALLOWED_ORIGIN:-*}"
+SHARED_TOKEN="${CAVERNO_FEEDBACK_SHARED_TOKEN:-}"
 
 if [[ "$ALLOW_PUBLIC_FUNCTION_URL" != "1" ]]; then
   echo "Refusing to create a public feedback endpoint by default." >&2
   echo "Set CAVERNO_FEEDBACK_ALLOW_PUBLIC_FUNCTION_URL=1 after reviewing the" >&2
-  echo "risk: the Lambda Function URL accepts unauthenticated POST requests." >&2
+  echo "risk: the Lambda Function URL is reachable from the public internet." >&2
+  exit 2
+fi
+
+if [[ -z "$SHARED_TOKEN" && "$ALLOW_UNAUTHENTICATED_POST" != "1" ]]; then
+  echo "Refusing to deploy a public feedback endpoint without POST authentication." >&2
+  echo "Set CAVERNO_FEEDBACK_SHARED_TOKEN to require x-caverno-feedback-token." >&2
+  echo "For local smoke testing only, set CAVERNO_FEEDBACK_ALLOW_UNAUTHENTICATED_POST=1." >&2
   exit 2
 fi
 
@@ -73,6 +82,11 @@ echo "Lambda: ${FUNCTION_NAME}"
 echo "Rate limit table: ${RATE_LIMIT_TABLE}"
 echo "Review queue: ${REVIEW_QUEUE_NAME}"
 echo "Review status table: ${REVIEW_STATUS_TABLE}"
+if [[ -n "$SHARED_TOKEN" ]]; then
+  echo "POST auth: shared token required"
+else
+  echo "POST auth: disabled"
+fi
 echo "Rate limit: ${RATE_LIMIT_MAX_REQUESTS} POSTs per ${RATE_LIMIT_WINDOW_SECONDS}s, ${MIN_SECONDS_BETWEEN_POSTS}s minimum spacing"
 
 bucket_created=0
@@ -323,6 +337,7 @@ cat >"$LAMBDA_SRC" <<'PY'
 import base64
 import gzip
 import hashlib
+import hmac
 import io
 import json
 import os
@@ -349,6 +364,7 @@ RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("RATE_LIMIT_MAX_REQUESTS", "3"))
 RATE_LIMIT_TTL_SECONDS = int(os.environ.get("RATE_LIMIT_TTL_SECONDS", "3600"))
 MIN_SECONDS_BETWEEN_POSTS = int(os.environ.get("MIN_SECONDS_BETWEEN_POSTS", "10"))
 ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
+SHARED_TOKEN = os.environ.get("SHARED_TOKEN", "").strip()
 REVIEW_QUEUE_URL = os.environ.get("REVIEW_QUEUE_URL", "").strip()
 REVIEW_STATUS_TABLE = os.environ.get("REVIEW_STATUS_TABLE", "").strip()
 REVIEW_REPO_OWNER = os.environ.get("REVIEW_REPO_OWNER", "").strip()
@@ -436,7 +452,7 @@ def _headers():
         "access-control-allow-methods": "POST, OPTIONS",
         "access-control-allow-headers": (
             "content-type, content-encoding, x-caverno-feedback-id, "
-            "x-caverno-feedback-schema"
+            "x-caverno-feedback-schema, x-caverno-feedback-token"
         ),
         "access-control-expose-headers": "retry-after",
     }
@@ -557,6 +573,13 @@ def _review_timestamp(now):
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", now)
 
 
+def _is_authorized(headers):
+    if not SHARED_TOKEN:
+        return True
+    provided = headers.get("x-caverno-feedback-token", "").strip()
+    return hmac.compare_digest(provided, SHARED_TOKEN)
+
+
 def _build_review_job(submission_id, key, put_result, body_sha256, now):
     return {
         "schemaName": "caverno_feedback_review_job",
@@ -630,6 +653,9 @@ def handler(event, context):
 
     try:
         headers = _event_headers(event)
+        if not _is_authorized(headers):
+            return _response(401, {"ok": False, "error": "unauthorized"})
+
         rate_limit = _check_rate_limit(_source_ip(event, headers))
         if rate_limit:
             retry_after = str(rate_limit["retryAfterSeconds"])
@@ -728,7 +754,7 @@ PY
   zip -q function.zip lambda_function.py
 )
 
-ENVIRONMENT="Variables={BUCKET=${BUCKET},PREFIX=${PREFIX},RATE_LIMIT_TABLE=${RATE_LIMIT_TABLE},MAX_COMPRESSED_BYTES=${MAX_COMPRESSED_BYTES},MAX_UNCOMPRESSED_BYTES=${MAX_UNCOMPRESSED_BYTES},RATE_LIMIT_WINDOW_SECONDS=${RATE_LIMIT_WINDOW_SECONDS},RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS},RATE_LIMIT_TTL_SECONDS=${RATE_LIMIT_TTL_SECONDS},MIN_SECONDS_BETWEEN_POSTS=${MIN_SECONDS_BETWEEN_POSTS},ALLOWED_ORIGIN=${ALLOWED_ORIGIN},REVIEW_QUEUE_URL=${REVIEW_QUEUE_URL},REVIEW_STATUS_TABLE=${REVIEW_STATUS_TABLE},REVIEW_REPO_OWNER=${REVIEW_REPO_OWNER},REVIEW_REPO_NAME=${REVIEW_REPO_NAME},REVIEW_DEFAULT_BRANCH=${REVIEW_DEFAULT_BRANCH}}"
+ENVIRONMENT="Variables={BUCKET=${BUCKET},PREFIX=${PREFIX},RATE_LIMIT_TABLE=${RATE_LIMIT_TABLE},MAX_COMPRESSED_BYTES=${MAX_COMPRESSED_BYTES},MAX_UNCOMPRESSED_BYTES=${MAX_UNCOMPRESSED_BYTES},RATE_LIMIT_WINDOW_SECONDS=${RATE_LIMIT_WINDOW_SECONDS},RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS},RATE_LIMIT_TTL_SECONDS=${RATE_LIMIT_TTL_SECONDS},MIN_SECONDS_BETWEEN_POSTS=${MIN_SECONDS_BETWEEN_POSTS},ALLOWED_ORIGIN=${ALLOWED_ORIGIN},SHARED_TOKEN=${SHARED_TOKEN},REVIEW_QUEUE_URL=${REVIEW_QUEUE_URL},REVIEW_STATUS_TABLE=${REVIEW_STATUS_TABLE},REVIEW_REPO_OWNER=${REVIEW_REPO_OWNER},REVIEW_REPO_NAME=${REVIEW_REPO_NAME},REVIEW_DEFAULT_BRANCH=${REVIEW_DEFAULT_BRANCH}}"
 
 if aws lambda get-function \
   --function-name "$FUNCTION_NAME" \
@@ -790,6 +816,7 @@ print(
                 "content-encoding",
                 "x-caverno-feedback-id",
                 "x-caverno-feedback-schema",
+                "x-caverno-feedback-token",
             ],
             "MaxAge": 86400,
         }
@@ -961,4 +988,8 @@ echo "Endpoint URL: ${FUNCTION_URL}"
 echo "S3 destination: s3://${BUCKET}/${PREFIX}/"
 echo "Review queue URL: ${REVIEW_QUEUE_URL}"
 echo "Review status table: ${REVIEW_STATUS_TABLE}"
-echo "Configure Caverno Debug settings with the endpoint URL above."
+if [[ -n "$SHARED_TOKEN" ]]; then
+  echo "Configure Caverno Debug settings with the endpoint URL and shared token."
+else
+  echo "Configure Caverno Debug settings with the endpoint URL above."
+fi

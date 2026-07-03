@@ -113,16 +113,22 @@ void main() {
     final endpointField = find.byKey(
       const ValueKey('feedback-endpoint-url-field'),
     );
+    final authTokenField = find.byKey(
+      const ValueKey('feedback-endpoint-auth-token-field'),
+    );
     expect(endpointField, findsOneWidget);
+    expect(authTokenField, findsOneWidget);
     expect(
       tester.widget<TextField>(endpointField).controller?.text,
       defaultFeedbackEndpointUrl,
     );
+    expect(tester.widget<TextField>(authTokenField).obscureText, isTrue);
 
     await tester.enterText(
       endpointField,
       'https://feedback.example.com/caverno',
     );
+    await tester.enterText(authTokenField, 'release-token');
     await tester.pumpAndSettle();
 
     final rawSettings = prefs.getString('app_settings');
@@ -132,6 +138,7 @@ void main() {
     );
     expect(decoded.feedbackUploadEnabled, isTrue);
     expect(decoded.feedbackEndpointUrl, 'https://feedback.example.com/caverno');
+    expect(decoded.feedbackEndpointAuthToken, 'release-token');
   });
 }
 

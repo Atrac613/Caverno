@@ -476,6 +476,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   feedbackUploadEnabled: json['feedbackUploadEnabled'] as bool? ?? true,
   feedbackEndpointUrl:
       json['feedbackEndpointUrl'] as String? ?? defaultFeedbackEndpointUrl,
+  feedbackEndpointAuthToken: json['feedbackEndpointAuthToken'] as String? ?? '',
   demoMode: json['demoMode'] as bool? ?? false,
   onboardingCompleted: json['onboardingCompleted'] as bool? ?? false,
   browserToolsEnabled: json['browserToolsEnabled'] as bool? ?? false,
@@ -585,6 +586,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'enableLlmSessionLogs': instance.enableLlmSessionLogs,
   'feedbackUploadEnabled': instance.feedbackUploadEnabled,
   'feedbackEndpointUrl': instance.feedbackEndpointUrl,
+  'feedbackEndpointAuthToken': instance.feedbackEndpointAuthToken,
   'demoMode': instance.demoMode,
   'onboardingCompleted': instance.onboardingCompleted,
   'browserToolsEnabled': instance.browserToolsEnabled,

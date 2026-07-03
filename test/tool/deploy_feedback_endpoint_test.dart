@@ -103,6 +103,7 @@ os.environ.update(
         "RATE_LIMIT_TTL_SECONDS": "3600",
         "MIN_SECONDS_BETWEEN_POSTS": "10",
         "ALLOWED_ORIGIN": "*",
+        "SHARED_TOKEN": "release-token",
         "REVIEW_QUEUE_URL": "https://sqs.example.com/123/review",
         "REVIEW_STATUS_TABLE": "feedback-review-status",
         "REVIEW_REPO_OWNER": "Atrac613",
@@ -142,6 +143,12 @@ event = {
     "requestContext": {"http": {"method": "POST", "sourceIp": "127.0.0.1"}},
 }
 
+unauthorized_response = module.handler(event, None)
+assert unauthorized_response["statusCode"] == 401, unauthorized_response
+assert len(fake_s3.objects) == 0
+assert len(fake_sqs.messages) == 0
+
+event["headers"]["x-caverno-feedback-token"] = "release-token"
 response = module.handler(event, None)
 assert response["statusCode"] == 200, response
 response_body = json.loads(response["body"])

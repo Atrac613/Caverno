@@ -795,6 +795,7 @@ void main() {
         enableLlmSessionLogs: true,
         feedbackUploadEnabled: true,
         feedbackEndpointUrl: 'https://feedback.example.com/caverno',
+        feedbackEndpointAuthToken: 'release-token',
       ),
       sessionLogStore: logStore,
       feedbackSubmissionClient: feedbackClient,
@@ -815,6 +816,7 @@ void main() {
     expect(feedbackClient.inputs, hasLength(1));
     final input = feedbackClient.inputs.single;
     expect(input.endpointUrl, 'https://feedback.example.com/caverno');
+    expect(input.authToken, 'release-token');
     expect(input.feedbackText, 'The model ignored the error.');
     expect(input.sessionLogFile.path, logFile.path);
     expect(input.context.conversationId, conversation.id);

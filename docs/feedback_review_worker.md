@@ -1,7 +1,10 @@
 # Feedback Review Worker MVP
 
 The feedback review MVP keeps public feedback intake separate from local code
-execution.
+execution. The SQS queue URL is not a public write endpoint by itself; access to
+SQS still requires AWS credentials with queue permissions. The public boundary is
+the Lambda Function URL, so production deploys should require the shared
+feedback token described below.
 
 ## Flow
 
@@ -16,7 +19,9 @@ execution.
 ## Deploy
 
 ```bash
-CAVERNO_FEEDBACK_ALLOW_PUBLIC_FUNCTION_URL=1 tool/deploy_feedback_endpoint.sh
+CAVERNO_FEEDBACK_ALLOW_PUBLIC_FUNCTION_URL=1 \
+CAVERNO_FEEDBACK_SHARED_TOKEN="<random-release-token>" \
+tool/deploy_feedback_endpoint.sh
 ```
 
 The deploy helper creates or updates:
@@ -37,6 +42,14 @@ CAVERNO_FEEDBACK_REVIEW_REPO_OWNER=Atrac613
 CAVERNO_FEEDBACK_REVIEW_REPO_NAME=Caverno
 CAVERNO_FEEDBACK_REVIEW_DEFAULT_BRANCH=main
 ```
+
+`CAVERNO_FEEDBACK_SHARED_TOKEN` makes the Lambda require
+`x-caverno-feedback-token` on every POST. Deploying a public Function URL without
+that token is blocked unless `CAVERNO_FEEDBACK_ALLOW_UNAUTHENTICATED_POST=1` is
+set for local smoke testing.
+
+After deployment, configure Caverno Debug settings with both the endpoint URL and
+the same feedback auth token.
 
 ## Local Worker
 

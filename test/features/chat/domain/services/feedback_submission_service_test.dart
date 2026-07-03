@@ -43,6 +43,7 @@ void main() {
         final result = await service.submit(
           FeedbackSubmissionInput(
             endpointUrl: 'https://feedback.example.com/caverno',
+            authToken: '',
             feedbackText: 'The model ignored the test failure.',
             sessionLogFile: logFile,
             context: const LlmSessionLogContext(
@@ -62,6 +63,7 @@ void main() {
         expect(request.headers['content-type'], 'application/json');
         expect(request.headers['content-encoding'], 'gzip');
         expect(request.headers['x-caverno-feedback-id'], 'feedback-id');
+        expect(request.headers, isNot(contains('x-caverno-feedback-token')));
 
         final payload =
             jsonDecode(utf8.decode(gzip.decode(request.bodyBytes)))
@@ -84,6 +86,44 @@ void main() {
         expect(result.sessionLogBytes, greaterThan(0));
       },
     );
+
+    test('sends the configured feedback auth token header', () async {
+      final logFile = File('${tempDir.path}/conversation-1.jsonl');
+      await logFile.writeAsString('{"operation":"createChatCompletion"}\n');
+      final requests = <http.Request>[];
+      final service = FeedbackSubmissionService(
+        client: MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            '{"objectKey":"feedback/2026/07/02/feedback-id.json"}',
+            200,
+          );
+        }),
+        clock: () => DateTime.utc(2026, 7, 2, 3, 4, 5),
+        idFactory: () => 'feedback-id',
+      );
+
+      await service.submit(
+        FeedbackSubmissionInput(
+          endpointUrl: 'https://feedback.example.com/caverno',
+          authToken: ' release-token ',
+          feedbackText: 'The model ignored the test failure.',
+          sessionLogFile: logFile,
+          context: const LlmSessionLogContext(
+            workspaceMode: WorkspaceMode.coding,
+            sessionId: 'conversation/1',
+            sessionTitle: 'Broken test run',
+            conversationId: 'conversation/1',
+          ),
+          conversationMessageCount: 3,
+        ),
+      );
+
+      expect(
+        requests.single.headers['x-caverno-feedback-token'],
+        'release-token',
+      );
+    });
 
     test(
       'redacts secrets from feedback text and session log payloads',
@@ -124,6 +164,7 @@ void main() {
         await service.submit(
           FeedbackSubmissionInput(
             endpointUrl: 'https://feedback.example.com/caverno',
+            authToken: '',
             feedbackText:
                 'The issue mentions sk-abcdefghijklmnopqrstuvwxyz123456.',
             sessionLogFile: logFile,
@@ -178,6 +219,7 @@ void main() {
         service.submit(
           FeedbackSubmissionInput(
             endpointUrl: 'http://feedback.example.com/caverno',
+            authToken: '',
             feedbackText: 'Bad response',
             sessionLogFile: logFile,
             context: const LlmSessionLogContext(

@@ -96,6 +96,7 @@ extension _ChatPageSlashCommandSupport on _ChatPageState {
           .submit(
             FeedbackSubmissionInput(
               endpointUrl: settings.normalizedFeedbackEndpointUrl,
+              authToken: settings.normalizedFeedbackEndpointAuthToken,
               feedbackText: feedbackText,
               sessionLogFile: sessionLogFile,
               context: context,
