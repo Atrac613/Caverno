@@ -28,6 +28,15 @@ BUCKET="${CAVERNO_FEEDBACK_BUCKET:-caverno-feedback-${ACCOUNT_ID}-${REGION}}"
 PREFIX="${CAVERNO_FEEDBACK_PREFIX:-feedback}"
 FUNCTION_NAME="${CAVERNO_FEEDBACK_FUNCTION:-caverno-feedback-ingest}"
 RATE_LIMIT_TABLE="${CAVERNO_FEEDBACK_RATE_LIMIT_TABLE:-${FUNCTION_NAME}-rate-limit}"
+REVIEW_QUEUE_NAME="${CAVERNO_FEEDBACK_REVIEW_QUEUE:-${FUNCTION_NAME}-review}"
+REVIEW_DLQ_NAME="${CAVERNO_FEEDBACK_REVIEW_DLQ:-${REVIEW_QUEUE_NAME}-dlq}"
+REVIEW_STATUS_TABLE="${CAVERNO_FEEDBACK_REVIEW_STATUS_TABLE:-${FUNCTION_NAME}-review-status}"
+REVIEW_QUEUE_VISIBILITY_TIMEOUT="${CAVERNO_FEEDBACK_REVIEW_VISIBILITY_TIMEOUT:-300}"
+REVIEW_QUEUE_MAX_RECEIVE_COUNT="${CAVERNO_FEEDBACK_REVIEW_MAX_RECEIVE_COUNT:-5}"
+REVIEW_QUEUE_WAIT_SECONDS="${CAVERNO_FEEDBACK_REVIEW_WAIT_SECONDS:-20}"
+REVIEW_REPO_OWNER="${CAVERNO_FEEDBACK_REVIEW_REPO_OWNER:-Atrac613}"
+REVIEW_REPO_NAME="${CAVERNO_FEEDBACK_REVIEW_REPO_NAME:-Caverno}"
+REVIEW_DEFAULT_BRANCH="${CAVERNO_FEEDBACK_REVIEW_DEFAULT_BRANCH:-main}"
 ROLE_NAME="${CAVERNO_FEEDBACK_ROLE:-caverno-feedback-ingest-role}"
 RUNTIME="${CAVERNO_FEEDBACK_RUNTIME:-python3.12}"
 MAX_COMPRESSED_BYTES="${CAVERNO_FEEDBACK_MAX_COMPRESSED_BYTES:-1048576}"
@@ -55,12 +64,15 @@ INLINE_POLICY="$TMP_DIR/s3-policy.json"
 LAMBDA_SRC="$TMP_DIR/lambda_function.py"
 ZIP_FILE="$TMP_DIR/function.zip"
 CORS_CONFIG="$TMP_DIR/cors.json"
+REVIEW_QUEUE_ATTRIBUTES="$TMP_DIR/review-queue-attributes.json"
 
 echo "Preparing Caverno feedback endpoint in account ${ACCOUNT_ID}, region ${REGION}"
 echo "Bucket: ${BUCKET}"
 echo "Prefix: ${PREFIX}"
 echo "Lambda: ${FUNCTION_NAME}"
 echo "Rate limit table: ${RATE_LIMIT_TABLE}"
+echo "Review queue: ${REVIEW_QUEUE_NAME}"
+echo "Review status table: ${REVIEW_STATUS_TABLE}"
 echo "Rate limit: ${RATE_LIMIT_MAX_REQUESTS} POSTs per ${RATE_LIMIT_WINDOW_SECONDS}s, ${MIN_SECONDS_BETWEEN_POSTS}s minimum spacing"
 
 bucket_created=0
@@ -131,6 +143,110 @@ else
     --time-to-live-specification "Enabled=true,AttributeName=expiresAt" >/dev/null
 fi
 
+if aws dynamodb describe-table \
+  --table-name "$REVIEW_STATUS_TABLE" \
+  --region "$REGION" >/dev/null 2>&1; then
+  echo "DynamoDB review status table already exists."
+else
+  echo "Creating DynamoDB review status table."
+  aws dynamodb create-table \
+    --table-name "$REVIEW_STATUS_TABLE" \
+    --region "$REGION" \
+    --attribute-definitions AttributeName=submissionId,AttributeType=S \
+    --key-schema AttributeName=submissionId,KeyType=HASH \
+    --billing-mode PAY_PER_REQUEST >/dev/null
+  aws dynamodb wait table-exists \
+    --table-name "$REVIEW_STATUS_TABLE" \
+    --region "$REGION"
+fi
+
+if REVIEW_DLQ_URL="$(aws sqs get-queue-url \
+  --queue-name "$REVIEW_DLQ_NAME" \
+  --region "$REGION" \
+  --query QueueUrl \
+  --output text 2>/dev/null)"; then
+  echo "SQS review DLQ already exists."
+else
+  echo "Creating SQS review DLQ."
+  REVIEW_DLQ_URL="$(aws sqs create-queue \
+    --queue-name "$REVIEW_DLQ_NAME" \
+    --region "$REGION" \
+    --attributes "MessageRetentionPeriod=1209600" \
+    --query QueueUrl \
+    --output text)"
+fi
+
+REVIEW_DLQ_ARN="$(aws sqs get-queue-attributes \
+  --queue-url "$REVIEW_DLQ_URL" \
+  --region "$REGION" \
+  --attribute-names QueueArn \
+  --query 'Attributes.QueueArn' \
+  --output text)"
+
+REDRIVE_POLICY="$(
+  python3 - "$REVIEW_DLQ_ARN" "$REVIEW_QUEUE_MAX_RECEIVE_COUNT" <<'PY'
+import json
+import sys
+
+print(
+    json.dumps(
+        {
+            "deadLetterTargetArn": sys.argv[1],
+            "maxReceiveCount": int(sys.argv[2]),
+        },
+        separators=(",", ":"),
+    )
+)
+PY
+)"
+
+python3 - \
+  "$REVIEW_QUEUE_VISIBILITY_TIMEOUT" \
+  "$REVIEW_QUEUE_WAIT_SECONDS" \
+  "$REDRIVE_POLICY" >"$REVIEW_QUEUE_ATTRIBUTES" <<'PY'
+import json
+import sys
+
+print(
+    json.dumps(
+        {
+            "VisibilityTimeout": str(int(sys.argv[1])),
+            "ReceiveMessageWaitTimeSeconds": str(int(sys.argv[2])),
+            "RedrivePolicy": sys.argv[3],
+        },
+        separators=(",", ":"),
+    )
+)
+PY
+
+if REVIEW_QUEUE_URL="$(aws sqs get-queue-url \
+  --queue-name "$REVIEW_QUEUE_NAME" \
+  --region "$REGION" \
+  --query QueueUrl \
+  --output text 2>/dev/null)"; then
+  echo "SQS review queue already exists."
+else
+  echo "Creating SQS review queue."
+  REVIEW_QUEUE_URL="$(aws sqs create-queue \
+    --queue-name "$REVIEW_QUEUE_NAME" \
+    --region "$REGION" \
+    --attributes "file://${REVIEW_QUEUE_ATTRIBUTES}" \
+    --query QueueUrl \
+    --output text)"
+fi
+
+aws sqs set-queue-attributes \
+  --queue-url "$REVIEW_QUEUE_URL" \
+  --region "$REGION" \
+  --attributes "file://${REVIEW_QUEUE_ATTRIBUTES}" >/dev/null
+
+REVIEW_QUEUE_ARN="$(aws sqs get-queue-attributes \
+  --queue-url "$REVIEW_QUEUE_URL" \
+  --region "$REGION" \
+  --attribute-names QueueArn \
+  --query 'Attributes.QueueArn' \
+  --output text)"
+
 cat >"$TRUST_POLICY" <<'JSON'
 {
   "Version": "2012-10-17",
@@ -163,6 +279,7 @@ aws iam attach-role-policy \
   --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole >/dev/null
 
 RATE_LIMIT_TABLE_ARN="arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${RATE_LIMIT_TABLE}"
+REVIEW_STATUS_TABLE_ARN="arn:aws:dynamodb:${REGION}:${ACCOUNT_ID}:table/${REVIEW_STATUS_TABLE}"
 
 cat >"$INLINE_POLICY" <<JSON
 {
@@ -177,6 +294,19 @@ cat >"$INLINE_POLICY" <<JSON
       "Effect": "Allow",
       "Action": "dynamodb:UpdateItem",
       "Resource": "${RATE_LIMIT_TABLE_ARN}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource": "${REVIEW_STATUS_TABLE_ARN}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "sqs:SendMessage",
+      "Resource": "${REVIEW_QUEUE_ARN}"
     }
   ]
 }
@@ -206,6 +336,7 @@ import boto3
 
 s3 = boto3.client("s3")
 dynamodb = boto3.client("dynamodb")
+sqs = boto3.client("sqs")
 
 
 BUCKET = os.environ["BUCKET"]
@@ -218,6 +349,11 @@ RATE_LIMIT_MAX_REQUESTS = int(os.environ.get("RATE_LIMIT_MAX_REQUESTS", "3"))
 RATE_LIMIT_TTL_SECONDS = int(os.environ.get("RATE_LIMIT_TTL_SECONDS", "3600"))
 MIN_SECONDS_BETWEEN_POSTS = int(os.environ.get("MIN_SECONDS_BETWEEN_POSTS", "10"))
 ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
+REVIEW_QUEUE_URL = os.environ.get("REVIEW_QUEUE_URL", "").strip()
+REVIEW_STATUS_TABLE = os.environ.get("REVIEW_STATUS_TABLE", "").strip()
+REVIEW_REPO_OWNER = os.environ.get("REVIEW_REPO_OWNER", "").strip()
+REVIEW_REPO_NAME = os.environ.get("REVIEW_REPO_NAME", "").strip()
+REVIEW_DEFAULT_BRANCH = os.environ.get("REVIEW_DEFAULT_BRANCH", "main").strip() or "main"
 
 
 class PayloadTooLarge(Exception):
@@ -417,6 +553,74 @@ def _check_rate_limit(source_ip):
         }
 
 
+def _review_timestamp(now):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", now)
+
+
+def _build_review_job(submission_id, key, put_result, body_sha256, now):
+    return {
+        "schemaName": "caverno_feedback_review_job",
+        "schemaVersion": 1,
+        "submissionId": submission_id,
+        "payload": {
+            "bucket": BUCKET,
+            "key": key,
+            "etag": str(put_result.get("ETag") or "").strip('"'),
+            "sha256": body_sha256,
+            "contentType": "application/json",
+        },
+        "repo": {
+            "owner": REVIEW_REPO_OWNER,
+            "name": REVIEW_REPO_NAME,
+            "defaultBranch": REVIEW_DEFAULT_BRANCH,
+        },
+        "createdAt": _review_timestamp(now),
+    }
+
+
+def _enqueue_review_job(job):
+    if not REVIEW_QUEUE_URL:
+        return None
+    result = sqs.send_message(
+        QueueUrl=REVIEW_QUEUE_URL,
+        MessageBody=json.dumps(job, separators=(",", ":"), ensure_ascii=False),
+        MessageAttributes={
+            "schemaName": {
+                "DataType": "String",
+                "StringValue": "caverno_feedback_review_job",
+            },
+            "submissionId": {
+                "DataType": "String",
+                "StringValue": job["submissionId"][:256],
+            },
+        },
+    )
+    return result.get("MessageId")
+
+
+def _put_review_status(job, status, message_id=None, error=None):
+    if not REVIEW_STATUS_TABLE:
+        return
+    now_text = _review_timestamp(time.gmtime())
+    item = {
+        "submissionId": {"S": job["submissionId"]},
+        "status": {"S": status},
+        "payloadBucket": {"S": job["payload"]["bucket"]},
+        "payloadKey": {"S": job["payload"]["key"]},
+        "createdAt": {"S": job["createdAt"]},
+        "updatedAt": {"S": now_text},
+    }
+    if message_id:
+        item["queueMessageId"] = {"S": message_id}
+    if error:
+        item["error"] = {"S": str(error)[:1024]}
+    try:
+        dynamodb.put_item(TableName=REVIEW_STATUS_TABLE, Item=item)
+    except Exception:
+        print("Failed to write feedback review status.")
+        print(traceback.format_exc())
+
+
 def handler(event, context):
     method = _event_method(event).upper()
     if method == "OPTIONS":
@@ -481,8 +685,9 @@ def handler(event, context):
         date_path = time.strftime("%Y/%m/%d", now)
         timestamp = time.strftime("%Y%m%dT%H%M%SZ", now)
         key = f"{PREFIX}/{date_path}/{timestamp}_{submission_id}.json"
+        body_sha256 = hashlib.sha256(body).hexdigest()
 
-        s3.put_object(
+        put_result = s3.put_object(
             Bucket=BUCKET,
             Key=key,
             Body=body,
@@ -493,7 +698,26 @@ def handler(event, context):
                 "submission-id": submission_id[:128],
             },
         )
-        return _response(200, {"ok": True, "objectKey": key})
+        review_message_id = None
+        if REVIEW_QUEUE_URL:
+            review_job = _build_review_job(
+                submission_id,
+                key,
+                put_result,
+                body_sha256,
+                now,
+            )
+            review_message_id = _enqueue_review_job(review_job)
+            _put_review_status(review_job, "queued", message_id=review_message_id)
+        return _response(
+            200,
+            {
+                "ok": True,
+                "objectKey": key,
+                "reviewQueued": bool(review_message_id),
+                "reviewMessageId": review_message_id,
+            },
+        )
     except Exception:
         print(traceback.format_exc())
         return _response(500, {"ok": False, "error": "internal_error"})
@@ -504,7 +728,7 @@ PY
   zip -q function.zip lambda_function.py
 )
 
-ENVIRONMENT="Variables={BUCKET=${BUCKET},PREFIX=${PREFIX},RATE_LIMIT_TABLE=${RATE_LIMIT_TABLE},MAX_COMPRESSED_BYTES=${MAX_COMPRESSED_BYTES},MAX_UNCOMPRESSED_BYTES=${MAX_UNCOMPRESSED_BYTES},RATE_LIMIT_WINDOW_SECONDS=${RATE_LIMIT_WINDOW_SECONDS},RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS},RATE_LIMIT_TTL_SECONDS=${RATE_LIMIT_TTL_SECONDS},MIN_SECONDS_BETWEEN_POSTS=${MIN_SECONDS_BETWEEN_POSTS},ALLOWED_ORIGIN=${ALLOWED_ORIGIN}}"
+ENVIRONMENT="Variables={BUCKET=${BUCKET},PREFIX=${PREFIX},RATE_LIMIT_TABLE=${RATE_LIMIT_TABLE},MAX_COMPRESSED_BYTES=${MAX_COMPRESSED_BYTES},MAX_UNCOMPRESSED_BYTES=${MAX_UNCOMPRESSED_BYTES},RATE_LIMIT_WINDOW_SECONDS=${RATE_LIMIT_WINDOW_SECONDS},RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS},RATE_LIMIT_TTL_SECONDS=${RATE_LIMIT_TTL_SECONDS},MIN_SECONDS_BETWEEN_POSTS=${MIN_SECONDS_BETWEEN_POSTS},ALLOWED_ORIGIN=${ALLOWED_ORIGIN},REVIEW_QUEUE_URL=${REVIEW_QUEUE_URL},REVIEW_STATUS_TABLE=${REVIEW_STATUS_TABLE},REVIEW_REPO_OWNER=${REVIEW_REPO_OWNER},REVIEW_REPO_NAME=${REVIEW_REPO_NAME},REVIEW_DEFAULT_BRANCH=${REVIEW_DEFAULT_BRANCH}}"
 
 if aws lambda get-function \
   --function-name "$FUNCTION_NAME" \
@@ -735,4 +959,6 @@ echo
 echo "Feedback endpoint ready."
 echo "Endpoint URL: ${FUNCTION_URL}"
 echo "S3 destination: s3://${BUCKET}/${PREFIX}/"
+echo "Review queue URL: ${REVIEW_QUEUE_URL}"
+echo "Review status table: ${REVIEW_STATUS_TABLE}"
 echo "Configure Caverno Debug settings with the endpoint URL above."

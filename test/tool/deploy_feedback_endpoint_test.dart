@@ -56,6 +56,16 @@ class FakeS3:
 
     def put_object(self, **kwargs):
         self.objects.append(kwargs)
+        return {"ETag": "\\"stored-etag\\""}
+
+
+class FakeSQS:
+    def __init__(self):
+        self.messages = []
+
+    def send_message(self, **kwargs):
+        self.messages.append(kwargs)
+        return {"MessageId": "message-1"}
 
 
 class ConditionalCheckFailedException(Exception):
@@ -69,11 +79,15 @@ class FakeDynamoDB:
     def update_item(self, **kwargs):
         return {}
 
+    def put_item(self, **kwargs):
+        return {}
+
 
 fake_s3 = FakeS3()
+fake_sqs = FakeSQS()
 fake_dynamodb = FakeDynamoDB()
 fake_boto3 = types.SimpleNamespace(
-    client=lambda name: fake_s3 if name == "s3" else fake_dynamodb
+    client=lambda name: fake_s3 if name == "s3" else fake_sqs if name == "sqs" else fake_dynamodb
 )
 sys.modules["boto3"] = fake_boto3
 
@@ -89,6 +103,11 @@ os.environ.update(
         "RATE_LIMIT_TTL_SECONDS": "3600",
         "MIN_SECONDS_BETWEEN_POSTS": "10",
         "ALLOWED_ORIGIN": "*",
+        "REVIEW_QUEUE_URL": "https://sqs.example.com/123/review",
+        "REVIEW_STATUS_TABLE": "feedback-review-status",
+        "REVIEW_REPO_OWNER": "Atrac613",
+        "REVIEW_REPO_NAME": "Caverno",
+        "REVIEW_DEFAULT_BRANCH": "main",
     }
 )
 
@@ -125,9 +144,22 @@ event = {
 
 response = module.handler(event, None)
 assert response["statusCode"] == 200, response
+response_body = json.loads(response["body"])
+assert response_body["reviewQueued"] is True
+assert response_body["reviewMessageId"] == "message-1"
 assert len(fake_s3.objects) == 1
+assert len(fake_sqs.messages) == 1
 stored = fake_s3.objects[0]["Body"].decode("utf-8")
 key = fake_s3.objects[0]["Key"]
+message = json.loads(fake_sqs.messages[0]["MessageBody"])
+assert message["schemaName"] == "caverno_feedback_review_job"
+assert message["submissionId"] == response_body["objectKey"].split("_", 1)[1].removesuffix(".json")
+assert message["payload"]["bucket"] == "feedback-bucket"
+assert message["payload"]["key"] == key
+assert message["payload"]["etag"] == "stored-etag"
+assert len(message["payload"]["sha256"]) == 64
+assert message["repo"]["owner"] == "Atrac613"
+assert message["repo"]["name"] == "Caverno"
 assert "sk-abcdefghijklmnopqrstuvwxyz" not in stored
 assert "sk-abcdefghijklmnopqrstuvwxyz" not in key
 assert "plain-secret-token" not in stored
