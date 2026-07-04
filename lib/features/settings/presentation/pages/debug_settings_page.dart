@@ -104,12 +104,16 @@ class _FeedbackUploadSettings extends StatefulWidget {
 
 class _FeedbackUploadSettingsState extends State<_FeedbackUploadSettings> {
   late final TextEditingController _endpointController;
+  late final TextEditingController _authTokenController;
 
   @override
   void initState() {
     super.initState();
     _endpointController = TextEditingController(
       text: widget.settings.feedbackEndpointUrl,
+    );
+    _authTokenController = TextEditingController(
+      text: widget.settings.feedbackEndpointAuthToken,
     );
   }
 
@@ -119,11 +123,16 @@ class _FeedbackUploadSettingsState extends State<_FeedbackUploadSettings> {
     if (_endpointController.text != widget.settings.feedbackEndpointUrl) {
       _endpointController.text = widget.settings.feedbackEndpointUrl;
     }
+    if (_authTokenController.text !=
+        widget.settings.feedbackEndpointAuthToken) {
+      _authTokenController.text = widget.settings.feedbackEndpointAuthToken;
+    }
   }
 
   @override
   void dispose() {
     _endpointController.dispose();
+    _authTokenController.dispose();
     super.dispose();
   }
 
@@ -155,6 +164,21 @@ class _FeedbackUploadSettingsState extends State<_FeedbackUploadSettings> {
                   ),
                   keyboardType: TextInputType.url,
                   onChanged: notifier.updateFeedbackEndpointUrl,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const ValueKey('feedback-endpoint-auth-token-field'),
+                  controller: _authTokenController,
+                  decoration: InputDecoration(
+                    labelText: 'settings.feedback_endpoint_auth_token'.tr(),
+                    border: const OutlineInputBorder(),
+                    helperText: 'settings.feedback_endpoint_auth_token_helper'
+                        .tr(),
+                  ),
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  onChanged: notifier.updateFeedbackEndpointAuthToken,
                 ),
                 const SizedBox(height: 8),
                 Align(

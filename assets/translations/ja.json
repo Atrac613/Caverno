@@ -964,6 +964,8 @@
     "feedback_upload_enabled_desc": "/feedback で現在の LLM セッションログと入力したフィードバックを backend endpoint に POST できるようにします。",
     "feedback_endpoint_url": "Feedback endpoint URL",
     "feedback_endpoint_url_helper": "Caverno のフィードバックをリリース用 backend に保存する HTTPS endpoint です。",
+    "feedback_endpoint_auth_token": "Feedback auth token",
+    "feedback_endpoint_auth_token_helper": "x-caverno-feedback-token として送信する共有トークンです。local または無認証 endpoint の場合だけ空にします。",
     "feedback_endpoint_credentials_helper": "アプリは AWS 認証情報を保存しません。S3 書き込みは backend endpoint が担当します。",
     "tool_ssh_connect": "SSHサーバーに接続",
     "tool_ssh_execute_command": "SSHサーバーでコマンドを実行",

@@ -839,6 +839,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateFeedbackEndpointAuthToken(String value) async {
+    state = state.copyWith(feedbackEndpointAuthToken: value.trim());
+    await _repository.save(state);
+  }
+
   Future<void> updateDemoMode(bool demoMode) async {
     state = state.copyWith(demoMode: demoMode);
     await _repository.save(state);

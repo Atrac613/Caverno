@@ -744,6 +744,7 @@ abstract class AppSettings with _$AppSettings {
     @Default(true) bool enableLlmSessionLogs,
     @Default(true) bool feedbackUploadEnabled,
     @Default(defaultFeedbackEndpointUrl) String feedbackEndpointUrl,
+    @Default('') String feedbackEndpointAuthToken,
     @Default(false) bool demoMode,
     @Default(false) bool onboardingCompleted,
     @Default(false) bool browserToolsEnabled,
@@ -826,6 +827,9 @@ abstract class AppSettings with _$AppSettings {
       _resolveRoleModel(approvalAutoReviewModel);
 
   String get normalizedFeedbackEndpointUrl => feedbackEndpointUrl.trim();
+
+  String get normalizedFeedbackEndpointAuthToken =>
+      feedbackEndpointAuthToken.trim();
 
   bool get isFeedbackUploadConfigured =>
       feedbackUploadEnabled && normalizedFeedbackEndpointUrl.isNotEmpty;

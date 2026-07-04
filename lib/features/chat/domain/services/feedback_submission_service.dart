@@ -11,6 +11,7 @@ import '../../data/datasources/llm_session_log_store.dart';
 class FeedbackSubmissionInput {
   const FeedbackSubmissionInput({
     required this.endpointUrl,
+    required this.authToken,
     required this.feedbackText,
     required this.sessionLogFile,
     required this.context,
@@ -18,6 +19,7 @@ class FeedbackSubmissionInput {
   });
 
   final String endpointUrl;
+  final String authToken;
   final String feedbackText;
   final File sessionLogFile;
   final LlmSessionLogContext context;
@@ -91,6 +93,7 @@ class FeedbackSubmissionService implements FeedbackSubmissionClient {
     );
     final payloadBytes = utf8.encode(jsonEncode(payload));
     final bodyBytes = gzip.encode(payloadBytes);
+    final authToken = input.authToken.trim();
     final response = await _client.post(
       endpoint,
       headers: {
@@ -99,6 +102,7 @@ class FeedbackSubmissionService implements FeedbackSubmissionClient {
         'content-encoding': 'gzip',
         'x-caverno-feedback-schema': 'caverno_feedback_submission',
         'x-caverno-feedback-id': submissionId,
+        if (authToken.isNotEmpty) 'x-caverno-feedback-token': authToken,
       },
       body: bodyBytes,
     );
