@@ -201,27 +201,6 @@ class McpToolService {
   /// Cached tool definitions.
   List<McpToolEntity> get tools => _cachedTools;
 
-  /// OpenAI tool names contributed by connected external MCP servers, matched
-  /// against the names embedded in [getOpenAiToolDefinitions]. Used to attribute
-  /// tool-schema token weight to `MCP tools` vs built-in `System tools` in the
-  /// context window breakdown.
-  Set<String> get externalMcpOpenAiToolNames {
-    if (_status != McpConnectionStatus.connected || _cachedTools.isEmpty) {
-      return const <String>{};
-    }
-    final names = <String>{};
-    for (final tool in _cachedTools) {
-      final function = tool.toOpenAiTool()['function'];
-      if (function is Map) {
-        final name = function['name'];
-        if (name is String && name.isNotEmpty) {
-          names.add(name);
-        }
-      }
-    }
-    return names;
-  }
-
   /// Current connection status for each configured MCP server.
   List<McpServerConnectionInfo> get serverStates =>
       List.unmodifiable(_serverStates);

@@ -881,40 +881,10 @@ class ChatNotifier extends Notifier<ChatState> {
     final toolNames = toolNamesOverride == null
         ? <String>[]
         : List<String>.from(toolNamesOverride);
-    final mcpToolService = _mcpToolService;
-    var observedToolDefinitions = const <Map<String, dynamic>>[];
-    var observedMcpToolNames = const <String>{};
-    if (mcpToolService != null &&
-        (toolNamesOverride != null ||
-            _settings.mcpEnabled ||
-            _temporalReferenceContext != null)) {
-      final allDefinitions = mcpToolService.getOpenAiToolDefinitions();
-      observedMcpToolNames = mcpToolService.externalMcpOpenAiToolNames;
-      if (toolNamesOverride == null) {
-        for (final tool in allDefinitions) {
-          final function = tool['function'];
-          if (function is Map) {
-            final name = function['name'];
-            if (name is String && name.isNotEmpty) {
-              toolNames.add(name);
-            }
-          }
-        }
-        observedToolDefinitions = allDefinitions;
-      } else {
-        // Overrides carry only names; recover the matching definitions from the
-        // full catalog so the sent tool payload is measured accurately.
-        final effectiveNames = toolNames.toSet();
-        observedToolDefinitions = allDefinitions
-            .where((definition) {
-              final function = definition['function'];
-              if (function is! Map) return false;
-              final name = function['name'];
-              return name is String && effectiveNames.contains(name);
-            })
-            .toList(growable: false);
-      }
-    }
+    final toolObservation = _collectRequestToolObservation(
+      toolNamesOverride: toolNamesOverride,
+      toolNames: toolNames,
+    );
 
     final resolvedLanguage = _settings.language == 'system'
         ? _languageCode
@@ -948,8 +918,8 @@ class ChatNotifier extends Notifier<ChatState> {
     );
     _updateContextSurgeryObservation(
       systemPrompt: content,
-      toolDefinitions: observedToolDefinitions,
-      mcpToolNames: observedMcpToolNames,
+      toolDefinitions: toolObservation.definitions,
+      mcpToolNames: toolObservation.mcpNames,
     );
     return Message(
       id: 'system',
