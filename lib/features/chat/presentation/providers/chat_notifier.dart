@@ -273,6 +273,8 @@ class ChatNotifier extends Notifier<ChatState> {
   List<ToolResultInfo> _latestCompletedToolResults = const [];
   String? _latestObservedSystemPrompt;
   List<ToolResultInfo> _latestObservedToolResults = const [];
+  List<Map<String, dynamic>> _latestObservedToolDefinitions = const [];
+  Set<String> _latestObservedMcpToolNames = const {};
   String? _modelSwitchHandoffBrief, _modelSwitchHandoffConversationId;
   final List<ToolResultInfo> _latestContentToolResults = [];
   final List<TurnDiffFile> _pendingTurnDiffFiles = [];
@@ -738,6 +740,8 @@ class ChatNotifier extends Notifier<ChatState> {
         _latestCompletedToolResults = const [];
         _latestObservedSystemPrompt = null;
         _latestObservedToolResults = const [];
+        _latestObservedToolDefinitions = const [];
+        _latestObservedMcpToolNames = const {};
         _clearPendingModelSwitchHandoff();
       }
       _clearTurnDiffCapture();
@@ -877,20 +881,10 @@ class ChatNotifier extends Notifier<ChatState> {
     final toolNames = toolNamesOverride == null
         ? <String>[]
         : List<String>.from(toolNamesOverride);
-    final mcpToolService = _mcpToolService;
-    if (toolNamesOverride == null &&
-        mcpToolService != null &&
-        (_settings.mcpEnabled || _temporalReferenceContext != null)) {
-      for (final tool in mcpToolService.getOpenAiToolDefinitions()) {
-        final function = tool['function'];
-        if (function is Map) {
-          final name = function['name'];
-          if (name is String && name.isNotEmpty) {
-            toolNames.add(name);
-          }
-        }
-      }
-    }
+    final toolObservation = _collectRequestToolObservation(
+      toolNamesOverride: toolNamesOverride,
+      toolNames: toolNames,
+    );
 
     final resolvedLanguage = _settings.language == 'system'
         ? _languageCode
@@ -922,7 +916,11 @@ class ChatNotifier extends Notifier<ChatState> {
       modelCapabilityProfile: _settings.effectiveModelCapabilityProfile,
       modelHarnessConfig: _settings.effectiveModelHarnessConfig,
     );
-    _updateContextSurgeryObservation(systemPrompt: content);
+    _updateContextSurgeryObservation(
+      systemPrompt: content,
+      toolDefinitions: toolObservation.definitions,
+      mcpToolNames: toolObservation.mcpNames,
+    );
     return Message(
       id: 'system',
       content: content,
@@ -2801,6 +2799,8 @@ class ChatNotifier extends Notifier<ChatState> {
     _latestCompletedToolResults = const [];
     _latestObservedSystemPrompt = null;
     _latestObservedToolResults = const [];
+    _latestObservedToolDefinitions = const [];
+    _latestObservedMcpToolNames = const {};
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _latestHiddenAssistantResponse = null;

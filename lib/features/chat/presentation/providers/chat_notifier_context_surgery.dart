@@ -175,9 +175,75 @@ extension ChatNotifierContextSurgery on ChatNotifier {
         .toSet();
   }
 
+  /// Collects the tool definitions offered for the current request plus the
+  /// external MCP tool names, appending discovered names to [toolNames] when no
+  /// override is supplied. Feeds the context window breakdown's System tools /
+  /// MCP tools rows. Lives here (not in chat_notifier.dart) to keep that file
+  /// within its F1 line-count budget.
+  ({List<Map<String, dynamic>> definitions, Set<String> mcpNames})
+  _collectRequestToolObservation({
+    required List<String>? toolNamesOverride,
+    required List<String> toolNames,
+  }) {
+    final mcpToolService = _mcpToolService;
+    if (mcpToolService == null ||
+        !(toolNamesOverride != null ||
+            _settings.mcpEnabled ||
+            _temporalReferenceContext != null)) {
+      return (definitions: const [], mcpNames: const {});
+    }
+
+    final allDefinitions = mcpToolService.getOpenAiToolDefinitions();
+    final mcpNames = _externalMcpToolNames(mcpToolService);
+    if (toolNamesOverride == null) {
+      for (final tool in allDefinitions) {
+        final function = tool['function'];
+        if (function is Map) {
+          final name = function['name'];
+          if (name is String && name.isNotEmpty) {
+            toolNames.add(name);
+          }
+        }
+      }
+      return (definitions: allDefinitions, mcpNames: mcpNames);
+    }
+
+    // Overrides carry only names; recover the matching definitions from the
+    // full catalog so the sent tool payload is measured accurately.
+    final effectiveNames = toolNames.toSet();
+    final definitions = allDefinitions
+        .where((definition) {
+          final function = definition['function'];
+          if (function is! Map) return false;
+          final name = function['name'];
+          return name is String && effectiveNames.contains(name);
+        })
+        .toList(growable: false);
+    return (definitions: definitions, mcpNames: mcpNames);
+  }
+
+  Set<String> _externalMcpToolNames(McpToolService mcpToolService) {
+    if (mcpToolService.status != McpConnectionStatus.connected) {
+      return const <String>{};
+    }
+    final names = <String>{};
+    for (final tool in mcpToolService.tools) {
+      final function = tool.toOpenAiTool()['function'];
+      if (function is Map) {
+        final name = function['name'];
+        if (name is String && name.isNotEmpty) {
+          names.add(name);
+        }
+      }
+    }
+    return names;
+  }
+
   void _updateContextSurgeryObservation({
     String? systemPrompt,
     List<ToolResultInfo>? toolResults,
+    List<Map<String, dynamic>>? toolDefinitions,
+    Set<String>? mcpToolNames,
   }) {
     if (!ref.mounted) return;
     if (systemPrompt != null) {
@@ -188,9 +254,19 @@ extension ChatNotifierContextSurgery on ChatNotifier {
         toolResults,
       );
     }
+    if (toolDefinitions != null) {
+      _latestObservedToolDefinitions = List<Map<String, dynamic>>.unmodifiable(
+        toolDefinitions,
+      );
+    }
+    if (mcpToolNames != null) {
+      _latestObservedMcpToolNames = Set<String>.unmodifiable(mcpToolNames);
+    }
     final snapshot = ContextSurgeryObservationService.buildSnapshot(
       systemPrompt: _latestObservedSystemPrompt,
       toolResults: _latestObservedToolResults,
+      toolDefinitions: _latestObservedToolDefinitions,
+      mcpToolNames: _latestObservedMcpToolNames,
     );
     if (state.contextSurgerySnapshot == snapshot) return;
     state = state.copyWith(contextSurgerySnapshot: snapshot);
