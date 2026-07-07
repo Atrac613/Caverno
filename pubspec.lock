@@ -341,10 +341,10 @@ packages:
     dependency: "direct main"
     description:
       name: dart_ping
-      sha256: eb5816636fcda333385e3816d37f8f1939f657bf319d570c9820677da3f4f73a
+      sha256: "91b45954dbb7f3dc51633ba0c1b939df9dbe141f083d047fc87cfb5932e59f38"
       url: "https://pub.dev"
     source: hosted
-    version: "10.0.0"
+    version: "10.0.1"
   dart_style:
     dependency: transitive
     description:
