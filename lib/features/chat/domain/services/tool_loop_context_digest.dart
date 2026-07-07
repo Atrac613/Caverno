@@ -8,6 +8,13 @@ import '../entities/tool_call_info.dart';
 /// wastes a full round-trip and, after a recovery re-entry, the per-call dedup
 /// memory is reset — so without this reminder the model tends to re-list the
 /// same directories and re-read the same files it inspected earlier in the turn.
+///
+/// The digest is also content-aware: when the same inspection was repeated and
+/// every repeat returned byte-identical output, the line is flagged as
+/// `unchanged`. This targets the non-converging edit→run→re-read debug loop
+/// (session 119292cb: 11x identical full-file reads while no-op edits left the
+/// file untouched) — the generic "unless a file was modified since" advisory
+/// is too weak there because the model believes its edits changed the file.
 class ToolLoopContextDigest {
   const ToolLoopContextDigest();
 
@@ -30,18 +37,37 @@ class ToolLoopContextDigest {
     int maxEntries = 16,
     int minEntries = 2,
   }) {
-    final seen = <String>{};
-    final lines = <String>[];
+    // Preserve first-seen order of distinct labels while collecting every
+    // result body for each, so a label repeated with identical output can be
+    // flagged as `unchanged`.
+    final order = <String>[];
+    final resultsByLabel = <String, List<String>>{};
     for (final result in results) {
       final name = result.name.trim().toLowerCase();
       if (!_digestableTools.contains(name)) {
         continue;
       }
       final label = _labelFor(name, result.arguments);
-      if (label == null || !seen.add(label)) {
+      if (label == null) {
         continue;
       }
-      lines.add('- $label');
+      final bodies = resultsByLabel.putIfAbsent(label, () {
+        order.add(label);
+        return <String>[];
+      });
+      bodies.add(result.result);
+    }
+
+    final lines = <String>[];
+    for (final label in order) {
+      final bodies = resultsByLabel[label]!;
+      final unchanged = bodies.length >= 2 && _allIdentical(bodies);
+      lines.add(
+        unchanged
+            ? '- $label (unchanged — re-read returned identical content; do '
+                  'not read it again unless you actually modify it)'
+            : '- $label',
+      );
       if (lines.length >= maxEntries) {
         break;
       }
@@ -51,6 +77,16 @@ class ToolLoopContextDigest {
     }
     return 'Context already gathered this turn (do not re-read these unless a '
         'file was modified since):\n${lines.join('\n')}';
+  }
+
+  static bool _allIdentical(List<String> bodies) {
+    final first = bodies.first;
+    for (var i = 1; i < bodies.length; i++) {
+      if (bodies[i] != first) {
+        return false;
+      }
+    }
+    return true;
   }
 
   String? _labelFor(String name, Map<String, dynamic> arguments) {

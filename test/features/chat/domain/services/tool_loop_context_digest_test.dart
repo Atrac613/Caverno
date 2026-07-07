@@ -61,14 +61,51 @@ void main() {
       final block = digest.build(results, maxEntries: 5);
       expect('- read'.allMatches(block).length, 5);
     });
+
+    test('flags a repeated read that returned identical content as unchanged',
+        () {
+      final block = digest.build([
+        _result('read_file', {'path': 'a.dart'}, result: 'contents-v1'),
+        _result('read_file', {'path': 'b.dart'}, result: 'other'),
+        _result('read_file', {'path': 'a.dart'}, result: 'contents-v1'),
+      ]);
+
+      expect(block, contains('read a.dart (unchanged'));
+      expect(
+        block,
+        isNot(contains('read b.dart (unchanged')),
+        reason: 'b.dart was read only once',
+      );
+      // Still one line per path.
+      expect('read a.dart'.allMatches(block).length, 1);
+    });
+
+    test('does not flag a repeated read whose content changed', () {
+      final block = digest.build([
+        _result('read_file', {'path': 'a.dart'}, result: 'contents-v1'),
+        _result('read_file', {'path': 'b.dart'}, result: 'other'),
+        _result('read_file', {'path': 'a.dart'}, result: 'contents-v2'),
+      ]);
+
+      expect(block, contains('- read a.dart'));
+      expect(
+        block,
+        isNot(contains('unchanged')),
+        reason: 'the file legitimately changed between reads',
+      );
+    });
   });
 }
 
-ToolResultInfo _result(String name, Map<String, dynamic> arguments) {
+ToolResultInfo _result(
+  String name,
+  Map<String, dynamic> arguments, {
+  String result = 'ok',
+}) {
   return ToolResultInfo(
     id: 'result-$name',
     name: name,
     arguments: arguments,
-    result: 'ok',
+    result: result,
   );
 }
