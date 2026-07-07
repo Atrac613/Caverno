@@ -32,16 +32,29 @@ class ToolLoopContextDigest {
   /// Returns a short markdown block listing the read-only context already
   /// gathered this turn, or an empty string when there is nothing worth
   /// repeating (fewer than [minEntries] distinct reads).
+  ///
+  /// When more than [maxEntries] distinct inspections have accumulated the list
+  /// is trimmed to a budget, but it keeps the entries that matter: every
+  /// repeated inspection (the redundancy we most want to suppress) plus the
+  /// *most-recently* inspected files. A large-codebase review can exceed the
+  /// budget mid-turn, and the model re-reads the files it touched most recently
+  /// far more often than the ones at the top of the list — so truncating the
+  /// tail (the old head-only cap) dropped exactly the entries worth reminding
+  /// about (session b73801da: 3 files at first-seen indices 15/18/19 fell off a
+  /// 16-entry cap and were promptly re-read).
   String build(
     List<ToolResultInfo> results, {
-    int maxEntries = 16,
+    int maxEntries = 32,
     int minEntries = 2,
   }) {
     // Preserve first-seen order of distinct labels while collecting every
     // result body for each, so a label repeated with identical output can be
-    // flagged as `unchanged`.
+    // flagged as `unchanged`. Track each label's most recent position too, so
+    // an over-budget list can keep the tail rather than the head.
     final order = <String>[];
     final resultsByLabel = <String, List<String>>{};
+    final lastSeen = <String, int>{};
+    var index = 0;
     for (final result in results) {
       final name = result.name.trim().toLowerCase();
       if (!_digestableTools.contains(name)) {
@@ -56,10 +69,36 @@ class ToolLoopContextDigest {
         return <String>[];
       });
       bodies.add(result.result);
+      lastSeen[label] = index++;
+    }
+    if (order.length < minEntries) {
+      return '';
     }
 
+    // Decide which labels survive the budget: always keep repeated labels, then
+    // fill the remaining budget with the most-recently-seen labels.
+    final Set<String> kept;
+    if (order.length <= maxEntries) {
+      kept = order.toSet();
+    } else {
+      kept = <String>{
+        for (final label in order)
+          if (resultsByLabel[label]!.length >= 2) label,
+      };
+      final byRecency = order.toList()
+        ..sort((a, b) => lastSeen[b]!.compareTo(lastSeen[a]!));
+      for (final label in byRecency) {
+        if (kept.length >= maxEntries) break;
+        kept.add(label);
+      }
+    }
+
+    // Emit the surviving labels in first-seen order for a stable, readable block.
     final lines = <String>[];
     for (final label in order) {
+      if (!kept.contains(label)) {
+        continue;
+      }
       final bodies = resultsByLabel[label]!;
       final unchanged = bodies.length >= 2 && _allIdentical(bodies);
       lines.add(
@@ -68,9 +107,6 @@ class ToolLoopContextDigest {
                   'not read it again unless you actually modify it)'
             : '- $label',
       );
-      if (lines.length >= maxEntries) {
-        break;
-      }
     }
     if (lines.length < minEntries) {
       return '';

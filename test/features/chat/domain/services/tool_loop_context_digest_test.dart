@@ -94,6 +94,29 @@ void main() {
         reason: 'the file legitimately changed between reads',
       );
     });
+
+    test('over budget keeps repeated and most-recent reads, drops the old head',
+        () {
+      final block = digest.build([
+        // Read early and repeated with identical content — must survive the
+        // budget even though it is the oldest entry.
+        _result('read_file', {'path': 'old.dart'}, result: 'x'),
+        _result('read_file', {'path': 'old.dart'}, result: 'x'),
+        _result('read_file', {'path': 'a.dart'}),
+        _result('read_file', {'path': 'b.dart'}),
+        _result('read_file', {'path': 'c.dart'}),
+        _result('read_file', {'path': 'd.dart'}),
+      ], maxEntries: 3);
+
+      // Repeated old file is retained (and flagged unchanged).
+      expect(block, contains('read old.dart (unchanged'));
+      // The two most-recently-read files are retained.
+      expect(block, contains('read c.dart'));
+      expect(block, contains('read d.dart'));
+      // Older distinct reads beyond the budget are dropped, not the tail.
+      expect(block, isNot(contains('read a.dart')));
+      expect(block, isNot(contains('read b.dart')));
+    });
   });
 }
 
