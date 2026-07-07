@@ -79,18 +79,18 @@ void main() {
 
     expect(find.text('Context window'), findsOneWidget);
     expect(find.text('1.2k / 6.0k (20%)'), findsOneWidget);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
-
-    final gauge = tester.widget<LinearProgressIndicator>(
-      find.byType(LinearProgressIndicator),
-    );
-    expect(gauge.value, 0.2);
+    // The segmented breakdown bar replaces the single linear gauge.
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    // With no observed sections the whole used portion falls to Messages and
+    // the remainder of the window to Free space.
+    expect(find.text('Messages'), findsOneWidget);
+    expect(find.text('Free space'), findsOneWidget);
     expect(find.text('Prompt'), findsOneWidget);
     expect(find.text('Completion'), findsOneWidget);
     expect(find.text('Total'), findsOneWidget);
   });
 
-  testWidgets('shows LL14 context section breakdown in the popover', (
+  testWidgets('partitions the prompt into non-overlapping breakdown rows', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -141,15 +141,31 @@ void main() {
     await tester.tap(find.byType(CircularProgressIndicator));
     await tester.pumpAndSettle();
 
-    expect(find.text('Context sections'), findsOneWidget);
+    // The whole system prompt (charCount 400 -> 100 tokens) embeds the repo
+    // map (160 -> 40 tokens), so the base instructions slice is 100 - 40 = 60.
     expect(find.text('System prompt'), findsOneWidget);
-    expect(find.text('Repo map'), findsOneWidget);
-    expect(find.text('File reads (2)'), findsOneWidget);
-    expect(find.text('Stale tool candidates (1)'), findsOneWidget);
-    expect(find.text('100'), findsOneWidget);
+    expect(find.text('Project context'), findsOneWidget);
+    expect(find.text('Tool results'), findsOneWidget);
+    expect(find.text('Messages'), findsOneWidget);
+    expect(find.text('Free space'), findsOneWidget);
+    // The embedded sub-blocks are no longer listed as their own top-level rows.
+    expect(find.text('Context sections'), findsNothing);
+    expect(find.text('Repo map'), findsNothing);
+
+    // System prompt base (60) and tool results (60) each render their tokens.
+    expect(find.text('60'), findsNWidgets(2));
+    // Project context = repo map (40).
     expect(find.text('40'), findsOneWidget);
-    expect(find.text('60'), findsOneWidget);
-    expect(find.text('30'), findsOneWidget);
+    // Messages = used (promptTokens 1200) - attributed (160) = 1040.
+    expect(find.text('1.0k'), findsOneWidget);
+    // Free space = window (6000) - used (1200) = 4800.
+    expect(find.text('4.8k'), findsOneWidget);
+
+    // Reclaimable stale tool results are surfaced with their token estimate.
+    expect(
+      find.text('Stale tool candidates (1) · 30 reclaimable'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -264,8 +280,14 @@ void main() {
     expect(find.text('Context window'), findsOneWidget);
     expect(find.text('Unknown'), findsOneWidget);
     expect(
-      find.text('Context metadata unavailable from /models.'),
+      find.text(
+        'Context window size unavailable from /models; showing usage only.',
+      ),
       findsOneWidget,
     );
+    // Without a known window the breakdown percentages fall back to the used
+    // total, so Messages absorbs the full estimated prompt (5.2k -> 100%).
+    expect(find.text('Messages'), findsOneWidget);
+    expect(find.text('Free space'), findsNothing);
   });
 }
