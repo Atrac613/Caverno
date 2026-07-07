@@ -643,6 +643,23 @@ class FilesystemTools {
       final updatedContent = replaceAll
           ? content.replaceAll(oldText, newText)
           : content.replaceFirst(oldText, newText);
+      if (updatedContent == content) {
+        // No-op edit: new_text is identical to the matched old_text, so the
+        // file is unchanged. Reporting a "successful" replacement here gives
+        // the model false confidence that its fix applied, which drives the
+        // non-converging edit->run->re-read loop (see ToolLoopContextDigest).
+        // Surface it as an actionable error instead of silently writing the
+        // same bytes back.
+        return jsonEncode({
+          'error': 'no_change',
+          'path': file.absolute.path,
+          'message':
+              'The edit made no change: new_text is identical to old_text, so '
+              'the file is unchanged and your intended fix did not apply. Do '
+              'not re-read expecting a change. Provide a new_text that actually '
+              'differs from old_text, or use write_file to overwrite the file.',
+        });
+      }
       await file.writeAsString(updatedContent);
 
       return jsonEncode({
