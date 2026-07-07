@@ -87,6 +87,27 @@ void main() {
     expect(updated, 'hello agent');
   });
 
+  test('editFile reports no_change when new_text equals old_text', () async {
+    final targetPath =
+        '${tempDir.path}${Platform.pathSeparator}noop.txt';
+    await FilesystemTools.writeFile(path: targetPath, content: 'hello world');
+
+    final editResult =
+        jsonDecode(
+              await FilesystemTools.editFile(
+                path: targetPath,
+                oldText: 'world',
+                newText: 'world',
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(editResult['error'], 'no_change');
+    expect(editResult.containsKey('replacements'), isFalse);
+    // The file must be left untouched.
+    expect(await File(targetPath).readAsString(), 'hello world');
+  });
+
   test('editFile not-found error echoes content and an actionable hint for '
       'small files', () async {
     final targetPath =
