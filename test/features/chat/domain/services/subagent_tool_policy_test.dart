@@ -57,5 +57,30 @@ void main() {
         isEmpty,
       );
     });
+
+    test('curates a large inherited catalog so it fits the model context', () {
+      // Above the tool-search threshold the full catalog would overflow a
+      // 32768-token model and 400 every subagent request; it must be narrowed
+      // to the initial selection instead.
+      final large = <Map<String, dynamic>>[
+        tool('spawn_subagent'),
+        for (var i = 0; i < 40; i++) tool('custom_tool_$i'),
+      ];
+
+      final filtered = SubagentToolPolicy.filterInheritedToolDefinitions(large);
+      final names = filtered.map(SubagentToolPolicy.toolName).toList();
+
+      expect(names, isNot(contains('spawn_subagent')));
+      expect(
+        filtered.length,
+        lessThan(large.length),
+        reason: 'the full catalog must be curated down',
+      );
+      expect(
+        names,
+        contains('tool_search'),
+        reason: 'tool-search stays available so the subagent can widen its set',
+      );
+    });
   });
 }
