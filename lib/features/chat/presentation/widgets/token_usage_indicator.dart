@@ -244,6 +244,8 @@ class _ContextBreakdown {
   /// Categorical palette chosen to stay legible on both light and dark
   /// surfaces. Free space falls back to a neutral color from the theme.
   static const Color _systemPromptColor = Color(0xFF6366F1); // indigo
+  static const Color _systemToolsColor = Color(0xFF8B5CF6); // violet
+  static const Color _mcpToolsColor = Color(0xFFD946EF); // fuchsia
   static const Color _projectContextColor = Color(0xFF14B8A6); // teal
   static const Color _memoryColor = Color(0xFFF59E0B); // amber
   static const Color _planWorkflowColor = Color(0xFFEC4899); // pink
@@ -274,6 +276,8 @@ class _ContextBreakdown {
     final systemBase = (systemWhole - embeddedSubBlocks).clamp(0, systemWhole);
     final projectContext = repoMap + agents;
     final planWorkflow = plan + workflow;
+    final systemTools = tokensOf(ContextSurgeryBlockKind.systemToolSchema);
+    final mcpTools = tokensOf(ContextSurgeryBlockKind.mcpToolSchema);
     final toolResults =
         tokensOf(ContextSurgeryBlockKind.toolResult) +
         tokensOf(ContextSurgeryBlockKind.fileReadToolResult) +
@@ -282,7 +286,13 @@ class _ContextBreakdown {
         tokensOf(ContextSurgeryBlockKind.sideEffectToolResult);
 
     final attributed =
-        systemBase + projectContext + memory + planWorkflow + toolResults;
+        systemBase +
+        systemTools +
+        mcpTools +
+        projectContext +
+        memory +
+        planWorkflow +
+        toolResults;
     // Never let the named sections exceed the reported total; the residual is
     // the conversation history plus any unit-mismatch slack.
     final used = usageTokenCount > attributed ? usageTokenCount : attributed;
@@ -294,6 +304,18 @@ class _ContextBreakdown {
           label: 'System prompt',
           tokens: systemBase,
           color: _systemPromptColor,
+        ),
+      if (systemTools > 0)
+        _ContextSlice(
+          label: 'System tools',
+          tokens: systemTools,
+          color: _systemToolsColor,
+        ),
+      if (mcpTools > 0)
+        _ContextSlice(
+          label: 'MCP tools',
+          tokens: mcpTools,
+          color: _mcpToolsColor,
         ),
       if (projectContext > 0)
         _ContextSlice(

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
@@ -67,6 +69,57 @@ Use the following context from past conversations to maintain continuity when he
     ]);
     expect(observations.first.sourceIndex, 0);
     expect(observations.first.identifier, 'lib/main.dart');
+  });
+
+  test('buckets tool definitions into system and mcp schema sections', () {
+    final systemTool = <String, dynamic>{
+      'type': 'function',
+      'function': {
+        'name': 'read_file',
+        'description': 'Read a file.',
+        'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
+      },
+    };
+    final mcpTool = <String, dynamic>{
+      'type': 'function',
+      'function': {
+        'name': 'notion_search',
+        'description': 'Search Notion.',
+        'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
+      },
+    };
+
+    final observations =
+        ContextSurgeryObservationService.observeToolDefinitions(
+          [systemTool, mcpTool],
+          mcpToolNames: {'notion_search'},
+        );
+
+    expect(observations.map((observation) => observation.kind).toList(), [
+      ContextSurgeryBlockKind.systemToolSchema,
+      ContextSurgeryBlockKind.mcpToolSchema,
+    ]);
+    expect(observations.first.label, 'read_file');
+    // Sizing uses the serialized JSON length so it stays comparable with the
+    // char/4 estimate used for every other section.
+    expect(observations.first.charCount, jsonEncode(systemTool).length);
+
+    final snapshot = ContextSurgeryObservationService.buildSnapshot(
+      toolDefinitions: [systemTool, mcpTool],
+      mcpToolNames: {'notion_search'},
+    );
+    expect(
+      snapshot.section(ContextSurgeryBlockKind.systemToolSchema)?.blockCount,
+      1,
+    );
+    expect(
+      snapshot.section(ContextSurgeryBlockKind.systemToolSchema)?.label,
+      'System tools',
+    );
+    expect(
+      snapshot.section(ContextSurgeryBlockKind.mcpToolSchema)?.charCount,
+      jsonEncode(mcpTool).length,
+    );
   });
 
   test('builds a section snapshot with stale candidate pressure', () {

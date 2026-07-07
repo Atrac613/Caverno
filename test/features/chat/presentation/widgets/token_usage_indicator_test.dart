@@ -168,6 +168,60 @@ void main() {
     );
   });
 
+  testWidgets('surfaces system and mcp tool schema rows in the popover', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: TokenUsageIndicator(
+              chatState: const ChatState(
+                messages: [],
+                isLoading: false,
+                promptTokens: 2000,
+                completionTokens: 300,
+                totalTokens: 2300,
+                contextSurgerySnapshot: ContextSurgeryObservationSnapshot(
+                  sections: [
+                    ContextSurgerySectionSummary(
+                      kind: ContextSurgeryBlockKind.systemToolSchema,
+                      label: 'System tools',
+                      blockCount: 40,
+                      charCount: 2400,
+                    ),
+                    ContextSurgerySectionSummary(
+                      kind: ContextSurgeryBlockKind.mcpToolSchema,
+                      label: 'MCP tools',
+                      blockCount: 4,
+                      charCount: 800,
+                    ),
+                  ],
+                ),
+              ),
+              model: 'anthropic/claude-opus-4.7',
+              contextWindowTokens: 8000,
+              formatTokenCount: formatTokenCount,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(CircularProgressIndicator));
+    await tester.pumpAndSettle();
+
+    // Tool-definition payload is now a first-class breakdown category.
+    expect(find.text('System tools'), findsOneWidget);
+    expect(find.text('MCP tools'), findsOneWidget);
+    // System tools = 2400 chars -> 600 tokens; MCP tools = 800 -> 200 tokens.
+    expect(find.text('600'), findsOneWidget);
+    expect(find.text('200'), findsOneWidget);
+    // Messages = used (promptTokens 2000) - attributed (800) = 1200, so the
+    // tool schemas are no longer hidden inside the Messages residual.
+    expect(find.text('1.2k'), findsOneWidget);
+  });
+
   testWidgets(
     'falls back to estimated prompt tokens when server usage is absent',
     (tester) async {

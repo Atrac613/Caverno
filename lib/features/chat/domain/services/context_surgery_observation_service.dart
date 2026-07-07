@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../entities/tool_call_info.dart';
 
 enum ContextSurgeryBlockKind {
@@ -12,6 +14,8 @@ enum ContextSurgeryBlockKind {
   fileSearchToolResult,
   commandToolResult,
   sideEffectToolResult,
+  systemToolSchema,
+  mcpToolSchema,
 }
 
 class ContextSurgeryBlockObservation {
@@ -238,6 +242,50 @@ class ContextSurgeryObservationService {
     ];
   }
 
+  /// Observes the serialized tool-definition payload (the `tools` array sent
+  /// with every request), bucketing each definition into built-in `System
+  /// tools` or externally-provided `MCP tools`. Sizes use the serialized JSON
+  /// length so they stay comparable with the char/4 estimate used elsewhere.
+  static List<ContextSurgeryBlockObservation> observeToolDefinitions(
+    List<Map<String, dynamic>> toolDefinitions, {
+    Set<String> mcpToolNames = const {},
+  }) {
+    return [
+      for (var index = 0; index < toolDefinitions.length; index += 1)
+        () {
+          final definition = toolDefinitions[index];
+          final name = _toolDefinitionName(definition);
+          final isMcp = name != null && mcpToolNames.contains(name);
+          return ContextSurgeryBlockObservation(
+            kind: isMcp
+                ? ContextSurgeryBlockKind.mcpToolSchema
+                : ContextSurgeryBlockKind.systemToolSchema,
+            label: name ?? 'tool',
+            charCount: _serializedLength(definition),
+            sourceIndex: index,
+            identifier: name,
+          );
+        }(),
+    ];
+  }
+
+  static int _serializedLength(Map<String, dynamic> definition) {
+    try {
+      return jsonEncode(definition).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  static String? _toolDefinitionName(Map<String, dynamic> definition) {
+    final function = definition['function'];
+    if (function is Map) {
+      final name = function['name'];
+      if (name is String && name.isNotEmpty) return name;
+    }
+    return null;
+  }
+
   static List<ContextSurgeryToolResultCandidate> findStaleToolResultCandidates(
     List<ToolResultInfo> toolResults, {
     Set<String> protectedPaths = const {},
@@ -318,11 +366,14 @@ class ContextSurgeryObservationService {
   static ContextSurgeryObservationSnapshot buildSnapshot({
     String? systemPrompt,
     List<ToolResultInfo> toolResults = const [],
+    List<Map<String, dynamic>> toolDefinitions = const [],
+    Set<String> mcpToolNames = const {},
     Set<String> protectedPaths = const {},
   }) {
     final observations = <ContextSurgeryBlockObservation>[
       if (systemPrompt != null) ...observeSystemPrompt(systemPrompt),
       ...observeToolResults(toolResults),
+      ...observeToolDefinitions(toolDefinitions, mcpToolNames: mcpToolNames),
     ];
     final staleCandidates = findStaleToolResultCandidates(
       toolResults,
@@ -521,6 +572,8 @@ class ContextSurgeryObservationService {
       ContextSurgeryBlockKind.fileSearchToolResult => 'File search',
       ContextSurgeryBlockKind.commandToolResult => 'Commands',
       ContextSurgeryBlockKind.sideEffectToolResult => 'Side effects',
+      ContextSurgeryBlockKind.systemToolSchema => 'System tools',
+      ContextSurgeryBlockKind.mcpToolSchema => 'MCP tools',
     };
   }
 }

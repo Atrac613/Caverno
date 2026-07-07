@@ -178,6 +178,8 @@ extension ChatNotifierContextSurgery on ChatNotifier {
   void _updateContextSurgeryObservation({
     String? systemPrompt,
     List<ToolResultInfo>? toolResults,
+    List<Map<String, dynamic>>? toolDefinitions,
+    Set<String>? mcpToolNames,
   }) {
     if (!ref.mounted) return;
     if (systemPrompt != null) {
@@ -188,9 +190,19 @@ extension ChatNotifierContextSurgery on ChatNotifier {
         toolResults,
       );
     }
+    if (toolDefinitions != null) {
+      _latestObservedToolDefinitions = List<Map<String, dynamic>>.unmodifiable(
+        toolDefinitions,
+      );
+    }
+    if (mcpToolNames != null) {
+      _latestObservedMcpToolNames = Set<String>.unmodifiable(mcpToolNames);
+    }
     final snapshot = ContextSurgeryObservationService.buildSnapshot(
       systemPrompt: _latestObservedSystemPrompt,
       toolResults: _latestObservedToolResults,
+      toolDefinitions: _latestObservedToolDefinitions,
+      mcpToolNames: _latestObservedMcpToolNames,
     );
     if (state.contextSurgerySnapshot == snapshot) return;
     state = state.copyWith(contextSurgerySnapshot: snapshot);

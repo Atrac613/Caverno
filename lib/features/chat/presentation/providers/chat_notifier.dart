@@ -273,6 +273,8 @@ class ChatNotifier extends Notifier<ChatState> {
   List<ToolResultInfo> _latestCompletedToolResults = const [];
   String? _latestObservedSystemPrompt;
   List<ToolResultInfo> _latestObservedToolResults = const [];
+  List<Map<String, dynamic>> _latestObservedToolDefinitions = const [];
+  Set<String> _latestObservedMcpToolNames = const {};
   String? _modelSwitchHandoffBrief, _modelSwitchHandoffConversationId;
   final List<ToolResultInfo> _latestContentToolResults = [];
   final List<TurnDiffFile> _pendingTurnDiffFiles = [];
@@ -738,6 +740,8 @@ class ChatNotifier extends Notifier<ChatState> {
         _latestCompletedToolResults = const [];
         _latestObservedSystemPrompt = null;
         _latestObservedToolResults = const [];
+        _latestObservedToolDefinitions = const [];
+        _latestObservedMcpToolNames = const {};
         _clearPendingModelSwitchHandoff();
       }
       _clearTurnDiffCapture();
@@ -878,17 +882,37 @@ class ChatNotifier extends Notifier<ChatState> {
         ? <String>[]
         : List<String>.from(toolNamesOverride);
     final mcpToolService = _mcpToolService;
-    if (toolNamesOverride == null &&
-        mcpToolService != null &&
-        (_settings.mcpEnabled || _temporalReferenceContext != null)) {
-      for (final tool in mcpToolService.getOpenAiToolDefinitions()) {
-        final function = tool['function'];
-        if (function is Map) {
-          final name = function['name'];
-          if (name is String && name.isNotEmpty) {
-            toolNames.add(name);
+    var observedToolDefinitions = const <Map<String, dynamic>>[];
+    var observedMcpToolNames = const <String>{};
+    if (mcpToolService != null &&
+        (toolNamesOverride != null ||
+            _settings.mcpEnabled ||
+            _temporalReferenceContext != null)) {
+      final allDefinitions = mcpToolService.getOpenAiToolDefinitions();
+      observedMcpToolNames = mcpToolService.externalMcpOpenAiToolNames;
+      if (toolNamesOverride == null) {
+        for (final tool in allDefinitions) {
+          final function = tool['function'];
+          if (function is Map) {
+            final name = function['name'];
+            if (name is String && name.isNotEmpty) {
+              toolNames.add(name);
+            }
           }
         }
+        observedToolDefinitions = allDefinitions;
+      } else {
+        // Overrides carry only names; recover the matching definitions from the
+        // full catalog so the sent tool payload is measured accurately.
+        final effectiveNames = toolNames.toSet();
+        observedToolDefinitions = allDefinitions
+            .where((definition) {
+              final function = definition['function'];
+              if (function is! Map) return false;
+              final name = function['name'];
+              return name is String && effectiveNames.contains(name);
+            })
+            .toList(growable: false);
       }
     }
 
@@ -922,7 +946,11 @@ class ChatNotifier extends Notifier<ChatState> {
       modelCapabilityProfile: _settings.effectiveModelCapabilityProfile,
       modelHarnessConfig: _settings.effectiveModelHarnessConfig,
     );
-    _updateContextSurgeryObservation(systemPrompt: content);
+    _updateContextSurgeryObservation(
+      systemPrompt: content,
+      toolDefinitions: observedToolDefinitions,
+      mcpToolNames: observedMcpToolNames,
+    );
     return Message(
       id: 'system',
       content: content,
@@ -2801,6 +2829,8 @@ class ChatNotifier extends Notifier<ChatState> {
     _latestCompletedToolResults = const [];
     _latestObservedSystemPrompt = null;
     _latestObservedToolResults = const [];
+    _latestObservedToolDefinitions = const [];
+    _latestObservedMcpToolNames = const {};
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _latestHiddenAssistantResponse = null;
