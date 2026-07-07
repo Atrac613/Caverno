@@ -19,6 +19,8 @@ handoffs can refer to the same unit of work over time.
   milestones, also documented in `docs/local_llm_agent_roadmap.md`.
 - Use `TOOL<number>` for the user-created Tools workspace and manifest runtime
   milestones documented in `docs/tools_mvp_roadmap.md`.
+- Use `FORK<number>` for conversation fork/branching (chat + coding)
+  milestones documented in this file under "Conversation Fork Track".
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
 - Every active milestone should record scope, acceptance criteria, verification
   evidence, and the next action.
@@ -104,10 +106,14 @@ handoffs can refer to the same unit of work over time.
 | Routines | ROUTINE1 | next | Author scheduled routines from chat: a `create_routine` tool behind a non-cacheable approval (e.g. "ping 192.168.0.1 hourly; notify via Google Chat and a local notification"). | First slice ships `create_routine` writing through `RoutinesNotifier.createRoutine`, with approval surfacing schedule, tools, and delivery channels (Google Chat + local notification). |
 | Routines | ROUTINE2 | later | Manage routines from chat: list/update/enable/disable/delete plus a near-duplicate-by-name guard. | Start after ROUTINE1 ships; reuse the SKILL2 lifecycle pattern and the skill near-duplicate guard. |
 | Skills | SKILL3 | later | Mine recurring verified workflows into proposed skills during idle windows. | Wait for LL18/OBS1 evidence so proposals are grounded in traces and remain user-reviewed before adoption. |
+| Fork | FORK1 | next | Chat conversation fork: branch a new thread from any message, copying history up to that point with parent linkage and drawer grouping. | Add `parentConversationId`/fork-origin fields to `Conversation`, reuse `_createConversation`/`save`, and add a per-message "fork here" affordance. |
+| Fork | FORK2 | later | Coding conversation fork: reproduce the worktree/git + LL2 file state as of the fork point into an isolated worktree/branch (never shared with the parent), with a non-git snapshot fallback. Gated on FORK1 + LL2 + LL13. | Seed a fresh worktree from the parent's turn commit or LL2 checkpoint; carry `projectId`; assign a new `worktreePath`/branch. |
+| Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
 
 Remaining Foundation F5/F6 and the future platform vision milestones are
 detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
-detailed in `docs/tools_mvp_roadmap.md`.
+detailed in `docs/tools_mvp_roadmap.md`. Conversation fork milestones are
+detailed below under "Conversation Fork Track".
 
 ## Plan Mode Track
 
@@ -747,6 +753,94 @@ intact and links them to MVP readiness.
 | M12 | later | Real-app observe-only canaries for public-action boundary classification. |
 
 MVP ready criteria live in `docs/macos_computer_use_mvp_checklist.md`.
+
+## Conversation Fork Track
+
+Conversation fork lets the user branch a new thread from any point in an
+existing conversation. Chat fork is a pure history operation; coding fork must
+also reproduce the on-disk/git state at the fork point, so it is a strict
+superset gated on the LL2 checkpoint and LL13 worktree machinery. These
+milestones use `FORK<number>` and are documented here rather than in the Local
+LLM roadmap because they are a user-facing conversation-threading feature rather
+than local-LLM execution work.
+
+### FORK1: Chat Conversation Fork
+
+Status: `next`
+
+Scope:
+- From any message in a chat-mode conversation, create a new conversation that
+  copies the message history up to and including that message.
+- Add `parentConversationId` and a fork-origin descriptor (fork message id and
+  index) to `Conversation`; the child is independent and the parent is never
+  mutated by child edits.
+- Trim fork-point-invalid state from the copy: drop streaming/incomplete
+  messages and any checkpoints or turn diffs recorded after the fork index.
+- Surface a per-message "fork here" affordance and show the parent/child
+  relationship in the conversation drawer.
+
+Acceptance criteria:
+- Forking at message N yields a new conversation containing `messages[0..N]` and
+  the conversation-level metadata valid at that point.
+- Editing or continuing the child does not change the parent, and vice versa.
+- The new linkage fields round-trip through the drift repository.
+- The drawer makes the fork relationship discoverable.
+- Focused tests cover the fork builder, metadata trimming, and persistence.
+
+Dependencies:
+- New `Conversation` fields require a Freezed regeneration
+  (`dart run build_runner build --delete-conflicting-outputs`).
+
+Next action:
+- Add the linkage fields, a fork path reusing `_createConversation`/`save`, and
+  the per-message fork affordance.
+
+### FORK2: Coding Conversation Fork
+
+Status: `later`
+
+Scope:
+- Fork a coding-mode conversation at message N and reproduce the working-tree
+  and git state as of that turn into an isolated git worktree/branch, reusing
+  the LL13 worktree machinery seeded from the parent's turn commit or the LL2
+  file checkpoint at the fork point.
+- Never share a worktree between the parent and the fork; assign the fork a
+  fresh `worktreePath`/branch while carrying `projectId`.
+- Define a non-git fallback (file snapshot copy) and a clear collision policy
+  when the project is not a git repository.
+
+Acceptance criteria:
+- Forking a coding thread creates a new conversation bound to a new
+  worktree/branch whose tree matches the fork-point state.
+- The parent worktree is untouched by the fork.
+- The flow degrades safely (documented boundary or snapshot fallback) when the
+  project is not a git repository.
+- Verification follows the LL13 worktree-agent evidence style plus focused
+  fork-point reproduction tests.
+
+Dependencies:
+- FORK1 (linkage + chat fork), LL2 (file checkpoints), LL13 (git worktrees).
+
+Next action:
+- Gate on FORK1 shipping, then seed a worktree from the fork-point commit or LL2
+  checkpoint and bind it to the forked conversation.
+
+### FORK3: Fork Tree Navigation And Compare
+
+Status: `later`
+
+Scope:
+- Add a fork-tree view in the drawer, jump-to-parent navigation, and a
+  parent-vs-fork comparison.
+- Reuse the existing `TurnDiff` rendering for the compare view.
+
+Acceptance criteria:
+- The user can see the fork tree, jump to a fork's parent, and compare a fork
+  against its parent.
+- The compare view reuses existing diff rendering rather than a new diff stack.
+
+Next action:
+- Start after FORK1 and FORK2 ship.
 
 ## Foundation, Local LLM Agent, And Future Platform Vision Tracks
 
