@@ -68,8 +68,9 @@ tool/safe-flutter run -d macos
 tool/sec_verify_logs.sh
 
 # Rank all session logs by how anomalous they look (fr=length truncations,
-# transport errors, tool loops, oversized turns) to find sessions worth a
-# deep-dive. Pure python3; honors CAVERNO_SESSION_LOG_DIR / CAVERNO_HOME.
+# transport errors, tool loops, redundant file re-reads, oversized turns) to
+# find sessions worth a deep-dive. Pure python3; honors
+# CAVERNO_SESSION_LOG_DIR / CAVERNO_HOME.
 python3 tool/triage_session_logs.py --top 10 [--since-days N]
 ```
 
