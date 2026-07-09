@@ -57,7 +57,8 @@ void main() {
       expect(withArgs, contains('iOS Release'));
     });
 
-    test('skill command and its alias are reserved', () {
+    test('built-in command names are reserved', () {
+      expect(reservedSlashCommandNames, contains('goal'));
       expect(reservedSlashCommandNames, contains('skill'));
       expect(reservedSlashCommandNames, contains('save-skill'));
     });

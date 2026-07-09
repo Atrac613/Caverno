@@ -438,6 +438,69 @@ class LlmSessionLogStore {
     }
   }
 
+  /// Append a structured goal auto-continuation decision.
+  ///
+  /// This sits next to `turn_exit` entries so live/debug triage can prove that
+  /// an idle, incomplete goal turn scheduled an automatic hidden continuation
+  /// before the next LLM request was made.
+  Future<void> recordGoalAutoContinue({
+    required LlmSessionLogContext? context,
+    required String decision,
+    required String reason,
+    required DateTime at,
+    String? goalId,
+    int? nextTurnNumber,
+    int? effectiveTurnBudget,
+    int? consecutiveAutoContinuations,
+    Map<String, dynamic>? evidence,
+  }) async {
+    try {
+      final effectiveContext = context ?? _fallbackContext();
+      final file = await fileForContext(effectiveContext);
+      final normalizedGoalId = goalId?.trim();
+      final goalAutoContinue = <String, dynamic>{
+        'decision': decision,
+        'reason': reason,
+      };
+      if (normalizedGoalId != null && normalizedGoalId.isNotEmpty) {
+        goalAutoContinue['goalId'] = normalizedGoalId;
+      }
+      if (nextTurnNumber != null) {
+        goalAutoContinue['nextTurnNumber'] = nextTurnNumber;
+      }
+      if (effectiveTurnBudget != null) {
+        goalAutoContinue['effectiveTurnBudget'] = effectiveTurnBudget;
+      }
+      if (consecutiveAutoContinuations != null) {
+        goalAutoContinue['consecutiveAutoContinuations'] =
+            consecutiveAutoContinuations;
+      }
+      if (evidence != null && evidence.isNotEmpty) {
+        goalAutoContinue['evidence'] = evidence;
+      }
+      final entry = {
+        'schemaName': schemaName,
+        'schemaVersion': schemaVersion,
+        'timestamp': at.toIso8601String(),
+        'build': BuildInfo.toJson(),
+        'context': effectiveContext.toJson(),
+        'operation': 'goal_auto_continue',
+        'goalAutoContinue': goalAutoContinue,
+      };
+      final line = '${jsonEncode(_redactValue(entry))}\n';
+      await _prepareFileForWrite(
+        file,
+        incomingBytes: utf8.encode(line).length,
+        now: at,
+      );
+      await file.writeAsString(line, mode: FileMode.append, flush: true);
+    } catch (error) {
+      appLog(
+        '[SessionLog] Failed to write goal auto-continuation entry: $error',
+      );
+    }
+  }
+
   /// Resolves the log file for [context].
   ///
   /// Set [create] to false to resolve the path without creating the workspace

@@ -119,6 +119,112 @@ class _TestConversationsNotifier extends ConversationsNotifier {
   Future<void> ensureCurrentPlanArtifactBackfilled() async {}
 }
 
+class _GoalAutoContinueConversationsNotifier
+    extends _TestConversationsNotifier {
+  @override
+  Future<void> saveCurrentGoal({
+    required String objective,
+    required bool enabled,
+    required ConversationGoalStatus status,
+    bool? autoContinue,
+    int tokenBudget = 0,
+    int turnBudget = 0,
+    String? blockedReason,
+    String? completionSummary,
+  }) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return;
+    }
+    final now = DateTime(2026, 5, 25, 10);
+    final previous = conversation.goal;
+    final goal = ConversationGoal(
+      id: previous?.id ?? 'goal-auto-continue',
+      objective: objective,
+      enabled: enabled,
+      autoContinue: autoContinue ?? previous?.autoContinue ?? false,
+      status: status,
+      tokenBudget: tokenBudget,
+      tokenUsage: previous?.tokenUsage ?? 0,
+      turnBudget: turnBudget,
+      turnsUsed: previous?.turnsUsed ?? 0,
+      blockedReason: status == ConversationGoalStatus.blocked
+          ? blockedReason ?? ''
+          : '',
+      completionSummary: status == ConversationGoalStatus.completed
+          ? completionSummary ?? ''
+          : '',
+      createdAt: previous?.createdAt ?? now,
+      updatedAt: now,
+      completedAt: status == ConversationGoalStatus.completed ? now : null,
+      blockedAt: status == ConversationGoalStatus.blocked ? now : null,
+    );
+    _replaceCurrentConversation(conversation.copyWith(goal: goal));
+  }
+
+  @override
+  Future<void> recordCurrentGoalTurn({
+    required String assistantResponse,
+    required int tokenUsageDelta,
+    ToolResultCompletionEvidence completionEvidence =
+        const ToolResultCompletionEvidence(),
+  }) async {
+    final conversation = state.currentConversation;
+    final goal = conversation?.goal;
+    if (conversation == null || goal == null || !goal.isActive) {
+      return;
+    }
+    _replaceCurrentConversation(
+      conversation.copyWith(
+        goal: goal.copyWith(
+          turnsUsed: goal.turnsUsed + 1,
+          tokenUsage: goal.tokenUsage + tokenUsageDelta,
+          updatedAt: DateTime(2026, 5, 25, 10, goal.turnsUsed + 1),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> markCurrentGoalStatus({
+    required ConversationGoalStatus status,
+    String? blockedReason,
+    String? completionSummary,
+  }) async {
+    final conversation = state.currentConversation;
+    final goal = conversation?.goal;
+    if (conversation == null || goal == null) {
+      return;
+    }
+    _replaceCurrentConversation(
+      conversation.copyWith(
+        goal: goal.copyWith(
+          status: status,
+          blockedReason: status == ConversationGoalStatus.blocked
+              ? blockedReason ?? ''
+              : '',
+          completionSummary: status == ConversationGoalStatus.completed
+              ? completionSummary ?? ''
+              : '',
+          updatedAt: DateTime(2026, 5, 25, 10, goal.turnsUsed + 1),
+        ),
+      ),
+    );
+  }
+
+  void _replaceCurrentConversation(Conversation updatedConversation) {
+    state = state.copyWith(
+      conversations: state.conversations
+          .map(
+            (conversation) => conversation.id == updatedConversation.id
+                ? updatedConversation
+                : conversation,
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
 class _GitLifecycleGoalConversationsNotifier
     extends _TestConversationsNotifier {
   @override
@@ -156,6 +262,8 @@ class _GitLifecycleGoalConversationsNotifier
   Future<void> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
+    ToolResultCompletionEvidence completionEvidence =
+        const ToolResultCompletionEvidence(),
   }) async {
     final current = state.currentConversation;
     final goal = current?.goal;
@@ -1875,6 +1983,148 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   }
 }
 
+class _GoalAutoContinueChatDataSource implements ChatDataSource {
+  _GoalAutoContinueChatDataSource({
+    required List<List<ToolCallInfo>> toolCallBatches,
+    List<List<String>> streamChunkBatches = const [],
+    List<List<String>> finalAnswerChunkBatches = const [],
+    this.toolCompletionGates = const {},
+    List<ChatCompletionResult> autoReviewResponses = const [],
+  }) : _toolCallBatches = Queue<List<ToolCallInfo>>.from(toolCallBatches),
+       _streamChunkBatches = Queue<List<String>>.from(streamChunkBatches),
+       _finalAnswerChunkBatches = Queue<List<String>>.from(
+         finalAnswerChunkBatches,
+       ),
+       autoReviewResponses = Queue<ChatCompletionResult>.from(
+         autoReviewResponses,
+       );
+
+  final Queue<List<ToolCallInfo>> _toolCallBatches;
+  final Queue<List<String>> _streamChunkBatches;
+  final Queue<List<String>> _finalAnswerChunkBatches;
+  final Map<int, Future<void>> toolCompletionGates;
+  final Queue<ChatCompletionResult> autoReviewResponses;
+  final List<List<Message>> initialRequestMessages = [];
+  final List<List<Message>> finalAnswerRequestMessages = [];
+  final List<List<ToolResultInfo>> toolResultBatches = [];
+  final List<List<Message>> autoReviewRequestMessages = [];
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async* {
+    finalAnswerRequestMessages.add(List<Message>.from(messages));
+    final chunks = _finalAnswerChunkBatches.isEmpty
+        ? const ['No final answer queued.']
+        : _finalAnswerChunkBatches.removeFirst();
+    yield* Stream<String>.fromIterable(chunks);
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    if ((tools == null || tools.isEmpty) &&
+        messages.isNotEmpty &&
+        messages.first.id == 'auto_review_policy') {
+      autoReviewRequestMessages.add(List<Message>.from(messages));
+      if (autoReviewResponses.isNotEmpty) {
+        return Future<ChatCompletionResult>.value(
+          autoReviewResponses.removeFirst(),
+        );
+      }
+    }
+    throw UnimplementedError();
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    initialRequestMessages.add(List<Message>.from(messages));
+    final requestNumber = initialRequestMessages.length;
+    final toolCalls = _toolCallBatches.isEmpty
+        ? const <ToolCallInfo>[]
+        : _toolCallBatches.removeFirst();
+    final chunks = _streamChunkBatches.isEmpty
+        ? const <String>[]
+        : _streamChunkBatches.removeFirst();
+    return StreamWithToolsResult(
+      stream: Stream<String>.fromIterable(chunks),
+      completion: () async {
+        final gate = toolCompletionGates[requestNumber];
+        if (gate != null) {
+          await gate;
+        }
+        return ChatCompletionResult(
+          content: chunks.join(),
+          toolCalls: toolCalls,
+          finishReason: toolCalls.isEmpty ? 'stop' : 'tool_calls',
+        );
+      }(),
+    );
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
+    return ChatCompletionResult(
+      content: assistantContent ?? '',
+      finishReason: 'stop',
+    );
+  }
+}
+
 class _QueuedToolLoopChatDataSource implements ChatDataSource {
   _QueuedToolLoopChatDataSource({
     required this.initialToolCalls,
@@ -2104,6 +2354,18 @@ class _ToolEnabledSettingsNotifier extends SettingsNotifier {
   }
 }
 
+class _ToolEnabledLoggingSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return _baseTestSettings().copyWith(
+      assistantMode: AssistantMode.general,
+      mcpEnabled: true,
+      demoMode: false,
+      enableLlmSessionLogs: true,
+    );
+  }
+}
+
 class _ToolEnabledHighTemperatureSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
@@ -2261,6 +2523,20 @@ class _ContentToolSettingsNotifier extends SettingsNotifier {
       demoMode: false,
       confirmFileMutations: true,
       confirmLocalCommands: true,
+    );
+  }
+}
+
+class _ContentToolNoConfirmSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return _baseTestSettings().copyWith(
+      assistantMode: AssistantMode.general,
+      mcpEnabled: false,
+      demoMode: false,
+      codingApprovalMode: ToolApprovalMode.fullAccess,
+      confirmFileMutations: false,
+      confirmLocalCommands: false,
     );
   }
 }

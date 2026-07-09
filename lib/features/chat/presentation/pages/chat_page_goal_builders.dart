@@ -1,135 +1,14 @@
 part of 'chat_page.dart';
 
+const _slashGoalObjectiveMaxLength = 120;
+
 extension _ChatPageGoalBuilders on _ChatPageState {
-  bool _isCodingGoalSetupPendingFor(Conversation? conversation) {
-    return conversation != null &&
-        _pendingCodingGoalConversationId == conversation.id &&
-        !(conversation.goal?.hasObjective ?? false);
-  }
-
-  bool _isCodingGoalSuggestionInProgressFor(Conversation? conversation) {
-    return conversation != null &&
-        _codingGoalSuggestionConversationId == conversation.id;
-  }
-
-  void _clearCodingGoalSuggestionInProgress(String conversationId) {
-    if (_codingGoalSuggestionConversationId != conversationId) {
-      return;
-    }
-    _setCodingGoalSuggestionConversationId(null);
-  }
-
-  void _clearCodingGoalSetupPending(String conversationId) {
-    if (_pendingCodingGoalConversationId != conversationId) {
-      return;
-    }
-    _setPendingCodingGoalConversationId(null);
-  }
-
-  void _deferGoalSetupUntilSend(Conversation currentConversation) {
-    if (!_isCodingGoalSetupPendingFor(currentConversation)) {
-      _setPendingCodingGoalConversationId(currentConversation.id);
-    }
-  }
-
-  Future<bool> _sendMessageAfterPendingGoalSetup(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required String message,
-    required String? imageBase64,
-    required String? imageMimeType,
-    required String? originalImagePath,
-    required String? originalImageMimeType,
-    required String languageCode,
-  }) async {
-    if (_isCodingGoalSuggestionInProgressFor(currentConversation)) {
-      return false;
-    }
-    final appliedGoal = await _applySuggestedGoal(
-      context,
-      currentConversation,
-      pendingUserMessage: message,
-    );
-    if (appliedGoal) {
-      _clearCodingGoalSetupPending(currentConversation.id);
-    } else {
-      return false;
-    }
-    if (!mounted) {
-      return false;
-    }
-    final activeConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (activeConversation?.id != currentConversation.id) {
-      return false;
-    }
-    await ref
-        .read(chatNotifierProvider.notifier)
-        .sendMessage(
-          message,
-          imageBase64: imageBase64,
-          imageMimeType: imageMimeType,
-          originalImagePath: originalImagePath,
-          originalImageMimeType: originalImageMimeType,
-          languageCode: languageCode,
-        );
-    return true;
-  }
-
-  Future<void> _handleGoalSwitch(
-    BuildContext context,
-    Conversation currentConversation,
-    bool enabled, {
-    String? pendingUserMessage,
-  }) async {
-    if (_isCodingGoalSuggestionInProgressFor(currentConversation)) {
-      return;
-    }
-    final goal = currentConversation.goal;
-    final notifier = ref.read(conversationsNotifierProvider.notifier);
-    if (goal == null || !goal.hasObjective) {
-      if (enabled) {
-        _clearCodingGoalSetupPending(currentConversation.id);
-        final appliedGoal = await _applySuggestedGoal(
-          context,
-          currentConversation,
-          pendingUserMessage: pendingUserMessage,
-        );
-        if (!appliedGoal) {
-          _setPendingCodingGoalConversationId(currentConversation.id);
-        }
-      } else {
-        _clearCodingGoalSetupPending(currentConversation.id);
-      }
-      return;
-    }
-
-    if (!enabled) {
-      _clearCodingGoalSetupPending(currentConversation.id);
-      await notifier.setCurrentGoalEnabled(false);
-      return;
-    }
-
-    if (goal.status != ConversationGoalStatus.active) {
-      await notifier.markCurrentGoalStatus(
-        status: ConversationGoalStatus.active,
-      );
-      return;
-    }
-
-    await notifier.setCurrentGoalEnabled(true);
-  }
-
   Future<void> _showGoalEditor(
     BuildContext context,
     Conversation currentConversation, {
     String? initialObjective,
     String? helperText,
   }) async {
-    if (_isCodingGoalSuggestionInProgressFor(currentConversation)) {
-      return;
-    }
     final result = await showModalBottomSheet<_GoalEditorSubmission>(
       context: context,
       isScrollControlled: true,
@@ -144,7 +23,6 @@ extension _ChatPageGoalBuilders on _ChatPageState {
       return;
     }
 
-    _clearCodingGoalSetupPending(currentConversation.id);
     final notifier = ref.read(conversationsNotifierProvider.notifier);
     switch (result.action) {
       case _GoalEditorAction.clear:
@@ -159,172 +37,139 @@ extension _ChatPageGoalBuilders on _ChatPageState {
           objective: result.objective,
           enabled: result.enabled,
           status: result.status,
+          autoContinue: result.autoContinue,
           tokenBudget: result.tokenBudget,
           turnBudget: result.turnBudget,
         );
     }
   }
 
-  Future<bool> _applySuggestedGoal(
-    BuildContext context,
-    Conversation currentConversation, {
-    String? pendingUserMessage,
-  }) async {
-    if (_isCodingGoalSuggestionInProgressFor(currentConversation)) {
-      return false;
-    }
-    _setCodingGoalSuggestionConversationId(currentConversation.id);
-    try {
-      final suggestion = await _requestGoalSuggestion(
-        context,
-        pendingUserMessage: pendingUserMessage,
-      );
-      if (suggestion == null || !context.mounted) {
-        return false;
-      }
-
-      return _applyGoalSuggestion(
-        context,
-        currentConversation,
-        suggestion,
-        pendingUserMessage: pendingUserMessage,
-        remainingClarificationDialogs: 2,
-      );
-    } finally {
-      _clearCodingGoalSuggestionInProgress(currentConversation.id);
-    }
-  }
-
-  Future<ConversationGoalSuggestion?> _requestGoalSuggestion(
-    BuildContext context, {
-    String? pendingUserMessage,
-    String? clarificationQuestion,
-    String? clarificationAnswer,
-  }) async {
-    final languageCode = context.locale.languageCode;
-
-    try {
-      final suggestion = await ref
-          .read(chatNotifierProvider.notifier)
-          .suggestCurrentGoal(
-            languageCode: languageCode,
-            pendingUserMessage: pendingUserMessage,
-            clarificationQuestion: clarificationQuestion,
-            clarificationAnswer: clarificationAnswer,
-          );
-      if (!context.mounted) {
-        return null;
-      }
-
-      return suggestion;
-    } catch (error) {
-      debugPrint('Goal suggestion failed: $error');
-    }
-
-    if (context.mounted) {
-      final messenger = ScaffoldMessenger.maybeOf(context);
-      messenger?.showSnackBar(
-        SnackBar(
-          duration: const Duration(seconds: 8),
-          content: Text('chat.goal_suggestion_failed'.tr()),
-        ),
-      );
-    }
-    return null;
-  }
-
-  Future<bool> _applyGoalSuggestion(
+  Future<SlashCommandExecutionResult> _handleGoalSlashCommand(
     BuildContext context,
     Conversation currentConversation,
-    ConversationGoalSuggestion suggestion, {
-    required String? pendingUserMessage,
-    required int remainingClarificationDialogs,
+    String args, {
+    required bool sendObjectiveAsInitialPrompt,
   }) async {
-    switch (suggestion.kind) {
-      case ConversationGoalSuggestionKind.suggested:
-        final objective = suggestion.objective?.trim() ?? '';
-        if (objective.isEmpty) {
-          _showGoalClarificationSnackBar(
-            context,
-            'chat.goal_suggestion_question'.tr(),
-          );
-          return false;
-        }
-        final activeConversation = ref
-            .read(conversationsNotifierProvider)
-            .currentConversation;
-        if (activeConversation?.id != currentConversation.id) {
-          return false;
-        }
-        await ref
-            .read(conversationsNotifierProvider.notifier)
-            .saveCurrentGoal(
-              objective: objective,
-              enabled: true,
-              status: ConversationGoalStatus.active,
-            );
-        return true;
-      case ConversationGoalSuggestionKind.needsClarification:
-        final question = suggestion.question?.trim();
-        final effectiveQuestion = question?.isNotEmpty == true
-            ? question!
-            : 'chat.goal_suggestion_question'.tr();
-        if (remainingClarificationDialogs <= 0) {
-          _showGoalClarificationSnackBar(context, effectiveQuestion);
-          return false;
-        }
-        final answer = await _showGoalClarificationDialog(
-          context,
-          effectiveQuestion,
-        );
-        if (!context.mounted) {
-          return false;
-        }
-        if (answer == null || answer.trim().isEmpty) {
-          return false;
-        }
-        final retrySuggestion = await _requestGoalSuggestion(
-          context,
-          pendingUserMessage: pendingUserMessage,
-          clarificationQuestion: effectiveQuestion,
-          clarificationAnswer: answer,
-        );
-        if (retrySuggestion == null || !context.mounted) {
-          return false;
-        }
-        return _applyGoalSuggestion(
-          context,
-          currentConversation,
-          retrySuggestion,
-          pendingUserMessage: pendingUserMessage,
-          remainingClarificationDialogs: remainingClarificationDialogs - 1,
-        );
-    }
-  }
+    final trimmedArgs = args.trim();
+    final goal = currentConversation.goal;
+    final hasGoal = goal?.hasObjective ?? false;
+    final notifier = ref.read(conversationsNotifierProvider.notifier);
 
-  Future<String?> _showGoalClarificationDialog(
-    BuildContext context,
-    String question,
-  ) async {
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) => _GoalClarificationDialog(question: question),
-    );
-  }
-
-  void _showGoalClarificationSnackBar(BuildContext context, String question) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          duration: const Duration(seconds: 8),
-          content: Text(
-            'chat.goal_needs_clarification'.tr(
-              namedArgs: {'question': question},
-            ),
-          ),
+    if (trimmedArgs.isEmpty) {
+      if (!hasGoal) {
+        await _showGoalEditor(context, currentConversation);
+        return SlashCommandExecutionResult.handled;
+      }
+      final objective = _truncateGoalSlashObjective(goal!.normalizedObjective!);
+      return SlashCommandExecutionResult(
+        feedbackMessage: 'chat.slash_goal_status'.tr(
+          namedArgs: {
+            'objective': objective,
+            'status': _goalSlashStatusSummary(goal),
+          },
         ),
       );
+    }
+
+    final keyword = trimmedArgs.toLowerCase();
+    final keywordTokens = keyword
+        .split(RegExp(r'\s+'))
+        .where((token) => token.isNotEmpty)
+        .toList(growable: false);
+    // Treat only exact reserved-keyword arguments as subcommands; longer text
+    // such as "pause the deployment" remains a normal objective.
+    switch (keyword) {
+      case 'pause':
+        if (!hasGoal) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'chat.slash_goal_none'.tr(),
+          );
+        }
+        await notifier.setCurrentGoalEnabled(false);
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_goal_paused'.tr(),
+        );
+      case 'resume':
+        if (!hasGoal) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'chat.slash_goal_none'.tr(),
+          );
+        }
+        await notifier.setCurrentGoalEnabled(true);
+        if (goal!.status != ConversationGoalStatus.active) {
+          await notifier.markCurrentGoalStatus(
+            status: ConversationGoalStatus.active,
+          );
+        }
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.slash_goal_resumed'.tr(),
+        );
+      case 'clear':
+        if (!hasGoal) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'chat.slash_goal_none'.tr(),
+          );
+        }
+        await notifier.clearCurrentGoal();
+        return SlashCommandExecutionResult(
+          feedbackMessage: 'chat.goal_cleared'.tr(),
+        );
+    }
+
+    if (keywordTokens.length == 2 &&
+        keywordTokens.first == 'auto' &&
+        (keywordTokens.last == 'on' || keywordTokens.last == 'off')) {
+      if (!hasGoal) {
+        return SlashCommandExecutionResult.keepInput(
+          feedbackMessage: 'chat.slash_goal_none'.tr(),
+        );
+      }
+      final enableAutoContinue = keywordTokens.last == 'on';
+      await notifier.saveCurrentGoal(
+        objective: goal!.normalizedObjective!,
+        enabled: goal.enabled,
+        autoContinue: enableAutoContinue,
+        status: goal.status,
+        tokenBudget: goal.tokenBudget,
+        turnBudget: goal.turnBudget,
+      );
+      return SlashCommandExecutionResult(
+        feedbackMessage:
+            (enableAutoContinue
+                    ? 'chat.goal_auto_continue_enabled'
+                    : 'chat.goal_auto_continue_disabled')
+                .tr(),
+      );
+    }
+
+    if (keywordTokens.isNotEmpty &&
+        keywordTokens.first == 'auto' &&
+        (keywordTokens.length == 1 || keywordTokens.length == 2)) {
+      return SlashCommandExecutionResult.keepInput(
+        feedbackMessage: 'chat.slash_goal_auto_usage'.tr(),
+      );
+    }
+
+    await notifier.saveCurrentGoal(
+      objective: trimmedArgs,
+      enabled: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: goal?.tokenBudget ?? 0,
+      turnBudget: goal?.turnBudget ?? 0,
+    );
+    final feedbackMessage = 'chat.slash_goal_set'.tr(
+      namedArgs: {'objective': _truncateGoalSlashObjective(trimmedArgs)},
+    );
+    if (sendObjectiveAsInitialPrompt) {
+      final languageCode = context.mounted ? context.locale.languageCode : 'en';
+      unawaited(
+        ref
+            .read(chatNotifierProvider.notifier)
+            .sendMessage(trimmedArgs, languageCode: languageCode),
+      );
+      return SlashCommandExecutionResult(feedbackMessage: feedbackMessage);
+    }
+    return SlashCommandExecutionResult(feedbackMessage: feedbackMessage);
   }
 
   Future<void> _markGoalCompleted(BuildContext context) async {
@@ -382,94 +227,11 @@ extension _ChatPageGoalBuilders on _ChatPageState {
 
 enum _GoalEditorAction { save, clear }
 
-class _GoalClarificationDialog extends StatefulWidget {
-  const _GoalClarificationDialog({required this.question});
-
-  final String question;
-
-  @override
-  State<_GoalClarificationDialog> createState() =>
-      _GoalClarificationDialogState();
-}
-
-class _GoalClarificationDialogState extends State<_GoalClarificationDialog> {
-  late final TextEditingController _controller;
-  bool _canSubmit = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final answer = _controller.text.trim();
-    if (answer.isEmpty) {
-      return;
-    }
-    Navigator.of(context).pop(answer);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('chat.goal_clarification_title'.tr()),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.question),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              minLines: 2,
-              maxLines: 4,
-              textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                labelText: 'chat.goal_clarification_answer'.tr(),
-                hintText: 'chat.goal_clarification_answer_hint'.tr(),
-                border: const OutlineInputBorder(),
-              ),
-              onChanged: (value) {
-                final nextCanSubmit = value.trim().isNotEmpty;
-                if (nextCanSubmit == _canSubmit) {
-                  return;
-                }
-                setState(() {
-                  _canSubmit = nextCanSubmit;
-                });
-              },
-              onSubmitted: (_) => _submit(),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text('common.cancel'.tr()),
-        ),
-        FilledButton(
-          onPressed: _canSubmit ? _submit : null,
-          child: Text('chat.goal_clarification_confirm'.tr()),
-        ),
-      ],
-    );
-  }
-}
-
 class _GoalEditorSubmission {
   const _GoalEditorSubmission.save({
     required this.objective,
     required this.enabled,
+    required this.autoContinue,
     required this.status,
     required this.tokenBudget,
     required this.turnBudget,
@@ -479,6 +241,7 @@ class _GoalEditorSubmission {
     : action = _GoalEditorAction.clear,
       objective = '',
       enabled = false,
+      autoContinue = false,
       status = ConversationGoalStatus.active,
       tokenBudget = 0,
       turnBudget = 0;
@@ -486,6 +249,7 @@ class _GoalEditorSubmission {
   final _GoalEditorAction action;
   final String objective;
   final bool enabled;
+  final bool autoContinue;
   final ConversationGoalStatus status;
   final int tokenBudget;
   final int turnBudget;
@@ -511,6 +275,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
   late final TextEditingController _tokenBudgetController;
   late final TextEditingController _turnBudgetController;
   late bool _enabled;
+  late bool _autoContinue;
   late ConversationGoalStatus _status;
 
   @override
@@ -529,6 +294,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
       text: (goal?.turnBudget ?? 0) > 0 ? goal!.turnBudget.toString() : '',
     );
     _enabled = goal?.enabled ?? true;
+    _autoContinue = goal?.autoContinue ?? false;
     _status = goal?.status ?? ConversationGoalStatus.active;
   }
 
@@ -615,6 +381,17 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                   });
                 },
               ),
+              SwitchListTile(
+                value: _autoContinue,
+                contentPadding: EdgeInsets.zero,
+                title: Text('chat.goal_auto_continue'.tr()),
+                subtitle: Text('chat.goal_auto_continue_hint'.tr()),
+                onChanged: (value) {
+                  setState(() {
+                    _autoContinue = value;
+                  });
+                },
+              ),
               const SizedBox(height: 8),
               DropdownButtonFormField<ConversationGoalStatus>(
                 initialValue: _status,
@@ -691,6 +468,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                         _GoalEditorSubmission.save(
                           objective: _objectiveController.text.trim(),
                           enabled: _enabled,
+                          autoContinue: _autoContinue,
                           status: _status,
                           tokenBudget: _parseBudget(
                             _tokenBudgetController.text,
@@ -717,6 +495,60 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
     }
     return parsed;
   }
+}
+
+String _truncateGoalSlashObjective(String objective) {
+  final normalized = objective.trim();
+  if (normalized.length <= _slashGoalObjectiveMaxLength) {
+    return normalized;
+  }
+  return '${normalized.substring(0, _slashGoalObjectiveMaxLength - 3).trimRight()}...';
+}
+
+String _goalSlashStatusSummary(ConversationGoal goal) {
+  final status = goal.enabled
+      ? _conversationGoalStatusLabel(goal.status)
+      : 'chat.slash_goal_status_paused'.tr(
+          namedArgs: {'status': _conversationGoalStatusLabel(goal.status)},
+        );
+  final tokenUsage = goal.hasTokenBudget
+      ? 'chat.goal_token_budget_label'.tr(
+          namedArgs: {
+            'used': _formatGoalSlashTokenCount(goal.tokenUsage),
+            'total': _formatGoalSlashTokenCount(goal.tokenBudget),
+          },
+        )
+      : 'chat.slash_goal_token_usage_unlimited'.tr(
+          namedArgs: {'used': _formatGoalSlashTokenCount(goal.tokenUsage)},
+        );
+  final turnUsage = goal.hasTurnBudget
+      ? 'chat.goal_turn_budget_label'.tr(
+          namedArgs: {
+            'used': goal.turnsUsed.toString(),
+            'total': goal.turnBudget.toString(),
+          },
+        )
+      : 'chat.slash_goal_turn_usage_unlimited'.tr(
+          namedArgs: {'used': goal.turnsUsed.toString()},
+        );
+  final autoContinue = goal.autoContinue
+      ? 'chat.goal_auto_continue_on'.tr()
+      : 'chat.goal_auto_continue_off'.tr();
+  return 'chat.slash_goal_status_details'.tr(
+    namedArgs: {
+      'status': status,
+      'tokens': tokenUsage,
+      'turns': turnUsage,
+      'auto': autoContinue,
+    },
+  );
+}
+
+String _formatGoalSlashTokenCount(int count) {
+  if (count.abs() < 1000) {
+    return count.toString();
+  }
+  return NumberFormat.compact().format(count);
 }
 
 String _conversationGoalStatusLabel(ConversationGoalStatus status) {

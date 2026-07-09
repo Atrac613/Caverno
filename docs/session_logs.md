@@ -46,6 +46,8 @@ Each line is one JSON object with schema name
 - Request messages, model, temperature, max token budget, tools, and tool
   result payloads when available
 - Response content, finish reason, tool calls, token usage, or error details
+- Turn-level markers such as `turn_exit` and `goal_auto_continue`, which make
+  non-request decisions visible in the same JSONL timeline as model calls
 
 ## Sensitivity
 

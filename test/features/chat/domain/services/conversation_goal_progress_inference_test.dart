@@ -80,6 +80,60 @@ void main() {
     expect(result.hasCompletion, isTrue);
   });
 
+  test('completes on verifier success narration', () {
+    final result = ConversationGoalProgressInference.infer(
+      assistantResponse:
+          'The verifier exited with code 0 and all diagnostics are empty. '
+          'The TODO CLI app is complete and passes all verification checks.',
+      tasks: const [],
+    );
+
+    expect(result.status, ConversationGoalStatus.completed);
+    expect(result.hasCompletion, isTrue);
+  });
+
+  test('completes when final verifier success resolves earlier narration', () {
+    final result = ConversationGoalProgressInference.infer(
+      assistantResponse:
+          'The remaining issue is unknown-id handling, so the task is not '
+          'complete yet.\n\n'
+          'I updated the implementation and ran the verifier again.\n\n'
+          'The verifier exited with code 0 and all diagnostics are empty. '
+          'The goal is complete.',
+      tasks: const [],
+    );
+
+    expect(result.status, ConversationGoalStatus.completed);
+    expect(result.hasCompletion, isTrue);
+  });
+
+  test(
+    'does not complete when only a sub-item completed after remaining work',
+    () {
+      final result = ConversationGoalProgressInference.infer(
+        assistantResponse:
+            '\u6b8b\u308a2\u4ef6\u306f\u672a\u5bfe\u5fdc\u3067\u3059\u3002'
+            '1\u4ef6\u76ee\u306e\u4fee\u6b63\u306f\u5b8c\u4e86\u3057\u307e\u3057\u305f\u3002',
+        tasks: const [],
+      );
+
+      expect(result.status, isNull);
+      expect(result.hasCompletion, isFalse);
+    },
+  );
+
+  test('does not complete when generic tests passed follow remaining work', () {
+    final result = ConversationGoalProgressInference.infer(
+      assistantResponse:
+          '\u6b8b\u308a\u306e\u30bf\u30b9\u30af\u306fX\u3067\u3059\u304c\u3001'
+          '\u30c6\u30b9\u30c8\u304c\u901a\u308a\u307e\u3057\u305f\u3002',
+      tasks: const [],
+    );
+
+    expect(result.status, isNull);
+    expect(result.hasCompletion, isFalse);
+  });
+
   test('completes when summary mentions remaining parsed arguments', () {
     final result = ConversationGoalProgressInference.infer(
       assistantResponse:

@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ConversationGoal {
 
- String get id; String get objective; bool get enabled;@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus get status; int get tokenBudget; int get tokenUsage; int get turnBudget; int get turnsUsed; String get completionSummary; String get blockedReason; String get blockerSignature; int get blockerRepeatCount; DateTime get createdAt; DateTime get updatedAt; DateTime? get completedAt; DateTime? get blockedAt; DateTime? get lastBlockerSeenAt;
+ String get id; String get objective; bool get enabled; bool get autoContinue;@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus get status; int get tokenBudget; int get tokenUsage; int get turnBudget; int get turnsUsed; String get completionSummary; String get blockedReason; String get blockerSignature; int get blockerRepeatCount; DateTime get createdAt; DateTime get updatedAt; DateTime? get completedAt; DateTime? get blockedAt; DateTime? get lastBlockerSeenAt;
 /// Create a copy of ConversationGoal
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $ConversationGoalCopyWith<ConversationGoal> get copyWith => _$ConversationGoalCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationGoal&&(identical(other.id, id) || other.id == id)&&(identical(other.objective, objective) || other.objective == objective)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.status, status) || other.status == status)&&(identical(other.tokenBudget, tokenBudget) || other.tokenBudget == tokenBudget)&&(identical(other.tokenUsage, tokenUsage) || other.tokenUsage == tokenUsage)&&(identical(other.turnBudget, turnBudget) || other.turnBudget == turnBudget)&&(identical(other.turnsUsed, turnsUsed) || other.turnsUsed == turnsUsed)&&(identical(other.completionSummary, completionSummary) || other.completionSummary == completionSummary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.blockerSignature, blockerSignature) || other.blockerSignature == blockerSignature)&&(identical(other.blockerRepeatCount, blockerRepeatCount) || other.blockerRepeatCount == blockerRepeatCount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt)&&(identical(other.blockedAt, blockedAt) || other.blockedAt == blockedAt)&&(identical(other.lastBlockerSeenAt, lastBlockerSeenAt) || other.lastBlockerSeenAt == lastBlockerSeenAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationGoal&&(identical(other.id, id) || other.id == id)&&(identical(other.objective, objective) || other.objective == objective)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.autoContinue, autoContinue) || other.autoContinue == autoContinue)&&(identical(other.status, status) || other.status == status)&&(identical(other.tokenBudget, tokenBudget) || other.tokenBudget == tokenBudget)&&(identical(other.tokenUsage, tokenUsage) || other.tokenUsage == tokenUsage)&&(identical(other.turnBudget, turnBudget) || other.turnBudget == turnBudget)&&(identical(other.turnsUsed, turnsUsed) || other.turnsUsed == turnsUsed)&&(identical(other.completionSummary, completionSummary) || other.completionSummary == completionSummary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.blockerSignature, blockerSignature) || other.blockerSignature == blockerSignature)&&(identical(other.blockerRepeatCount, blockerRepeatCount) || other.blockerRepeatCount == blockerRepeatCount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt)&&(identical(other.blockedAt, blockedAt) || other.blockedAt == blockedAt)&&(identical(other.lastBlockerSeenAt, lastBlockerSeenAt) || other.lastBlockerSeenAt == lastBlockerSeenAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,objective,enabled,status,tokenBudget,tokenUsage,turnBudget,turnsUsed,completionSummary,blockedReason,blockerSignature,blockerRepeatCount,createdAt,updatedAt,completedAt,blockedAt,lastBlockerSeenAt);
+int get hashCode => Object.hash(runtimeType,id,objective,enabled,autoContinue,status,tokenBudget,tokenUsage,turnBudget,turnsUsed,completionSummary,blockedReason,blockerSignature,blockerRepeatCount,createdAt,updatedAt,completedAt,blockedAt,lastBlockerSeenAt);
 
 @override
 String toString() {
-  return 'ConversationGoal(id: $id, objective: $objective, enabled: $enabled, status: $status, tokenBudget: $tokenBudget, tokenUsage: $tokenUsage, turnBudget: $turnBudget, turnsUsed: $turnsUsed, completionSummary: $completionSummary, blockedReason: $blockedReason, blockerSignature: $blockerSignature, blockerRepeatCount: $blockerRepeatCount, createdAt: $createdAt, updatedAt: $updatedAt, completedAt: $completedAt, blockedAt: $blockedAt, lastBlockerSeenAt: $lastBlockerSeenAt)';
+  return 'ConversationGoal(id: $id, objective: $objective, enabled: $enabled, autoContinue: $autoContinue, status: $status, tokenBudget: $tokenBudget, tokenUsage: $tokenUsage, turnBudget: $turnBudget, turnsUsed: $turnsUsed, completionSummary: $completionSummary, blockedReason: $blockedReason, blockerSignature: $blockerSignature, blockerRepeatCount: $blockerRepeatCount, createdAt: $createdAt, updatedAt: $updatedAt, completedAt: $completedAt, blockedAt: $blockedAt, lastBlockerSeenAt: $lastBlockerSeenAt)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $ConversationGoalCopyWith<$Res>  {
   factory $ConversationGoalCopyWith(ConversationGoal value, $Res Function(ConversationGoal) _then) = _$ConversationGoalCopyWithImpl;
 @useResult
 $Res call({
- String id, String objective, bool enabled,@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus status, int tokenBudget, int tokenUsage, int turnBudget, int turnsUsed, String completionSummary, String blockedReason, String blockerSignature, int blockerRepeatCount, DateTime createdAt, DateTime updatedAt, DateTime? completedAt, DateTime? blockedAt, DateTime? lastBlockerSeenAt
+ String id, String objective, bool enabled, bool autoContinue,@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus status, int tokenBudget, int tokenUsage, int turnBudget, int turnsUsed, String completionSummary, String blockedReason, String blockerSignature, int blockerRepeatCount, DateTime createdAt, DateTime updatedAt, DateTime? completedAt, DateTime? blockedAt, DateTime? lastBlockerSeenAt
 });
 
 
@@ -65,11 +65,12 @@ class _$ConversationGoalCopyWithImpl<$Res>
 
 /// Create a copy of ConversationGoal
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? objective = null,Object? enabled = null,Object? status = null,Object? tokenBudget = null,Object? tokenUsage = null,Object? turnBudget = null,Object? turnsUsed = null,Object? completionSummary = null,Object? blockedReason = null,Object? blockerSignature = null,Object? blockerRepeatCount = null,Object? createdAt = null,Object? updatedAt = null,Object? completedAt = freezed,Object? blockedAt = freezed,Object? lastBlockerSeenAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? objective = null,Object? enabled = null,Object? autoContinue = null,Object? status = null,Object? tokenBudget = null,Object? tokenUsage = null,Object? turnBudget = null,Object? turnsUsed = null,Object? completionSummary = null,Object? blockedReason = null,Object? blockerSignature = null,Object? blockerRepeatCount = null,Object? createdAt = null,Object? updatedAt = null,Object? completedAt = freezed,Object? blockedAt = freezed,Object? lastBlockerSeenAt = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,objective: null == objective ? _self.objective : objective // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,autoContinue: null == autoContinue ? _self.autoContinue : autoContinue // ignore: cast_nullable_to_non_nullable
 as bool,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ConversationGoalStatus,tokenBudget: null == tokenBudget ? _self.tokenBudget : tokenBudget // ignore: cast_nullable_to_non_nullable
 as int,tokenUsage: null == tokenUsage ? _self.tokenUsage : tokenUsage // ignore: cast_nullable_to_non_nullable
@@ -169,10 +170,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String objective,  bool enabled, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String objective,  bool enabled,  bool autoContinue, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ConversationGoal() when $default != null:
-return $default(_that.id,_that.objective,_that.enabled,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
+return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
   return orElse();
 
 }
@@ -190,10 +191,10 @@ return $default(_that.id,_that.objective,_that.enabled,_that.status,_that.tokenB
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String objective,  bool enabled, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String objective,  bool enabled,  bool autoContinue, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)  $default,) {final _that = this;
 switch (_that) {
 case _ConversationGoal():
-return $default(_that.id,_that.objective,_that.enabled,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
+return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -210,10 +211,10 @@ return $default(_that.id,_that.objective,_that.enabled,_that.status,_that.tokenB
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String objective,  bool enabled, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String objective,  bool enabled,  bool autoContinue, @JsonKey(unknownEnumValue: ConversationGoalStatus.active)  ConversationGoalStatus status,  int tokenBudget,  int tokenUsage,  int turnBudget,  int turnsUsed,  String completionSummary,  String blockedReason,  String blockerSignature,  int blockerRepeatCount,  DateTime createdAt,  DateTime updatedAt,  DateTime? completedAt,  DateTime? blockedAt,  DateTime? lastBlockerSeenAt)?  $default,) {final _that = this;
 switch (_that) {
 case _ConversationGoal() when $default != null:
-return $default(_that.id,_that.objective,_that.enabled,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
+return $default(_that.id,_that.objective,_that.enabled,_that.autoContinue,_that.status,_that.tokenBudget,_that.tokenUsage,_that.turnBudget,_that.turnsUsed,_that.completionSummary,_that.blockedReason,_that.blockerSignature,_that.blockerRepeatCount,_that.createdAt,_that.updatedAt,_that.completedAt,_that.blockedAt,_that.lastBlockerSeenAt);case _:
   return null;
 
 }
@@ -225,12 +226,13 @@ return $default(_that.id,_that.objective,_that.enabled,_that.status,_that.tokenB
 @JsonSerializable()
 
 class _ConversationGoal extends ConversationGoal {
-  const _ConversationGoal({required this.id, this.objective = '', this.enabled = true, @JsonKey(unknownEnumValue: ConversationGoalStatus.active) this.status = ConversationGoalStatus.active, this.tokenBudget = 0, this.tokenUsage = 0, this.turnBudget = 0, this.turnsUsed = 0, this.completionSummary = '', this.blockedReason = '', this.blockerSignature = '', this.blockerRepeatCount = 0, required this.createdAt, required this.updatedAt, this.completedAt, this.blockedAt, this.lastBlockerSeenAt}): super._();
+  const _ConversationGoal({required this.id, this.objective = '', this.enabled = true, this.autoContinue = false, @JsonKey(unknownEnumValue: ConversationGoalStatus.active) this.status = ConversationGoalStatus.active, this.tokenBudget = 0, this.tokenUsage = 0, this.turnBudget = 0, this.turnsUsed = 0, this.completionSummary = '', this.blockedReason = '', this.blockerSignature = '', this.blockerRepeatCount = 0, required this.createdAt, required this.updatedAt, this.completedAt, this.blockedAt, this.lastBlockerSeenAt}): super._();
   factory _ConversationGoal.fromJson(Map<String, dynamic> json) => _$ConversationGoalFromJson(json);
 
 @override final  String id;
 @override@JsonKey() final  String objective;
 @override@JsonKey() final  bool enabled;
+@override@JsonKey() final  bool autoContinue;
 @override@JsonKey(unknownEnumValue: ConversationGoalStatus.active) final  ConversationGoalStatus status;
 @override@JsonKey() final  int tokenBudget;
 @override@JsonKey() final  int tokenUsage;
@@ -259,16 +261,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationGoal&&(identical(other.id, id) || other.id == id)&&(identical(other.objective, objective) || other.objective == objective)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.status, status) || other.status == status)&&(identical(other.tokenBudget, tokenBudget) || other.tokenBudget == tokenBudget)&&(identical(other.tokenUsage, tokenUsage) || other.tokenUsage == tokenUsage)&&(identical(other.turnBudget, turnBudget) || other.turnBudget == turnBudget)&&(identical(other.turnsUsed, turnsUsed) || other.turnsUsed == turnsUsed)&&(identical(other.completionSummary, completionSummary) || other.completionSummary == completionSummary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.blockerSignature, blockerSignature) || other.blockerSignature == blockerSignature)&&(identical(other.blockerRepeatCount, blockerRepeatCount) || other.blockerRepeatCount == blockerRepeatCount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt)&&(identical(other.blockedAt, blockedAt) || other.blockedAt == blockedAt)&&(identical(other.lastBlockerSeenAt, lastBlockerSeenAt) || other.lastBlockerSeenAt == lastBlockerSeenAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationGoal&&(identical(other.id, id) || other.id == id)&&(identical(other.objective, objective) || other.objective == objective)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.autoContinue, autoContinue) || other.autoContinue == autoContinue)&&(identical(other.status, status) || other.status == status)&&(identical(other.tokenBudget, tokenBudget) || other.tokenBudget == tokenBudget)&&(identical(other.tokenUsage, tokenUsage) || other.tokenUsage == tokenUsage)&&(identical(other.turnBudget, turnBudget) || other.turnBudget == turnBudget)&&(identical(other.turnsUsed, turnsUsed) || other.turnsUsed == turnsUsed)&&(identical(other.completionSummary, completionSummary) || other.completionSummary == completionSummary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.blockerSignature, blockerSignature) || other.blockerSignature == blockerSignature)&&(identical(other.blockerRepeatCount, blockerRepeatCount) || other.blockerRepeatCount == blockerRepeatCount)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt)&&(identical(other.blockedAt, blockedAt) || other.blockedAt == blockedAt)&&(identical(other.lastBlockerSeenAt, lastBlockerSeenAt) || other.lastBlockerSeenAt == lastBlockerSeenAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,objective,enabled,status,tokenBudget,tokenUsage,turnBudget,turnsUsed,completionSummary,blockedReason,blockerSignature,blockerRepeatCount,createdAt,updatedAt,completedAt,blockedAt,lastBlockerSeenAt);
+int get hashCode => Object.hash(runtimeType,id,objective,enabled,autoContinue,status,tokenBudget,tokenUsage,turnBudget,turnsUsed,completionSummary,blockedReason,blockerSignature,blockerRepeatCount,createdAt,updatedAt,completedAt,blockedAt,lastBlockerSeenAt);
 
 @override
 String toString() {
-  return 'ConversationGoal(id: $id, objective: $objective, enabled: $enabled, status: $status, tokenBudget: $tokenBudget, tokenUsage: $tokenUsage, turnBudget: $turnBudget, turnsUsed: $turnsUsed, completionSummary: $completionSummary, blockedReason: $blockedReason, blockerSignature: $blockerSignature, blockerRepeatCount: $blockerRepeatCount, createdAt: $createdAt, updatedAt: $updatedAt, completedAt: $completedAt, blockedAt: $blockedAt, lastBlockerSeenAt: $lastBlockerSeenAt)';
+  return 'ConversationGoal(id: $id, objective: $objective, enabled: $enabled, autoContinue: $autoContinue, status: $status, tokenBudget: $tokenBudget, tokenUsage: $tokenUsage, turnBudget: $turnBudget, turnsUsed: $turnsUsed, completionSummary: $completionSummary, blockedReason: $blockedReason, blockerSignature: $blockerSignature, blockerRepeatCount: $blockerRepeatCount, createdAt: $createdAt, updatedAt: $updatedAt, completedAt: $completedAt, blockedAt: $blockedAt, lastBlockerSeenAt: $lastBlockerSeenAt)';
 }
 
 
@@ -279,7 +281,7 @@ abstract mixin class _$ConversationGoalCopyWith<$Res> implements $ConversationGo
   factory _$ConversationGoalCopyWith(_ConversationGoal value, $Res Function(_ConversationGoal) _then) = __$ConversationGoalCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String objective, bool enabled,@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus status, int tokenBudget, int tokenUsage, int turnBudget, int turnsUsed, String completionSummary, String blockedReason, String blockerSignature, int blockerRepeatCount, DateTime createdAt, DateTime updatedAt, DateTime? completedAt, DateTime? blockedAt, DateTime? lastBlockerSeenAt
+ String id, String objective, bool enabled, bool autoContinue,@JsonKey(unknownEnumValue: ConversationGoalStatus.active) ConversationGoalStatus status, int tokenBudget, int tokenUsage, int turnBudget, int turnsUsed, String completionSummary, String blockedReason, String blockerSignature, int blockerRepeatCount, DateTime createdAt, DateTime updatedAt, DateTime? completedAt, DateTime? blockedAt, DateTime? lastBlockerSeenAt
 });
 
 
@@ -296,11 +298,12 @@ class __$ConversationGoalCopyWithImpl<$Res>
 
 /// Create a copy of ConversationGoal
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? objective = null,Object? enabled = null,Object? status = null,Object? tokenBudget = null,Object? tokenUsage = null,Object? turnBudget = null,Object? turnsUsed = null,Object? completionSummary = null,Object? blockedReason = null,Object? blockerSignature = null,Object? blockerRepeatCount = null,Object? createdAt = null,Object? updatedAt = null,Object? completedAt = freezed,Object? blockedAt = freezed,Object? lastBlockerSeenAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? objective = null,Object? enabled = null,Object? autoContinue = null,Object? status = null,Object? tokenBudget = null,Object? tokenUsage = null,Object? turnBudget = null,Object? turnsUsed = null,Object? completionSummary = null,Object? blockedReason = null,Object? blockerSignature = null,Object? blockerRepeatCount = null,Object? createdAt = null,Object? updatedAt = null,Object? completedAt = freezed,Object? blockedAt = freezed,Object? lastBlockerSeenAt = freezed,}) {
   return _then(_ConversationGoal(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,objective: null == objective ? _self.objective : objective // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,autoContinue: null == autoContinue ? _self.autoContinue : autoContinue // ignore: cast_nullable_to_non_nullable
 as bool,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as ConversationGoalStatus,tokenBudget: null == tokenBudget ? _self.tokenBudget : tokenBudget // ignore: cast_nullable_to_non_nullable
 as int,tokenUsage: null == tokenUsage ? _self.tokenUsage : tokenUsage // ignore: cast_nullable_to_non_nullable

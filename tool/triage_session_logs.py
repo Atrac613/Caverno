@@ -193,6 +193,7 @@ def analyze(path: str) -> dict | None:
     no_answer = 0
     exit_reasons: Counter = Counter()
     transforms: Counter = Counter()
+    goal_auto_continue: Counter = Counter()
     for entry in entries:
         # LL31 turn-exit markers are separate, response-less entries.
         if entry.get("operation") == "turn_exit":
@@ -206,6 +207,12 @@ def analyze(path: str) -> dict | None:
             # inferred from leaked notice prose.
             for t in turn_exit.get("transforms") or []:
                 transforms[t] += 1
+            continue
+        if entry.get("operation") == "goal_auto_continue":
+            marker = entry.get("goalAutoContinue", {})
+            decision = marker.get("decision") or "unknown"
+            reason = marker.get("reason") or "unknown"
+            goal_auto_continue[f"{decision}: {reason}"] += 1
             continue
         response = entry.get("response", {})
         title = title or entry.get("context", {}).get("sessionTitle", "")
@@ -263,6 +270,7 @@ def analyze(path: str) -> dict | None:
         "no_answer": no_answer,
         "exit_reasons": dict(exit_reasons),
         "transforms": dict(transforms),
+        "goal_auto_continue": dict(goal_auto_continue),
         "mtime": os.path.getmtime(path),
         "score": round(score, 2),
         "commit": commit,
@@ -308,9 +316,11 @@ def main() -> int:
     # max_iterations, an empty answer, or normal text_response.
     exit_totals: Counter = Counter()
     transform_totals: Counter = Counter()
+    goal_auto_continue_totals: Counter = Counter()
     for r in rows:
         exit_totals.update(r.get("exit_reasons") or {})
         transform_totals.update(r.get("transforms") or {})
+        goal_auto_continue_totals.update(r.get("goal_auto_continue") or {})
 
     # Worst byte-identical repeat-read offenders (reread_max), across all
     # scanned sessions — spotlights thrash that ranking-by-total can bury.
@@ -366,6 +376,11 @@ def main() -> int:
     if transform_totals:
         print("\n== Post-LLM transforms applied to on-screen messages ==")
         for name, count in transform_totals.most_common():
+            print(f"  {count:>5}  {name}")
+
+    if goal_auto_continue_totals:
+        print("\n== Goal auto-continuation decisions ==")
+        for name, count in goal_auto_continue_totals.most_common():
             print(f"  {count:>5}  {name}")
     return 0
 

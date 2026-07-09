@@ -7,6 +7,7 @@ import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dar
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/feedback_submission_service.dart';
@@ -114,8 +115,13 @@ class _SlashConversationsNotifier extends ConversationsNotifier {
 
   final ConversationsState initialState;
   int createCount = 0;
+  int ensureConversationCount = 0;
   int clearPersistCount = 0;
   int enterPlanCount = 0;
+  int saveGoalCount = 0;
+  int setGoalEnabledCount = 0;
+  int markGoalStatusCount = 0;
+  int clearGoalCount = 0;
 
   @override
   ConversationsState build() => initialState;
@@ -145,6 +151,80 @@ class _SlashConversationsNotifier extends ConversationsNotifier {
       activeProjectId: projectId,
       clearActiveProject: projectId == null,
     );
+  }
+
+  @override
+  Conversation? ensureCurrentConversation({
+    WorkspaceMode? workspaceMode,
+    String? projectId,
+  }) {
+    final resolvedWorkspace = workspaceMode ?? state.activeWorkspaceMode;
+    if (!resolvedWorkspace.usesConversations) {
+      return null;
+    }
+    final resolvedProjectId = resolvedWorkspace.usesProjects
+        ? (projectId ?? state.activeProjectId)?.trim()
+        : null;
+    if (resolvedWorkspace.usesProjects &&
+        (resolvedProjectId == null || resolvedProjectId.isEmpty)) {
+      return null;
+    }
+
+    final current = state.currentConversation;
+    if (current != null &&
+        current.workspaceMode == resolvedWorkspace &&
+        (!resolvedWorkspace.usesProjects ||
+            current.normalizedProjectId == resolvedProjectId)) {
+      return current;
+    }
+
+    Conversation? reusableConversation;
+    for (final conversation in state.conversations) {
+      if (conversation.workspaceMode != resolvedWorkspace) {
+        continue;
+      }
+      if (resolvedWorkspace.usesProjects &&
+          conversation.normalizedProjectId != resolvedProjectId) {
+        continue;
+      }
+      if (conversation.title != defaultConversationTitle ||
+          conversation.messages.isNotEmpty ||
+          conversation.hasGoal) {
+        continue;
+      }
+      reusableConversation = conversation;
+      break;
+    }
+    if (reusableConversation != null) {
+      state = state.copyWith(
+        currentConversationId: reusableConversation.id,
+        activeWorkspaceMode: resolvedWorkspace,
+        activeProjectId: resolvedProjectId,
+        clearActiveProject:
+            !resolvedWorkspace.usesProjects || resolvedProjectId == null,
+      );
+      return reusableConversation;
+    }
+
+    ensureConversationCount += 1;
+    final conversation = Conversation(
+      id: 'ensured-$ensureConversationCount',
+      title: defaultConversationTitle,
+      messages: const <Message>[],
+      createdAt: DateTime(2026, 5, 31, 11, ensureConversationCount),
+      updatedAt: DateTime(2026, 5, 31, 11, ensureConversationCount),
+      workspaceMode: resolvedWorkspace,
+      projectId: resolvedProjectId ?? '',
+    );
+    state = state.copyWith(
+      conversations: [conversation, ...state.conversations],
+      currentConversationId: conversation.id,
+      activeWorkspaceMode: resolvedWorkspace,
+      activeProjectId: resolvedProjectId,
+      clearActiveProject:
+          !resolvedWorkspace.usesProjects || resolvedProjectId == null,
+    );
+    return conversation;
   }
 
   @override
@@ -182,7 +262,129 @@ class _SlashConversationsNotifier extends ConversationsNotifier {
   }
 
   @override
+  Future<void> saveCurrentGoal({
+    required String objective,
+    required bool enabled,
+    required ConversationGoalStatus status,
+    bool? autoContinue,
+    int tokenBudget = 0,
+    int turnBudget = 0,
+    String? blockedReason,
+    String? completionSummary,
+  }) async {
+    saveGoalCount += 1;
+    final current = state.currentConversation;
+    final normalizedObjective = objective.trim();
+    if (current == null) return;
+    if (normalizedObjective.isEmpty) {
+      await clearCurrentGoal();
+      return;
+    }
+    await Future<void>.delayed(Duration.zero);
+
+    final previous = current.goal;
+    final objectiveChanged =
+        previous?.normalizedObjective != normalizedObjective;
+    final resetProgress = previous == null || objectiveChanged;
+    final now = DateTime(2026, 5, 31, 12, saveGoalCount);
+    final goal = ConversationGoal(
+      id: previous?.id ?? 'goal-$saveGoalCount',
+      objective: normalizedObjective,
+      enabled: enabled,
+      autoContinue: autoContinue ?? previous?.autoContinue ?? false,
+      status: status,
+      tokenBudget: tokenBudget < 0 ? 0 : tokenBudget,
+      tokenUsage: resetProgress ? 0 : previous.tokenUsage,
+      turnBudget: turnBudget < 0 ? 0 : turnBudget,
+      turnsUsed: resetProgress ? 0 : previous.turnsUsed,
+      completionSummary: status == ConversationGoalStatus.completed
+          ? completionSummary?.trim() ??
+                previous?.normalizedCompletionSummary ??
+                ''
+          : '',
+      blockedReason: status == ConversationGoalStatus.blocked
+          ? blockedReason?.trim() ?? previous?.normalizedBlockedReason ?? ''
+          : '',
+      blockerSignature: resetProgress ? '' : previous.blockerSignature,
+      blockerRepeatCount: resetProgress ? 0 : previous.blockerRepeatCount,
+      createdAt: previous?.createdAt ?? now,
+      updatedAt: now,
+      completedAt: status == ConversationGoalStatus.completed ? now : null,
+      blockedAt: status == ConversationGoalStatus.blocked ? now : null,
+      lastBlockerSeenAt: resetProgress ? null : previous.lastBlockerSeenAt,
+    );
+    _replaceCurrentConversation(current.copyWith(goal: goal, updatedAt: now));
+  }
+
+  @override
+  Future<void> setCurrentGoalEnabled(bool enabled) async {
+    setGoalEnabledCount += 1;
+    final current = state.currentConversation;
+    final goal = current?.goal;
+    if (current == null || goal == null) return;
+    final now = DateTime(2026, 5, 31, 13, setGoalEnabledCount);
+    _replaceCurrentConversation(
+      current.copyWith(
+        goal: goal.copyWith(enabled: enabled, updatedAt: now),
+      ),
+    );
+  }
+
+  @override
+  Future<void> markCurrentGoalStatus({
+    required ConversationGoalStatus status,
+    String? blockedReason,
+    String? completionSummary,
+  }) async {
+    markGoalStatusCount += 1;
+    final current = state.currentConversation;
+    final goal = current?.goal;
+    if (current == null || goal == null || !goal.hasObjective) return;
+    final now = DateTime(2026, 5, 31, 14, markGoalStatusCount);
+    _replaceCurrentConversation(
+      current.copyWith(
+        goal: goal.copyWith(
+          enabled: true,
+          status: status,
+          blockedReason: status == ConversationGoalStatus.blocked
+              ? blockedReason?.trim() ?? goal.normalizedBlockedReason ?? ''
+              : '',
+          completionSummary: status == ConversationGoalStatus.completed
+              ? completionSummary?.trim() ??
+                    goal.normalizedCompletionSummary ??
+                    ''
+              : '',
+          completedAt: status == ConversationGoalStatus.completed ? now : null,
+          blockedAt: status == ConversationGoalStatus.blocked ? now : null,
+          updatedAt: now,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> clearCurrentGoal() async {
+    clearGoalCount += 1;
+    final current = state.currentConversation;
+    if (current == null) return;
+    _replaceCurrentConversation(
+      current.copyWith(goal: null, updatedAt: DateTime(2026, 5, 31, 15)),
+    );
+  }
+
+  @override
   Future<void> ensureCurrentPlanArtifactBackfilled() async {}
+
+  void _replaceCurrentConversation(Conversation updated) {
+    state = state.copyWith(
+      conversations: state.conversations
+          .map(
+            (conversation) =>
+                conversation.id == updated.id ? updated : conversation,
+          )
+          .toList(growable: false),
+    );
+  }
 }
 
 class _SlashCodingProjectsNotifier extends CodingProjectsNotifier {
@@ -338,13 +540,7 @@ void main() {
 
   testWidgets('/plan enters planning for a coding thread', (tester) async {
     debugRemoteCodingMobilePlatformOverride = () => false;
-    final project = CodingProject(
-      id: 'project-1',
-      name: 'Project',
-      rootPath: '/tmp/project',
-      createdAt: DateTime(2026, 5, 31, 10),
-      updatedAt: DateTime(2026, 5, 31, 10),
-    );
+    final project = _codingProject(rootPath: '/tmp/project');
     final conversation = _chatConversation(
       workspaceMode: WorkspaceMode.coding,
       projectId: project.id,
@@ -375,6 +571,598 @@ void main() {
           .currentConversation
           ?.isPlanningSession,
       isTrue,
+    );
+  });
+
+  testWidgets('/goal creates a coding thread and starts a new session', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject();
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: const <Conversation>[],
+        currentConversationId: null,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+    );
+
+    expect(
+      container.read(conversationsNotifierProvider).currentConversation,
+      isNull,
+    );
+
+    await _submitComposerText(tester, '/goal Build the MVP from todo_app.md');
+
+    final state = container.read(conversationsNotifierProvider);
+    final conversation = state.currentConversation;
+    expect(conversationsNotifier.ensureConversationCount, 1);
+    expect(conversationsNotifier.saveGoalCount, 1);
+    expect(conversation, isNotNull);
+    expect(conversation?.workspaceMode, WorkspaceMode.coding);
+    expect(conversation?.projectId, project.id);
+    expect(conversation?.goal?.objective, 'Build the MVP from todo_app.md');
+    expect(conversation?.goal?.enabled, isTrue);
+    expect(conversation?.goal?.status, ConversationGoalStatus.active);
+    expect(chatNotifier.sentMessages, ['Build the MVP from todo_app.md']);
+    expect(
+      find.text('Goal set: Build the MVP from todo_app.md'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('/goal sets an active goal and preserves configured budgets', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject();
+    final existingGoal = ConversationGoal(
+      id: 'goal-1',
+      objective: 'Keep the previous goal',
+      enabled: false,
+      status: ConversationGoalStatus.blocked,
+      tokenBudget: 5000,
+      tokenUsage: 1200,
+      turnBudget: 4,
+      turnsUsed: 2,
+      createdAt: DateTime(2026, 5, 31, 9),
+      updatedAt: DateTime(2026, 5, 31, 9),
+    );
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      goal: existingGoal,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+    );
+
+    await _submitComposerText(
+      tester,
+      '/goal Ship the parser fix with tests green',
+    );
+
+    final goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(conversationsNotifier.saveGoalCount, 1);
+    expect(goal?.objective, 'Ship the parser fix with tests green');
+    expect(goal?.enabled, isTrue);
+    expect(goal?.status, ConversationGoalStatus.active);
+    expect(goal?.tokenBudget, 5000);
+    expect(goal?.turnBudget, 4);
+    expect(goal?.tokenUsage, 0);
+    expect(goal?.turnsUsed, 0);
+    expect(chatNotifier.sentMessages, isEmpty);
+    expect(
+      find.text('Goal set: Ship the parser fix with tests green'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('/goal reports the current coding goal status and usage', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject();
+    final existingGoal = ConversationGoal(
+      id: 'goal-1',
+      objective: 'Ship the parser fix with tests green',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 1000,
+      tokenUsage: 120,
+      turnBudget: 5,
+      turnsUsed: 2,
+      createdAt: DateTime(2026, 5, 31, 9),
+      updatedAt: DateTime(2026, 5, 31, 9),
+    );
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      goal: existingGoal,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+    );
+
+    await _submitComposerText(tester, '/goal');
+
+    expect(
+      find.textContaining('Goal: Ship the parser fix with tests green'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Active'), findsWidgets);
+    expect(find.textContaining('120/1K tokens'), findsWidgets);
+    expect(find.textContaining('2/5 turns'), findsWidgets);
+    expect(find.textContaining('Auto off'), findsWidgets);
+  });
+
+  testWidgets('/goal auto on and off update the active goal flag', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject();
+    final existingGoal = ConversationGoal(
+      id: 'goal-1',
+      objective: 'Ship the parser fix',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 1000,
+      tokenUsage: 120,
+      turnBudget: 5,
+      turnsUsed: 2,
+      createdAt: DateTime(2026, 5, 31, 9),
+      updatedAt: DateTime(2026, 5, 31, 9),
+    );
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      goal: existingGoal,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+    );
+
+    await _submitComposerText(tester, '/goal auto on');
+
+    var goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(goal?.autoContinue, isTrue);
+    expect(goal?.tokenUsage, 120);
+    expect(goal?.turnsUsed, 2);
+    expect(find.text('Goal auto-continue enabled.'), findsOneWidget);
+
+    await _submitComposerText(tester, '/goal');
+    expect(find.textContaining('Auto on'), findsWidgets);
+
+    await _submitComposerText(tester, '/goal auto off');
+
+    goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(goal?.autoContinue, isFalse);
+    expect(conversationsNotifier.saveGoalCount, 2);
+    expect(find.text('Goal auto-continue disabled.'), findsOneWidget);
+  });
+
+  testWidgets('/goal auto handles usage, whitespace, and objectives safely', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject();
+    final existingGoal = ConversationGoal(
+      id: 'goal-1',
+      objective: 'Ship the parser fix',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 1000,
+      tokenUsage: 120,
+      turnBudget: 5,
+      turnsUsed: 2,
+      createdAt: DateTime(2026, 5, 31, 9),
+      updatedAt: DateTime(2026, 5, 31, 9),
+    );
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      goal: existingGoal,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+    );
+
+    await _submitComposerText(tester, '/goal auto');
+
+    var goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(conversationsNotifier.saveGoalCount, 0);
+    expect(goal?.objective, 'Ship the parser fix');
+    expect(find.text('Use /goal auto on or /goal auto off.'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/goal auto',
+    );
+
+    await _submitComposerText(tester, '/goal auto  on');
+
+    goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(conversationsNotifier.saveGoalCount, 1);
+    expect(goal?.objective, 'Ship the parser fix');
+    expect(goal?.autoContinue, isTrue);
+    expect(find.text('Goal auto-continue enabled.'), findsOneWidget);
+
+    await _submitComposerText(tester, '/goal Auto ON');
+
+    goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(conversationsNotifier.saveGoalCount, 2);
+    expect(goal?.objective, 'Ship the parser fix');
+    expect(goal?.autoContinue, isTrue);
+    expect(find.text('Goal auto-continue enabled.'), findsOneWidget);
+
+    await _submitComposerText(tester, '/goal auto onn');
+
+    goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(conversationsNotifier.saveGoalCount, 2);
+    expect(goal?.objective, 'Ship the parser fix');
+    expect(find.text('Use /goal auto on or /goal auto off.'), findsWidgets);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/goal auto onn',
+    );
+
+    await _submitComposerText(tester, '/goal auto scroll fix in the list view');
+
+    goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(conversationsNotifier.saveGoalCount, 3);
+    expect(goal?.objective, 'auto scroll fix in the list view');
+    expect(goal?.status, ConversationGoalStatus.active);
+    expect(chatNotifier.sentMessages, isEmpty);
+  });
+
+  testWidgets(
+    '/goal pause and resume preserve progress and reactivate status',
+    (tester) async {
+      debugRemoteCodingMobilePlatformOverride = () => false;
+      final project = _codingProject();
+      final existingGoal = ConversationGoal(
+        id: 'goal-1',
+        objective: 'Ship the parser fix',
+        enabled: true,
+        status: ConversationGoalStatus.completed,
+        tokenBudget: 1000,
+        tokenUsage: 120,
+        turnBudget: 5,
+        turnsUsed: 2,
+        createdAt: DateTime(2026, 5, 31, 9),
+        updatedAt: DateTime(2026, 5, 31, 9),
+      );
+      final conversation = _chatConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+        goal: existingGoal,
+        messages: const <Message>[],
+      );
+      final conversationsNotifier = _SlashConversationsNotifier(
+        initialState: ConversationsState(
+          conversations: [conversation],
+          currentConversationId: conversation.id,
+          activeWorkspaceMode: WorkspaceMode.coding,
+          activeProjectId: project.id,
+        ),
+      );
+      final chatNotifier = _SlashChatNotifier();
+      final container = await _pumpSlashChatPage(
+        tester,
+        conversationsNotifier: conversationsNotifier,
+        chatNotifier: chatNotifier,
+        codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+      );
+
+      await _submitComposerText(tester, '/goal pause');
+
+      var goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal;
+      expect(goal?.enabled, isFalse);
+      expect(goal?.status, ConversationGoalStatus.completed);
+      expect(goal?.tokenUsage, 120);
+      expect(goal?.turnsUsed, 2);
+      expect(find.text('Goal paused.'), findsOneWidget);
+
+      await _submitComposerText(tester, '/goal resume');
+
+      goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal;
+      expect(conversationsNotifier.setGoalEnabledCount, 2);
+      expect(conversationsNotifier.markGoalStatusCount, 1);
+      expect(goal?.enabled, isTrue);
+      expect(goal?.status, ConversationGoalStatus.active);
+      expect(goal?.tokenUsage, 120);
+      expect(goal?.turnsUsed, 2);
+      expect(find.text('Goal resumed.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '/goal clear removes the goal and no-goal subcommands keep input',
+    (tester) async {
+      debugRemoteCodingMobilePlatformOverride = () => false;
+      final project = _codingProject();
+      final existingGoal = ConversationGoal(
+        id: 'goal-1',
+        objective: 'Ship the parser fix',
+        enabled: true,
+        status: ConversationGoalStatus.active,
+        createdAt: DateTime(2026, 5, 31, 9),
+        updatedAt: DateTime(2026, 5, 31, 9),
+      );
+      final conversation = _chatConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+        goal: existingGoal,
+        messages: const <Message>[],
+      );
+      final conversationsNotifier = _SlashConversationsNotifier(
+        initialState: ConversationsState(
+          conversations: [conversation],
+          currentConversationId: conversation.id,
+          activeWorkspaceMode: WorkspaceMode.coding,
+          activeProjectId: project.id,
+        ),
+      );
+      final chatNotifier = _SlashChatNotifier();
+      final container = await _pumpSlashChatPage(
+        tester,
+        conversationsNotifier: conversationsNotifier,
+        chatNotifier: chatNotifier,
+        codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+      );
+
+      await _submitComposerText(tester, '/goal clear');
+
+      expect(conversationsNotifier.clearGoalCount, 1);
+      expect(
+        container.read(conversationsNotifierProvider).currentConversation?.goal,
+        isNull,
+      );
+      expect(find.text('Goal cleared.'), findsOneWidget);
+
+      await _submitComposerText(tester, '/goal clear');
+
+      expect(conversationsNotifier.clearGoalCount, 1);
+      expect(find.text('Set a goal before managing it.'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller?.text,
+        '/goal clear',
+      );
+    },
+  );
+
+  testWidgets(
+    '/goal subcommands require exact case-insensitive keyword matches',
+    (tester) async {
+      debugRemoteCodingMobilePlatformOverride = () => false;
+      final project = _codingProject();
+      final conversation = _chatConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+        messages: const <Message>[],
+      );
+      final conversationsNotifier = _SlashConversationsNotifier(
+        initialState: ConversationsState(
+          conversations: [conversation],
+          currentConversationId: conversation.id,
+          activeWorkspaceMode: WorkspaceMode.coding,
+          activeProjectId: project.id,
+        ),
+      );
+      final chatNotifier = _SlashChatNotifier();
+      final container = await _pumpSlashChatPage(
+        tester,
+        conversationsNotifier: conversationsNotifier,
+        chatNotifier: chatNotifier,
+        codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+      );
+
+      await _submitComposerText(tester, '/goal PAUSE');
+
+      expect(conversationsNotifier.saveGoalCount, 0);
+      expect(find.text('Set a goal before managing it.'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller?.text,
+        '/goal PAUSE',
+      );
+
+      await _submitComposerText(tester, '/goal pause the deployment');
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal;
+      expect(conversationsNotifier.saveGoalCount, 1);
+      expect(goal?.objective, 'pause the deployment');
+      expect(goal?.status, ConversationGoalStatus.active);
+    },
+  );
+
+  testWidgets('/goal opens the goal editor when no goal exists', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject();
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+    );
+
+    await _submitComposerText(tester, '/goal');
+
+    expect(find.text('Edit goal'), findsOneWidget);
+  });
+
+  testWidgets('/goal is blocked outside coding threads', (tester) async {
+    final conversation = _chatConversation(messages: const <Message>[]);
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.chat,
+        activeProjectId: null,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier();
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+    );
+
+    await _submitComposerText(tester, '/goal Ship the parser fix');
+
+    expect(conversationsNotifier.saveGoalCount, 0);
+    expect(
+      container.read(conversationsNotifierProvider).currentConversation?.goal,
+      isNull,
+    );
+    expect(find.text('Goals are available in coding threads.'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/goal Ship the parser fix',
+    );
+  });
+
+  testWidgets('/goal is blocked while a response is active', (tester) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject();
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final chatNotifier = _SlashChatNotifier(initialLoading: true);
+    await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: chatNotifier,
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+    );
+
+    await _submitComposerText(tester, '/goal Ship the parser fix');
+
+    expect(conversationsNotifier.saveGoalCount, 0);
+    expect(
+      find.text('Wait for the current response to finish, or use /cancel.'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '/goal Ship the parser fix',
     );
   });
 
@@ -972,6 +1760,7 @@ Command: {command}
 Conversation _chatConversation({
   WorkspaceMode workspaceMode = WorkspaceMode.chat,
   String? projectId,
+  ConversationGoal? goal,
   required List<Message> messages,
 }) {
   return Conversation(
@@ -982,6 +1771,19 @@ Conversation _chatConversation({
     updatedAt: DateTime(2026, 5, 31, 10),
     workspaceMode: workspaceMode,
     projectId: projectId ?? '',
+    goal: goal,
+  );
+}
+
+CodingProject _codingProject({
+  String rootPath = '/Users/test/Workspace/caverno',
+}) {
+  return CodingProject(
+    id: 'project-1',
+    name: 'Project',
+    rootPath: rootPath,
+    createdAt: DateTime(2026, 5, 31, 10),
+    updatedAt: DateTime(2026, 5, 31, 10),
   );
 }
 

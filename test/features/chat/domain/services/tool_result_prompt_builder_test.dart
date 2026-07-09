@@ -121,53 +121,227 @@ void main() {
       },
     );
 
+    test('blocks completion claims when analyzer errors remain unresolved', () {
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'dart_analyze_feedback',
+          arguments: const {
+            'project_root': '/tmp',
+            'changed_paths': ['prime_numbers.dart'],
+          },
+          result: jsonEncode({
+            'schema': 'caverno_dart_analyze_feedback',
+            'current_diagnostic_count': 3,
+            'diagnostics': [
+              {
+                'relative_path': 'prime_numbers.dart',
+                'severity': 'Error',
+                'code': 'UNDEFINED_METHOD',
+                'message':
+                    "The method 'sqrt' isn't defined for the type "
+                    "'double'.",
+              },
+              {
+                'relative_path': 'prime_numbers.dart',
+                'severity': 'Error',
+                'code': 'NOT_ENOUGH_POSITIONAL_ARGUMENTS',
+                'message':
+                    "1 positional argument expected by 'print', but 0 found.",
+              },
+              {
+                'relative_path': 'prime_numbers.dart',
+                'severity': 'Warning',
+                'code': 'UNUSED_IMPORT',
+                'message': "Unused import: 'dart:math'.",
+              },
+            ],
+          }),
+        ),
+      ]);
+
+      expect(prompt, contains('TASK NOT COMPLETE:'));
+      expect(prompt, contains('2 unresolved Error-severity diagnostic(s)'));
+      expect(prompt, contains('prime_numbers.dart'));
+      expect(prompt, contains('does not pass analysis'));
+    });
+
+    test('surfaces completion evidence for goal auto-continuation', () {
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'edit_file',
+          arguments: const {},
+          result: jsonEncode({
+            'code': 'tool_call_not_executed',
+            'reason': 'bounded_tool_loop_exhausted',
+            'tool_name': 'edit_file',
+          }),
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'dart_analyze_feedback',
+          arguments: const {},
+          result: jsonEncode({
+            'diagnostics': [
+              {
+                'relative_path': 'lib/main.dart',
+                'path': '/tmp/app/lib/main.dart',
+                'severity': 'Error',
+                'code': 'UNDEFINED_IDENTIFIER',
+                'message': 'Undefined name.',
+              },
+              {
+                'relative_path': 'lib/main.dart',
+                'path': '/tmp/app/lib/main.dart',
+                'severity': 'Warning',
+                'code': 'UNUSED_IMPORT',
+                'message': 'Unused import.',
+              },
+            ],
+          }),
+        ),
+      ]);
+
+      expect(evidence.hasIncompleteEvidence, isTrue);
+      expect(evidence.hasBlockingEvidence, isTrue);
+      expect(evidence.boundedToolLoopExhausted, isTrue);
+      expect(evidence.unexecutedToolNames, ['edit_file']);
+      expect(evidence.unresolvedErrorCount, 1);
+      expect(evidence.unresolvedErrorPaths, ['lib/main.dart']);
+      expect(evidence.summary, contains('1 unresolved Error diagnostic'));
+    });
+
+    test('surfaces unverified file changes as incomplete evidence', () {
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: const {},
+          result: jsonEncode({
+            'path': '/tmp/app/bin/todo_cli.dart',
+            'bytes_written': 120,
+            'created': true,
+          }),
+        ),
+      ]);
+
+      expect(evidence.hasIncompleteEvidence, isTrue);
+      expect(evidence.hasBlockingEvidence, isFalse);
+      expect(evidence.unverifiedChangePaths, ['/tmp/app/bin/todo_cli.dart']);
+      expect(evidence.summary, contains('unverified file change'));
+    });
+
     test(
-      'blocks completion claims when analyzer errors remain unresolved',
+      'classifies goal evidence progress without path churn false positives',
       () {
-        final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+        expect(
+          const ToolResultCompletionEvidence(
+            unresolvedErrorCount: 1,
+            unresolvedErrorPaths: ['bin/todo_cli.dart'],
+          ).compareProgress(
+            const ToolResultCompletionEvidence(
+              unresolvedErrorCount: 2,
+              unresolvedErrorPaths: ['bin/todo_cli.dart'],
+            ),
+          ),
+          GoalEvidenceProgress.improved,
+        );
+        expect(
+          const ToolResultCompletionEvidence(
+            unresolvedErrorCount: 3,
+            unresolvedErrorPaths: ['bin/todo_cli.dart', 'lib/main.dart'],
+          ).compareProgress(
+            const ToolResultCompletionEvidence(
+              unresolvedErrorCount: 2,
+              unresolvedErrorPaths: ['bin/todo_cli.dart'],
+            ),
+          ),
+          GoalEvidenceProgress.noProgress,
+        );
+        expect(
+          const ToolResultCompletionEvidence(
+            unresolvedErrorCount: 2,
+            unresolvedErrorPaths: ['lib/main.dart'],
+          ).compareProgress(
+            const ToolResultCompletionEvidence(
+              unresolvedErrorCount: 2,
+              unresolvedErrorPaths: ['bin/todo_cli.dart'],
+            ),
+          ),
+          GoalEvidenceProgress.noProgress,
+        );
+        expect(
+          const ToolResultCompletionEvidence(
+            unverifiedChangePaths: ['README.md'],
+          ).compareProgress(
+            const ToolResultCompletionEvidence(
+              unverifiedChangePaths: ['docs/README.md'],
+            ),
+          ),
+          GoalEvidenceProgress.improved,
+        );
+        expect(
+          const ToolResultCompletionEvidence(
+            unverifiedChangePaths: ['README.md'],
+          ).compareProgress(
+            const ToolResultCompletionEvidence(
+              boundedToolLoopExhausted: true,
+              unexecutedToolNames: ['read_file'],
+            ),
+          ),
+          GoalEvidenceProgress.noProgress,
+        );
+        expect(
+          const ToolResultCompletionEvidence(
+            boundedToolLoopExhausted: true,
+            unexecutedToolNames: ['read_file'],
+          ).compareProgress(
+            const ToolResultCompletionEvidence(
+              unverifiedChangePaths: ['README.md'],
+            ),
+          ),
+          GoalEvidenceProgress.noProgress,
+        );
+        expect(
+          const ToolResultCompletionEvidence(
+            boundedToolLoopExhausted: true,
+            unexecutedToolNames: ['read_file'],
+          ).compareProgress(
+            const ToolResultCompletionEvidence(
+              boundedToolLoopExhausted: true,
+              unexecutedToolNames: ['read_file'],
+            ),
+          ),
+          GoalEvidenceProgress.noProgress,
+        );
+      },
+    );
+
+    test(
+      'does not surface unverified file changes after a verification run',
+      () {
+        final evidence = ToolResultPromptBuilder.completionEvidence([
           ToolResultInfo(
             id: 'tool-1',
-            name: 'dart_analyze_feedback',
-            arguments: const {
-              'project_root': '/tmp',
-              'changed_paths': ['prime_numbers.dart'],
-            },
+            name: 'write_file',
+            arguments: const {},
             result: jsonEncode({
-              'schema': 'caverno_dart_analyze_feedback',
-              'current_diagnostic_count': 3,
-              'diagnostics': [
-                {
-                  'relative_path': 'prime_numbers.dart',
-                  'severity': 'Error',
-                  'code': 'UNDEFINED_METHOD',
-                  'message': "The method 'sqrt' isn't defined for the type "
-                      "'double'.",
-                },
-                {
-                  'relative_path': 'prime_numbers.dart',
-                  'severity': 'Error',
-                  'code': 'NOT_ENOUGH_POSITIONAL_ARGUMENTS',
-                  'message':
-                      "1 positional argument expected by 'print', but 0 found.",
-                },
-                {
-                  'relative_path': 'prime_numbers.dart',
-                  'severity': 'Warning',
-                  'code': 'UNUSED_IMPORT',
-                  'message': "Unused import: 'dart:math'.",
-                },
-              ],
+              'path': '/tmp/app/bin/todo_cli.dart',
+              'bytes_written': 120,
+              'created': true,
             }),
+          ),
+          ToolResultInfo(
+            id: 'tool-2',
+            name: 'local_execute_command',
+            arguments: const {'command': 'dart test'},
+            result: jsonEncode({'exit_code': 0, 'stdout': 'ok'}),
           ),
         ]);
 
-        expect(prompt, contains('TASK NOT COMPLETE:'));
-        expect(
-          prompt,
-          contains('2 unresolved Error-severity diagnostic(s)'),
-        );
-        expect(prompt, contains('prime_numbers.dart'));
-        expect(prompt, contains('does not pass analysis'));
+        expect(evidence.hasIncompleteEvidence, isFalse);
+        expect(evidence.unverifiedChangePaths, isEmpty);
       },
     );
 
@@ -236,7 +410,8 @@ void main() {
                   'relative_path': 'primes.dart',
                   'severity': 'Error',
                   'code': 'ARGUMENT_TYPE_NOT_ASSIGNABLE',
-                  'message': "The argument type 'String' can't be assigned to "
+                  'message':
+                      "The argument type 'String' can't be assigned to "
                       "the parameter type 'num'.",
                 },
               ],
@@ -296,10 +471,7 @@ void main() {
         ]);
 
         expect(prompt, contains('TASK NOT COMPLETE:'));
-        expect(
-          prompt,
-          contains('1 unresolved Error-severity diagnostic(s)'),
-        );
+        expect(prompt, contains('1 unresolved Error-severity diagnostic(s)'));
       },
     );
 
@@ -314,7 +486,8 @@ void main() {
           'line': 46,
           'column': 50,
           'code': 'ARGUMENT_TYPE_NOT_ASSIGNABLE',
-          'message': "The argument type 'String' can't be assigned to the "
+          'message':
+              "The argument type 'String' can't be assigned to the "
               "parameter type 'num'.",
         };
         final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
@@ -353,10 +526,7 @@ void main() {
         ]);
 
         expect(prompt, contains('TASK NOT COMPLETE:'));
-        expect(
-          prompt,
-          contains('1 unresolved Error-severity diagnostic(s)'),
-        );
+        expect(prompt, contains('1 unresolved Error-severity diagnostic(s)'));
         expect(
           prompt,
           isNot(contains('2 unresolved Error-severity diagnostic(s)')),
@@ -425,34 +595,34 @@ void main() {
       },
     );
 
-    test(
-      'does not flag unverified when the turn ran at least once',
-      () {
-        // Mirrors the 5-algorithm Dart benchmark log: the turn ran the program,
-        // then made a cosmetic edit (unused-import removal) without re-running.
-        // The prior run still represents the code, so this must not be flagged.
-        final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
-          ToolResultInfo(
-            id: 'tool-1',
-            name: 'local_execute_command',
-            arguments: const {'command': 'dart run bin/benchmark.dart'},
-            result: jsonEncode({
-              'command': 'dart run bin/benchmark.dart',
-              'exit_code': 0,
-              'stdout': '78498 primes\n',
-            }),
-          ),
-          ToolResultInfo(
-            id: 'tool-2',
-            name: 'edit_file',
-            arguments: const {'path': '/tmp/benchmark.dart'},
-            result: jsonEncode({'path': '/tmp/benchmark.dart', 'replacements': 1}),
-          ),
-        ]);
+    test('does not flag unverified when the turn ran at least once', () {
+      // Mirrors the 5-algorithm Dart benchmark log: the turn ran the program,
+      // then made a cosmetic edit (unused-import removal) without re-running.
+      // The prior run still represents the code, so this must not be flagged.
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'local_execute_command',
+          arguments: const {'command': 'dart run bin/benchmark.dart'},
+          result: jsonEncode({
+            'command': 'dart run bin/benchmark.dart',
+            'exit_code': 0,
+            'stdout': '78498 primes\n',
+          }),
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'edit_file',
+          arguments: const {'path': '/tmp/benchmark.dart'},
+          result: jsonEncode({
+            'path': '/tmp/benchmark.dart',
+            'replacements': 1,
+          }),
+        ),
+      ]);
 
-        expect(prompt, isNot(contains('UNVERIFIED CHANGE:')));
-      },
-    );
+      expect(prompt, isNot(contains('UNVERIFIED CHANGE:')));
+    });
 
     test('guards against unverified local file side-effect claims', () {
       final prompt = ToolResultPromptBuilder.buildAnswerPrompt([

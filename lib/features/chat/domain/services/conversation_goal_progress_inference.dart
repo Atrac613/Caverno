@@ -70,22 +70,44 @@ class ConversationGoalProgressInference {
     'writing': 'writing',
   };
 
-  static const _completionSignals = <String>[
+  // Goal-scoped claims may positionally override earlier incomplete narration
+  // (unlike _genericCompletionSignals, which any incomplete phrase disables).
+  // Accepted residual miss: a subset-qualified claim after a remaining-work
+  // statement — e.g. "残りはAPI側です。UI側はすべて完了しました。" — still
+  // completes the goal; substrings cannot see the 〜は topic marker scoping
+  // すべて完了 to a component. Kept deliberately: tool-backed turns are guarded
+  // by ToolResultCompletionEvidence.hasBlockingEvidence, /goal resume recovers
+  // a wrong completion, and chains are budget-bounded. Do not add more lexical
+  // rules here; if this hurts in practice, escalate to a secondary-LLM verdict
+  // instead (see FOR_ME.md, Lesson 9).
+  static const _goalScopedCompletionSignals = <String>[
     'goal is complete',
     'goal complete',
     'goal completed',
+    'task is complete',
+    'all tasks are complete',
+    'all tasks completed',
+    'all checks passed',
+    'all verification checks passed',
+    'passes all verification checks',
+    'verifier exited with code 0',
+    '\u3059\u3079\u3066\u5b8c\u4e86',
+    '\u5168\u3066\u5b8c\u4e86',
+    '\u3059\u3079\u3066\u306e\u30c1\u30a7\u30c3\u30af\u304c\u901a\u308a\u307e\u3057\u305f',
+    '\u5168\u3066\u306e\u30c1\u30a7\u30c3\u30af\u304c\u901a\u308a\u307e\u3057\u305f',
+    '\u691c\u8a3c\u304c\u3059\u3079\u3066\u901a\u308a\u307e\u3057\u305f',
+    '\u691c\u8a3c\u304c\u5168\u3066\u901a\u308a\u307e\u3057\u305f',
+  ];
+
+  static const _genericCompletionSignals = <String>[
+    'task complete',
+    'task completed',
     'work is complete',
     'work complete',
     'work completed',
     'implementation is complete',
     'implementation complete',
     'implementation completed',
-    'task is complete',
-    'task complete',
-    'task completed',
-    'all tasks are complete',
-    'all tasks completed',
-    'all checks passed',
     'tests passed',
     'validation passed',
     'validated successfully',
@@ -306,14 +328,36 @@ class ConversationGoalProgressInference {
     if (lowercaseResponse.isEmpty) {
       return false;
     }
-    if (!_containsAny(lowercaseResponse, _completionSignals)) {
+    final incompleteEnd = _lastMatchEndOfAny(
+      lowercaseResponse,
+      _unresolvedIncompleteSignals,
+    );
+    final genericCompletionIndex = _lastIndexOfAnyAfter(
+      lowercaseResponse,
+      _genericCompletionSignals,
+      start: incompleteEnd == 0 ? 0 : lowercaseResponse.length,
+    );
+    final goalScopedCompletionIndex = _lastIndexOfAnyAfter(
+      lowercaseResponse,
+      _goalScopedCompletionSignals,
+      start: incompleteEnd,
+    );
+    final completionIndex = genericCompletionIndex > goalScopedCompletionIndex
+        ? genericCompletionIndex
+        : goalScopedCompletionIndex;
+    if (completionIndex < 0) {
       return false;
     }
-    if (_containsAny(lowercaseResponse, _unresolvedIncompleteSignals)) {
-      return false;
-    }
-    if (_containsAny(lowercaseResponse, _recoverableFailureSignals) &&
-        !_containsAny(lowercaseResponse, _resolvedFailureSignals)) {
+    final resolvedFailureIndex = _lastIndexOfAny(
+      lowercaseResponse,
+      _resolvedFailureSignals,
+    );
+    final recoverableFailureIndex = _lastIndexOfAny(
+      lowercaseResponse,
+      _recoverableFailureSignals,
+    );
+    if (recoverableFailureIndex >= 0 &&
+        resolvedFailureIndex < recoverableFailureIndex) {
       return false;
     }
     return true;
@@ -358,5 +402,53 @@ class ConversationGoalProgressInference {
       }
     }
     return false;
+  }
+
+  static int _lastIndexOfAnyAfter(
+    String value,
+    Iterable<String> signals, {
+    required int start,
+  }) {
+    var latestIndex = -1;
+    for (final signal in signals) {
+      var searchStart = 0;
+      while (searchStart < value.length) {
+        final index = value.indexOf(signal, searchStart);
+        if (index < 0) {
+          break;
+        }
+        if (index >= start && index > latestIndex) {
+          latestIndex = index;
+        }
+        searchStart = index + signal.length;
+      }
+    }
+    return latestIndex;
+  }
+
+  static int _lastIndexOfAny(String value, Iterable<String> signals) {
+    var latestIndex = -1;
+    for (final signal in signals) {
+      final index = value.lastIndexOf(signal);
+      if (index > latestIndex) {
+        latestIndex = index;
+      }
+    }
+    return latestIndex;
+  }
+
+  static int _lastMatchEndOfAny(String value, Iterable<String> signals) {
+    var latestEnd = 0;
+    for (final signal in signals) {
+      final index = value.lastIndexOf(signal);
+      if (index < 0) {
+        continue;
+      }
+      final end = index + signal.length;
+      if (end > latestEnd) {
+        latestEnd = end;
+      }
+    }
+    return latestEnd;
   }
 }

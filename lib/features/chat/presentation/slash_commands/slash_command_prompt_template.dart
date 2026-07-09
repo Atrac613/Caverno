@@ -193,6 +193,7 @@ final Set<String> reservedSlashCommandNames = {
   'coding',
   'code',
   'plan',
+  'goal',
   'cancel',
   for (final template in builtInSlashCommandPromptTemplates) ...[
     template.name,

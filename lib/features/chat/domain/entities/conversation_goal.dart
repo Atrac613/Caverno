@@ -13,6 +13,7 @@ abstract class ConversationGoal with _$ConversationGoal {
     required String id,
     @Default('') String objective,
     @Default(true) bool enabled,
+    @Default(false) bool autoContinue,
     @JsonKey(unknownEnumValue: ConversationGoalStatus.active)
     @Default(ConversationGoalStatus.active)
     ConversationGoalStatus status,

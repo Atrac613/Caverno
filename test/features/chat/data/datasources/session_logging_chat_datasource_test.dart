@@ -134,10 +134,9 @@ void main() {
       // conversation message it finalized.
       expect(decoded['turnExit']['turnId'], 'gen-7');
       expect(decoded['turnExit']['assistantMessageId'], 'msg-42');
-      expect(
-        decoded['turnExit']['transforms'],
-        ['unverified_read_only_inspection_notice'],
-      );
+      expect(decoded['turnExit']['transforms'], [
+        'unverified_read_only_inspection_notice',
+      ]);
       expect(decoded['context']['workspaceMode'], 'chat');
     });
 
@@ -157,13 +156,67 @@ void main() {
         at: DateTime(2026, 6, 25, 10),
       );
 
-      final decoded = jsonDecode(
-        (await (await store.fileForContext(context)).readAsLines()).single,
-      ) as Map<String, dynamic>;
+      final decoded =
+          jsonDecode(
+                (await (await store.fileForContext(
+                  context,
+                )).readAsLines()).single,
+              )
+              as Map<String, dynamic>;
       final turnExit = decoded['turnExit'] as Map<String, dynamic>;
       expect(turnExit.containsKey('turnId'), isFalse);
       expect(turnExit.containsKey('assistantMessageId'), isFalse);
       expect(turnExit.containsKey('transforms'), isFalse);
+    });
+
+    test('recordGoalAutoContinue appends a triage marker', () async {
+      final store = LlmSessionLogStore(
+        rootDirectoryProvider: () async => tempDir,
+      );
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'conversation/auto',
+        conversationId: 'conversation/auto',
+      );
+
+      await store.recordGoalAutoContinue(
+        context: context,
+        decision: 'continue',
+        reason: 'incomplete evidence remains',
+        at: DateTime(2026, 7, 8, 21),
+        goalId: 'goal-1',
+        nextTurnNumber: 2,
+        effectiveTurnBudget: 10,
+        consecutiveAutoContinuations: 1,
+        evidence: const {
+          'summary': '2 unresolved Error diagnostic(s) in bin/todo_cli.dart',
+          'hasIncompleteEvidence': true,
+          'unresolvedErrorCount': 2,
+          'unresolvedErrorPaths': ['bin/todo_cli.dart'],
+          'unverifiedChangePaths': ['bin/todo_cli.dart'],
+        },
+      );
+
+      final file = await store.fileForContext(context);
+      final decoded =
+          jsonDecode((await file.readAsLines()).single) as Map<String, dynamic>;
+      expect(decoded['schemaName'], LlmSessionLogStore.schemaName);
+      expect(decoded['schemaVersion'], LlmSessionLogStore.schemaVersion);
+      expect(decoded['operation'], 'goal_auto_continue');
+      expect(decoded['context']['workspaceMode'], 'coding');
+      expect(decoded['context']['conversationId'], 'conversation/auto');
+      final marker = decoded['goalAutoContinue'] as Map<String, dynamic>;
+      expect(marker['decision'], 'continue');
+      expect(marker['reason'], 'incomplete evidence remains');
+      expect(marker['goalId'], 'goal-1');
+      expect(marker['nextTurnNumber'], 2);
+      expect(marker['effectiveTurnBudget'], 10);
+      expect(marker['consecutiveAutoContinuations'], 1);
+      expect(marker['evidence']['unresolvedErrorCount'], 2);
+      expect(marker['evidence']['unresolvedErrorPaths'], ['bin/todo_cli.dart']);
+      expect(marker['evidence']['unverifiedChangePaths'], [
+        'bin/todo_cli.dart',
+      ]);
     });
 
     test('redacts common secret patterns embedded in text', () async {

@@ -7,6 +7,7 @@ enum SlashCommandAction {
   general,
   coding,
   plan,
+  goal,
   cancel,
   feedback,
   worktreeAgent,

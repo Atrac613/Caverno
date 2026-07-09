@@ -7,6 +7,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 
 class _MockConversationBox extends Mock implements Box<String> {}
@@ -122,6 +123,83 @@ void main() {
     },
   );
 
+  test(
+    'recordCurrentGoalTurn completes when only unverified evidence remains',
+    () async {
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await notifier.saveCurrentGoal(
+        objective: 'Build the TODO CLI and verify it',
+        enabled: true,
+        status: ConversationGoalStatus.active,
+        tokenBudget: 1000,
+        turnBudget: 5,
+      );
+
+      await notifier.recordCurrentGoalTurn(
+        assistantResponse: 'Goal complete. Tests passed.',
+        tokenUsageDelta: 90,
+        completionEvidence: const ToolResultCompletionEvidence(
+          unverifiedChangePaths: ['bin/todo_cli.dart'],
+        ),
+      );
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.completed);
+      expect(goal.tokenUsage, 90);
+      expect(goal.turnsUsed, 1);
+      expect(goal.completedAt, isNotNull);
+    },
+  );
+
+  test(
+    'recordCurrentGoalTurn does not complete when unresolved errors remain',
+    () async {
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await notifier.saveCurrentGoal(
+        objective: 'Build the TODO CLI and verify it',
+        enabled: true,
+        status: ConversationGoalStatus.active,
+        tokenBudget: 1000,
+        turnBudget: 5,
+      );
+
+      await notifier.recordCurrentGoalTurn(
+        assistantResponse: 'Goal complete. Tests passed.',
+        tokenUsageDelta: 90,
+        completionEvidence: const ToolResultCompletionEvidence(
+          unresolvedErrorCount: 1,
+          unresolvedErrorPaths: ['bin/todo_cli.dart'],
+        ),
+      );
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.active);
+      expect(goal.tokenUsage, 90);
+      expect(goal.turnsUsed, 1);
+      expect(goal.completedAt, isNull);
+    },
+  );
+
   test('recordCurrentGoalTurn blocks after repeated same blocker', () async {
     final container = createContainer();
     addTearDown(container.dispose);
@@ -151,6 +229,58 @@ void main() {
     expect(goal.status, ConversationGoalStatus.blocked);
     expect(goal.blockerRepeatCount, 3);
     expect(goal.blockedAt, isNotNull);
+  });
+
+  test('saveCurrentGoal stores and preserves the auto-continue flag', () async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+
+    notifier.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await notifier.saveCurrentGoal(
+      objective: 'Fix the parser',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+      autoContinue: true,
+      tokenBudget: 1000,
+      turnBudget: 5,
+    );
+
+    var goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!
+        .goal!;
+    expect(goal.autoContinue, isTrue);
+
+    await notifier.saveCurrentGoal(
+      objective: 'Fix the parser',
+      enabled: false,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 2000,
+      turnBudget: 6,
+    );
+
+    goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!
+        .goal!;
+    expect(goal.autoContinue, isTrue);
+
+    await notifier.saveCurrentGoal(
+      objective: 'Fix the parser',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+      autoContinue: false,
+    );
+
+    goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!
+        .goal!;
+    expect(goal.autoContinue, isFalse);
   });
 
   test('recordCurrentGoalTurn blocks after equivalent blocker wording', () async {

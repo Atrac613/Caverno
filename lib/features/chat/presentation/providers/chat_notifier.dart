@@ -63,6 +63,7 @@ import '../../data/datasources/session_logging_chat_datasource.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
+import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/conversation_participant.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
@@ -72,6 +73,7 @@ import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
+import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../domain/services/tool_approval_gate.dart';
@@ -155,6 +157,8 @@ part 'chat_notifier_tool_handler_registry.dart';
 part 'chat_notifier_turn_rollback_handlers.dart';
 part 'chat_notifier_turn_finalization_recovery.dart';
 part 'chat_notifier_turn_exit.dart';
+part 'chat_notifier_response_finalization.dart';
+part 'chat_notifier_goal_auto_continue.dart';
 part 'chat_notifier_task_proposal_quality.dart';
 part 'chat_notifier_terminal_tool_response_policy.dart';
 part 'chat_notifier_tool_loop_batch.dart';
@@ -267,6 +271,7 @@ class ChatNotifier extends Notifier<ChatState> {
   String? _sessionMemoryContext;
   String? _temporalReferenceContext;
   Message? _hiddenPrompt;
+  bool _persistHiddenPromptAssistantResponse = false;
   bool _isVoiceMode = false;
   TokenUsage _accumulatedTokenUsage = TokenUsage.zero;
   AssistantMode? _assistantModeOverride;
@@ -2558,6 +2563,12 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<void> _conversationMessagePersistenceTail = Future<void>.value();
   bool _forcePromptCompactionForNextRequest = false;
   bool _isDrainingQueuedMessages = false;
+  bool _isSchedulingGoalAutoContinue = false;
+  final Map<String, _GoalAutoContinueTracker> _goalAutoContinueTrackers =
+      <String, _GoalAutoContinueTracker>{};
+  final Set<String> _goalAutoContinueBudgetNotifiedConversations = <String>{};
+  ToolResultCompletionEvidence _latestGoalAutoContinueEvidence =
+      const ToolResultCompletionEvidence();
   // Interaction generation in which a save_skill tool call last succeeded. Used
   // to suppress coding continuation-recovery: once a skill has been authored
   // this turn, the model's "skill created" summary is a legitimate completion,
@@ -2789,6 +2800,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final interactionGeneration = _beginInteractionGeneration();
 
     _hiddenPrompt = null;
+    _persistHiddenPromptAssistantResponse = false;
     _languageCode = languageCode;
     _isVoiceMode = isVoiceMode;
     _toolApprovalCache.clear();
@@ -2801,6 +2813,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _latestObservedToolResults = const [];
     _latestObservedToolDefinitions = const [];
     _latestObservedMcpToolNames = const {};
+    _latestGoalAutoContinueEvidence = const ToolResultCompletionEvidence();
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _latestHiddenAssistantResponse = null;
@@ -2813,6 +2826,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final shouldUseTemporalTool = _temporalReferenceContext != null;
     currentConversation = conversationsState.currentConversation;
     conversationId = currentConversation?.id;
+    _resetGoalAutoContinueTrackerForConversation(conversationId);
     final shouldAutoEnterPlanning =
         !bypassPlanMode && _shouldAutoEnterPlanningSession(currentConversation);
     if (shouldAutoEnterPlanning) {
@@ -2853,6 +2867,9 @@ class ChatNotifier extends Notifier<ChatState> {
       messages: [...state.messages, userMessage],
       isLoading: true,
       error: null,
+      goalAutoContinueCount: 0,
+      goalAutoContinueBudget: 0,
+      goalAutoContinueNotice: null,
     );
     _refreshContextTokenPressureFromState();
     _llmSessionLogContextsByGeneration[interactionGeneration] =
@@ -3035,13 +3052,29 @@ class ChatNotifier extends Notifier<ChatState> {
     String instruction, {
     bool isVoiceMode = false,
     String languageCode = 'en',
+    bool persistAssistantResponse = false,
   }) async {
     if (!ref.mounted) return;
 
     _temporalReferenceContext = null;
     _isVoiceMode = isVoiceMode;
     _languageCode = languageCode;
+    _toolApprovalCache.clear();
+    // Hidden continuations are new turns for approval/result buffers, token
+    // accounting, and completion evidence. Keep content-tool dedupe guards:
+    // those are conversation-scoped so echoed earlier tool-call text cannot
+    // re-execute a side-effectful embedded call.
+    _pendingContentToolResults.clear();
+    _pendingContentToolContinuationFallback = null;
+    _pendingToolExecutions.clear();
+    _latestContentToolResults.clear();
+    _latestCompletedToolResults = const [];
+    _contentToolContinuationCount = 0;
+    _contentToolExecutionTail = Future<void>.value();
+    _accumulatedTokenUsage = TokenUsage.zero;
     _latestHiddenAssistantResponse = null;
+    _latestGoalAutoContinueEvidence = const ToolResultCompletionEvidence();
+    _persistHiddenPromptAssistantResponse = persistAssistantResponse;
     final interactionGeneration = _beginInteractionGeneration();
     _clearTurnDiffCapture();
     _hiddenPrompt = Message(
@@ -3849,6 +3882,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<String> _streamToolResultAnswerWithContextRetry({
     required List<ToolResultInfo> toolResults,
     required int interactionGeneration,
+    ToolResultCompletionEvidence? completionEvidence,
   }) async {
     Future<String> streamAnswer({
       required bool forceCompaction,
@@ -3864,7 +3898,11 @@ class ChatNotifier extends Notifier<ChatState> {
             interactionGeneration: interactionGeneration,
           );
           messagesForLLM.addAll(
-            _buildToolResultAnswerMessages(toolResults, budgetMode: budgetMode),
+            _buildToolResultAnswerMessages(
+              toolResults,
+              budgetMode: budgetMode,
+              completionEvidence: completionEvidence,
+            ),
           );
 
           final preAnswerContent =
@@ -5226,6 +5264,7 @@ class ChatNotifier extends Notifier<ChatState> {
   List<Message> _buildToolResultAnswerMessages(
     List<ToolResultInfo> toolResults, {
     ToolResultPromptBudgetMode budgetMode = ToolResultPromptBudgetMode.normal,
+    ToolResultCompletionEvidence? completionEvidence,
   }) {
     final budgetedToolResults = _budgetToolResultsForPrompt(
       toolResults,
@@ -5238,6 +5277,7 @@ class ChatNotifier extends Notifier<ChatState> {
         content: ToolResultPromptBuilder.buildAnswerPrompt(
           budgetedToolResults,
           descriptionsByName: _toolDescriptionsByName(),
+          completionEvidence: completionEvidence,
         ),
         role: MessageRole.user,
         timestamp: timestamp,
@@ -6374,6 +6414,10 @@ class ChatNotifier extends Notifier<ChatState> {
       ?unexecutedFileSideEffect,
       ?finalDiagnosticFeedback,
     ];
+    var finalCompletionEvidence = ToolResultPromptBuilder.completionEvidence(
+      finalToolResults,
+    );
+    var finalCompletionEvidenceIsCurrent = true;
 
     // If tool results exist and no text response has been shown yet,
     // resend them as a user message and stream the final answer.
@@ -6387,6 +6431,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final streamedFinalAnswer = await _streamToolResultAnswerWithContextRetry(
         toolResults: finalToolResults,
         interactionGeneration: interactionGeneration,
+        completionEvidence: finalCompletionEvidence,
       );
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       if (!ref.mounted) return;
@@ -6517,6 +6562,7 @@ class ChatNotifier extends Notifier<ChatState> {
         );
         if (unexecutedCommandAction != null) {
           finalToolResults.add(unexecutedCommandAction);
+          finalCompletionEvidenceIsCurrent = false;
           _appendUnexecutedCommandActionNoticeIfNeeded(
             toolResults: finalToolResults,
             interactionGeneration: interactionGeneration,
@@ -6529,6 +6575,7 @@ class ChatNotifier extends Notifier<ChatState> {
               );
           if (unverifiedInspectionClaim != null) {
             finalToolResults.add(unverifiedInspectionClaim);
+            finalCompletionEvidenceIsCurrent = false;
             _appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded(
               toolResults: finalToolResults,
               interactionGeneration: interactionGeneration,
@@ -6546,6 +6593,12 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
 
+    if (!finalCompletionEvidenceIsCurrent) {
+      finalCompletionEvidence = ToolResultPromptBuilder.completionEvidence(
+        finalToolResults,
+      );
+    }
+    _latestGoalAutoContinueEvidence = finalCompletionEvidence;
     _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
       finalToolResults,
     );
@@ -8675,93 +8728,6 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(messages: updatedMessages);
   }
 
-  Future<void> _finishDetachedActiveResponse(int generation) async {
-    if (!_isCurrentInteractionGeneration(generation)) return;
-
-    final targetConversationId = _activeResponseConversationIdForGeneration(
-      generation,
-    );
-    final activeMessages = _activeResponseMessagesForGeneration(generation);
-    if (targetConversationId == null ||
-        activeMessages == null ||
-        activeMessages.isEmpty) {
-      _clearActiveResponseForGeneration(generation);
-      return;
-    }
-
-    final updatedMessages = [...activeMessages];
-    final lastIndex = updatedMessages.length - 1;
-    final lastMessage = updatedMessages[lastIndex];
-    final fallbackContent = _pendingContentToolContinuationFallback?.trim();
-    final shouldUseContentToolContinuationFallback =
-        lastMessage.role == MessageRole.assistant &&
-        !_assistantMessageHasVisibleContent(lastMessage.content) &&
-        fallbackContent != null &&
-        fallbackContent.isNotEmpty;
-    final shouldDropLastAssistant =
-        lastMessage.role == MessageRole.assistant &&
-        !_assistantMessageHasVisibleContent(lastMessage.content) &&
-        !shouldUseContentToolContinuationFallback;
-    final responseMetrics = shouldDropLastAssistant
-        ? null
-        : _takeResponseMetricsForGeneration(generation);
-    if (shouldDropLastAssistant) {
-      _discardResponseMetricsForGeneration(generation);
-    }
-
-    if (shouldUseContentToolContinuationFallback) {
-      updatedMessages[lastIndex] = lastMessage.copyWith(
-        content: fallbackContent,
-        isStreaming: false,
-        responseMetrics: responseMetrics,
-      );
-    } else if (shouldDropLastAssistant) {
-      updatedMessages.removeAt(lastIndex);
-    } else {
-      // UX: if the answer was cut off at the max-token limit, flag it so the
-      // user knows the response (and any code/file content in it) is incomplete
-      // rather than silently presenting a truncated answer.
-      final finalizedContent =
-          _isCompletionTruncated(_latestFinishReason() ?? '')
-          ? TruncationNotice.withMaxTokenNotice(lastMessage.content)
-          : lastMessage.content;
-      updatedMessages[lastIndex] = lastMessage.copyWith(
-        content: finalizedContent,
-        isStreaming: false,
-        responseMetrics: responseMetrics,
-      );
-    }
-    _pendingContentToolContinuationFallback = null;
-
-    final messagesToSave = updatedMessages
-        .where((message) => !message.isStreaming)
-        .where(_shouldKeepVisibleMessage)
-        .toList(growable: false);
-
-    await _onConversationMessagesChanged(targetConversationId, messagesToSave);
-    if (!_isCurrentInteractionGeneration(generation)) return;
-
-    if (conversationId == targetConversationId) {
-      state = state.copyWith(
-        messages: updatedMessages,
-        isLoading: false,
-        pendingAskUserQuestion: null,
-      );
-    }
-
-    String completedContent = '';
-    if (!shouldDropLastAssistant && updatedMessages.isNotEmpty) {
-      final finalizedLastMessage = updatedMessages.last;
-      if (finalizedLastMessage.role == MessageRole.assistant) {
-        completedContent = finalizedLastMessage.content;
-      }
-    }
-
-    _clearActiveResponseForGeneration(generation);
-    _contentToolContinuationCount = 0;
-    _onResponseCompleted(completedContent);
-  }
-
   Future<void> _finishStreaming({int? interactionGeneration}) async {
     final generation = interactionGeneration ?? _interactionGeneration;
     if (!_isCurrentInteractionGeneration(generation)) return;
@@ -8904,7 +8870,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // Hidden prompt responses are ephemeral — remove from visible history
     // so they are spoken but not persisted in the conversation.
-    if (_hiddenPrompt != null) {
+    if (_hiddenPrompt != null && !_persistHiddenPromptAssistantResponse) {
       state = state.copyWith(messages: updatedMessages, isLoading: false);
       if (!shouldDropLastAssistant && updatedMessages.isNotEmpty) {
         _recordHiddenAssistantResponse(updatedMessages.last.content);
@@ -8914,10 +8880,15 @@ class ChatNotifier extends Notifier<ChatState> {
           : updatedMessages.sublist(0, lastIndex);
       state = state.copyWith(messages: cleaned);
       _hiddenPrompt = null;
+      _persistHiddenPromptAssistantResponse = false;
       _onResponseCompleted('');
       if (!_isCurrentInteractionGeneration(generation)) return;
       await _drainQueuedChatMessagesIfIdle();
       return;
+    }
+    if (_hiddenPrompt != null) {
+      _hiddenPrompt = null;
+      _persistHiddenPromptAssistantResponse = false;
     }
 
     final recoveredBeforeFinalization =
@@ -8949,6 +8920,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _onResponseCompleted('');
       if (!_isCurrentInteractionGeneration(generation)) return;
       await _drainQueuedChatMessagesIfIdle();
+      _clearGoalAutoContinueIndicator();
       return;
     }
 
@@ -8959,11 +8931,17 @@ class ChatNotifier extends Notifier<ChatState> {
     } else {
       _clearTurnDiffCapture();
     }
+    if (!_latestGoalAutoContinueEvidence.hasIncompleteEvidence &&
+        _latestContentToolResults.isNotEmpty) {
+      _latestGoalAutoContinueEvidence =
+          ToolResultPromptBuilder.completionEvidence(_latestContentToolResults);
+    }
     await ref
         .read(conversationsNotifierProvider.notifier)
         .recordCurrentGoalTurn(
           assistantResponse: finalizedLastMessage.content,
           tokenUsageDelta: _accumulatedTokenUsage.totalTokens,
+          completionEvidence: _latestGoalAutoContinueEvidence,
         );
     if (!_isCurrentInteractionGeneration(generation)) return;
 
@@ -8985,6 +8963,11 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     if (!_isCurrentInteractionGeneration(generation)) return;
     await _drainQueuedChatMessagesIfIdle();
+    if (!_isCurrentInteractionGeneration(generation)) return;
+    await _maybeAutoContinueCurrentGoal(
+      finalizedAssistantResponse: finalizedLastMessage.content,
+      languageCode: _languageCode,
+    );
   }
 
   bool _assistantMessageHasVisibleContent(String content) {
@@ -9527,6 +9510,8 @@ class ChatNotifier extends Notifier<ChatState> {
     _streamSubscription?.cancel();
     _streamSubscription = null;
     _dismissAllPendingAskUserQuestions();
+    _isSchedulingGoalAutoContinue = false;
+    _persistHiddenPromptAssistantResponse = false;
 
     // Advance the interaction generation so the in-flight recursive
     // tool-calling loop's generation guards (_isCurrentInteractionGeneration)
@@ -9544,13 +9529,18 @@ class ChatNotifier extends Notifier<ChatState> {
     _pendingContentToolContinuationFallback = null;
     _pendingToolExecutions.clear();
     _contentToolContinuationCount = 0;
+    _latestGoalAutoContinueEvidence = const ToolResultCompletionEvidence();
     _clearAllActiveResponses();
 
     // The generation has advanced, so _finishStreaming would early-return on its
     // own guard. Finalize the partial assistant bubble inline instead: keep
     // whatever was streamed, drop an empty placeholder, clear the loading
     // state, and persist what remains.
-    if (!ref.mounted || state.messages.isEmpty) return;
+    if (!ref.mounted) return;
+    if (state.messages.isEmpty) {
+      _clearGoalAutoContinueIndicator();
+      return;
+    }
     final updatedMessages = [...state.messages];
     final lastIndex = updatedMessages.length - 1;
     final lastMessage = updatedMessages[lastIndex];
@@ -9573,6 +9563,7 @@ class ChatNotifier extends Notifier<ChatState> {
     } else if (state.isLoading) {
       state = state.copyWith(isLoading: false, participantTurnRuntime: null);
     }
+    _clearGoalAutoContinueIndicator();
   }
 
   void clearMessages() {
@@ -9588,6 +9579,11 @@ class ChatNotifier extends Notifier<ChatState> {
     _pendingToolExecutions.clear();
     _queuedChatMessages.clear();
     _latestContentToolResults.clear();
+    _latestGoalAutoContinueEvidence = const ToolResultCompletionEvidence();
+    _goalAutoContinueTrackers.clear();
+    _goalAutoContinueBudgetNotifiedConversations.clear();
+    _isSchedulingGoalAutoContinue = false;
+    _persistHiddenPromptAssistantResponse = false;
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _dismissAllPendingAskUserQuestions();

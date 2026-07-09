@@ -7,6 +7,80 @@ import 'context_surgery_observation_service.dart';
 
 enum ToolResultPromptBudgetMode { normal, compact }
 
+enum GoalEvidenceProgress { improved, noProgress }
+
+class ToolResultCompletionEvidence {
+  const ToolResultCompletionEvidence({
+    this.boundedToolLoopExhausted = false,
+    this.unexecutedToolNames = const <String>[],
+    this.unresolvedErrorCount = 0,
+    this.unresolvedErrorPaths = const <String>[],
+    this.unverifiedChangePaths = const <String>[],
+  });
+
+  final bool boundedToolLoopExhausted;
+  final List<String> unexecutedToolNames;
+  final int unresolvedErrorCount;
+  final List<String> unresolvedErrorPaths;
+  final List<String> unverifiedChangePaths;
+
+  bool get hasIncompleteEvidence =>
+      boundedToolLoopExhausted ||
+      unresolvedErrorCount > 0 ||
+      unverifiedChangePaths.isNotEmpty;
+
+  bool get hasBlockingEvidence =>
+      boundedToolLoopExhausted || unresolvedErrorCount > 0;
+
+  bool get hasDiagnosticEvidence => unresolvedErrorCount > 0;
+
+  String get summary {
+    final parts = <String>[];
+    if (unresolvedErrorCount > 0) {
+      final pathSuffix = unresolvedErrorPaths.isEmpty
+          ? ''
+          : ' in ${unresolvedErrorPaths.join(', ')}';
+      parts.add(
+        '$unresolvedErrorCount unresolved Error diagnostic(s)$pathSuffix',
+      );
+    }
+    if (boundedToolLoopExhausted) {
+      final tools = unexecutedToolNames.isEmpty
+          ? 'a requested tool call'
+          : unexecutedToolNames.join(', ');
+      parts.add('bounded tool loop stopped before executing $tools');
+    }
+    if (unverifiedChangePaths.isNotEmpty) {
+      parts.add(
+        'unverified file change(s) in ${unverifiedChangePaths.join(', ')}',
+      );
+    }
+    return parts.isEmpty ? 'no incomplete evidence' : parts.join('; ');
+  }
+
+  GoalEvidenceProgress compareProgress(ToolResultCompletionEvidence previous) {
+    if (hasDiagnosticEvidence || previous.hasDiagnosticEvidence) {
+      if (hasDiagnosticEvidence && previous.hasDiagnosticEvidence) {
+        return unresolvedErrorCount < previous.unresolvedErrorCount
+            ? GoalEvidenceProgress.improved
+            : GoalEvidenceProgress.noProgress;
+      }
+      return hasDiagnosticEvidence
+          ? GoalEvidenceProgress.noProgress
+          : GoalEvidenceProgress.improved;
+    }
+
+    final currentPaths = unverifiedChangePaths.toSet();
+    final previousPaths = previous.unverifiedChangePaths.toSet();
+    return currentPaths.isNotEmpty &&
+            previousPaths.isNotEmpty &&
+            (currentPaths.length != previousPaths.length ||
+                !currentPaths.containsAll(previousPaths))
+        ? GoalEvidenceProgress.improved
+        : GoalEvidenceProgress.noProgress;
+  }
+}
+
 class _ToolResultPromptBudget {
   const _ToolResultPromptBudget({
     required this.maxTotalResultChars,
@@ -170,8 +244,12 @@ class ToolResultPromptBuilder {
   static String buildAnswerPrompt(
     List<ToolResultInfo> toolResults, {
     Map<String, String> descriptionsByName = const {},
+    ToolResultCompletionEvidence? completionEvidence,
   }) {
-    final completionBlockers = completionBlockerInstructions(toolResults);
+    final completionBlockers = completionBlockerInstructions(
+      toolResults,
+      completionEvidence: completionEvidence,
+    );
     final buffer = StringBuffer()
       ..writeln(
         'Please answer the user\'s question based on the following tool results.',
@@ -363,6 +441,57 @@ class ToolResultPromptBuilder {
   /// otherwise ignore the per-result `instruction` field and declare success
   /// while the workspace is still broken.
   static List<String> completionBlockerInstructions(
+    List<ToolResultInfo> toolResults, {
+    ToolResultCompletionEvidence? completionEvidence,
+  }) {
+    final evidence =
+        completionEvidence ??
+        ToolResultPromptBuilder.completionEvidence(toolResults);
+
+    final lines = <String>[];
+    if (evidence.unexecutedToolNames.isNotEmpty) {
+      lines.add(
+        'TASK NOT COMPLETE: the bounded tool loop stopped before a requested '
+        'tool call (${evidence.unexecutedToolNames.join(', ')}) was executed '
+        '(code=tool_call_not_executed / reason=bounded_tool_loop_exhausted). '
+        'Do not claim the task, port, fix, edit, or file change is finished. '
+        'State that this action remains unexecuted, name it, and list what '
+        'still needs to be done.',
+      );
+    }
+    if (evidence.unresolvedErrorCount > 0) {
+      final pathSuffix = evidence.unresolvedErrorPaths.isEmpty
+          ? ''
+          : ' in ${evidence.unresolvedErrorPaths.join(', ')}';
+      lines.add(
+        'TASK NOT COMPLETE: the latest analyzer/test feedback still reports '
+        '${evidence.unresolvedErrorCount} unresolved Error-severity diagnostic(s)'
+        '$pathSuffix. The code does not pass analysis. Do not claim the coding '
+        'or porting task is complete or that it produces correct output. '
+        'Report the remaining errors and that they still need fixing.',
+      );
+    }
+    // Unverified change: the turn mutated a file but never ran or tested
+    // anything, so a "fixed"/"works"/"passes"/benchmark claim is unbacked by an
+    // execution result. Unlike the Dart analyzer (a safe static re-run) an
+    // arbitrary shell command may have side effects, so surface the gap as a
+    // caution instead of auto-running it. Kept conservative — a turn that did
+    // run at least once is left alone to avoid flagging cosmetic post-run edits.
+    // Skipped when an analyzer error already blocks completion above.
+    if (evidence.unverifiedChangePaths.isNotEmpty) {
+      lines.add(
+        'UNVERIFIED CHANGE: a file was edited but nothing was run or tested in '
+        'this turn, so there is no execution result behind it. Do not claim the '
+        'code is fixed, works, passes, runs, or produces specific output or '
+        'benchmark numbers — those are unverified. State that the change still '
+        'needs to be run or tested to confirm, or, if running does not apply '
+        '(for example a docs or config edit), describe only what was changed.',
+      );
+    }
+    return lines;
+  }
+
+  static ToolResultCompletionEvidence completionEvidence(
     List<ToolResultInfo> toolResults,
   ) {
     final lastMutationIndexByPath = _lastSuccessfulFileMutationIndexByPath(
@@ -404,16 +533,12 @@ class ToolResultPromptBuilder {
             continue;
           }
           final absolutePath = diagnostic['path']?.toString().trim();
-          // Skip diagnostics superseded by a later successful edit on the same
-          // file: the analyzer result predates the fix and may be stale.
           if (absolutePath != null && absolutePath.isNotEmpty) {
             final laterMutationIndex = lastMutationIndexByPath[absolutePath];
             if (laterMutationIndex != null && laterMutationIndex > index) {
               continue;
             }
           }
-          // Dedupe identical diagnostics so a stale per-batch result and the
-          // fresh final-pass result do not double-count the same error.
           final diagnosticKey = [
             absolutePath ?? '',
             diagnostic['line']?.toString() ?? '',
@@ -434,49 +559,20 @@ class ToolResultPromptBuilder {
       }
     }
 
-    final lines = <String>[];
-    if (unexecutedToolNames.isNotEmpty) {
-      lines.add(
-        'TASK NOT COMPLETE: the bounded tool loop stopped before a requested '
-        'tool call (${unexecutedToolNames.join(', ')}) was executed '
-        '(code=tool_call_not_executed / reason=bounded_tool_loop_exhausted). '
-        'Do not claim the task, port, fix, edit, or file change is finished. '
-        'State that this action remains unexecuted, name it, and list what '
-        'still needs to be done.',
-      );
-    }
-    if (unresolvedErrorCount > 0) {
-      final pathSuffix = unresolvedErrorPaths.isEmpty
-          ? ''
-          : ' in ${unresolvedErrorPaths.join(', ')}';
-      lines.add(
-        'TASK NOT COMPLETE: the latest analyzer/test feedback still reports '
-        '$unresolvedErrorCount unresolved Error-severity diagnostic(s)'
-        '$pathSuffix. The code does not pass analysis. Do not claim the coding '
-        'or porting task is complete or that it produces correct output. '
-        'Report the remaining errors and that they still need fixing.',
-      );
-    }
-    // Unverified change: the turn mutated a file but never ran or tested
-    // anything, so a "fixed"/"works"/"passes"/benchmark claim is unbacked by an
-    // execution result. Unlike the Dart analyzer (a safe static re-run) an
-    // arbitrary shell command may have side effects, so surface the gap as a
-    // caution instead of auto-running it. Kept conservative — a turn that did
-    // run at least once is left alone to avoid flagging cosmetic post-run edits.
-    // Skipped when an analyzer error already blocks completion above.
-    if (unresolvedErrorCount == 0 &&
-        lastMutationIndexByPath.isNotEmpty &&
-        !_hasAnyVerificationRun(toolResults)) {
-      lines.add(
-        'UNVERIFIED CHANGE: a file was edited but nothing was run or tested in '
-        'this turn, so there is no execution result behind it. Do not claim the '
-        'code is fixed, works, passes, runs, or produces specific output or '
-        'benchmark numbers — those are unverified. State that the change still '
-        'needs to be run or tested to confirm, or, if running does not apply '
-        '(for example a docs or config edit), describe only what was changed.',
-      );
-    }
-    return lines;
+    final unverifiedChangePaths =
+        unresolvedErrorCount == 0 &&
+            lastMutationIndexByPath.isNotEmpty &&
+            !_hasAnyVerificationRun(toolResults)
+        ? lastMutationIndexByPath.keys.toList(growable: false)
+        : const <String>[];
+
+    return ToolResultCompletionEvidence(
+      boundedToolLoopExhausted: unexecutedToolNames.isNotEmpty,
+      unexecutedToolNames: unexecutedToolNames.toList(growable: false),
+      unresolvedErrorCount: unresolvedErrorCount,
+      unresolvedErrorPaths: unresolvedErrorPaths.toList(growable: false),
+      unverifiedChangePaths: unverifiedChangePaths,
+    );
   }
 
   /// Whether any command-execution or test run completed (has an `exit_code`)

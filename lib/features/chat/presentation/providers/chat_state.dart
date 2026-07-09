@@ -590,6 +590,9 @@ abstract class ChatState with _$ChatState {
     @Default(false) bool isGeneratingTaskProposal,
     WorkflowTaskProposalDraft? taskProposalDraft,
     String? taskProposalError,
+    @Default(0) int goalAutoContinueCount,
+    @Default(0) int goalAutoContinueBudget,
+    String? goalAutoContinueNotice,
   }) = _ChatState;
 
   factory ChatState.initial() =>

@@ -46,10 +46,6 @@ Future<SharedPreferences> _pumpMessageInput(
   AppSettings? initialSettings,
   bool isCodingWorkspace = false,
   ConversationGoal? codingGoal,
-  bool isCodingGoalSetupPending = false,
-  bool isCodingGoalSuggestionInProgress = false,
-  CodingGoalSwitchChanged? onCodingGoalSwitchChanged,
-  VoidCallback? onCodingGoalEmptySwitchEnabled,
   VoidCallback? onCodingGoalEdit,
   VoidCallback? onCodingGoalMarkComplete,
   VoidCallback? onCodingGoalMarkBlocked,
@@ -97,12 +93,6 @@ Future<SharedPreferences> _pumpMessageInput(
                         droppedImageAttachment: droppedImageAttachment,
                         isCodingWorkspace: isCodingWorkspace,
                         codingGoal: codingGoal,
-                        isCodingGoalSetupPending: isCodingGoalSetupPending,
-                        isCodingGoalSuggestionInProgress:
-                            isCodingGoalSuggestionInProgress,
-                        onCodingGoalSwitchChanged: onCodingGoalSwitchChanged,
-                        onCodingGoalEmptySwitchEnabled:
-                            onCodingGoalEmptySwitchEnabled,
                         onCodingGoalEdit: onCodingGoalEdit,
                         onCodingGoalMarkComplete: onCodingGoalMarkComplete,
                         onCodingGoalMarkBlocked: onCodingGoalMarkBlocked,
@@ -611,191 +601,29 @@ void main() {
     expect(find.byTooltip('Reasoning effort: High'), findsOneWidget);
   });
 
-  testWidgets('shows the empty coding goal switch inside the composer', (
+  testWidgets('hides empty coding goal controls inside the composer', (
     tester,
   ) async {
     final isLoading = ValueNotifier<bool>(false);
     addTearDown(isLoading.dispose);
 
-    bool? switchedTo;
     var editCount = 0;
     await _pumpMessageInput(
       tester,
       isLoading: isLoading,
       onCancel: () {},
       isCodingWorkspace: true,
-      onCodingGoalSwitchChanged: (value, draftText) {
-        switchedTo = value;
-      },
       onCodingGoalEdit: () {
         editCount += 1;
       },
     );
 
-    expect(find.text('Goal'), findsOneWidget);
-    expect(find.text('No active goal'), findsOneWidget);
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    expect(find.text('Goal'), findsNothing);
+    expect(find.text('No active goal'), findsNothing);
+    expect(find.byType(Switch), findsNothing);
+    expect(find.byTooltip('Set goal'), findsNothing);
 
-    await tester.tap(find.byType(Switch));
-    await tester.pump();
-
-    expect(switchedTo, isTrue);
-
-    await tester.tap(find.byTooltip('Set goal'));
-    await tester.pump();
-
-    expect(editCount, 1);
-  });
-
-  testWidgets('defers an empty coding goal switch until the next send', (
-    tester,
-  ) async {
-    final isLoading = ValueNotifier<bool>(false);
-    addTearDown(isLoading.dispose);
-
-    bool? switchedTo;
-    var deferredCount = 0;
-    await _pumpMessageInput(
-      tester,
-      isLoading: isLoading,
-      onCancel: () {},
-      isCodingWorkspace: true,
-      onCodingGoalSwitchChanged: (value, draftText) {
-        switchedTo = value;
-      },
-      onCodingGoalEmptySwitchEnabled: () {
-        deferredCount += 1;
-      },
-    );
-
-    await tester.tap(find.byType(Switch));
-    await tester.pump();
-
-    expect(deferredCount, 1);
-    expect(switchedTo, isNull);
-
-    await _pumpMessageInput(
-      tester,
-      isLoading: isLoading,
-      onCancel: () {},
-      isCodingWorkspace: true,
-      isCodingGoalSetupPending: true,
-      onCodingGoalSwitchChanged: (value, draftText) {
-        switchedTo = value;
-      },
-      onCodingGoalEmptySwitchEnabled: () {
-        deferredCount += 1;
-      },
-    );
-
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
-    expect(find.text('Goal setup pending'), findsOneWidget);
-  });
-
-  testWidgets('enables coding goal setup immediately when draft text exists', (
-    tester,
-  ) async {
-    final isLoading = ValueNotifier<bool>(false);
-    addTearDown(isLoading.dispose);
-
-    bool? switchedTo;
-    String? switchDraftText;
-    var deferredCount = 0;
-    await _pumpMessageInput(
-      tester,
-      isLoading: isLoading,
-      onCancel: () {},
-      isCodingWorkspace: true,
-      onCodingGoalSwitchChanged: (value, draftText) {
-        switchedTo = value;
-        switchDraftText = draftText;
-      },
-      onCodingGoalEmptySwitchEnabled: () {
-        deferredCount += 1;
-      },
-    );
-
-    await tester.enterText(find.byType(TextField), 'Build the goal flow');
-    await tester.pump();
-    await tester.tap(find.byType(Switch));
-    await tester.pump();
-
-    expect(switchedTo, isTrue);
-    expect(switchDraftText, 'Build the goal flow');
-    expect(deferredCount, 0);
-  });
-
-  testWidgets('disables goal controls and send while suggesting a goal', (
-    tester,
-  ) async {
-    final isLoading = ValueNotifier<bool>(false);
-    addTearDown(isLoading.dispose);
-
-    var switchCount = 0;
-    var editCount = 0;
-    final sentMessages = <String>[];
-    await _pumpMessageInput(
-      tester,
-      isLoading: isLoading,
-      onCancel: () {},
-      onSend: (message, _, _, _, _) {
-        sentMessages.add(message);
-      },
-      isCodingWorkspace: true,
-      onCodingGoalSwitchChanged: (_, _) {
-        switchCount += 1;
-      },
-      onCodingGoalEdit: () {
-        editCount += 1;
-      },
-    );
-
-    await tester.enterText(find.byType(TextField), 'Build the goal flow');
-    await tester.pump();
-
-    await _pumpMessageInput(
-      tester,
-      isLoading: isLoading,
-      onCancel: () {},
-      onSend: (message, _, _, _, _) {
-        sentMessages.add(message);
-      },
-      isCodingWorkspace: true,
-      isCodingGoalSuggestionInProgress: true,
-      onCodingGoalSwitchChanged: (_, _) {
-        switchCount += 1;
-      },
-      onCodingGoalEdit: () {
-        editCount += 1;
-      },
-    );
-    await tester.pump();
-
-    expect(find.text('Drafting a goal...'), findsOneWidget);
-    expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isTrue);
-    expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
-    expect(
-      tester
-          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.send))
-          .onPressed,
-      isNull,
-    );
-
-    await tester.tap(find.byType(Switch), warnIfMissed: false);
-    await tester.tap(find.byTooltip('Set goal'), warnIfMissed: false);
-    await tester.tap(
-      find.widgetWithIcon(IconButton, Icons.send),
-      warnIfMissed: false,
-    );
-    await tester.pump();
-
-    expect(switchCount, 0);
     expect(editCount, 0);
-    expect(sentMessages, isEmpty);
-    expect(
-      tester.widget<TextField>(find.byType(TextField)).controller?.text,
-      'Build the goal flow',
-    );
   });
 
   testWidgets('keeps coding composer controls visible at narrow widths', (
@@ -861,7 +689,6 @@ void main() {
       createdAt: DateTime(2026),
       updatedAt: DateTime(2026),
     );
-    bool? switchedTo;
     var editCount = 0;
     var completeCount = 0;
     await _pumpMessageInput(
@@ -870,9 +697,6 @@ void main() {
       onCancel: () {},
       isCodingWorkspace: true,
       codingGoal: goal,
-      onCodingGoalSwitchChanged: (value, draftText) {
-        switchedTo = value;
-      },
       onCodingGoalEdit: () {
         editCount += 1;
       },
@@ -884,12 +708,7 @@ void main() {
     expect(find.text('Fix the composer goal flow'), findsOneWidget);
     expect(find.text('Active'), findsOneWidget);
     expect(find.text('500/2.0k tokens  2/5 turns'), findsOneWidget);
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
-
-    await tester.tap(find.byType(Switch));
-    await tester.pump();
-
-    expect(switchedTo, isFalse);
+    expect(find.byType(Switch), findsNothing);
 
     await tester.tap(find.byTooltip('Edit goal'));
     await tester.pump();

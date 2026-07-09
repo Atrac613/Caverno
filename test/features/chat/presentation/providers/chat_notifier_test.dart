@@ -26,6 +26,7 @@ import 'package:caverno/features/chat/data/datasources/file_rollback_checkpoint_
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
@@ -50,6 +51,7 @@ import 'package:caverno/features/chat/domain/services/conversation_goal_suggesti
 import 'package:caverno/features/chat/domain/services/participant_turn_coordinator.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
+import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
@@ -74,6 +76,7 @@ part 'chat_notifier_context_surgery_part.dart';
 part 'chat_notifier_test_doubles_part.dart';
 part 'chat_notifier_continuation_recovery_part.dart';
 part 'chat_notifier_auto_review_escalation_part.dart';
+part 'chat_notifier_goal_auto_continue_part.dart';
 
 List<String> _toolNames(List<Map<String, dynamic>> definitions) {
   return definitions
@@ -137,6 +140,7 @@ void main() {
   registerChatNotifierContextSurgeryTests();
   registerChatNotifierContinuationRecoveryTests();
   registerChatNotifierAutoReviewEscalationTests();
+  registerChatNotifierGoalAutoContinueTests();
 
   test('failed-command correction notice keeps the original answer', () {
     const notice =
@@ -800,7 +804,7 @@ void main() {
       final participantContainer = ProviderContainer(
         overrides: [
           settingsNotifierProvider.overrideWith(
-            _ToolEnabledSettingsNotifier.new,
+            _ToolEnabledNoConfirmSettingsNotifier.new,
           ),
           conversationsNotifierProvider.overrideWith(
             _TestConversationsNotifier.new,
@@ -905,7 +909,9 @@ void main() {
     );
     final participantContainer = ProviderContainer(
       overrides: [
-        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
         conversationsNotifierProvider.overrideWith(
           _TestConversationsNotifier.new,
         ),
@@ -4723,6 +4729,28 @@ void main() {
       expect(notifier.takeLatestHiddenAssistantResponse(), isNull);
     },
   );
+
+  test('sendHiddenPrompt preserves content-tool dedupe guards', () async {
+    const executedCallKey = 'executed:write_file:README.md';
+    const seenCallHash = 'seen:write_file:README.md';
+    notifier.seedContentToolDedupeGuardsForTest(
+      executedCallKey: executedCallKey,
+      seenCallHash: seenCallHash,
+    );
+
+    final sendFuture = notifier.sendHiddenPrompt('Continue the saved task.');
+    controller.add('Still working.');
+    await controller.close();
+    await sendFuture;
+
+    expect(
+      notifier.hasContentToolDedupeGuardsForTest(
+        executedCallKey: executedCallKey,
+        seenCallHash: seenCallHash,
+      ),
+      isTrue,
+    );
+  });
 
   test(
     'syncConversation ignores stale updates for the active conversation while loading',
@@ -10161,84 +10189,87 @@ with open(path, "rb") as file:
     }
   });
 
-  test('sendMessage flags success claims as unverified after command timeout', () async {
-    const command = 'fvm flutter test --no-pub';
-    final toolDataSource = _QueuedToolLoopChatDataSource(
-      initialToolCalls: [
-        ToolCallInfo(
-          id: 'test-command',
-          name: 'local_execute_command',
-          arguments: const {
+  test(
+    'sendMessage flags success claims as unverified after command timeout',
+    () async {
+      const command = 'fvm flutter test --no-pub';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'test-command',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': command,
+              'working_directory': '/tmp/project',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(content: '', finishReason: 'stop'),
+        ],
+        finalAnswerChunks: const [
+          'Unit tests passed. 54 tests passed before timeout completed.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'local_execute_command': jsonEncode({
             'command': command,
             'working_directory': '/tmp/project',
-          },
-        ),
-      ],
-      toolLoopResponses: [
-        ChatCompletionResult(content: '', finishReason: 'stop'),
-      ],
-      finalAnswerChunks: const [
-        'Unit tests passed. 54 tests passed before timeout completed.',
-      ],
-    );
-    final toolService = _FakeMcpToolService(
-      results: {
-        'local_execute_command': jsonEncode({
-          'command': command,
-          'working_directory': '/tmp/project',
-          'error': 'Command timed out after 60 seconds.',
-          'timed_out': true,
-          'timeout_ms': 60000,
-          'process_terminated': true,
-        }),
-      },
-    );
-    final appLifecycleService = _MockAppLifecycleService();
-    when(() => appLifecycleService.isInBackground).thenReturn(false);
-    final toolContainer = ProviderContainer(
-      overrides: [
-        settingsNotifierProvider.overrideWith(
-          _ToolEnabledNoConfirmSettingsNotifier.new,
-        ),
-        conversationsNotifierProvider.overrideWith(
-          _TestConversationsNotifier.new,
-        ),
-        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
-        sessionMemoryServiceProvider.overrideWithValue(
-          _TestSessionMemoryService(),
-        ),
-        mcpToolServiceProvider.overrideWithValue(toolService),
-        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-        backgroundTaskServiceProvider.overrideWithValue(
-          _TestBackgroundTaskService(),
-        ),
-      ],
-    );
-
-    try {
-      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
-
-      await toolNotifier.sendMessage('Run tests');
-
-      expect(toolDataSource.toolResultBatches, isNotEmpty);
-      expect(
-        toolDataSource.toolResultBatches.first.single.name,
-        'local_execute_command',
+            'error': 'Command timed out after 60 seconds.',
+            'timed_out': true,
+            'timeout_ms': 60000,
+            'process_terminated': true,
+          }),
+        },
       );
-      // The original answer stays visible with the timeout correction
-      // prepended, so the chat log is not wiped down to the notice.
-      expect(
-        toolNotifier.state.messages.last.content,
-        startsWith('A command timed out'),
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
       );
-      expect(
-        toolNotifier.state.messages.last.content,
-        contains('Unit tests passed'),
-      );
-    } finally {
-      toolContainer.dispose();
-    }
-  });
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run tests');
+
+        expect(toolDataSource.toolResultBatches, isNotEmpty);
+        expect(
+          toolDataSource.toolResultBatches.first.single.name,
+          'local_execute_command',
+        );
+        // The original answer stays visible with the timeout correction
+        // prepended, so the chat log is not wiped down to the notice.
+        expect(
+          toolNotifier.state.messages.last.content,
+          startsWith('A command timed out'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Unit tests passed'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test('sendMessage repeats delayed process monitor after release timeout', () async {
     const releaseCommand =

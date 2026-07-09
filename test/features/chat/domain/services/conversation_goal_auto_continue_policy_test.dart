@@ -1,0 +1,340 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/domain/services/conversation_goal_auto_continue_policy.dart';
+import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
+
+void main() {
+  const policy = ConversationGoalAutoContinuePolicy();
+
+  test('continues active auto goals with incomplete evidence', () {
+    final decision = policy.decide(_input());
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+    expect(decision.nextTurnNumber, 2);
+    expect(decision.effectiveTurnBudget, kGoalAutoContinueDefaultTurnBudget);
+  });
+
+  test('skips when auto continue is disabled by default', () {
+    final decision = policy.decide(_input(goal: _goal(autoContinue: false)));
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.skip);
+    expect(decision.reason, 'auto-continue is disabled');
+  });
+
+  test('skips inactive completed or token-budget-exhausted goals', () {
+    expect(
+      policy
+          .decide(_input(goal: _goal(status: ConversationGoalStatus.completed)))
+          .reason,
+      'goal is not active',
+    );
+    final decision = policy.decide(
+      _input(goal: _goal(tokenBudget: 100, tokenUsage: 100)),
+    );
+    expect(decision.reason, 'goal budget is exhausted');
+    expect(decision.stopCause, GoalAutoContinueStopCause.goalBudget);
+  });
+
+  test('skips at the effective auto continue budget', () {
+    final decision = policy.decide(_input(goal: _goal(turnsUsed: 10)));
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.skip);
+    expect(decision.reason, 'auto-continue turn budget reached');
+    expect(decision.stopCause, GoalAutoContinueStopCause.turnBudget);
+  });
+
+  test('skips every unsafe boundary independently', () {
+    final cases = <String, GoalAutoContinueSafeBoundary Function()>{
+      'response still loading': () => _safeBoundary(isLoading: true),
+      'queued user input is waiting': () =>
+          _safeBoundary(hasQueuedUserInput: true),
+      'SSH connection approval is pending': () =>
+          _safeBoundary(hasPendingSshConnect: true),
+      'SSH command approval is pending': () =>
+          _safeBoundary(hasPendingSshCommand: true),
+      'git command approval is pending': () =>
+          _safeBoundary(hasPendingGitCommand: true),
+      'local command approval is pending': () =>
+          _safeBoundary(hasPendingLocalCommand: true),
+      'computer-use approval is pending': () =>
+          _safeBoundary(hasPendingComputerUseAction: true),
+      'browser action approval is pending': () =>
+          _safeBoundary(hasPendingBrowserAction: true),
+      'file operation approval is pending': () =>
+          _safeBoundary(hasPendingFileOperation: true),
+      'BLE connection approval is pending': () =>
+          _safeBoundary(hasPendingBleConnect: true),
+      'serial port approval is pending': () =>
+          _safeBoundary(hasPendingSerialOpen: true),
+      'participant tool approval is pending': () =>
+          _safeBoundary(hasPendingParticipantToolApproval: true),
+      'assistant question is pending': () =>
+          _safeBoundary(hasPendingAskUserQuestion: true),
+      'workflow decision is pending': () =>
+          _safeBoundary(hasPendingWorkflowDecision: true),
+      'participant turn is active': () =>
+          _safeBoundary(hasParticipantTurnRuntime: true),
+      'chat state has an error': () => _safeBoundary(hasError: true),
+    };
+
+    for (final entry in cases.entries) {
+      final decision = policy.decide(_input(safeBoundary: entry.value()));
+      expect(decision.kind, GoalAutoContinueDecisionKind.skip);
+      expect(decision.reason, entry.key);
+    }
+  });
+
+  test('skips questions and turns with no incomplete evidence', () {
+    expect(
+      policy.decide(_input(finalAnswerEndsWithQuestion: true)).reason,
+      'final answer asks a question',
+    );
+    expect(
+      policy
+          .decide(_input(evidence: const ToolResultCompletionEvidence()))
+          .reason,
+      'no incomplete evidence',
+    );
+  });
+
+  test('continues from unverified file changes', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          unverifiedChangePaths: ['bin/todo_cli.dart'],
+        ),
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+    expect(decision.reason, 'incomplete evidence remains');
+  });
+
+  test('does not block after progress followed by one diagnostic plateau', () {
+    final evidence = _evidence(count: 2, paths: const ['bin/todo_cli.dart']);
+    final decision = policy.decide(
+      _input(
+        evidence: evidence,
+        consecutiveAutoContinuations: 2,
+        noProgressStreak: 1,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+  });
+
+  test('blocks after two consecutive diagnostic no-progress comparisons', () {
+    final evidence = _evidence(count: 2, paths: const ['bin/todo_cli.dart']);
+    final decision = policy.decide(
+      _input(
+        evidence: evidence,
+        consecutiveAutoContinuations: 3,
+        noProgressStreak: 2,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
+    expect(decision.blockedReason, contains('no diagnostic progress'));
+  });
+
+  test('skips but does not block when unverified-only evidence stalls', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          unverifiedChangePaths: ['README.md'],
+        ),
+        consecutiveAutoContinuations: 3,
+        noProgressStreak: 2,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.skip);
+    expect(decision.reason, 'no measurable progress');
+    expect(decision.stopCause, GoalAutoContinueStopCause.noProgress);
+  });
+
+  test('skips but does not block when exhaustion-only evidence stalls', () {
+    final evidence = const ToolResultCompletionEvidence(
+      boundedToolLoopExhausted: true,
+      unexecutedToolNames: ['read_file'],
+    );
+    final decision = policy.decide(
+      _input(
+        evidence: evidence,
+        consecutiveAutoContinuations: 3,
+        noProgressStreak: 2,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.skip);
+    expect(decision.reason, 'no measurable progress');
+    expect(decision.stopCause, GoalAutoContinueStopCause.noProgress);
+  });
+
+  test('treats diagnostic regression as no progress', () {
+    final progress = _evidence(
+      count: 3,
+      paths: const ['bin/todo_cli.dart'],
+    ).compareProgress(_evidence(count: 2, paths: const ['bin/todo_cli.dart']));
+
+    expect(progress, GoalEvidenceProgress.noProgress);
+  });
+
+  test('continues when diagnostics improve', () {
+    final decision = policy.decide(
+      _input(
+        evidence: _evidence(count: 1, paths: const ['bin/todo_cli.dart']),
+        consecutiveAutoContinuations: 2,
+        noProgressStreak: 0,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+  });
+
+  test('skips when edit and read-only evidence alternate without progress', () {
+    const editEvidence = ToolResultCompletionEvidence(
+      unverifiedChangePaths: ['README.md'],
+    );
+    const readEvidence = ToolResultCompletionEvidence(
+      boundedToolLoopExhausted: true,
+      unexecutedToolNames: ['read_file'],
+    );
+    var streak = 0;
+    streak = _nextStreak(streak, readEvidence, editEvidence);
+    streak = _nextStreak(streak, editEvidence, readEvidence);
+
+    final decision = policy.decide(
+      _input(
+        evidence: editEvidence,
+        consecutiveAutoContinuations: 3,
+        noProgressStreak: streak,
+      ),
+    );
+
+    expect(streak, 2);
+    expect(decision.kind, GoalAutoContinueDecisionKind.skip);
+    expect(decision.stopCause, GoalAutoContinueStopCause.noProgress);
+  });
+
+  test('resets no-progress streak when unverified edits move files', () {
+    const firstEdit = ToolResultCompletionEvidence(
+      unverifiedChangePaths: ['README.md'],
+    );
+    const secondEdit = ToolResultCompletionEvidence(
+      unverifiedChangePaths: ['docs/README.md'],
+    );
+    final streak = _nextStreak(1, secondEdit, firstEdit);
+
+    final decision = policy.decide(
+      _input(
+        evidence: secondEdit,
+        consecutiveAutoContinuations: 2,
+        noProgressStreak: streak,
+      ),
+    );
+
+    expect(streak, 0);
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+  });
+}
+
+GoalAutoContinuePolicyInput _input({
+  ConversationGoal? goal,
+  GoalAutoContinueSafeBoundary? safeBoundary,
+  ToolResultCompletionEvidence? evidence,
+  int consecutiveAutoContinuations = 0,
+  int noProgressStreak = 0,
+  bool finalAnswerEndsWithQuestion = false,
+}) {
+  return GoalAutoContinuePolicyInput(
+    goal: goal ?? _goal(),
+    safeBoundary: safeBoundary ?? _safeBoundary(),
+    evidence: evidence ?? _evidence(),
+    consecutiveAutoContinuations: consecutiveAutoContinuations,
+    noProgressStreak: noProgressStreak,
+    finalAnswerEndsWithQuestion: finalAnswerEndsWithQuestion,
+  );
+}
+
+ConversationGoal _goal({
+  bool autoContinue = true,
+  ConversationGoalStatus status = ConversationGoalStatus.active,
+  int tokenBudget = 0,
+  int tokenUsage = 0,
+  int turnBudget = 0,
+  int turnsUsed = 1,
+}) {
+  return ConversationGoal(
+    id: 'goal-1',
+    objective: 'Fix analyzer errors',
+    enabled: true,
+    autoContinue: autoContinue,
+    status: status,
+    tokenBudget: tokenBudget,
+    tokenUsage: tokenUsage,
+    turnBudget: turnBudget,
+    turnsUsed: turnsUsed,
+    createdAt: DateTime(2026),
+    updatedAt: DateTime(2026),
+  );
+}
+
+int _nextStreak(
+  int currentStreak,
+  ToolResultCompletionEvidence current,
+  ToolResultCompletionEvidence previous,
+) {
+  return current.compareProgress(previous) == GoalEvidenceProgress.improved
+      ? 0
+      : currentStreak + 1;
+}
+
+GoalAutoContinueSafeBoundary _safeBoundary({
+  bool isLoading = false,
+  bool hasQueuedUserInput = false,
+  bool hasPendingSshConnect = false,
+  bool hasPendingSshCommand = false,
+  bool hasPendingGitCommand = false,
+  bool hasPendingLocalCommand = false,
+  bool hasPendingComputerUseAction = false,
+  bool hasPendingBrowserAction = false,
+  bool hasPendingFileOperation = false,
+  bool hasPendingBleConnect = false,
+  bool hasPendingSerialOpen = false,
+  bool hasPendingParticipantToolApproval = false,
+  bool hasPendingAskUserQuestion = false,
+  bool hasPendingWorkflowDecision = false,
+  bool hasParticipantTurnRuntime = false,
+  bool hasError = false,
+}) {
+  return GoalAutoContinueSafeBoundary(
+    isLoading: isLoading,
+    hasQueuedUserInput: hasQueuedUserInput,
+    hasPendingSshConnect: hasPendingSshConnect,
+    hasPendingSshCommand: hasPendingSshCommand,
+    hasPendingGitCommand: hasPendingGitCommand,
+    hasPendingLocalCommand: hasPendingLocalCommand,
+    hasPendingComputerUseAction: hasPendingComputerUseAction,
+    hasPendingBrowserAction: hasPendingBrowserAction,
+    hasPendingFileOperation: hasPendingFileOperation,
+    hasPendingBleConnect: hasPendingBleConnect,
+    hasPendingSerialOpen: hasPendingSerialOpen,
+    hasPendingParticipantToolApproval: hasPendingParticipantToolApproval,
+    hasPendingAskUserQuestion: hasPendingAskUserQuestion,
+    hasPendingWorkflowDecision: hasPendingWorkflowDecision,
+    hasParticipantTurnRuntime: hasParticipantTurnRuntime,
+    hasError: hasError,
+  );
+}
+
+ToolResultCompletionEvidence _evidence({
+  int count = 2,
+  List<String> paths = const ['bin/todo_cli.dart'],
+}) {
+  return ToolResultCompletionEvidence(
+    unresolvedErrorCount: count,
+    unresolvedErrorPaths: paths,
+  );
+}

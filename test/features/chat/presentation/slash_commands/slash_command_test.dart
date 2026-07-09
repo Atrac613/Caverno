@@ -21,6 +21,13 @@ void main() {
       aliases: ['code'],
     ),
     SlashCommandDefinition(
+      name: 'goal',
+      action: SlashCommandAction.goal,
+      description: 'Show or manage the current coding goal',
+      argumentHint: '[objective] | pause | resume | clear',
+      argumentRequirement: SlashCommandArgumentRequirement.optional,
+    ),
+    SlashCommandDefinition(
       name: 'review',
       action: SlashCommandAction.review,
       description: 'Review a target',
@@ -48,6 +55,18 @@ void main() {
     test('returns null for path-like slash input', () {
       expect(parseSlashCommandInput('/tmp/file.txt'), isNull);
       expect(parseSlashCommandInput('/Users/example/project'), isNull);
+    });
+
+    test('parses goal subcommands and multi-word objectives as arguments', () {
+      final pause = parseSlashCommandInput('/goal pause');
+      final objective = parseSlashCommandInput('/goal pause the deployment');
+
+      expect(pause, isNotNull);
+      expect(pause!.commandName, 'goal');
+      expect(pause.args, 'pause');
+      expect(objective, isNotNull);
+      expect(objective!.commandName, 'goal');
+      expect(objective.args, 'pause the deployment');
     });
   });
 
@@ -79,7 +98,7 @@ void main() {
           '/',
           commands,
         ).map((command) => command.name),
-        ['help', 'clear', 'coding', 'review'],
+        ['help', 'clear', 'coding', 'goal', 'review'],
       );
     });
 
@@ -111,6 +130,13 @@ void main() {
           commands,
         ).map((command) => command.name),
         ['review'],
+      );
+      expect(
+        filterSlashCommandSuggestions(
+          '/go',
+          commands,
+        ).map((command) => command.name),
+        ['goal'],
       );
     });
 

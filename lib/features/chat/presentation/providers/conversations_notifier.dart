@@ -24,6 +24,7 @@ import '../../domain/services/conversation_goal_progress_inference.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
+import '../../domain/services/tool_result_prompt_builder.dart';
 
 /// State for the conversation list.
 class ConversationsState {
@@ -825,16 +826,16 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
   /// A cheap fingerprint of the conversation's searchable text: title plus each
   /// message's id and content length. Changes whenever a message is added,
-  /// edited, removed, or the title changes — which is exactly when re-indexing
+  /// edited, removed, or the title changes, which is exactly when re-indexing
   /// is warranted.
   String _semanticIndexSignature(Conversation conversation) {
     final buffer = StringBuffer()
       ..write(conversation.title)
-      ..write(' ')
+      ..write('\u0000')
       ..write(conversation.messages.length);
     for (final message in conversation.messages) {
       buffer
-        ..write(' ')
+        ..write('\u0000')
         ..write(message.id)
         ..write(':')
         ..write(message.content.length);
@@ -926,6 +927,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     required String objective,
     required bool enabled,
     required ConversationGoalStatus status,
+    bool? autoContinue,
     int tokenBudget = 0,
     int turnBudget = 0,
     String? blockedReason,
@@ -950,6 +952,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       id: previous?.id ?? _uuid.v4(),
       objective: normalizedObjective,
       enabled: enabled,
+      autoContinue: autoContinue ?? previous?.autoContinue ?? false,
       status: nextStatus,
       tokenBudget: _sanitizeGoalBudget(tokenBudget),
       tokenUsage: resetProgress ? 0 : previous.tokenUsage,
@@ -1049,6 +1052,8 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   Future<void> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
+    ToolResultCompletionEvidence completionEvidence =
+        const ToolResultCompletionEvidence(),
   }) async {
     final conversation = state.currentConversation;
     final goal = conversation?.goal;
@@ -1071,7 +1076,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: now,
     );
 
-    if (inference.hasCompletion) {
+    if (inference.hasCompletion && !completionEvidence.hasBlockingEvidence) {
       nextGoal = nextGoal.copyWith(
         status: ConversationGoalStatus.completed,
         completionSummary:

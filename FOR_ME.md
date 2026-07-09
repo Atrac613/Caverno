@@ -269,6 +269,45 @@ written down so the next investigator skips the detour.
   / environment, no change" is worth writing down — it stops the next person
   (or the next you) from re-opening it.
 
+### Lesson 9: you cannot regex your way to "the whole dish is done" — and that's okay
+
+The goal auto-continue feature (Codex-style `/goal`: the cook keeps working
+until the objective is met) needs one deceptively hard judgment: *did the cook
+just say the goal is finished, or only one component of it?* The judge we have
+is `ConversationGoalProgressInference` — substring lists over the final answer,
+because a secondary LLM call per turn is exactly the cost this feature exists
+to avoid.
+
+The first version was maximally conservative: any incomplete-sounding phrase
+anywhere ("残り", "pending", "not complete") vetoed completion. Safe, but it
+broke honest chronological narration — "it wasn't complete, so I fixed it and
+the verifier exited with code 0. The goal is complete." never completed. Three
+review rounds landed on a two-tier design: **generic** completion verbs
+(完了しました, "tests passed") only count when no incomplete phrase appears
+anywhere, while **goal-scoped** claims ("goal is complete", すべて完了,
+"verifier exited with code 0") may positionally override *earlier* incomplete
+narration.
+
+That still leaves one hole we decided to keep:
+「残りはAPI側です。**UI側は**すべて完了しました。」marks the goal completed —
+the substring cannot see the 〜は topic marker scoping すべて完了 to a subset.
+We accepted it deliberately instead of patching, because the failure is fenced
+on three sides: turns that ran tools are protected by the evidence gate
+(`hasBlockingEvidence` suppresses completion while analyzer errors or an
+exhausted loop remain), a wrong completion is one `/goal resume` away from
+recovery, and every continuation chain is budget-bounded anyway. Chasing the
+topic marker with more lexical rules would trade this rare false-positive for
+false-*negatives* on legitimate completions — the same trap the first version
+fell into from the other side.
+
+The transferable lesson: when a heuristic judges natural language, decide
+where its floor is, write the known-miss down next to the code (see the
+comment on `_goalScopedCompletionSignals`), and make sure the *system around
+it* absorbs the miss. The judge doesn't have to be perfect; the kitchen has to
+be. If this residual ever hurts in practice, the escalation path is a
+secondary-LLM verdict on the final answer (same pattern as memory extraction),
+not a fourth round of substring surgery.
+
 ## Where to start reading
 
 - The loop: `lib/features/chat/presentation/providers/chat_notifier.dart` and its

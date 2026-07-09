@@ -36,7 +36,6 @@ class MessageInputImageAttachment {
   final String filePath;
 }
 
-typedef CodingGoalSwitchChanged = void Function(bool enabled, String draftText);
 typedef WorktreeSessionSendHandler = FutureOr<String> Function(String prompt);
 
 enum MessageInputWorktreeMode { local, newWorktree }
@@ -56,15 +55,14 @@ class MessageInput extends ConsumerStatefulWidget {
     this.composerPrefillVersion = 0,
     this.droppedImageAttachment,
     this.codingGoal,
-    this.isCodingGoalSetupPending = false,
-    this.isCodingGoalSuggestionInProgress = false,
-    this.onCodingGoalSwitchChanged,
-    this.onCodingGoalEmptySwitchEnabled,
     this.onCodingGoalEdit,
     this.onCodingGoalMarkComplete,
     this.onCodingGoalMarkBlocked,
     this.onCodingGoalReactivate,
     this.onCodingGoalClear,
+    this.goalAutoContinueCount = 0,
+    this.goalAutoContinueBudget = 0,
+    this.goalAutoContinueNotice,
     this.onWorktreeSessionSend,
     this.slashCommands = const <SlashCommandDefinition>[],
     this.onSlashCommand,
@@ -94,15 +92,14 @@ class MessageInput extends ConsumerStatefulWidget {
   final int composerPrefillVersion;
   final MessageInputImageAttachment? droppedImageAttachment;
   final ConversationGoal? codingGoal;
-  final bool isCodingGoalSetupPending;
-  final bool isCodingGoalSuggestionInProgress;
-  final CodingGoalSwitchChanged? onCodingGoalSwitchChanged;
-  final VoidCallback? onCodingGoalEmptySwitchEnabled;
   final VoidCallback? onCodingGoalEdit;
   final VoidCallback? onCodingGoalMarkComplete;
   final VoidCallback? onCodingGoalMarkBlocked;
   final VoidCallback? onCodingGoalReactivate;
   final VoidCallback? onCodingGoalClear;
+  final int goalAutoContinueCount;
+  final int goalAutoContinueBudget;
+  final String? goalAutoContinueNotice;
   final WorktreeSessionSendHandler? onWorktreeSessionSend;
   final List<SlashCommandDefinition> slashCommands;
   final SlashCommandHandler? onSlashCommand;
@@ -350,7 +347,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   KeyEventResult _handleSlashCommandKey(KeyDownEvent event) {
-    if (!_slashCommandsEnabled || widget.isCodingGoalSuggestionInProgress) {
+    if (!_slashCommandsEnabled) {
       return KeyEventResult.ignored;
     }
 
@@ -1077,9 +1074,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   Future<void> _handleSendAsync() async {
-    if (widget.isCodingGoalSuggestionInProgress) {
-      return;
-    }
     final text = _controller.text.trim();
     if (text.isEmpty &&
         _selectedImageBytes == null &&
@@ -1537,63 +1531,40 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   Widget _buildCodingGoalStrip(BuildContext context, ThemeData theme) {
     final goal = widget.codingGoal;
     final hasGoal = goal?.hasObjective ?? false;
-    final isSuggesting = widget.isCodingGoalSuggestionInProgress;
-    final isPending = !hasGoal && widget.isCodingGoalSetupPending;
-    final isActive = isSuggesting || isPending || (goal?.isActive ?? false);
-    final status = goal?.status ?? ConversationGoalStatus.active;
-    final statusColor = isSuggesting || isPending
-        ? theme.colorScheme.primary
+    if (!hasGoal) {
+      return const SizedBox.shrink();
+    }
+    final activeGoal = goal!;
+    final status = activeGoal.status;
+    final isPaused = !activeGoal.enabled;
+    final statusColor = isPaused
+        ? theme.colorScheme.onSurfaceVariant
         : _goalStatusColor(theme, status);
-    final objective = isSuggesting
-        ? 'chat.goal_suggesting'.tr()
-        : hasGoal
-        ? goal!.normalizedObjective!
-        : isPending
-        ? 'chat.goal_pending'.tr()
-        : 'chat.goal_empty'.tr();
-    final budgetLabel = hasGoal ? _goalBudgetLabel(goal!) : '';
-    final controlsEnabled =
-        !widget.isLoading && !widget.isCodingGoalSuggestionInProgress;
-    final canChangeSwitch =
-        controlsEnabled &&
-        (widget.onCodingGoalSwitchChanged != null ||
-            widget.onCodingGoalEmptySwitchEnabled != null);
+    final statusLabel = isPaused
+        ? 'chat.slash_goal_status_paused'.tr(
+            namedArgs: {'status': _goalStatusLabel(status)},
+          )
+        : _goalStatusLabel(status);
+    final objective = activeGoal.normalizedObjective!;
+    final budgetLabel = _goalBudgetLabel(activeGoal);
+    final autoContinueLabel = activeGoal.autoContinue
+        ? widget.goalAutoContinueCount > 0 && widget.goalAutoContinueBudget > 0
+              ? 'chat.goal_auto_continue_running'.tr(
+                  namedArgs: {
+                    'count': widget.goalAutoContinueCount.toString(),
+                    'total': widget.goalAutoContinueBudget.toString(),
+                  },
+                )
+              : 'chat.goal_auto_continue_on'.tr()
+        : '';
+    final notice = widget.goalAutoContinueNotice?.trim();
+    final controlsEnabled = !widget.isLoading;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 0, 2, 6),
       child: Row(
         children: [
-          Switch(
-            value: isActive,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onChanged: canChangeSwitch
-                ? (enabled) {
-                    if (enabled &&
-                        !hasGoal &&
-                        _controller.text.trim().isEmpty &&
-                        widget.onCodingGoalEmptySwitchEnabled != null) {
-                      widget.onCodingGoalEmptySwitchEnabled!();
-                      return;
-                    }
-                    widget.onCodingGoalSwitchChanged?.call(
-                      enabled,
-                      _controller.text.trim(),
-                    );
-                  }
-                : null,
-          ),
-          const SizedBox(width: 4),
-          if (isSuggesting)
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: statusColor,
-              ),
-            )
-          else
-            Icon(Icons.flag_outlined, size: 18, color: statusColor),
+          Icon(Icons.flag_outlined, size: 18, color: statusColor),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -1611,20 +1582,40 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    if (hasGoal)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isPaused
+                              ? Icons.pause_circle_outline
+                              : _goalStatusIcon(status),
+                          size: 14,
+                          color: statusColor,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          statusLabel,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (autoContinueLabel.isNotEmpty)
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            _goalStatusIcon(status),
+                            Icons.repeat_outlined,
                             size: 14,
-                            color: statusColor,
+                            color: theme.colorScheme.secondary,
                           ),
                           const SizedBox(width: 3),
                           Text(
-                            _goalStatusLabel(status),
+                            autoContinueLabel,
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: statusColor,
+                              color: theme.colorScheme.secondary,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -1638,12 +1629,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: hasGoal || isPending || isSuggesting
-                        ? theme.colorScheme.onSurface
-                        : theme.colorScheme.onSurfaceVariant,
-                    fontWeight: hasGoal || isPending || isSuggesting
-                        ? FontWeight.w600
-                        : FontWeight.w400,
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 if (budgetLabel.isNotEmpty) ...[
@@ -1653,77 +1640,80 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: goal!.budgetExceeded
+                      color: activeGoal.budgetExceeded
                           ? theme.colorScheme.error
                           : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                if (notice != null && notice.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    notice.tr(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
               ],
             ),
           ),
-          if (!hasGoal && widget.onCodingGoalEdit != null)
-            IconButton(
-              key: const ValueKey('coding-goal-set-button'),
-              tooltip: 'chat.goal_set'.tr(),
-              icon: const Icon(Icons.add_task_outlined),
-              onPressed: controlsEnabled ? widget.onCodingGoalEdit : null,
-            ),
-          if (hasGoal && widget.onCodingGoalEdit != null)
+          if (widget.onCodingGoalEdit != null)
             IconButton(
               key: const ValueKey('coding-goal-edit-button'),
               tooltip: 'chat.goal_edit'.tr(),
               icon: const Icon(Icons.edit_outlined),
               onPressed: controlsEnabled ? widget.onCodingGoalEdit : null,
             ),
-          if (hasGoal)
-            PopupMenuButton<_GoalMenuAction>(
-              enabled: controlsEnabled,
-              tooltip: 'chat.goal_title'.tr(),
-              icon: const Icon(Icons.more_horiz),
-              onSelected: _handleGoalMenuAction,
-              itemBuilder: (context) => [
-                if (status == ConversationGoalStatus.active) ...[
-                  PopupMenuItem<_GoalMenuAction>(
-                    value: _GoalMenuAction.complete,
-                    enabled: widget.onCodingGoalMarkComplete != null,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.check_circle_outline),
-                      title: Text('chat.goal_mark_complete'.tr()),
-                    ),
-                  ),
-                  PopupMenuItem<_GoalMenuAction>(
-                    value: _GoalMenuAction.block,
-                    enabled: widget.onCodingGoalMarkBlocked != null,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.block_outlined),
-                      title: Text('chat.goal_mark_blocked'.tr()),
-                    ),
-                  ),
-                ],
-                if (status != ConversationGoalStatus.active)
-                  PopupMenuItem<_GoalMenuAction>(
-                    value: _GoalMenuAction.reactivate,
-                    enabled: widget.onCodingGoalReactivate != null,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.play_arrow_outlined),
-                      title: Text('chat.goal_reactivate'.tr()),
-                    ),
-                  ),
+          PopupMenuButton<_GoalMenuAction>(
+            enabled: controlsEnabled,
+            tooltip: 'chat.goal_title'.tr(),
+            icon: const Icon(Icons.more_horiz),
+            onSelected: _handleGoalMenuAction,
+            itemBuilder: (context) => [
+              if (status == ConversationGoalStatus.active) ...[
                 PopupMenuItem<_GoalMenuAction>(
-                  value: _GoalMenuAction.clear,
-                  enabled: widget.onCodingGoalClear != null,
+                  value: _GoalMenuAction.complete,
+                  enabled: widget.onCodingGoalMarkComplete != null,
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.close),
-                    title: Text('common.clear'.tr()),
+                    leading: const Icon(Icons.check_circle_outline),
+                    title: Text('chat.goal_mark_complete'.tr()),
+                  ),
+                ),
+                PopupMenuItem<_GoalMenuAction>(
+                  value: _GoalMenuAction.block,
+                  enabled: widget.onCodingGoalMarkBlocked != null,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.block_outlined),
+                    title: Text('chat.goal_mark_blocked'.tr()),
                   ),
                 ),
               ],
-            ),
+              if (status != ConversationGoalStatus.active)
+                PopupMenuItem<_GoalMenuAction>(
+                  value: _GoalMenuAction.reactivate,
+                  enabled: widget.onCodingGoalReactivate != null,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.play_arrow_outlined),
+                    title: Text('chat.goal_reactivate'.tr()),
+                  ),
+                ),
+              PopupMenuItem<_GoalMenuAction>(
+                value: _GoalMenuAction.clear,
+                enabled: widget.onCodingGoalClear != null,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.close),
+                  title: Text('common.clear'.tr()),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1832,7 +1822,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (widget.isCodingWorkspace)
+                  if (widget.isCodingWorkspace &&
+                      (widget.codingGoal?.hasObjective ?? false))
                     _buildCodingGoalStrip(context, theme),
                   // Row 1: full-width TextField
                   Padding(
@@ -1858,7 +1849,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                         controller: _controller,
                         focusNode: _focusNode,
                         enabled: true,
-                        readOnly: widget.isCodingGoalSuggestionInProgress,
                         contentInsertionConfiguration:
                             ContentInsertionConfiguration(
                               onContentInserted: _handleContentInserted,
@@ -2321,9 +2311,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       // - otherwise: Voice mode overlay
                       if (canSend)
                         IconButton(
-                          onPressed: widget.isCodingGoalSuggestionInProgress
-                              ? null
-                              : _handleSend,
+                          onPressed: _handleSend,
                           icon: const Icon(Icons.send),
                           tooltip: 'message.send'.tr(),
                           style: IconButton.styleFrom(

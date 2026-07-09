@@ -44,7 +44,6 @@ import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
-import '../../domain/services/conversation_goal_suggestion_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
@@ -140,8 +139,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   int _droppedImageAttachmentId = 0;
   String? _switchingCompanionBranchName;
   MessageInputImageAttachment? _droppedImageAttachment;
-  String? _pendingCodingGoalConversationId;
-  String? _codingGoalSuggestionConversationId;
   static const double _companionSidebarBreakpoint = 1180;
   static const double _companionSidebarWidth = 344;
   static const double _persistentDrawerBreakpoint = 900;
@@ -168,26 +165,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _scrollController.dispose();
     _workflowPanelScrollController.dispose();
     super.dispose();
-  }
-
-  void _setPendingCodingGoalConversationId(String? conversationId) {
-    if (!mounted) {
-      _pendingCodingGoalConversationId = conversationId;
-      return;
-    }
-    setState(() {
-      _pendingCodingGoalConversationId = conversationId;
-    });
-  }
-
-  void _setCodingGoalSuggestionConversationId(String? conversationId) {
-    if (!mounted) {
-      _codingGoalSuggestionConversationId = conversationId;
-      return;
-    }
-    setState(() {
-      _codingGoalSuggestionConversationId = conversationId;
-    });
   }
 
   void _openFileWorkspaceViewer(FileWorkspaceViewerRequest request) {
@@ -542,6 +519,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         description: 'chat.slash_plan_desc'.tr(),
       ),
       SlashCommandDefinition(
+        name: 'goal',
+        action: SlashCommandAction.goal,
+        description: 'chat.slash_goal_desc'.tr(),
+        argumentHint: '[objective] | pause | resume | clear | auto on|off',
+        argumentRequirement: SlashCommandArgumentRequirement.optional,
+      ),
+      SlashCommandDefinition(
         name: 'cancel',
         action: SlashCommandAction.cancel,
         description: 'chat.slash_cancel_desc'.tr(),
@@ -680,6 +664,26 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         await conversationsNotifier.enterPlanningSession();
         return SlashCommandExecutionResult(
           feedbackMessage: 'chat.slash_plan_started'.tr(),
+        );
+      case SlashCommandAction.goal:
+        var goalConversation = currentConversation;
+        final shouldStartGoalPrompt = goalConversation == null;
+        if (goalConversation == null && isCodingWorkspace) {
+          goalConversation = conversationsNotifier.ensureCurrentConversation(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: activeProject?.id ?? conversationsState.activeProjectId,
+          );
+        }
+        if (!isCodingWorkspace || goalConversation == null) {
+          return SlashCommandExecutionResult.keepInput(
+            feedbackMessage: 'chat.slash_goal_unavailable'.tr(),
+          );
+        }
+        return _handleGoalSlashCommand(
+          context,
+          goalConversation,
+          invocation.args,
+          sendObjectiveAsInitialPrompt: shouldStartGoalPrompt,
         );
       case SlashCommandAction.cancel:
         if (!isLoading) {
@@ -1199,53 +1203,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       String? originalImagePath,
       String? originalImageMimeType,
     ) {
-      if (isCodingWorkspace &&
-          currentConversation != null &&
-          _isCodingGoalSuggestionInProgressFor(currentConversation)) {
-        setState(() {
-          _composerPrefillText = message;
-          _composerPrefillVersion++;
-        });
-        return;
-      }
       setState(() {
         _composerPrefillText = '';
         _composerPrefillVersion++;
       });
       _leaveDashboard();
       final languageCode = context.locale.languageCode;
-      if (isCodingWorkspace &&
-          currentConversation != null &&
-          _isCodingGoalSetupPendingFor(currentConversation) &&
-          message.trim().isNotEmpty) {
-        unawaited(
-          _sendMessageAfterPendingGoalSetup(
-            context,
-            currentConversation: currentConversation,
-            message: message,
-            imageBase64: imageBase64,
-            imageMimeType: imageMimeType,
-            originalImagePath: originalImagePath,
-            originalImageMimeType: originalImageMimeType,
-            languageCode: languageCode,
-          ).then((sent) {
-            if (sent || !mounted) {
-              return;
-            }
-            final activeConversation = ref
-                .read(conversationsNotifierProvider)
-                .currentConversation;
-            if (activeConversation?.id != currentConversation.id) {
-              return;
-            }
-            setState(() {
-              _composerPrefillText = message;
-              _composerPrefillVersion++;
-            });
-          }),
-        );
-        return;
-      }
       unawaited(
         chatNotifier.sendMessage(
           message,
@@ -1301,25 +1264,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               )
             : null,
         codingGoal: isCodingWorkspace ? currentConversation?.goal : null,
-        isCodingGoalSetupPending:
-            isCodingWorkspace &&
-            _isCodingGoalSetupPendingFor(currentConversation),
-        isCodingGoalSuggestionInProgress:
-            isCodingWorkspace &&
-            _isCodingGoalSuggestionInProgressFor(currentConversation),
-        onCodingGoalSwitchChanged:
-            isCodingWorkspace && currentConversation != null
-            ? (enabled, draftText) => _handleGoalSwitch(
-                context,
-                currentConversation,
-                enabled,
-                pendingUserMessage: draftText,
-              )
-            : null,
-        onCodingGoalEmptySwitchEnabled:
-            isCodingWorkspace && currentConversation != null
-            ? () => _deferGoalSetupUntilSend(currentConversation)
-            : null,
+        goalAutoContinueCount: chatState.goalAutoContinueCount,
+        goalAutoContinueBudget: chatState.goalAutoContinueBudget,
+        goalAutoContinueNotice: chatState.goalAutoContinueNotice,
         onCodingGoalEdit: isCodingWorkspace && currentConversation != null
             ? () => _showGoalEditor(context, currentConversation)
             : null,
