@@ -12,7 +12,8 @@ final llmSessionLogStoreProvider = Provider<LlmSessionLogStore>((ref) {
   return LlmSessionLogStore();
 });
 
-class SessionLoggingChatDataSource implements ChatDataSource, FinishReasonAware {
+class SessionLoggingChatDataSource
+    implements ChatDataSource, FinishReasonAware {
   SessionLoggingChatDataSource({
     required ChatDataSource delegate,
     required LlmSessionLogStore logStore,
@@ -44,11 +45,8 @@ class SessionLoggingChatDataSource implements ChatDataSource, FinishReasonAware 
   @override
   String? get lastFinishReason {
     final delegate = _delegate;
-    if (delegate is ChatRemoteDataSource) {
-      return delegate.lastFinishReason;
-    }
-    if (delegate is SessionLoggingChatDataSource) {
-      return delegate.lastFinishReason;
+    if (delegate is FinishReasonAware) {
+      return (delegate as FinishReasonAware).lastFinishReason;
     }
     return null;
   }
@@ -56,6 +54,37 @@ class SessionLoggingChatDataSource implements ChatDataSource, FinishReasonAware 
   @override
   Stream<String> streamChatCompletion({
     required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    return _streamChatCompletionAndLog(
+      messages: messages,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  Stream<String> streamChatCompletionWithStructuredToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    return _streamChatCompletionAndLog(
+      messages: messages,
+      toolResults: toolResults,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  Stream<String> _streamChatCompletionAndLog({
+    required List<Message> messages,
+    List<ToolResultInfo>? toolResults,
     String? model,
     double? temperature,
     int? maxTokens,
@@ -79,6 +108,7 @@ class SessionLoggingChatDataSource implements ChatDataSource, FinishReasonAware 
         request: LlmSessionLogRequest(
           operation: 'streamChatCompletion',
           messages: messages,
+          toolResults: toolResults,
           model: model ?? ApiConstants.defaultModel,
           temperature: temperature ?? ApiConstants.defaultTemperature,
           maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
@@ -96,6 +126,7 @@ class SessionLoggingChatDataSource implements ChatDataSource, FinishReasonAware 
         request: LlmSessionLogRequest(
           operation: 'streamChatCompletion',
           messages: messages,
+          toolResults: toolResults,
           model: model ?? ApiConstants.defaultModel,
           temperature: temperature ?? ApiConstants.defaultTemperature,
           maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,

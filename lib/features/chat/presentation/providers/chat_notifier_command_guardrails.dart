@@ -5,6 +5,32 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierCommandGuardrails on ChatNotifier {
+  McpToolResult? _buildAnalysisOptionsLintEditGuardResult(
+    ToolCallInfo toolCall, {
+    required List<ToolResultInfo> executedToolResults,
+  }) {
+    final issue = const AnalysisOptionsLintEditGuard().detectIssue(
+      toolCall: toolCall,
+      executedToolResults: executedToolResults,
+    );
+    if (issue == null) {
+      return null;
+    }
+
+    final payload = jsonEncode({
+      'ok': false,
+      ...issue.toJson(),
+      'error': issue.summary,
+      'required_action': issue.instruction,
+    });
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: false,
+      errorMessage: issue.summary,
+    );
+  }
+
   McpToolResult? _buildGitTagFormatInspectionGuardResult(
     ToolCallInfo toolCall, {
     required List<ToolResultInfo> executedToolResults,

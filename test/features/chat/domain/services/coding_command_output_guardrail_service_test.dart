@@ -144,6 +144,43 @@ void main() {
       expect(issue.targets, ['.', 'prime_numbers_pkg']);
     });
 
+    test('reports dart create type as an unsupported option', () {
+      final issue = CodingCommandOutputGuardrailService.detectPreflightIssue(
+        toolName: 'local_execute_command',
+        command: 'dart create --type package .',
+        workingDirectory: '/tmp/project',
+      );
+
+      expect(issue, isNotNull);
+      expect(issue!.code, 'dart_create_unsupported_option');
+      expect(issue.segment, 'dart create --type package .');
+      expect(
+        issue.summary,
+        'Dart create does not support the "--type" option.',
+      );
+      expect(
+        issue.instruction,
+        'Replace "--type package" with "--template package".',
+      );
+      expect(issue.targets, ['.']);
+    });
+
+    test('reports an equals-style dart create type option', () {
+      final issue = CodingCommandOutputGuardrailService.detectPreflightIssue(
+        toolName: 'process_start',
+        command: 'fvm dart create --type=package sample_pkg',
+        workingDirectory: '/tmp',
+      );
+
+      expect(issue, isNotNull);
+      expect(issue!.code, 'dart_create_unsupported_option');
+      expect(
+        issue.instruction,
+        'Replace "--type package" with "--template package".',
+      );
+      expect(issue.targets, ['sample_pkg']);
+    });
+
     test('allows dart create with a single target directory', () {
       final service = CodingCommandOutputGuardrailService.detectPreflightIssue;
 

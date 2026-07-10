@@ -1983,6 +1983,136 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   }
 }
 
+class _FinalAnswerRecoveryChatDataSource
+    implements ChatDataSource, FinishReasonAware {
+  _FinalAnswerRecoveryChatDataSource({
+    required this.initialToolCall,
+    required this.firstAnswer,
+    required this.firstFinishReason,
+    required this.recoveryResult,
+  });
+
+  final ToolCallInfo initialToolCall;
+  final String firstAnswer;
+  final String firstFinishReason;
+  final ChatCompletionResult recoveryResult;
+  final List<List<Message>> recoveryRequestMessages = [];
+  final List<List<Map<String, dynamic>>?> recoveryToolBatches = [];
+  final List<double?> recoveryTemperatures = [];
+  final List<int?> recoveryMaxTokens = [];
+  var finalAnswerStreamCount = 0;
+  var toolResultCompletionCount = 0;
+  String? _lastFinishReason;
+
+  @override
+  String? get lastFinishReason => _lastFinishReason;
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async* {
+    finalAnswerStreamCount += 1;
+    _lastFinishReason = firstFinishReason;
+    yield firstAnswer;
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    if (!messages.any((message) => message.id == 'final_answer_recovery')) {
+      return ChatCompletionResult(
+        content:
+            '{"summary":"","open_loops":[],"profile":'
+            '{"persona":[],"preferences":[],"do_not":[]},"memories":[]}',
+        finishReason: 'stop',
+      );
+    }
+    recoveryRequestMessages.add(List<Message>.from(messages));
+    recoveryToolBatches.add(
+      tools == null ? null : List<Map<String, dynamic>>.from(tools),
+    );
+    recoveryTemperatures.add(temperature);
+    recoveryMaxTokens.add(maxTokens);
+    _lastFinishReason = recoveryResult.finishReason;
+    return recoveryResult;
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    _lastFinishReason = 'tool_calls';
+    return StreamWithToolsResult(
+      stream: const Stream.empty(),
+      completion: Future<ChatCompletionResult>.value(
+        ChatCompletionResult(
+          content: '',
+          toolCalls: [initialToolCall],
+          finishReason: 'tool_calls',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    toolResultCompletionCount += 1;
+    _lastFinishReason = 'stop';
+    return ChatCompletionResult(content: '', finishReason: 'stop');
+  }
+}
+
 class _GoalAutoContinueChatDataSource implements ChatDataSource {
   _GoalAutoContinueChatDataSource({
     required List<List<ToolCallInfo>> toolCallBatches,
@@ -2123,6 +2253,49 @@ class _GoalAutoContinueChatDataSource implements ChatDataSource {
       finishReason: 'stop',
     );
   }
+}
+
+List<ChatCompletionResult> _toolLoopResponsesThroughRecoveredRead() {
+  return [
+    for (var index = 1; index < 12; index += 1)
+      ChatCompletionResult(
+        content: 'Continue lookup $index',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'tool-command-$index',
+            name: 'local_execute_command',
+            arguments: {'command': 'probe-$index'},
+          ),
+        ],
+        finishReason: 'tool_calls',
+      ),
+    ChatCompletionResult(
+      content: 'Found the target file; read it now.',
+      toolCalls: [
+        ToolCallInfo(
+          id: 'tool-read-target',
+          name: 'read_file',
+          arguments: const {'path': '/tmp/session-log.jsonl'},
+        ),
+      ],
+      finishReason: 'tool_calls',
+    ),
+    ChatCompletionResult(
+      content: 'Recovery still requires the declared file read.',
+      toolCalls: [
+        ToolCallInfo(
+          id: 'tool-read-target-recovery',
+          name: 'read_file',
+          arguments: const {'path': '/tmp/session-log.jsonl'},
+        ),
+      ],
+      finishReason: 'tool_calls',
+    ),
+    ChatCompletionResult(
+      content: 'The target log was inspected.',
+      finishReason: 'stop',
+    ),
+  ];
 }
 
 class _QueuedToolLoopChatDataSource implements ChatDataSource {

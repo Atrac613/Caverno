@@ -200,7 +200,9 @@ class ConversationGoalAutoContinuePolicy {
     }
 
     return GoalAutoContinueDecision.continueTurn(
-      reason: 'incomplete evidence remains',
+      reason: input.evidence.mutatedWithoutExecutionVerification
+          ? 'files were modified without execution verification'
+          : 'incomplete evidence remains',
       effectiveTurnBudget: effectiveTurnBudget,
       nextTurnNumber: goal.turnsUsed + 1,
     );

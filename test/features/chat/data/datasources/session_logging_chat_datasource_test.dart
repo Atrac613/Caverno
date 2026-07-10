@@ -601,6 +601,59 @@ void main() {
         expect(decoded['response']['toolCalls'][0]['name'], 'ping');
       },
     );
+
+    test(
+      'records structured tool results for streamed final answers',
+      () async {
+        const context = LlmSessionLogContext(
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: 'coding-finalization-1',
+          conversationId: 'coding-finalization-1',
+        );
+        final dataSource = SessionLoggingChatDataSource(
+          delegate: _FakeChatDataSource(streamChunks: const ['Final answer.']),
+          logStore: store,
+        );
+        final toolResults = [
+          ToolResultInfo(
+            id: 'pending-edit-call',
+            name: 'edit_file',
+            arguments: const {'path': 'pubspec.yaml'},
+            result: const JsonEncoder().convert({
+              'path': '/tmp/project/pubspec.yaml',
+              'replacements': 1,
+            }),
+          ),
+        ];
+
+        final answer = await LlmSessionLogContext.run(context, () {
+          return dataSource
+              .streamChatCompletionWithStructuredToolResults(
+                messages: [_message('user-1', MessageRole.user, 'Finish.')],
+                toolResults: toolResults,
+              )
+              .join();
+        });
+
+        expect(answer, 'Final answer.');
+        final line = (await (await store.fileForContext(
+          context,
+        )).readAsLines()).single;
+        final decoded = jsonDecode(line) as Map<String, dynamic>;
+        expect(decoded['operation'], 'streamChatCompletion');
+        expect(decoded['request']['toolResults'][0]['id'], 'pending-edit-call');
+        expect(decoded['request']['toolResults'][0]['name'], 'edit_file');
+      },
+    );
+
+    test('forwards finish-reason awareness from its delegate', () {
+      final dataSource = SessionLoggingChatDataSource(
+        delegate: _FinishReasonAwareFakeChatDataSource('length'),
+        logStore: store,
+      );
+
+      expect(dataSource.lastFinishReason, 'length');
+    });
   });
 }
 
@@ -715,4 +768,12 @@ class _FakeChatDataSource implements ChatDataSource {
   }) async {
     return completionResult;
   }
+}
+
+class _FinishReasonAwareFakeChatDataSource extends _FakeChatDataSource
+    implements FinishReasonAware {
+  _FinishReasonAwareFakeChatDataSource(this.lastFinishReason);
+
+  @override
+  final String? lastFinishReason;
 }

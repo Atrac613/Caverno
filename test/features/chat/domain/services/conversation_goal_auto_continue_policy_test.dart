@@ -111,6 +111,63 @@ void main() {
     expect(decision.reason, 'incomplete evidence remains');
   });
 
+  test('continues after mutation without execution verification', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          mutatedWithoutExecutionVerification: true,
+          unverifiedChangePaths: ['bin/todo_cli.dart'],
+        ),
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+    expect(decision.reason, contains('without execution verification'));
+  });
+
+  test('mutation trigger still respects stall budget and safety vetos', () {
+    const evidence = ToolResultCompletionEvidence(
+      mutatedWithoutExecutionVerification: true,
+      unverifiedChangePaths: ['bin/todo_cli.dart'],
+    );
+
+    expect(
+      policy
+          .decide(
+            _input(
+              evidence: evidence,
+              consecutiveAutoContinuations: 3,
+              noProgressStreak: 2,
+            ),
+          )
+          .stopCause,
+      GoalAutoContinueStopCause.noProgress,
+    );
+    expect(
+      policy
+          .decide(_input(goal: _goal(turnsUsed: 10), evidence: evidence))
+          .stopCause,
+      GoalAutoContinueStopCause.turnBudget,
+    );
+    expect(
+      policy
+          .decide(
+            _input(
+              safeBoundary: _safeBoundary(hasPendingLocalCommand: true),
+              evidence: evidence,
+            ),
+          )
+          .reason,
+      'local command approval is pending',
+    );
+    expect(
+      policy
+          .decide(_input(evidence: evidence, finalAnswerEndsWithQuestion: true))
+          .reason,
+      'final answer asks a question',
+    );
+  });
+
   test('does not block after progress followed by one diagnostic plateau', () {
     final evidence = _evidence(count: 2, paths: const ['bin/todo_cli.dart']);
     final decision = policy.decide(

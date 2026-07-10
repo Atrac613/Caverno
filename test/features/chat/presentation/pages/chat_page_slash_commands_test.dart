@@ -675,9 +675,68 @@ void main() {
     expect(goal?.turnBudget, 4);
     expect(goal?.tokenUsage, 0);
     expect(goal?.turnsUsed, 0);
+    expect(goal?.autoContinue, isFalse);
     expect(chatNotifier.sentMessages, isEmpty);
     expect(
       find.text('Goal set: Ship the parser fix with tests green'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('/goal defaults new goals on and parses trailing auto state', (
+    tester,
+  ) async {
+    debugRemoteCodingMobilePlatformOverride = () => false;
+    final project = _codingProject();
+    final conversation = _chatConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: project.id,
+      messages: const <Message>[],
+    );
+    final conversationsNotifier = _SlashConversationsNotifier(
+      initialState: ConversationsState(
+        conversations: [conversation],
+        currentConversationId: conversation.id,
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+    );
+    final container = await _pumpSlashChatPage(
+      tester,
+      conversationsNotifier: conversationsNotifier,
+      chatNotifier: _SlashChatNotifier(),
+      codingProjectsNotifier: _SlashCodingProjectsNotifier(project),
+    );
+
+    await _submitComposerText(tester, '/goal Build the parser');
+    var goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(goal?.objective, 'Build the parser');
+    expect(goal?.autoContinue, isTrue);
+
+    await _submitComposerText(tester, '/goal Build the parser safely auto off');
+    goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(goal?.objective, 'Build the parser safely');
+    expect(goal?.autoContinue, isFalse);
+    expect(
+      find.text('Goal set: Build the parser safely (Auto off)'),
+      findsOneWidget,
+    );
+
+    await _submitComposerText(tester, '/goal Build the parser fully auto on');
+    goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(goal?.objective, 'Build the parser fully');
+    expect(goal?.autoContinue, isTrue);
+    expect(
+      find.text('Goal set: Build the parser fully (Auto on)'),
       findsOneWidget,
     );
   });
@@ -691,6 +750,7 @@ void main() {
       id: 'goal-1',
       objective: 'Ship the parser fix with tests green',
       enabled: true,
+      autoContinue: true,
       status: ConversationGoalStatus.active,
       tokenBudget: 1000,
       tokenUsage: 120,
@@ -730,7 +790,7 @@ void main() {
     expect(find.textContaining('Active'), findsWidgets);
     expect(find.textContaining('120/1K tokens'), findsWidgets);
     expect(find.textContaining('2/5 turns'), findsWidgets);
-    expect(find.textContaining('Auto off'), findsWidgets);
+    expect(find.textContaining('Goal auto-continue 2/5'), findsWidgets);
   });
 
   testWidgets('/goal auto on and off update the active goal flag', (
@@ -784,7 +844,7 @@ void main() {
     expect(find.text('Goal auto-continue enabled.'), findsOneWidget);
 
     await _submitComposerText(tester, '/goal');
-    expect(find.textContaining('Auto on'), findsWidgets);
+    expect(find.textContaining('Goal auto-continue 2/5'), findsWidgets);
 
     await _submitComposerText(tester, '/goal auto off');
 

@@ -63,6 +63,7 @@ class _ControllableChatNotifier extends ChatNotifier {
     bool isVoiceMode = false,
     String languageCode = 'en',
     bool persistAssistantResponse = false,
+    bool preserveGoalAutoContinueEvidence = false,
   }) async {
     hiddenPrompts.add(instruction);
   }

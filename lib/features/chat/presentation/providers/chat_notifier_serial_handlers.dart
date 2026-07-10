@@ -45,6 +45,7 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
       mode: _settings.chatApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.connection,
       fullAccessEligible: true,
+      approvalCacheArguments: cacheArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'serial_open',
@@ -53,7 +54,7 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         cacheArguments,
         _autoReviewDeniedResult(
@@ -68,7 +69,7 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
         baudRate: baudRate,
       );
       if (!approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           cacheArguments,
           McpToolResult(
@@ -82,14 +83,16 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
     }
 
     try {
-      final resultJson = await ref.read(serialPortServiceProvider).open(
-        port,
-        baudRate: baudRate,
-        dataBits: dataBits,
-        parity: parity,
-        stopBits: stopBits,
-        flowControl: flowControl,
-      );
+      final resultJson = await ref
+          .read(serialPortServiceProvider)
+          .open(
+            port,
+            baudRate: baudRate,
+            dataBits: dataBits,
+            parity: parity,
+            stopBits: stopBits,
+            flowControl: flowControl,
+          );
       final succeeded = !_serialResultIsError(resultJson);
       final result = McpToolResult(
         toolName: toolCall.name,

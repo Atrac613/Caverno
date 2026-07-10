@@ -121,7 +121,7 @@ class LocalShellTools {
     final shellExecutable = Platform.isWindows ? 'cmd' : 'sh';
     final shellArgs = Platform.isWindows
         ? ['/C', normalizedCommand]
-        : ['-c', normalizedCommand];
+        : ['-e', '-c', normalizedCommand];
 
     try {
       return _executeWithProcessHandle(
@@ -254,7 +254,7 @@ class LocalShellTools {
   }
 
   static bool _hasUnsafeShellSyntax(String command) {
-    const blockedTokens = ['|', '||', '&', ';', '>', '<', '`', r'$', '\n'];
+    const blockedTokens = ['|', '||', '&', ';', '>', '<', '`', r'$', '#', '\n'];
     return blockedTokens.any(command.contains);
   }
 
@@ -295,24 +295,27 @@ class LocalShellTools {
       if (quoteChar != null) {
         if (char == quoteChar) {
           quoteChar = null;
-        } else {
-          buffer.write(char);
         }
+        buffer.write(char);
         continue;
       }
 
       if (char == '"' || char == "'") {
         quoteChar = char;
+        buffer.write(char);
         continue;
       }
 
-      if (char == '&' && i + 1 < command.length && command[i + 1] == '&') {
+      if ((char == '&' && i + 1 < command.length && command[i + 1] == '&') ||
+          char == '\n') {
         final segment = buffer.toString().trim();
         if (segment.isNotEmpty) {
           segments.add(segment);
         }
         buffer.clear();
-        i += 1;
+        if (char == '&') {
+          i += 1;
+        }
         continue;
       }
 

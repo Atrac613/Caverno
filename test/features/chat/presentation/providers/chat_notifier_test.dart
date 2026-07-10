@@ -44,6 +44,7 @@ import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dar
 import 'package:caverno/features/chat/domain/services/skill_markdown_parser.dart';
 import 'package:caverno/features/chat/domain/services/truncation_notice.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
+import 'package:caverno/features/chat/domain/services/analysis_options_lint_edit_guard.dart';
 import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/coding_verification_feedback_service.dart';
@@ -74,9 +75,15 @@ part 'chat_notifier_ask_user_question_part.dart';
 part 'chat_notifier_turn_rollback_part.dart';
 part 'chat_notifier_context_surgery_part.dart';
 part 'chat_notifier_test_doubles_part.dart';
+part 'chat_notifier_final_answer_recovery_part.dart';
 part 'chat_notifier_continuation_recovery_part.dart';
 part 'chat_notifier_auto_review_escalation_part.dart';
+part 'chat_notifier_approval_cache_part.dart';
+part 'chat_notifier_pending_batch_part.dart';
 part 'chat_notifier_goal_auto_continue_part.dart';
+part 'chat_notifier_unwritten_file_claim_part.dart';
+part 'chat_notifier_verification_claim_part.dart';
+part 'chat_notifier_analysis_options_lint_guard_part.dart';
 
 List<String> _toolNames(List<Map<String, dynamic>> definitions) {
   return definitions
@@ -138,9 +145,15 @@ void main() {
   registerChatNotifierAskUserQuestionTests();
   registerChatNotifierTurnRollbackTests();
   registerChatNotifierContextSurgeryTests();
+  registerChatNotifierFinalAnswerRecoveryTests();
   registerChatNotifierContinuationRecoveryTests();
   registerChatNotifierAutoReviewEscalationTests();
+  registerChatNotifierApprovalCacheTests();
+  registerChatNotifierPendingBatchTests();
   registerChatNotifierGoalAutoContinueTests();
+  registerChatNotifierUnwrittenFileClaimTests();
+  registerChatNotifierVerificationClaimTests();
+  registerChatNotifierAnalysisOptionsLintGuardTests();
 
   test('failed-command correction notice keeps the original answer', () {
     const notice =
@@ -3050,10 +3063,17 @@ void main() {
   test(
     'sendMessage recovers bracketed coding tool request before memory update',
     () async {
-      const bracketedFinalAnswer =
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_bracketed_edit_recovery_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final sourceFile = File('${projectRoot.path}/lib/src/ping_command.dart')
+        ..createSync(recursive: true);
+      sourceFile.writeAsStringSync('return command;\n');
+      final bracketedFinalAnswer =
           'I need to apply the pending parser fix.\n\n'
           '[Tool: edit_file]\n'
-          'Arguments: {"path":"/tmp/project/lib/src/ping_command.dart","old_text":"return command;","new_text":"return commandWithIpv6;"}';
+          'Arguments: ${jsonEncode({'path': sourceFile.path, 'old_text': 'return command;', 'new_text': 'return commandWithIpv6;'})}';
       const recoveredFinalAnswer =
           'The ping command now includes the IPv6 flag.';
       final conversationRepository = _FakeConversationRepository();
@@ -3061,7 +3081,7 @@ void main() {
       final project = CodingProject(
         id: 'project-bracketed-finalization-gate',
         name: 'Project',
-        rootPath: '/tmp/project',
+        rootPath: projectRoot.path,
         createdAt: DateTime(2026, 6, 18),
         updatedAt: DateTime(2026, 6, 18),
       );
@@ -3070,9 +3090,9 @@ void main() {
           ToolCallInfo(
             id: 'inspect-workspace-for-bracketed-gate',
             name: 'local_execute_command',
-            arguments: const {
+            arguments: {
               'command': 'pwd',
-              'working_directory': '/tmp/project',
+              'working_directory': projectRoot.path,
             },
           ),
         ],
@@ -3087,8 +3107,8 @@ void main() {
               ToolCallInfo(
                 id: 'edit-ping-command-after-finalization-gate',
                 name: 'edit_file',
-                arguments: const {
-                  'path': '/tmp/project/lib/src/ping_command.dart',
+                arguments: {
+                  'path': sourceFile.path,
                   'old_text': 'return command;',
                   'new_text': 'return commandWithIpv6;',
                 },
@@ -3101,7 +3121,7 @@ void main() {
             finishReason: 'stop',
           ),
         ],
-        finalAnswerChunkBatches: const [
+        finalAnswerChunkBatches: [
           [bracketedFinalAnswer],
           [recoveredFinalAnswer],
         ],
@@ -3119,14 +3139,14 @@ void main() {
           'local_execute_command': [
             jsonEncode({
               'command': 'pwd',
-              'working_directory': '/tmp/project',
+              'working_directory': projectRoot.path,
               'exit_code': 0,
-              'stdout': '/tmp/project\n',
+              'stdout': '${projectRoot.path}\n',
               'stderr': '',
             }),
           ],
           'edit_file': [
-            '{"path":"/tmp/project/lib/src/ping_command.dart","replacements":1}',
+            jsonEncode({'path': sourceFile.path, 'replacements': 1}),
           ],
         },
       );
@@ -3176,7 +3196,7 @@ void main() {
       ]);
       expect(
         toolService.executedToolArguments.last,
-        containsPair('path', '/tmp/project/lib/src/ping_command.dart'),
+        containsPair('path', sourceFile.path),
       );
       expect(dataSource.finalAnswerTemperatures, hasLength(2));
       expect(dataSource.toolResultBatches, hasLength(3));
@@ -5862,6 +5882,20 @@ void main() {
           finishReason: 'tool_calls',
         ),
       ];
+      toolLoopResponses.addAll([
+        ChatCompletionResult(
+          content: 'Recovery still needs the target log.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-read-target-recovery',
+              name: 'read_file',
+              arguments: const {'path': '/tmp/session-log.jsonl'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ]);
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -5907,13 +5941,6 @@ void main() {
 
         await toolNotifier.sendMessage('Find and read the interrupted log');
 
-        expect(toolDataSource.toolResultBatches, hasLength(12));
-        expect(
-          toolDataSource.toolResultBatches
-              .expand((batch) => batch)
-              .map((result) => result.name),
-          everyElement('local_execute_command'),
-        );
         expect(toolService.executedToolNames.last, 'read_file');
         expect(toolDataSource.finalAnswerMessages, isNotEmpty);
         final finalPrompt = toolDataSource.finalAnswerMessages
@@ -6132,6 +6159,23 @@ void main() {
           finishReason: 'tool_calls',
         ),
       ];
+      toolLoopResponses.addAll([
+        ChatCompletionResult(
+          content: 'Recovery still needs the local search.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-find-target-recovery',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'find /tmp -name session-log.jsonl',
+                'working_directory': '/tmp/project',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(content: '', finishReason: 'stop'),
+      ]);
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -6213,7 +6257,7 @@ void main() {
   );
 
   test(
-    'sendMessage reports unsafe pending local command as unexecuted at tool loop limit',
+    'sendMessage executes unsafe pending local command after bounded recovery',
     () async {
       final pendingCommand = 'find /tmp -type f -name "*.jsonl" | head -50';
       final toolLoopResponses = [
@@ -6339,7 +6383,7 @@ void main() {
 
         expect(
           toolService.executedToolNames,
-          List.filled(14, 'local_execute_command'),
+          List.filled(15, 'local_execute_command'),
         );
         expect(toolDataSource.finalAnswerMessages, isNotEmpty);
         final finalPrompt = toolDataSource.finalAnswerMessages
@@ -6348,8 +6392,14 @@ void main() {
         expect(finalPrompt, contains('[Tool: local_execute_command]'));
         expect(finalPrompt, contains('*.jsonl'));
         expect(finalPrompt, contains('head -50'));
-        expect(finalPrompt, contains('tool_call_not_executed'));
-        expect(finalPrompt, contains('bounded_tool_loop_exhausted'));
+        expect(toolDataSource.toolResultBatches, hasLength(15));
+        final completedResults = toolNotifier.takeLatestToolResults();
+        expect(
+          completedResults.any(
+            (result) => result.result.contains('tool_call_not_executed'),
+          ),
+          isFalse,
+        );
         expect(
           toolNotifier.state.messages.last.content,
           contains('Final answer acknowledges the unexecuted local command.'),
@@ -6453,31 +6503,7 @@ void main() {
   test(
     'sendMessage marks command JSON in final tool answers as unexecuted',
     () async {
-      final toolLoopResponses = [
-        for (var index = 1; index < 12; index += 1)
-          ChatCompletionResult(
-            content: 'Continue lookup $index',
-            toolCalls: [
-              ToolCallInfo(
-                id: 'tool-command-$index',
-                name: 'local_execute_command',
-                arguments: {'command': 'probe-$index'},
-              ),
-            ],
-            finishReason: 'tool_calls',
-          ),
-        ChatCompletionResult(
-          content: 'Found the target file; read it now.',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-read-target',
-              name: 'read_file',
-              arguments: const {'path': '/tmp/session-log.jsonl'},
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
-      ];
+      final toolLoopResponses = _toolLoopResponsesThroughRecoveredRead();
       final toolDataSource = _QueuedToolLoopChatDataSource(
         initialToolCalls: [
           ToolCallInfo(
@@ -6621,31 +6647,7 @@ void main() {
   );
 
   test('sendMessage marks plan-only final tool answers as unexecuted', () async {
-    final toolLoopResponses = [
-      for (var index = 1; index < 12; index += 1)
-        ChatCompletionResult(
-          content: 'Continue lookup $index',
-          toolCalls: [
-            ToolCallInfo(
-              id: 'tool-command-$index',
-              name: 'local_execute_command',
-              arguments: {'command': 'probe-$index'},
-            ),
-          ],
-          finishReason: 'tool_calls',
-        ),
-      ChatCompletionResult(
-        content: 'Found the target file; read it now.',
-        toolCalls: [
-          ToolCallInfo(
-            id: 'tool-read-target',
-            name: 'read_file',
-            arguments: const {'path': '/tmp/session-log.jsonl'},
-          ),
-        ],
-        finishReason: 'tool_calls',
-      ),
-    ];
+    final toolLoopResponses = _toolLoopResponsesThroughRecoveredRead();
     final toolDataSource = _QueuedToolLoopChatDataSource(
       initialToolCalls: [
         ToolCallInfo(
@@ -8517,13 +8519,58 @@ with open(path, "rb") as file:
             ],
           );
 
-      expect(
-        recoveryToolResults.map((toolResult) => toolResult.result).toList(),
-        [
-          '{"entries":["bt_backend_type.dart"]}',
-          '{"entries":["backend","core","value_state"]}',
-        ],
-      );
+      expect(recoveryToolResults.map((toolResult) => toolResult.id).toList(), [
+        'tool-backend-repeat',
+        'tool-src',
+      ]);
+      final reusedResult =
+          jsonDecode(recoveryToolResults.first.result) as Map<String, dynamic>;
+      expect(reusedResult['entries'], ['bt_backend_type.dart']);
+      expect(reusedResult['execution_reused'], isTrue);
+      expect(reusedResult['prior_tool_call_id'], 'tool-backend');
+      expect(reusedResult['current_tool_call_id'], 'tool-backend-repeat');
+    },
+  );
+
+  test(
+    'buildDuplicateRecoveryToolResultsForTest matches reworded file mutations',
+    () {
+      final recoveryToolResults = notifier
+          .buildDuplicateRecoveryToolResultsForTest(
+            currentToolCalls: [
+              ToolCallInfo(
+                id: 'edit-repeat',
+                name: 'edit_file',
+                arguments: const {
+                  'path': 'pubspec.yaml',
+                  'old_text': 'name: todo',
+                  'new_text': 'name: todo_app',
+                  'reason': 'Fix package imports.',
+                },
+              ),
+            ],
+            executedToolResults: [
+              ToolResultInfo(
+                id: 'edit-original',
+                name: 'edit_file',
+                arguments: const {
+                  'path': 'pubspec.yaml',
+                  'old_text': 'name: todo',
+                  'new_text': 'name: todo_app',
+                  'reason': 'Align the package name.',
+                },
+                result: '{"path":"/tmp/project/pubspec.yaml","replacements":1}',
+              ),
+            ],
+            fallbackToolResults: const [],
+          );
+
+      expect(recoveryToolResults, hasLength(1));
+      expect(recoveryToolResults.single.id, 'edit-repeat');
+      final reusedResult =
+          jsonDecode(recoveryToolResults.single.result) as Map<String, dynamic>;
+      expect(reusedResult['execution_reused'], isTrue);
+      expect(reusedResult['prior_tool_call_id'], 'edit-original');
     },
   );
 

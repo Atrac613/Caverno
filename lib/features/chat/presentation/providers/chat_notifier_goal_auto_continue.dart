@@ -225,6 +225,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         isVoiceMode: false,
         languageCode: languageCode,
         persistAssistantResponse: true,
+        preserveGoalAutoContinueEvidence: true,
       );
       _isSchedulingGoalAutoContinue = false;
       await continuationFuture;
@@ -390,6 +391,8 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             'unresolvedErrorCount': evidence.unresolvedErrorCount,
             'unresolvedErrorPaths': evidence.unresolvedErrorPaths,
             'unverifiedChangePaths': evidence.unverifiedChangePaths,
+            'mutatedWithoutExecution':
+                evidence.mutatedWithoutExecutionVerification,
           },
         );
   }

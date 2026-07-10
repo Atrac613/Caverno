@@ -5,15 +5,16 @@ import 'package:caverno/features/chat/presentation/providers/tool_approval_cache
 
 void main() {
   group('ToolApprovalCache', () {
-    test('reuses the same result when only reason changes', () {
+    test('reuses denial results when only reason changes', () {
       final cache = ToolApprovalCache();
       const result = McpToolResult(
         toolName: 'write_file',
         result: 'ok',
-        isSuccess: true,
+        isSuccess: false,
+        errorMessage: 'User denied file write',
       );
 
-      cache.remember('write_file', {
+      cache.rememberDenial('write_file', {
         'path': 'lib/main.dart',
         'content': 'hello',
         'reason': 'Initial approval text',
@@ -25,22 +26,17 @@ void main() {
         'path': 'lib/main.dart',
       });
 
-      expect(cached, result);
+      expect(cached?.isApproved, isFalse);
+      expect(cached?.denialResult, result);
     });
 
     test('normalizes nested map key order', () {
       final cache = ToolApprovalCache();
-      const result = McpToolResult(
-        toolName: 'local_execute_command',
-        result: 'done',
-        isSuccess: true,
-      );
-
-      cache.remember('local_execute_command', {
+      cache.rememberApproval('local_execute_command', {
         'working_directory': '/tmp/project',
         'command': 'dart test',
         'environment': {'B': '2', 'A': '1'},
-      }, result);
+      });
 
       final cached = cache.lookup('local_execute_command', {
         'environment': {'A': '1', 'B': '2'},
@@ -48,21 +44,16 @@ void main() {
         'working_directory': '/tmp/project',
       });
 
-      expect(cached, result);
+      expect(cached?.isApproved, isTrue);
+      expect(cached?.denialResult, isNull);
     });
 
     test('returns null for different execution arguments', () {
       final cache = ToolApprovalCache();
-      const result = McpToolResult(
-        toolName: 'git_execute_command',
-        result: 'ok',
-        isSuccess: true,
-      );
-
-      cache.remember('git_execute_command', {
+      cache.rememberApproval('git_execute_command', {
         'command': 'git status',
         'working_directory': '/tmp/project',
-      }, result);
+      });
 
       final cached = cache.lookup('git_execute_command', {
         'command': 'git add .',
@@ -70,6 +61,31 @@ void main() {
       });
 
       expect(cached, isNull);
+    });
+
+    test('binds file approvals to the supplied state fingerprint', () {
+      final cache = ToolApprovalCache();
+      const arguments = {
+        'path': 'pubspec.yaml',
+        'old_text': 'name: todo',
+        'new_text': 'name: todo_app',
+      };
+      cache.rememberApproval(
+        'edit_file',
+        arguments,
+        stateFingerprint: 'before-edit',
+      );
+
+      expect(
+        cache
+            .lookup('edit_file', arguments, stateFingerprint: 'before-edit')
+            ?.isApproved,
+        isTrue,
+      );
+      expect(
+        cache.lookup('edit_file', arguments, stateFingerprint: 'after-edit'),
+        isNull,
+      );
     });
   });
 }

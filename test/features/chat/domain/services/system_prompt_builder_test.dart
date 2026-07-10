@@ -50,6 +50,18 @@ void main() {
     expect(
       prompt,
       contains(
+        'Batch related verification commands such as format, analyze, and test into one local_execute_command call',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Join independent commands with && when portable early exit on failure is required.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
         'When analyzing Caverno LLM session logs, treat each JSONL line as a caverno_llm_session_log_entry object',
       ),
     );

@@ -3,7 +3,19 @@ import 'dart:convert';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 
-/// Caches approval-backed tool results within a single assistant turn.
+/// Cached approval decision for one normalized tool call.
+class ToolApprovalCacheEntry {
+  const ToolApprovalCacheEntry.approved()
+    : isApproved = true,
+      denialResult = null;
+
+  const ToolApprovalCacheEntry.denied(this.denialResult) : isApproved = false;
+
+  final bool isApproved;
+  final McpToolResult? denialResult;
+}
+
+/// Caches approval decisions within a single assistant turn.
 ///
 /// This prevents the model from re-triggering the same confirmation flow
 /// when it repeats an identical tool call after the user already approved
@@ -14,26 +26,62 @@ class ToolApprovalCache {
   static const Set<String> _nonSemanticArgumentKeys =
       ToolCallExecutionPolicy.nonSemanticArgumentKeys;
 
-  final Map<String, McpToolResult> _resultsByKey = {};
+  final Map<String, ToolApprovalCacheEntry> _entriesByKey = {};
 
-  McpToolResult? lookup(String toolName, Map<String, dynamic> arguments) {
-    return _resultsByKey[_buildKey(toolName, arguments)];
+  ToolApprovalCacheEntry? lookup(
+    String toolName,
+    Map<String, dynamic> arguments, {
+    String? stateFingerprint,
+  }) {
+    return _entriesByKey[_buildKey(
+      toolName,
+      arguments,
+      stateFingerprint: stateFingerprint,
+    )];
   }
 
-  McpToolResult remember(
+  void rememberApproval(
+    String toolName,
+    Map<String, dynamic> arguments, {
+    String? stateFingerprint,
+  }) {
+    _entriesByKey[_buildKey(
+          toolName,
+          arguments,
+          stateFingerprint: stateFingerprint,
+        )] =
+        const ToolApprovalCacheEntry.approved();
+  }
+
+  McpToolResult rememberDenial(
     String toolName,
     Map<String, dynamic> arguments,
-    McpToolResult result,
-  ) {
-    _resultsByKey[_buildKey(toolName, arguments)] = result;
+    McpToolResult result, {
+    String? stateFingerprint,
+  }) {
+    _entriesByKey[_buildKey(
+      toolName,
+      arguments,
+      stateFingerprint: stateFingerprint,
+    )] = ToolApprovalCacheEntry.denied(
+      result,
+    );
     return result;
   }
 
-  void clear() => _resultsByKey.clear();
+  void clear() => _entriesByKey.clear();
 
-  String _buildKey(String toolName, Map<String, dynamic> arguments) {
+  String _buildKey(
+    String toolName,
+    Map<String, dynamic> arguments, {
+    String? stateFingerprint,
+  }) {
     final normalizedArguments = _normalizeValue(arguments);
-    return '$toolName:${jsonEncode(normalizedArguments)}';
+    return jsonEncode({
+      'tool': toolName,
+      'arguments': normalizedArguments,
+      'state': ?stateFingerprint,
+    });
   }
 
   dynamic _normalizeValue(dynamic value) {

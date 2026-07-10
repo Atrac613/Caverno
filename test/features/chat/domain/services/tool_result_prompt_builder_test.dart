@@ -229,7 +229,31 @@ void main() {
       expect(evidence.hasIncompleteEvidence, isTrue);
       expect(evidence.hasBlockingEvidence, isFalse);
       expect(evidence.unverifiedChangePaths, ['/tmp/app/bin/todo_cli.dart']);
+      expect(evidence.mutatedWithoutExecutionVerification, isTrue);
       expect(evidence.summary, contains('unverified file change'));
+      expect(
+        evidence.summary,
+        contains('without execution-class verification'),
+      );
+    });
+
+    test('does not treat an already-applied edit as a new mutation', () {
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'edit_file',
+          arguments: const {},
+          result: jsonEncode({
+            'path': '/tmp/app/pubspec.yaml',
+            'replacements': 0,
+            'already_applied': true,
+          }),
+        ),
+      ]);
+
+      expect(evidence.hasIncompleteEvidence, isFalse);
+      expect(evidence.unverifiedChangePaths, isEmpty);
+      expect(evidence.mutatedWithoutExecutionVerification, isFalse);
     });
 
     test(
@@ -318,6 +342,36 @@ void main() {
       },
     );
 
+    test('carries unresolved diagnostics across read-only evidence', () {
+      const previous = ToolResultCompletionEvidence(
+        unresolvedErrorCount: 2,
+        unresolvedErrorPaths: ['lib/main.dart'],
+        hasExecutionVerification: true,
+      );
+
+      final carried = const ToolResultCompletionEvidence()
+          .carryForwardIncompleteFrom(previous);
+
+      expect(carried.unresolvedErrorCount, 2);
+      expect(carried.unresolvedErrorPaths, ['lib/main.dart']);
+      expect(carried.hasIncompleteEvidence, isTrue);
+    });
+
+    test('clears prior diagnostics after current execution verification', () {
+      const previous = ToolResultCompletionEvidence(
+        unresolvedErrorCount: 2,
+        unresolvedErrorPaths: ['lib/main.dart'],
+        hasExecutionVerification: true,
+      );
+
+      final carried = const ToolResultCompletionEvidence(
+        hasExecutionVerification: true,
+      ).carryForwardIncompleteFrom(previous);
+
+      expect(carried.unresolvedErrorCount, 0);
+      expect(carried.hasIncompleteEvidence, isFalse);
+    });
+
     test(
       'does not surface unverified file changes after a verification run',
       () {
@@ -342,8 +396,42 @@ void main() {
 
         expect(evidence.hasIncompleteEvidence, isFalse);
         expect(evidence.unverifiedChangePaths, isEmpty);
+        expect(evidence.mutatedWithoutExecutionVerification, isFalse);
       },
     );
+
+    test('recognizes every execution-class verification tool', () {
+      for (final toolName in const [
+        'local_execute_command',
+        'run_tests',
+        'git_execute_command',
+        'process_start',
+        'process_wait',
+      ]) {
+        final evidence = ToolResultPromptBuilder.completionEvidence([
+          ToolResultInfo(
+            id: 'mutation',
+            name: 'write_file',
+            arguments: const {},
+            result: jsonEncode({'path': '/tmp/app/lib/main.dart'}),
+          ),
+          ToolResultInfo(
+            id: 'execution',
+            name: toolName,
+            arguments: const {},
+            result: jsonEncode(
+              toolName.startsWith('process_') ? {'ok': true} : {'exit_code': 0},
+            ),
+          ),
+        ]);
+
+        expect(
+          evidence.mutatedWithoutExecutionVerification,
+          isFalse,
+          reason: toolName,
+        );
+      }
+    });
 
     test('separates memory extraction errors from chat-turn stop causes', () {
       final prompt = ToolResultPromptBuilder.buildAnswerPrompt([

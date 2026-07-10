@@ -117,6 +117,7 @@ class CodingCommandOutputGuardrailService {
   static const Set<String> _dartCreateOptionsWithValue = {
     '-t',
     '--template',
+    '--type',
     '--sample',
     '--description',
     '--project-name',
@@ -343,6 +344,26 @@ class CodingCommandOutputGuardrailService {
         continue;
       }
       final targets = _dartCreateTargets(createArgs);
+      final unsupportedOption = _unsupportedDartCreateOption(createArgs);
+      if (unsupportedOption != null) {
+        final value = unsupportedOption.value;
+        final replacement = value == null || value.isEmpty
+            ? '"--template <template>"'
+            : '"--template $value"';
+        final original = value == null || value.isEmpty
+            ? '"${unsupportedOption.option}"'
+            : '"${unsupportedOption.option} $value"';
+        return CodingCommandPreflightIssue(
+          code: 'dart_create_unsupported_option',
+          command: command,
+          workingDirectory: workingDirectory,
+          segment: segment,
+          summary:
+              'Dart create does not support the "${unsupportedOption.option}" option.',
+          instruction: 'Replace $original with $replacement.',
+          targets: targets,
+        );
+      }
       if (targets.length <= 1) {
         continue;
       }
@@ -401,6 +422,31 @@ class CodingCommandOutputGuardrailService {
       targets.add(arg);
     }
     return targets;
+  }
+
+  static _UnsupportedDartCreateOption? _unsupportedDartCreateOption(
+    List<String> args,
+  ) {
+    for (var i = 0; i < args.length; i++) {
+      final arg = args[i];
+      if (arg == '--') {
+        return null;
+      }
+      if (arg == '--type') {
+        final value = i + 1 < args.length ? args[i + 1] : null;
+        return _UnsupportedDartCreateOption(option: arg, value: value);
+      }
+      if (arg.startsWith('--type=')) {
+        return _UnsupportedDartCreateOption(
+          option: '--type',
+          value: arg.substring('--type='.length),
+        );
+      }
+      if (_dartCreateOptionConsumesNext(arg)) {
+        i += 1;
+      }
+    }
+    return null;
   }
 
   static bool _dartCreateOptionConsumesNext(String arg) {
@@ -584,4 +630,14 @@ class _OutputSignal {
 
   final String summary;
   final int startIndex;
+}
+
+class _UnsupportedDartCreateOption {
+  const _UnsupportedDartCreateOption({
+    required this.option,
+    required this.value,
+  });
+
+  final String option;
+  final String? value;
 }

@@ -13,9 +13,10 @@ class ToolCallExecutionPolicy {
   /// semantics. Stripped from the consecutive-failure key ([toolFailureKey])
   /// and from [ToolApprovalCache], so a model that re-issues the *same*
   /// failing/denied command while rewording `reason` is still counted as
-  /// repeating one action. Kept in [toolExecutionKey] (the success-dedup key)
-  /// so a re-narrated read-only inspection can still legitimately re-run.
-  /// Sharing the set keeps the two derivations from drifting apart.
+  /// repeating one action. Read-only execution keys keep narration so a
+  /// re-narrated inspection can legitimately re-run, while file mutations
+  /// strip it so rewording cannot bypass side-effect deduplication. Sharing
+  /// the set keeps the derivations from drifting apart.
   static const Set<String> nonSemanticArgumentKeys = {'reason'};
 
   String toolExecutionKey(
@@ -27,6 +28,7 @@ class ToolCallExecutionPolicy {
       toolCall.name,
       toolCall.arguments,
       resolveProjectPath: resolveProjectPath,
+      excludeNonSemanticKeys: isFileMutationToolCall(toolCall),
     );
     if (isRepeatableCommandTool(toolCall)) {
       return '$baseKey#commandRetryGeneration=$commandRetryGeneration';
@@ -36,11 +38,12 @@ class ToolCallExecutionPolicy {
 
   /// Key for consecutive-failure tracking, distinct from [toolExecutionKey].
   ///
-  /// [toolExecutionKey] keeps model narration so a re-narrated read-only
-  /// inspection (e.g. `git status` after a commit, then after a revert) can
-  /// legitimately re-run. Failure tracking needs the opposite: a model that
-  /// retries the *same* failing/denied command under reworded `reason` text is
-  /// repeating one action, so [nonSemanticArgumentKeys] are stripped here.
+  /// [toolExecutionKey] keeps model narration for non-file mutations so a
+  /// re-narrated read-only inspection (e.g. `git status` after a commit, then
+  /// after a revert) can legitimately re-run. Failure tracking needs the
+  /// opposite: a model that retries the *same* failing/denied command under
+  /// reworded `reason` text is repeating one action, so
+  /// [nonSemanticArgumentKeys] are stripped here.
   /// Without this, the `toolFailureCounts >= 2` abort never fires against a
   /// model that varies its narration on each retry.
   String toolFailureKey(
@@ -116,6 +119,16 @@ class ToolCallExecutionPolicy {
         normalizedName == 'rollback_last_file_change' ||
         normalizedName.startsWith('write_') ||
         normalizedName.startsWith('edit_');
+  }
+
+  bool isFileMutationToolCall(ToolCallInfo toolCall) {
+    switch (toolCall.name.trim().toLowerCase()) {
+      case 'write_file':
+      case 'edit_file':
+      case 'rollback_last_file_change':
+        return true;
+    }
+    return false;
   }
 
   bool shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {

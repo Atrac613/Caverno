@@ -53,6 +53,7 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       mode: _settings.chatApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.connection,
       fullAccessEligible: hasSavedPassword,
+      approvalCacheArguments: cacheArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'ssh_connect',
@@ -61,7 +62,7 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         cacheArguments,
         _autoReviewDeniedResult(
@@ -90,7 +91,7 @@ extension ChatNotifierSshHandlers on ChatNotifier {
         username: username,
       );
       if (manualApproval == null) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           cacheArguments,
           McpToolResult(
@@ -148,16 +149,19 @@ extension ChatNotifierSshHandlers on ChatNotifier {
             );
     } catch (e) {
       appLog('[Tool] SSH connect failed: $e');
-      return _rememberToolApprovalResult(
-        toolCall.name,
-        cacheArguments,
-        McpToolResult(
-          toolName: toolCall.name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'SSH connect failed: $e',
-        ),
+      final failedResult = McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'SSH connect failed: $e',
       );
+      return gate.bypassedApproval
+          ? failedResult
+          : _rememberToolApprovalResult(
+              toolCall.name,
+              cacheArguments,
+              failedResult,
+            );
     }
   }
 
@@ -195,6 +199,7 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       mode: _settings.chatApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.connection,
       fullAccessEligible: true,
+      approvalCacheArguments: cacheArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'ssh_execute_command',
@@ -203,7 +208,7 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         cacheArguments,
         _autoReviewDeniedResult(
@@ -213,9 +218,12 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       );
     }
     if (gate.needsManual) {
-      final approved = await requestSshCommand(command: command, reason: reason);
+      final approved = await requestSshCommand(
+        command: command,
+        reason: reason,
+      );
       if (!approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           cacheArguments,
           McpToolResult(

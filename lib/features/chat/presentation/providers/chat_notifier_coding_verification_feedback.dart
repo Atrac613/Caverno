@@ -7,7 +7,7 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
-  Future<ToolResultInfo?> _buildCodingVerificationFeedbackToolResult(
+  Future<CodingVerificationFeedbackRun?> _buildCodingVerificationFeedbackRun(
     List<ToolResultInfo> toolResults, {
     required int interactionGeneration,
     required CodingVerificationTrigger trigger,
@@ -54,7 +54,7 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
         );
         _logCodingVerificationFeedbackSummary(feedback);
       }
-      return verification.toolResult;
+      return verification;
     } catch (error, stackTrace) {
       appLog('[CodingVerification] Failed to collect test feedback: $error');
       appLog('[CodingVerification] stackTrace: $stackTrace');
@@ -71,6 +71,7 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
     required Map<String, int> verificationFailureCounts,
     required List<Map<String, dynamic>> tools,
     required int interactionGeneration,
+    List<ToolResultInfo>? retainedEvidenceToolResults,
     void Function()? onBlockingFeedbackPrepared,
   }) async {
     if (!_codingVerificationEnabledFor(
@@ -94,7 +95,7 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
       );
       return null;
     }
-    final feedback = await _buildCodingVerificationFeedbackToolResult(
+    final verification = await _buildCodingVerificationFeedbackRun(
       executedToolResults,
       interactionGeneration: interactionGeneration,
       trigger: CodingVerificationTrigger.completionClaim,
@@ -102,6 +103,18 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
       return null;
     }
+    final evidence = verification?.evidenceToolResult;
+    if (evidence != null) {
+      executedToolResults.add(evidence);
+      if (retainedEvidenceToolResults != null &&
+          !identical(retainedEvidenceToolResults, executedToolResults)) {
+        retainedEvidenceToolResults.add(evidence);
+      }
+      appLog(
+        '[CodingVerification] Retained test evidence for final claim checks',
+      );
+    }
+    final feedback = verification?.toolResult;
     if (feedback == null) {
       return null;
     }
@@ -110,7 +123,8 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
       final failureCount =
           (verificationFailureCounts[failureSignature] ?? 0) + 1;
       verificationFailureCounts[failureSignature] = failureCount;
-      if (failureCount > ChatNotifier._maxRepeatedCodingVerificationRepairAttempts) {
+      if (failureCount >
+          ChatNotifier._maxRepeatedCodingVerificationRepairAttempts) {
         appLog(
           '[CodingVerification] Repeated failing test signature reached the '
           'repair limit; surfacing blocker',

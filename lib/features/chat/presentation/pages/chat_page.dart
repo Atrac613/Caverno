@@ -44,6 +44,7 @@ import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
+import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';

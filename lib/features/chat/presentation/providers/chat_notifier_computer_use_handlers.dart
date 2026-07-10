@@ -91,7 +91,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
         policy: policy,
         code: blockerCode,
       );
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         toolCall.arguments,
         McpToolResult(
@@ -119,7 +119,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
         approvalBlockerCodes: actionProposalPolicy!.blockerCodes,
         actionProposalNextAction: actionProposalPolicy.nextAction,
       );
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         toolCall.arguments,
         McpToolResult(
@@ -147,14 +147,10 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       errorCode: result.errorMessage,
       postActionObservation: postActionObservation,
     );
-    return _rememberToolApprovalResult(
-      toolCall.name,
-      toolCall.arguments,
-      _computerUseResultWithPostActionObservation(
-        result: result,
-        policy: policy,
-        postActionObservation: postActionObservation,
-      ),
+    return _computerUseResultWithPostActionObservation(
+      result: result,
+      policy: policy,
+      postActionObservation: postActionObservation,
     );
   }
 

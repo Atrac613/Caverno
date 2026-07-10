@@ -38,6 +38,7 @@ extension ChatNotifierBleHandlers on ChatNotifier {
       mode: _settings.chatApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.connection,
       fullAccessEligible: true,
+      approvalCacheArguments: cacheArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'ble_connect',
@@ -46,7 +47,7 @@ extension ChatNotifierBleHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         cacheArguments,
         _autoReviewDeniedResult(
@@ -61,7 +62,7 @@ extension ChatNotifierBleHandlers on ChatNotifier {
         deviceName: deviceName,
       );
       if (!approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           cacheArguments,
           McpToolResult(
@@ -90,16 +91,19 @@ extension ChatNotifierBleHandlers on ChatNotifier {
             );
     } catch (e) {
       appLog('[Tool] BLE connect failed: $e');
-      return _rememberToolApprovalResult(
-        toolCall.name,
-        cacheArguments,
-        McpToolResult(
-          toolName: toolCall.name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'BLE connect failed: $e',
-        ),
+      final failedResult = McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'BLE connect failed: $e',
       );
+      return gate.bypassedApproval
+          ? failedResult
+          : _rememberToolApprovalResult(
+              toolCall.name,
+              cacheArguments,
+              failedResult,
+            );
     }
   }
 

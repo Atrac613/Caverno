@@ -41,6 +41,27 @@ void main() {
       expect(afterCommit, isNot(afterRevert));
     });
 
+    test('execution key ignores reason for file mutations', () {
+      final first = policy.toolExecutionKey(
+        _toolCall('edit_file', {
+          'path': 'pubspec.yaml',
+          'old_text': 'name: todo',
+          'new_text': 'name: todo_app',
+          'reason': 'Align the package name.',
+        }),
+      );
+      final repeated = policy.toolExecutionKey(
+        _toolCall('edit_file', {
+          'path': 'pubspec.yaml',
+          'old_text': 'name: todo',
+          'new_text': 'name: todo_app',
+          'reason': 'Fix package imports.',
+        }),
+      );
+
+      expect(first, repeated);
+    });
+
     test('failure key ignores reason so retried denials collapse to one', () {
       // The model rewording `reason` between identical commands must not mint a
       // fresh failure key, otherwise the consecutive-failure abort never fires

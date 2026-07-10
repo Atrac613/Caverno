@@ -45,10 +45,7 @@ class ToolApprovalGateDecision {
   final bool escalatedFromAutoReviewDenial;
 
   /// True when full access ran the tool with no approval step at all. Callers
-  /// use this to SKIP per-turn result caching, so repeated identical calls
-  /// re-execute (e.g. re-running tests after an edit) instead of returning a
-  /// stale cached result. Auto-review / manual approvals still cache, so the
-  /// model is not re-prompted for an action the user already cleared.
+  /// skip storing a same-turn approval grant because no approval occurred.
   final bool bypassedApproval;
 
   /// Ran directly via full access — no approval step occurred.
@@ -59,6 +56,10 @@ class ToolApprovalGateDecision {
 
   /// Ran directly because auto-review allowed it (an approval decision was made).
   static const ToolApprovalGateDecision autoReviewAllowed =
+      ToolApprovalGateDecision._(ToolApprovalGateOutcome.runDirectly);
+
+  /// Reuses a same-turn approval grant while still executing the tool again.
+  static const ToolApprovalGateDecision cachedApproval =
       ToolApprovalGateDecision._(ToolApprovalGateOutcome.runDirectly);
 
   static const ToolApprovalGateDecision needsManualApproval =
@@ -95,14 +96,17 @@ class ToolApprovalGateDecision {
     if (hasUntrustedInfluence) {
       return ToolApprovalGateDecision.denied(rationale);
     }
-    return ToolApprovalGateDecision.autoReviewDenialEscalatedToManual(rationale);
+    return ToolApprovalGateDecision.autoReviewDenialEscalatedToManual(
+      rationale,
+    );
   }
 
   bool get runsDirectly => outcome == ToolApprovalGateOutcome.runDirectly;
 
   bool get isDenied => outcome == ToolApprovalGateOutcome.denied;
 
-  bool get needsManual => outcome == ToolApprovalGateOutcome.needsManualApproval;
+  bool get needsManual =>
+      outcome == ToolApprovalGateOutcome.needsManualApproval;
 
   /// Reviewer rationale to show in the manual prompt when this decision was
   /// escalated from an auto-review denial; null otherwise.

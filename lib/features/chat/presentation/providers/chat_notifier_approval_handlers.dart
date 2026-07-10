@@ -9,23 +9,48 @@ part of 'chat_notifier.dart';
 extension ChatNotifierApprovalHandlers on ChatNotifier {
   McpToolResult? _lookupToolApprovalResult(
     String toolName,
-    Map<String, dynamic> arguments,
-  ) {
-    final cached = _toolApprovalCache.lookup(toolName, arguments);
-    if (cached != null) {
+    Map<String, dynamic> arguments, {
+    String? stateFingerprint,
+  }) {
+    final cached = _toolApprovalCache.lookup(
+      toolName,
+      arguments,
+      stateFingerprint: stateFingerprint,
+    );
+    if (cached?.denialResult != null) {
       appLog(
-        '[Tool] Reusing cached approval result for $toolName: ${jsonEncode(arguments)}',
+        '[Tool] Reusing cached approval denial for $toolName: ${jsonEncode(arguments)}',
       );
     }
-    return cached;
+    return cached?.denialResult;
   }
 
   McpToolResult _rememberToolApprovalResult(
     String toolName,
     Map<String, dynamic> arguments,
-    McpToolResult result,
-  ) {
-    return _toolApprovalCache.remember(toolName, arguments, result);
+    McpToolResult result, {
+    String? stateFingerprint,
+  }) {
+    _toolApprovalCache.rememberApproval(
+      toolName,
+      arguments,
+      stateFingerprint: stateFingerprint,
+    );
+    return result;
+  }
+
+  McpToolResult _rememberToolApprovalDenial(
+    String toolName,
+    Map<String, dynamic> arguments,
+    McpToolResult result, {
+    String? stateFingerprint,
+  }) {
+    return _toolApprovalCache.rememberDenial(
+      toolName,
+      arguments,
+      result,
+      stateFingerprint: stateFingerprint,
+    );
   }
 
   /// Shared 3-mode approval gate for every high-risk tool (coding writes,
@@ -44,9 +69,37 @@ extension ChatNotifierApprovalHandlers on ChatNotifier {
     required ToolApprovalMode mode,
     required ToolApprovalAutoReviewDomain reviewDomain,
     required bool fullAccessEligible,
+    Map<String, dynamic>? approvalCacheArguments,
+    String? approvalCacheStateFingerprint,
     required Future<ToolApprovalAutoReviewRequest> Function()
     buildReviewRequest,
   }) async {
+    final cachedApproval = approvalCacheArguments == null
+        ? null
+        : _toolApprovalCache.lookup(
+            toolCall.name,
+            approvalCacheArguments,
+            stateFingerprint: approvalCacheStateFingerprint,
+          );
+    if (cachedApproval?.isApproved == true) {
+      await _recordApprovalAudit(
+        toolCall: ToolCallInfo(
+          id: toolCall.id,
+          name: toolCall.name,
+          arguments: approvalCacheArguments!,
+        ),
+        actionKind: actionKind,
+        domain: reviewDomain,
+        mode: mode,
+        outcome: 'allowed',
+        decisionSource: 'cached_approval',
+      );
+      appLog(
+        '[Tool] Reusing cached approval grant for ${toolCall.name}: '
+        '${jsonEncode(approvalCacheArguments)}',
+      );
+      return ToolApprovalGateDecision.cachedApproval;
+    }
     if (mode == ToolApprovalMode.fullAccess) {
       if (fullAccessEligible) {
         await _recordApprovalAudit(

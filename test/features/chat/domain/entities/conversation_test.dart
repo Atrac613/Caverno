@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_participant.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
@@ -9,6 +10,17 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 
 void main() {
+  test('legacy goals without autoContinue remain opted out', () {
+    final goal = ConversationGoal.fromJson({
+      'id': 'legacy-goal',
+      'objective': 'Keep legacy behavior',
+      'createdAt': DateTime(2026).toIso8601String(),
+      'updatedAt': DateTime(2026).toIso8601String(),
+    });
+
+    expect(goal.autoContinue, isFalse);
+  });
+
   test('workflow projection freshness follows the approved markdown hash', () {
     const approvedMarkdown = '# Plan\n\n## Goal\nShip execution handoff';
     final baseConversation = Conversation(

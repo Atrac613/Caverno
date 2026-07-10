@@ -8,6 +8,8 @@ void main() {
       final out = TruncationNotice.withMaxTokenNotice('partial answer');
       expect(out, startsWith('partial answer'));
       expect(out, contains(TruncationNotice.maxTokenNotice));
+      expect(out, contains('continue from the last verified point'));
+      expect(out, isNot(contains('Increase Max Tokens')));
     });
 
     test('is idempotent (does not duplicate the notice)', () {
@@ -18,7 +20,10 @@ void main() {
     });
 
     test('returns just the notice for empty/whitespace content', () {
-      expect(TruncationNotice.withMaxTokenNotice(''), TruncationNotice.maxTokenNotice);
+      expect(
+        TruncationNotice.withMaxTokenNotice(''),
+        TruncationNotice.maxTokenNotice,
+      );
       expect(
         TruncationNotice.withMaxTokenNotice('   \n'),
         TruncationNotice.maxTokenNotice,

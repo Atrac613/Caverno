@@ -2,6 +2,8 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
+
 class TextFileSnapshot {
   const TextFileSnapshot({
     required this.path,
@@ -625,41 +627,21 @@ class FilesystemTools {
 
     try {
       final content = await file.readAsString();
-      final occurrences = _countOccurrences(content, oldText);
-      if (occurrences == 0) {
-        return jsonEncode(
-          _oldTextNotFoundError(path: file.absolute.path, content: content),
-        );
-      }
-      if (!replaceAll && occurrences > 1) {
-        return jsonEncode({
-          'error':
-              'old_text matched multiple locations. Set replace_all=true or make the target text more specific.',
-          'path': file.absolute.path,
-          'occurrences': occurrences,
-        });
+      final preconditionResult = _editPreconditionResult(
+        path: file.absolute.path,
+        content: content,
+        oldText: oldText,
+        newText: newText,
+        replaceAll: replaceAll,
+      );
+      if (preconditionResult != null) {
+        return jsonEncode(preconditionResult);
       }
 
+      final occurrences = _countOccurrences(content, oldText);
       final updatedContent = replaceAll
           ? content.replaceAll(oldText, newText)
           : content.replaceFirst(oldText, newText);
-      if (updatedContent == content) {
-        // No-op edit: new_text is identical to the matched old_text, so the
-        // file is unchanged. Reporting a "successful" replacement here gives
-        // the model false confidence that its fix applied, which drives the
-        // non-converging edit->run->re-read loop (see ToolLoopContextDigest).
-        // Surface it as an actionable error instead of silently writing the
-        // same bytes back.
-        return jsonEncode({
-          'error': 'no_change',
-          'path': file.absolute.path,
-          'message':
-              'The edit made no change: new_text is identical to old_text, so '
-              'the file is unchanged and your intended fix did not apply. Do '
-              'not re-read expecting a change. Provide a new_text that actually '
-              'differs from old_text, or use write_file to overwrite the file.',
-        });
-      }
       await file.writeAsString(updatedContent);
 
       return jsonEncode({
@@ -674,6 +656,116 @@ class FilesystemTools {
         error: error,
       );
     }
+  }
+
+  static Future<String?> preflightEditFile({
+    required String path,
+    required String oldText,
+    required String newText,
+    bool replaceAll = false,
+  }) async {
+    final file = File(path);
+    if (!file.existsSync()) {
+      return jsonEncode({'error': 'File does not exist: $path'});
+    }
+    if (oldText.isEmpty) {
+      return jsonEncode({'error': 'old_text must not be empty'});
+    }
+
+    try {
+      final content = await file.readAsString();
+      final result = _editPreconditionResult(
+        path: file.absolute.path,
+        content: content,
+        oldText: oldText,
+        newText: newText,
+        replaceAll: replaceAll,
+      );
+      return result == null ? null : jsonEncode(result);
+    } on FileSystemException catch (error) {
+      return _buildFilesystemError(
+        path: file.absolute.path,
+        operation: 'edit_file_preflight',
+        error: error,
+      );
+    }
+  }
+
+  static Map<String, dynamic>? _editPreconditionResult({
+    required String path,
+    required String content,
+    required String oldText,
+    required String newText,
+    required bool replaceAll,
+  }) {
+    final oldTextOffsets = _occurrenceOffsets(content, oldText);
+    if (oldTextOffsets.isEmpty) {
+      return _oldTextNotFoundError(path: path, content: content);
+    }
+    if (oldText == newText) {
+      return {
+        'error': 'no_change',
+        'path': path,
+        'message':
+            'The edit made no change: new_text is identical to old_text, so '
+            'the file is unchanged and your intended fix did not apply. Do '
+            'not re-read expecting a change. Provide a new_text that actually '
+            'differs from old_text, or use write_file to overwrite the file.',
+      };
+    }
+
+    final coveredOffsets = _oldTextOffsetsCoveredByNewText(
+      content: content,
+      oldText: oldText,
+      newText: newText,
+    );
+    if (coveredOffsets.length == oldTextOffsets.length) {
+      return {
+        'path': path,
+        'replacements': 0,
+        'replace_all': replaceAll,
+        'already_applied': true,
+        'message':
+            'new_text is already present at every old_text match; the file was left unchanged.',
+      };
+    }
+    if (coveredOffsets.isNotEmpty) {
+      return {
+        'error': 'ambiguous_edit_overlap',
+        'path': path,
+        'occurrences': oldTextOffsets.length,
+        'already_applied_occurrences': coveredOffsets.length,
+        'message':
+            'Some old_text matches are already contained inside new_text. Re-read the file and use a more specific old_text so an applied edit is not expanded again.',
+      };
+    }
+    if (!replaceAll && oldTextOffsets.length > 1) {
+      return {
+        'error':
+            'old_text matched multiple locations. Set replace_all=true or make the target text more specific.',
+        'path': path,
+        'occurrences': oldTextOffsets.length,
+      };
+    }
+    return null;
+  }
+
+  static Set<int> _oldTextOffsetsCoveredByNewText({
+    required String content,
+    required String oldText,
+    required String newText,
+  }) {
+    if (newText.isEmpty || !newText.contains(oldText)) {
+      return const <int>{};
+    }
+    final relativeOldTextOffsets = _occurrenceOffsets(newText, oldText);
+    final coveredOffsets = <int>{};
+    for (final newTextOffset in _occurrenceOffsets(content, newText)) {
+      for (final relativeOffset in relativeOldTextOffsets) {
+        coveredOffsets.add(newTextOffset + relativeOffset);
+      }
+    }
+    return coveredOffsets;
   }
 
   /// Maximum file size (UTF-8 bytes) for which a failed [editFile] echoes the
@@ -936,6 +1028,16 @@ class FilesystemTools {
     }
   }
 
+  static Future<String> textSnapshotFingerprint(String path) async {
+    final snapshot = await captureTextSnapshot(path);
+    final payload = jsonEncode({
+      'exists': snapshot.exists,
+      'content': snapshot.content,
+      'error': snapshot.error,
+    });
+    return sha256.convert(utf8.encode(payload)).toString();
+  }
+
   static Future<String> buildWriteDiffPreview({
     required String path,
     required String newContent,
@@ -973,16 +1075,21 @@ class FilesystemTools {
     }
 
     final content = snapshot.content ?? '';
-    final occurrences = _countOccurrences(content, oldText);
-    if (occurrences == 0) {
-      return _buildPreviewUnavailableMessage(
-        'old_text was not found in the target file',
-      );
+    final preconditionResult = _editPreconditionResult(
+      path: snapshot.path,
+      content: content,
+      oldText: oldText,
+      newText: newText,
+      replaceAll: replaceAll,
+    );
+    if (preconditionResult?['already_applied'] == true) {
+      return 'No file changes: new_text is already present at every old_text match.';
     }
-    if (!replaceAll && occurrences > 1) {
+    if (preconditionResult != null) {
       return _buildPreviewUnavailableMessage(
-        'old_text matched multiple locations. Set replace_all=true or make '
-        'the target text more specific.',
+        preconditionResult['message']?.toString() ??
+            preconditionResult['error']?.toString() ??
+            'The edit precondition is not satisfied.',
       );
     }
 
@@ -1052,12 +1159,19 @@ class FilesystemTools {
   }
 
   static int _countOccurrences(String source, String target) {
-    var count = 0;
+    return _occurrenceOffsets(source, target).length;
+  }
+
+  static List<int> _occurrenceOffsets(String source, String target) {
+    if (target.isEmpty) {
+      return const [];
+    }
+    final offsets = <int>[];
     var start = 0;
     while (true) {
       final index = source.indexOf(target, start);
-      if (index == -1) return count;
-      count += 1;
+      if (index == -1) return offsets;
+      offsets.add(index);
       start = index + target.length;
     }
   }

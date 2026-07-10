@@ -35,16 +35,13 @@ void main() {
         },
       );
 
-      final snapshot = await service.collectSnapshot(
+      final run = await service.buildFeedbackRun(
         projectRoot: root.path,
         changedPaths: [editedFile.path],
         trigger: CodingVerificationTrigger.completionClaim,
+        now: DateTime.fromMicrosecondsSinceEpoch(42),
       );
-      final toolResult = await service.buildFeedbackToolResult(
-        projectRoot: root.path,
-        changedPaths: [editedFile.path],
-        trigger: CodingVerificationTrigger.completionClaim,
-      );
+      final snapshot = run.snapshot;
 
       expect(snapshot, isNotNull);
       expect(
@@ -55,13 +52,38 @@ void main() {
       expect(snapshot.targetBatches.single.targets, ['test/main_test.dart']);
       expect(snapshot.passedCount, 1);
       expect(snapshot.failedCount, 0);
-      expect(toolResult, isNull);
-      expect(commands.first.executable, 'flutter');
-      expect(commands.first.arguments, [
+      expect(run.toolResult, isNull);
+      expect(commands.single.executable, 'flutter');
+      expect(commands.single.arguments, [
         'test',
         '--machine',
         'test/main_test.dart',
       ]);
+
+      final evidence = run.evidenceToolResult;
+      expect(evidence, isNotNull);
+      expect(evidence!.id, 'dart_test_verification_evidence_42');
+      expect(evidence.name, CodingVerificationFeedbackService.evidenceToolName);
+      final payload = jsonDecode(evidence.result) as Map<String, dynamic>;
+      expect(
+        payload['schema'],
+        CodingVerificationFeedbackService.evidenceSchemaName,
+      );
+      expect(payload['validation_status'], 'passed');
+      expect(payload['changed_paths'], ['lib/main.dart']);
+      expect(payload['counts'], {'passed': 1, 'failed': 0, 'skipped': 0});
+      expect(
+        (payload['target_batches'] as List<dynamic>).single,
+        containsPair('targets', ['test/main_test.dart']),
+      );
+      expect(payload['verification'], {
+        'executable': 'flutter',
+        'arguments': ['test', '--machine', 'test/main_test.dart'],
+        'working_directory': root.absolute.path,
+        'exit_code': 0,
+        'duration_ms': isA<int>(),
+        'timed_out': false,
+      });
     });
 
     test('returns structured feedback for failing tests', () async {

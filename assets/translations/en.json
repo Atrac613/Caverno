@@ -61,6 +61,7 @@
     "slash_goal_desc": "Show or manage the current coding goal",
     "slash_goal_unavailable": "Goals are available in coding threads.",
     "slash_goal_set": "Goal set: {objective}",
+    "slash_goal_set_auto": "Goal set: {objective} ({auto})",
     "slash_goal_paused": "Goal paused.",
     "slash_goal_resumed": "Goal resumed.",
     "slash_goal_none": "Set a goal before managing it.",

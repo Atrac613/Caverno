@@ -154,11 +154,19 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
     }.contains(cleaned)) {
       return true;
     }
+    if (cleaned.startsWith('automatic goal continuation ')) {
+      return true;
+    }
     return _containsAnyCodeUnitSequence(text, const [
       [0x7d9a, 0x3051, 0x3066],
       [0x7d9a, 0x304d],
       [0x9032, 0x3081, 0x3066],
     ]);
+  }
+
+  @visibleForTesting
+  bool looksLikeContinuationOnlyUserRequestForTest(String text) {
+    return _looksLikeContinuationOnlyUserRequest(text);
   }
 
   bool _looksLikeProseOnlyCodingContinuation(String text) {
@@ -192,6 +200,10 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       'entrypoint',
       'implementation',
       'pubspec',
+      'error',
+      'diagnostic',
+      'analyzer',
+      'test failure',
     ]);
     final hasEnglishAction = _containsAny(normalized, const [
       'i will inspect',
@@ -204,6 +216,8 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       'i will modify',
       'i will write',
       'i will create',
+      'i will fix',
+      'i will resolve',
       "i'll inspect",
       "i'll check",
       "i'll read",
@@ -214,6 +228,8 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       "i'll modify",
       "i'll write",
       "i'll create",
+      "i'll fix",
+      "i'll resolve",
       'i am going to inspect',
       'i am going to check',
       'i am going to read',
@@ -224,6 +240,8 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       'i am going to modify',
       'i am going to write',
       'i am going to create',
+      'i am going to fix',
+      'i am going to resolve',
       'next i will',
       'now i will',
     ]);
@@ -235,6 +253,8 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       [0x30b9, 0x30af, 0x30ea, 0x30d7, 0x30c8],
       [0x30ed, 0x30b8, 0x30c3, 0x30af],
       [0x65e2, 0x5b58],
+      [0x30a8, 0x30e9, 0x30fc],
+      [0x8a3a, 0x65ad],
     ]);
     final hasCjkAction = _containsAnyCodeUnitSequence(text, const [
       [0x78ba, 0x8a8d, 0x3057],
@@ -248,9 +268,15 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       [0x7de8, 0x96c6, 0x3057, 0x307e, 0x3059],
       [0x4f5c, 0x6210, 0x3057, 0x307e, 0x3059],
       [0x66f8, 0x304d, 0x307e, 0x3059],
+      [0x4fee, 0x6b63, 0x3057, 0x307e, 0x3059],
     ]);
     return (hasEnglishTarget || hasCjkTarget) &&
         (hasEnglishAction || hasCjkAction);
+  }
+
+  @visibleForTesting
+  bool looksLikeProseOnlyCodingContinuationForTest(String text) {
+    return _looksLikeProseOnlyCodingContinuation(text);
   }
 
   ToolResultInfo _buildCodingContinuationRecoveryToolResult({

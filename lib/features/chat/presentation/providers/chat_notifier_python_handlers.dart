@@ -51,6 +51,7 @@ extension ChatNotifierPythonHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      approvalCacheArguments: cacheArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'run_python_script',
@@ -61,7 +62,7 @@ extension ChatNotifierPythonHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         cacheArguments,
         _autoReviewDeniedResult(
@@ -78,7 +79,7 @@ extension ChatNotifierPythonHandlers on ChatNotifier {
         reason: reason,
       );
       if (!approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           cacheArguments,
           McpToolResult(

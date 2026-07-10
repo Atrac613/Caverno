@@ -15,7 +15,7 @@ void registerChatNotifierGoalAutoContinueTests() {
               arguments: const {'command': 'dart analyze'},
             ),
           ],
-          const <ToolCallInfo>[],
+          [_goalAutoContinueAnalyzeCall('call-analyze-continuation')],
         ],
         streamChunkBatches: const [
           <String>[],
@@ -26,20 +26,28 @@ void registerChatNotifierGoalAutoContinueTests() {
         ],
       );
       final toolService = _FakeMcpToolService(
-        results: {
-          'analyze_project': jsonEncode({
-            'diagnostics': [
-              {
-                'severity': 'Error',
-                'path': '/tmp/todo/bin/todo_cli.dart',
-                'relative_path': 'bin/todo_cli.dart',
-                'line': 12,
-                'column': 7,
-                'code': 'undefined_identifier',
-                'message': 'Undefined name store',
-              },
-            ],
-          }),
+        results: const {'analyze_project': 'unused fallback'},
+        queuedResults: {
+          'analyze_project': [
+            jsonEncode({
+              'diagnostics': [
+                {
+                  'severity': 'Error',
+                  'path': '/tmp/todo/bin/todo_cli.dart',
+                  'relative_path': 'bin/todo_cli.dart',
+                  'line': 12,
+                  'column': 7,
+                  'code': 'undefined_identifier',
+                  'message': 'Undefined name store',
+                },
+              ],
+            }),
+            jsonEncode({
+              'command': 'dart analyze',
+              'exit_code': 0,
+              'diagnostics': const <Object>[],
+            }),
+          ],
         },
       );
       final appLifecycleService = _MockAppLifecycleService();
@@ -122,7 +130,10 @@ void registerChatNotifierGoalAutoContinueTests() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(dataSource.initialRequestMessages, hasLength(2));
-      expect(toolService.executedToolNames, ['analyze_project']);
+      expect(toolService.executedToolNames, [
+        'analyze_project',
+        'analyze_project',
+      ]);
       final continuationRequest = dataSource.initialRequestMessages.last;
       expect(
         continuationRequest
@@ -140,7 +151,11 @@ void registerChatNotifierGoalAutoContinueTests() {
         chatNotifier.state.messages
             .where((message) => message.role == MessageRole.assistant)
             .map((message) => message.content),
-        contains('Continuation checked the goal and found no current errors.'),
+        anyElement(
+          contains(
+            'Continuation checked the goal and found no current errors.',
+          ),
+        ),
       );
 
       final conversation = autoContainer
@@ -177,6 +192,133 @@ void registerChatNotifierGoalAutoContinueTests() {
       );
     },
   );
+
+  test(
+    'goal auto-continue retains diagnostics across tool-free hidden turns',
+    () async {
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: [
+          [
+            ToolCallInfo(
+              id: 'call-analyze-initial',
+              name: 'analyze_project',
+              arguments: {'command': 'dart analyze'},
+            ),
+          ],
+          <ToolCallInfo>[],
+          <ToolCallInfo>[],
+        ],
+        streamChunkBatches: const [
+          <String>[],
+          ['No new verification evidence was produced.'],
+          ['Still no new verification evidence was produced.'],
+        ],
+        finalAnswerChunkBatches: const [
+          ['Analyzer still reports unresolved errors.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'analyze_project': _goalAutoContinueDiagnosticPayload(
+            count: 2,
+            path: 'lib/main.dart',
+          ),
+        },
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'goal-auto-preserve-evidence',
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'goal-auto-preserve-evidence',
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Fix analyzer diagnostics',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 5,
+      );
+
+      final chatNotifier = container.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(
+        'Fix analyzer diagnostics.',
+        bypassPlanMode: true,
+      );
+
+      await _waitForCondition(() {
+        final goal = container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal;
+        return !chatNotifier.state.isLoading &&
+            goal?.status == ConversationGoalStatus.blocked;
+      });
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal;
+      expect(dataSource.initialRequestMessages, hasLength(3));
+      expect(goal?.blockedReason, contains('no diagnostic progress'));
+    },
+  );
+
+  test('goal continuation recovery recognizes the automatic prompt', () {
+    final dataSource = _GoalAutoContinueChatDataSource(
+      toolCallBatches: const [],
+    );
+    final container = _goalAutoContinueContainer(
+      dataSource: dataSource,
+      toolService: _FakeMcpToolService(results: const {}),
+      projectId: 'goal-auto-recovery-marker',
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(chatNotifierProvider.notifier);
+    final diagnosticContinuation = String.fromCharCodes(const [
+      0x307e,
+      0x305a,
+      0x73fe,
+      0x5728,
+      0x306e,
+      0x30a8,
+      0x30e9,
+      0x30fc,
+      0x72b6,
+      0x614b,
+      0x3092,
+      0x78ba,
+      0x8a8d,
+      0x3057,
+      0x3001,
+      0x4fee,
+      0x6b63,
+      0x3057,
+      0x307e,
+      0x3059,
+      0x3002,
+    ]);
+
+    expect(
+      notifier.looksLikeContinuationOnlyUserRequestForTest(
+        'Automatic goal continuation 3/10. Continue the saved objective.',
+      ),
+      isTrue,
+    );
+    expect(
+      notifier.looksLikeProseOnlyCodingContinuationForTest(
+        diagnosticContinuation,
+      ),
+      isTrue,
+    );
+  });
 
   test(
     'goal auto-continue clears approval result cache before hidden turns',
@@ -296,10 +438,13 @@ void registerChatNotifierGoalAutoContinueTests() {
       final conversationRepository = _FakeConversationRepository();
       final streamingDataSource = _QueuedStreamingChatDataSource([
         [
-          '<tool_call>{"name":"local_execute_command","arguments":{"command":"python3 check.py","working_directory":"/tmp/goal-auto-content-tool"}}</tool_call>',
+          '<tool_call>{"name":"local_execute_command","arguments":{"command":"python3 check.py --verify","working_directory":"/tmp/goal-auto-content-tool"}}</tool_call>',
         ],
         ['Verifier still reports unresolved errors.'],
-        ['Automatic continuation checked the goal.'],
+        [
+          '<tool_call>{"name":"local_execute_command","arguments":{"command":"python3 check.py","working_directory":"/tmp/goal-auto-content-tool"}}</tool_call>',
+        ],
+        ['Automatic continuation verified the clean result.'],
       ]);
       final toolService = _FakeMcpToolService(
         descriptions: const {
@@ -309,7 +454,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         queuedResults: {
           'local_execute_command': [
             jsonEncode({
-              'command': 'python3 check.py',
+              'command': 'python3 check.py --verify',
               'working_directory': '/tmp/goal-auto-content-tool',
               'exit_code': 1,
               'stdout': '',
@@ -325,6 +470,14 @@ void registerChatNotifierGoalAutoContinueTests() {
                   'message': 'Undefined name store',
                 },
               ],
+            }),
+            jsonEncode({
+              'command': 'python3 check.py',
+              'working_directory': '/tmp/goal-auto-content-tool',
+              'exit_code': 0,
+              'stdout': 'No issues found.',
+              'stderr': '',
+              'diagnostics': const <Object>[],
             }),
           ],
         },
@@ -388,15 +541,18 @@ void registerChatNotifierGoalAutoContinueTests() {
             .currentConversation
             ?.goal;
         return !state.isLoading &&
-            streamingDataSource.requests.length >= 3 &&
+            streamingDataSource.requests.length >= 4 &&
             goal?.turnsUsed == 2;
       });
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(toolService.executedToolNames, ['local_execute_command']);
-      expect(streamingDataSource.requests, hasLength(3));
+      expect(toolService.executedToolNames, [
+        'local_execute_command',
+        'local_execute_command',
+      ]);
+      expect(streamingDataSource.requests, hasLength(4));
       expect(
-        streamingDataSource.requests.last
+        streamingDataSource.requests[2]
             .where((message) => message.role == MessageRole.user)
             .map((message) => message.content)
             .join('\n'),

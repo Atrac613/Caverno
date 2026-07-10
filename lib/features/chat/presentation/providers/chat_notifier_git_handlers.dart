@@ -57,6 +57,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      approvalCacheArguments: gitArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'git_execute_command',
@@ -66,7 +67,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         gitArguments,
         _autoReviewDeniedResult(
@@ -83,7 +84,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
         reason: reason,
       );
       if (!approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           gitArguments,
           McpToolResult(
@@ -170,6 +171,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      approvalCacheArguments: finishArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'git_finish_worktree_session',
@@ -179,7 +181,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         finishArguments,
         _autoReviewDeniedResult(
@@ -198,7 +200,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
         reason: reason,
       );
       if (!approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           finishArguments,
           McpToolResult(

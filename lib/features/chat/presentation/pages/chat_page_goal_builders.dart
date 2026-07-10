@@ -150,22 +150,43 @@ extension _ChatPageGoalBuilders on _ChatPageState {
       );
     }
 
+    final trailingAutoMatch = RegExp(
+      r'\s+auto\s+(on|off)\s*$',
+      caseSensitive: false,
+    ).firstMatch(trimmedArgs);
+    final objective = trailingAutoMatch == null
+        ? trimmedArgs
+        : trimmedArgs.substring(0, trailingAutoMatch.start).trim();
+    final trailingAutoContinue = trailingAutoMatch == null
+        ? null
+        : trailingAutoMatch.group(1)!.toLowerCase() == 'on';
+
     await notifier.saveCurrentGoal(
-      objective: trimmedArgs,
+      objective: objective,
       enabled: true,
+      autoContinue: trailingAutoContinue ?? (goal == null ? true : null),
       status: ConversationGoalStatus.active,
       tokenBudget: goal?.tokenBudget ?? 0,
       turnBudget: goal?.turnBudget ?? 0,
     );
-    final feedbackMessage = 'chat.slash_goal_set'.tr(
-      namedArgs: {'objective': _truncateGoalSlashObjective(trimmedArgs)},
-    );
+    final feedbackMessage = trailingAutoContinue == null
+        ? 'chat.slash_goal_set'.tr(
+            namedArgs: {'objective': _truncateGoalSlashObjective(objective)},
+          )
+        : 'chat.slash_goal_set_auto'.tr(
+            namedArgs: {
+              'objective': _truncateGoalSlashObjective(objective),
+              'auto': trailingAutoContinue
+                  ? 'chat.goal_auto_continue_on'.tr()
+                  : 'chat.goal_auto_continue_off'.tr(),
+            },
+          );
     if (sendObjectiveAsInitialPrompt) {
       final languageCode = context.mounted ? context.locale.languageCode : 'en';
       unawaited(
         ref
             .read(chatNotifierProvider.notifier)
-            .sendMessage(trimmedArgs, languageCode: languageCode),
+            .sendMessage(objective, languageCode: languageCode),
       );
       return SlashCommandExecutionResult(feedbackMessage: feedbackMessage);
     }
@@ -294,7 +315,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
       text: (goal?.turnBudget ?? 0) > 0 ? goal!.turnBudget.toString() : '',
     );
     _enabled = goal?.enabled ?? true;
-    _autoContinue = goal?.autoContinue ?? false;
+    _autoContinue = goal?.autoContinue ?? true;
     _status = goal?.status ?? ConversationGoalStatus.active;
   }
 
@@ -531,8 +552,16 @@ String _goalSlashStatusSummary(ConversationGoal goal) {
       : 'chat.slash_goal_turn_usage_unlimited'.tr(
           namedArgs: {'used': goal.turnsUsed.toString()},
         );
+  final effectiveAutoContinueBudget = goal.hasTurnBudget
+      ? goal.turnBudget
+      : kGoalAutoContinueDefaultTurnBudget;
   final autoContinue = goal.autoContinue
-      ? 'chat.goal_auto_continue_on'.tr()
+      ? 'chat.goal_auto_continue_running'.tr(
+          namedArgs: {
+            'count': goal.turnsUsed.toString(),
+            'total': effectiveAutoContinueBudget.toString(),
+          },
+        )
       : 'chat.goal_auto_continue_off'.tr();
   return 'chat.slash_goal_status_details'.tr(
     namedArgs: {

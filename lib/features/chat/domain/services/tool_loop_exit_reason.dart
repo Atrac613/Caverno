@@ -29,6 +29,10 @@ enum ToolLoopExitReason {
   /// model produced a final answer.
   maxIterations,
 
+  /// The loop reached its cap, executed the already-declared pending batch,
+  /// and then finalized without requesting another tool-aware model round.
+  pendingBatchExecuted,
+
   /// The same tool call failed repeatedly with identical arguments and the loop
   /// gave up (the current `toolFailureCounts[key] >= 2` break — LL29's target).
   toolFailureAbort,
@@ -108,7 +112,18 @@ class ToolLoopExitClassifier {
   static const String _emptySentinel = '(empty)';
 
   static const Set<String> _terminators = <String>{
-    '.', '!', '?', '。', '！', '？', '`', ')', '）', '"', '”', ':',
+    '.',
+    '!',
+    '?',
+    '。',
+    '！',
+    '？',
+    '`',
+    ')',
+    '）',
+    '"',
+    '”',
+    ':',
   };
 
   /// Finish reasons that mean the answer was cut at the token limit.
@@ -120,19 +135,19 @@ class ToolLoopExitClassifier {
 
   /// Derive the exit reason from the terminal [state].
   ///
-  /// Precedence: an [ToolLoopExitState.explicitHint] always wins. Otherwise the
-  /// reason is derived from finish reason, iteration count, and the content
-  /// shape, so even an unwired call site still records something useful.
+  /// Precedence: provider-confirmed truncation wins, followed by an explicit
+  /// loop hint. Otherwise the reason is derived from iteration count and the
+  /// content shape, so even an unwired call site still records something useful.
   ToolLoopExitReason classify(ToolLoopExitState state) {
+    if (_isTruncated(state.finishReason)) {
+      return ToolLoopExitReason.lengthTruncated;
+    }
     if (state.explicitHint != null) {
       return state.explicitHint!;
     }
 
     final text = state.finalResponseText.trim();
 
-    if (_isTruncated(state.finishReason)) {
-      return ToolLoopExitReason.lengthTruncated;
-    }
     if (text.isEmpty || text == _emptySentinel) {
       return ToolLoopExitReason.emptyResponse;
     }
@@ -159,6 +174,7 @@ class ToolLoopExitClassifier {
     // A non-empty answer is only "incomplete" when it reads like a truncated
     // partial; a real short answer keeps its text untouched.
     return reason != ToolLoopExitReason.textResponse &&
+        reason != ToolLoopExitReason.pendingBatchExecuted &&
         _looksLikePartialFragment(text);
   }
 
@@ -167,6 +183,7 @@ class ToolLoopExitClassifier {
   String? completionExplanation(ToolLoopExitReason reason) {
     switch (reason) {
       case ToolLoopExitReason.textResponse:
+      case ToolLoopExitReason.pendingBatchExecuted:
         return null;
       case ToolLoopExitReason.maxIterations:
         return 'I stopped because the turn reached its tool-call limit before '
@@ -204,6 +221,8 @@ class ToolLoopExitClassifier {
         return 'text_response';
       case ToolLoopExitReason.maxIterations:
         return 'max_iterations';
+      case ToolLoopExitReason.pendingBatchExecuted:
+        return 'pending_batch_executed';
       case ToolLoopExitReason.toolFailureAbort:
         return 'tool_failure_abort';
       case ToolLoopExitReason.guardrailBlock:

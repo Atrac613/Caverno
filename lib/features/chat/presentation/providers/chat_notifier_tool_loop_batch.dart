@@ -129,6 +129,14 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
       execute: (toolCall) async {
+        final analysisOptionsLintEditGuardResult =
+            _buildAnalysisOptionsLintEditGuardResult(
+              toolCall,
+              executedToolResults: executedToolResults,
+            );
+        if (analysisOptionsLintEditGuardResult != null) {
+          return analysisOptionsLintEditGuardResult;
+        }
         final guardResult = _buildGitTagFormatInspectionGuardResult(
           toolCall,
           executedToolResults: executedToolResults,
@@ -209,8 +217,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         commandRetryGeneration: nextCommandRetryGeneration,
       );
       // Failure tracking ignores model narration (`reason`) so a retried denied
-      // command counts as one repeating action; success dedup keeps narration so
-      // a re-narrated read-only inspection can still re-run.
+      // command counts as one repeating action. Success dedup keeps narration
+      // for inspections but strips it for file mutations, preventing reworded
+      // reasons from repeating a side effect.
       final toolFailureKey = _toolFailureKey(
         toolCall,
         commandRetryGeneration: nextCommandRetryGeneration,

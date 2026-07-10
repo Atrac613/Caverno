@@ -88,8 +88,7 @@ void main() {
   });
 
   test('editFile reports no_change when new_text equals old_text', () async {
-    final targetPath =
-        '${tempDir.path}${Platform.pathSeparator}noop.txt';
+    final targetPath = '${tempDir.path}${Platform.pathSeparator}noop.txt';
     await FilesystemTools.writeFile(path: targetPath, content: 'hello world');
 
     final editResult =
@@ -106,6 +105,55 @@ void main() {
     expect(editResult.containsKey('replacements'), isFalse);
     // The file must be left untouched.
     expect(await File(targetPath).readAsString(), 'hello world');
+  });
+
+  test(
+    'editFile treats an overlapping replacement as already applied',
+    () async {
+      final targetPath = '${tempDir.path}${Platform.pathSeparator}pubspec.yaml';
+      await FilesystemTools.writeFile(
+        path: targetPath,
+        content: 'name: todo_app\n',
+      );
+
+      final editResult =
+          jsonDecode(
+                await FilesystemTools.editFile(
+                  path: targetPath,
+                  oldText: 'name: todo',
+                  newText: 'name: todo_app',
+                ),
+              )
+              as Map<String, dynamic>;
+
+      expect(editResult['already_applied'], isTrue);
+      expect(editResult['replacements'], 0);
+      expect(await File(targetPath).readAsString(), 'name: todo_app\n');
+    },
+  );
+
+  test('preflightEditFile rejects a stale old_text before approval', () async {
+    final targetPath = '${tempDir.path}${Platform.pathSeparator}pubspec.yaml';
+    await FilesystemTools.writeFile(
+      path: targetPath,
+      content: 'name: current_app\n',
+    );
+
+    final preflightResult =
+        jsonDecode(
+              (await FilesystemTools.preflightEditFile(
+                path: targetPath,
+                oldText: 'name: todo',
+                newText: 'name: todo_app',
+              ))!,
+            )
+            as Map<String, dynamic>;
+
+    expect(
+      preflightResult['error'],
+      'old_text was not found in the target file',
+    );
+    expect(await File(targetPath).readAsString(), 'name: current_app\n');
   });
 
   test('editFile not-found error echoes content and an actionable hint for '
@@ -131,7 +179,10 @@ void main() {
     expect(editResult['error'], 'old_text was not found in the target file');
     // Small files echo their current content so the model can copy old_text
     // verbatim (or overwrite via write_file) without another read_file.
-    expect(editResult['current_content'], "String canaryValue() => 'BROKEN';\n");
+    expect(
+      editResult['current_content'],
+      "String canaryValue() => 'BROKEN';\n",
+    );
     expect(editResult['hint'], contains('write_file'));
     expect(editResult['hint'], contains('verbatim'));
 

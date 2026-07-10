@@ -174,9 +174,13 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
 
+    final approvalStateFingerprint =
+        await FilesystemTools.textSnapshotFingerprint(path);
+
     final cachedResult = _lookupToolApprovalResult(
       toolCall.name,
       resolvedArguments,
+      stateFingerprint: approvalStateFingerprint,
     );
     if (cachedResult != null) {
       return cachedResult;
@@ -196,6 +200,8 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      approvalCacheArguments: resolvedArguments,
+      approvalCacheStateFingerprint: approvalStateFingerprint,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'write_file',
@@ -206,13 +212,14 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         resolvedArguments,
         _autoReviewDeniedResult(
           toolName: toolCall.name,
           rationale: gate.deniedRationale!,
         ),
+        stateFingerprint: approvalStateFingerprint,
       );
     }
     if (gate.needsManual) {
@@ -223,7 +230,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         reason: reason,
       );
       if (!approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           resolvedArguments,
           McpToolResult(
@@ -232,7 +239,19 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
             isSuccess: false,
             errorMessage: 'User denied file write',
           ),
+          stateFingerprint: approvalStateFingerprint,
         );
+      }
+    }
+
+    if (!gate.bypassedApproval) {
+      final changedResult = await _fileChangedSinceApprovalResult(
+        toolName: toolCall.name,
+        path: path,
+        approvedStateFingerprint: approvalStateFingerprint,
+      );
+      if (changedResult != null) {
+        return changedResult;
       }
     }
 
@@ -243,7 +262,12 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     );
     return gate.bypassedApproval
         ? result
-        : _rememberToolApprovalResult(toolCall.name, resolvedArguments, result);
+        : _rememberToolApprovalResult(
+            toolCall.name,
+            resolvedArguments,
+            result,
+            stateFingerprint: approvalStateFingerprint,
+          );
   }
 
   Future<McpToolResult> _handleEditFile(ToolCallInfo toolCall) async {
@@ -266,9 +290,30 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
 
+    final preflightResult = await FilesystemTools.preflightEditFile(
+      path: path,
+      oldText: oldText,
+      newText: newText,
+      replaceAll: resolvedArguments['replace_all'] as bool? ?? false,
+    );
+    if (preflightResult != null) {
+      final decoded = _tryDecodeMap(preflightResult);
+      final error = decoded?['error']?.toString();
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: preflightResult,
+        isSuccess: error == null,
+        errorMessage: error,
+      );
+    }
+
+    final approvalStateFingerprint =
+        await FilesystemTools.textSnapshotFingerprint(path);
+
     final cachedResult = _lookupToolApprovalResult(
       toolCall.name,
       resolvedArguments,
+      stateFingerprint: approvalStateFingerprint,
     );
     if (cachedResult != null) {
       return cachedResult;
@@ -290,6 +335,8 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      approvalCacheArguments: resolvedArguments,
+      approvalCacheStateFingerprint: approvalStateFingerprint,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'edit_file',
@@ -300,13 +347,14 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         resolvedArguments,
         _autoReviewDeniedResult(
           toolName: toolCall.name,
           rationale: gate.deniedRationale!,
         ),
+        stateFingerprint: approvalStateFingerprint,
       );
     }
     if (gate.needsManual) {
@@ -317,7 +365,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         reason: reason,
       );
       if (!approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           resolvedArguments,
           McpToolResult(
@@ -326,7 +374,19 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
             isSuccess: false,
             errorMessage: 'User denied file edit',
           ),
+          stateFingerprint: approvalStateFingerprint,
         );
+      }
+    }
+
+    if (!gate.bypassedApproval) {
+      final changedResult = await _fileChangedSinceApprovalResult(
+        toolName: toolCall.name,
+        path: path,
+        approvedStateFingerprint: approvalStateFingerprint,
+      );
+      if (changedResult != null) {
+        return changedResult;
       }
     }
 
@@ -337,7 +397,37 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     );
     return gate.bypassedApproval
         ? result
-        : _rememberToolApprovalResult(toolCall.name, resolvedArguments, result);
+        : _rememberToolApprovalResult(
+            toolCall.name,
+            resolvedArguments,
+            result,
+            stateFingerprint: approvalStateFingerprint,
+          );
+  }
+
+  Future<McpToolResult?> _fileChangedSinceApprovalResult({
+    required String toolName,
+    required String path,
+    required String approvedStateFingerprint,
+  }) async {
+    final currentFingerprint = await FilesystemTools.textSnapshotFingerprint(
+      path,
+    );
+    if (currentFingerprint == approvedStateFingerprint) {
+      return null;
+    }
+    return McpToolResult(
+      toolName: toolName,
+      result: jsonEncode({
+        'ok': false,
+        'code': 'file_changed_since_approval',
+        'error':
+            'The target file changed after the approval preview was prepared. Re-read the file and submit a fresh mutation.',
+        'path': path,
+      }),
+      isSuccess: false,
+      errorMessage: 'The target file changed after approval',
+    );
   }
 
   Future<McpToolResult> _executeFileMutationToolAndCapture({
@@ -362,7 +452,8 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     }
     try {
       final decoded = jsonDecode(result.result);
-      return decoded is! Map<String, dynamic> || decoded['error'] == null;
+      return decoded is! Map<String, dynamic> ||
+          (decoded['error'] == null && decoded['already_applied'] != true);
     } catch (_) {
       return true;
     }
@@ -400,6 +491,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      approvalCacheArguments: toolCall.arguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'rollback_last_file_change',
@@ -410,7 +502,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         toolCall.arguments,
         _autoReviewDeniedResult(
@@ -427,7 +519,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         reason: reason,
       );
       if (!approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           toolCall.arguments,
           McpToolResult(
@@ -532,6 +624,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      approvalCacheArguments: localArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'local_execute_command',
@@ -543,7 +636,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         localArguments,
         _autoReviewDeniedResult(
@@ -578,7 +671,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       }
 
       if (!approval.approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           localArguments,
           McpToolResult(
@@ -678,6 +771,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      approvalCacheArguments: localArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'process_start',
@@ -689,7 +783,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         localArguments,
         _autoReviewDeniedResult(
@@ -724,7 +818,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       }
 
       if (!approval.approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           localArguments,
           McpToolResult(
@@ -776,6 +870,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       mode: _settings.codingApprovalMode,
       reviewDomain: ToolApprovalAutoReviewDomain.coding,
       fullAccessEligible: true,
+      approvalCacheArguments: localArguments,
       buildReviewRequest: () async => _buildAutoReviewRequest(
         toolCall: toolCall,
         actionKind: 'process_cancel',
@@ -788,7 +883,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       ),
     );
     if (gate.isDenied) {
-      return _rememberToolApprovalResult(
+      return _rememberToolApprovalDenial(
         toolCall.name,
         localArguments,
         _autoReviewDeniedResult(
@@ -807,7 +902,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
             'This stops a running local command and may leave partial side effects.',
       );
       if (!approval.approved) {
-        return _rememberToolApprovalResult(
+        return _rememberToolApprovalDenial(
           toolCall.name,
           localArguments,
           McpToolResult(

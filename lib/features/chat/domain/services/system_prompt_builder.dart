@@ -249,6 +249,17 @@ class SystemPromptBuilder {
           'search_files, and read_file before using local shell commands.',
         );
         buffer.writeln(
+          'For verification the opposite holds: before claiming a coding '
+          'task or goal is complete, run the program or its tests with '
+          'local_execute_command or run_tests; clean static diagnostics alone '
+          'are not completion evidence.',
+        );
+        buffer.writeln(
+          'Batch related verification commands such as format, analyze, and '
+          'test into one local_execute_command call. Join independent commands '
+          'with && when portable early exit on failure is required.',
+        );
+        buffer.writeln(
           'For very large files (logs, JSONL/CSV exports, multi-MB text), do '
           'not read the whole file. First call inspect_file to get size, total '
           'lines, and head/tail; then use search_files to locate relevant '

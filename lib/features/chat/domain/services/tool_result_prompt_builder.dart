@@ -16,6 +16,8 @@ class ToolResultCompletionEvidence {
     this.unresolvedErrorCount = 0,
     this.unresolvedErrorPaths = const <String>[],
     this.unverifiedChangePaths = const <String>[],
+    this.mutatedWithoutExecutionVerification = false,
+    this.hasExecutionVerification = false,
   });
 
   final bool boundedToolLoopExhausted;
@@ -23,11 +25,14 @@ class ToolResultCompletionEvidence {
   final int unresolvedErrorCount;
   final List<String> unresolvedErrorPaths;
   final List<String> unverifiedChangePaths;
+  final bool mutatedWithoutExecutionVerification;
+  final bool hasExecutionVerification;
 
   bool get hasIncompleteEvidence =>
       boundedToolLoopExhausted ||
       unresolvedErrorCount > 0 ||
-      unverifiedChangePaths.isNotEmpty;
+      unverifiedChangePaths.isNotEmpty ||
+      mutatedWithoutExecutionVerification;
 
   bool get hasBlockingEvidence =>
       boundedToolLoopExhausted || unresolvedErrorCount > 0;
@@ -55,6 +60,9 @@ class ToolResultCompletionEvidence {
         'unverified file change(s) in ${unverifiedChangePaths.join(', ')}',
       );
     }
+    if (mutatedWithoutExecutionVerification) {
+      parts.add('files were modified without execution-class verification');
+    }
     return parts.isEmpty ? 'no incomplete evidence' : parts.join('; ');
   }
 
@@ -78,6 +86,36 @@ class ToolResultCompletionEvidence {
                 !currentPaths.containsAll(previousPaths))
         ? GoalEvidenceProgress.improved
         : GoalEvidenceProgress.noProgress;
+  }
+
+  ToolResultCompletionEvidence carryForwardIncompleteFrom(
+    ToolResultCompletionEvidence previous,
+  ) {
+    if (!previous.hasIncompleteEvidence || hasExecutionVerification) {
+      return this;
+    }
+
+    final carryDiagnostics =
+        unresolvedErrorCount == 0 && previous.unresolvedErrorCount > 0;
+    final carriedUnverifiedPaths = <String>{
+      ...previous.unverifiedChangePaths,
+      ...unverifiedChangePaths,
+    }.toList(growable: false);
+    return ToolResultCompletionEvidence(
+      boundedToolLoopExhausted: boundedToolLoopExhausted,
+      unexecutedToolNames: unexecutedToolNames,
+      unresolvedErrorCount: carryDiagnostics
+          ? previous.unresolvedErrorCount
+          : unresolvedErrorCount,
+      unresolvedErrorPaths: carryDiagnostics
+          ? previous.unresolvedErrorPaths
+          : unresolvedErrorPaths,
+      unverifiedChangePaths: carriedUnverifiedPaths,
+      mutatedWithoutExecutionVerification:
+          mutatedWithoutExecutionVerification ||
+          previous.mutatedWithoutExecutionVerification,
+      hasExecutionVerification: hasExecutionVerification,
+    );
   }
 }
 
@@ -559,10 +597,11 @@ class ToolResultPromptBuilder {
       }
     }
 
+    final mutatedWithoutExecutionVerification =
+        lastMutationIndexByPath.isNotEmpty &&
+        !_hasAnyExecutionVerification(toolResults);
     final unverifiedChangePaths =
-        unresolvedErrorCount == 0 &&
-            lastMutationIndexByPath.isNotEmpty &&
-            !_hasAnyVerificationRun(toolResults)
+        unresolvedErrorCount == 0 && mutatedWithoutExecutionVerification
         ? lastMutationIndexByPath.keys.toList(growable: false)
         : const <String>[];
 
@@ -572,18 +611,31 @@ class ToolResultPromptBuilder {
       unresolvedErrorCount: unresolvedErrorCount,
       unresolvedErrorPaths: unresolvedErrorPaths.toList(growable: false),
       unverifiedChangePaths: unverifiedChangePaths,
+      mutatedWithoutExecutionVerification: mutatedWithoutExecutionVerification,
+      hasExecutionVerification: _hasAnyExecutionVerification(toolResults),
     );
   }
 
-  /// Whether any command-execution or test run completed (has an `exit_code`)
-  /// in this turn, i.e. the edited code was exercised at least once.
-  static bool _hasAnyVerificationRun(List<ToolResultInfo> toolResults) {
+  /// Whether an execution-class tool produced a result that proves dispatch.
+  static bool _hasAnyExecutionVerification(List<ToolResultInfo> toolResults) {
     for (final toolResult in toolResults) {
       if (!_isVerificationRunToolName(toolResult.name)) {
         continue;
       }
       final decoded = _tryDecodeJsonMap(toolResult.result);
-      if (decoded != null && decoded.containsKey('exit_code')) {
+      if (decoded == null) {
+        continue;
+      }
+      if (decoded.containsKey('exit_code') || decoded['ok'] == true) {
+        return true;
+      }
+      final normalizedName = toolResult.name.trim().toLowerCase();
+      if (normalizedName == 'dart_analyze_feedback' &&
+          decoded['diagnostics'] is List) {
+        return true;
+      }
+      if (normalizedName == 'dart_test_feedback' &&
+          decoded['validationStatus'] != null) {
         return true;
       }
     }
@@ -593,7 +645,11 @@ class ToolResultPromptBuilder {
   static bool _isVerificationRunToolName(String toolName) {
     switch (toolName.trim().toLowerCase()) {
       case 'local_execute_command':
+      case 'analyze_project':
       case 'run_tests':
+      case 'git_execute_command':
+      case 'process_start':
+      case 'process_wait':
         return true;
     }
     return false;
@@ -635,6 +691,9 @@ class ToolResultPromptBuilder {
 
   static bool _isSuccessfulFileMutation(Map<String, dynamic> decoded) {
     if (decoded['error'] != null || decoded['ok'] == false) {
+      return false;
+    }
+    if (decoded['already_applied'] == true) {
       return false;
     }
     final code = decoded['code']?.toString().trim().toLowerCase();

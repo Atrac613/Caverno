@@ -1113,7 +1113,11 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           }
         }
       case 'edit_file':
-        if (decoded.containsKey('replacements')) {
+        if (decoded['already_applied'] == true) {
+          interpretationLines.add(
+            'Interpretation: edit_file detected that the requested replacement was already present and left the file unchanged.',
+          );
+        } else if (decoded.containsKey('replacements')) {
           interpretationLines.add(
             'Interpretation: edit_file succeeded and applied the requested replacement.',
           );

@@ -6,6 +6,61 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
+  String _messageContentWithVerificationClaimNotice(String content) {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation?.workspaceMode != WorkspaceMode.coding) {
+      return content;
+    }
+    final assessment = _codingVerificationClaimGuard.assess(
+      candidateResponse: content,
+      toolResults: [
+        ..._latestCompletedToolResults,
+        ..._latestContentToolResults,
+      ],
+    );
+    if (!assessment.hasMismatch) {
+      return content;
+    }
+    final notice = assessment.buildNotice();
+    if (content.contains(notice)) {
+      return content;
+    }
+    _appliedTurnTransforms.add('verification_claim_notice');
+    return '${content.trimRight()}\n\n$notice';
+  }
+
+  String _messageContentWithUnwrittenFileClaimNotice(String content) {
+    final conversationsState = ref.read(conversationsNotifierProvider);
+    final conversation = conversationsState.currentConversation;
+    if (conversation == null ||
+        conversation.workspaceMode != WorkspaceMode.coding) {
+      return content;
+    }
+    final projectRoot = _getEffectiveCodingProject()?.rootPath.trim();
+    if (projectRoot == null || projectRoot.isEmpty) {
+      return content;
+    }
+    final assessment = _unwrittenFileClaimGuard.assess(
+      candidateResponse: content,
+      toolResults: [
+        ..._latestCompletedToolResults,
+        ..._latestContentToolResults,
+      ],
+      projectRoot: projectRoot,
+    );
+    if (!assessment.hasClaims) {
+      return content;
+    }
+    final notice = assessment.buildNotice();
+    if (content.contains(notice)) {
+      return content;
+    }
+    _appliedTurnTransforms.add('unwritten_file_claim_notice');
+    return '${content.trimRight()}\n\n$notice';
+  }
+
   ToolResultInfo? _buildUnexecutedSkippedBrowserActionToolResult({
     required String candidateResponse,
     required List<ToolResultInfo> batchToolResults,

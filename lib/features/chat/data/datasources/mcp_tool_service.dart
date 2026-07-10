@@ -2045,7 +2045,8 @@ class McpToolService {
   bool _isFilesystemPayloadSuccess(String payload) {
     try {
       final decoded = jsonDecode(payload);
-      return decoded is! Map<String, dynamic> || decoded['error'] == null;
+      return decoded is! Map<String, dynamic> ||
+          (decoded['error'] == null && decoded['already_applied'] != true);
     } catch (_) {
       return true;
     }
@@ -4360,13 +4361,14 @@ class McpToolService {
     'function': {
       'name': 'local_execute_command',
       'description':
-          'Execute a local shell command inside the current project. Read-only commands may run immediately; commands that can modify files or state require user approval. Use git_execute_command for git write operations such as add, commit, checkout, merge, rebase, branch changes, worktree changes, tag creation, or reset. Prefer file tools for file discovery and reading; prefer absolute paths or working_directory over shell-only features such as pipes, redirection, environment variables, or command substitution. Do not use shell commands (cat, stty, screen, xxd, etc.) on serial port devices such as /dev/tty.*, /dev/cu.*, or COM ports — they block on serial I/O and are platform-fragile; use the dedicated serial_* tools (serial_list_ports, serial_open, serial_read, serial_decode, serial_write, serial_close) instead.',
+          'Execute an exact shell command or multiline shell script inside the current project. Batch related commands such as format, analyze, and test into one call, using && between independent commands when portable early exit is required. On POSIX, unhandled failures in newline-separated foreground scripts also stop execution. Read-only commands may run immediately; commands that can modify files or state require user approval. Use git_execute_command for git write operations such as add, commit, checkout, merge, rebase, branch changes, worktree changes, tag creation, or reset. Prefer file tools for file discovery and reading; prefer absolute paths or working_directory over shell-only features such as pipes, redirection, environment variables, or command substitution. Do not use shell commands (cat, stty, screen, xxd, etc.) on serial port devices such as /dev/tty.*, /dev/cu.*, or COM ports — they block on serial I/O and are platform-fragile; use the dedicated serial_* tools (serial_list_ports, serial_open, serial_read, serial_decode, serial_write, serial_close) instead.',
       'parameters': {
         'type': 'object',
         'properties': {
           'command': {
             'type': 'string',
-            'description': 'Exact shell command to run.',
+            'description':
+                'Exact native-shell command or multiline script. Use && between independent commands for portable early exit; foreground POSIX newline scripts also stop at the first unhandled failure.',
           },
           'background': {
             'type': 'boolean',

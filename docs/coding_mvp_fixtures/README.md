@@ -61,6 +61,35 @@ Either way: let the tool loop run to a completion claim, then score the result
 against the **Acceptance criteria** using the **Suggested verification**
 commands.
 
+## Stack choice and language pinning
+
+The Briefs are deliberately language-neutral, and the builder's stack choice is
+itself a measured outcome, not noise. In practice the choice is dominated by
+harness context rather than the spec: a workspace path containing "Flutter", a
+Dart-flavored tool catalog, or an injected user profile will steer a builder
+into Dart; a bare directory with a probed Python toolchain steers it into
+Python. The same model picked Dart under Caverno and Python under a neutral
+harness on the identical CMVP-1 spec, and the resulting toolchain overhead
+(package resolution, analyzer, test framework vs. a stdlib single file)
+dominated the outcome difference.
+
+Run protocol:
+
+- **Default run (language-neutral)**: hand the spec unchanged. Record the
+  chosen stack as part of the result (language, file layout, toolchain
+  fixed costs). Judge the choice too: picking a stack whose ceremony dwarfs
+  the brief (e.g. a GUI framework for a CLI spec) is an early "not as
+  intended" signal even before acceptance criteria are checked.
+- **Controlled run (comparisons)**: any A/B across harnesses, models, or
+  settings must pin the language in the *invocation prompt*, not in the
+  fixture — e.g. "Implement the MVP from todo_app.md, in Python using only
+  the standard library" / "…as a Dart CLI package that passes `dart analyze`
+  cleanly". Without the pin, stack-choice variance contaminates the
+  comparison.
+
+Results from two runs are only comparable when both were language-neutral or
+both were pinned to the same language.
+
 ## Scoring
 
 Grade each run as one of:
@@ -78,9 +107,11 @@ A false completion claim (the model says "done" while acceptance criteria fail)
 is always **Failed**, never Partial: catching that is a primary reason this
 corpus exists.
 
-Record which entry point you used (full pipeline vs direct build) with each
-result: pipeline failures often point at the generated spec, direct-build
-failures at the builder's follow-through.
+Record which entry point you used (full pipeline vs direct build) and whether
+the language was pinned or left neutral (and, if neutral, which stack the
+builder chose) with each result: pipeline failures often point at the generated
+spec, direct-build failures at the builder's follow-through, and stack-choice
+surprises at the harness context (see "Stack choice and language pinning").
 
 ## Fixture format
 
@@ -105,6 +136,8 @@ Every fixture follows the same shape so they stay comparable and easy to add to:
 The fixtures are language-neutral: the Brief does not mandate a stack, so the
 same task can be replayed across models and target languages. Where a default
 stack helps reproducibility, it is noted as a suggestion, not a requirement.
+When a run needs a fixed language, pin it in the invocation prompt per "Stack
+choice and language pinning" above — never by editing the Brief.
 
 ## Adding a new fixture
 

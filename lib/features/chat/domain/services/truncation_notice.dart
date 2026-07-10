@@ -6,8 +6,8 @@ class TruncationNotice {
   TruncationNotice._();
 
   static const String maxTokenNotice =
-      '[Response truncated at the max-token limit. Increase Max Tokens in '
-      'Settings for the full answer.]';
+      '[Response was truncated at the max-token limit and may be incomplete. '
+      'Ask me to continue from the last verified point.]';
 
   /// Returns [content] with the max-token notice appended. Idempotent (does not
   /// duplicate the notice) and safe on empty content.

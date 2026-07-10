@@ -153,10 +153,20 @@ class CodingVerificationFeedbackRun {
   const CodingVerificationFeedbackRun({
     required this.snapshot,
     required this.toolResult,
+    this.evidenceToolResult,
   });
 
   final CodingVerificationSnapshot? snapshot;
+
+  /// Failure-only feedback that may be sent to the model for repair.
   final ToolResultInfo? toolResult;
+
+  /// Non-blocking evidence for final-answer claim validation.
+  ///
+  /// Unlike [toolResult], this is available for every collected verification
+  /// run so callers can retain the exact command, targets, and observed test
+  /// counts without changing repair-loop behavior.
+  final ToolResultInfo? evidenceToolResult;
 }
 
 class CodingVerificationTelemetry {
@@ -241,6 +251,8 @@ class CodingVerificationFeedbackService {
 
   static const toolName = 'dart_test_feedback';
   static const schemaName = 'caverno_dart_test_feedback';
+  static const evidenceToolName = 'dart_test_verification_evidence';
+  static const evidenceSchemaName = 'caverno_dart_test_verification_evidence';
   static const providerName = 'dart_test_runner';
 
   final CodingVerificationCommandRunner _commandRunner;
@@ -277,6 +289,33 @@ class CodingVerificationFeedbackService {
     return CodingVerificationFeedbackRun(
       snapshot: snapshot,
       toolResult: _buildFeedbackToolResultFromSnapshot(snapshot, now: now),
+      evidenceToolResult: _buildEvidenceToolResultFromSnapshot(
+        snapshot,
+        now: now,
+      ),
+    );
+  }
+
+  ToolResultInfo? _buildEvidenceToolResultFromSnapshot(
+    CodingVerificationSnapshot? snapshot, {
+    DateTime? now,
+  }) {
+    if (snapshot == null) {
+      return null;
+    }
+
+    return ToolResultInfo(
+      id: '${evidenceToolName}_${(now ?? DateTime.now()).microsecondsSinceEpoch}',
+      name: evidenceToolName,
+      arguments: {
+        'project_root': snapshot.projectRoot,
+        'changed_paths': snapshot.changedPaths,
+        'trigger': snapshot.trigger.name,
+      },
+      result: jsonEncode({
+        'schema': evidenceSchemaName,
+        ..._snapshotEvidencePayload(snapshot),
+      }),
     );
   }
 
@@ -292,34 +331,11 @@ class CodingVerificationFeedbackService {
     }
 
     final limitedFailures = _limitFailures(snapshot.failures);
-    final selectedAttempt = snapshot.selectedAttempt;
     final payload = {
       'schema': schemaName,
-      'provider': snapshot.providerName,
       'instruction':
           'These tests failed after the latest Dart file edits. Fix the failures before claiming the coding task is complete.',
-      'project_root': snapshot.projectRoot,
-      'changed_paths': snapshot.changedPaths,
-      'trigger': snapshot.trigger.name,
-      'validation_status': snapshot.validationStatus.name,
-      'target_batches': snapshot.targetBatches
-          .map((batch) => batch.toJson(projectRoot: snapshot.projectRoot))
-          .toList(growable: false),
-      'counts': {
-        'passed': snapshot.passedCount,
-        'failed': snapshot.failedCount,
-        'skipped': snapshot.skippedCount,
-      },
-      'telemetry': snapshot.telemetry.toJson(),
-      if (selectedAttempt != null)
-        'verification': {
-          'executable': selectedAttempt.command.executable,
-          'arguments': selectedAttempt.command.arguments,
-          'working_directory': selectedAttempt.command.workingDirectory,
-          'exit_code': selectedAttempt.exitCode,
-          'duration_ms': selectedAttempt.durationMs,
-          'timed_out': selectedAttempt.timedOut,
-        },
+      ..._snapshotEvidencePayload(snapshot),
       'failing_tests': limitedFailures
           .map(
             (failure) => failure.toJson(
@@ -343,6 +359,38 @@ class CodingVerificationFeedbackService {
       },
       result: jsonEncode(payload),
     );
+  }
+
+  Map<String, dynamic> _snapshotEvidencePayload(
+    CodingVerificationSnapshot snapshot,
+  ) {
+    final selectedAttempt = snapshot.selectedAttempt;
+    return {
+      'provider': snapshot.providerName,
+      'project_root': snapshot.projectRoot,
+      'changed_paths': snapshot.changedPaths,
+      'trigger': snapshot.trigger.name,
+      'validation_status': snapshot.validationStatus.name,
+      'target_batches': snapshot.targetBatches
+          .map((batch) => batch.toJson(projectRoot: snapshot.projectRoot))
+          .toList(growable: false),
+      'counts': {
+        'passed': snapshot.passedCount,
+        'failed': snapshot.failedCount,
+        'skipped': snapshot.skippedCount,
+      },
+      'telemetry': snapshot.telemetry.toJson(),
+      if (selectedAttempt != null)
+        'verification': {
+          'executable': selectedAttempt.command.executable,
+          'arguments': selectedAttempt.command.arguments,
+          'working_directory': selectedAttempt.command.workingDirectory,
+          'exit_code': selectedAttempt.exitCode,
+          'duration_ms': selectedAttempt.durationMs,
+          'timed_out': selectedAttempt.timedOut,
+        },
+      if (snapshot.reason != null) 'reason': snapshot.reason,
+    };
   }
 
   Future<CodingVerificationSnapshot?> collectSnapshot({

@@ -132,6 +132,26 @@ void main() {
       expect(parameters['required'], ['path', 'line', 'column']);
     });
 
+    test('describes sequential local command batching', () {
+      final service = McpToolService();
+      final tool = service.getOpenAiToolDefinitions().firstWhere(
+        (tool) =>
+            (tool['function']! as Map<String, dynamic>)['name'] ==
+            'local_execute_command',
+      );
+      final function = tool['function']! as Map<String, dynamic>;
+      final parameters = function['parameters']! as Map<String, dynamic>;
+      final properties = parameters['properties']! as Map<String, dynamic>;
+      final command = properties['command']! as Map<String, dynamic>;
+
+      expect(function['description'], contains('exact shell command'));
+      expect(function['description'], contains('portable early exit'));
+      expect(function['description'], contains('On POSIX'));
+      expect(function['description'], contains('format, analyze, and test'));
+      expect(command['description'], contains('multiline script'));
+      expect(command['description'], contains('portable early exit'));
+    });
+
     test('requires chat handler for LSP go-to-definition execution', () async {
       final service = McpToolService();
 

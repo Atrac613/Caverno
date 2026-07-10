@@ -19,6 +19,7 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
+import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../slash_commands/slash_command.dart';
 import 'voice_mode_overlay.dart';
 
@@ -1547,15 +1548,21 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         : _goalStatusLabel(status);
     final objective = activeGoal.normalizedObjective!;
     final budgetLabel = _goalBudgetLabel(activeGoal);
+    final effectiveAutoContinueBudget = widget.goalAutoContinueBudget > 0
+        ? widget.goalAutoContinueBudget
+        : activeGoal.hasTurnBudget
+        ? activeGoal.turnBudget
+        : kGoalAutoContinueDefaultTurnBudget;
+    final effectiveAutoContinueCount = widget.goalAutoContinueCount > 0
+        ? widget.goalAutoContinueCount
+        : activeGoal.turnsUsed;
     final autoContinueLabel = activeGoal.autoContinue
-        ? widget.goalAutoContinueCount > 0 && widget.goalAutoContinueBudget > 0
-              ? 'chat.goal_auto_continue_running'.tr(
-                  namedArgs: {
-                    'count': widget.goalAutoContinueCount.toString(),
-                    'total': widget.goalAutoContinueBudget.toString(),
-                  },
-                )
-              : 'chat.goal_auto_continue_on'.tr()
+        ? 'chat.goal_auto_continue_running'.tr(
+            namedArgs: {
+              'count': effectiveAutoContinueCount.toString(),
+              'total': effectiveAutoContinueBudget.toString(),
+            },
+          )
         : '';
     final notice = widget.goalAutoContinueNotice?.trim();
     final controlsEnabled = !widget.isLoading;

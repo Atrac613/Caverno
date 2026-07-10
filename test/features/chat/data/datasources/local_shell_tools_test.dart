@@ -110,6 +110,117 @@ void main() {
     expect(result['stdout'], contains('name: sample'));
   });
 
+  test('stops a multi-command batch at the first failure', () async {
+    if (Platform.isWindows) {
+      return;
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp(
+      'local_shell_tools_batch_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final raw = await LocalShellTools.execute(
+      command: 'touch first.txt\nfalse\ntouch second.txt',
+      workingDirectory: tempDir.path,
+    );
+
+    final result = jsonDecode(raw) as Map<String, dynamic>;
+    expect(result['exit_code'], isNot(0));
+    expect(File('${tempDir.path}/first.txt').existsSync(), isTrue);
+    expect(File('${tempDir.path}/second.txt').existsSync(), isFalse);
+  });
+
+  test('preserves a newline after a trailing shell comment', () async {
+    if (Platform.isWindows) {
+      return;
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp(
+      'local_shell_tools_comment_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final raw = await LocalShellTools.execute(
+      command: 'echo build # step 1\ncat missing.txt\necho false-green',
+      workingDirectory: tempDir.path,
+    );
+
+    final result = jsonDecode(raw) as Map<String, dynamic>;
+    expect(result['exit_code'], isNot(0));
+    expect(result['stdout'], 'build\n');
+    expect(result['stdout'], isNot(contains('false-green')));
+    expect(result['executed_internally'], isNull);
+  });
+
+  test('preserves heredoc delimiters and content', () async {
+    if (Platform.isWindows) {
+      return;
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp(
+      'local_shell_tools_heredoc_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final raw = await LocalShellTools.execute(
+      command: "cat <<'EOF' > generated.txt\nfirst line\nsecond line\nEOF",
+      workingDirectory: tempDir.path,
+    );
+
+    final result = jsonDecode(raw) as Map<String, dynamic>;
+    expect(result['exit_code'], 0);
+    expect(result['stderr'], isEmpty);
+    expect(
+      await File('${tempDir.path}/generated.txt').readAsString(),
+      'first line\nsecond line\n',
+    );
+  });
+
+  test('preserves multiline shell control flow', () async {
+    if (Platform.isWindows) {
+      return;
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp(
+      'local_shell_tools_control_flow_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final raw = await LocalShellTools.execute(
+      command: '''
+for value in first second; do
+  printf '%s\\n' "\$value"
+done
+if [ -d . ]; then
+  printf 'directory\\n'
+fi
+''',
+      workingDirectory: tempDir.path,
+    );
+
+    final result = jsonDecode(raw) as Map<String, dynamic>;
+    expect(result['exit_code'], 0);
+    expect(result['stdout'], 'first\nsecond\ndirectory\n');
+    expect(result['stderr'], isEmpty);
+  });
+
   test('accepts ls -F for portable directory inspection', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'local_shell_tools_ls_flag_test_',

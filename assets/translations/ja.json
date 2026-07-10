@@ -61,6 +61,7 @@
     "slash_goal_desc": "現在のコーディングゴールを表示または管理",
     "slash_goal_unavailable": "ゴールはコーディングスレッドで利用できます。",
     "slash_goal_set": "ゴールに設定しました: {objective}",
+    "slash_goal_set_auto": "ゴールに設定しました: {objective}（{auto}）",
     "slash_goal_paused": "ゴールを一時停止しました。",
     "slash_goal_resumed": "ゴールを再開しました。",
     "slash_goal_none": "先にゴールを設定してください。",
