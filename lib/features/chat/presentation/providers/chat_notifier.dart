@@ -95,6 +95,7 @@ import '../../domain/services/final_answer_claim_detector.dart';
 import '../../domain/services/final_answer_recovery_policy.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/model_edit_apply_telemetry_service.dart';
+import '../../domain/services/narrated_transcript_claim_guard.dart';
 import '../../domain/services/model_switch_handoff_brief_service.dart';
 import '../../domain/services/participant_tool_policy.dart';
 import '../../domain/services/participant_turn_coordinator.dart';
@@ -269,6 +270,8 @@ class ChatNotifier extends Notifier<ChatState> {
       const UnwrittenFileClaimGuard();
   final CodingVerificationClaimGuard _codingVerificationClaimGuard =
       const CodingVerificationClaimGuard();
+  final NarratedTranscriptClaimGuard _narratedTranscriptClaimGuard =
+      const NarratedTranscriptClaimGuard();
   final PlanningToolPolicy _planningToolPolicy = const PlanningToolPolicy();
   final ToolLoopContextDigest _toolLoopContextDigest =
       const ToolLoopContextDigest();
@@ -312,6 +315,7 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
       );
   static const int _maxRepeatedCodingVerificationRepairAttempts = 2;
+  static const int _maxNarratedTranscriptRepairAttempts = 2;
 
   @override
   ChatState build() {
@@ -2572,6 +2576,19 @@ class ChatNotifier extends Notifier<ChatState> {
   // final message, recorded on the turn_exit record so the log explains why the
   // on-screen content differs from the raw LLM output.
   final Set<String> _appliedTurnTransforms = <String>{};
+  // Commands issued through command-execution tools during the current
+  // interaction generation. Repair revivals re-enter _executeToolCalls with a
+  // fresh executedToolResults list, so the transcript claim guard needs a
+  // generation-scoped ledger to avoid flagging commands that ran before the
+  // revival.
+  int? _turnCommandLedgerGeneration;
+  final List<String> _turnCommandLedger = <String>[];
+  // Tool call ids whose arguments were lost to an output-token-limit
+  // truncation (finish_reason=length with empty parsed arguments). The batch
+  // executor answers these with a truncation-specific diagnostic instead of a
+  // generic missing-argument error, so the model re-issues the intended call
+  // instead of misattributing the failure.
+  Set<String> _lengthTruncatedToolCallIds = const <String>{};
   Future<void> _contentToolExecutionTail = Future<void>.value();
   Future<void> _conversationMessagePersistenceTail = Future<void>.value();
   bool _forcePromptCompactionForNextRequest = false;
@@ -4238,6 +4255,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       // Execute tool calls when the model requests them.
       if (result.hasToolCalls) {
+        _lengthTruncatedToolCallIds = _truncationCasualtyToolCallIds(result);
         await _executeToolCalls(
           result.toolCalls!,
           assistantContent: result.content.isNotEmpty ? result.content : null,
@@ -5494,6 +5512,7 @@ class ChatNotifier extends Notifier<ChatState> {
     Set<String> selectedToolNames = const <String>{},
     List<Map<String, dynamic>>? stableToolDefinitions,
     Map<String, int>? completionVerificationFailureCounts,
+    Set<String>? narratedTranscriptRepairSignatures,
     required int interactionGeneration,
   }) async {
     var currentToolCalls = toolCalls;
@@ -5528,6 +5547,8 @@ class ChatNotifier extends Notifier<ChatState> {
     final attemptedCompletionVerificationMutationSignatures = <String>{};
     final verificationFailureCounts =
         completionVerificationFailureCounts ?? <String, int>{};
+    final transcriptRepairSignatures =
+        narratedTranscriptRepairSignatures ?? <String>{};
     var lastNonEmptyBatchToolResults = const <ToolResultInfo>[];
     final activeToolNames = <String>{...selectedToolNames};
 
@@ -5899,6 +5920,8 @@ class ChatNotifier extends Notifier<ChatState> {
 
       // Remove the temporary thinking indicator.
       _removeTrailingThinkTagForGeneration(interactionGeneration);
+
+      _lengthTruncatedToolCallIds = _truncationCasualtyToolCallIds(nextResult);
 
       final savedValidationSucceeded =
           _toolResultsContainSuccessfulCurrentSavedValidation(batchToolResults);
@@ -6579,6 +6602,7 @@ class ChatNotifier extends Notifier<ChatState> {
               selectedToolNames: activeToolNames,
               stableToolDefinitions: stableToolDefinitions,
               completionVerificationFailureCounts: verificationFailureCounts,
+              narratedTranscriptRepairSignatures: transcriptRepairSignatures,
               interactionGeneration: interactionGeneration,
             );
             return;
@@ -6604,6 +6628,7 @@ class ChatNotifier extends Notifier<ChatState> {
               selectedToolNames: activeToolNames,
               stableToolDefinitions: stableToolDefinitions,
               completionVerificationFailureCounts: verificationFailureCounts,
+              narratedTranscriptRepairSignatures: transcriptRepairSignatures,
               interactionGeneration: interactionGeneration,
             );
             return;
@@ -6652,6 +6677,7 @@ class ChatNotifier extends Notifier<ChatState> {
               selectedToolNames: activeToolNames,
               stableToolDefinitions: stableToolDefinitions,
               completionVerificationFailureCounts: verificationFailureCounts,
+              narratedTranscriptRepairSignatures: transcriptRepairSignatures,
               interactionGeneration: interactionGeneration,
             );
             return;
@@ -6665,6 +6691,25 @@ class ChatNotifier extends Notifier<ChatState> {
             );
           }
         }
+        final handledByTranscriptRepair =
+            await _applyNarratedTranscriptRepairToStreamedFinalAnswer(
+              streamedFinalAnswer: streamedFinalAnswer,
+              executedToolResults: executedToolResults,
+              batchToolResults: streamVerificationBatchToolResults,
+              attemptedSignatures: transcriptRepairSignatures,
+              tools: tools,
+              toolSearchEnabled: toolSearchEnabled,
+              activeToolNames: activeToolNames,
+              stableToolDefinitions: stableToolDefinitions,
+              verificationFailureCounts: verificationFailureCounts,
+              interactionGeneration: interactionGeneration,
+              onBlockingFeedbackPrepared: () =>
+                  _removeStreamedAnswerSuffixForGeneration(
+                    interactionGeneration,
+                    preAnswerContent: preFinalAnswerContent,
+                  ),
+            );
+        if (handledByTranscriptRepair) return;
         final unexecutedCommandAction = _buildUnexecutedCommandActionToolResult(
           candidateResponse: streamedFinalAnswer,
           toolResults: finalToolResults,
@@ -7170,67 +7215,6 @@ class ChatNotifier extends Notifier<ChatState> {
     });
   }
 
-  bool _isCommandExecutionTool(String toolName) {
-    return _toolCallExecutionPolicy.isCommandExecutionTool(toolName);
-  }
-
-  String? _toolCommandArgument(Map<String, dynamic> arguments) {
-    return _toolCallExecutionPolicy.toolCommandArgument(arguments);
-  }
-
-  bool _toolResultHasSuccessfulExit(ToolResultInfo result) {
-    return _toolCallExecutionPolicy.toolResultHasSuccessfulExit(result);
-  }
-
-  int? _exitCodeValue(Object? value) {
-    return _toolCallExecutionPolicy.exitCodeValue(value);
-  }
-
-  void _recordBackgroundProcessStartResult(ToolResultInfo result) {
-    final name = result.name.trim().toLowerCase();
-    if (name != 'process_start' &&
-        (name != 'local_execute_command' ||
-            !_asBool(result.arguments['background']))) {
-      return;
-    }
-    final snapshot = _backgroundProcessMonitorService
-        .registerProcessStartResult(
-          result: result.result,
-          arguments: result.arguments,
-        );
-    if (snapshot == null) {
-      return;
-    }
-    appLog(
-      '[BackgroundProcess] Monitoring ${snapshot.jobId} '
-      '(${snapshot.status})',
-    );
-  }
-
-  bool _asBool(Object? value) {
-    if (value == null) {
-      return false;
-    }
-    if (value is bool) {
-      return value;
-    }
-    if (value is num) {
-      return value != 0;
-    }
-    if (value is String) {
-      final normalized = value.trim().toLowerCase();
-      return normalized == 'true' || normalized == '1' || normalized == 'yes';
-    }
-    return false;
-  }
-
-  bool _toolResultTimedOut(ToolResultInfo result) {
-    return _toolCallExecutionPolicy.toolResultTimedOut(result);
-  }
-
-  String? _toolResultErrorText(ToolResultInfo result) {
-    return _toolCallExecutionPolicy.toolResultErrorText(result);
-  }
 
   bool _toolResultCommandMatches(
     ToolResultInfo result, {
@@ -8866,7 +8850,9 @@ class ChatNotifier extends Notifier<ChatState> {
       final finalMessageIndex = updatedMessages.length - 1;
       final finalMessage = updatedMessages[finalMessageIndex];
       final guardedContent = _messageContentWithVerificationClaimNotice(
-        _messageContentWithUnwrittenFileClaimNotice(finalMessage.content),
+        _messageContentWithNarratedTranscriptClaimNotice(
+          _messageContentWithUnwrittenFileClaimNotice(finalMessage.content),
+        ),
       );
       if (guardedContent != finalMessage.content) {
         updatedMessages[finalMessageIndex] = finalMessage.copyWith(

@@ -129,6 +129,11 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
       execute: (toolCall) async {
+        final truncatedArgumentsGuardResult =
+            _buildTruncatedToolCallArgumentsGuardResult(toolCall);
+        if (truncatedArgumentsGuardResult != null) {
+          return truncatedArgumentsGuardResult;
+        }
         final analysisOptionsLintEditGuardResult =
             _buildAnalysisOptionsLintEditGuardResult(
               toolCall,
@@ -362,6 +367,58 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     );
   }
 
+  /// Tool calls carried by a length-truncated completion whose arguments
+  /// parsed empty — the truncation ate them mid-generation. Recorded so the
+  /// batch executor can answer them with a truncation diagnostic.
+  Set<String> _truncationCasualtyToolCallIds(ChatCompletionResult result) {
+    if (!result.hasToolCalls ||
+        !_isCompletionTruncated(result.finishReason)) {
+      return const <String>{};
+    }
+    return result.toolCalls!
+        .where((toolCall) => toolCall.arguments.isEmpty)
+        .map((toolCall) => toolCall.id)
+        .toSet();
+  }
+
+  /// Answers a tool call whose arguments were lost to an output-token-limit
+  /// truncation with a diagnostic that names the real cause. Without this the
+  /// call falls through to a generic missing-argument error and the model
+  /// cannot know its own generation was cut off, so the originally intended
+  /// action (often a long verification chain) is silently abandoned.
+  McpToolResult? _buildTruncatedToolCallArgumentsGuardResult(
+    ToolCallInfo toolCall,
+  ) {
+    if (!_lengthTruncatedToolCallIds.contains(toolCall.id) ||
+        toolCall.arguments.isNotEmpty) {
+      return null;
+    }
+    _appliedTurnTransforms.add('truncated_tool_call_arguments_feedback');
+    appLog(
+      '[Tool] ${toolCall.name} arguments were truncated by the output token '
+      'limit; returning truncation diagnostic instead of executing',
+    );
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: jsonEncode({
+        'ok': false,
+        'code': 'tool_call_arguments_truncated',
+        'error':
+            'The ${toolCall.name} arguments were lost because the response '
+            'hit the output token limit (finish_reason=length) while '
+            'generating them.',
+        'required_action':
+            'Re-issue the ${toolCall.name} call you intended. If the '
+            'arguments were long, split the work into several smaller tool '
+            'calls instead of one large call, and keep each command short.',
+      }),
+      isSuccess: false,
+      errorMessage:
+          'Tool call arguments were truncated by the output token limit; '
+          're-issue the intended call as smaller separate calls.',
+    );
+  }
+
   /// Whether a failed tool result is an approval denial (auto-review, manual,
   /// or a saved permission rule) rather than a genuine execution error. Used to
   /// phrase the consecutive-failure abort correctly: a denial is a policy stop,
@@ -393,6 +450,10 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     }
     if (recordConversationTaint) {
       _conversationTaintState.recordToolResult(promptToolResult.name);
+      _recordTurnCommandLedgerEntry(
+        promptToolResult,
+        interactionGeneration: interactionGeneration,
+      );
     }
     if (recordBackgroundProcessStart) {
       _recordBackgroundProcessStartResult(promptToolResult);
@@ -401,5 +462,89 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       await _recordModelEditApplyTelemetry(promptToolResult);
     }
     return promptToolResult;
+  }
+
+  // Tool-call execution-policy delegates and process-start bookkeeping,
+  // relocated from chat_notifier.dart (F1 ratchet), no behavior change.
+  bool _isCommandExecutionTool(String toolName) {
+    return _toolCallExecutionPolicy.isCommandExecutionTool(toolName);
+  }
+
+  String? _toolCommandArgument(Map<String, dynamic> arguments) {
+    return _toolCallExecutionPolicy.toolCommandArgument(arguments);
+  }
+
+  bool _toolResultHasSuccessfulExit(ToolResultInfo result) {
+    return _toolCallExecutionPolicy.toolResultHasSuccessfulExit(result);
+  }
+
+  int? _exitCodeValue(Object? value) {
+    return _toolCallExecutionPolicy.exitCodeValue(value);
+  }
+
+  void _recordBackgroundProcessStartResult(ToolResultInfo result) {
+    final name = result.name.trim().toLowerCase();
+    if (name != 'process_start' &&
+        (name != 'local_execute_command' ||
+            !_asBool(result.arguments['background']))) {
+      return;
+    }
+    final snapshot = _backgroundProcessMonitorService
+        .registerProcessStartResult(
+          result: result.result,
+          arguments: result.arguments,
+        );
+    if (snapshot == null) {
+      return;
+    }
+    appLog(
+      '[BackgroundProcess] Monitoring ${snapshot.jobId} '
+      '(${snapshot.status})',
+    );
+  }
+
+  bool _asBool(Object? value) {
+    if (value == null) {
+      return false;
+    }
+    if (value is bool) {
+      return value;
+    }
+    if (value is num) {
+      return value != 0;
+    }
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      return normalized == 'true' || normalized == '1' || normalized == 'yes';
+    }
+    return false;
+  }
+
+  bool _toolResultTimedOut(ToolResultInfo result) {
+    return _toolCallExecutionPolicy.toolResultTimedOut(result);
+  }
+
+  String? _toolResultErrorText(ToolResultInfo result) {
+    return _toolCallExecutionPolicy.toolResultErrorText(result);
+  }
+
+  /// Accumulates executed commands for the transcript claim guard. The ledger
+  /// is scoped to the interaction generation, which stays constant across
+  /// repair revivals within a turn while resetting on the next user message.
+  void _recordTurnCommandLedgerEntry(
+    ToolResultInfo toolResult, {
+    required int interactionGeneration,
+  }) {
+    if (_turnCommandLedgerGeneration != interactionGeneration) {
+      _turnCommandLedgerGeneration = interactionGeneration;
+      _turnCommandLedger.clear();
+    }
+    if (!_isCommandExecutionTool(toolResult.name)) {
+      return;
+    }
+    final command = _toolCommandArgument(toolResult.arguments);
+    if (command != null) {
+      _turnCommandLedger.add(command);
+    }
   }
 }

@@ -83,6 +83,7 @@ part 'chat_notifier_pending_batch_part.dart';
 part 'chat_notifier_goal_auto_continue_part.dart';
 part 'chat_notifier_unwritten_file_claim_part.dart';
 part 'chat_notifier_verification_claim_part.dart';
+part 'chat_notifier_narrated_transcript_part.dart';
 part 'chat_notifier_analysis_options_lint_guard_part.dart';
 
 List<String> _toolNames(List<Map<String, dynamic>> definitions) {
@@ -153,6 +154,7 @@ void main() {
   registerChatNotifierGoalAutoContinueTests();
   registerChatNotifierUnwrittenFileClaimTests();
   registerChatNotifierVerificationClaimTests();
+  registerChatNotifierNarratedTranscriptTests();
   registerChatNotifierAnalysisOptionsLintGuardTests();
 
   test('failed-command correction notice keeps the original answer', () {
