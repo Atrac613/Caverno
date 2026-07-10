@@ -39,9 +39,11 @@ const _verifyCommand = 'dart run tool/verify_todo_app.dart';
 const _stagedFailureTurns = 2;
 
 void main() {
-  final liveEnabled =
+  final autoContinueEnabled =
       Platform.environment['CAVERNO_CODING_GOAL_TODO_AUTO_CONTINUE_CANARY'] ==
       '1';
+  final mvpEnabled =
+      Platform.environment['CAVERNO_CODING_TODO_APP_MVP_LIVE_CANARY'] == '1';
 
   test(
     'live LLM auto-continues the todo_app.md MVP fixture from diagnostic evidence',
@@ -53,8 +55,14 @@ void main() {
       final logStore = LlmSessionLogStore(
         rootDirectoryProvider: () async => sessionLogRoot,
       );
-      final dataSource = _TodoAutoContinueDataSource(env);
-      final toolService = _TodoToolService(fixture.root);
+      final dataSource = _TodoAutoContinueDataSource(
+        env,
+        stagedFailureTurns: _stagedFailureTurns,
+      );
+      final toolService = _TodoToolService(
+        fixture.root,
+        stagedFailureTurns: _stagedFailureTurns,
+      );
       final container = _buildContainer(
         env: env,
         fixture: fixture,
@@ -194,9 +202,112 @@ void main() {
         fixture.dispose();
       }
     },
-    skip: liveEnabled
+    skip: autoContinueEnabled
         ? false
         : 'Set CAVERNO_CODING_GOAL_TODO_AUTO_CONTINUE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
+
+  test(
+    'live LLM assembles the todo_app.md MVP as a Dart CLI',
+    () async {
+      final env = _TodoFixtureEnv.fromEnvironment();
+      final fixture = _TodoFixture.create(env.workspaceRoot);
+      final sessionLogRoot = Directory(env.sessionLogRoot)
+        ..createSync(recursive: true);
+      final logStore = LlmSessionLogStore(
+        rootDirectoryProvider: () async => sessionLogRoot,
+      );
+      final dataSource = _TodoAutoContinueDataSource(
+        env,
+        stagedFailureTurns: 0,
+      );
+      final toolService = _TodoToolService(fixture.root, stagedFailureTurns: 0);
+      final container = _buildContainer(
+        env: env,
+        fixture: fixture,
+        dataSource: dataSource,
+        toolService: toolService,
+        logStore: logStore,
+      );
+
+      try {
+        container
+            .read(conversationsNotifierProvider.notifier)
+            .createNewConversation(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: fixture.project.id,
+            );
+
+        await container
+            .read(chatNotifierProvider.notifier)
+            .sendMessage(
+              [
+                'Direct-build the MVP from '
+                    'docs/coding_mvp_fixtures/todo_app.md in this empty scratch '
+                    'project.',
+                '',
+                'Language and layout are fixed for this controlled Live LLM '
+                    'canary:',
+                '- Implement a Dart command-line program at bin/todo_cli.dart.',
+                '- Use only the Dart SDK; do not add Flutter, a GUI, a web server, '
+                    'or a database.',
+                '',
+                _builderSpec(),
+                '',
+                'Verification requirements:',
+                '- The verifier stub already exists at tool/verify_todo_app.dart; '
+                    'do not inspect or edit it.',
+                '- Run local_execute_command with command "$_verifyCommand" from '
+                    'the project root.',
+                '- Use the verifier diagnostics to repair the implementation and '
+                    'rerun it until it exits with code 0 or a concrete blocker '
+                    'prevents progress.',
+                '- Do not claim completion unless that verifier exits with code 0.',
+              ].join('\n'),
+              bypassPlanMode: true,
+            );
+
+        await _waitForGoalTerminalOrIdle(container);
+        final independentVerification = await toolService.verifyTodoApp();
+        final diagnostic = _diagnostic(
+          container,
+          dataSource,
+          toolService,
+          fixture,
+        );
+
+        expect(
+          File('${fixture.root.path}/bin/todo_cli.dart').existsSync(),
+          isTrue,
+          reason: diagnostic,
+        );
+        expect(
+          toolService.verificationAttempts,
+          greaterThanOrEqualTo(1),
+          reason: diagnostic,
+        );
+        expect(
+          toolService.hasSuccessfulVerifierCall,
+          isTrue,
+          reason: diagnostic,
+        );
+        expect(
+          independentVerification.diagnostics,
+          isEmpty,
+          reason:
+              '$diagnostic\nindependentVerification='
+              '${jsonEncode(independentVerification.diagnostics)}\n'
+              '${independentVerification.transcript}',
+        );
+      } finally {
+        container.dispose();
+        fixture.dispose();
+      }
+    },
+    skip: mvpEnabled
+        ? false
+        : 'Set CAVERNO_CODING_TODO_APP_MVP_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 30)),
   );
 }
@@ -662,8 +773,12 @@ class _NoopSessionMemoryService extends SessionMemoryService {
 }
 
 class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
-  _TodoAutoContinueDataSource(_TodoFixtureEnv env)
-    : super(baseUrl: env.baseUrl, apiKey: env.apiKey);
+  _TodoAutoContinueDataSource(
+    _TodoFixtureEnv env, {
+    required this.stagedFailureTurns,
+  }) : super(baseUrl: env.baseUrl, apiKey: env.apiKey);
+
+  final int stagedFailureTurns;
 
   int forcedIncompleteTurns = 0;
 
@@ -771,7 +886,7 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
   ChatCompletionResult? _forcedIncompleteResult(
     List<ToolResultInfo> toolResults,
   ) {
-    if (forcedIncompleteTurns >= _stagedFailureTurns) {
+    if (forcedIncompleteTurns >= stagedFailureTurns) {
       return null;
     }
     final failedTodoResult = toolResults
@@ -825,11 +940,24 @@ class _TodoToolCall {
 }
 
 class _TodoToolService extends McpToolService {
-  _TodoToolService(this.root);
+  _TodoToolService(this.root, {required this.stagedFailureTurns});
 
   final Directory root;
+  final int stagedFailureTurns;
   final List<_TodoToolCall> executedCalls = [];
   int verificationAttempts = 0;
+
+  bool get hasSuccessfulVerifierCall {
+    return executedCalls.any((call) {
+      if (call.name != 'local_execute_command' && call.name != 'run_tests') {
+        return false;
+      }
+      final decoded = _tryDecodeObject(call.result);
+      return decoded['canary'] == 'todo_app' && decoded['exit_code'] == 0;
+    });
+  }
+
+  Future<_TodoVerification> verifyTodoApp() => _verifyTodoApp();
 
   @override
   Future<void> connect({
@@ -1019,7 +1147,7 @@ class _TodoToolService extends McpToolService {
     }
 
     verificationAttempts += 1;
-    if (verificationAttempts <= _stagedFailureTurns) {
+    if (verificationAttempts <= stagedFailureTurns) {
       return _stagedVerifierFailure(name, verificationAttempts);
     }
     final verification = await _verifyTodoApp();
@@ -1061,7 +1189,7 @@ class _TodoToolService extends McpToolService {
       'exit_code': 1,
       'stdout': '',
       'stderr':
-          'Staged TODO verifier failure $attempt/$_stagedFailureTurns for auto-continuation evidence.\n',
+          'Staged TODO verifier failure $attempt/$stagedFailureTurns for auto-continuation evidence.\n',
       'diagnostics': diagnostics,
     });
     return McpToolResult(
@@ -1090,11 +1218,53 @@ class _TodoToolService extends McpToolService {
 
     final firstList = await _runTodoCommand(['list']);
     transcript.writeln(_formatProcess('list', firstList));
-    if (firstList.exitCode != 0) {
+    final firstListText = [
+      firstList.stdout as String,
+      firstList.stderr as String,
+    ].join('\n').toLowerCase();
+    if (firstList.exitCode != 0 ||
+        firstListText.trim().isEmpty ||
+        (!_containsAny(firstListText, const [
+          'no task',
+          'no todo',
+          'empty',
+          'nothing',
+        ]))) {
       diagnostics.add(
         _diagnosticJson(
           code: 'todo_cli_first_list_failed',
-          message: 'First-ever list run exited ${firstList.exitCode}.',
+          message:
+              'First-ever list must succeed and print a friendly empty-list message.',
+        ),
+      );
+    }
+
+    final noArguments = await _runTodoCommand(const []);
+    transcript.writeln(_formatProcess('no arguments', noArguments));
+    final noArgumentsText = [
+      noArguments.stdout as String,
+      noArguments.stderr as String,
+    ].join('\n').toLowerCase();
+    if (noArguments.exitCode != 0 || !_looksLikeUsage(noArgumentsText)) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'todo_cli_no_arguments_usage_failed',
+          message: 'Running without arguments must succeed and print usage.',
+        ),
+      );
+    }
+
+    final help = await _runTodoCommand(const ['help']);
+    transcript.writeln(_formatProcess('help', help));
+    final helpText = [
+      help.stdout as String,
+      help.stderr as String,
+    ].join('\n').toLowerCase();
+    if (help.exitCode != 0 || !_looksLikeUsage(helpText)) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'todo_cli_help_failed',
+          message: 'The help command must succeed and print usage.',
         ),
       );
     }
@@ -1196,12 +1366,30 @@ class _TodoToolService extends McpToolService {
     ].join('\n').toLowerCase();
     if (unknown.exitCode == 0 ||
         unknownText.trim().isEmpty ||
-        unknownText.contains('stack trace')) {
+        _looksLikeStackTrace(unknownText)) {
       diagnostics.add(
         _diagnosticJson(
           code: 'todo_cli_unknown_id_failed',
           message:
               'Unknown id did not produce a clear message and non-zero exit code.',
+        ),
+      );
+    }
+
+    final unknownDelete = await _runTodoCommand(['delete', '999999']);
+    transcript.writeln(_formatProcess('delete unknown', unknownDelete));
+    final unknownDeleteText = [
+      unknownDelete.stdout as String,
+      unknownDelete.stderr as String,
+    ].join('\n').toLowerCase();
+    if (unknownDelete.exitCode == 0 ||
+        unknownDeleteText.trim().isEmpty ||
+        _looksLikeStackTrace(unknownDeleteText)) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'todo_cli_unknown_delete_failed',
+          message:
+              'Unknown delete id did not produce a clear message and non-zero exit code.',
         ),
       );
     }
@@ -1271,6 +1459,22 @@ class _TodoToolService extends McpToolService {
             !line.contains('done') &&
             !line.contains('complete') &&
             !line.contains('✓'));
+  }
+
+  bool _looksLikeUsage(String output) {
+    return output.contains('usage') ||
+        (_containsAny(output, const ['add', 'list']) &&
+            _containsAny(output, const ['done', 'delete']));
+  }
+
+  bool _looksLikeStackTrace(String output) {
+    return output.contains('stack trace') ||
+        output.contains('unhandled exception') ||
+        output.contains('#0 ');
+  }
+
+  bool _containsAny(String value, List<String> needles) {
+    return needles.any(value.contains);
   }
 
   String? _lineContaining(String text, String needle) {
