@@ -59,6 +59,7 @@ CAVERNO_SESSION_LOG_DIR="${SESSION_LOG_ROOT}" \
   --dart-define="CAVERNO_BUILD_DIRTY=${BUILD_DIRTY}" \
   --dart-define="CAVERNO_BUILD_TIME=${BUILD_TIME}" \
   tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart \
+  --plain-name "live LLM assembles the todo_app.md MVP as a Dart CLI" \
   -r "${REPORTER}" >"${LOG_PATH}" 2>&1
 TEST_STATUS=$?
 set -e

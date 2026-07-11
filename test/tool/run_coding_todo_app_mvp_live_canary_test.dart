@@ -18,6 +18,12 @@ void main() {
       expect(runner, contains('--canary-name coding_todo_app_mvp_live_canary'));
       expect(runner, contains('--surface coding_mvp'));
       expect(
+        runner,
+        contains(
+          '--plain-name "live LLM assembles the todo_app.md MVP as a Dart CLI"',
+        ),
+      );
+      expect(
         canary,
         contains('Implement a Dart command-line program at bin/todo_cli.dart.'),
       );
