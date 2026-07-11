@@ -37,6 +37,7 @@ import 'package:caverno/features/settings/presentation/providers/settings_notifi
 
 const _verifyCommand = 'dart run tool/verify_todo_app.dart';
 const _stagedFailureTurns = 2;
+const _postSuccessMutationCode = 'todo_post_success_mutation';
 
 void main() {
   final autoContinueEnabled =
@@ -44,6 +45,67 @@ void main() {
       '1';
   final mvpEnabled =
       Platform.environment['CAVERNO_CODING_TODO_APP_MVP_LIVE_CANARY'] == '1';
+
+  test('TODO fixture blocks mutations after verifier success', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'todo_post_success_mutation_',
+    );
+    try {
+      final service = _TodoToolService(root, stagedFailureTurns: 0);
+      final target = File('${root.path}/bin/todo_cli.dart');
+
+      final initialWrite = await service.executeTool(
+        name: 'write_file',
+        arguments: {'path': target.path, 'content': 'void main() {}\n'},
+      );
+      expect(initialWrite.isSuccess, isTrue);
+
+      service.executedCalls.add(
+        _TodoToolCall(
+          name: 'local_execute_command',
+          arguments: const {'command': _verifyCommand},
+          result: jsonEncode({
+            'canary': 'todo_app',
+            'command': _verifyCommand,
+            'exit_code': 0,
+            'diagnostics': const [],
+          }),
+          success: true,
+        ),
+      );
+
+      final blockedWrite = await service.executeTool(
+        name: 'write_file',
+        arguments: {
+          'path': target.path,
+          'content': 'void main() { throw StateError("regression"); }\n',
+        },
+      );
+      final blockedEdit = await service.executeTool(
+        name: 'edit_file',
+        arguments: {
+          'path': target.path,
+          'old_text': 'void main() {}',
+          'new_text': 'void main() { throw StateError("regression"); }',
+        },
+      );
+
+      expect(blockedWrite.isSuccess, isFalse);
+      expect(blockedEdit.isSuccess, isFalse);
+      expect(
+        _tryDecodeObject(blockedWrite.result)['code'],
+        _postSuccessMutationCode,
+      );
+      expect(
+        _tryDecodeObject(blockedEdit.result)['code'],
+        _postSuccessMutationCode,
+      );
+      expect(target.readAsStringSync(), 'void main() {}\n');
+      expect(service.postSuccessMutationAttempts, hasLength(2));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 
   test(
     'live LLM auto-continues the todo_app.md MVP fixture from diagnostic evidence',
@@ -260,10 +322,18 @@ void main() {
                     'do not inspect or edit it.',
                 '- Run local_execute_command with command "$_verifyCommand" from '
                     'the project root.',
+                '- The verifier resets its own known state files before each '
+                    'run. Do not prepend or append rm, cat, shell operators, or '
+                    'any other command.',
                 '- Use the verifier diagnostics to repair the implementation and '
                     'rerun it until it exits with code 0 or a concrete blocker '
                     'prevents progress.',
+                '- Read the current implementation with read_file and prefer '
+                    'edit_file for focused repairs instead of rewriting the '
+                    'whole file.',
                 '- Do not claim completion unless that verifier exits with code 0.',
+                '- After the verifier exits with code 0, do not call any more '
+                    'tools or modify files. Return the final answer immediately.',
               ].join('\n'),
               bypassPlanMode: true,
             );
@@ -291,6 +361,13 @@ void main() {
           toolService.hasSuccessfulVerifierCall,
           isTrue,
           reason: diagnostic,
+        );
+        expect(
+          toolService.postSuccessMutationAttempts,
+          isEmpty,
+          reason:
+              '$diagnostic\npostSuccessMutationCode='
+              '$_postSuccessMutationCode',
         );
         expect(
           independentVerification.diagnostics,
@@ -957,6 +1034,15 @@ class _TodoToolService extends McpToolService {
     });
   }
 
+  List<_TodoToolCall> get postSuccessMutationAttempts {
+    return executedCalls
+        .where((call) {
+          return _tryDecodeObject(call.result)['code'] ==
+              _postSuccessMutationCode;
+        })
+        .toList(growable: false);
+  }
+
   Future<_TodoVerification> verifyTodoApp() => _verifyTodoApp();
 
   @override
@@ -1054,7 +1140,9 @@ class _TodoToolService extends McpToolService {
     required String name,
     required Map<String, dynamic> arguments,
   }) async {
-    final result = await _executeTool(name: name, arguments: arguments);
+    final result = _isMutation(name) && hasSuccessfulVerifierCall
+        ? _postSuccessMutationError(name, arguments)
+        : await _executeTool(name: name, arguments: arguments);
     executedCalls.add(
       _TodoToolCall(
         name: name,
@@ -1064,6 +1152,29 @@ class _TodoToolService extends McpToolService {
       ),
     );
     return result;
+  }
+
+  bool _isMutation(String name) => name == 'write_file' || name == 'edit_file';
+
+  McpToolResult _postSuccessMutationError(
+    String name,
+    Map<String, dynamic> arguments,
+  ) {
+    final result = jsonEncode({
+      'canary': 'todo_app',
+      'code': _postSuccessMutationCode,
+      'error': 'post_success_mutation',
+      'message':
+          'The verifier already passed; further file mutations are blocked.',
+      if (arguments['path'] is String) 'path': arguments['path'],
+    });
+    return McpToolResult(
+      toolName: name,
+      result: result,
+      isSuccess: false,
+      errorMessage:
+          'The verifier already passed; further file mutations are blocked.',
+    );
   }
 
   Future<McpToolResult> _executeTool({
