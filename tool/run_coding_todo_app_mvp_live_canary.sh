@@ -4,18 +4,18 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-: "${CAVERNO_LLM_BASE_URL:?Set CAVERNO_LLM_BASE_URL before running the TODO auto-continue live canary.}"
-: "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the TODO auto-continue live canary.}"
-: "${CAVERNO_LLM_MODEL:?Set CAVERNO_LLM_MODEL before running the TODO auto-continue live canary.}"
+: "${CAVERNO_LLM_BASE_URL:?Set CAVERNO_LLM_BASE_URL before running the TODO app MVP live canary.}"
+: "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the TODO app MVP live canary.}"
+: "${CAVERNO_LLM_MODEL:?Set CAVERNO_LLM_MODEL before running the TODO app MVP live canary.}"
 
-REPORT_ROOT="${CAVERNO_CODING_GOAL_TODO_REPORT_ROOT:-${CAVERNO_LIVE_LLM_CANARY_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}}"
-RUN_DIR="${REPORT_ROOT}/coding_goal_auto_continue_todo_fixture_$(date +%s)"
+REPORT_ROOT="${CAVERNO_CODING_TODO_APP_MVP_REPORT_ROOT:-${CAVERNO_LIVE_LLM_CANARY_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}}"
+RUN_DIR="${REPORT_ROOT}/coding_todo_app_mvp_live_canary_$(date +%s)"
 WORK_ROOT="${RUN_DIR}/workspace"
 SESSION_LOG_ROOT="${RUN_DIR}/session_logs"
 LOG_PATH="${RUN_DIR}/flutter_test.jsonl"
 REPORTER="json"
 
-if command -v fvm >/dev/null 2>&1 && [ -e "${ROOT_DIR}/.fvmrc" ]; then
+if command -v fvm >/dev/null 2>&1 && { [[ -f "${ROOT_DIR}/.fvmrc" ]] || [[ -d "${ROOT_DIR}/.fvm" ]]; }; then
   FLUTTER_CMD=(fvm flutter)
   DART_CMD=(fvm dart)
 else
@@ -32,7 +32,9 @@ if ! git -C "${ROOT_DIR}" diff --quiet ||
 fi
 BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
-echo "Running Coding Goal TODO auto-continue live canary"
+echo "Running Coding TODO app MVP live canary"
+echo "  Language: Dart"
+echo "  Fixture: docs/coding_mvp_fixtures/todo_app.md"
 echo "  Base URL: ${CAVERNO_LLM_BASE_URL}"
 echo "  Model: ${CAVERNO_LLM_MODEL}"
 echo "  Reporter: ${REPORTER}"
@@ -45,7 +47,7 @@ cd "${ROOT_DIR}"
 mkdir -p "${WORK_ROOT}" "${SESSION_LOG_ROOT}"
 
 set +e
-CAVERNO_CODING_GOAL_TODO_AUTO_CONTINUE_CANARY=1 \
+CAVERNO_CODING_TODO_APP_MVP_LIVE_CANARY=1 \
 CAVERNO_LLM_BASE_URL="${CAVERNO_LLM_BASE_URL}" \
 CAVERNO_LLM_API_KEY="${CAVERNO_LLM_API_KEY}" \
 CAVERNO_LLM_MODEL="${CAVERNO_LLM_MODEL}" \
@@ -57,7 +59,7 @@ CAVERNO_SESSION_LOG_DIR="${SESSION_LOG_ROOT}" \
   --dart-define="CAVERNO_BUILD_DIRTY=${BUILD_DIRTY}" \
   --dart-define="CAVERNO_BUILD_TIME=${BUILD_TIME}" \
   tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart \
-  --plain-name "live LLM auto-continues the todo_app.md MVP fixture from diagnostic evidence" \
+  --plain-name "live LLM assembles the todo_app.md MVP as a Dart CLI" \
   -r "${REPORTER}" >"${LOG_PATH}" 2>&1
 TEST_STATUS=$?
 set -e
@@ -66,22 +68,22 @@ set +e
 "${DART_CMD[@]}" run "${ROOT_DIR}/tool/live_llm_canary_summary.dart" \
   --log "${LOG_PATH}" \
   --out-dir "${RUN_DIR}" \
-  --canary-name coding_goal_auto_continue_todo_fixture \
-  --surface coding_goal \
+  --canary-name coding_todo_app_mvp_live_canary \
+  --surface coding_mvp \
   --base-url "${CAVERNO_LLM_BASE_URL}" \
   --model "${CAVERNO_LLM_MODEL}" \
-  --command "tool/run_coding_goal_auto_continue_todo_fixture_live_canary.sh"
+  --command "tool/run_coding_todo_app_mvp_live_canary.sh"
 SUMMARY_STATUS=$?
 set -e
 
 if [ "${TEST_STATUS}" -ne 0 ]; then
-  echo "Coding Goal TODO auto-continue live canary failed."
+  echo "Coding TODO app MVP live canary failed."
   echo "  Flutter JSON log: ${LOG_PATH}"
   echo "  Session logs: ${SESSION_LOG_ROOT}"
   exit "${TEST_STATUS}"
 fi
 
-echo "Coding Goal TODO auto-continue live canary passed."
+echo "Coding TODO app MVP live canary passed."
 echo "  Flutter JSON log: ${LOG_PATH}"
 echo "  Session logs: ${SESSION_LOG_ROOT}"
 
