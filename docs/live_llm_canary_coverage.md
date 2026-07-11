@@ -107,9 +107,10 @@ For each model switch, run this minimum set before comparing model quality:
    `build/integration_test_reports/coding_todo_app_mvp_live_canary_<timestamp>/`.
    The fixture exposes read, edit, write, and directory tools within the
    scratch root, while verification is restricted to the exact
-   `dart run tool/verify_todo_app.dart` command. The verifier resets known state
-   files before each run. Any write or edit attempted after the first successful
-   verifier result is blocked and fails readiness with
+   `dart run tool/verify_todo_app.dart` command. Every verification runs in a
+   fresh temporary copy containing only the Dart sources and `pubspec.yaml`, so
+   model-chosen runtime state filenames cannot leak between checks. Any write or
+   edit attempted after the first successful verifier result is blocked and fails readiness with
    `todo_post_success_mutation`; the final independent verification still runs
    so artifact correctness and loop-regression behavior remain separate signals.
 

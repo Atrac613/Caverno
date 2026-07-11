@@ -107,6 +107,59 @@ void main() {
     }
   });
 
+  test('TODO verifier copies source without prior runtime state', () {
+    final root = Directory.systemTemp.createTempSync(
+      'todo_verification_source_',
+    );
+    try {
+      Directory('${root.path}/bin').createSync(recursive: true);
+      Directory('${root.path}/lib').createSync(recursive: true);
+      Directory('${root.path}/tool').createSync(recursive: true);
+      File('${root.path}/pubspec.yaml').writeAsStringSync('name: fixture\n');
+      File(
+        '${root.path}/bin/todo_cli.dart',
+      ).writeAsStringSync('void main() {}');
+      File(
+        '${root.path}/lib/helper.dart',
+      ).writeAsStringSync('const value = 1;');
+      File(
+        '${root.path}/tool/verify_todo_app.dart',
+      ).writeAsStringSync('void main() {}');
+      File('${root.path}/.unexpected_state.json').writeAsStringSync('{}');
+
+      final service = _TodoToolService(root, stagedFailureTurns: 0);
+      final verificationRoot = service.createVerificationRoot();
+      try {
+        expect(
+          File('${verificationRoot.path}/pubspec.yaml').existsSync(),
+          true,
+        );
+        expect(
+          File('${verificationRoot.path}/bin/todo_cli.dart').existsSync(),
+          true,
+        );
+        expect(
+          File('${verificationRoot.path}/lib/helper.dart').existsSync(),
+          true,
+        );
+        expect(
+          File(
+            '${verificationRoot.path}/tool/verify_todo_app.dart',
+          ).existsSync(),
+          false,
+        );
+        expect(
+          File('${verificationRoot.path}/.unexpected_state.json').existsSync(),
+          false,
+        );
+      } finally {
+        verificationRoot.deleteSync(recursive: true);
+      }
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
   test(
     'live LLM auto-continues the todo_app.md MVP fixture from diagnostic evidence',
     () async {
@@ -322,9 +375,9 @@ void main() {
                     'do not inspect or edit it.',
                 '- Run local_execute_command with command "$_verifyCommand" from '
                     'the project root.',
-                '- The verifier resets its own known state files before each '
-                    'run. Do not prepend or append rm, cat, shell operators, or '
-                    'any other command.',
+                '- The verifier runs every check in a fresh isolated copy of '
+                    'the Dart sources. Do not prepend or append rm, cat, shell '
+                    'operators, or any other command.',
                 '- Use the verifier diagnostics to repair the implementation and '
                     'rerun it until it exits with code 0 or a concrete blocker '
                     'prevents progress.',
@@ -1045,6 +1098,8 @@ class _TodoToolService extends McpToolService {
 
   Future<_TodoVerification> verifyTodoApp() => _verifyTodoApp();
 
+  Directory createVerificationRoot() => _createVerificationRoot();
+
   @override
   Future<void> connect({
     List<McpServerConfig>? overrideServers,
@@ -1335,9 +1390,20 @@ class _TodoToolService extends McpToolService {
   }
 
   Future<_TodoVerification> _verifyTodoApp() async {
+    final verificationRoot = _createVerificationRoot();
+    try {
+      return await _verifyTodoAppIn(verificationRoot);
+    } finally {
+      if (verificationRoot.existsSync()) {
+        verificationRoot.deleteSync(recursive: true);
+      }
+    }
+  }
+
+  Future<_TodoVerification> _verifyTodoAppIn(Directory verificationRoot) async {
     final diagnostics = <Map<String, dynamic>>[];
     final transcript = StringBuffer();
-    final cli = File('${root.path}/bin/todo_cli.dart');
+    final cli = File('${verificationRoot.path}/bin/todo_cli.dart');
     if (!cli.existsSync()) {
       diagnostics.add(
         _diagnosticJson(
@@ -1348,9 +1414,7 @@ class _TodoToolService extends McpToolService {
       return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
 
-    _deleteLikelyStateFiles();
-
-    final firstList = await _runTodoCommand(['list']);
+    final firstList = await _runTodoCommand(['list'], verificationRoot);
     transcript.writeln(_formatProcess('list', firstList));
     final firstListText = [
       firstList.stdout as String,
@@ -1373,7 +1437,7 @@ class _TodoToolService extends McpToolService {
       );
     }
 
-    final noArguments = await _runTodoCommand(const []);
+    final noArguments = await _runTodoCommand(const [], verificationRoot);
     transcript.writeln(_formatProcess('no arguments', noArguments));
     final noArgumentsText = [
       noArguments.stdout as String,
@@ -1388,7 +1452,7 @@ class _TodoToolService extends McpToolService {
       );
     }
 
-    final help = await _runTodoCommand(const ['help']);
+    final help = await _runTodoCommand(const ['help'], verificationRoot);
     transcript.writeln(_formatProcess('help', help));
     final helpText = [
       help.stdout as String,
@@ -1403,9 +1467,15 @@ class _TodoToolService extends McpToolService {
       );
     }
 
-    final addMilk = await _runTodoCommand(['add', 'buy milk']);
+    final addMilk = await _runTodoCommand([
+      'add',
+      'buy milk',
+    ], verificationRoot);
     transcript.writeln(_formatProcess('add buy milk', addMilk));
-    final addReport = await _runTodoCommand(['add', 'write report']);
+    final addReport = await _runTodoCommand([
+      'add',
+      'write report',
+    ], verificationRoot);
     transcript.writeln(_formatProcess('add write report', addReport));
     final firstId = _extractId(addMilk.stdout as String);
     final secondId = _extractId(addReport.stdout as String);
@@ -1426,7 +1496,7 @@ class _TodoToolService extends McpToolService {
       );
     }
 
-    final list = await _runTodoCommand(['list']);
+    final list = await _runTodoCommand(['list'], verificationRoot);
     transcript.writeln(_formatProcess('list after adds', list));
     final listOutput = (list.stdout as String).toLowerCase();
     if (list.exitCode != 0 ||
@@ -1441,9 +1511,9 @@ class _TodoToolService extends McpToolService {
     }
 
     if (firstId != null) {
-      final done = await _runTodoCommand(['done', firstId]);
+      final done = await _runTodoCommand(['done', firstId], verificationRoot);
       transcript.writeln(_formatProcess('done $firstId', done));
-      final afterDone = await _runTodoCommand(['list']);
+      final afterDone = await _runTodoCommand(['list'], verificationRoot);
       transcript.writeln(_formatProcess('list after done', afterDone));
       final afterDoneOutput = (afterDone.stdout as String).toLowerCase();
       if (done.exitCode != 0 ||
@@ -1460,7 +1530,7 @@ class _TodoToolService extends McpToolService {
       }
     }
 
-    final persistenceList = await _runTodoCommand(['list']);
+    final persistenceList = await _runTodoCommand(['list'], verificationRoot);
     transcript.writeln(_formatProcess('fresh list', persistenceList));
     if (persistenceList.exitCode != 0 ||
         !(persistenceList.stdout as String).toLowerCase().contains(
@@ -1475,9 +1545,12 @@ class _TodoToolService extends McpToolService {
     }
 
     if (secondId != null) {
-      final delete = await _runTodoCommand(['delete', secondId]);
+      final delete = await _runTodoCommand([
+        'delete',
+        secondId,
+      ], verificationRoot);
       transcript.writeln(_formatProcess('delete $secondId', delete));
-      final afterDelete = await _runTodoCommand(['list']);
+      final afterDelete = await _runTodoCommand(['list'], verificationRoot);
       transcript.writeln(_formatProcess('list after delete', afterDelete));
       final afterDeleteOutput = (afterDelete.stdout as String).toLowerCase();
       if (delete.exitCode != 0 ||
@@ -1492,7 +1565,7 @@ class _TodoToolService extends McpToolService {
       }
     }
 
-    final unknown = await _runTodoCommand(['done', '999999']);
+    final unknown = await _runTodoCommand(['done', '999999'], verificationRoot);
     transcript.writeln(_formatProcess('done unknown', unknown));
     final unknownText = [
       unknown.stdout as String,
@@ -1510,7 +1583,10 @@ class _TodoToolService extends McpToolService {
       );
     }
 
-    final unknownDelete = await _runTodoCommand(['delete', '999999']);
+    final unknownDelete = await _runTodoCommand([
+      'delete',
+      '999999',
+    ], verificationRoot);
     transcript.writeln(_formatProcess('delete unknown', unknownDelete));
     final unknownDeleteText = [
       unknownDelete.stdout as String,
@@ -1534,35 +1610,40 @@ class _TodoToolService extends McpToolService {
     );
   }
 
-  Future<ProcessResult> _runTodoCommand(List<String> args) {
-    final usePub = File('${root.path}/pubspec.yaml').existsSync();
+  Future<ProcessResult> _runTodoCommand(
+    List<String> args,
+    Directory verificationRoot,
+  ) {
+    final usePub = File('${verificationRoot.path}/pubspec.yaml').existsSync();
     final processArgs = usePub
         ? ['run', 'bin/todo_cli.dart', ...args]
         : ['bin/todo_cli.dart', ...args];
     return Process.run(
       'dart',
       processArgs,
-      workingDirectory: root.path,
+      workingDirectory: verificationRoot.path,
     ).timeout(const Duration(seconds: 20));
   }
 
-  void _deleteLikelyStateFiles() {
-    const names = [
-      'todo.json',
-      'todos.json',
-      'tasks.json',
-      'todo_state.json',
-      '.todos.json',
-      'todo.txt',
-      'todos.txt',
-      'tasks.txt',
-    ];
-    for (final name in names) {
-      final file = File('${root.path}/$name');
-      if (file.existsSync()) {
-        file.deleteSync();
+  Directory _createVerificationRoot() {
+    final verificationRoot = Directory.systemTemp.createTempSync(
+      'todo_mvp_verification_',
+    );
+    for (final entity in root.listSync(recursive: true, followLinks: false)) {
+      if (entity is! File) {
+        continue;
       }
+      final relativePath = _relativePath(entity.path);
+      if (relativePath == null ||
+          relativePath == 'tool/verify_todo_app.dart' ||
+          (relativePath != 'pubspec.yaml' && !relativePath.endsWith('.dart'))) {
+        continue;
+      }
+      final target = File('${verificationRoot.path}/$relativePath');
+      target.parent.createSync(recursive: true);
+      target.writeAsBytesSync(entity.readAsBytesSync());
     }
+    return verificationRoot;
   }
 
   String? _extractId(String output) {

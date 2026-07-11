@@ -37,7 +37,10 @@ void main() {
         contains('Implement a Dart command-line program at bin/todo_cli.dart.'),
       );
       expect(canary, contains('Use only the Dart SDK'));
-      expect(canary, contains('The verifier resets its own known state files'));
+      expect(
+        canary,
+        contains('The verifier runs every check in a fresh isolated copy'),
+      );
       expect(canary, contains('After the verifier exits with code 0'));
       expect(canary, contains('todo_post_success_mutation'));
       expect(canary, contains("name: 'read_file'"));
