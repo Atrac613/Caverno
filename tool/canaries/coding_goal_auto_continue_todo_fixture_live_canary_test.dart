@@ -949,7 +949,7 @@ class _TodoToolService extends McpToolService {
 
   bool get hasSuccessfulVerifierCall {
     return executedCalls.any((call) {
-      if (call.name != 'local_execute_command' && call.name != 'run_tests') {
+      if (call.name != 'local_execute_command') {
         return false;
       }
       final decoded = _tryDecodeObject(call.result);
@@ -970,6 +970,27 @@ class _TodoToolService extends McpToolService {
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
     return [
       _toolDefinition(
+        name: 'list_directory',
+        description: 'List files in the TODO fixture project.',
+        properties: {
+          'path': {'type': 'string'},
+          'recursive': {'type': 'boolean'},
+          'max_entries': {'type': 'integer'},
+          'reason': {'type': 'string'},
+        },
+      ),
+      _toolDefinition(
+        name: 'read_file',
+        description: 'Read a UTF-8 text file in the TODO fixture project.',
+        properties: {
+          'path': {'type': 'string'},
+          'offset': {'type': 'integer'},
+          'limit': {'type': 'integer'},
+          'reason': {'type': 'string'},
+        },
+        required: const ['path'],
+      ),
+      _toolDefinition(
         name: 'write_file',
         description:
             'Write a full UTF-8 text file in the TODO fixture project.',
@@ -982,6 +1003,19 @@ class _TodoToolService extends McpToolService {
         required: const ['path', 'content'],
       ),
       _toolDefinition(
+        name: 'edit_file',
+        description:
+            'Replace exact text in an existing TODO fixture project file.',
+        properties: {
+          'path': {'type': 'string'},
+          'old_text': {'type': 'string'},
+          'new_text': {'type': 'string'},
+          'replace_all': {'type': 'boolean'},
+          'reason': {'type': 'string'},
+        },
+        required: const ['path', 'old_text', 'new_text'],
+      ),
+      _toolDefinition(
         name: 'local_execute_command',
         description:
             'Run the TODO fixture verifier. Accepted command: $_verifyCommand.',
@@ -991,16 +1025,6 @@ class _TodoToolService extends McpToolService {
           'reason': {'type': 'string'},
         },
         required: const ['command'],
-      ),
-      _toolDefinition(
-        name: 'run_tests',
-        description:
-            'Alias for running the TODO fixture verifier. Uses $_verifyCommand.',
-        properties: {
-          'command': {'type': 'string'},
-          'working_directory': {'type': 'string'},
-          'reason': {'type': 'string'},
-        },
       ),
     ];
   }
@@ -1112,7 +1136,6 @@ class _TodoToolService extends McpToolService {
         );
         return _toolResult(name, result);
       case 'local_execute_command':
-      case 'run_tests':
         return _executeVerifier(name, arguments);
       default:
         return _toolError(name, 'Unsupported TODO fixture tool: $name');

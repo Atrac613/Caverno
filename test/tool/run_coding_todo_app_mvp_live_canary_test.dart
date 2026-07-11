@@ -28,6 +28,10 @@ void main() {
         contains('Implement a Dart command-line program at bin/todo_cli.dart.'),
       );
       expect(canary, contains('Use only the Dart SDK'));
+      expect(canary, contains("name: 'read_file'"));
+      expect(canary, contains("name: 'edit_file'"));
+      expect(canary, contains("name: 'list_directory'"));
+      expect(canary, isNot(contains("name: 'run_tests'")));
       expect(canary, contains('todo_cli_no_arguments_usage_failed'));
       expect(canary, contains('todo_cli_help_failed'));
       expect(canary, contains('todo_cli_unknown_delete_failed'));
