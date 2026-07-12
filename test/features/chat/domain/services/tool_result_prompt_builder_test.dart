@@ -372,6 +372,21 @@ void main() {
       expect(carried.hasIncompleteEvidence, isTrue);
     });
 
+    test('replaces prior errors with an authoritative clean snapshot', () {
+      const previous = ToolResultCompletionEvidence(
+        unresolvedErrorCount: 13,
+        unresolvedErrorPaths: ['lib/expense.dart'],
+      );
+
+      final carried = const ToolResultCompletionEvidence(
+        hasExecutionVerification: true,
+        hasAuthoritativeDiagnosticSnapshot: true,
+      ).carryForwardIncompleteFrom(previous);
+
+      expect(carried.unresolvedErrorCount, 0);
+      expect(carried.unresolvedErrorPaths, isEmpty);
+    });
+
     test(
       'clears prior diagnostics after successful execution verification',
       () {
@@ -407,6 +422,17 @@ void main() {
 
       expect(settled.hasIncompleteEvidence, isFalse);
       expect(settled.hasSuccessfulExecutionVerification, isTrue);
+    });
+
+    test('recognizes an unexecuted verifier as validation evidence', () {
+      const evidence = ToolResultCompletionEvidence(
+        boundedToolLoopExhausted: true,
+        unexecutedToolNames: ['local_execute_command'],
+        unresolvedErrorCount: 3,
+      );
+
+      expect(evidence.hasPendingExecutionVerification, isTrue);
+      expect(evidence.requiresValidationContinuation, isTrue);
     });
 
     test('keeps evidence when verification predates the latest mutation', () {

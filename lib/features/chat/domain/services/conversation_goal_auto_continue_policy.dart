@@ -81,6 +81,7 @@ class GoalAutoContinuePolicyInput {
     required this.diagnosticRepairContinuations,
     required this.diagnosticRepairExtensionUsed,
     required this.diagnosticEvidenceImproved,
+    required this.validationContinuations,
     required this.noProgressStreak,
     required this.finalAnswerEndsWithQuestion,
   });
@@ -92,6 +93,7 @@ class GoalAutoContinuePolicyInput {
   final int diagnosticRepairContinuations;
   final bool diagnosticRepairExtensionUsed;
   final bool diagnosticEvidenceImproved;
+  final int validationContinuations;
   final int noProgressStreak;
   final bool finalAnswerEndsWithQuestion;
 }
@@ -196,6 +198,24 @@ class ConversationGoalAutoContinuePolicy {
       return GoalAutoContinueDecision.skip('no incomplete evidence');
     }
 
+    if (input.evidence.requiresValidationContinuation) {
+      if (input.validationContinuations == 0) {
+        return GoalAutoContinueDecision.continueTurn(
+          reason: input.evidence.hasPendingExecutionVerification
+              ? 'execute the pending verification call'
+              : 'validate file changes before further editing',
+          effectiveTurnBudget: effectiveTurnBudget,
+          nextTurnNumber: goal.turnsUsed + 1,
+        );
+      }
+      return GoalAutoContinueDecision.stopAndBlock(
+        reason: 'validation continuation was ignored',
+        blockedReason:
+            'Goal auto-continue stopped because execution verification '
+            'remained incomplete after a dedicated validation turn.',
+      );
+    }
+
     if (input.noProgressStreak >= 2) {
       if (input.evidence.hasDiagnosticEvidence) {
         return GoalAutoContinueDecision.stopAndBlock(
@@ -232,9 +252,7 @@ class ConversationGoalAutoContinuePolicy {
     }
 
     return GoalAutoContinueDecision.continueTurn(
-      reason: input.evidence.mutatedWithoutExecutionVerification
-          ? 'files were modified without execution verification'
-          : 'incomplete evidence remains',
+      reason: 'incomplete evidence remains',
       effectiveTurnBudget: effectiveTurnBudget,
       nextTurnNumber: goal.turnsUsed + 1,
     );

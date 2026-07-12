@@ -12,6 +12,7 @@ final class _GoalAutoContinueTracker {
     this.diagnosticRepairContinuations = 0,
     this.diagnosticRepairExtensionUsed = false,
     this.noProgressStreak = 0,
+    this.validationContinuations = 0,
     this.previousEvidence,
   });
 
@@ -19,6 +20,7 @@ final class _GoalAutoContinueTracker {
   int diagnosticRepairContinuations;
   bool diagnosticRepairExtensionUsed;
   int noProgressStreak;
+  int validationContinuations;
   ToolResultCompletionEvidence? previousEvidence;
 }
 
@@ -198,6 +200,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         diagnosticRepairExtensionUsed:
             tracker?.diagnosticRepairExtensionUsed ?? false,
         diagnosticEvidenceImproved: diagnosticEvidenceImproved,
+        validationContinuations: tracker?.validationContinuations ?? 0,
         noProgressStreak: candidateNoProgressStreak,
         finalAnswerEndsWithQuestion: _endsWithQuestionMark(
           finalizedAssistantResponse,
@@ -321,6 +324,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       if (evidence.hasDiagnosticEvidence) {
         tracker?.diagnosticRepairContinuations += 1;
       }
+      if (evidence.requiresValidationContinuation) {
+        tracker?.validationContinuations += 1;
+      }
       tracker?.previousEvidence = evidence;
       final continuationFuture = sendHiddenPrompt(
         continuationPrompt,
@@ -440,10 +446,17 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         '</execution_snapshot>',
       ],
       '',
-      'Continue the work now. Use the available diagnostics and tools to make '
-          'progress, then verify the result when a verification path is '
-          'available. If you are genuinely blocked, state the blocking '
-          'condition clearly instead of retrying the same action.',
+      if (evidence.requiresValidationContinuation) ...[
+        'This is a validation-only continuation. Do not edit files unless a '
+            'verification command reports a concrete failure. Run the '
+            'available project verifier now. A verifier request that was '
+            'left unexecuted by the previous tool-loop boundary must be '
+            'retried before any other work. Finish immediately if it succeeds.',
+      ] else
+        'Continue the work now. Use the available diagnostics and tools to '
+            'make progress, then verify the result when a verification path '
+            'is available. If you are genuinely blocked, state the blocking '
+            'condition clearly instead of retrying the same action.',
       'Do not end this turn by saying you will inspect, edit, or verify later; '
           'call an available tool now unless you are already at a concrete '
           'blocking condition.',
@@ -498,6 +511,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             'noProgressStreak': tracker?.noProgressStreak ?? 0,
             'diagnosticRepairContinuations':
                 tracker?.diagnosticRepairContinuations ?? 0,
+            'validationContinuations': tracker?.validationContinuations ?? 0,
             'diagnosticRepairExtensionUsed':
                 tracker?.diagnosticRepairExtensionUsed ?? false,
             'previousUnresolvedErrorCount':

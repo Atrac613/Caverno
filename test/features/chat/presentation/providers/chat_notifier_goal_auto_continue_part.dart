@@ -816,25 +816,22 @@ void registerChatNotifierGoalAutoContinueTests() {
   );
 
   test(
-    'goal auto-continue stops unverified no-progress loops without blocking',
+    'goal auto-continue blocks when a validation-only turn is ignored',
     () async {
       final dataSource = _GoalAutoContinueChatDataSource(
         toolCallBatches: [
           [_goalAutoContinueWriteCall('call-write-initial')],
           [_goalAutoContinueWriteCall('call-write-continue-1')],
-          [_goalAutoContinueWriteCall('call-write-continue-2')],
         ],
         finalAnswerChunkBatches: const [
           ['Updated the documentation.'],
           ['Updated the documentation again.'],
-          ['Updated the documentation one more time.'],
         ],
       );
       final toolService = _FakeMcpToolService(
         results: const {'write_file': 'unused'},
         queuedResults: const {
           'write_file': [
-            '{"path":"/tmp/goal-auto-unverified/README.md","bytes_written":18}',
             '{"path":"/tmp/goal-auto-unverified/README.md","bytes_written":18}',
             '{"path":"/tmp/goal-auto-unverified/README.md","bytes_written":18}',
           ],
@@ -876,8 +873,8 @@ void registerChatNotifierGoalAutoContinueTests() {
             .currentConversation
             ?.goal;
         return !state.isLoading &&
-            goal?.turnsUsed == 3 &&
-            state.goalAutoContinueNotice != null;
+            goal?.turnsUsed == 2 &&
+            goal?.status == ConversationGoalStatus.blocked;
       });
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -885,18 +882,18 @@ void registerChatNotifierGoalAutoContinueTests() {
           .read(conversationsNotifierProvider)
           .currentConversation
           ?.goal;
-      expect(dataSource.initialRequestMessages, hasLength(3));
-      expect(toolService.executedToolNames, [
-        'write_file',
-        'write_file',
-        'write_file',
-      ]);
-      expect(goal?.status, ConversationGoalStatus.active);
-      expect(goal?.blockedAt, isNull);
+      expect(dataSource.initialRequestMessages, hasLength(2));
+      expect(toolService.executedToolNames, ['write_file', 'write_file']);
       expect(
-        chatNotifier.state.goalAutoContinueNotice,
-        'chat.goal_auto_continue_no_progress',
+        dataSource.initialRequestMessages[1]
+            .where((message) => message.role == MessageRole.user)
+            .map((message) => message.content)
+            .join('\n'),
+        contains('This is a validation-only continuation.'),
       );
+      expect(goal?.status, ConversationGoalStatus.blocked);
+      expect(goal?.blockedReason, contains('dedicated validation turn'));
+      expect(chatNotifier.state.goalAutoContinueNotice, isNull);
       expect(chatNotifier.state.goalAutoContinueCount, 0);
       expect(chatNotifier.state.goalAutoContinueBudget, 0);
     },

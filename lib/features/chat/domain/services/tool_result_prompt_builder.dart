@@ -19,6 +19,7 @@ class ToolResultCompletionEvidence {
     this.mutatedWithoutExecutionVerification = false,
     this.hasExecutionVerification = false,
     this.hasSuccessfulExecutionVerification = false,
+    this.hasAuthoritativeDiagnosticSnapshot = false,
   });
 
   final bool boundedToolLoopExhausted;
@@ -29,6 +30,7 @@ class ToolResultCompletionEvidence {
   final bool mutatedWithoutExecutionVerification;
   final bool hasExecutionVerification;
   final bool hasSuccessfulExecutionVerification;
+  final bool hasAuthoritativeDiagnosticSnapshot;
 
   bool get hasIncompleteEvidence =>
       boundedToolLoopExhausted ||
@@ -40,6 +42,15 @@ class ToolResultCompletionEvidence {
       boundedToolLoopExhausted || unresolvedErrorCount > 0;
 
   bool get hasDiagnosticEvidence => unresolvedErrorCount > 0;
+
+  bool get hasPendingExecutionVerification => unexecutedToolNames.any(
+    (name) =>
+        name.trim().toLowerCase() == 'local_execute_command' ||
+        name.trim().toLowerCase() == 'run_tests',
+  );
+
+  bool get requiresValidationContinuation =>
+      hasPendingExecutionVerification || mutatedWithoutExecutionVerification;
 
   String get summary {
     final parts = <String>[];
@@ -98,7 +109,9 @@ class ToolResultCompletionEvidence {
     }
 
     final carryDiagnostics =
-        unresolvedErrorCount == 0 && previous.unresolvedErrorCount > 0;
+        !hasAuthoritativeDiagnosticSnapshot &&
+        unresolvedErrorCount == 0 &&
+        previous.unresolvedErrorCount > 0;
     final carriedUnverifiedPaths = <String>{
       ...previous.unverifiedChangePaths,
       ...unverifiedChangePaths,
@@ -118,6 +131,7 @@ class ToolResultCompletionEvidence {
           previous.mutatedWithoutExecutionVerification,
       hasExecutionVerification: hasExecutionVerification,
       hasSuccessfulExecutionVerification: hasSuccessfulExecutionVerification,
+      hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
     );
   }
 
@@ -556,6 +570,7 @@ class ToolResultPromptBuilder {
     final unexecutedToolNames = <String>{};
     final unresolvedErrorPaths = <String>{};
     final seenDiagnosticKeys = <String>{};
+    var hasAuthoritativeDiagnosticSnapshot = false;
     var unresolvedErrorCount = 0;
 
     for (var index = 0; index < toolResults.length; index += 1) {
@@ -579,6 +594,7 @@ class ToolResultPromptBuilder {
 
       final diagnostics = decoded['diagnostics'];
       if (diagnostics is List) {
+        hasAuthoritativeDiagnosticSnapshot = true;
         for (final diagnostic in diagnostics) {
           if (diagnostic is! Map) {
             continue;
@@ -640,6 +656,7 @@ class ToolResultPromptBuilder {
       hasSuccessfulExecutionVerification: _hasSuccessfulExecutionVerification(
         toolResults,
       ),
+      hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
     );
   }
 

@@ -88,6 +88,9 @@ const _minimalPrompt =
     '記載された受け入れ基準を実際に確認し、すべて通るまで修正してください。';
 
 void main() {
+  final originalHttpOverrides = HttpOverrides.current;
+  TestWidgetsFlutterBinding.ensureInitialized();
+  HttpOverrides.global = originalHttpOverrides;
   final autoContinueEnabled =
       Platform.environment['CAVERNO_CODING_GOAL_TODO_AUTO_CONTINUE_CANARY'] ==
       '1';

@@ -122,10 +122,57 @@ void main() {
     );
 
     expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
-    expect(decision.reason, contains('without execution verification'));
+    expect(decision.reason, contains('validate file changes'));
   });
 
-  test('mutation trigger still respects stall budget and safety vetos', () {
+  test('blocks when the dedicated validation continuation is ignored', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          mutatedWithoutExecutionVerification: true,
+          unverifiedChangePaths: ['bin/todo_cli.dart'],
+        ),
+        validationContinuations: 1,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
+    expect(decision.reason, 'validation continuation was ignored');
+  });
+
+  test('prioritizes an unexecuted verifier over diagnostic stalling', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          boundedToolLoopExhausted: true,
+          unexecutedToolNames: ['local_execute_command'],
+          unresolvedErrorCount: 3,
+        ),
+        noProgressStreak: 2,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+    expect(decision.reason, 'execute the pending verification call');
+  });
+
+  test('bounds repeated unexecuted verifier continuations', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          boundedToolLoopExhausted: true,
+          unexecutedToolNames: ['local_execute_command'],
+          unresolvedErrorCount: 3,
+        ),
+        validationContinuations: 1,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
+    expect(decision.reason, 'validation continuation was ignored');
+  });
+
+  test('validation continuation still respects budgets and safety vetos', () {
     const evidence = ToolResultCompletionEvidence(
       mutatedWithoutExecutionVerification: true,
       unverifiedChangePaths: ['bin/todo_cli.dart'],
@@ -140,8 +187,8 @@ void main() {
               noProgressStreak: 2,
             ),
           )
-          .stopCause,
-      GoalAutoContinueStopCause.noProgress,
+          .kind,
+      GoalAutoContinueDecisionKind.continueTurn,
     );
     expect(
       policy
@@ -362,6 +409,7 @@ GoalAutoContinuePolicyInput _input({
   int diagnosticRepairContinuations = 0,
   bool diagnosticRepairExtensionUsed = false,
   bool diagnosticEvidenceImproved = false,
+  int validationContinuations = 0,
   int noProgressStreak = 0,
   bool finalAnswerEndsWithQuestion = false,
 }) {
@@ -373,6 +421,7 @@ GoalAutoContinuePolicyInput _input({
     diagnosticRepairContinuations: diagnosticRepairContinuations,
     diagnosticRepairExtensionUsed: diagnosticRepairExtensionUsed,
     diagnosticEvidenceImproved: diagnosticEvidenceImproved,
+    validationContinuations: validationContinuations,
     noProgressStreak: noProgressStreak,
     finalAnswerEndsWithQuestion: finalAnswerEndsWithQuestion,
   );
