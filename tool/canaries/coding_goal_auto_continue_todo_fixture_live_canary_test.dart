@@ -40,6 +40,47 @@ const _verifyCommand = 'dart run tool/verify_todo_app.dart';
 const _wordFrequencyVerifyCommand =
     'dart run tool/verify_word_frequency_cli.dart';
 const _markdownTocVerifyCommand = 'dart run tool/verify_markdown_toc.dart';
+const _expenseTrackerVerifyCommand =
+    'dart run tool/verify_expense_tracker.dart';
+const _wordFrequencyFixtureSpec = _MvpFixtureSpec(
+  canaryId: 'word_frequency_cli',
+  documentName: 'word_frequency_cli.md',
+  entrypoint: 'bin/word_frequency.dart',
+  verifierCommand: _wordFrequencyVerifyCommand,
+  verifierPath: 'tool/verify_word_frequency_cli.dart',
+  verificationRootPrefix: 'word_frequency_mvp_verification_',
+  displayName: 'word-frequency',
+  failureStderr: 'Word-frequency acceptance criteria failed.\n',
+  terminalMessage:
+      'The word-frequency verifier passed. The requested work is complete.',
+  toolFailureMessage: 'Word-frequency verifier failed.',
+);
+const _expenseTrackerFixtureSpec = _MvpFixtureSpec(
+  canaryId: 'expense_tracker',
+  documentName: 'expense_tracker.md',
+  entrypoint: 'bin/expense_tracker.dart',
+  verifierCommand: _expenseTrackerVerifyCommand,
+  verifierPath: 'tool/verify_expense_tracker.dart',
+  verificationRootPrefix: 'expense_tracker_mvp_verification_',
+  displayName: 'Expense tracker',
+  failureStderr: 'Expense tracker acceptance criteria failed.\n',
+  terminalMessage:
+      'The Expense tracker verifier passed. The requested work is complete.',
+  toolFailureMessage: 'Expense tracker verifier failed.',
+);
+const _markdownTocFixtureSpec = _MvpFixtureSpec(
+  canaryId: 'markdown_toc',
+  documentName: 'markdown_toc_generator.md',
+  entrypoint: 'bin/markdown_toc.dart',
+  verifierCommand: _markdownTocVerifyCommand,
+  verifierPath: 'tool/verify_markdown_toc.dart',
+  verificationRootPrefix: 'markdown_toc_mvp_verification_',
+  displayName: 'Markdown TOC',
+  failureStderr: 'Markdown TOC acceptance criteria failed.\n',
+  terminalMessage:
+      'The Markdown TOC verifier passed. The requested work is complete.',
+  toolFailureMessage: 'Markdown TOC verifier failed.',
+);
 const _stagedFailureTurns = 2;
 const _postSuccessMutationCode = 'todo_post_success_mutation';
 const _minimalPrompt =
@@ -60,6 +101,8 @@ void main() {
       Platform.environment['CAVERNO_CODING_WORD_FREQUENCY_LIVE_CANARY'] == '1';
   final markdownTocEnabled =
       Platform.environment['CAVERNO_CODING_MARKDOWN_TOC_LIVE_CANARY'] == '1';
+  final expenseTrackerEnabled =
+      Platform.environment['CAVERNO_CODING_EXPENSE_TRACKER_LIVE_CANARY'] == '1';
 
   test('TODO fixture blocks mutations after verifier success', () async {
     final root = Directory.systemTemp.createTempSync(
@@ -180,6 +223,75 @@ void main() {
     }
   });
 
+  test('TODO commands isolate runtime state from the host profile', () async {
+    final root = Directory.systemTemp.createTempSync('todo_runtime_isolation_');
+    final hostHome =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    expect(hostHome, isNotNull);
+    final probeName =
+        '.caverno_fixture_home_probe_${DateTime.now().microsecondsSinceEpoch}_$pid';
+    final hostProbe = File('$hostHome/$probeName');
+    try {
+      Directory('${root.path}/bin').createSync(recursive: true);
+      File('${root.path}/pubspec.yaml').writeAsStringSync('name: fixture\n');
+      File('${root.path}/bin/todo_cli.dart').writeAsStringSync(r'''
+import 'dart:convert';
+import 'dart:io';
+
+void main(List<String> args) {
+  const keys = [
+    'HOME',
+    'USERPROFILE',
+    'XDG_DATA_HOME',
+    'XDG_STATE_HOME',
+    'XDG_CONFIG_HOME',
+    'APPDATA',
+    'LOCALAPPDATA',
+    'TMPDIR',
+    'TMP',
+    'TEMP',
+  ];
+  final home = Platform.environment['HOME'];
+  if (home == null || args.length != 1) {
+    exitCode = 64;
+    return;
+  }
+  File('$home/${args.single}').writeAsStringSync('isolated');
+  stdout.write(jsonEncode({
+    for (final key in keys) key: Platform.environment[key],
+  }));
+}
+''');
+      final service = _TodoToolService(root, stagedFailureTurns: 0);
+
+      final result = await service._runTodoCommand([probeName], root);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      final isolatedHome = Directory('${root.path}/.runtime_home');
+      final environment = Map<String, dynamic>.from(
+        jsonDecode(result.stdout as String) as Map,
+      );
+      expect(environment['HOME'], isolatedHome.path);
+      expect(environment['USERPROFILE'], isolatedHome.path);
+      expect(environment['XDG_DATA_HOME'], '${isolatedHome.path}/.local/share');
+      expect(
+        environment['XDG_STATE_HOME'],
+        '${isolatedHome.path}/.local/state',
+      );
+      expect(environment['XDG_CONFIG_HOME'], '${isolatedHome.path}/.config');
+      expect(environment['APPDATA'], '${isolatedHome.path}/AppData/Roaming');
+      expect(environment['LOCALAPPDATA'], '${isolatedHome.path}/AppData/Local');
+      expect(environment['TMPDIR'], '${isolatedHome.path}/.tmp');
+      expect(environment['TMP'], '${isolatedHome.path}/.tmp');
+      expect(environment['TEMP'], '${isolatedHome.path}/.tmp');
+      expect(File('${isolatedHome.path}/$probeName').existsSync(), isTrue);
+      expect(hostProbe.existsSync(), isFalse);
+    } finally {
+      if (hostProbe.existsSync()) hostProbe.deleteSync();
+      root.deleteSync(recursive: true);
+    }
+  });
+
   test(
     'TODO verifier rejects and can remove an unexpected entrypoint',
     () async {
@@ -202,15 +314,49 @@ void main() {
           verification.diagnostics.map((item) => item['code']),
           contains('todo_cli_unexpected_entrypoint'),
         );
+        final diagnostic = verification.diagnostics.singleWhere(
+          (item) => item['code'] == 'todo_cli_unexpected_entrypoint',
+        );
+        expect(diagnostic['relative_path'], 'bin/todo.dart');
+        expect(diagnostic['path'], unexpected.absolute.path);
+        expect(diagnostic['message'], contains('bin/todo.dart'));
+        expect(diagnostic['message'], isNot(contains('_mvp_verification_')));
         final deletion = await service.executeTool(
           name: 'delete_file',
-          arguments: {'path': 'bin/todo.dart'},
+          arguments: {'path': diagnostic['relative_path']},
         );
         expect(deletion.isSuccess, isTrue);
         expect(unexpected.existsSync(), isFalse);
       } finally {
         root.deleteSync(recursive: true);
       }
+    },
+  );
+
+  test(
+    'derived verifiers return repairable unexpected entrypoint paths',
+    () async {
+      await _expectRepairableUnexpectedEntrypoint<_WordFrequencyToolService>(
+        configure: _configureWordFrequencyFixture,
+        entrypoint: 'bin/word_frequency.dart',
+        code: 'word_frequency_unexpected_entrypoint',
+        createService: _WordFrequencyToolService.new,
+        verify: (service) => service.verifyWordFrequency(),
+      );
+      await _expectRepairableUnexpectedEntrypoint<_ExpenseTrackerToolService>(
+        configure: _configureExpenseTrackerFixture,
+        entrypoint: 'bin/expense_tracker.dart',
+        code: 'expense_tracker_unexpected_entrypoint',
+        createService: _ExpenseTrackerToolService.new,
+        verify: (service) => service.verifyExpenseTracker(),
+      );
+      await _expectRepairableUnexpectedEntrypoint<_MarkdownTocToolService>(
+        configure: _configureMarkdownTocFixture,
+        entrypoint: 'bin/markdown_toc.dart',
+        code: 'markdown_toc_unexpected_entrypoint',
+        createService: _MarkdownTocToolService.new,
+        verify: (service) => service.verifyMarkdownToc(),
+      );
     },
   );
 
@@ -264,6 +410,172 @@ void main(List<String> args) {
         verification.diagnostics,
         isEmpty,
         reason: verification.transcript,
+      );
+    } finally {
+      fixture.dispose();
+    }
+  });
+
+  test('Expense tracker verifier enforces canonical Dart behavior', () async {
+    final fixture = _TodoFixture.create(null);
+    try {
+      _configureExpenseTrackerFixture(fixture.root);
+      final cli = File('${fixture.root.path}/bin/expense_tracker.dart')
+        ..writeAsStringSync(r'''
+import 'dart:convert';
+import 'dart:io';
+
+File get stateFile {
+  final home = Platform.environment['HOME'] ?? '.';
+  return File('$home/.expenses.json');
+}
+
+List<Map<String, dynamic>> loadExpenses() {
+  if (!stateFile.existsSync()) return [];
+  final decoded = jsonDecode(stateFile.readAsStringSync()) as List;
+  return decoded.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+}
+
+void saveExpenses(List<Map<String, dynamic>> expenses) {
+  stateFile.writeAsStringSync(jsonEncode(expenses));
+}
+
+int? parseCents(String value) {
+  if (!RegExp(r'^\d+(?:\.\d{1,2})?$').hasMatch(value)) return null;
+  final parts = value.split('.');
+  final whole = int.parse(parts[0]);
+  final fraction = parts.length == 1 ? '' : parts[1];
+  final cents = whole * 100 + int.parse((fraction + '00').substring(0, 2));
+  return cents > 0 ? cents : null;
+}
+
+String money(int cents) =>
+    '${cents ~/ 100}.${(cents % 100).toString().padLeft(2, '0')}';
+
+String csv(String value) =>
+    value.contains(RegExp(r'[,"\r\n]')) ? '"${value.replaceAll('"', '""')}"' : value;
+
+void main(List<String> args) {
+  if (args.isEmpty) {
+    stderr.writeln('Usage: expense_tracker add|list|summary|export');
+    exitCode = 64;
+    return;
+  }
+  final expenses = loadExpenses();
+  switch (args[0]) {
+    case 'add':
+      if (args.length < 4) {
+        stderr.writeln('Usage: add <amount> <category> <note>');
+        exitCode = 64;
+        return;
+      }
+      final cents = parseCents(args[1]);
+      if (cents == null) {
+        stderr.writeln('Amount must be a positive number with up to 2 decimals.');
+        exitCode = 65;
+        return;
+      }
+      expenses.add({
+        'amount_cents': cents,
+        'category': args[2],
+        'note': args.sublist(3).join(' '),
+      });
+      saveExpenses(expenses);
+      stdout.writeln('Added ${money(cents)} ${args[2]}');
+      break;
+    case 'list':
+      for (var index = 0; index < expenses.length; index++) {
+        final item = expenses[index];
+        stdout.writeln(
+          '${index + 1} ${money(item['amount_cents'] as int)} '
+          '${item['category']} ${item['note']}',
+        );
+      }
+      break;
+    case 'summary':
+      final totals = <String, int>{};
+      for (final item in expenses) {
+        final category = item['category'] as String;
+        totals[category] =
+            (totals[category] ?? 0) + (item['amount_cents'] as int);
+      }
+      for (final category in totals.keys.toList()..sort()) {
+        stdout.writeln('$category ${money(totals[category]!)}');
+      }
+      stdout.writeln('total ${money(totals.values.fold(0, (a, b) => a + b))}');
+      break;
+    case 'export':
+      if (args.length != 2) {
+        stderr.writeln('Usage: export <path>');
+        exitCode = 64;
+        return;
+      }
+      final output = StringBuffer('amount,category,note\n');
+      for (final item in expenses) {
+        output.writeln(
+          '${money(item['amount_cents'] as int)},'
+          '${csv(item['category'] as String)},${csv(item['note'] as String)}',
+        );
+      }
+      File(args[1]).writeAsStringSync(output.toString());
+      break;
+    default:
+      stderr.writeln('Unknown command: ${args[0]}');
+      exitCode = 64;
+  }
+}
+''');
+      final service = _ExpenseTrackerToolService(fixture.root);
+
+      final verification = await service.verifyExpenseTracker();
+
+      expect(
+        verification.diagnostics,
+        isEmpty,
+        reason: verification.transcript,
+      );
+
+      final repeatedVerification = await service.verifyExpenseTracker();
+
+      expect(
+        repeatedVerification.diagnostics,
+        isEmpty,
+        reason: repeatedVerification.transcript,
+      );
+
+      final canonicalSource = cli.readAsStringSync();
+      cli.writeAsStringSync(
+        canonicalSource
+            .replaceFirst(r'\d{1,2}', r'\d{2}')
+            .replaceFirst(
+              'return cents > 0 ? cents : null;',
+              'return cents >= 0 ? cents : null;',
+            ),
+      );
+      final invalidAmountVerification = await service.verifyExpenseTracker();
+      expect(
+        invalidAmountVerification.diagnostics.map((item) => item['code']),
+        containsAll(const [
+          'expense_tracker_invalid_amount_accepted',
+          'expense_tracker_decimal_add_failed',
+        ]),
+        reason: invalidAmountVerification.transcript,
+      );
+
+      cli.writeAsStringSync(
+        canonicalSource.replaceFirst(
+          'if (!stateFile.existsSync()) return [];',
+          "if (!stateFile.existsSync()) throw StateError('missing state');",
+        ),
+      );
+      final missingStateVerification = await service.verifyExpenseTracker();
+      expect(
+        missingStateVerification.diagnostics.map((item) => item['code']),
+        containsAll(const [
+          'expense_tracker_empty_list_failed',
+          'expense_tracker_empty_summary_failed',
+        ]),
+        reason: missingStateVerification.transcript,
       );
     } finally {
       fixture.dispose();
@@ -585,16 +897,104 @@ void main() {
         : 'Set CAVERNO_CODING_MARKDOWN_TOC_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 30)),
   );
+
+  test(
+    'live LLM assembles the expense_tracker.md MVP from a short prompt',
+    _runExpenseTrackerLiveScenario,
+    skip: expenseTrackerEnabled
+        ? false
+        : 'Set CAVERNO_CODING_EXPENSE_TRACKER_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
 }
 
-Future<void> _runMarkdownTocLiveScenario() async {
+Future<void> _expectRepairableUnexpectedEntrypoint<T extends _TodoToolService>({
+  required void Function(Directory root) configure,
+  required String entrypoint,
+  required String code,
+  required T Function(Directory root) createService,
+  required Future<_TodoVerification> Function(T service) verify,
+}) async {
+  final fixture = _TodoFixture.create(null);
+  try {
+    configure(fixture.root);
+    File(
+      '${fixture.root.path}/$entrypoint',
+    ).writeAsStringSync('void main() {}');
+    final unexpected = File('${fixture.root.path}/bin/unexpected.dart')
+      ..writeAsStringSync('void main() {}');
+    final service = createService(fixture.root);
+
+    final verification = await verify(service);
+
+    final diagnostic = verification.diagnostics.singleWhere(
+      (item) => item['code'] == code,
+    );
+    expect(diagnostic['relative_path'], 'bin/unexpected.dart');
+    expect(diagnostic['path'], unexpected.absolute.path);
+    expect(diagnostic['message'], contains('bin/unexpected.dart'));
+    expect(diagnostic['message'], isNot(contains('_mvp_verification_')));
+
+    final deletion = await service.executeTool(
+      name: 'delete_file',
+      arguments: {'path': diagnostic['relative_path']},
+    );
+    expect(deletion.isSuccess, isTrue);
+    expect(unexpected.existsSync(), isFalse);
+  } finally {
+    fixture.dispose();
+  }
+}
+
+void _expectVerifiedGoalNotBlocked(
+  ProviderContainer container,
+  String diagnostic,
+) {
+  final goal = container
+      .read(conversationsNotifierProvider)
+      .currentConversation
+      ?.goal;
+  expect(goal, isNotNull, reason: diagnostic);
+  expect(
+    goal?.status,
+    isNot(ConversationGoalStatus.blocked),
+    reason: '$diagnostic\nA verified goal must not be marked blocked.',
+  );
+}
+
+Future<void> _runExpenseTrackerLiveScenario() =>
+    _runShortPromptMvpLiveScenario<_ExpenseTrackerToolService>(
+      spec: _expenseTrackerFixtureSpec,
+      createService: _ExpenseTrackerToolService.new,
+      verify: (service) => service.verifyExpenseTracker(),
+    );
+
+Future<void> _runMarkdownTocLiveScenario() =>
+    _runShortPromptMvpLiveScenario<_MarkdownTocToolService>(
+      spec: _markdownTocFixtureSpec,
+      createService: _MarkdownTocToolService.new,
+      verify: (service) => service.verifyMarkdownToc(),
+    );
+
+Future<void> _runWordFrequencyLiveScenario() =>
+    _runShortPromptMvpLiveScenario<_WordFrequencyToolService>(
+      spec: _wordFrequencyFixtureSpec,
+      createService: _WordFrequencyToolService.new,
+      verify: (service) => service.verifyWordFrequency(),
+    );
+
+Future<void> _runShortPromptMvpLiveScenario<T extends _TodoToolService>({
+  required _MvpFixtureSpec spec,
+  required T Function(Directory root) createService,
+  required Future<_TodoVerification> Function(T service) verify,
+}) async {
   final env = _TodoFixtureEnv.fromEnvironment();
   final fixture = _TodoFixture.create(env.workspaceRoot);
-  _configureMarkdownTocFixture(fixture.root);
+  _configureMvpFixture(fixture.root, spec);
   final sessionLogRoot = Directory(env.sessionLogRoot)
     ..createSync(recursive: true);
   final dataSource = _TodoAutoContinueDataSource(env, stagedFailureTurns: 0);
-  final toolService = _MarkdownTocToolService(fixture.root);
+  final toolService = createService(fixture.root);
   final container = _buildContainer(
     env: env,
     fixture: fixture,
@@ -604,91 +1004,8 @@ Future<void> _runMarkdownTocLiveScenario() async {
       rootDirectoryProvider: () async => sessionLogRoot,
     ),
   );
-  const prompt =
-      'markdown_toc_generator.md の要件に従って、DartでMVPを実装してください。'
-      '記載された受け入れ基準を実際に確認し、すべて通るまで修正してください。';
-
-  try {
-    final conversations = container.read(
-      conversationsNotifierProvider.notifier,
-    );
-    conversations.createNewConversation(
-      workspaceMode: WorkspaceMode.coding,
-      projectId: fixture.project.id,
-    );
-    await conversations.saveCurrentGoal(
-      objective: prompt,
-      enabled: true,
-      autoContinue: true,
-      status: ConversationGoalStatus.active,
-      tokenBudget: 60000,
-      turnBudget: 5,
-    );
-    await container
-        .read(chatNotifierProvider.notifier)
-        .sendMessage(prompt, bypassPlanMode: true);
-    await _waitForGoalTerminalOrIdle(container);
-
-    final verification = await toolService.verifyMarkdownToc();
-    final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
-    expect(
-      File('${fixture.root.path}/bin/markdown_toc.dart').existsSync(),
-      isTrue,
-      reason: diagnostic,
-    );
-    expect(
-      Directory(
-        '${fixture.root.path}/bin',
-      ).listSync().whereType<File>().map((file) => file.uri.pathSegments.last),
-      unorderedEquals(const ['markdown_toc.dart']),
-      reason: diagnostic,
-    );
-    expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
-    final finalGoal = container
-        .read(conversationsNotifierProvider)
-        .currentConversation
-        ?.goal;
-    expect(
-      finalGoal?.status,
-      isNot(ConversationGoalStatus.blocked),
-      reason: '$diagnostic\nA verified goal must not be marked blocked.',
-    );
-    expect(
-      toolService.postSuccessMutationAttempts,
-      isEmpty,
-      reason: diagnostic,
-    );
-    expect(
-      verification.diagnostics,
-      isEmpty,
-      reason: '$diagnostic\n${verification.transcript}',
-    );
-  } finally {
-    container.dispose();
-    fixture.dispose();
-  }
-}
-
-Future<void> _runWordFrequencyLiveScenario() async {
-  final env = _TodoFixtureEnv.fromEnvironment();
-  final fixture = _TodoFixture.create(env.workspaceRoot);
-  _configureWordFrequencyFixture(fixture.root);
-  final sessionLogRoot = Directory(env.sessionLogRoot)
-    ..createSync(recursive: true);
-  final logStore = LlmSessionLogStore(
-    rootDirectoryProvider: () async => sessionLogRoot,
-  );
-  final dataSource = _TodoAutoContinueDataSource(env, stagedFailureTurns: 0);
-  final toolService = _WordFrequencyToolService(fixture.root);
-  final container = _buildContainer(
-    env: env,
-    fixture: fixture,
-    dataSource: dataSource,
-    toolService: toolService,
-    logStore: logStore,
-  );
-  const prompt =
-      'word_frequency_cli.md の要件に従って、DartでMVPを実装してください。'
+  final prompt =
+      '${spec.documentName} の要件に従って、DartでMVPを実装してください。'
       '記載された受け入れ基準を実際に確認し、すべて通るまで修正してください。';
 
   try {
@@ -713,21 +1030,23 @@ Future<void> _runWordFrequencyLiveScenario() async {
         .sendMessage(prompt, bypassPlanMode: true);
     await _waitForGoalTerminalOrIdle(container);
 
-    final verification = await toolService.verifyWordFrequency();
+    final verification = await verify(toolService);
     final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
     expect(
-      File('${fixture.root.path}/bin/word_frequency.dart').existsSync(),
+      File('${fixture.root.path}/${spec.entrypoint}').existsSync(),
       isTrue,
       reason: diagnostic,
     );
+    final entrypointName = spec.entrypoint.split('/').last;
     expect(
       Directory(
         '${fixture.root.path}/bin',
       ).listSync().whereType<File>().map((file) => file.uri.pathSegments.last),
-      unorderedEquals(const ['word_frequency.dart']),
+      unorderedEquals([entrypointName]),
       reason: diagnostic,
     );
     expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
+    _expectVerifiedGoalNotBlocked(container, diagnostic);
     expect(
       toolService.postSuccessMutationAttempts,
       isEmpty,
@@ -744,33 +1063,26 @@ Future<void> _runWordFrequencyLiveScenario() async {
   }
 }
 
-void _configureWordFrequencyFixture(Directory root) {
-  File('${root.path}/todo_app.md').deleteSync();
-  File('${root.path}/tool/verify_todo_app.dart').deleteSync();
-  final source = File('docs/coding_mvp_fixtures/word_frequency_cli.md');
-  if (!source.existsSync()) {
-    throw StateError('word_frequency_cli.md fixture is required.');
-  }
-  File(
-    '${root.path}/word_frequency_cli.md',
-  ).writeAsStringSync(source.readAsStringSync());
-  File('${root.path}/tool/verify_word_frequency_cli.dart').writeAsStringSync('''
-// Live canary placeholder. The harness intercepts this verifier command.
-void main() {}
-''');
-}
+void _configureWordFrequencyFixture(Directory root) =>
+    _configureMvpFixture(root, _wordFrequencyFixtureSpec);
 
-void _configureMarkdownTocFixture(Directory root) {
+void _configureExpenseTrackerFixture(Directory root) =>
+    _configureMvpFixture(root, _expenseTrackerFixtureSpec);
+
+void _configureMarkdownTocFixture(Directory root) =>
+    _configureMvpFixture(root, _markdownTocFixtureSpec);
+
+void _configureMvpFixture(Directory root, _MvpFixtureSpec spec) {
   File('${root.path}/todo_app.md').deleteSync();
   File('${root.path}/tool/verify_todo_app.dart').deleteSync();
-  final source = File('docs/coding_mvp_fixtures/markdown_toc_generator.md');
+  final source = File('docs/coding_mvp_fixtures/${spec.documentName}');
   if (!source.existsSync()) {
-    throw StateError('markdown_toc_generator.md fixture is required.');
+    throw StateError('${spec.documentName} fixture is required.');
   }
   File(
-    '${root.path}/markdown_toc_generator.md',
+    '${root.path}/${spec.documentName}',
   ).writeAsStringSync(source.readAsStringSync());
-  File('${root.path}/tool/verify_markdown_toc.dart').writeAsStringSync('''
+  File('${root.path}/${spec.verifierPath}').writeAsStringSync('''
 // Live canary placeholder. The harness intercepts this verifier command.
 void main() {}
 ''');
@@ -834,7 +1146,7 @@ Future<void> _runTodoMvpLiveScenario(String prompt) async {
       unorderedEquals(const ['todo_cli.dart']),
       reason: diagnostic,
     );
-    expect(conversation.goal, isNotNull, reason: diagnostic);
+    _expectVerifiedGoalNotBlocked(container, diagnostic);
     expect(
       conversation.effectiveWorkflowSpec.sources.map((source) => source.kind),
       containsAll(<ConversationContractSourceKind>{
@@ -1923,29 +2235,13 @@ class _TodoToolService extends McpToolService {
       );
       return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
-    final unexpectedEntrypoints = Directory('${verificationRoot.path}/bin')
-        .listSync()
-        .whereType<File>()
-        .where(
-          (file) =>
-              file.path.endsWith('.dart') &&
-              file.absolute.path != cli.absolute.path,
-        )
-        .toList(growable: false);
-    if (unexpectedEntrypoints.isNotEmpty) {
-      for (final file in unexpectedEntrypoints) {
-        final relativePath = file.absolute.path
-            .substring(verificationRoot.absolute.path.length + 1)
-            .replaceAll(Platform.pathSeparator, '/');
-        diagnostics.add(
-          _diagnosticJson(
-            code: 'todo_cli_unexpected_entrypoint',
-            message:
-                'Unexpected Dart entrypoint $relativePath. Keep only bin/todo_cli.dart and remove this file with delete_file.',
-            relativePath: relativePath,
-          ),
-        );
-      }
+    final unexpectedEntrypointDiagnostics = _unexpectedEntrypointDiagnostics(
+      work: verificationRoot,
+      expectedRelativePath: 'bin/todo_cli.dart',
+      code: 'todo_cli_unexpected_entrypoint',
+    );
+    if (unexpectedEntrypointDiagnostics.isNotEmpty) {
+      diagnostics.addAll(unexpectedEntrypointDiagnostics);
       return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
 
@@ -2153,10 +2449,44 @@ class _TodoToolService extends McpToolService {
     final processArgs = usePub
         ? ['run', 'bin/todo_cli.dart', ...args]
         : ['bin/todo_cli.dart', ...args];
+    return _runIsolatedDartCommand(processArgs, verificationRoot);
+  }
+
+  Future<ProcessResult> _runIsolatedDartCommand(
+    List<String> processArgs,
+    Directory work,
+  ) {
+    final runtimeHome = Directory('${work.path}/.runtime_home')
+      ..createSync(recursive: true);
+    final dataHome = Directory('${runtimeHome.path}/.local/share')
+      ..createSync(recursive: true);
+    final stateHome = Directory('${runtimeHome.path}/.local/state')
+      ..createSync(recursive: true);
+    final configHome = Directory('${runtimeHome.path}/.config')
+      ..createSync(recursive: true);
+    final appData = Directory('${runtimeHome.path}/AppData/Roaming')
+      ..createSync(recursive: true);
+    final localAppData = Directory('${runtimeHome.path}/AppData/Local')
+      ..createSync(recursive: true);
+    final tempDirectory = Directory('${runtimeHome.path}/.tmp')
+      ..createSync(recursive: true);
     return Process.run(
       'dart',
       processArgs,
-      workingDirectory: verificationRoot.path,
+      workingDirectory: work.path,
+      environment: {
+        ...Platform.environment,
+        'HOME': runtimeHome.path,
+        'USERPROFILE': runtimeHome.path,
+        'XDG_DATA_HOME': dataHome.path,
+        'XDG_STATE_HOME': stateHome.path,
+        'XDG_CONFIG_HOME': configHome.path,
+        'APPDATA': appData.path,
+        'LOCALAPPDATA': localAppData.path,
+        'TMPDIR': tempDirectory.path,
+        'TMP': tempDirectory.path,
+        'TEMP': tempDirectory.path,
+      },
     ).timeout(const Duration(seconds: 20));
   }
 
@@ -2290,6 +2620,45 @@ class _TodoToolService extends McpToolService {
     };
   }
 
+  List<Map<String, dynamic>> _unexpectedEntrypointDiagnostics({
+    required Directory work,
+    required String expectedRelativePath,
+    required String code,
+  }) {
+    final expected = File('${work.path}/$expectedRelativePath').absolute;
+    return expected.parent
+        .listSync()
+        .whereType<File>()
+        .where(
+          (file) =>
+              file.path.endsWith('.dart') &&
+              file.absolute.path != expected.path,
+        )
+        .map((file) {
+          final relativePath = _relativePathInside(work, file);
+          return _diagnosticJson(
+            code: code,
+            message:
+                'Unexpected Dart entrypoint $relativePath. Keep only '
+                '$expectedRelativePath and remove this file with delete_file.',
+            relativePath: relativePath,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  String _relativePathInside(Directory base, File file) {
+    final basePath = base.absolute.path;
+    final filePath = file.absolute.path;
+    final prefix = '$basePath${Platform.pathSeparator}';
+    if (!filePath.startsWith(prefix)) {
+      throw StateError('Expected ${file.path} to stay inside ${base.path}.');
+    }
+    return filePath
+        .substring(prefix.length)
+        .replaceAll(Platform.pathSeparator, '/');
+  }
+
   _ResolvedPath _resolveInsideRoot(
     String? rawPath, {
     bool allowEmpty = false,
@@ -2355,18 +2724,21 @@ class _TodoToolService extends McpToolService {
   }
 }
 
-class _WordFrequencyToolService extends _TodoToolService {
-  _WordFrequencyToolService(super.root) : super(stagedFailureTurns: 0);
+abstract class _DerivedMvpToolService extends _TodoToolService {
+  _DerivedMvpToolService(super.root, this.fixtureSpec)
+    : super(stagedFailureTurns: 0);
+
+  final _MvpFixtureSpec fixtureSpec;
 
   @override
   bool get hasSuccessfulVerifierCall => executedCalls.any((call) {
     final result = _tryDecodeObject(call.result);
     return call.name == 'local_execute_command' &&
-        result['canary'] == 'word_frequency_cli' &&
+        result['canary'] == fixtureSpec.canaryId &&
         result['exit_code'] == 0;
   });
 
-  Future<_TodoVerification> verifyWordFrequency() => _verifyTodoApp();
+  Future<_TodoVerification> verifyFixture() => _verifyTodoApp();
 
   @override
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
@@ -2375,8 +2747,8 @@ class _WordFrequencyToolService extends _TodoToolService {
       final function = definition['function'] as Map<String, dynamic>;
       if (function['name'] == 'local_execute_command') {
         function['description'] =
-            'Run the word-frequency fixture verifier. Accepted command: '
-            '$_wordFrequencyVerifyCommand.';
+            'Run the ${fixtureSpec.displayName} fixture verifier. '
+            'Accepted command: ${fixtureSpec.verifierCommand}.';
       }
     }
     return definitions;
@@ -2384,7 +2756,7 @@ class _WordFrequencyToolService extends _TodoToolService {
 
   @override
   bool _isProtectedVerifierPath(String path) {
-    return _relativePath(path) == 'tool/verify_word_frequency_cli.dart';
+    return _relativePath(path) == fixtureSpec.verifierPath;
   }
 
   @override
@@ -2395,10 +2767,11 @@ class _WordFrequencyToolService extends _TodoToolService {
     final command = (arguments['command'] as String? ?? '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    if (command != _wordFrequencyVerifyCommand) {
+    if (command != fixtureSpec.verifierCommand) {
       return _toolError(
         name,
-        'Unsupported command for this word-frequency fixture: $command',
+        'Unsupported command for this ${fixtureSpec.displayName} fixture: '
+        '$command',
       );
     }
     final workingDirectory = _resolveInsideRoot(
@@ -2420,22 +2793,24 @@ class _WordFrequencyToolService extends _TodoToolService {
   Future<_TodoVerification> _verifyTodoApp() async {
     final verificationRoot = _createVerificationRoot();
     try {
-      return await _verifyWordFrequencyIn(verificationRoot);
+      return await verifyFixtureIn(verificationRoot);
     } finally {
-      verificationRoot.deleteSync(recursive: true);
+      if (verificationRoot.existsSync()) {
+        verificationRoot.deleteSync(recursive: true);
+      }
     }
   }
 
   @override
   Directory _createVerificationRoot() {
     final verificationRoot = Directory.systemTemp.createTempSync(
-      'word_frequency_mvp_verification_',
+      fixtureSpec.verificationRootPrefix,
     );
     for (final entity in root.listSync(recursive: true, followLinks: false)) {
       if (entity is! File) continue;
       final relativePath = _relativePath(entity.path);
       if (relativePath == null ||
-          relativePath == 'tool/verify_word_frequency_cli.dart' ||
+          relativePath == fixtureSpec.verifierPath ||
           (relativePath != 'pubspec.yaml' && !relativePath.endsWith('.dart'))) {
         continue;
       }
@@ -2446,7 +2821,56 @@ class _WordFrequencyToolService extends _TodoToolService {
     return verificationRoot;
   }
 
-  Future<_TodoVerification> _verifyWordFrequencyIn(Directory work) async {
+  Future<_TodoVerification> verifyFixtureIn(Directory work);
+
+  @override
+  McpToolResult _verifierResult(String name, _TodoVerification verification) {
+    final exitCode = verification.diagnostics.isEmpty ? 0 : 1;
+    final payload = jsonEncode({
+      'canary': fixtureSpec.canaryId,
+      'command': fixtureSpec.verifierCommand,
+      'working_directory': root.absolute.path,
+      'exit_code': exitCode,
+      'stdout': verification.transcript,
+      'stderr': exitCode == 0 ? '' : fixtureSpec.failureStderr,
+      'diagnostics': verification.diagnostics,
+      if (exitCode == 0) ...{
+        'terminal_success': true,
+        'terminal_message': fixtureSpec.terminalMessage,
+      },
+    });
+    return McpToolResult(
+      toolName: name,
+      result: payload,
+      isSuccess: exitCode == 0,
+      errorMessage: exitCode == 0 ? null : fixtureSpec.toolFailureMessage,
+    );
+  }
+
+  @override
+  Map<String, dynamic> _diagnosticJson({
+    required String code,
+    required String message,
+    String relativePath = '',
+  }) {
+    return super._diagnosticJson(
+      code: code,
+      message: message,
+      relativePath: relativePath.isEmpty
+          ? fixtureSpec.entrypoint
+          : relativePath,
+    );
+  }
+}
+
+class _WordFrequencyToolService extends _DerivedMvpToolService {
+  _WordFrequencyToolService(Directory root)
+    : super(root, _wordFrequencyFixtureSpec);
+
+  Future<_TodoVerification> verifyWordFrequency() => verifyFixture();
+
+  @override
+  Future<_TodoVerification> verifyFixtureIn(Directory work) async {
     final diagnostics = <Map<String, dynamic>>[];
     final transcript = StringBuffer();
     final cli = File('${work.path}/bin/word_frequency.dart');
@@ -2459,17 +2883,14 @@ class _WordFrequencyToolService extends _TodoToolService {
       );
       return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
-    final unexpected = Directory('${work.path}/bin')
-        .listSync()
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.dart') && file.path != cli.path);
-    for (final file in unexpected) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'word_frequency_unexpected_entrypoint',
-          message: 'Remove unexpected entrypoint ${file.path}.',
-        ),
-      );
+    final unexpectedEntrypointDiagnostics = _unexpectedEntrypointDiagnostics(
+      work: work,
+      expectedRelativePath: 'bin/word_frequency.dart',
+      code: 'word_frequency_unexpected_entrypoint',
+    );
+    if (unexpectedEntrypointDiagnostics.isNotEmpty) {
+      diagnostics.addAll(unexpectedEntrypointDiagnostics);
+      return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
 
     File(
@@ -2584,11 +3005,11 @@ class _WordFrequencyToolService extends _TodoToolService {
   }
 
   Future<ProcessResult> _runWordCommand(List<String> args, Directory work) {
-    return Process.run('dart', [
+    return _runIsolatedDartCommand([
       'run',
       'bin/word_frequency.dart',
       ...args,
-    ], workingDirectory: work.path).timeout(const Duration(seconds: 20));
+    ], work);
   }
 
   Future<ProcessResult> _runWordCommandWithTopN(
@@ -2615,140 +3036,309 @@ class _WordFrequencyToolService extends _TodoToolService {
     }
     return lastResult!;
   }
+}
+
+class _ExpenseTrackerToolService extends _DerivedMvpToolService {
+  _ExpenseTrackerToolService(Directory root)
+    : super(root, _expenseTrackerFixtureSpec);
+
+  Future<_TodoVerification> verifyExpenseTracker() => verifyFixture();
 
   @override
-  McpToolResult _verifierResult(String name, _TodoVerification verification) {
-    final exitCode = verification.diagnostics.isEmpty ? 0 : 1;
-    final payload = jsonEncode({
-      'canary': 'word_frequency_cli',
-      'command': _wordFrequencyVerifyCommand,
-      'working_directory': root.absolute.path,
-      'exit_code': exitCode,
-      'stdout': verification.transcript,
-      'stderr': exitCode == 0
-          ? ''
-          : 'Word-frequency acceptance criteria failed.\n',
-      'diagnostics': verification.diagnostics,
-      if (exitCode == 0) ...{
-        'terminal_success': true,
-        'terminal_message':
-            'The word-frequency verifier passed. The requested work is complete.',
-      },
-    });
-    return McpToolResult(
-      toolName: name,
-      result: payload,
-      isSuccess: exitCode == 0,
-      errorMessage: exitCode == 0 ? null : 'Word-frequency verifier failed.',
+  Future<_TodoVerification> verifyFixtureIn(Directory work) async {
+    final diagnostics = <Map<String, dynamic>>[];
+    final transcript = StringBuffer();
+    final cli = File('${work.path}/bin/expense_tracker.dart');
+    if (!cli.existsSync()) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'expense_tracker_cli_missing',
+          message: 'bin/expense_tracker.dart does not exist.',
+        ),
+      );
+      return _TodoVerification(diagnostics: diagnostics, transcript: '');
+    }
+    final unexpectedEntrypointDiagnostics = _unexpectedEntrypointDiagnostics(
+      work: work,
+      expectedRelativePath: 'bin/expense_tracker.dart',
+      code: 'expense_tracker_unexpected_entrypoint',
+    );
+    if (unexpectedEntrypointDiagnostics.isNotEmpty) {
+      diagnostics.addAll(unexpectedEntrypointDiagnostics);
+      return _TodoVerification(diagnostics: diagnostics, transcript: '');
+    }
+
+    final emptyList = await _runExpenseCommand(['list'], work);
+    transcript.writeln(_formatProcess('empty list', emptyList));
+    if (emptyList.exitCode != 0 ||
+        _looksLikeStackTrace(_processText(emptyList))) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'expense_tracker_empty_list_failed',
+          message: 'Listing with no state file must succeed without crashing.',
+        ),
+      );
+    }
+    final emptySummary = await _runExpenseCommand(['summary'], work);
+    transcript.writeln(_formatProcess('empty summary', emptySummary));
+    final emptySummaryOutput = _processText(emptySummary);
+    if (emptySummary.exitCode != 0 ||
+        _looksLikeStackTrace(emptySummaryOutput) ||
+        !_hasAmount(emptySummaryOutput, 'total', '0.00')) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'expense_tracker_empty_summary_failed',
+          message:
+              'Summary with no state file must succeed and report total 0.00.',
+        ),
+      );
+    }
+
+    final baselineAdds = <List<String>>[
+      ['add', '10.00', 'food', 'lunch'],
+      ['add', '5.50', 'food', 'coffee'],
+      ['add', '20.00', 'transport', 'taxi'],
+    ];
+    for (final args in baselineAdds) {
+      final result = await _runExpenseCommand(args, work);
+      transcript.writeln(_formatProcess(args.join(' '), result));
+      if (result.exitCode != 0) {
+        diagnostics.add(
+          _diagnosticJson(
+            code: 'expense_tracker_add_failed',
+            message: 'A valid expense was rejected: ${args.join(' ')}.',
+          ),
+        );
+      }
+    }
+
+    final baselineSummary = await _runExpenseCommand(['summary'], work);
+    transcript.writeln(_formatProcess('baseline summary', baselineSummary));
+    final baselineOutput = _processText(baselineSummary);
+    if (baselineSummary.exitCode != 0 ||
+        !_hasAmount(baselineOutput, 'food', '15.50') ||
+        !_hasAmount(baselineOutput, 'transport', '20.00') ||
+        !_hasAmount(baselineOutput, 'total', '35.50')) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'expense_tracker_baseline_summary_failed',
+          message:
+              'Summary must report food 15.50, transport 20.00, and total 35.50.',
+        ),
+      );
+    }
+
+    final beforeInvalid = await _runExpenseCommand(['list'], work);
+    transcript.writeln(
+      _formatProcess('list before invalid input', beforeInvalid),
+    );
+    for (final args in const <List<String>>[
+      ['add', '-5', 'food', 'invalid negative'],
+      ['add', 'abc', 'food', 'invalid text'],
+      ['add', '0', 'food', 'invalid zero'],
+      ['add', '0.00', 'food', 'invalid zero decimal'],
+    ]) {
+      final result = await _runExpenseCommand(args, work);
+      transcript.writeln(_formatProcess(args.join(' '), result));
+      if (result.exitCode == 0 || _processText(result).trim().isEmpty) {
+        diagnostics.add(
+          _diagnosticJson(
+            code: 'expense_tracker_invalid_amount_accepted',
+            message:
+                'Zero, negative, and non-numeric amounts must fail with a clear message.',
+          ),
+        );
+      }
+    }
+    final afterInvalid = await _runExpenseCommand(['list'], work);
+    transcript.writeln(
+      _formatProcess('list after invalid input', afterInvalid),
+    );
+    if (beforeInvalid.exitCode != 0 ||
+        afterInvalid.exitCode != 0 ||
+        beforeInvalid.stdout.toString().trim() !=
+            afterInvalid.stdout.toString().trim()) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'expense_tracker_invalid_amount_mutated_state',
+          message: 'Rejected amounts must not add or change any expense.',
+        ),
+      );
+    }
+
+    for (final args in const <List<String>>[
+      ['add', '0.1', 'food', 'decimal a'],
+      ['add', '0.2', 'food', 'decimal b'],
+    ]) {
+      final result = await _runExpenseCommand(args, work);
+      transcript.writeln(_formatProcess(args.join(' '), result));
+      if (result.exitCode != 0) {
+        diagnostics.add(
+          _diagnosticJson(
+            code: 'expense_tracker_decimal_add_failed',
+            message: 'Valid one- and two-decimal amounts must be accepted.',
+          ),
+        );
+      }
+    }
+    final decimalSummary = await _runExpenseCommand(['summary'], work);
+    transcript.writeln(_formatProcess('decimal summary', decimalSummary));
+    final decimalOutput = _processText(decimalSummary);
+    if (decimalSummary.exitCode != 0 ||
+        !_hasAmount(decimalOutput, 'food', '15.80') ||
+        !_hasAmount(decimalOutput, 'transport', '20.00') ||
+        !_hasAmount(decimalOutput, 'total', '35.80')) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'expense_tracker_decimal_or_total_failed',
+          message:
+              'Exact decimal aggregation must report food 15.80 and total 35.80.',
+        ),
+      );
+    }
+
+    const quotedNote = 'dinner, "with" team';
+    final quotedAdd = await _runExpenseCommand([
+      'add',
+      '3.00',
+      'misc',
+      quotedNote,
+    ], work);
+    transcript.writeln(_formatProcess('add quoted CSV note', quotedAdd));
+    final export = await _runExpenseCommand(['export', 'out.csv'], work);
+    transcript.writeln(_formatProcess('export out.csv', export));
+    final csvFile = File('${work.path}/out.csv');
+    if (quotedAdd.exitCode != 0 ||
+        export.exitCode != 0 ||
+        !csvFile.existsSync() ||
+        !_csvContainsExpense(csvFile, '3.00', 'misc', quotedNote)) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'expense_tracker_csv_quoting_failed',
+          message:
+              'CSV export must preserve comma and quote characters in one note field.',
+        ),
+      );
+    }
+
+    final freshList = await _runExpenseCommand(['list'], work);
+    transcript.writeln(_formatProcess('fresh-process list', freshList));
+    final freshOutput = _processText(freshList);
+    if (freshList.exitCode != 0 ||
+        !freshOutput.contains('lunch') ||
+        !freshOutput.contains('coffee') ||
+        !freshOutput.contains('taxi') ||
+        !freshOutput.contains('dinner')) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'expense_tracker_persistence_failed',
+          message:
+              'A fresh process must list expenses recorded by earlier processes.',
+        ),
+      );
+    }
+
+    return _TodoVerification(
+      diagnostics: diagnostics,
+      transcript: transcript.toString(),
     );
   }
 
-  @override
-  Map<String, dynamic> _diagnosticJson({
-    required String code,
-    required String message,
-    String relativePath = 'bin/word_frequency.dart',
-  }) {
-    return super._diagnosticJson(
-      code: code,
-      message: message,
-      relativePath: relativePath,
-    );
+  Future<ProcessResult> _runExpenseCommand(List<String> args, Directory work) {
+    return _runIsolatedDartCommand([
+      'run',
+      'bin/expense_tracker.dart',
+      ...args,
+    ], work);
+  }
+
+  String _processText(ProcessResult result) {
+    return '${result.stdout}\n${result.stderr}'.toLowerCase();
+  }
+
+  bool _hasAmount(String output, String label, String amount) {
+    return const LineSplitter().convert(output).any((line) {
+      return RegExp(
+        '\\b${RegExp.escape(label)}\\b.*(?:^|[^0-9])${RegExp.escape(amount)}(?![0-9])',
+      ).hasMatch(line);
+    });
+  }
+
+  bool _csvContainsExpense(
+    File file,
+    String amount,
+    String category,
+    String note,
+  ) {
+    final rows = _parseCsv(file.readAsStringSync());
+    if (rows.length < 2) return false;
+    final header = rows.first
+        .map((value) => value.trim().toLowerCase())
+        .toList();
+    final amountIndex = header.indexOf('amount');
+    final categoryIndex = header.indexOf('category');
+    final noteIndex = header.indexOf('note');
+    if (amountIndex < 0 || categoryIndex < 0 || noteIndex < 0) return false;
+    return rows.skip(1).any((row) {
+      final maxIndex = [
+        amountIndex,
+        categoryIndex,
+        noteIndex,
+      ].reduce((left, right) => left > right ? left : right);
+      return row.length > maxIndex &&
+          row[amountIndex].replaceAll(RegExp(r'[^0-9.]'), '') == amount &&
+          row[categoryIndex] == category &&
+          row[noteIndex] == note;
+    });
+  }
+
+  List<List<String>> _parseCsv(String input) {
+    final rows = <List<String>>[];
+    var row = <String>[];
+    final field = StringBuffer();
+    var quoted = false;
+    for (var index = 0; index < input.length; index++) {
+      final character = input[index];
+      if (character == '"') {
+        if (quoted && index + 1 < input.length && input[index + 1] == '"') {
+          field.write('"');
+          index += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (character == ',' && !quoted) {
+        row.add(field.toString());
+        field.clear();
+      } else if ((character == '\n' || character == '\r') && !quoted) {
+        if (character == '\r' &&
+            index + 1 < input.length &&
+            input[index + 1] == '\n') {
+          index += 1;
+        }
+        row.add(field.toString());
+        field.clear();
+        if (row.any((value) => value.isNotEmpty)) rows.add(row);
+        row = <String>[];
+      } else {
+        field.write(character);
+      }
+    }
+    if (field.isNotEmpty || row.isNotEmpty) {
+      row.add(field.toString());
+      rows.add(row);
+    }
+    return rows;
   }
 }
 
-class _MarkdownTocToolService extends _TodoToolService {
-  _MarkdownTocToolService(super.root) : super(stagedFailureTurns: 0);
+class _MarkdownTocToolService extends _DerivedMvpToolService {
+  _MarkdownTocToolService(Directory root)
+    : super(root, _markdownTocFixtureSpec);
+
+  Future<_TodoVerification> verifyMarkdownToc() => verifyFixture();
 
   @override
-  bool get hasSuccessfulVerifierCall => executedCalls.any((call) {
-    final result = _tryDecodeObject(call.result);
-    return call.name == 'local_execute_command' &&
-        result['canary'] == 'markdown_toc' &&
-        result['exit_code'] == 0;
-  });
-
-  Future<_TodoVerification> verifyMarkdownToc() => _verifyTodoApp();
-
-  @override
-  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
-    final definitions = super.getOpenAiToolDefinitions();
-    for (final definition in definitions) {
-      final function = definition['function'] as Map<String, dynamic>;
-      if (function['name'] == 'local_execute_command') {
-        function['description'] =
-            'Run the Markdown TOC fixture verifier. Accepted command: '
-            '$_markdownTocVerifyCommand.';
-      }
-    }
-    return definitions;
-  }
-
-  @override
-  bool _isProtectedVerifierPath(String path) {
-    return _relativePath(path) == 'tool/verify_markdown_toc.dart';
-  }
-
-  @override
-  Future<McpToolResult> _executeVerifier(
-    String name,
-    Map<String, dynamic> arguments,
-  ) async {
-    final command = (arguments['command'] as String? ?? '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    if (command != _markdownTocVerifyCommand) {
-      return _toolError(
-        name,
-        'Unsupported command for this Markdown TOC fixture: $command',
-      );
-    }
-    final workingDirectory = _resolveInsideRoot(
-      arguments['working_directory'] as String?,
-      allowEmpty: true,
-      directory: true,
-    );
-    if (workingDirectory.error != null) {
-      return _toolError(name, workingDirectory.error!);
-    }
-    if (workingDirectory.value != root.absolute.path) {
-      return _toolError(name, 'working_directory must be the fixture root.');
-    }
-    verificationAttempts += 1;
-    return _verifierResult(name, await _verifyTodoApp());
-  }
-
-  @override
-  Future<_TodoVerification> _verifyTodoApp() async {
-    final verificationRoot = _createVerificationRoot();
-    try {
-      return await _verifyMarkdownTocIn(verificationRoot);
-    } finally {
-      verificationRoot.deleteSync(recursive: true);
-    }
-  }
-
-  @override
-  Directory _createVerificationRoot() {
-    final verificationRoot = Directory.systemTemp.createTempSync(
-      'markdown_toc_mvp_verification_',
-    );
-    for (final entity in root.listSync(recursive: true, followLinks: false)) {
-      if (entity is! File) continue;
-      final relativePath = _relativePath(entity.path);
-      if (relativePath == null ||
-          relativePath == 'tool/verify_markdown_toc.dart' ||
-          (relativePath != 'pubspec.yaml' && !relativePath.endsWith('.dart'))) {
-        continue;
-      }
-      final target = File('${verificationRoot.path}/$relativePath');
-      target.parent.createSync(recursive: true);
-      target.writeAsBytesSync(entity.readAsBytesSync());
-    }
-    return verificationRoot;
-  }
-
-  Future<_TodoVerification> _verifyMarkdownTocIn(Directory work) async {
+  Future<_TodoVerification> verifyFixtureIn(Directory work) async {
     final diagnostics = <Map<String, dynamic>>[];
     final transcript = StringBuffer();
     final cli = File('${work.path}/bin/markdown_toc.dart');
@@ -2761,17 +3351,14 @@ class _MarkdownTocToolService extends _TodoToolService {
       );
       return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
-    final unexpected = Directory('${work.path}/bin')
-        .listSync()
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.dart') && file.path != cli.path);
-    for (final file in unexpected) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'markdown_toc_unexpected_entrypoint',
-          message: 'Remove unexpected entrypoint ${file.path}.',
-        ),
-      );
+    final unexpectedEntrypointDiagnostics = _unexpectedEntrypointDiagnostics(
+      work: work,
+      expectedRelativePath: 'bin/markdown_toc.dart',
+      code: 'markdown_toc_unexpected_entrypoint',
+    );
+    if (unexpectedEntrypointDiagnostics.isNotEmpty) {
+      diagnostics.addAll(unexpectedEntrypointDiagnostics);
+      return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
 
     File('${work.path}/sample.md').writeAsStringSync(r'''
@@ -2916,51 +3503,11 @@ class _MarkdownTocToolService extends _TodoToolService {
     List<String> args,
     Directory work,
   ) {
-    return Process.run('dart', [
+    return _runIsolatedDartCommand([
       'run',
       'bin/markdown_toc.dart',
       ...args,
-    ], workingDirectory: work.path).timeout(const Duration(seconds: 20));
-  }
-
-  @override
-  McpToolResult _verifierResult(String name, _TodoVerification verification) {
-    final exitCode = verification.diagnostics.isEmpty ? 0 : 1;
-    final payload = jsonEncode({
-      'canary': 'markdown_toc',
-      'command': _markdownTocVerifyCommand,
-      'working_directory': root.absolute.path,
-      'exit_code': exitCode,
-      'stdout': verification.transcript,
-      'stderr': exitCode == 0
-          ? ''
-          : 'Markdown TOC acceptance criteria failed.\n',
-      'diagnostics': verification.diagnostics,
-      if (exitCode == 0) ...{
-        'terminal_success': true,
-        'terminal_message':
-            'The Markdown TOC verifier passed. The requested work is complete.',
-      },
-    });
-    return McpToolResult(
-      toolName: name,
-      result: payload,
-      isSuccess: exitCode == 0,
-      errorMessage: exitCode == 0 ? null : 'Markdown TOC verifier failed.',
-    );
-  }
-
-  @override
-  Map<String, dynamic> _diagnosticJson({
-    required String code,
-    required String message,
-    String relativePath = 'bin/markdown_toc.dart',
-  }) {
-    return super._diagnosticJson(
-      code: code,
-      message: message,
-      relativePath: relativePath,
-    );
+    ], work);
   }
 }
 
@@ -2972,6 +3519,32 @@ class _TodoVerification {
 
   final List<Map<String, dynamic>> diagnostics;
   final String transcript;
+}
+
+class _MvpFixtureSpec {
+  const _MvpFixtureSpec({
+    required this.canaryId,
+    required this.documentName,
+    required this.entrypoint,
+    required this.verifierCommand,
+    required this.verifierPath,
+    required this.verificationRootPrefix,
+    required this.displayName,
+    required this.failureStderr,
+    required this.terminalMessage,
+    required this.toolFailureMessage,
+  });
+
+  final String canaryId;
+  final String documentName;
+  final String entrypoint;
+  final String verifierCommand;
+  final String verifierPath;
+  final String verificationRootPrefix;
+  final String displayName;
+  final String failureStderr;
+  final String terminalMessage;
+  final String toolFailureMessage;
 }
 
 class _ResolvedPath {
