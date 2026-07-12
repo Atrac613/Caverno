@@ -83,7 +83,9 @@ const _markdownTocFixtureSpec = _MvpFixtureSpec(
 );
 const _stagedFailureTurns = 2;
 const _postSuccessMutationCode = 'todo_post_success_mutation';
-const _minimalPrompt = 'todo_app.md を参考にしてMVPを実装。言語はdartとする。';
+
+String _exactShortMvpPrompt(String documentName) =>
+    '$documentName を参考にしてMVPを実装。言語はdartとする。';
 
 void main() {
   final originalHttpOverrides = HttpOverrides.current;
@@ -102,6 +104,10 @@ void main() {
       Platform.environment['CAVERNO_CODING_WORD_FREQUENCY_LIVE_CANARY'] == '1';
   final markdownTocEnabled =
       Platform.environment['CAVERNO_CODING_MARKDOWN_TOC_LIVE_CANARY'] == '1';
+  final markdownTocExactShortEnabled =
+      Platform
+          .environment['CAVERNO_CODING_MARKDOWN_TOC_EXACT_SHORT_LIVE_CANARY'] ==
+      '1';
   final expenseTrackerEnabled =
       Platform.environment['CAVERNO_CODING_EXPENSE_TRACKER_LIVE_CANARY'] == '1';
 
@@ -874,7 +880,7 @@ void main() {
 
   test(
     'live LLM assembles the todo_app.md MVP from the minimal Japanese prompt',
-    () => _runTodoMvpLiveScenario(_minimalPrompt),
+    () => _runTodoMvpLiveScenario(_exactShortMvpPrompt('todo_app.md')),
     skip: minimalPromptEnabled
         ? false
         : 'Set CAVERNO_CODING_TODO_APP_MINIMAL_PROMPT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
@@ -896,6 +902,15 @@ void main() {
     skip: markdownTocEnabled
         ? false
         : 'Set CAVERNO_CODING_MARKDOWN_TOC_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
+
+  test(
+    'live LLM assembles the markdown_toc_generator.md MVP from the exact short prompt',
+    _runMarkdownTocExactShortLiveScenario,
+    skip: markdownTocExactShortEnabled
+        ? false
+        : 'Set CAVERNO_CODING_MARKDOWN_TOC_EXACT_SHORT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 30)),
   );
 
@@ -977,6 +992,14 @@ Future<void> _runMarkdownTocLiveScenario() =>
       verify: (service) => service.verifyMarkdownToc(),
     );
 
+Future<void> _runMarkdownTocExactShortLiveScenario() =>
+    _runShortPromptMvpLiveScenario<_MarkdownTocToolService>(
+      spec: _markdownTocFixtureSpec,
+      createService: _MarkdownTocToolService.new,
+      verify: (service) => service.verifyMarkdownToc(),
+      prompt: _exactShortMvpPrompt(_markdownTocFixtureSpec.documentName),
+    );
+
 Future<void> _runWordFrequencyLiveScenario() =>
     _runShortPromptMvpLiveScenario<_WordFrequencyToolService>(
       spec: _wordFrequencyFixtureSpec,
@@ -988,6 +1011,7 @@ Future<void> _runShortPromptMvpLiveScenario<T extends _TodoToolService>({
   required _MvpFixtureSpec spec,
   required T Function(Directory root) createService,
   required Future<_TodoVerification> Function(T service) verify,
+  String? prompt,
 }) async {
   final env = _TodoFixtureEnv.fromEnvironment();
   final fixture = _TodoFixture.create(env.workspaceRoot);
@@ -1005,9 +1029,10 @@ Future<void> _runShortPromptMvpLiveScenario<T extends _TodoToolService>({
       rootDirectoryProvider: () async => sessionLogRoot,
     ),
   );
-  final prompt =
+  final effectivePrompt =
+      prompt ??
       '${spec.documentName} の要件に従って、DartでMVPを実装してください。'
-      '記載された受け入れ基準を実際に確認し、すべて通るまで修正してください。';
+          '記載された受け入れ基準を実際に確認し、すべて通るまで修正してください。';
 
   try {
     final conversations = container.read(
@@ -1018,7 +1043,7 @@ Future<void> _runShortPromptMvpLiveScenario<T extends _TodoToolService>({
       projectId: fixture.project.id,
     );
     await conversations.saveCurrentGoal(
-      objective: prompt,
+      objective: effectivePrompt,
       enabled: true,
       autoContinue: true,
       status: ConversationGoalStatus.active,
@@ -1028,7 +1053,7 @@ Future<void> _runShortPromptMvpLiveScenario<T extends _TodoToolService>({
 
     await container
         .read(chatNotifierProvider.notifier)
-        .sendMessage(prompt, bypassPlanMode: true);
+        .sendMessage(effectivePrompt, bypassPlanMode: true);
     await _waitForGoalTerminalOrIdle(container);
 
     final verification = await verify(toolService);

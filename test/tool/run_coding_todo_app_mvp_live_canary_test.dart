@@ -11,6 +11,9 @@ void main() {
       final minimalPromptRunner = File(
         'tool/run_coding_todo_app_minimal_prompt_live_canary.sh',
       ).readAsStringSync();
+      final markdownTocExactShortRunner = File(
+        'tool/run_coding_markdown_toc_exact_short_live_canary.sh',
+      ).readAsStringSync();
       final autoContinueRunner = File(
         'tool/run_coding_goal_auto_continue_todo_fixture_live_canary.sh',
       ).readAsStringSync();
@@ -32,6 +35,20 @@ void main() {
       expect(
         minimalPromptRunner,
         contains('--canary-name coding_todo_app_minimal_prompt_live_canary'),
+      );
+      expect(
+        markdownTocExactShortRunner,
+        contains('CAVERNO_CODING_MARKDOWN_TOC_EXACT_SHORT_LIVE_CANARY=1'),
+      );
+      expect(
+        markdownTocExactShortRunner,
+        contains(
+          '--plain-name "live LLM assembles the markdown_toc_generator.md MVP from the exact short prompt"',
+        ),
+      );
+      expect(
+        markdownTocExactShortRunner,
+        contains('--canary-name coding_markdown_toc_exact_short_live_canary'),
       );
       expect(runner, contains('Language: Dart'));
       expect(runner, contains('docs/coding_mvp_fixtures/todo_app.md'));
@@ -70,7 +87,13 @@ void main() {
         notifier,
         contains('returning incomplete evidence to goal continuation'),
       );
-      expect(canary, contains('todo_app.md を参考にしてMVPを実装。言語はdartとする。'));
+      expect(canary, contains('を参考にしてMVPを実装。言語はdartとする。'));
+      expect(canary, contains(r'_exactShortMvpPrompt(String documentName)'));
+      expect(canary, contains("_exactShortMvpPrompt('todo_app.md')"));
+      expect(
+        canary,
+        contains('CAVERNO_CODING_MARKDOWN_TOC_EXACT_SHORT_LIVE_CANARY'),
+      );
       expect(
         canary,
         contains('CAVERNO_CODING_TODO_APP_MINIMAL_PROMPT_LIVE_CANARY'),

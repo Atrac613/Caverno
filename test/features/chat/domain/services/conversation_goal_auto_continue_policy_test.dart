@@ -155,6 +155,41 @@ void main() {
     expect(decision.reason, 'retry the unexecuted validation action');
   });
 
+  test('validates one repair made after failed execution verification', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          hasExecutionVerification: true,
+          mutatedWithoutExecutionVerification: true,
+          unresolvedErrorCount: 1,
+        ),
+        validationContinuations: 1,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+    expect(
+      decision.reason,
+      'validate the repair made after failed verification',
+    );
+  });
+
+  test('blocks a repeated post-verification repair without validation', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          hasExecutionVerification: true,
+          mutatedWithoutExecutionVerification: true,
+          unresolvedErrorCount: 1,
+        ),
+        validationContinuations: 2,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
+    expect(decision.reason, 'validation continuation was ignored');
+  });
+
   test('blocks after the unexecuted validation action retry is ignored', () {
     final decision = policy.decide(
       _input(

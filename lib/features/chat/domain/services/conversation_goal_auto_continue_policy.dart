@@ -209,9 +209,13 @@ class ConversationGoalAutoContinuePolicy {
         );
       }
       if (input.validationContinuations == 1 &&
-          input.evidence.hasUnexecutedActionClaim) {
+          (input.evidence.hasUnexecutedActionClaim ||
+              (input.evidence.hasExecutionVerification &&
+                  input.evidence.mutatedWithoutExecutionVerification))) {
         return GoalAutoContinueDecision.continueTurn(
-          reason: 'retry the unexecuted validation action',
+          reason: input.evidence.hasUnexecutedActionClaim
+              ? 'retry the unexecuted validation action'
+              : 'validate the repair made after failed verification',
           effectiveTurnBudget: effectiveTurnBudget,
           nextTurnNumber: goal.turnsUsed + 1,
         );
