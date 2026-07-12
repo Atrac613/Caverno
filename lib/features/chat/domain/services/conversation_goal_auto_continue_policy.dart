@@ -208,6 +208,14 @@ class ConversationGoalAutoContinuePolicy {
           nextTurnNumber: goal.turnsUsed + 1,
         );
       }
+      if (input.validationContinuations == 1 &&
+          input.evidence.hasUnexecutedActionClaim) {
+        return GoalAutoContinueDecision.continueTurn(
+          reason: 'retry the unexecuted validation action',
+          effectiveTurnBudget: effectiveTurnBudget,
+          nextTurnNumber: goal.turnsUsed + 1,
+        );
+      }
       return GoalAutoContinueDecision.stopAndBlock(
         reason: 'validation continuation was ignored',
         blockedReason:

@@ -70,7 +70,7 @@ void main() {
         notifier,
         contains('returning incomplete evidence to goal continuation'),
       );
-      expect(canary, contains('todo_app.md の要件に従って'));
+      expect(canary, contains('todo_app.md を参考にしてMVPを実装。言語はdartとする。'));
       expect(
         canary,
         contains('CAVERNO_CODING_TODO_APP_MINIMAL_PROMPT_LIVE_CANARY'),

@@ -158,6 +158,31 @@ void main() {
     }
   });
 
+  test('recognizes paths in a completed-files Markdown table', () {
+    final assessment = guard.assess(
+      candidateResponse: '''
+### \u4f5c\u6210\u3057\u305f\u30d5\u30a1\u30a4\u30eb
+
+| \u30d5\u30a1\u30a4\u30eb | \u884c\u6570 | \u5f79\u5272 |
+|---|---:|---|
+| `lib/todo_cli.dart` | 248 | CLI |
+| `lib/task_store.dart` | 128 | Store |
+| `test/todo_cli_test.dart` | 163 | Tests |
+
+### Verification
+''',
+      toolResults: const [],
+      projectRoot: root,
+      pathExists: (_) => false,
+    );
+
+    expect(assessment.claims.map((claim) => claim.displayPath), [
+      'lib/todo_cli.dart',
+      'lib/task_store.dart',
+      'test/todo_cli_test.dart',
+    ]);
+  });
+
   test('ignores mutation words that describe something other than the file', () {
     const responses = [
       '`todo_app.md` says "prints the created task".',

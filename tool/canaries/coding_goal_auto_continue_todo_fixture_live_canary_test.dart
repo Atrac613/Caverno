@@ -83,9 +83,7 @@ const _markdownTocFixtureSpec = _MvpFixtureSpec(
 );
 const _stagedFailureTurns = 2;
 const _postSuccessMutationCode = 'todo_post_success_mutation';
-const _minimalPrompt =
-    'todo_app.md の要件に従って、DartでMVPを実装してください。'
-    '記載された受け入れ基準を実際に確認し、すべて通るまで修正してください。';
+const _minimalPrompt = 'todo_app.md を参考にしてMVPを実装。言語はdartとする。';
 
 void main() {
   final originalHttpOverrides = HttpOverrides.current;

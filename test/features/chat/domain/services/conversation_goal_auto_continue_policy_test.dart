@@ -140,6 +140,36 @@ void main() {
     expect(decision.reason, 'validation continuation was ignored');
   });
 
+  test('retries one claimed validation action that was not executed', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          mutatedWithoutExecutionVerification: true,
+          hasUnexecutedActionClaim: true,
+        ),
+        validationContinuations: 1,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+    expect(decision.reason, 'retry the unexecuted validation action');
+  });
+
+  test('blocks after the unexecuted validation action retry is ignored', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          mutatedWithoutExecutionVerification: true,
+          hasUnexecutedActionClaim: true,
+        ),
+        validationContinuations: 2,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
+    expect(decision.reason, 'validation continuation was ignored');
+  });
+
   test('prioritizes an unexecuted verifier over diagnostic stalling', () {
     final decision = policy.decide(
       _input(

@@ -20,6 +20,7 @@ class ToolResultCompletionEvidence {
     this.hasExecutionVerification = false,
     this.hasSuccessfulExecutionVerification = false,
     this.hasAuthoritativeDiagnosticSnapshot = false,
+    this.hasUnexecutedActionClaim = false,
   });
 
   final bool boundedToolLoopExhausted;
@@ -31,12 +32,14 @@ class ToolResultCompletionEvidence {
   final bool hasExecutionVerification;
   final bool hasSuccessfulExecutionVerification;
   final bool hasAuthoritativeDiagnosticSnapshot;
+  final bool hasUnexecutedActionClaim;
 
   bool get hasIncompleteEvidence =>
       boundedToolLoopExhausted ||
       unresolvedErrorCount > 0 ||
       unverifiedChangePaths.isNotEmpty ||
-      mutatedWithoutExecutionVerification;
+      mutatedWithoutExecutionVerification ||
+      hasUnexecutedActionClaim;
 
   bool get hasBlockingEvidence =>
       boundedToolLoopExhausted || unresolvedErrorCount > 0;
@@ -75,6 +78,9 @@ class ToolResultCompletionEvidence {
     }
     if (mutatedWithoutExecutionVerification) {
       parts.add('files were modified without execution-class verification');
+    }
+    if (hasUnexecutedActionClaim) {
+      parts.add('claimed file or command actions were not executed');
     }
     return parts.isEmpty ? 'no incomplete evidence' : parts.join('; ');
   }
@@ -132,6 +138,8 @@ class ToolResultCompletionEvidence {
       hasExecutionVerification: hasExecutionVerification,
       hasSuccessfulExecutionVerification: hasSuccessfulExecutionVerification,
       hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
+      hasUnexecutedActionClaim:
+          hasUnexecutedActionClaim || previous.hasUnexecutedActionClaim,
     );
   }
 
@@ -571,6 +579,7 @@ class ToolResultPromptBuilder {
     final unresolvedErrorPaths = <String>{};
     final seenDiagnosticKeys = <String>{};
     var hasAuthoritativeDiagnosticSnapshot = false;
+    var hasUnexecutedActionClaim = false;
     var unresolvedErrorCount = 0;
 
     for (var index = 0; index < toolResults.length; index += 1) {
@@ -582,6 +591,10 @@ class ToolResultPromptBuilder {
 
       final reason = decoded['reason']?.toString().trim();
       final code = decoded['code']?.toString().trim();
+      if (code == 'unexecuted_command_action' ||
+          code == 'unexecuted_file_save') {
+        hasUnexecutedActionClaim = true;
+      }
       if (reason == 'bounded_tool_loop_exhausted' ||
           code == 'tool_call_not_executed') {
         final toolName = (decoded['tool_name'] ?? toolResult.name)
@@ -657,6 +670,7 @@ class ToolResultPromptBuilder {
         toolResults,
       ),
       hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
+      hasUnexecutedActionClaim: hasUnexecutedActionClaim,
     );
   }
 

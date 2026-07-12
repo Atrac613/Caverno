@@ -452,6 +452,11 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             'available project verifier now. A verifier request that was '
             'left unexecuted by the previous tool-loop boundary must be '
             'retried before any other work. Finish immediately if it succeeds.',
+      ] else if (evidence.hasUnexecutedActionClaim) ...[
+        'The previous answer claimed file or command actions without tool '
+            'evidence. Do not repeat or summarize those claims. Use the '
+            'available file and command tools now to perform the requested '
+            'work, then verify it with execution evidence.',
       ] else
         'Continue the work now. Use the available diagnostics and tools to '
             'make progress, then verify the result when a verification path '

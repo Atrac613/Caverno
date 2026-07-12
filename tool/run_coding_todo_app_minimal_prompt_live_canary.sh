@@ -33,7 +33,7 @@ fi
 BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 echo "Running Coding TODO app minimal-prompt live canary"
-echo "  Prompt: minimal Japanese"
+echo "  Prompt: exact short Japanese"
 echo "  Language: Dart"
 echo "  Fixture: todo_app.md"
 echo "  Base URL: ${CAVERNO_LLM_BASE_URL}"

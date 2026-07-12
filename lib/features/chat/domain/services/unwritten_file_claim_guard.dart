@@ -145,6 +145,13 @@ class UnwrittenFileClaimGuard {
     caseSensitive: false,
     unicode: true,
   );
+  static final RegExp _completedMutationTableHeading = RegExp(
+    r'(?:files?\s+(?:created|added|updated|written)|'
+    r'(?:created|added|updated|written)\s+files?|'
+    r'(?:\u4f5c\u6210|\u66f4\u65b0|\u8ffd\u52a0)(?:\u3057\u305f)?\u30d5\u30a1\u30a4\u30eb)',
+    caseSensitive: false,
+    unicode: true,
+  );
 
   UnwrittenFileClaimAssessment assess({
     required String candidateResponse,
@@ -163,12 +170,43 @@ class UnwrittenFileClaimGuard {
     );
     final claimedPaths = <String, String>{};
     var insideFence = false;
+    var insideMutationTable = false;
+    var mutationTableStarted = false;
     for (final line in candidateResponse.split('\n')) {
       if (line.trimLeft().startsWith('```')) {
         insideFence = !insideFence;
         continue;
       }
-      if (insideFence || !_looksLikeCompletedMutationClaim(line)) {
+      if (insideFence) {
+        continue;
+      }
+      final trimmedLine = line.trim();
+      if (_completedMutationTableHeading.hasMatch(trimmedLine)) {
+        insideMutationTable = true;
+        mutationTableStarted = false;
+        continue;
+      }
+      final isTableRow = trimmedLine.startsWith('|');
+      if (insideMutationTable) {
+        if (isTableRow) {
+          mutationTableStarted = true;
+          for (final reference in FileReferenceExtractor.extract(line)) {
+            final absolutePath = _resolveInsideRoot(
+              reference.path,
+              normalizedRoot,
+            );
+            if (absolutePath != null) {
+              claimedPaths.putIfAbsent(absolutePath, () => reference.path);
+            }
+          }
+          continue;
+        }
+        if (trimmedLine.isEmpty && !mutationTableStarted) {
+          continue;
+        }
+        insideMutationTable = false;
+      }
+      if (!_looksLikeCompletedMutationClaim(line)) {
         continue;
       }
       final references = FileReferenceExtractor.extract(line);

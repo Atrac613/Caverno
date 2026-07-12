@@ -237,6 +237,24 @@ void main() {
       );
     });
 
+    test('surfaces unexecuted completion claims as incomplete evidence', () {
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'unexecuted-command',
+          name: 'local_execute_command',
+          arguments: const {},
+          result: jsonEncode({
+            'ok': false,
+            'code': 'unexecuted_command_action',
+          }),
+        ),
+      ]);
+
+      expect(evidence.hasIncompleteEvidence, isTrue);
+      expect(evidence.hasUnexecutedActionClaim, isTrue);
+      expect(evidence.summary, contains('actions were not executed'));
+    });
+
     test('does not treat an already-applied edit as a new mutation', () {
       final evidence = ToolResultPromptBuilder.completionEvidence([
         ToolResultInfo(

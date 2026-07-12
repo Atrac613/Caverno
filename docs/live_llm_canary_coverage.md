@@ -125,8 +125,9 @@ For each model switch, run this minimum set before comparing model quality:
    ```
 
    This variant places the canonical `todo_app.md` at the scratch root and sends
-   only the two-sentence Japanese request. It uses the same independent verifier
-   and post-success mutation gate as the detailed-prompt canary.
+   only the exact short Japanese request used for manual validation. It uses the
+   same independent verifier and post-success mutation gate as the
+   detailed-prompt canary.
 
    To run the orthogonal starter fixture for deterministic text processing:
 
