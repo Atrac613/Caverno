@@ -295,6 +295,41 @@ class LiveLlmCanarySummary {
         '`${signals.backgroundProcessStatusUnverifiedCount}`',
       )
       ..writeln()
+      ..writeln('## Goal Auto-Continue')
+      ..writeln()
+      ..writeln(
+        '- Continuation count: '
+        '`${signals.goalAutoContinue.continuationCount}`',
+      )
+      ..writeln(
+        '- Diagnostic progression: '
+        '`${signals.goalAutoContinue.diagnosticCounts.isEmpty ? '(none)' : signals.goalAutoContinue.diagnosticCounts.join(' -> ')}`',
+      )
+      ..writeln(
+        '- Progress-based extension count: '
+        '`${signals.goalAutoContinue.progressExtensionCount}`',
+      )
+      ..writeln(
+        '- Final stop reason: '
+        '`${signals.goalAutoContinue.finalStopReason ?? '(none)'}`',
+      )
+      ..writeln(
+        '- First verifier turn: '
+        '`${signals.goalAutoContinue.firstVerifierTurn ?? '(none)'}`',
+      )
+      ..writeln(
+        '- Successful verifier observed: '
+        '`${signals.goalAutoContinue.successfulVerifierObserved ? 'yes' : 'no'}`',
+      )
+      ..writeln(
+        '- Terminal success exit observed: '
+        '`${signals.goalAutoContinue.terminalSuccessExitObserved ? 'yes' : 'no'}`',
+      )
+      ..writeln(
+        '- Blocked after successful verifier: '
+        '`${signals.goalAutoContinue.blockedAfterSuccessfulVerifier ? 'yes' : 'no'}`',
+      )
+      ..writeln()
       ..writeln('## Request Temperatures')
       ..writeln()
       ..writeln(
@@ -561,6 +596,7 @@ class LiveLlmCanarySignals {
     required this.backgroundProcessCompletedCount,
     required this.backgroundProcessFailedCount,
     required this.backgroundProcessStatusUnverifiedCount,
+    required this.goalAutoContinue,
     required this.dartAnalyzeFeedback,
     required this.dartTestFeedback,
     required this.codingOutputFeedback,
@@ -584,6 +620,7 @@ class LiveLlmCanarySignals {
   final int backgroundProcessCompletedCount;
   final int backgroundProcessFailedCount;
   final int backgroundProcessStatusUnverifiedCount;
+  final LiveLlmCanaryGoalAutoContinueSignals goalAutoContinue;
   final LiveLlmCanaryDartAnalyzeFeedbackSignals dartAnalyzeFeedback;
   final LiveLlmCanaryDartTestFeedbackSignals dartTestFeedback;
   final LiveLlmCanaryCodingOutputFeedbackSignals codingOutputFeedback;
@@ -594,6 +631,7 @@ class LiveLlmCanarySignals {
     final dartTestFeedback = _extractDartTestFeedbackSignals(rawLog);
     final codingOutputFeedback = _extractCodingOutputFeedbackSignals(rawLog);
     final requestTemperatures = _extractRequestTemperatureSignals(rawLog);
+    final goalAutoContinue = _extractGoalAutoContinueSignals(rawLog);
     return LiveLlmCanarySignals(
       recoveredStreamFallbackCount: _countMatches(
         rawLog,
@@ -668,6 +706,7 @@ class LiveLlmCanarySignals {
         rawLog,
         RegExp('background_process_status_unverified'),
       ),
+      goalAutoContinue: goalAutoContinue,
       dartAnalyzeFeedback: dartAnalyzeFeedback,
       dartTestFeedback: dartTestFeedback,
       codingOutputFeedback: codingOutputFeedback,
@@ -699,10 +738,46 @@ class LiveLlmCanarySignals {
       'backgroundProcessFailedCount': backgroundProcessFailedCount,
       'backgroundProcessStatusUnverifiedCount':
           backgroundProcessStatusUnverifiedCount,
+      'goalAutoContinue': goalAutoContinue.toJson(),
       'dartAnalyzeFeedback': dartAnalyzeFeedback.toJson(),
       'dartTestFeedback': dartTestFeedback.toJson(),
       'codingOutputFeedback': codingOutputFeedback.toJson(),
       'requestTemperatures': requestTemperatures.toJson(),
+    };
+  }
+}
+
+class LiveLlmCanaryGoalAutoContinueSignals {
+  const LiveLlmCanaryGoalAutoContinueSignals({
+    required this.continuationCount,
+    required this.diagnosticCounts,
+    required this.progressExtensionCount,
+    required this.finalStopReason,
+    required this.firstVerifierTurn,
+    required this.successfulVerifierObserved,
+    required this.terminalSuccessExitObserved,
+    required this.blockedAfterSuccessfulVerifier,
+  });
+
+  final int continuationCount;
+  final List<int> diagnosticCounts;
+  final int progressExtensionCount;
+  final String? finalStopReason;
+  final int? firstVerifierTurn;
+  final bool successfulVerifierObserved;
+  final bool terminalSuccessExitObserved;
+  final bool blockedAfterSuccessfulVerifier;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'continuationCount': continuationCount,
+      'diagnosticCounts': diagnosticCounts,
+      'progressExtensionCount': progressExtensionCount,
+      'finalStopReason': finalStopReason,
+      'firstVerifierTurn': firstVerifierTurn,
+      'successfulVerifierObserved': successfulVerifierObserved,
+      'terminalSuccessExitObserved': terminalSuccessExitObserved,
+      'blockedAfterSuccessfulVerifier': blockedAfterSuccessfulVerifier,
     };
   }
 }
@@ -1437,6 +1512,88 @@ Iterable<String> _messagesFromLogLine(String line) sync* {
     return;
   }
   yield trimmed;
+}
+
+LiveLlmCanaryGoalAutoContinueSignals _extractGoalAutoContinueSignals(
+  String rawLog,
+) {
+  final continuePattern = RegExp(
+    r'\[GoalAutoContinue\] continue (\d+)/(\d+): ([^;]+);',
+  );
+  final diagnosticPattern = RegExp(r'evidence=(\d+) unresolved Error');
+  final stopPattern = RegExp(r'\[GoalAutoContinue\] stopAndBlock: ([^;]+);');
+  final verifierCallPattern = RegExp(
+    r'\[Tool\] Arguments: \{command: [^}\n]*verify[^}\n]*\}',
+    caseSensitive: false,
+  );
+  final successfulVerifierPattern = RegExp(
+    r'"command"\s*:\s*"[^"]*verify[^"]*".*"exit_code"\s*:\s*(?:0|"0")',
+    caseSensitive: false,
+  );
+  final diagnosticCounts = <int>[];
+  var continuationCount = 0;
+  var progressExtensionCount = 0;
+  var currentTurn = 1;
+  int? firstVerifierTurn;
+  String? finalStopReason;
+  var successfulVerifierObserved = false;
+  var terminalSuccessExitObserved = false;
+  var blockedAfterSuccessfulVerifier = false;
+
+  for (final line in const LineSplitter().convert(rawLog)) {
+    for (final message in _messagesFromLogLine(line)) {
+      final continueMatch = continuePattern.firstMatch(message);
+      if (continueMatch != null) {
+        continuationCount += 1;
+        currentTurn = int.tryParse(continueMatch.group(1) ?? '') ?? currentTurn;
+        if (message.contains('one repair extension granted')) {
+          progressExtensionCount += 1;
+        }
+        final diagnosticMatch = diagnosticPattern.firstMatch(message);
+        final diagnosticCount = int.tryParse(diagnosticMatch?.group(1) ?? '');
+        if (diagnosticCount != null) {
+          diagnosticCounts.add(diagnosticCount);
+        }
+      }
+      if (firstVerifierTurn == null && verifierCallPattern.hasMatch(message)) {
+        firstVerifierTurn = currentTurn;
+      }
+      if (successfulVerifierPattern.hasMatch(message)) {
+        successfulVerifierObserved = true;
+        firstVerifierTurn ??= currentTurn;
+      }
+      if (message.contains(
+        '[Tool] Terminal success accepted for current generation',
+      )) {
+        terminalSuccessExitObserved = true;
+        successfulVerifierObserved = true;
+        firstVerifierTurn ??= currentTurn;
+      }
+      final stopMatch = stopPattern.firstMatch(message);
+      if (stopMatch != null) {
+        finalStopReason = stopMatch.group(1)?.trim();
+        final diagnosticMatch = diagnosticPattern.firstMatch(message);
+        final diagnosticCount = int.tryParse(diagnosticMatch?.group(1) ?? '');
+        if (diagnosticCount != null) {
+          diagnosticCounts.add(diagnosticCount);
+        }
+        if (successfulVerifierObserved) {
+          blockedAfterSuccessfulVerifier = true;
+        }
+      }
+    }
+  }
+
+  return LiveLlmCanaryGoalAutoContinueSignals(
+    continuationCount: continuationCount,
+    diagnosticCounts: List<int>.unmodifiable(diagnosticCounts),
+    progressExtensionCount: progressExtensionCount,
+    finalStopReason: finalStopReason,
+    firstVerifierTurn: firstVerifierTurn,
+    successfulVerifierObserved: successfulVerifierObserved,
+    terminalSuccessExitObserved: terminalSuccessExitObserved,
+    blockedAfterSuccessfulVerifier: blockedAfterSuccessfulVerifier,
+  );
 }
 
 Map<String, dynamic> _tryDecodeObject(String value) {

@@ -357,7 +357,7 @@ void main() {
       expect(carried.hasIncompleteEvidence, isTrue);
     });
 
-    test('clears prior diagnostics after current execution verification', () {
+    test('keeps prior diagnostics after a failed execution verification', () {
       const previous = ToolResultCompletionEvidence(
         unresolvedErrorCount: 2,
         unresolvedErrorPaths: ['lib/main.dart'],
@@ -368,8 +368,130 @@ void main() {
         hasExecutionVerification: true,
       ).carryForwardIncompleteFrom(previous);
 
-      expect(carried.unresolvedErrorCount, 0);
-      expect(carried.hasIncompleteEvidence, isFalse);
+      expect(carried.unresolvedErrorCount, 2);
+      expect(carried.hasIncompleteEvidence, isTrue);
+    });
+
+    test(
+      'clears prior diagnostics after successful execution verification',
+      () {
+        const previous = ToolResultCompletionEvidence(
+          unresolvedErrorCount: 2,
+          unresolvedErrorPaths: ['lib/main.dart'],
+          hasExecutionVerification: true,
+        );
+
+        final carried = const ToolResultCompletionEvidence(
+          hasExecutionVerification: true,
+          hasSuccessfulExecutionVerification: true,
+        ).carryForwardIncompleteFrom(previous);
+
+        expect(carried.unresolvedErrorCount, 0);
+        expect(carried.hasIncompleteEvidence, isFalse);
+      },
+    );
+
+    test('settles stale evidence when the current mutation is verified', () {
+      const evidence = ToolResultCompletionEvidence(
+        boundedToolLoopExhausted: true,
+        unresolvedErrorCount: 1,
+        unresolvedErrorPaths: ['lib/main.dart'],
+        unverifiedChangePaths: ['lib/main.dart'],
+        mutatedWithoutExecutionVerification: true,
+      );
+
+      final settled = evidence.settleForExecutionGenerations(
+        mutationGeneration: 3,
+        verificationGeneration: 3,
+      );
+
+      expect(settled.hasIncompleteEvidence, isFalse);
+      expect(settled.hasSuccessfulExecutionVerification, isTrue);
+    });
+
+    test('keeps evidence when verification predates the latest mutation', () {
+      const evidence = ToolResultCompletionEvidence(
+        unresolvedErrorCount: 1,
+        unresolvedErrorPaths: ['lib/main.dart'],
+      );
+
+      final unsettled = evidence.settleForExecutionGenerations(
+        mutationGeneration: 4,
+        verificationGeneration: 3,
+      );
+
+      expect(unsettled, same(evidence));
+      expect(unsettled.hasIncompleteEvidence, isTrue);
+    });
+
+    test(
+      'keeps authoritative success when content evidence is also present',
+      () {
+        const authoritative = ToolResultCompletionEvidence(
+          hasExecutionVerification: true,
+          hasSuccessfulExecutionVerification: true,
+        );
+        final staleContentDiagnostic = ToolResultInfo(
+          id: 'content-diagnostic',
+          name: 'dart_analyze_feedback',
+          arguments: const {},
+          result: jsonEncode({
+            'diagnostics': [
+              {
+                'severity': 'Error',
+                'path': '/tmp/app/lib/main.dart',
+                'relative_path': 'lib/main.dart',
+                'code': 'undefined_identifier',
+                'message': 'Undefined name.',
+              },
+            ],
+          }),
+        );
+
+        final evidence = ToolResultPromptBuilder.reconcileFinalizationEvidence(
+          authoritativeEvidence: authoritative,
+          completedToolResults: [
+            ToolResultInfo(
+              id: 'verification',
+              name: 'local_execute_command',
+              arguments: const {},
+              result: jsonEncode({'exit_code': 0}),
+            ),
+          ],
+          contentToolResults: [staleContentDiagnostic],
+        );
+
+        expect(evidence, same(authoritative));
+        expect(evidence.hasIncompleteEvidence, isFalse);
+      },
+    );
+
+    test('uses content evidence when no tool-aware results completed', () {
+      final contentDiagnostic = ToolResultInfo(
+        id: 'content-diagnostic',
+        name: 'dart_analyze_feedback',
+        arguments: const {},
+        result: jsonEncode({
+          'diagnostics': [
+            {
+              'severity': 'Error',
+              'path': '/tmp/app/lib/main.dart',
+              'relative_path': 'lib/main.dart',
+              'code': 'undefined_identifier',
+              'message': 'Undefined name.',
+            },
+          ],
+        }),
+      );
+
+      final evidence = ToolResultPromptBuilder.reconcileFinalizationEvidence(
+        authoritativeEvidence: const ToolResultCompletionEvidence(),
+        completedToolResults: const [],
+        contentToolResults: [contentDiagnostic],
+      );
+
+      expect(evidence.unresolvedErrorCount, 1);
+      expect(evidence.hasIncompleteEvidence, isTrue);
     });
 
     test(
@@ -399,6 +521,31 @@ void main() {
         expect(evidence.mutatedWithoutExecutionVerification, isFalse);
       },
     );
+
+    test('invalidates verification when a later mutation lands', () {
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'verify-1',
+          name: 'local_execute_command',
+          arguments: const {'command': 'dart test'},
+          result: jsonEncode({'exit_code': 0}),
+        ),
+        ToolResultInfo(
+          id: 'edit-1',
+          name: 'edit_file',
+          arguments: const {},
+          result: jsonEncode({
+            'path': '/tmp/app/lib/main.dart',
+            'replacements': 1,
+          }),
+        ),
+      ]);
+
+      expect(evidence.hasSuccessfulExecutionVerification, isFalse);
+      expect(evidence.hasExecutionVerification, isFalse);
+      expect(evidence.mutatedWithoutExecutionVerification, isTrue);
+      expect(evidence.unverifiedChangePaths, ['/tmp/app/lib/main.dart']);
+    });
 
     test('recognizes every execution-class verification tool', () {
       for (final toolName in const [
@@ -683,10 +830,9 @@ void main() {
       },
     );
 
-    test('does not flag unverified when the turn ran at least once', () {
-      // Mirrors the 5-algorithm Dart benchmark log: the turn ran the program,
-      // then made a cosmetic edit (unused-import removal) without re-running.
-      // The prior run still represents the code, so this must not be flagged.
+    test('flags a mutation that lands after the last verification', () {
+      // Even a cosmetic edit advances the mutation generation, so the earlier
+      // run cannot verify the final artifact.
       final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
         ToolResultInfo(
           id: 'tool-1',
@@ -709,7 +855,7 @@ void main() {
         ),
       ]);
 
-      expect(prompt, isNot(contains('UNVERIFIED CHANGE:')));
+      expect(prompt, contains('UNVERIFIED CHANGE:'));
     });
 
     test('guards against unverified local file side-effect claims', () {

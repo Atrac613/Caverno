@@ -87,6 +87,31 @@ void main() {
     expect(updated, 'hello agent');
   });
 
+  test('deleteFile removes a regular UTF-8 text file', () async {
+    final target = File('${tempDir.path}${Platform.pathSeparator}obsolete.txt')
+      ..writeAsStringSync('obsolete\n');
+
+    final result =
+        jsonDecode(await FilesystemTools.deleteFile(path: target.path))
+            as Map<String, dynamic>;
+
+    expect(result['deleted'], isTrue);
+    expect(target.existsSync(), isFalse);
+  });
+
+  test('deleteFile rejects directories', () async {
+    final directory = Directory(
+      '${tempDir.path}${Platform.pathSeparator}nested',
+    )..createSync();
+
+    final result =
+        jsonDecode(await FilesystemTools.deleteFile(path: directory.path))
+            as Map<String, dynamic>;
+
+    expect(result['error'], contains('regular files only'));
+    expect(directory.existsSync(), isTrue);
+  });
+
   test('editFile reports no_change when new_text equals old_text', () async {
     final targetPath = '${tempDir.path}${Platform.pathSeparator}noop.txt';
     await FilesystemTools.writeFile(path: targetPath, content: 'hello world');

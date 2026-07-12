@@ -6,6 +6,51 @@ import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 
 void main() {
+  test('legacy workflow json defaults provenance metadata to empty', () {
+    final workflow = ConversationWorkflowSpec.fromJson({
+      'goal': 'Keep legacy conversations readable',
+      'constraints': <String>[],
+      'acceptanceCriteria': <String>[],
+      'openQuestions': <String>[],
+      'tasks': <Object?>[],
+    });
+
+    expect(workflow.sources, isEmpty);
+    expect(workflow.provenance, isEmpty);
+    expect(workflow.blockingAssumptions, isEmpty);
+  });
+
+  test('material unconfirmed assumptions block execution after roundtrip', () {
+    const workflow = ConversationWorkflowSpec(
+      goal: 'Ship safely',
+      sources: [
+        ConversationContractSourceReference(
+          id: 'user-message:1',
+          kind: ConversationContractSourceKind.userMessage,
+          locator: 'message-1',
+        ),
+      ],
+      provenance: [
+        ConversationContractItemProvenance(
+          itemId: 'constraint:runtime',
+          kind: ConversationContractItemKind.constraint,
+          assumption: true,
+          material: true,
+          clarificationQuestion: 'Which runtime must be supported?',
+        ),
+      ],
+    );
+
+    final restored = ConversationWorkflowSpec.fromJson(workflow.toJson());
+
+    expect(restored.sources.single.id, 'user-message:1');
+    expect(restored.blockingAssumptions, hasLength(1));
+    expect(
+      restored.blockingAssumptions.single.normalizedClarificationQuestion,
+      'Which runtime must be supported?',
+    );
+  });
+
   test('conversation workflow survives json roundtrip', () {
     final conversation = Conversation(
       id: 'conversation-1',

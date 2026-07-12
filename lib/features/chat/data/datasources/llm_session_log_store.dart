@@ -224,6 +224,7 @@ class LlmSessionLogStore {
 
   final Future<Directory> Function() _rootDirectoryProvider;
   final LlmSessionLogRetentionPolicy _retentionPolicy;
+  Future<void> _writeTail = Future<void>.value();
 
   static const schemaName = 'caverno_llm_session_log_entry';
   // v2 adds the `build` field (git commit/dirty/builtAt provenance).
@@ -351,7 +352,6 @@ class LlmSessionLogStore {
   }) async {
     try {
       final effectiveContext = context ?? _fallbackContext();
-      final file = await fileForContext(effectiveContext);
       final entry = {
         'schemaName': schemaName,
         'schemaVersion': schemaVersion,
@@ -371,12 +371,7 @@ class LlmSessionLogStore {
           },
       };
       final line = '${jsonEncode(_redactValue(entry))}\n';
-      await _prepareFileForWrite(
-        file,
-        incomingBytes: utf8.encode(line).length,
-        now: finishedAt,
-      );
-      await file.writeAsString(line, mode: FileMode.append, flush: true);
+      await _appendLine(context: effectiveContext, line: line, at: finishedAt);
     } catch (error) {
       appLog('[SessionLog] Failed to write LLM session log: $error');
     }
@@ -405,7 +400,6 @@ class LlmSessionLogStore {
   }) async {
     try {
       final effectiveContext = context ?? _fallbackContext();
-      final file = await fileForContext(effectiveContext);
       final entry = {
         'schemaName': schemaName,
         'schemaVersion': schemaVersion,
@@ -427,12 +421,7 @@ class LlmSessionLogStore {
         },
       };
       final line = '${jsonEncode(_redactValue(entry))}\n';
-      await _prepareFileForWrite(
-        file,
-        incomingBytes: utf8.encode(line).length,
-        now: at,
-      );
-      await file.writeAsString(line, mode: FileMode.append, flush: true);
+      await _appendLine(context: effectiveContext, line: line, at: at);
     } catch (error) {
       appLog('[SessionLog] Failed to write turn-exit entry: $error');
     }
@@ -456,7 +445,6 @@ class LlmSessionLogStore {
   }) async {
     try {
       final effectiveContext = context ?? _fallbackContext();
-      final file = await fileForContext(effectiveContext);
       final normalizedGoalId = goalId?.trim();
       final goalAutoContinue = <String, dynamic>{
         'decision': decision,
@@ -488,16 +476,63 @@ class LlmSessionLogStore {
         'goalAutoContinue': goalAutoContinue,
       };
       final line = '${jsonEncode(_redactValue(entry))}\n';
-      await _prepareFileForWrite(
-        file,
-        incomingBytes: utf8.encode(line).length,
-        now: at,
-      );
-      await file.writeAsString(line, mode: FileMode.append, flush: true);
+      await _appendLine(context: effectiveContext, line: line, at: at);
     } catch (error) {
       appLog(
         '[SessionLog] Failed to write goal auto-continuation entry: $error',
       );
+    }
+  }
+
+  /// Append a redacted execution-snapshot decision produced in shadow mode.
+  ///
+  /// The marker intentionally stores only hashes, enum names, counts, and
+  /// booleans. It does not persist contract text, task IDs, or diagnostics.
+  Future<void> recordExecutionShadow({
+    required LlmSessionLogContext? context,
+    required DateTime at,
+    required String contractHash,
+    required String workflowStage,
+    required String action,
+    required String? activeTaskRef,
+    required String? taskStatus,
+    required String validationStatus,
+    required int completedTaskCount,
+    required int totalTaskCount,
+    required int unresolvedQuestionCount,
+    required bool requiresValidation,
+    required bool hasDiagnostic,
+  }) async {
+    try {
+      final effectiveContext = context ?? _fallbackContext();
+      final marker = <String, dynamic>{
+        'contractHash': contractHash,
+        'workflowStage': workflowStage,
+        'action': action,
+        if (activeTaskRef != null && activeTaskRef.isNotEmpty)
+          'activeTaskRef': activeTaskRef,
+        if (taskStatus != null && taskStatus.isNotEmpty)
+          'taskStatus': taskStatus,
+        'validationStatus': validationStatus,
+        'completedTaskCount': completedTaskCount,
+        'totalTaskCount': totalTaskCount,
+        'unresolvedQuestionCount': unresolvedQuestionCount,
+        'requiresValidation': requiresValidation,
+        'hasDiagnostic': hasDiagnostic,
+      };
+      final entry = {
+        'schemaName': schemaName,
+        'schemaVersion': schemaVersion,
+        'timestamp': at.toIso8601String(),
+        'build': BuildInfo.toJson(),
+        'context': effectiveContext.toJson(),
+        'operation': 'execution_shadow',
+        'executionShadow': marker,
+      };
+      final line = '${jsonEncode(_redactValue(entry))}\n';
+      await _appendLine(context: effectiveContext, line: line, at: at);
+    } catch (error) {
+      appLog('[SessionLog] Failed to write execution-shadow entry: $error');
     }
   }
 
@@ -523,6 +558,24 @@ class LlmSessionLogStore {
     return File(
       '${workspaceDirectory.path}/${_sanitizeFileSegment(sessionId)}.jsonl',
     );
+  }
+
+  Future<void> _appendLine({
+    required LlmSessionLogContext context,
+    required String line,
+    required DateTime at,
+  }) {
+    final write = _writeTail.then((_) async {
+      final file = await fileForContext(context);
+      await _prepareFileForWrite(
+        file,
+        incomingBytes: utf8.encode(line).length,
+        now: at,
+      );
+      await file.writeAsString(line, mode: FileMode.append, flush: true);
+    });
+    _writeTail = write.catchError((Object _) {});
+    return write;
   }
 
   Map<String, dynamic> _requestToJson(LlmSessionLogRequest request) {

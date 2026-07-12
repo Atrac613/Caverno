@@ -13,18 +13,21 @@ class _ToolLoopBatchExecutionResult {
     required this.batchToolResults,
     required this.pendingBatchCalls,
     required this.commandRetryGeneration,
+    this.terminalSuccessMessage,
   });
 
   factory _ToolLoopBatchExecutionResult.completed({
     required List<ToolResultInfo> batchToolResults,
     required List<ToolCallInfo> pendingBatchCalls,
     required int commandRetryGeneration,
+    String? terminalSuccessMessage,
   }) {
     return _ToolLoopBatchExecutionResult(
       status: _ToolLoopBatchStatus.completed,
       batchToolResults: batchToolResults,
       pendingBatchCalls: pendingBatchCalls,
       commandRetryGeneration: commandRetryGeneration,
+      terminalSuccessMessage: terminalSuccessMessage,
     );
   }
 
@@ -56,6 +59,7 @@ class _ToolLoopBatchExecutionResult {
   final List<ToolResultInfo> batchToolResults;
   final List<ToolCallInfo> pendingBatchCalls;
   final int commandRetryGeneration;
+  final String? terminalSuccessMessage;
 
   bool get didCancel => status == _ToolLoopBatchStatus.cancelled;
 
@@ -76,6 +80,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     final batchToolResults = <ToolResultInfo>[];
     final pendingBatchCalls = <ToolCallInfo>[];
     var nextCommandRetryGeneration = commandRetryGeneration;
+    final terminalSuccessState = ToolTerminalSuccessBatchState();
 
     for (final toolCall in currentToolCalls) {
       final toolCallKey = _toolExecutionKey(
@@ -129,6 +134,11 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
       execute: (toolCall) async {
+        final materialAssumptionGuardResult =
+            _buildMaterialContractAssumptionGuardResult(toolCall);
+        if (materialAssumptionGuardResult != null) {
+          return materialAssumptionGuardResult;
+        }
         final truncatedArgumentsGuardResult =
             _buildTruncatedToolCallArgumentsGuardResult(toolCall);
         if (truncatedArgumentsGuardResult != null) {
@@ -271,6 +281,24 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       executedToolResults.add(promptToolResult);
 
       if (result.isSuccess) {
+        final isMutationTool = _isContractMutationToolCall(toolCall);
+        final hasExplicitTerminalSuccess = terminalSuccessState
+            .observeSuccessfulResult(
+              rawResult: result.result,
+              isMutationTool: isMutationTool,
+            );
+        if (isMutationTool && !hasExplicitTerminalSuccess) {
+          try {
+            await ref
+                .read(conversationsNotifierProvider.notifier)
+                .recordCurrentMutationGeneration();
+          } catch (error) {
+            appLog(
+              '[ExecutionEvidence] Failed to persist mutation generation: '
+              '$error',
+            );
+          }
+        }
         executedToolCallKeys.add(toolCallKey);
         toolFailureCounts.remove(toolFailureKey);
         if (_advancesCommandRetryGeneration(toolCall)) {
@@ -364,6 +392,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       batchToolResults: batchToolResults,
       pendingBatchCalls: pendingBatchCalls,
       commandRetryGeneration: nextCommandRetryGeneration,
+      terminalSuccessMessage: terminalSuccessState.message,
     );
   }
 
@@ -371,8 +400,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
   /// parsed empty — the truncation ate them mid-generation. Recorded so the
   /// batch executor can answer them with a truncation diagnostic.
   Set<String> _truncationCasualtyToolCallIds(ChatCompletionResult result) {
-    if (!result.hasToolCalls ||
-        !_isCompletionTruncated(result.finishReason)) {
+    if (!result.hasToolCalls || !_isCompletionTruncated(result.finishReason)) {
       return const <String>{};
     }
     return result.toolCalls!

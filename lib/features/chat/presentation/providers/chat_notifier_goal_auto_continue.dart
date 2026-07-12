@@ -9,16 +9,98 @@ const _goalAutoContinuePolicy = ConversationGoalAutoContinuePolicy();
 final class _GoalAutoContinueTracker {
   _GoalAutoContinueTracker({
     this.consecutiveAutoContinuations = 0,
+    this.diagnosticRepairContinuations = 0,
+    this.diagnosticRepairExtensionUsed = false,
     this.noProgressStreak = 0,
     this.previousEvidence,
   });
 
   int consecutiveAutoContinuations;
+  int diagnosticRepairContinuations;
+  bool diagnosticRepairExtensionUsed;
   int noProgressStreak;
   ToolResultCompletionEvidence? previousEvidence;
 }
 
 extension ChatNotifierGoalAutoContinue on ChatNotifier {
+  Future<bool> _finishExplicitTerminalSuccess(
+    String? message, {
+    required int interactionGeneration,
+  }) async {
+    if (message == null ||
+        !await _acceptTerminalSuccessForCurrentGeneration()) {
+      return false;
+    }
+    appLog('[Tool] Terminal success accepted for current generation');
+    _recordHiddenAssistantResponse(message);
+    _appendRecoveredAssistantResponse(
+      message,
+      interactionGeneration: interactionGeneration,
+    );
+    return true;
+  }
+
+  Future<bool> _acceptTerminalSuccessForCurrentGeneration() async {
+    try {
+      final notifier = ref.read(conversationsNotifierProvider.notifier);
+      await notifier.recordCurrentVerificationGeneration();
+      final conversation = ref
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      if (conversation == null ||
+          conversation.verificationGeneration !=
+              conversation.mutationGeneration) {
+        appLog(
+          '[Tool] Terminal success rejected because execution generations '
+          'do not match',
+        );
+        return false;
+      }
+      return true;
+    } catch (error) {
+      appLog('[Tool] Failed to settle terminal success generation: $error');
+      return false;
+    }
+  }
+
+  Future<void> _recordSuccessfulVerificationGenerationIfNeeded(
+    ToolResultCompletionEvidence evidence,
+  ) async {
+    if (!evidence.hasSuccessfulExecutionVerification) {
+      return;
+    }
+    try {
+      await ref
+          .read(conversationsNotifierProvider.notifier)
+          .recordCurrentVerificationGeneration();
+    } catch (error) {
+      appLog(
+        '[ExecutionEvidence] Failed to persist successful verification '
+        'generation: $error',
+      );
+    }
+  }
+
+  void _reconcileGoalAutoContinueEvidenceForFinalization() {
+    _latestGoalAutoContinueEvidence =
+        ToolResultPromptBuilder.reconcileFinalizationEvidence(
+          authoritativeEvidence: _latestGoalAutoContinueEvidence,
+          completedToolResults: _latestCompletedToolResults,
+          contentToolResults: _latestContentToolResults,
+        );
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null) {
+      return;
+    }
+    _latestGoalAutoContinueEvidence = _latestGoalAutoContinueEvidence
+        .settleForExecutionGenerations(
+          mutationGeneration: conversation.mutationGeneration,
+          verificationGeneration: conversation.verificationGeneration,
+        );
+  }
+
   @visibleForTesting
   void seedContentToolDedupeGuardsForTest({
     required String executedCallKey,
@@ -98,6 +180,12 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       tracker: tracker,
       evidence: evidence,
     );
+    final previousEvidence = tracker?.previousEvidence;
+    final diagnosticEvidenceImproved =
+        previousEvidence != null &&
+        evidence.hasDiagnosticEvidence &&
+        evidence.compareProgress(previousEvidence) ==
+            GoalEvidenceProgress.improved;
     final decision = _goalAutoContinuePolicy.decide(
       GoalAutoContinuePolicyInput(
         goal: goal,
@@ -105,6 +193,11 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         evidence: evidence,
         consecutiveAutoContinuations:
             tracker?.consecutiveAutoContinuations ?? 0,
+        diagnosticRepairContinuations:
+            tracker?.diagnosticRepairContinuations ?? 0,
+        diagnosticRepairExtensionUsed:
+            tracker?.diagnosticRepairExtensionUsed ?? false,
+        diagnosticEvidenceImproved: diagnosticEvidenceImproved,
         noProgressStreak: candidateNoProgressStreak,
         finalAnswerEndsWithQuestion: _endsWithQuestionMark(
           finalizedAssistantResponse,
@@ -130,7 +223,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       );
       appLog(
         '[GoalAutoContinue] stopAndBlock: ${decision.reason}; '
-        'conversation=$currentConversationId',
+        'conversation=$currentConversationId; evidence=${evidence.summary}',
       );
       await ref
           .read(conversationsNotifierProvider.notifier)
@@ -187,6 +280,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     final continuationPrompt = _buildGoalAutoContinuePrompt(
       goal: goal!,
       evidence: evidence,
+      executionSnapshot: const ExecutionSnapshotProjector().project(
+        currentConversation,
+      ),
       nextTurnNumber: decision.nextTurnNumber,
       effectiveTurnBudget: decision.effectiveTurnBudget,
       languageCode: languageCode,
@@ -194,6 +290,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
 
     if (tracker != null) {
       tracker.noProgressStreak = candidateNoProgressStreak;
+      if (decision.usesDiagnosticRepairExtension) {
+        tracker.diagnosticRepairExtensionUsed = true;
+      }
     }
     await _recordGoalAutoContinueSessionLog(
       decision: 'continue',
@@ -219,6 +318,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     );
     try {
       tracker?.consecutiveAutoContinuations += 1;
+      if (evidence.hasDiagnosticEvidence) {
+        tracker?.diagnosticRepairContinuations += 1;
+      }
       tracker?.previousEvidence = evidence;
       final continuationFuture = sendHiddenPrompt(
         continuationPrompt,
@@ -314,6 +416,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   String _buildGoalAutoContinuePrompt({
     required ConversationGoal goal,
     required ToolResultCompletionEvidence evidence,
+    required ExecutionSnapshot executionSnapshot,
     required int nextTurnNumber,
     required int effectiveTurnBudget,
     required String languageCode,
@@ -329,6 +432,13 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       '',
       'Concrete incomplete evidence from the previous turn:',
       evidence.summary,
+      if (executionSnapshot.hasContract) ...[
+        '',
+        'Current execution snapshot:',
+        '<execution_snapshot>',
+        executionSnapshot.toPromptContext(),
+        '</execution_snapshot>',
+      ],
       '',
       'Continue the work now. Use the available diagnostics and tools to make '
           'progress, then verify the result when a verification path is '
@@ -386,6 +496,12 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             'hasIncompleteEvidence': evidence.hasIncompleteEvidence,
             'hasBlockingEvidence': evidence.hasBlockingEvidence,
             'noProgressStreak': tracker?.noProgressStreak ?? 0,
+            'diagnosticRepairContinuations':
+                tracker?.diagnosticRepairContinuations ?? 0,
+            'diagnosticRepairExtensionUsed':
+                tracker?.diagnosticRepairExtensionUsed ?? false,
+            'previousUnresolvedErrorCount':
+                tracker?.previousEvidence?.unresolvedErrorCount,
             'boundedToolLoopExhausted': evidence.boundedToolLoopExhausted,
             'unexecutedToolNames': evidence.unexecutedToolNames,
             'unresolvedErrorCount': evidence.unresolvedErrorCount,

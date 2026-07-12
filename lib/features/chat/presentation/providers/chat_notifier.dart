@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -78,6 +79,7 @@ import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../domain/services/tool_approval_gate.dart';
 import '../../../../core/security/conversation_taint_state.dart';
+import '../../../../core/security/tool_capability_classifier.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
@@ -89,6 +91,9 @@ import '../../domain/services/coding_verification_claim_guard.dart';
 import '../../domain/services/coding_verification_feedback_service.dart';
 import '../../domain/services/chat_tool_dispatcher.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
+import '../../domain/services/execution_snapshot_projector.dart';
+import '../../domain/services/execution_budget_policy.dart';
+import '../../domain/services/short_prompt_contract_builder.dart';
 import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/final_answer_claim_detector.dart';
@@ -112,6 +117,7 @@ import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_loop_recovery_policy.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import '../../domain/services/tool_terminal_response_policy.dart';
+import '../../domain/services/tool_terminal_success_policy.dart';
 import '../../domain/services/turn_diff_service.dart';
 import '../../domain/services/unwritten_file_claim_guard.dart';
 import '../../domain/services/subagent_execution_service.dart';
@@ -292,6 +298,7 @@ class ChatNotifier extends Notifier<ChatState> {
   AssistantMode? _assistantModeOverride;
   List<ToolResultInfo> _latestCompletedToolResults = const [];
   String? _latestObservedSystemPrompt;
+  String? _latestExecutionSnapshotObservationKey;
   List<ToolResultInfo> _latestObservedToolResults = const [];
   List<Map<String, dynamic>> _latestObservedToolDefinitions = const [];
   Set<String> _latestObservedMcpToolNames = const {};
@@ -465,7 +472,6 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Speaks the assistant response via TTS when auto-read is enabled.
-  /// Replaces the previous `onAutoRead` callback.
   void _onAutoRead(String content) {
     final result = ContentParser.parse(content);
     final buffer = StringBuffer();
@@ -888,67 +894,6 @@ class ChatNotifier extends Notifier<ChatState> {
     await ref
         .read(conversationsNotifierProvider.notifier)
         .recordCurrentTurnDiff(turnDiff);
-  }
-
-  /// Builds the system message, including the current date and time.
-  Message _createSystemMessage({
-    List<String>? toolNamesOverride,
-    String? participantRolePrompt,
-  }) {
-    final now = DateTime.now();
-    final activeCodingProject = _getEffectiveCodingProject();
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    final toolNames = toolNamesOverride == null
-        ? <String>[]
-        : List<String>.from(toolNamesOverride);
-    final toolObservation = _collectRequestToolObservation(
-      toolNamesOverride: toolNamesOverride,
-      toolNames: toolNames,
-    );
-
-    final resolvedLanguage = _settings.language == 'system'
-        ? _languageCode
-        : _settings.language;
-    final resolvedAssistantMode = _resolveAssistantMode(
-      currentConversation: currentConversation,
-    );
-    final content = SystemPromptBuilder.build(
-      now: now,
-      assistantMode: resolvedAssistantMode,
-      languageCode: resolvedLanguage,
-      toolNames: toolNames,
-      sessionMemoryContext: _sessionMemoryContext,
-      participantRolePrompt: participantRolePrompt,
-      projectName: activeCodingProject?.name,
-      projectRootPath: activeCodingProject?.rootPath,
-      repoMapContext: _repoMap(resolvedAssistantMode, activeCodingProject),
-      goal: currentConversation?.goal,
-      workflowStage:
-          currentConversation?.workflowStage ?? ConversationWorkflowStage.idle,
-      workflowSpec: currentConversation?.workflowSpec,
-      planArtifact: currentConversation?.planArtifact,
-      isVoiceMode: _isVoiceMode,
-      agentsMarkdown: _loadAgentsMd(resolvedAssistantMode, activeCodingProject),
-      skillsContext: _buildSkillsPromptContext(toolNames),
-      hasPythonInputAttachment:
-          toolNames.contains('run_python_script') &&
-          _latestPythonInputMessage() != null,
-      modelCapabilityProfile: _settings.effectiveModelCapabilityProfile,
-      modelHarnessConfig: _settings.effectiveModelHarnessConfig,
-    );
-    _updateContextSurgeryObservation(
-      systemPrompt: content,
-      toolDefinitions: toolObservation.definitions,
-      mcpToolNames: toolObservation.mcpNames,
-    );
-    return Message(
-      id: 'system',
-      content: content,
-      role: MessageRole.system,
-      timestamp: now,
-    );
   }
 
   String? _buildSkillsPromptContext(List<String> toolNames) {
@@ -2308,6 +2253,7 @@ class ChatNotifier extends Notifier<ChatState> {
       'inspect_file' ||
       'write_file' ||
       'edit_file' ||
+      'delete_file' ||
       'lsp_go_to_definition' => () {
         final resolvedPath = resolvePathArg('path');
         final resolvedArguments = toolName == 'write_file'
@@ -2956,6 +2902,16 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       return;
     }
+
+    await _ensureShortPromptExecutionContract(
+      currentConversation: currentConversation,
+      userMessage: userMessage,
+      conversationsNotifier: conversationsNotifier,
+    );
+    currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    conversationId = currentConversation?.id;
 
     if (currentConversation != null &&
         currentConversation.workspaceMode == WorkspaceMode.chat &&
@@ -4010,32 +3966,52 @@ class ChatNotifier extends Notifier<ChatState> {
                 );
 
           var isFirstChunk = true;
-          await for (final chunk in stream) {
-            if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-              return '';
-            }
-            if (!ref.mounted) return '';
-            if (isFirstChunk) {
-              isFirstChunk = false;
-              _removeTrailingThinkTagForGeneration(interactionGeneration);
-              final activeMessages =
-                  _activeResponseMessagesForGeneration(interactionGeneration) ??
-                  state.messages;
-              if (activeMessages.isNotEmpty &&
-                  activeMessages.last.content.isNotEmpty) {
-                _appendToLastMessageForGeneration(
-                  interactionGeneration,
-                  '\n',
-                  scanForTools: false,
-                );
+          try {
+            await for (final chunk in stream.timeout(
+              const Duration(minutes: 2),
+            )) {
+              if (!_isCurrentInteractionGeneration(interactionGeneration)) {
+                return '';
               }
+              if (!ref.mounted) return '';
+              if (isFirstChunk) {
+                isFirstChunk = false;
+                _removeTrailingThinkTagForGeneration(interactionGeneration);
+                final activeMessages =
+                    _activeResponseMessagesForGeneration(
+                      interactionGeneration,
+                    ) ??
+                    state.messages;
+                if (activeMessages.isNotEmpty &&
+                    activeMessages.last.content.isNotEmpty) {
+                  _appendToLastMessageForGeneration(
+                    interactionGeneration,
+                    '\n',
+                    scanForTools: false,
+                  );
+                }
+              }
+              _appendToLastMessageForGeneration(
+                interactionGeneration,
+                chunk,
+                scanForTools: false,
+              );
+              streamedAnswer.write(chunk);
             }
-            _appendToLastMessageForGeneration(
-              interactionGeneration,
-              chunk,
-              scanForTools: false,
+          } on TimeoutException {
+            _removeTrailingThinkTagForGeneration(interactionGeneration);
+            const timeoutResponse =
+                'The final response timed out. The task remains incomplete; '
+                'continue from the latest diagnostics.';
+            _appendRecoveredAssistantResponse(
+              timeoutResponse,
+              interactionGeneration: interactionGeneration,
             );
-            streamedAnswer.write(chunk);
+            appLog(
+              '[FinalAnswerRecovery] Tool-result final stream timed out; '
+              'returning incomplete evidence to goal continuation',
+            );
+            return timeoutResponse;
           }
           if (isFirstChunk) {
             _removeTrailingThinkTagForGeneration(interactionGeneration);
@@ -5351,7 +5327,7 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _isFileMutationToolName(String toolName) {
     switch (toolName.trim().toLowerCase()) {
       case 'write_file':
-      case 'edit_file':
+      case 'edit_file' || 'delete_file':
       case 'rollback_last_file_change':
         return true;
     }
@@ -5501,10 +5477,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Executes tool calls, supporting a repeated tool-call loop.
-  ///
-  /// Continues looping while the LLM keeps requesting tools, until it returns
-  /// a text response. Because qwen35-35b does not reliably use tool-role
-  /// messages as real-time data, tool results are resent as a user message.
+  /// Executes bounded tool calls and resends results for model compatibility.
   Future<void> _executeToolCalls(
     List<ToolCallInfo> toolCalls, {
     String? assistantContent,
@@ -5517,17 +5490,34 @@ class ChatNotifier extends Notifier<ChatState> {
   }) async {
     var currentToolCalls = toolCalls;
     var currentAssistantContent = assistantContent;
-    // Allow longer implementation and validation repair loops before falling
-    // back to a final answer request. Live runs regularly need more than
-    // eight bounded tool turns to converge on a validated saved task.
-    // LL23: a per-model harness config may override this base cap (e.g. a low
-    // cap to break over-exploring models); the dynamic recovery extensions
-    // below still apply on top of the resolved base.
     var maxIterations =
         _settings.effectiveModelHarnessConfig?.resolveToolLoopMaxIterations(
           12,
         ) ??
         12;
+    const executionBudgetPolicy = ExecutionBudgetPolicy();
+    var totalExtensionGranted = 0;
+    void requestBudgetExtension(
+      ExecutionBudgetExtensionReason reason, {
+      int requestedIterations = 2,
+      bool madeProgress = true,
+    }) {
+      final decision = executionBudgetPolicy.requestExtension(
+        totalExtensionGranted: totalExtensionGranted,
+        requestedIterations: requestedIterations,
+        reason: reason,
+        madeProgress: madeProgress,
+      );
+      maxIterations += decision.grantedIterations;
+      totalExtensionGranted += decision.grantedIterations;
+      appLog(
+        '[ExecutionBudget] reason=${reason.name}; '
+        'requested=$requestedIterations; '
+        'granted=${decision.grantedIterations}; '
+        'totalExtension=$totalExtensionGranted; cap=$maxIterations',
+      );
+    }
+
     var iteration = 0;
     var hasTextResponse = false;
     final executedToolCallKeys = <String>{};
@@ -5600,6 +5590,14 @@ class ChatNotifier extends Notifier<ChatState> {
       commandRetryGeneration = batchResult.commandRetryGeneration;
       final batchToolResults = batchResult.batchToolResults;
       final pendingBatchCalls = batchResult.pendingBatchCalls;
+      final terminalSuccessMessage = batchResult.terminalSuccessMessage;
+      if (await _finishExplicitTerminalSuccess(
+        terminalSuccessMessage,
+        interactionGeneration: interactionGeneration,
+      )) {
+        hasTextResponse = true;
+        break;
+      }
       if (batchResult.hasTextResponse) {
         hasTextResponse = true;
         break;
@@ -6103,8 +6101,15 @@ class ChatNotifier extends Notifier<ChatState> {
             currentAssistantContent = recoveryResult.content.isNotEmpty
                 ? recoveryResult.content
                 : currentAssistantContent;
-            maxIterations +=
-                _toolResultsContainEditMismatch(recoveryToolResults) ? 4 : 2;
+            final editMismatch = _toolResultsContainEditMismatch(
+              recoveryToolResults,
+            );
+            requestBudgetExtension(
+              editMismatch
+                  ? ExecutionBudgetExtensionReason.editMismatchRecovery
+                  : ExecutionBudgetExtensionReason.toolLoopExhaustion,
+              requestedIterations: editMismatch ? 4 : 2,
+            );
           } else {
             appLog(
               '[Tool] Tool loop exhaustion recovery returned final text response',
@@ -6251,7 +6256,9 @@ class ChatNotifier extends Notifier<ChatState> {
                 ? backgroundProcessRepairResult.content
                 : fallbackResponse;
             if (iteration >= maxIterations) {
-              maxIterations += 2;
+              requestBudgetExtension(
+                ExecutionBudgetExtensionReason.backgroundProcessMonitoring,
+              );
             }
             continue;
           }
@@ -6272,7 +6279,9 @@ class ChatNotifier extends Notifier<ChatState> {
             currentToolCalls = [monitorFollowUp];
             currentAssistantContent = monitorResponse;
             if (iteration >= maxIterations) {
-              maxIterations += 2;
+              requestBudgetExtension(
+                ExecutionBudgetExtensionReason.backgroundProcessMonitoring,
+              );
             }
             continue;
           }
@@ -6303,7 +6312,9 @@ class ChatNotifier extends Notifier<ChatState> {
           currentToolCalls = [runningProcessFollowUp];
           currentAssistantContent = fallbackResponse;
           if (iteration >= maxIterations) {
-            maxIterations += 2;
+            requestBudgetExtension(
+              ExecutionBudgetExtensionReason.backgroundProcessMonitoring,
+            );
           }
           continue;
         }
@@ -6332,7 +6343,9 @@ class ChatNotifier extends Notifier<ChatState> {
                 ? verificationRepairResult.content
                 : fallbackResponse;
             if (iteration >= maxIterations) {
-              maxIterations += 2;
+              requestBudgetExtension(
+                ExecutionBudgetExtensionReason.verificationRepair,
+              );
             }
             continue;
           }
@@ -6391,7 +6404,9 @@ class ChatNotifier extends Notifier<ChatState> {
                   ? codingContinuationRecoveryResult.content
                   : fallbackResponse;
               if (iteration >= maxIterations) {
-                maxIterations += 2;
+                requestBudgetExtension(
+                  ExecutionBudgetExtensionReason.codingContinuation,
+                );
               }
               continue;
             }
@@ -6755,6 +6770,9 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     finalCompletionEvidence = finalCompletionEvidence
         .carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
+    await _recordSuccessfulVerificationGenerationIfNeeded(
+      finalCompletionEvidence,
+    );
     _latestGoalAutoContinueEvidence = finalCompletionEvidence;
     _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
       finalToolResults,
@@ -7214,7 +7232,6 @@ class ChatNotifier extends Notifier<ChatState> {
       });
     });
   }
-
 
   bool _toolResultCommandMatches(
     ToolResultInfo result, {
@@ -8890,12 +8907,7 @@ class ChatNotifier extends Notifier<ChatState> {
     } else {
       _clearTurnDiffCapture();
     }
-    if (_latestContentToolResults.isNotEmpty) {
-      _latestGoalAutoContinueEvidence =
-          ToolResultPromptBuilder.completionEvidence(
-            _latestContentToolResults,
-          ).carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
-    }
+    _reconcileGoalAutoContinueEvidenceForFinalization();
     await ref
         .read(conversationsNotifierProvider.notifier)
         .recordCurrentGoalTurn(

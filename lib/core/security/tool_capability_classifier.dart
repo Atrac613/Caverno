@@ -67,6 +67,20 @@ enum ToolCapabilityClass {
 /// computer-use, SSH) so SEC1 does not silently re-rank current behavior.
 enum ToolRiskTier { low, medium, high }
 
+enum ToolCommandEffect {
+  inspection,
+  dependencyResolution,
+  build,
+  verification,
+  formatting,
+  codeGeneration,
+  workspaceMutation,
+  processLifecycle,
+  deploymentOrRelease,
+  externalSideEffect,
+  unknown,
+}
+
 /// The classified capability of a single tool, plus derived properties used by
 /// approval display and taint policy.
 class ToolCapability {
@@ -74,11 +88,13 @@ class ToolCapability {
     required this.toolName,
     required this.capabilityClass,
     required this.riskTier,
+    required this.commandEffect,
   });
 
   final String toolName;
   final ToolCapabilityClass capabilityClass;
   final ToolRiskTier riskTier;
+  final ToolCommandEffect commandEffect;
 
   /// Whether the action can change state on the local host or a remote target
   /// (filesystem, processes, git history, device, remote machine).
@@ -120,7 +136,123 @@ class ToolCapabilityClassifier {
       toolName: toolName,
       capabilityClass: capabilityClass,
       riskTier: _riskOf(capabilityClass),
+      commandEffect: _effectOf(name, arguments),
     );
+  }
+
+  ToolCommandEffect _effectOf(String name, Map<String, dynamic> arguments) {
+    if (_readOnlyInspectionTools.contains(name) ||
+        name.startsWith('search_') ||
+        name.startsWith('get_') ||
+        name.startsWith('wifi_get') ||
+        name.startsWith('lan_get')) {
+      return ToolCommandEffect.inspection;
+    }
+    if (_filesystemWriteTools.contains(name)) {
+      return ToolCommandEffect.workspaceMutation;
+    }
+    if (_memoryWriteTools.contains(name) || name.contains('clipboard')) {
+      return ToolCommandEffect.externalSideEffect;
+    }
+    if (name == 'run_tests') {
+      return ToolCommandEffect.verification;
+    }
+    if (name == 'run_python_script') {
+      return ToolCommandEffect.externalSideEffect;
+    }
+    if (name.startsWith('process_')) {
+      return switch (name) {
+        'process_status' ||
+        'process_tail' ||
+        'process_wait' ||
+        'process_list' => ToolCommandEffect.inspection,
+        _ => ToolCommandEffect.processLifecycle,
+      };
+    }
+    if (name == 'local_execute_command' || name == 'git_execute_command') {
+      final command = (arguments['command'] as String? ?? '').trim();
+      return _commandEffect(command, git: name == 'git_execute_command');
+    }
+    if (name == 'ssh_execute_command' ||
+        name.startsWith('remote_coding') ||
+        name.startsWith('remote_pair') ||
+        name.startsWith('computer_') ||
+        name.startsWith('browser_') ||
+        name.startsWith('ble_') ||
+        name.startsWith('serial_') ||
+        _deviceControlTools.contains(name)) {
+      return ToolCommandEffect.externalSideEffect;
+    }
+    return ToolCommandEffect.unknown;
+  }
+
+  ToolCommandEffect _commandEffect(String command, {required bool git}) {
+    final normalized = command
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (normalized.isEmpty) return ToolCommandEffect.unknown;
+    if (git) {
+      final verb = normalized.split(' ').first;
+      if (const {
+        'status',
+        'diff',
+        'log',
+        'show',
+        'branch',
+        'tag',
+        'remote',
+        'rev-parse',
+        'ls-files',
+      }.contains(verb)) {
+        return ToolCommandEffect.inspection;
+      }
+      if (const {'push', 'fetch', 'pull', 'clone'}.contains(verb)) {
+        return ToolCommandEffect.externalSideEffect;
+      }
+      return ToolCommandEffect.workspaceMutation;
+    }
+    if (RegExp(
+          r'(^| )(dart|flutter) (test|analyze)( |$)',
+        ).hasMatch(normalized) ||
+        RegExp(
+          r'(^| )(pytest|cargo test|npm test|pnpm test|yarn test)( |$)',
+        ).hasMatch(normalized)) {
+      return ToolCommandEffect.verification;
+    }
+    if (RegExp(
+          r'(^| )(dart|flutter) (pub get|pub upgrade)( |$)',
+        ).hasMatch(normalized) ||
+        RegExp(
+          r'(^| )(npm|pnpm|yarn) (install|add)( |$)',
+        ).hasMatch(normalized) ||
+        RegExp(r'(^| )(pip|pip3) install( |$)').hasMatch(normalized)) {
+      return ToolCommandEffect.dependencyResolution;
+    }
+    if (RegExp(r'(^| )(dart|flutter) format( |$)').hasMatch(normalized) ||
+        RegExp(r'(^| )(prettier|rustfmt|gofmt)( |$)').hasMatch(normalized)) {
+      return ToolCommandEffect.formatting;
+    }
+    if (normalized.contains('build_runner') ||
+        normalized.contains('codegen') ||
+        normalized.contains('generate')) {
+      return ToolCommandEffect.codeGeneration;
+    }
+    if (RegExp(
+          r'(^| )(dart|flutter|cargo|npm|pnpm|yarn) (run )?build( |$)',
+        ).hasMatch(normalized) ||
+        RegExp(r'(^| )(make|cmake)( |$)').hasMatch(normalized)) {
+      return ToolCommandEffect.build;
+    }
+    if (RegExp(
+      r'(^| )(pwd|ls|find|rg|grep|cat|head|tail|wc|which|git status|git diff|git log)( |$)',
+    ).hasMatch(normalized)) {
+      return ToolCommandEffect.inspection;
+    }
+    if (RegExp(r'(^| )(deploy|release|publish)( |$)').hasMatch(normalized)) {
+      return ToolCommandEffect.deploymentOrRelease;
+    }
+    return ToolCommandEffect.workspaceMutation;
   }
 
   ToolCapabilityClass _classOf(String name) {
@@ -204,6 +336,7 @@ class ToolCapabilityClassifier {
   static const Set<String> _filesystemWriteTools = {
     'write_file',
     'edit_file',
+    'delete_file',
     'rollback_last_file_change',
   };
 

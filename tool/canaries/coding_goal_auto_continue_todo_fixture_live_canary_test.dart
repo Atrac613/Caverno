@@ -24,6 +24,7 @@ import 'package:caverno/features/chat/data/repositories/conversation_repository.
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
@@ -36,8 +37,14 @@ import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 const _verifyCommand = 'dart run tool/verify_todo_app.dart';
+const _wordFrequencyVerifyCommand =
+    'dart run tool/verify_word_frequency_cli.dart';
+const _markdownTocVerifyCommand = 'dart run tool/verify_markdown_toc.dart';
 const _stagedFailureTurns = 2;
 const _postSuccessMutationCode = 'todo_post_success_mutation';
+const _minimalPrompt =
+    'todo_app.md の要件に従って、DartでMVPを実装してください。'
+    '記載された受け入れ基準を実際に確認し、すべて通るまで修正してください。';
 
 void main() {
   final autoContinueEnabled =
@@ -45,6 +52,14 @@ void main() {
       '1';
   final mvpEnabled =
       Platform.environment['CAVERNO_CODING_TODO_APP_MVP_LIVE_CANARY'] == '1';
+  final minimalPromptEnabled =
+      Platform
+          .environment['CAVERNO_CODING_TODO_APP_MINIMAL_PROMPT_LIVE_CANARY'] ==
+      '1';
+  final wordFrequencyEnabled =
+      Platform.environment['CAVERNO_CODING_WORD_FREQUENCY_LIVE_CANARY'] == '1';
+  final markdownTocEnabled =
+      Platform.environment['CAVERNO_CODING_MARKDOWN_TOC_LIVE_CANARY'] == '1';
 
   test('TODO fixture blocks mutations after verifier success', () async {
     final root = Directory.systemTemp.createTempSync(
@@ -89,9 +104,14 @@ void main() {
           'new_text': 'void main() { throw StateError("regression"); }',
         },
       );
+      final blockedDelete = await service.executeTool(
+        name: 'delete_file',
+        arguments: {'path': target.path},
+      );
 
       expect(blockedWrite.isSuccess, isFalse);
       expect(blockedEdit.isSuccess, isFalse);
+      expect(blockedDelete.isSuccess, isFalse);
       expect(
         _tryDecodeObject(blockedWrite.result)['code'],
         _postSuccessMutationCode,
@@ -101,7 +121,7 @@ void main() {
         _postSuccessMutationCode,
       );
       expect(target.readAsStringSync(), 'void main() {}\n');
-      expect(service.postSuccessMutationAttempts, hasLength(2));
+      expect(service.postSuccessMutationAttempts, hasLength(3));
     } finally {
       root.deleteSync(recursive: true);
     }
@@ -157,6 +177,213 @@ void main() {
       }
     } finally {
       root.deleteSync(recursive: true);
+    }
+  });
+
+  test(
+    'TODO verifier rejects and can remove an unexpected entrypoint',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'todo_unexpected_entrypoint_',
+      );
+      try {
+        Directory('${root.path}/bin').createSync(recursive: true);
+        File('${root.path}/pubspec.yaml').writeAsStringSync('name: fixture\n');
+        File(
+          '${root.path}/bin/todo_cli.dart',
+        ).writeAsStringSync('void main() {}');
+        final unexpected = File('${root.path}/bin/todo.dart')
+          ..writeAsStringSync('void main() {}');
+        final service = _TodoToolService(root, stagedFailureTurns: 0);
+
+        final verification = await service.verifyTodoApp();
+
+        expect(
+          verification.diagnostics.map((item) => item['code']),
+          contains('todo_cli_unexpected_entrypoint'),
+        );
+        final deletion = await service.executeTool(
+          name: 'delete_file',
+          arguments: {'path': 'bin/todo.dart'},
+        );
+        expect(deletion.isSuccess, isTrue);
+        expect(unexpected.existsSync(), isFalse);
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test('word-frequency verifier accepts the canonical Dart behavior', () async {
+    final fixture = _TodoFixture.create(null);
+    try {
+      _configureWordFrequencyFixture(fixture.root);
+      File('${fixture.root.path}/bin/word_frequency.dart').writeAsStringSync(
+        r'''
+import 'dart:io';
+
+void main(List<String> args) {
+  if (args.isEmpty) {
+    stderr.writeln('Usage: word_frequency <file> [count]');
+    exitCode = 64;
+    return;
+  }
+  final file = File(args.first);
+  if (!file.existsSync()) {
+    stderr.writeln('Cannot read ${args.first}');
+    exitCode = 66;
+    return;
+  }
+  final limit = args.length > 2 && args[1] == '--top'
+      ? int.parse(args[2])
+      : 10;
+  final counts = <String, int>{};
+  for (final raw in file.readAsStringSync().split(RegExp(r'\s+'))) {
+    final word = raw.toLowerCase().replaceAll(
+      RegExp(r'^[^a-z0-9]+|[^a-z0-9]+$'),
+      '',
+    );
+    if (word.isNotEmpty) counts[word] = (counts[word] ?? 0) + 1;
+  }
+  final rows = counts.entries.toList()
+    ..sort((a, b) {
+      final count = b.value.compareTo(a.value);
+      return count != 0 ? count : a.key.compareTo(b.key);
+    });
+  for (final row in rows.take(limit)) {
+    stdout.writeln('${row.key} ${row.value}');
+  }
+}
+''',
+      );
+      final service = _WordFrequencyToolService(fixture.root);
+
+      final verification = await service.verifyWordFrequency();
+
+      expect(
+        verification.diagnostics,
+        isEmpty,
+        reason: verification.transcript,
+      );
+    } finally {
+      fixture.dispose();
+    }
+  });
+
+  test('Markdown TOC verifier accepts the canonical Dart behavior', () async {
+    final fixture = _TodoFixture.create(null);
+    try {
+      _configureMarkdownTocFixture(fixture.root);
+      File('${fixture.root.path}/bin/markdown_toc.dart').writeAsStringSync(r'''
+import 'dart:io';
+
+void main(List<String> args) {
+  if (args.isEmpty) {
+    stderr.writeln('Usage: markdown_toc <file>');
+    exitCode = 64;
+    return;
+  }
+  final headings = <(int, String)>[];
+  String? fence;
+  for (final line in File(args.first).readAsLinesSync()) {
+    final fenceMatch = RegExp(r'^\s*(```|~~~)').firstMatch(line);
+    if (fenceMatch != null) {
+      final marker = fenceMatch.group(1)!;
+      fence = fence == null ? marker : (fence == marker ? null : fence);
+      continue;
+    }
+    if (fence != null) continue;
+    final match = RegExp(r'^(#{1,6}) (.+)$').firstMatch(line);
+    if (match != null) headings.add((match.group(1)!.length, match.group(2)!));
+  }
+  if (headings.isEmpty) return;
+  final base = headings.map((item) => item.$1).reduce((a, b) => a < b ? a : b);
+  final slugs = <String, int>{};
+  for (final heading in headings) {
+    final plain = heading.$2.replaceAll(RegExp(r'[^A-Za-z0-9\- ]'), '');
+    final root = plain.toLowerCase().replaceAll(' ', '-');
+    final duplicate = slugs[root] ?? 0;
+    slugs[root] = duplicate + 1;
+    final slug = duplicate == 0 ? root : '$root-$duplicate';
+    stdout.writeln('${'  ' * (heading.$1 - base)}- [${heading.$2}](#$slug)');
+  }
+}
+''');
+      final service = _MarkdownTocToolService(fixture.root);
+
+      final verification = await service.verifyMarkdownToc();
+
+      expect(
+        verification.diagnostics,
+        isEmpty,
+        reason: verification.transcript,
+      );
+      final result = await service.executeTool(
+        name: 'local_execute_command',
+        arguments: {
+          'command': _markdownTocVerifyCommand,
+          'working_directory': fixture.root.path,
+        },
+      );
+      expect(
+        result.isSuccess,
+        isTrue,
+        reason: '${result.errorMessage}\n${result.result}',
+      );
+      expect(_tryDecodeObject(result.result)['terminal_success'], isTrue);
+    } finally {
+      fixture.dispose();
+    }
+  });
+
+  test('Markdown TOC verifier diagnoses an unclosed fence precisely', () async {
+    final fixture = _TodoFixture.create(null);
+    try {
+      _configureMarkdownTocFixture(fixture.root);
+      File('${fixture.root.path}/bin/markdown_toc.dart').writeAsStringSync(r'''
+void main() {
+  print('- [API Reference!](#api-reference)');
+  print('  - [Setup](#setup)');
+}
+''');
+      final service = _MarkdownTocToolService(fixture.root);
+
+      final verification = await service.verifyMarkdownToc();
+      final codes = verification.diagnostics
+          .map((diagnostic) => diagnostic['code'])
+          .toSet();
+
+      expect(codes, contains('markdown_toc_fence_close_failed'));
+      expect(codes, contains('markdown_toc_row_count_failed'));
+      expect(codes, isNot(contains('markdown_toc_heading_or_slug_failed')));
+    } finally {
+      fixture.dispose();
+    }
+  });
+
+  test('Markdown TOC verifier rejects reordered headings', () async {
+    final fixture = _TodoFixture.create(null);
+    try {
+      _configureMarkdownTocFixture(fixture.root);
+      File('${fixture.root.path}/bin/markdown_toc.dart').writeAsStringSync(r'''
+void main() {
+  print('- [API Reference!](#api-reference)');
+  print('  - [Setup](#setup)');
+  print('  - [Notes](#notes-1)');
+  print('  - [Notes](#notes)');
+  print('    - [Detail](#detail)');
+}
+''');
+      final service = _MarkdownTocToolService(fixture.root);
+
+      final verification = await service.verifyMarkdownToc();
+      final codes = verification.diagnostics
+          .map((diagnostic) => diagnostic['code'])
+          .toSet();
+
+      expect(codes, contains('markdown_toc_sequence_failed'));
+    } finally {
+      fixture.dispose();
     }
   });
 
@@ -325,121 +552,357 @@ void main() {
 
   test(
     'live LLM assembles the todo_app.md MVP as a Dart CLI',
-    () async {
-      final env = _TodoFixtureEnv.fromEnvironment();
-      final fixture = _TodoFixture.create(env.workspaceRoot);
-      final sessionLogRoot = Directory(env.sessionLogRoot)
-        ..createSync(recursive: true);
-      final logStore = LlmSessionLogStore(
-        rootDirectoryProvider: () async => sessionLogRoot,
-      );
-      final dataSource = _TodoAutoContinueDataSource(
-        env,
-        stagedFailureTurns: 0,
-      );
-      final toolService = _TodoToolService(fixture.root, stagedFailureTurns: 0);
-      final container = _buildContainer(
-        env: env,
-        fixture: fixture,
-        dataSource: dataSource,
-        toolService: toolService,
-        logStore: logStore,
-      );
-
-      try {
-        container
-            .read(conversationsNotifierProvider.notifier)
-            .createNewConversation(
-              workspaceMode: WorkspaceMode.coding,
-              projectId: fixture.project.id,
-            );
-
-        await container
-            .read(chatNotifierProvider.notifier)
-            .sendMessage(
-              [
-                'Direct-build the MVP from '
-                    'docs/coding_mvp_fixtures/todo_app.md in this empty scratch '
-                    'project.',
-                '',
-                'Language and layout are fixed for this controlled Live LLM '
-                    'canary:',
-                '- Implement a Dart command-line program at bin/todo_cli.dart.',
-                '- Use only the Dart SDK; do not add Flutter, a GUI, a web server, '
-                    'or a database.',
-                '',
-                _builderSpec(),
-                '',
-                'Verification requirements:',
-                '- The verifier stub already exists at tool/verify_todo_app.dart; '
-                    'do not inspect or edit it.',
-                '- Run local_execute_command with command "$_verifyCommand" from '
-                    'the project root.',
-                '- The verifier runs every check in a fresh isolated copy of '
-                    'the Dart sources. Do not prepend or append rm, cat, shell '
-                    'operators, or any other command.',
-                '- Use the verifier diagnostics to repair the implementation and '
-                    'rerun it until it exits with code 0 or a concrete blocker '
-                    'prevents progress.',
-                '- Read the current implementation with read_file and prefer '
-                    'edit_file for focused repairs instead of rewriting the '
-                    'whole file.',
-                '- Do not claim completion unless that verifier exits with code 0.',
-                '- After the verifier exits with code 0, do not call any more '
-                    'tools or modify files. Return the final answer immediately.',
-              ].join('\n'),
-              bypassPlanMode: true,
-            );
-
-        await _waitForGoalTerminalOrIdle(container);
-        final independentVerification = await toolService.verifyTodoApp();
-        final diagnostic = _diagnostic(
-          container,
-          dataSource,
-          toolService,
-          fixture,
-        );
-
-        expect(
-          File('${fixture.root.path}/bin/todo_cli.dart').existsSync(),
-          isTrue,
-          reason: diagnostic,
-        );
-        expect(
-          toolService.verificationAttempts,
-          greaterThanOrEqualTo(1),
-          reason: diagnostic,
-        );
-        expect(
-          toolService.hasSuccessfulVerifierCall,
-          isTrue,
-          reason: diagnostic,
-        );
-        expect(
-          toolService.postSuccessMutationAttempts,
-          isEmpty,
-          reason:
-              '$diagnostic\npostSuccessMutationCode='
-              '$_postSuccessMutationCode',
-        );
-        expect(
-          independentVerification.diagnostics,
-          isEmpty,
-          reason:
-              '$diagnostic\nindependentVerification='
-              '${jsonEncode(independentVerification.diagnostics)}\n'
-              '${independentVerification.transcript}',
-        );
-      } finally {
-        container.dispose();
-        fixture.dispose();
-      }
-    },
+    () => _runTodoMvpLiveScenario(_detailedMvpPrompt()),
     skip: mvpEnabled
         ? false
         : 'Set CAVERNO_CODING_TODO_APP_MVP_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 30)),
   );
+
+  test(
+    'live LLM assembles the todo_app.md MVP from the minimal Japanese prompt',
+    () => _runTodoMvpLiveScenario(_minimalPrompt),
+    skip: minimalPromptEnabled
+        ? false
+        : 'Set CAVERNO_CODING_TODO_APP_MINIMAL_PROMPT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
+
+  test(
+    'live LLM assembles the word_frequency_cli.md MVP from a short prompt',
+    _runWordFrequencyLiveScenario,
+    skip: wordFrequencyEnabled
+        ? false
+        : 'Set CAVERNO_CODING_WORD_FREQUENCY_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
+
+  test(
+    'live LLM assembles the markdown_toc_generator.md MVP from a short prompt',
+    _runMarkdownTocLiveScenario,
+    skip: markdownTocEnabled
+        ? false
+        : 'Set CAVERNO_CODING_MARKDOWN_TOC_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
+}
+
+Future<void> _runMarkdownTocLiveScenario() async {
+  final env = _TodoFixtureEnv.fromEnvironment();
+  final fixture = _TodoFixture.create(env.workspaceRoot);
+  _configureMarkdownTocFixture(fixture.root);
+  final sessionLogRoot = Directory(env.sessionLogRoot)
+    ..createSync(recursive: true);
+  final dataSource = _TodoAutoContinueDataSource(env, stagedFailureTurns: 0);
+  final toolService = _MarkdownTocToolService(fixture.root);
+  final container = _buildContainer(
+    env: env,
+    fixture: fixture,
+    dataSource: dataSource,
+    toolService: toolService,
+    logStore: LlmSessionLogStore(
+      rootDirectoryProvider: () async => sessionLogRoot,
+    ),
+  );
+  const prompt =
+      'markdown_toc_generator.md の要件に従って、DartでMVPを実装してください。'
+      '記載された受け入れ基準を実際に確認し、すべて通るまで修正してください。';
+
+  try {
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    conversations.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: fixture.project.id,
+    );
+    await conversations.saveCurrentGoal(
+      objective: prompt,
+      enabled: true,
+      autoContinue: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 60000,
+      turnBudget: 5,
+    );
+    await container
+        .read(chatNotifierProvider.notifier)
+        .sendMessage(prompt, bypassPlanMode: true);
+    await _waitForGoalTerminalOrIdle(container);
+
+    final verification = await toolService.verifyMarkdownToc();
+    final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
+    expect(
+      File('${fixture.root.path}/bin/markdown_toc.dart').existsSync(),
+      isTrue,
+      reason: diagnostic,
+    );
+    expect(
+      Directory(
+        '${fixture.root.path}/bin',
+      ).listSync().whereType<File>().map((file) => file.uri.pathSegments.last),
+      unorderedEquals(const ['markdown_toc.dart']),
+      reason: diagnostic,
+    );
+    expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
+    final finalGoal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(
+      finalGoal?.status,
+      isNot(ConversationGoalStatus.blocked),
+      reason: '$diagnostic\nA verified goal must not be marked blocked.',
+    );
+    expect(
+      toolService.postSuccessMutationAttempts,
+      isEmpty,
+      reason: diagnostic,
+    );
+    expect(
+      verification.diagnostics,
+      isEmpty,
+      reason: '$diagnostic\n${verification.transcript}',
+    );
+  } finally {
+    container.dispose();
+    fixture.dispose();
+  }
+}
+
+Future<void> _runWordFrequencyLiveScenario() async {
+  final env = _TodoFixtureEnv.fromEnvironment();
+  final fixture = _TodoFixture.create(env.workspaceRoot);
+  _configureWordFrequencyFixture(fixture.root);
+  final sessionLogRoot = Directory(env.sessionLogRoot)
+    ..createSync(recursive: true);
+  final logStore = LlmSessionLogStore(
+    rootDirectoryProvider: () async => sessionLogRoot,
+  );
+  final dataSource = _TodoAutoContinueDataSource(env, stagedFailureTurns: 0);
+  final toolService = _WordFrequencyToolService(fixture.root);
+  final container = _buildContainer(
+    env: env,
+    fixture: fixture,
+    dataSource: dataSource,
+    toolService: toolService,
+    logStore: logStore,
+  );
+  const prompt =
+      'word_frequency_cli.md の要件に従って、DartでMVPを実装してください。'
+      '記載された受け入れ基準を実際に確認し、すべて通るまで修正してください。';
+
+  try {
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    conversations.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: fixture.project.id,
+    );
+    await conversations.saveCurrentGoal(
+      objective: prompt,
+      enabled: true,
+      autoContinue: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 60000,
+      turnBudget: 5,
+    );
+
+    await container
+        .read(chatNotifierProvider.notifier)
+        .sendMessage(prompt, bypassPlanMode: true);
+    await _waitForGoalTerminalOrIdle(container);
+
+    final verification = await toolService.verifyWordFrequency();
+    final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
+    expect(
+      File('${fixture.root.path}/bin/word_frequency.dart').existsSync(),
+      isTrue,
+      reason: diagnostic,
+    );
+    expect(
+      Directory(
+        '${fixture.root.path}/bin',
+      ).listSync().whereType<File>().map((file) => file.uri.pathSegments.last),
+      unorderedEquals(const ['word_frequency.dart']),
+      reason: diagnostic,
+    );
+    expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
+    expect(
+      toolService.postSuccessMutationAttempts,
+      isEmpty,
+      reason: diagnostic,
+    );
+    expect(
+      verification.diagnostics,
+      isEmpty,
+      reason: '$diagnostic\n${verification.transcript}',
+    );
+  } finally {
+    container.dispose();
+    fixture.dispose();
+  }
+}
+
+void _configureWordFrequencyFixture(Directory root) {
+  File('${root.path}/todo_app.md').deleteSync();
+  File('${root.path}/tool/verify_todo_app.dart').deleteSync();
+  final source = File('docs/coding_mvp_fixtures/word_frequency_cli.md');
+  if (!source.existsSync()) {
+    throw StateError('word_frequency_cli.md fixture is required.');
+  }
+  File(
+    '${root.path}/word_frequency_cli.md',
+  ).writeAsStringSync(source.readAsStringSync());
+  File('${root.path}/tool/verify_word_frequency_cli.dart').writeAsStringSync('''
+// Live canary placeholder. The harness intercepts this verifier command.
+void main() {}
+''');
+}
+
+void _configureMarkdownTocFixture(Directory root) {
+  File('${root.path}/todo_app.md').deleteSync();
+  File('${root.path}/tool/verify_todo_app.dart').deleteSync();
+  final source = File('docs/coding_mvp_fixtures/markdown_toc_generator.md');
+  if (!source.existsSync()) {
+    throw StateError('markdown_toc_generator.md fixture is required.');
+  }
+  File(
+    '${root.path}/markdown_toc_generator.md',
+  ).writeAsStringSync(source.readAsStringSync());
+  File('${root.path}/tool/verify_markdown_toc.dart').writeAsStringSync('''
+// Live canary placeholder. The harness intercepts this verifier command.
+void main() {}
+''');
+}
+
+Future<void> _runTodoMvpLiveScenario(String prompt) async {
+  final env = _TodoFixtureEnv.fromEnvironment();
+  final fixture = _TodoFixture.create(env.workspaceRoot);
+  final sessionLogRoot = Directory(env.sessionLogRoot)
+    ..createSync(recursive: true);
+  final logStore = LlmSessionLogStore(
+    rootDirectoryProvider: () async => sessionLogRoot,
+  );
+  final dataSource = _TodoAutoContinueDataSource(env, stagedFailureTurns: 0);
+  final toolService = _TodoToolService(fixture.root, stagedFailureTurns: 0);
+  final container = _buildContainer(
+    env: env,
+    fixture: fixture,
+    dataSource: dataSource,
+    toolService: toolService,
+    logStore: logStore,
+  );
+
+  try {
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    conversations.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: fixture.project.id,
+    );
+    await conversations.saveCurrentGoal(
+      objective: prompt,
+      enabled: true,
+      autoContinue: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 60000,
+      turnBudget: 5,
+    );
+
+    await container
+        .read(chatNotifierProvider.notifier)
+        .sendMessage(prompt, bypassPlanMode: true);
+
+    await _waitForGoalTerminalOrIdle(container);
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!;
+    final independentVerification = await toolService.verifyTodoApp();
+    final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
+
+    expect(
+      File('${fixture.root.path}/bin/todo_cli.dart').existsSync(),
+      isTrue,
+      reason: diagnostic,
+    );
+    expect(
+      Directory(
+        '${fixture.root.path}/bin',
+      ).listSync().whereType<File>().map((file) => file.uri.pathSegments.last),
+      unorderedEquals(const ['todo_cli.dart']),
+      reason: diagnostic,
+    );
+    expect(conversation.goal, isNotNull, reason: diagnostic);
+    expect(
+      conversation.effectiveWorkflowSpec.sources.map((source) => source.kind),
+      containsAll(<ConversationContractSourceKind>{
+        ConversationContractSourceKind.userMessage,
+        ConversationContractSourceKind.specificationFile,
+      }),
+      reason: diagnostic,
+    );
+    final specificationSource = conversation.effectiveWorkflowSpec.sources
+        .singleWhere(
+          (source) =>
+              source.kind == ConversationContractSourceKind.specificationFile,
+        );
+    expect(specificationSource.locator, 'todo_app.md', reason: diagnostic);
+    expect(specificationSource.contentHash, isNotEmpty, reason: diagnostic);
+    expect(
+      conversation.effectiveWorkflowSpec.provenance,
+      isNotEmpty,
+      reason: diagnostic,
+    );
+    expect(
+      toolService.verificationAttempts,
+      greaterThanOrEqualTo(1),
+      reason: diagnostic,
+    );
+    expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
+    expect(
+      toolService.postSuccessMutationAttempts,
+      isEmpty,
+      reason: '$diagnostic\npostSuccessMutationCode=$_postSuccessMutationCode',
+    );
+    expect(
+      independentVerification.diagnostics,
+      isEmpty,
+      reason:
+          '$diagnostic\nindependentVerification='
+          '${jsonEncode(independentVerification.diagnostics)}\n'
+          '${independentVerification.transcript}',
+    );
+  } finally {
+    container.dispose();
+    fixture.dispose();
+  }
+}
+
+String _detailedMvpPrompt() {
+  return [
+    'Direct-build the MVP from todo_app.md in this empty scratch project.',
+    '',
+    'Language and layout are fixed for this controlled Live LLM canary:',
+    '- Implement a Dart command-line program at bin/todo_cli.dart.',
+    '- Use only the Dart SDK; do not add Flutter, a GUI, a web server, or a database.',
+    '',
+    _builderSpec(),
+    '',
+    'Verification requirements:',
+    '- The verifier stub already exists at tool/verify_todo_app.dart; do not inspect or edit it.',
+    '- Run local_execute_command with command "$_verifyCommand" from the project root.',
+    '- The verifier runs every check in a fresh isolated copy of the Dart sources. '
+        'Do not prepend or append rm, cat, shell operators, or any other command.',
+    '- Use the verifier diagnostics to repair the implementation and rerun it '
+        'until it exits with code 0 or a concrete blocker prevents progress.',
+    '- Read the current implementation with read_file and prefer edit_file for '
+        'focused repairs instead of rewriting the whole file.',
+    '- Do not claim completion unless that verifier exits with code 0.',
+    '- After the verifier exits with code 0, do not call any more tools or '
+        'modify files. Return the final answer immediately.',
+  ].join('\n');
 }
 
 ProviderContainer _buildContainer({
@@ -702,6 +1165,15 @@ name: todo_auto_continue_fixture
 environment:
   sdk: '>=3.0.0 <4.0.0'
 ''');
+    final fixtureDocument = File('docs/coding_mvp_fixtures/todo_app.md');
+    if (!fixtureDocument.existsSync()) {
+      throw StateError(
+        'docs/coding_mvp_fixtures/todo_app.md is required for the TODO fixture.',
+      );
+    }
+    File(
+      '${root.path}/todo_app.md',
+    ).writeAsStringSync(fixtureDocument.readAsStringSync());
     File('${root.path}/tool/verify_todo_app.dart').writeAsStringSync('''
 // Live canary placeholder.
 //
@@ -1157,6 +1629,16 @@ class _TodoToolService extends McpToolService {
         required: const ['path', 'old_text', 'new_text'],
       ),
       _toolDefinition(
+        name: 'delete_file',
+        description:
+            'Delete one unnecessary file inside the TODO fixture project.',
+        properties: {
+          'path': {'type': 'string'},
+          'reason': {'type': 'string'},
+        },
+        required: const ['path'],
+      ),
+      _toolDefinition(
         name: 'local_execute_command',
         description:
             'Run the TODO fixture verifier. Accepted command: $_verifyCommand.',
@@ -1209,7 +1691,8 @@ class _TodoToolService extends McpToolService {
     return result;
   }
 
-  bool _isMutation(String name) => name == 'write_file' || name == 'edit_file';
+  bool _isMutation(String name) =>
+      name == 'write_file' || name == 'edit_file' || name == 'delete_file';
 
   McpToolResult _postSuccessMutationError(
     String name,
@@ -1301,6 +1784,33 @@ class _TodoToolService extends McpToolService {
           replaceAll: arguments['replace_all'] as bool? ?? false,
         );
         return _toolResult(name, result);
+      case 'delete_file':
+        final path = _resolveInsideRoot(arguments['path'] as String?);
+        if (path.error != null) {
+          return _toolError(name, path.error!);
+        }
+        if (_isProtectedVerifierPath(path.value!)) {
+          return _toolError(
+            name,
+            'tool/verify_todo_app.dart is provided by the harness and cannot be deleted.',
+          );
+        }
+        final file = File(path.value!);
+        if (!file.existsSync()) {
+          return _toolError(
+            name,
+            'File does not exist: ${_relativePath(path.value!)}',
+          );
+        }
+        file.deleteSync();
+        return McpToolResult(
+          toolName: name,
+          result: jsonEncode({
+            'deleted': true,
+            'path': _relativePath(path.value!),
+          }),
+          isSuccess: true,
+        );
       case 'local_execute_command':
         return _executeVerifier(name, arguments);
       default:
@@ -1411,6 +1921,31 @@ class _TodoToolService extends McpToolService {
           message: 'bin/todo_cli.dart does not exist.',
         ),
       );
+      return _TodoVerification(diagnostics: diagnostics, transcript: '');
+    }
+    final unexpectedEntrypoints = Directory('${verificationRoot.path}/bin')
+        .listSync()
+        .whereType<File>()
+        .where(
+          (file) =>
+              file.path.endsWith('.dart') &&
+              file.absolute.path != cli.absolute.path,
+        )
+        .toList(growable: false);
+    if (unexpectedEntrypoints.isNotEmpty) {
+      for (final file in unexpectedEntrypoints) {
+        final relativePath = file.absolute.path
+            .substring(verificationRoot.absolute.path.length + 1)
+            .replaceAll(Platform.pathSeparator, '/');
+        diagnostics.add(
+          _diagnosticJson(
+            code: 'todo_cli_unexpected_entrypoint',
+            message:
+                'Unexpected Dart entrypoint $relativePath. Keep only bin/todo_cli.dart and remove this file with delete_file.',
+            relativePath: relativePath,
+          ),
+        );
+      }
       return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
 
@@ -1722,6 +2257,11 @@ class _TodoToolService extends McpToolService {
           ? ''
           : 'TODO fixture acceptance criteria failed.\n',
       'diagnostics': verification.diagnostics,
+      if (exitCode == 0) ...{
+        'terminal_success': true,
+        'terminal_message':
+            'The TODO app verifier passed. The requested work is complete.',
+      },
     });
     return McpToolResult(
       toolName: name,
@@ -1736,12 +2276,13 @@ class _TodoToolService extends McpToolService {
   Map<String, dynamic> _diagnosticJson({
     required String code,
     required String message,
+    String relativePath = 'bin/todo_cli.dart',
   }) {
-    final path = File('${root.path}/bin/todo_cli.dart').absolute.path;
+    final path = File('${root.path}/$relativePath').absolute.path;
     return {
       'severity': 'Error',
       'path': path,
-      'relative_path': 'bin/todo_cli.dart',
+      'relative_path': relativePath,
       'line': 1,
       'column': 1,
       'code': code,
@@ -1810,6 +2351,615 @@ class _TodoToolService extends McpToolService {
       result: jsonEncode({'error': error}),
       isSuccess: false,
       errorMessage: error,
+    );
+  }
+}
+
+class _WordFrequencyToolService extends _TodoToolService {
+  _WordFrequencyToolService(super.root) : super(stagedFailureTurns: 0);
+
+  @override
+  bool get hasSuccessfulVerifierCall => executedCalls.any((call) {
+    final result = _tryDecodeObject(call.result);
+    return call.name == 'local_execute_command' &&
+        result['canary'] == 'word_frequency_cli' &&
+        result['exit_code'] == 0;
+  });
+
+  Future<_TodoVerification> verifyWordFrequency() => _verifyTodoApp();
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    final definitions = super.getOpenAiToolDefinitions();
+    for (final definition in definitions) {
+      final function = definition['function'] as Map<String, dynamic>;
+      if (function['name'] == 'local_execute_command') {
+        function['description'] =
+            'Run the word-frequency fixture verifier. Accepted command: '
+            '$_wordFrequencyVerifyCommand.';
+      }
+    }
+    return definitions;
+  }
+
+  @override
+  bool _isProtectedVerifierPath(String path) {
+    return _relativePath(path) == 'tool/verify_word_frequency_cli.dart';
+  }
+
+  @override
+  Future<McpToolResult> _executeVerifier(
+    String name,
+    Map<String, dynamic> arguments,
+  ) async {
+    final command = (arguments['command'] as String? ?? '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (command != _wordFrequencyVerifyCommand) {
+      return _toolError(
+        name,
+        'Unsupported command for this word-frequency fixture: $command',
+      );
+    }
+    final workingDirectory = _resolveInsideRoot(
+      arguments['working_directory'] as String?,
+      allowEmpty: true,
+      directory: true,
+    );
+    if (workingDirectory.error != null) {
+      return _toolError(name, workingDirectory.error!);
+    }
+    if (workingDirectory.value != root.absolute.path) {
+      return _toolError(name, 'working_directory must be the fixture root.');
+    }
+    verificationAttempts += 1;
+    return _verifierResult(name, await _verifyTodoApp());
+  }
+
+  @override
+  Future<_TodoVerification> _verifyTodoApp() async {
+    final verificationRoot = _createVerificationRoot();
+    try {
+      return await _verifyWordFrequencyIn(verificationRoot);
+    } finally {
+      verificationRoot.deleteSync(recursive: true);
+    }
+  }
+
+  @override
+  Directory _createVerificationRoot() {
+    final verificationRoot = Directory.systemTemp.createTempSync(
+      'word_frequency_mvp_verification_',
+    );
+    for (final entity in root.listSync(recursive: true, followLinks: false)) {
+      if (entity is! File) continue;
+      final relativePath = _relativePath(entity.path);
+      if (relativePath == null ||
+          relativePath == 'tool/verify_word_frequency_cli.dart' ||
+          (relativePath != 'pubspec.yaml' && !relativePath.endsWith('.dart'))) {
+        continue;
+      }
+      final target = File('${verificationRoot.path}/$relativePath');
+      target.parent.createSync(recursive: true);
+      target.writeAsBytesSync(entity.readAsBytesSync());
+    }
+    return verificationRoot;
+  }
+
+  Future<_TodoVerification> _verifyWordFrequencyIn(Directory work) async {
+    final diagnostics = <Map<String, dynamic>>[];
+    final transcript = StringBuffer();
+    final cli = File('${work.path}/bin/word_frequency.dart');
+    if (!cli.existsSync()) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'word_frequency_cli_missing',
+          message: 'bin/word_frequency.dart does not exist.',
+        ),
+      );
+      return _TodoVerification(diagnostics: diagnostics, transcript: '');
+    }
+    final unexpected = Directory('${work.path}/bin')
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart') && file.path != cli.path);
+    for (final file in unexpected) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'word_frequency_unexpected_entrypoint',
+          message: 'Remove unexpected entrypoint ${file.path}.',
+        ),
+      );
+    }
+
+    File(
+      '${work.path}/sample.txt',
+    ).writeAsStringSync('The cat sat on THE mat. The cat.\n');
+    final full = await _runWordCommand(['sample.txt'], work);
+    transcript.writeln(_formatProcess('default top 10', full));
+    const expected = ['the 3', 'cat 2', 'mat 1', 'on 1', 'sat 1'];
+    final rows = const LineSplitter().convert(
+      (full.stdout as String).trim().toLowerCase(),
+    );
+    if (full.exitCode != 0 || !_containsOrderedRows(rows, expected)) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'word_frequency_normalization_or_order_failed',
+          message:
+              'Counts must be case-insensitive, punctuation-stripped, and ties alphabetical.',
+        ),
+      );
+    }
+
+    final topTwo = await _runWordCommandWithTopN(
+      'sample.txt',
+      2,
+      expectedRows: 2,
+      work: work,
+    );
+    transcript.writeln(_formatProcess('top 2', topTwo));
+    final topRows = const LineSplitter().convert(
+      (topTwo.stdout as String).trim().toLowerCase(),
+    );
+    if (topTwo.exitCode != 0 ||
+        topRows.length != 2 ||
+        !_containsOrderedRows(topRows, expected.take(2).toList())) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'word_frequency_top_n_failed',
+          message: 'Top 2 must return exactly the two most frequent words.',
+        ),
+      );
+    }
+
+    final oversized = await _runWordCommandWithTopN(
+      'sample.txt',
+      100,
+      expectedRows: 5,
+      work: work,
+    );
+    transcript.writeln(_formatProcess('top 100', oversized));
+    if (oversized.exitCode != 0 ||
+        const LineSplitter()
+                .convert((oversized.stdout as String).trim())
+                .length !=
+            5) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'word_frequency_oversized_n_failed',
+          message: 'N larger than the vocabulary must print all words.',
+        ),
+      );
+    }
+
+    File('${work.path}/empty.txt').writeAsStringSync('');
+    final empty = await _runWordCommand(['empty.txt'], work);
+    transcript.writeln(_formatProcess('empty input', empty));
+    if (empty.exitCode != 0) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'word_frequency_empty_input_failed',
+          message: 'Empty input must exit with code 0.',
+        ),
+      );
+    }
+
+    final missingArgument = await _runWordCommand(const [], work);
+    transcript.writeln(_formatProcess('missing argument', missingArgument));
+    if (missingArgument.exitCode == 0 ||
+        '${missingArgument.stdout}${missingArgument.stderr}'.trim().isEmpty) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'word_frequency_missing_argument_failed',
+          message:
+              'Missing file argument must explain usage and exit non-zero.',
+        ),
+      );
+    }
+
+    final unreadable = await _runWordCommand(['missing.txt'], work);
+    transcript.writeln(_formatProcess('missing file', unreadable));
+    if (unreadable.exitCode == 0 ||
+        '${unreadable.stdout}${unreadable.stderr}'.trim().isEmpty) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'word_frequency_missing_file_failed',
+          message:
+              'An unreadable file must explain the error and exit non-zero.',
+        ),
+      );
+    }
+    return _TodoVerification(
+      diagnostics: diagnostics,
+      transcript: transcript.toString(),
+    );
+  }
+
+  bool _containsOrderedRows(List<String> actual, List<String> expected) {
+    if (actual.length < expected.length) return false;
+    for (var index = 0; index < expected.length; index += 1) {
+      if (actual[index].trim() != expected[index]) return false;
+    }
+    return true;
+  }
+
+  Future<ProcessResult> _runWordCommand(List<String> args, Directory work) {
+    return Process.run('dart', [
+      'run',
+      'bin/word_frequency.dart',
+      ...args,
+    ], workingDirectory: work.path).timeout(const Duration(seconds: 20));
+  }
+
+  Future<ProcessResult> _runWordCommandWithTopN(
+    String path,
+    int count, {
+    required int expectedRows,
+    required Directory work,
+  }) async {
+    final candidates = <List<String>>[
+      [path, '$count'],
+      [path, '--top', '$count'],
+      ['--top', '$count', path],
+      [path, '-n', '$count'],
+      ['-n', '$count', path],
+    ];
+    ProcessResult? lastResult;
+    for (final args in candidates) {
+      final result = await _runWordCommand(args, work);
+      lastResult = result;
+      final rows = const LineSplitter().convert(
+        (result.stdout as String).trim(),
+      );
+      if (result.exitCode == 0 && rows.length == expectedRows) return result;
+    }
+    return lastResult!;
+  }
+
+  @override
+  McpToolResult _verifierResult(String name, _TodoVerification verification) {
+    final exitCode = verification.diagnostics.isEmpty ? 0 : 1;
+    final payload = jsonEncode({
+      'canary': 'word_frequency_cli',
+      'command': _wordFrequencyVerifyCommand,
+      'working_directory': root.absolute.path,
+      'exit_code': exitCode,
+      'stdout': verification.transcript,
+      'stderr': exitCode == 0
+          ? ''
+          : 'Word-frequency acceptance criteria failed.\n',
+      'diagnostics': verification.diagnostics,
+      if (exitCode == 0) ...{
+        'terminal_success': true,
+        'terminal_message':
+            'The word-frequency verifier passed. The requested work is complete.',
+      },
+    });
+    return McpToolResult(
+      toolName: name,
+      result: payload,
+      isSuccess: exitCode == 0,
+      errorMessage: exitCode == 0 ? null : 'Word-frequency verifier failed.',
+    );
+  }
+
+  @override
+  Map<String, dynamic> _diagnosticJson({
+    required String code,
+    required String message,
+    String relativePath = 'bin/word_frequency.dart',
+  }) {
+    return super._diagnosticJson(
+      code: code,
+      message: message,
+      relativePath: relativePath,
+    );
+  }
+}
+
+class _MarkdownTocToolService extends _TodoToolService {
+  _MarkdownTocToolService(super.root) : super(stagedFailureTurns: 0);
+
+  @override
+  bool get hasSuccessfulVerifierCall => executedCalls.any((call) {
+    final result = _tryDecodeObject(call.result);
+    return call.name == 'local_execute_command' &&
+        result['canary'] == 'markdown_toc' &&
+        result['exit_code'] == 0;
+  });
+
+  Future<_TodoVerification> verifyMarkdownToc() => _verifyTodoApp();
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    final definitions = super.getOpenAiToolDefinitions();
+    for (final definition in definitions) {
+      final function = definition['function'] as Map<String, dynamic>;
+      if (function['name'] == 'local_execute_command') {
+        function['description'] =
+            'Run the Markdown TOC fixture verifier. Accepted command: '
+            '$_markdownTocVerifyCommand.';
+      }
+    }
+    return definitions;
+  }
+
+  @override
+  bool _isProtectedVerifierPath(String path) {
+    return _relativePath(path) == 'tool/verify_markdown_toc.dart';
+  }
+
+  @override
+  Future<McpToolResult> _executeVerifier(
+    String name,
+    Map<String, dynamic> arguments,
+  ) async {
+    final command = (arguments['command'] as String? ?? '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (command != _markdownTocVerifyCommand) {
+      return _toolError(
+        name,
+        'Unsupported command for this Markdown TOC fixture: $command',
+      );
+    }
+    final workingDirectory = _resolveInsideRoot(
+      arguments['working_directory'] as String?,
+      allowEmpty: true,
+      directory: true,
+    );
+    if (workingDirectory.error != null) {
+      return _toolError(name, workingDirectory.error!);
+    }
+    if (workingDirectory.value != root.absolute.path) {
+      return _toolError(name, 'working_directory must be the fixture root.');
+    }
+    verificationAttempts += 1;
+    return _verifierResult(name, await _verifyTodoApp());
+  }
+
+  @override
+  Future<_TodoVerification> _verifyTodoApp() async {
+    final verificationRoot = _createVerificationRoot();
+    try {
+      return await _verifyMarkdownTocIn(verificationRoot);
+    } finally {
+      verificationRoot.deleteSync(recursive: true);
+    }
+  }
+
+  @override
+  Directory _createVerificationRoot() {
+    final verificationRoot = Directory.systemTemp.createTempSync(
+      'markdown_toc_mvp_verification_',
+    );
+    for (final entity in root.listSync(recursive: true, followLinks: false)) {
+      if (entity is! File) continue;
+      final relativePath = _relativePath(entity.path);
+      if (relativePath == null ||
+          relativePath == 'tool/verify_markdown_toc.dart' ||
+          (relativePath != 'pubspec.yaml' && !relativePath.endsWith('.dart'))) {
+        continue;
+      }
+      final target = File('${verificationRoot.path}/$relativePath');
+      target.parent.createSync(recursive: true);
+      target.writeAsBytesSync(entity.readAsBytesSync());
+    }
+    return verificationRoot;
+  }
+
+  Future<_TodoVerification> _verifyMarkdownTocIn(Directory work) async {
+    final diagnostics = <Map<String, dynamic>>[];
+    final transcript = StringBuffer();
+    final cli = File('${work.path}/bin/markdown_toc.dart');
+    if (!cli.existsSync()) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'markdown_toc_cli_missing',
+          message: 'bin/markdown_toc.dart does not exist.',
+        ),
+      );
+      return _TodoVerification(diagnostics: diagnostics, transcript: '');
+    }
+    final unexpected = Directory('${work.path}/bin')
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart') && file.path != cli.path);
+    for (final file in unexpected) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'markdown_toc_unexpected_entrypoint',
+          message: 'Remove unexpected entrypoint ${file.path}.',
+        ),
+      );
+    }
+
+    File('${work.path}/sample.md').writeAsStringSync(r'''
+## API Reference!
+### Setup
+```dart
+# hidden backtick heading
+```
+~~~text
+## hidden tilde heading
+~~~
+### Notes
+### Notes
+#### Detail
+####### Seven hashes
+''');
+    final sample = await _runMarkdownTocCommand(['sample.md'], work);
+    transcript.writeln(_formatProcess('combined Markdown traps', sample));
+    const expected = <String>[
+      '- [API Reference!](#api-reference)',
+      '  - [Setup](#setup)',
+      '  - [Notes](#notes)',
+      '  - [Notes](#notes-1)',
+      '    - [Detail](#detail)',
+    ];
+    final actual = const LineSplitter().convert(
+      (sample.stdout as String).trim(),
+    );
+    if (sample.exitCode != 0) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'markdown_toc_execution_failed',
+          message:
+              'Generating a TOC from a readable Markdown file must exit 0.',
+        ),
+      );
+    }
+    if (actual.length < 2 ||
+        actual[0] != expected[0] ||
+        actual[1] != expected[1]) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'markdown_toc_heading_or_slug_failed',
+          message:
+              'Preserve heading labels, use the shallowest heading as indent 0, '
+              'and normalize punctuation only in the slug.',
+        ),
+      );
+    }
+    final emittedNotes = actual.any((line) => line.contains('[Notes]'));
+    if (!emittedNotes) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'markdown_toc_fence_close_failed',
+          message:
+              'Headings after closed backtick and tilde fences were missing. '
+              'Track the opening marker and recognize its matching closing fence.',
+        ),
+      );
+    } else {
+      if (!actual.contains('  - [Notes](#notes)') ||
+          !actual.contains('  - [Notes](#notes-1)')) {
+        diagnostics.add(
+          _diagnosticJson(
+            code: 'markdown_toc_duplicate_slug_failed',
+            message: 'Duplicate heading slugs must use -1, -2 suffixes.',
+          ),
+        );
+      }
+      if (!actual.contains('    - [Detail](#detail)')) {
+        diagnostics.add(
+          _diagnosticJson(
+            code: 'markdown_toc_nesting_failed',
+            message: 'Each heading level below the shallowest adds two spaces.',
+          ),
+        );
+      }
+    }
+    if (actual.any((line) => line.contains('hidden'))) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'markdown_toc_fenced_heading_leaked',
+          message: 'Headings inside backtick or tilde fences must be ignored.',
+        ),
+      );
+    }
+    if (actual.any((line) => line.contains('Seven hashes'))) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'markdown_toc_seven_hash_heading_failed',
+          message:
+              'Seven or more leading hash characters are not ATX headings.',
+        ),
+      );
+    }
+    if (actual.length != expected.length) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'markdown_toc_row_count_failed',
+          message:
+              'The combined fixture must emit exactly five TOC rows and no extras.',
+        ),
+      );
+    } else if (expected.every(actual.contains) &&
+        !_sameRows(actual, expected)) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'markdown_toc_sequence_failed',
+          message: 'TOC rows must preserve the source heading order.',
+        ),
+      );
+    }
+
+    File(
+      '${work.path}/plain.md',
+    ).writeAsStringSync('Paragraph only.\n```\n# code only\n```\n');
+    final empty = await _runMarkdownTocCommand(['plain.md'], work);
+    transcript.writeln(_formatProcess('no headings', empty));
+    if (empty.exitCode != 0 || (empty.stdout as String).trim().isNotEmpty) {
+      diagnostics.add(
+        _diagnosticJson(
+          code: 'markdown_toc_empty_document_failed',
+          message: 'A document without headings must print nothing and exit 0.',
+        ),
+      );
+    }
+
+    return _TodoVerification(
+      diagnostics: diagnostics,
+      transcript: transcript.toString(),
+    );
+  }
+
+  bool _sameRows(List<String> actual, List<String> expected) {
+    for (var index = 0; index < expected.length; index += 1) {
+      if (actual[index] != expected[index]) return false;
+    }
+    return true;
+  }
+
+  Future<ProcessResult> _runMarkdownTocCommand(
+    List<String> args,
+    Directory work,
+  ) {
+    return Process.run('dart', [
+      'run',
+      'bin/markdown_toc.dart',
+      ...args,
+    ], workingDirectory: work.path).timeout(const Duration(seconds: 20));
+  }
+
+  @override
+  McpToolResult _verifierResult(String name, _TodoVerification verification) {
+    final exitCode = verification.diagnostics.isEmpty ? 0 : 1;
+    final payload = jsonEncode({
+      'canary': 'markdown_toc',
+      'command': _markdownTocVerifyCommand,
+      'working_directory': root.absolute.path,
+      'exit_code': exitCode,
+      'stdout': verification.transcript,
+      'stderr': exitCode == 0
+          ? ''
+          : 'Markdown TOC acceptance criteria failed.\n',
+      'diagnostics': verification.diagnostics,
+      if (exitCode == 0) ...{
+        'terminal_success': true,
+        'terminal_message':
+            'The Markdown TOC verifier passed. The requested work is complete.',
+      },
+    });
+    return McpToolResult(
+      toolName: name,
+      result: payload,
+      isSuccess: exitCode == 0,
+      errorMessage: exitCode == 0 ? null : 'Markdown TOC verifier failed.',
+    );
+  }
+
+  @override
+  Map<String, dynamic> _diagnosticJson({
+    required String code,
+    required String message,
+    String relativePath = 'bin/markdown_toc.dart',
+  }) {
+    return super._diagnosticJson(
+      code: code,
+      message: message,
+      relativePath: relativePath,
     );
   }
 }

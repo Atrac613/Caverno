@@ -1184,6 +1184,27 @@ BuildVersion: 23F79
         expect(File(path).existsSync(), isFalse);
       });
 
+      test('restores a file deleted by delete_file', () async {
+        final path =
+            '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}obsolete.txt';
+        final file = File(path)..createSync(recursive: true);
+        file.writeAsStringSync('restore me\n');
+
+        final deleteResult = await service.executeTool(
+          name: 'delete_file',
+          arguments: {'path': path},
+        );
+        expect(deleteResult.isSuccess, isTrue);
+        expect(file.existsSync(), isFalse);
+
+        final rollbackResult = await service.executeTool(
+          name: 'rollback_last_file_change',
+          arguments: const {},
+        );
+        expect(rollbackResult.isSuccess, isTrue);
+        expect(await file.readAsString(), 'restore me\n');
+      });
+
       test(
         'rolls back all file changes from the last turn checkpoint',
         () async {

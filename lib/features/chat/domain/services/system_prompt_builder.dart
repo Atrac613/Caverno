@@ -5,6 +5,7 @@ import '../entities/conversation_goal.dart';
 import '../entities/conversation_plan_artifact.dart';
 import '../entities/conversation_workflow.dart';
 import 'weak_model_edit_harness_service.dart';
+import 'execution_snapshot_projector.dart';
 
 class SystemPromptBuilder {
   SystemPromptBuilder._();
@@ -33,6 +34,7 @@ class SystemPromptBuilder {
     ConversationWorkflowStage workflowStage = ConversationWorkflowStage.idle,
     ConversationWorkflowSpec? workflowSpec,
     ConversationPlanArtifact? planArtifact,
+    ExecutionSnapshot? executionSnapshot,
     bool isVoiceMode = false,
     String? agentsMarkdown,
     String? skillsContext,
@@ -242,6 +244,14 @@ class SystemPromptBuilder {
             'without explicit user direction.',
           );
         }
+      }
+      if (executionSnapshot != null && executionSnapshot.hasContract) {
+        buffer.writeln(
+          'Current execution snapshot. This compact block is refreshed for every request and overrides stale execution narration in the transcript.',
+        );
+        buffer.writeln('<execution_snapshot>');
+        buffer.writeln(executionSnapshot.toPromptContext());
+        buffer.writeln('</execution_snapshot>');
       }
       if (hasProjectReadTools) {
         buffer.writeln(

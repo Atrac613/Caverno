@@ -251,6 +251,85 @@ void registerChatNotifierApprovalCacheTests() {
     expect(await sourceFile.readAsString(), 'name: externally_changed\n');
   });
 
+  test('delete_file rejects a path outside the coding project', () async {
+    final projectRoot = await Directory.systemTemp.createTemp(
+      'delete_file_project_',
+    );
+    final outsideRoot = await Directory.systemTemp.createTemp(
+      'delete_file_outside_',
+    );
+    addTearDown(() async {
+      await projectRoot.delete(recursive: true);
+      await outsideRoot.delete(recursive: true);
+    });
+    final outsideFile = File('${outsideRoot.path}/keep.txt')
+      ..writeAsStringSync('keep\n');
+    final dataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'delete-outside',
+          name: 'delete_file',
+          arguments: {'path': outsideFile.path},
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(content: 'Blocked.', finishReason: 'stop'),
+      ],
+      finalAnswerChunks: const ['The deletion was blocked.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'delete_file': '{"deleted":true}'},
+    );
+    final project = CodingProject(
+      id: 'delete-file-project',
+      name: 'Delete File Project',
+      rootPath: projectRoot.path,
+      createdAt: DateTime(2026, 7, 10),
+      updatedAt: DateTime(2026, 7, 10),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final container = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    container
+        .read(conversationsNotifierProvider.notifier)
+        .activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+          createIfMissing: true,
+        );
+
+    await container
+        .read(chatNotifierProvider.notifier)
+        .sendMessage('Delete the obsolete file.', bypassPlanMode: true);
+
+    expect(toolService.executedToolNames, isEmpty);
+    expect(outsideFile.existsSync(), isTrue);
+    expect(
+      dataSource.toolResultBatches.single.single.result,
+      contains('delete_path_outside_project'),
+    );
+  });
+
   test(
     'cached command denial replays without prompting or execution',
     () async {

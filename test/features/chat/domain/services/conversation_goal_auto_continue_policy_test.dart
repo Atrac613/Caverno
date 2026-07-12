@@ -195,6 +195,63 @@ void main() {
     expect(decision.blockedReason, contains('no diagnostic progress'));
   });
 
+  test('blocks when diagnostic repair continuation budget is exhausted', () {
+    final decision = policy.decide(
+      _input(
+        evidence: _evidence(count: 1, paths: const ['bin/todo_cli.dart']),
+        consecutiveAutoContinuations: 2,
+        diagnosticRepairContinuations: kGoalAutoContinueDiagnosticRepairBudget,
+        noProgressStreak: 0,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
+    expect(decision.reason, contains('repair continuation budget'));
+    expect(decision.blockedReason, contains('2 continued repair turns'));
+  });
+
+  test('grants one repair extension when diagnostics improve', () {
+    final decision = policy.decide(
+      _input(
+        evidence: _evidence(count: 1, paths: const ['bin/todo_cli.dart']),
+        diagnosticRepairContinuations: kGoalAutoContinueDiagnosticRepairBudget,
+        diagnosticEvidenceImproved: true,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+    expect(decision.usesDiagnosticRepairExtension, isTrue);
+    expect(decision.reason, contains('one repair extension'));
+  });
+
+  test('does not grant a second improving repair extension', () {
+    final decision = policy.decide(
+      _input(
+        evidence: _evidence(count: 1, paths: const ['bin/todo_cli.dart']),
+        diagnosticRepairContinuations: kGoalAutoContinueDiagnosticRepairBudget,
+        diagnosticRepairExtensionUsed: true,
+        diagnosticEvidenceImproved: true,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
+    expect(decision.reason, contains('repair continuation budget'));
+  });
+
+  test('allows the last diagnostic repair continuation in the budget', () {
+    final decision = policy.decide(
+      _input(
+        evidence: _evidence(count: 1, paths: const ['bin/todo_cli.dart']),
+        consecutiveAutoContinuations: 1,
+        diagnosticRepairContinuations:
+            kGoalAutoContinueDiagnosticRepairBudget - 1,
+        noProgressStreak: 0,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+  });
+
   test('skips but does not block when unverified-only evidence stalls', () {
     final decision = policy.decide(
       _input(
@@ -302,6 +359,9 @@ GoalAutoContinuePolicyInput _input({
   GoalAutoContinueSafeBoundary? safeBoundary,
   ToolResultCompletionEvidence? evidence,
   int consecutiveAutoContinuations = 0,
+  int diagnosticRepairContinuations = 0,
+  bool diagnosticRepairExtensionUsed = false,
+  bool diagnosticEvidenceImproved = false,
   int noProgressStreak = 0,
   bool finalAnswerEndsWithQuestion = false,
 }) {
@@ -310,6 +370,9 @@ GoalAutoContinuePolicyInput _input({
     safeBoundary: safeBoundary ?? _safeBoundary(),
     evidence: evidence ?? _evidence(),
     consecutiveAutoContinuations: consecutiveAutoContinuations,
+    diagnosticRepairContinuations: diagnosticRepairContinuations,
+    diagnosticRepairExtensionUsed: diagnosticRepairExtensionUsed,
+    diagnosticEvidenceImproved: diagnosticEvidenceImproved,
     noProgressStreak: noProgressStreak,
     finalAnswerEndsWithQuestion: finalAnswerEndsWithQuestion,
   );

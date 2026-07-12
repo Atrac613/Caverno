@@ -240,6 +240,17 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
       eventType: ConversationExecutionTaskEventType.validated,
       eventSummary: validationSummary,
     );
+    if (snapshot.validationStatus ==
+        ConversationExecutionValidationStatus.passed) {
+      try {
+        await conversationsNotifier.recordCurrentVerificationGeneration();
+      } catch (error) {
+        appLog(
+          '[ExecutionEvidence] Failed to persist successful verification '
+          'generation: $error',
+        );
+      }
+    }
 
     if (!conversation.shouldPreferPlanDocument) {
       return;

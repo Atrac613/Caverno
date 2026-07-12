@@ -5,6 +5,170 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierPromptContext on ChatNotifier {
+  Message _createSystemMessage({
+    List<String>? toolNamesOverride,
+    String? participantRolePrompt,
+  }) {
+    final now = DateTime.now();
+    final activeCodingProject = _getEffectiveCodingProject();
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final toolNames = toolNamesOverride == null
+        ? <String>[]
+        : List<String>.from(toolNamesOverride);
+    final toolObservation = _collectRequestToolObservation(
+      toolNamesOverride: toolNamesOverride,
+      toolNames: toolNames,
+    );
+    final resolvedLanguage = _settings.language == 'system'
+        ? _languageCode
+        : _settings.language;
+    final resolvedAssistantMode = _resolveAssistantMode(
+      currentConversation: currentConversation,
+    );
+    final executionSnapshot = const ExecutionSnapshotProjector().project(
+      currentConversation,
+    );
+    _observeExecutionSnapshot(currentConversation, executionSnapshot);
+    final content = SystemPromptBuilder.build(
+      now: now,
+      assistantMode: resolvedAssistantMode,
+      languageCode: resolvedLanguage,
+      toolNames: toolNames,
+      sessionMemoryContext: _sessionMemoryContext,
+      participantRolePrompt: participantRolePrompt,
+      projectName: activeCodingProject?.name,
+      projectRootPath: activeCodingProject?.rootPath,
+      repoMapContext: _repoMap(resolvedAssistantMode, activeCodingProject),
+      goal: currentConversation?.goal,
+      workflowStage:
+          currentConversation?.workflowStage ?? ConversationWorkflowStage.idle,
+      workflowSpec: currentConversation?.workflowSpec,
+      planArtifact: currentConversation?.planArtifact,
+      executionSnapshot: executionSnapshot,
+      isVoiceMode: _isVoiceMode,
+      agentsMarkdown: _loadAgentsMd(resolvedAssistantMode, activeCodingProject),
+      skillsContext: _buildSkillsPromptContext(toolNames),
+      hasPythonInputAttachment:
+          toolNames.contains('run_python_script') &&
+          _latestPythonInputMessage() != null,
+      modelCapabilityProfile: _settings.effectiveModelCapabilityProfile,
+      modelHarnessConfig: _settings.effectiveModelHarnessConfig,
+    );
+    _updateContextSurgeryObservation(
+      systemPrompt: content,
+      toolDefinitions: toolObservation.definitions,
+      mcpToolNames: toolObservation.mcpNames,
+    );
+    return Message(
+      id: 'system',
+      content: content,
+      role: MessageRole.system,
+      timestamp: now,
+    );
+  }
+
+  Future<void> _ensureShortPromptExecutionContract({
+    required Conversation? currentConversation,
+    required Message userMessage,
+    required ConversationsNotifier conversationsNotifier,
+  }) async {
+    if (currentConversation?.workspaceMode != WorkspaceMode.coding ||
+        !(currentConversation?.goal?.isActive ?? false) ||
+        !(currentConversation?.goal?.autoContinue ?? false) ||
+        currentConversation!.effectiveWorkflowSpec.hasContent) {
+      return;
+    }
+    final workflowSpec = const ShortPromptContractBuilder().build(
+      userMessageId: userMessage.id,
+      userRequest: userMessage.content,
+      specification: _loadReferencedSpecification(userMessage.content),
+    );
+    if (workflowSpec == null) return;
+    try {
+      await conversationsNotifier.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: workflowSpec,
+      );
+    } catch (error) {
+      appLog(
+        '[ExecutionContract] Failed to persist short-prompt contract: $error',
+      );
+    }
+  }
+
+  SpecificationContractInput? _loadReferencedSpecification(String request) {
+    final projectRoot = _getEffectiveCodingProject()?.rootPath.trim() ?? '';
+    if (projectRoot.isEmpty) return null;
+    final match = RegExp(
+      r'''(?:^|[\s"'`(])([^\s"'`()]+\.md)\b''',
+      caseSensitive: false,
+      unicode: true,
+    ).firstMatch(request);
+    final reference = match?.group(1)?.trim() ?? '';
+    if (reference.isEmpty) return null;
+    final normalizedRoot = Uri.file(
+      Directory(projectRoot).absolute.path,
+    ).normalizePath().toFilePath();
+    final candidate = Uri.file(
+      File('$normalizedRoot${Platform.pathSeparator}$reference').absolute.path,
+    ).normalizePath().toFilePath();
+    if (!candidate.startsWith('$normalizedRoot${Platform.pathSeparator}')) {
+      return null;
+    }
+    final file = File(candidate);
+    if (!file.existsSync() || file.lengthSync() > 256 * 1024) return null;
+    try {
+      return SpecificationContractInput(
+        path: reference,
+        content: file.readAsStringSync(),
+      );
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  void _observeExecutionSnapshot(
+    Conversation? conversation,
+    ExecutionSnapshot snapshot,
+  ) {
+    if (conversation?.workspaceMode != WorkspaceMode.coding) {
+      return;
+    }
+    final observationKey = '${conversation?.id}|${snapshot.observationKey}';
+    if (_latestExecutionSnapshotObservationKey == observationKey) {
+      return;
+    }
+    _latestExecutionSnapshotObservationKey = observationKey;
+    appLog('[ExecutionShadow] ${snapshot.toRedactedLogSummary()}');
+    if (!LlmSessionLogStore.isEnabled(
+      settingsEnabled: _settings.enableLlmSessionLogs,
+    )) {
+      return;
+    }
+    unawaited(
+      ref
+          .read(llmSessionLogStoreProvider)
+          .recordExecutionShadow(
+            context: _currentLlmSessionLogContext(),
+            at: DateTime.now(),
+            contractHash: snapshot.contractHash,
+            workflowStage: snapshot.workflowStage.name,
+            action: snapshot.action.name,
+            activeTaskRef: snapshot.activeTaskRef,
+            taskStatus: snapshot.activeTaskStatus?.name,
+            validationStatus: snapshot.validationStatus.name,
+            completedTaskCount: snapshot.completedTaskCount,
+            totalTaskCount:
+                snapshot.completedTaskCount + snapshot.remainingTaskCount,
+            unresolvedQuestionCount: snapshot.unresolvedQuestionCount,
+            requiresValidation: snapshot.requiresValidation,
+            hasDiagnostic: snapshot.latestDiagnostic != null,
+          ),
+    );
+  }
+
   CodingProject? _getEffectiveCodingProject() {
     final project = _getActiveCodingProject();
     if (project == null) {

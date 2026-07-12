@@ -107,6 +107,41 @@ void main() {
         jsonEncode({
           'testID': 2,
           'message':
+              '[GoalAutoContinue] continue 2/5: incomplete evidence remains; conversation=goal-1; evidence=3 unresolved Error diagnostic(s) in lib/main.dart',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[GoalAutoContinue] continue 3/5: diagnostics improved; one repair extension granted; conversation=goal-1; evidence=1 unresolved Error diagnostic(s) in lib/main.dart',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[Tool] Arguments: {command: dart run tool/verify_fixture.dart, working_directory: /tmp/app}',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[LLM] {"canary":"fixture","command":"dart run tool/verify_fixture.dart","exit_code":0}',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[GoalAutoContinue] stopAndBlock: diagnostic repair continuation budget reached; conversation=goal-1; evidence=1 unresolved Error diagnostic(s) in lib/main.dart',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
               'First call process_start with command "sleep 3 && echo ok".',
           'type': 'print',
           'time': 37,
@@ -204,6 +239,12 @@ void main() {
         }),
         jsonEncode({
           'testID': 3,
+          'message': '[Tool] Terminal success accepted for current generation',
+          'type': 'print',
+          'time': 135,
+        }),
+        jsonEncode({
+          'testID': 3,
           'message':
               '[TurnFinalization] Requesting recovery before saving response',
           'type': 'print',
@@ -296,6 +337,23 @@ void main() {
     expect(summary.signals.backgroundProcessCompletedCount, 1);
     expect(summary.signals.backgroundProcessFailedCount, 0);
     expect(summary.signals.backgroundProcessStatusUnverifiedCount, 1);
+    expect(summary.signals.goalAutoContinue.continuationCount, 2);
+    expect(summary.signals.goalAutoContinue.diagnosticCounts, [3, 1, 1]);
+    expect(summary.signals.goalAutoContinue.progressExtensionCount, 1);
+    expect(
+      summary.signals.goalAutoContinue.finalStopReason,
+      'diagnostic repair continuation budget reached',
+    );
+    expect(summary.signals.goalAutoContinue.firstVerifierTurn, 3);
+    expect(summary.signals.goalAutoContinue.successfulVerifierObserved, isTrue);
+    expect(
+      summary.signals.goalAutoContinue.terminalSuccessExitObserved,
+      isTrue,
+    );
+    expect(
+      summary.signals.goalAutoContinue.blockedAfterSuccessfulVerifier,
+      isTrue,
+    );
     expect(summary.signals.requestTemperatures.totalRequestCount, 3);
     expect(summary.signals.requestTemperatures.distinctTemperatures, [
       '0.2',
@@ -365,6 +423,10 @@ void main() {
       containsPair('totalRequestCount', 3),
     );
     expect(
+      (json['signals'] as Map<String, dynamic>)['goalAutoContinue'],
+      containsPair('diagnosticCounts', [3, 1, 1]),
+    );
+    expect(
       ((json['signals'] as Map<String, dynamic>)['requestTemperatures']
           as Map<String, dynamic>)['countsByTemperature'],
       {'0.2': 2, '1.7': 1},
@@ -372,6 +434,19 @@ void main() {
     expect(summary.toMarkdown(), contains('Live LLM Canary Summary'));
     expect(summary.toMarkdown(), contains('Main readiness: `ready`'));
     expect(summary.toMarkdown(), contains('## Main Readiness'));
+    expect(summary.toMarkdown(), contains('## Goal Auto-Continue'));
+    expect(
+      summary.toMarkdown(),
+      contains('Diagnostic progression: `3 -> 1 -> 1`'),
+    );
+    expect(
+      summary.toMarkdown(),
+      contains('Blocked after successful verifier: `yes`'),
+    );
+    expect(
+      summary.toMarkdown(),
+      contains('Terminal success exit observed: `yes`'),
+    );
     expect(summary.toMarkdown(), contains('Recovered stream fallback count'));
     expect(
       summary.toMarkdown(),
@@ -410,6 +485,50 @@ void main() {
       contains('Command output feedback observed: `yes`'),
     );
     expect(summary.toMarkdown(), contains('python3 get_weather.py'));
+  });
+
+  test('terminal success implies successful verifier evidence', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'terminal_success_summary_test_',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final logFile = File('${directory.path}/flutter_test.jsonl')
+      ..writeAsStringSync(
+        [
+          jsonEncode({
+            'testID': 1,
+            'message':
+                '[Tool] Terminal success accepted for current generation',
+            'type': 'print',
+            'time': 10,
+          }),
+          jsonEncode({
+            'testID': 1,
+            'result': 'success',
+            'skipped': false,
+            'hidden': false,
+            'type': 'testDone',
+            'time': 20,
+          }),
+          jsonEncode({'success': true, 'type': 'done', 'time': 20}),
+        ].join('\n'),
+      );
+
+    final summary = await buildLiveLlmCanarySummary(
+      logFile: logFile,
+      canaryName: 'terminal_success_canary',
+      surface: 'coding_mvp',
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'test-model',
+      command: 'test command',
+      generatedAt: DateTime.utc(2026, 7, 12),
+    );
+
+    expect(
+      summary.signals.goalAutoContinue.terminalSuccessExitObserved,
+      isTrue,
+    );
+    expect(summary.signals.goalAutoContinue.successfulVerifierObserved, isTrue);
   });
 
   test('marks skipped live canaries as skipped instead of passed', () async {

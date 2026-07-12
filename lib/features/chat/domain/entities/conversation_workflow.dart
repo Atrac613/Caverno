@@ -27,6 +27,23 @@ enum ConversationExecutionTaskEventType {
   replanned,
 }
 
+enum ConversationContractSourceKind {
+  userMessage,
+  specificationFile,
+  approvedPlan,
+  workspaceObservation,
+  userConfirmedAssumption,
+  legacy,
+}
+
+enum ConversationContractItemKind {
+  goal,
+  constraint,
+  acceptanceCriterion,
+  openQuestion,
+  task,
+}
+
 List<ConversationWorkflowTask> _workflowTasksFromJson(List<dynamic>? json) {
   if (json == null) {
     return const [];
@@ -44,6 +61,40 @@ List<Map<String, dynamic>> _workflowTasksToJson(
 ) {
   return tasks.map((task) => task.toJson()).toList(growable: false);
 }
+
+List<ConversationContractSourceReference> _contractSourcesFromJson(
+  List<dynamic>? json,
+) {
+  if (json == null) return const [];
+  return json
+      .map(
+        (item) => ConversationContractSourceReference.fromJson(
+          item as Map<String, dynamic>,
+        ),
+      )
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _contractSourcesToJson(
+  List<ConversationContractSourceReference> sources,
+) => sources.map((source) => source.toJson()).toList(growable: false);
+
+List<ConversationContractItemProvenance> _contractProvenanceFromJson(
+  List<dynamic>? json,
+) {
+  if (json == null) return const [];
+  return json
+      .map(
+        (item) => ConversationContractItemProvenance.fromJson(
+          item as Map<String, dynamic>,
+        ),
+      )
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _contractProvenanceToJson(
+  List<ConversationContractItemProvenance> provenance,
+) => provenance.map((item) => item.toJson()).toList(growable: false);
 
 List<ConversationExecutionTaskEvent> _executionEventsFromJson(
   List<dynamic>? json,
@@ -218,6 +269,52 @@ abstract class ConversationExecutionTaskEvent
 }
 
 @freezed
+abstract class ConversationContractSourceReference
+    with _$ConversationContractSourceReference {
+  const ConversationContractSourceReference._();
+
+  const factory ConversationContractSourceReference({
+    required String id,
+    required ConversationContractSourceKind kind,
+    @Default('') String locator,
+    @Default('') String contentHash,
+    @Default('') String section,
+    @Default('') String toolCallId,
+  }) = _ConversationContractSourceReference;
+
+  factory ConversationContractSourceReference.fromJson(
+    Map<String, dynamic> json,
+  ) => _$ConversationContractSourceReferenceFromJson(json);
+}
+
+@freezed
+abstract class ConversationContractItemProvenance
+    with _$ConversationContractItemProvenance {
+  const ConversationContractItemProvenance._();
+
+  const factory ConversationContractItemProvenance({
+    required String itemId,
+    required ConversationContractItemKind kind,
+    @Default(<String>[]) List<String> sourceIds,
+    @Default(false) bool assumption,
+    @Default(false) bool material,
+    @Default(false) bool confirmed,
+    @Default('') String clarificationQuestion,
+  }) = _ConversationContractItemProvenance;
+
+  factory ConversationContractItemProvenance.fromJson(
+    Map<String, dynamic> json,
+  ) => _$ConversationContractItemProvenanceFromJson(json);
+
+  bool get blocksExecution => assumption && material && !confirmed;
+
+  String? get normalizedClarificationQuestion {
+    final value = clarificationQuestion.trim();
+    return value.isEmpty ? null : value;
+  }
+}
+
+@freezed
 abstract class ConversationWorkflowSpec with _$ConversationWorkflowSpec {
   const ConversationWorkflowSpec._();
 
@@ -229,6 +326,15 @@ abstract class ConversationWorkflowSpec with _$ConversationWorkflowSpec {
     @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson)
     @Default(<ConversationWorkflowTask>[])
     List<ConversationWorkflowTask> tasks,
+    @JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson)
+    @Default(<ConversationContractSourceReference>[])
+    List<ConversationContractSourceReference> sources,
+    @JsonKey(
+      fromJson: _contractProvenanceFromJson,
+      toJson: _contractProvenanceToJson,
+    )
+    @Default(<ConversationContractItemProvenance>[])
+    List<ConversationContractItemProvenance> provenance,
   }) = _ConversationWorkflowSpec;
 
   factory ConversationWorkflowSpec.fromJson(Map<String, dynamic> json) =>
@@ -240,4 +346,7 @@ abstract class ConversationWorkflowSpec with _$ConversationWorkflowSpec {
       acceptanceCriteria.any((item) => item.trim().isNotEmpty) ||
       openQuestions.any((item) => item.trim().isNotEmpty) ||
       tasks.any((task) => task.title.trim().isNotEmpty || task.hasMetadata);
+
+  List<ConversationContractItemProvenance> get blockingAssumptions =>
+      provenance.where((item) => item.blocksExecution).toList(growable: false);
 }

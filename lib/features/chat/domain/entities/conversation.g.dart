@@ -37,6 +37,9 @@ _ConversationCheckpoint _$ConversationCheckpointFromJson(
   executionProgress: json['executionProgress'] == null
       ? const <ConversationExecutionTaskProgress>[]
       : _executionProgressFromJson(json['executionProgress'] as List?),
+  mutationGeneration: (json['mutationGeneration'] as num?)?.toInt() ?? 0,
+  verificationGeneration:
+      (json['verificationGeneration'] as num?)?.toInt() ?? -1,
   openQuestionProgress: json['openQuestionProgress'] == null
       ? const <ConversationOpenQuestionProgress>[]
       : _openQuestionProgressFromJson(json['openQuestionProgress'] as List?),
@@ -62,6 +65,8 @@ Map<String, dynamic> _$ConversationCheckpointToJson(
   'workflowSourceHash': instance.workflowSourceHash,
   'workflowDerivedAt': instance.workflowDerivedAt?.toIso8601String(),
   'executionProgress': _executionProgressToJson(instance.executionProgress),
+  'mutationGeneration': instance.mutationGeneration,
+  'verificationGeneration': instance.verificationGeneration,
   'openQuestionProgress': _openQuestionProgressToJson(
     instance.openQuestionProgress,
   ),
@@ -124,6 +129,9 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
       executionProgress: json['executionProgress'] == null
           ? const <ConversationExecutionTaskProgress>[]
           : _executionProgressFromJson(json['executionProgress'] as List?),
+      mutationGeneration: (json['mutationGeneration'] as num?)?.toInt() ?? 0,
+      verificationGeneration:
+          (json['verificationGeneration'] as num?)?.toInt() ?? -1,
       openQuestionProgress: json['openQuestionProgress'] == null
           ? const <ConversationOpenQuestionProgress>[]
           : _openQuestionProgressFromJson(
@@ -169,6 +177,8 @@ Map<String, dynamic> _$ConversationToJson(
   'workflowSourceHash': instance.workflowSourceHash,
   'workflowDerivedAt': instance.workflowDerivedAt?.toIso8601String(),
   'executionProgress': _executionProgressToJson(instance.executionProgress),
+  'mutationGeneration': instance.mutationGeneration,
+  'verificationGeneration': instance.verificationGeneration,
   'openQuestionProgress': _openQuestionProgressToJson(
     instance.openQuestionProgress,
   ),

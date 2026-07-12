@@ -274,6 +274,37 @@ class FilesystemTools {
     }
   }
 
+  static Future<String> deleteFile({required String path}) async {
+    final type = await FileSystemEntity.type(path, followLinks: false);
+    if (type == FileSystemEntityType.notFound) {
+      return jsonEncode({'error': 'File does not exist: $path'});
+    }
+    if (type != FileSystemEntityType.file) {
+      return jsonEncode({
+        'error': 'delete_file supports regular files only.',
+        'path': File(path).absolute.path,
+      });
+    }
+    final snapshot = await captureTextSnapshot(path);
+    if (snapshot.error != null) {
+      return jsonEncode({
+        'error':
+            'delete_file requires a readable UTF-8 text file so the change can be rolled back.',
+        'path': File(path).absolute.path,
+      });
+    }
+    try {
+      await File(path).delete();
+      return jsonEncode({'deleted': true, 'path': File(path).absolute.path});
+    } on FileSystemException catch (error) {
+      return _buildFilesystemError(
+        path: File(path).absolute.path,
+        operation: 'delete_file',
+        error: error,
+      );
+    }
+  }
+
   /// Cheap overview of a (potentially huge) text file without reading it all.
   ///
   /// Returns byte size, total line count, head/tail samples, detected encoding
@@ -416,8 +447,10 @@ class FilesystemTools {
       if (sample.contains(0)) return true;
       for (var drop = 0; drop <= 3 && sample.length - drop > 0; drop++) {
         try {
-          utf8.decode(sample.sublist(0, sample.length - drop),
-              allowMalformed: false);
+          utf8.decode(
+            sample.sublist(0, sample.length - drop),
+            allowMalformed: false,
+          );
           return false;
         } on FormatException {
           // A trailing rune may be split at the boundary; retry with fewer
@@ -541,7 +574,8 @@ class FilesystemTools {
       file,
       maxScanBytes: maxScanBytes,
       onLine: (lineNo, line) {
-        final inWindow = lineNo >= offset &&
+        final inWindow =
+            lineNo >= offset &&
             (endLineExclusive == null || lineNo < endLineExclusive);
         if (inWindow) {
           if (!truncatedByChars) {
@@ -570,8 +604,7 @@ class FilesystemTools {
     );
 
     final totalLines = result.lineCount;
-    final truncatedByLimit =
-        limit != null && totalLines > (offset - 1) + limit;
+    final truncatedByLimit = limit != null && totalLines > (offset - 1) + limit;
 
     return _LineRangeSelection(
       content: buffer.toString(),
@@ -877,8 +910,10 @@ class FilesystemTools {
     }
 
     final lineClamp = maxLineLength.clamp(40, _maxOverviewLineChars);
-    var remainingBudget =
-        (maxBytesScanned ?? _maxScanBytes).clamp(1, _maxScanBytes);
+    var remainingBudget = (maxBytesScanned ?? _maxScanBytes).clamp(
+      1,
+      _maxScanBytes,
+    );
 
     try {
       final normalizedQuery = caseSensitive ? query : query.toLowerCase();

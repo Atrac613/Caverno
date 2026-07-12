@@ -1,4 +1,5 @@
 import '../entities/conversation_workflow.dart';
+import 'conversation_contract_provenance_service.dart';
 import 'conversation_plan_hash.dart';
 
 class ConversationPlanProjection {
@@ -93,13 +94,18 @@ class ConversationPlanProjectionService {
     final tasks = taskParseResult.tasks;
     _validateDuplicateTaskIds(tasks);
 
-    final workflowSpec = ConversationWorkflowSpec(
-      goal: goal,
-      constraints: constraints,
-      acceptanceCriteria: acceptanceCriteria,
-      openQuestions: openQuestions,
-      tasks: tasks,
-    );
+    final sourceHash = computeSourceHash(normalizedMarkdown);
+    final workflowSpec = const ConversationContractProvenanceService()
+        .attachApprovedPlanSource(
+          workflowSpec: ConversationWorkflowSpec(
+            goal: goal,
+            constraints: constraints,
+            acceptanceCriteria: acceptanceCriteria,
+            openQuestions: openQuestions,
+            tasks: tasks,
+          ),
+          sourceHash: sourceHash,
+        );
 
     final recognized =
         stage != ConversationWorkflowStage.idle ||
@@ -114,7 +120,7 @@ class ConversationPlanProjectionService {
     return ConversationPlanProjection(
       workflowStage: stage,
       workflowSpec: workflowSpec,
-      sourceHash: computeSourceHash(normalizedMarkdown),
+      sourceHash: sourceHash,
       derivedAt: derivedAt ?? DateTime.now(),
       anchoredTaskIndexes: taskParseResult.anchoredTaskIndexes,
     );

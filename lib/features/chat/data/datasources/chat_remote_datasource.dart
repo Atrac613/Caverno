@@ -1122,6 +1122,12 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
             'Interpretation: edit_file succeeded and applied the requested replacement.',
           );
         }
+      case 'delete_file':
+        if (decoded['deleted'] == true) {
+          interpretationLines.add(
+            'Interpretation: delete_file succeeded and removed the target file.',
+          );
+        }
     }
     interpretationLines.addAll(
       ToolResultPromptBuilder.buildToolDataInterpretationLines(toolResult),

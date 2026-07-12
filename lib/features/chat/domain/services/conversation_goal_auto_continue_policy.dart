@@ -2,6 +2,7 @@ import '../entities/conversation_goal.dart';
 import 'tool_result_prompt_builder.dart';
 
 const int kGoalAutoContinueDefaultTurnBudget = 10;
+const int kGoalAutoContinueDiagnosticRepairBudget = 2;
 
 enum GoalAutoContinueDecisionKind { continueTurn, skip, stopAndBlock }
 
@@ -77,6 +78,9 @@ class GoalAutoContinuePolicyInput {
     required this.safeBoundary,
     required this.evidence,
     required this.consecutiveAutoContinuations,
+    required this.diagnosticRepairContinuations,
+    required this.diagnosticRepairExtensionUsed,
+    required this.diagnosticEvidenceImproved,
     required this.noProgressStreak,
     required this.finalAnswerEndsWithQuestion,
   });
@@ -85,6 +89,9 @@ class GoalAutoContinuePolicyInput {
   final GoalAutoContinueSafeBoundary safeBoundary;
   final ToolResultCompletionEvidence evidence;
   final int consecutiveAutoContinuations;
+  final int diagnosticRepairContinuations;
+  final bool diagnosticRepairExtensionUsed;
+  final bool diagnosticEvidenceImproved;
   final int noProgressStreak;
   final bool finalAnswerEndsWithQuestion;
 }
@@ -97,6 +104,7 @@ class GoalAutoContinueDecision {
     this.nextTurnNumber = 0,
     this.blockedReason,
     this.stopCause,
+    this.usesDiagnosticRepairExtension = false,
   });
 
   final GoalAutoContinueDecisionKind kind;
@@ -105,6 +113,7 @@ class GoalAutoContinueDecision {
   final int nextTurnNumber;
   final String? blockedReason;
   final GoalAutoContinueStopCause? stopCause;
+  final bool usesDiagnosticRepairExtension;
 
   bool get shouldContinue => kind == GoalAutoContinueDecisionKind.continueTurn;
 
@@ -114,12 +123,14 @@ class GoalAutoContinueDecision {
     required String reason,
     required int effectiveTurnBudget,
     required int nextTurnNumber,
+    bool usesDiagnosticRepairExtension = false,
   }) {
     return GoalAutoContinueDecision._(
       kind: GoalAutoContinueDecisionKind.continueTurn,
       reason: reason,
       effectiveTurnBudget: effectiveTurnBudget,
       nextTurnNumber: nextTurnNumber,
+      usesDiagnosticRepairExtension: usesDiagnosticRepairExtension,
     );
   }
 
@@ -196,6 +207,27 @@ class ConversationGoalAutoContinuePolicy {
       return GoalAutoContinueDecision.skip(
         'no measurable progress',
         stopCause: GoalAutoContinueStopCause.noProgress,
+      );
+    }
+
+    if (input.evidence.hasDiagnosticEvidence &&
+        input.diagnosticRepairContinuations >=
+            kGoalAutoContinueDiagnosticRepairBudget) {
+      if (input.diagnosticEvidenceImproved &&
+          !input.diagnosticRepairExtensionUsed) {
+        return GoalAutoContinueDecision.continueTurn(
+          reason: 'diagnostics improved; one repair extension granted',
+          effectiveTurnBudget: effectiveTurnBudget,
+          nextTurnNumber: goal.turnsUsed + 1,
+          usesDiagnosticRepairExtension: true,
+        );
+      }
+      return GoalAutoContinueDecision.stopAndBlock(
+        reason: 'diagnostic repair continuation budget reached',
+        blockedReason:
+            'Goal auto-continue stopped because diagnostics remained after '
+            '$kGoalAutoContinueDiagnosticRepairBudget continued repair turns'
+            '${input.diagnosticRepairExtensionUsed ? ' and one progress-based extension' : ''}.',
       );
     }
 

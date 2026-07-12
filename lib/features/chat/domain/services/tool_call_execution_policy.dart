@@ -116,6 +116,7 @@ class ToolCallExecutionPolicy {
     final normalizedName = toolCall.name.trim().toLowerCase();
     return normalizedName == 'write_file' ||
         normalizedName == 'edit_file' ||
+        normalizedName == 'delete_file' ||
         normalizedName == 'rollback_last_file_change' ||
         normalizedName.startsWith('write_') ||
         normalizedName.startsWith('edit_');
@@ -125,6 +126,7 @@ class ToolCallExecutionPolicy {
     switch (toolCall.name.trim().toLowerCase()) {
       case 'write_file':
       case 'edit_file':
+      case 'delete_file':
       case 'rollback_last_file_change':
         return true;
     }
@@ -486,6 +488,7 @@ class ToolCallExecutionPolicy {
       case 'search_files':
       case 'write_file':
       case 'edit_file':
+      case 'delete_file':
       case 'rollback_last_file_change':
         return true;
     }

@@ -128,6 +128,7 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       'resolve_installed_dependency',
       'write_file',
       'edit_file',
+      'delete_file',
       'local_execute_command',
       'git_execute_command',
       'run_tests',

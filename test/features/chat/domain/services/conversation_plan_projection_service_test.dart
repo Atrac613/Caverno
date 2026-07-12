@@ -53,6 +53,19 @@ void main() {
       'flutter test',
     );
     expect(projection.sourceHash, isNotEmpty);
+    expect(projection.workflowSpec.sources, hasLength(1));
+    expect(
+      projection.workflowSpec.sources.single.kind,
+      ConversationContractSourceKind.approvedPlan,
+    );
+    expect(projection.workflowSpec.provenance, hasLength(5));
+    expect(
+      projection.workflowSpec.provenance.every(
+        (item) =>
+            item.sourceIds.single == projection.workflowSpec.sources.single.id,
+      ),
+      isTrue,
+    );
     expect(projection.anchoredTaskIndexes, {0});
   });
 

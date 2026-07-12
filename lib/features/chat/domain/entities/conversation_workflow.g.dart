@@ -183,6 +183,74 @@ const _$ConversationExecutionTaskEventTypeEnumMap = {
   ConversationExecutionTaskEventType.replanned: 'replanned',
 };
 
+_ConversationContractSourceReference
+_$ConversationContractSourceReferenceFromJson(Map<String, dynamic> json) =>
+    _ConversationContractSourceReference(
+      id: json['id'] as String,
+      kind: $enumDecode(_$ConversationContractSourceKindEnumMap, json['kind']),
+      locator: json['locator'] as String? ?? '',
+      contentHash: json['contentHash'] as String? ?? '',
+      section: json['section'] as String? ?? '',
+      toolCallId: json['toolCallId'] as String? ?? '',
+    );
+
+Map<String, dynamic> _$ConversationContractSourceReferenceToJson(
+  _ConversationContractSourceReference instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'kind': _$ConversationContractSourceKindEnumMap[instance.kind]!,
+  'locator': instance.locator,
+  'contentHash': instance.contentHash,
+  'section': instance.section,
+  'toolCallId': instance.toolCallId,
+};
+
+const _$ConversationContractSourceKindEnumMap = {
+  ConversationContractSourceKind.userMessage: 'userMessage',
+  ConversationContractSourceKind.specificationFile: 'specificationFile',
+  ConversationContractSourceKind.approvedPlan: 'approvedPlan',
+  ConversationContractSourceKind.workspaceObservation: 'workspaceObservation',
+  ConversationContractSourceKind.userConfirmedAssumption:
+      'userConfirmedAssumption',
+  ConversationContractSourceKind.legacy: 'legacy',
+};
+
+_ConversationContractItemProvenance
+_$ConversationContractItemProvenanceFromJson(Map<String, dynamic> json) =>
+    _ConversationContractItemProvenance(
+      itemId: json['itemId'] as String,
+      kind: $enumDecode(_$ConversationContractItemKindEnumMap, json['kind']),
+      sourceIds:
+          (json['sourceIds'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const <String>[],
+      assumption: json['assumption'] as bool? ?? false,
+      material: json['material'] as bool? ?? false,
+      confirmed: json['confirmed'] as bool? ?? false,
+      clarificationQuestion: json['clarificationQuestion'] as String? ?? '',
+    );
+
+Map<String, dynamic> _$ConversationContractItemProvenanceToJson(
+  _ConversationContractItemProvenance instance,
+) => <String, dynamic>{
+  'itemId': instance.itemId,
+  'kind': _$ConversationContractItemKindEnumMap[instance.kind]!,
+  'sourceIds': instance.sourceIds,
+  'assumption': instance.assumption,
+  'material': instance.material,
+  'confirmed': instance.confirmed,
+  'clarificationQuestion': instance.clarificationQuestion,
+};
+
+const _$ConversationContractItemKindEnumMap = {
+  ConversationContractItemKind.goal: 'goal',
+  ConversationContractItemKind.constraint: 'constraint',
+  ConversationContractItemKind.acceptanceCriterion: 'acceptanceCriterion',
+  ConversationContractItemKind.openQuestion: 'openQuestion',
+  ConversationContractItemKind.task: 'task',
+};
+
 _ConversationWorkflowSpec _$ConversationWorkflowSpecFromJson(
   Map<String, dynamic> json,
 ) => _ConversationWorkflowSpec(
@@ -205,6 +273,12 @@ _ConversationWorkflowSpec _$ConversationWorkflowSpecFromJson(
   tasks: json['tasks'] == null
       ? const <ConversationWorkflowTask>[]
       : _workflowTasksFromJson(json['tasks'] as List?),
+  sources: json['sources'] == null
+      ? const <ConversationContractSourceReference>[]
+      : _contractSourcesFromJson(json['sources'] as List?),
+  provenance: json['provenance'] == null
+      ? const <ConversationContractItemProvenance>[]
+      : _contractProvenanceFromJson(json['provenance'] as List?),
 );
 
 Map<String, dynamic> _$ConversationWorkflowSpecToJson(
@@ -215,4 +289,6 @@ Map<String, dynamic> _$ConversationWorkflowSpecToJson(
   'acceptanceCriteria': instance.acceptanceCriteria,
   'openQuestions': instance.openQuestions,
   'tasks': _workflowTasksToJson(instance.tasks),
+  'sources': _contractSourcesToJson(instance.sources),
+  'provenance': _contractProvenanceToJson(instance.provenance),
 };

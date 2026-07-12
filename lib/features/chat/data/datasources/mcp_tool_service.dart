@@ -43,6 +43,8 @@ import 'searxng_client.dart';
 import 'serial_port_tools.dart';
 import 'wifi_tools.dart';
 
+part 'mcp_tool_service_delete_file.dart';
+
 /// MCP tool management service.
 ///
 /// Fetches tools dynamically from an MCP server and executes them.
@@ -393,6 +395,7 @@ class McpToolService {
     if (FilesystemTools.isDesktopPlatform) {
       _addIfEnabled(toolDefinitions, _writeFileTool);
       _addIfEnabled(toolDefinitions, _editFileTool);
+      _addIfEnabled(toolDefinitions, _deleteFileToolDefinition);
       _addIfEnabled(toolDefinitions, _rollbackLastFileChangeTool);
     }
 
@@ -804,6 +807,10 @@ class McpToolService {
         _pushFileRollbackEntry(snapshot);
       }
       return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'delete_file') {
+      return _executeDeleteFileTool(name, arguments);
     }
 
     if (name == 'rollback_last_file_change') {

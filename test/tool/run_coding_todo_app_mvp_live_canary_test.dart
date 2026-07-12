@@ -8,6 +8,9 @@ void main() {
       final runner = File(
         'tool/run_coding_todo_app_mvp_live_canary.sh',
       ).readAsStringSync();
+      final minimalPromptRunner = File(
+        'tool/run_coding_todo_app_minimal_prompt_live_canary.sh',
+      ).readAsStringSync();
       final autoContinueRunner = File(
         'tool/run_coding_goal_auto_continue_todo_fixture_live_canary.sh',
       ).readAsStringSync();
@@ -16,6 +19,20 @@ void main() {
       ).readAsStringSync();
 
       expect(runner, contains('CAVERNO_CODING_TODO_APP_MVP_LIVE_CANARY=1'));
+      expect(
+        minimalPromptRunner,
+        contains('CAVERNO_CODING_TODO_APP_MINIMAL_PROMPT_LIVE_CANARY=1'),
+      );
+      expect(
+        minimalPromptRunner,
+        contains(
+          '--plain-name "live LLM assembles the todo_app.md MVP from the minimal Japanese prompt"',
+        ),
+      );
+      expect(
+        minimalPromptRunner,
+        contains('--canary-name coding_todo_app_minimal_prompt_live_canary'),
+      );
       expect(runner, contains('Language: Dart'));
       expect(runner, contains('docs/coding_mvp_fixtures/todo_app.md'));
       expect(runner, contains('--canary-name coding_todo_app_mvp_live_canary'));
@@ -43,6 +60,22 @@ void main() {
       );
       expect(canary, contains('After the verifier exits with code 0'));
       expect(canary, contains('todo_post_success_mutation'));
+      expect(canary, contains('autoContinue: true'));
+      expect(canary, contains('ConversationContractSourceKind.userMessage'));
+      final notifier = File(
+        'lib/features/chat/presentation/providers/chat_notifier.dart',
+      ).readAsStringSync();
+      expect(notifier, contains('Tool-result final stream timed out'));
+      expect(
+        notifier,
+        contains('returning incomplete evidence to goal continuation'),
+      );
+      expect(canary, contains('todo_app.md の要件に従って'));
+      expect(
+        canary,
+        contains('CAVERNO_CODING_TODO_APP_MINIMAL_PROMPT_LIVE_CANARY'),
+      );
+      expect(canary, contains(r"'${root.path}/todo_app.md'"));
       expect(canary, contains("name: 'read_file'"));
       expect(canary, contains("name: 'edit_file'"));
       expect(canary, contains("name: 'list_directory'"));

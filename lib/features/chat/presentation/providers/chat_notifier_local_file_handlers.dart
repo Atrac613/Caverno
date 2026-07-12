@@ -405,6 +405,150 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
           );
   }
 
+  Future<McpToolResult> _handleDeleteFile(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
+    final projectRoot = _getActiveProjectRootPath();
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final path = (resolvedArguments['path'] as String?)?.trim() ?? '';
+    if (projectRoot == null ||
+        projectRoot.trim().isEmpty ||
+        path.isEmpty ||
+        !DartProjectPath.isInsideRoot(path, projectRoot)) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'ok': false,
+          'code': 'delete_path_outside_project',
+          'error':
+              'delete_file requires a regular file inside the selected coding project.',
+          if (path.isNotEmpty) 'path': path,
+        }),
+        isSuccess: false,
+        errorMessage: 'Delete path must stay inside the coding project',
+      );
+    }
+    final type = await FileSystemEntity.type(path, followLinks: false);
+    if (type != FileSystemEntityType.file) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'ok': false,
+          'code': 'delete_target_not_regular_file',
+          'error': 'delete_file supports existing regular files only.',
+          'path': path,
+        }),
+        isSuccess: false,
+        errorMessage: 'Delete target must be a regular file',
+      );
+    }
+    final snapshot = await FilesystemTools.captureTextSnapshot(path);
+    if (snapshot.error != null) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'ok': false,
+          'code': 'delete_snapshot_unavailable',
+          'error':
+              'The file cannot be deleted because a rollback snapshot could not be captured.',
+          'path': path,
+        }),
+        isSuccess: false,
+        errorMessage: 'A rollback snapshot is required before deletion',
+      );
+    }
+
+    final approvalStateFingerprint =
+        await FilesystemTools.textSnapshotFingerprint(path);
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      resolvedArguments,
+      stateFingerprint: approvalStateFingerprint,
+    );
+    if (cachedResult != null) return cachedResult;
+
+    final reason = toolCall.arguments['reason'] as String?;
+    final preview = FilesystemTools.buildUnifiedDiff(
+      path: path,
+      oldContent: snapshot.content,
+      newContent: null,
+    );
+    final gate = await _resolveToolApprovalGate(
+      toolCall: toolCall,
+      actionKind: 'delete_file',
+      mode: _settings.codingApprovalMode,
+      reviewDomain: ToolApprovalAutoReviewDomain.coding,
+      fullAccessEligible: true,
+      approvalCacheArguments: resolvedArguments,
+      approvalCacheStateFingerprint: approvalStateFingerprint,
+      buildReviewRequest: () async => _buildAutoReviewRequest(
+        toolCall: toolCall,
+        actionKind: 'delete_file',
+        arguments: resolvedArguments,
+        path: path,
+        reason: reason,
+        preview: preview,
+      ),
+    );
+    if (gate.isDenied) {
+      return _rememberToolApprovalDenial(
+        toolCall.name,
+        resolvedArguments,
+        _autoReviewDeniedResult(
+          toolName: toolCall.name,
+          rationale: gate.deniedRationale!,
+        ),
+        stateFingerprint: approvalStateFingerprint,
+      );
+    }
+    if (gate.needsManual) {
+      final approved = await requestFileOperation(
+        operation: 'Delete File',
+        path: path,
+        preview: preview,
+        reason: reason,
+      );
+      if (!approved) {
+        return _rememberToolApprovalDenial(
+          toolCall.name,
+          resolvedArguments,
+          McpToolResult(
+            toolName: toolCall.name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'User denied file deletion',
+          ),
+          stateFingerprint: approvalStateFingerprint,
+        );
+      }
+    }
+    if (!gate.bypassedApproval) {
+      final changedResult = await _fileChangedSinceApprovalResult(
+        toolName: toolCall.name,
+        path: path,
+        approvedStateFingerprint: approvalStateFingerprint,
+      );
+      if (changedResult != null) return changedResult;
+    }
+    final result = await _executeFileMutationToolAndCapture(
+      toolName: toolCall.name,
+      arguments: resolvedArguments,
+      path: path,
+    );
+    return gate.bypassedApproval
+        ? result
+        : _rememberToolApprovalResult(
+            toolCall.name,
+            resolvedArguments,
+            result,
+            stateFingerprint: approvalStateFingerprint,
+          );
+  }
+
   Future<McpToolResult?> _fileChangedSinceApprovalResult({
     required String toolName,
     required String path,

@@ -60,6 +60,12 @@ void main() {
       );
 
       expect(first, repeated);
+      expect(
+        policy.isFileMutationToolCall(
+          _toolCall('delete_file', {'path': 'obsolete.txt'}),
+        ),
+        isTrue,
+      );
     });
 
     test('failure key ignores reason so retried denials collapse to one', () {

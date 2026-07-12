@@ -271,6 +271,85 @@ void registerChatNotifierGoalAutoContinueTests() {
     },
   );
 
+  test(
+    'goal auto-continue grants one extension for decreasing diagnostics',
+    () async {
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: [
+          [_goalAutoContinueAnalyzeCall('call-analyze-budget-initial')],
+          [_goalAutoContinueAnalyzeCall('call-analyze-budget-first')],
+          [_goalAutoContinueAnalyzeCall('call-analyze-budget-second')],
+        ],
+        streamChunkBatches: const [<String>[], <String>[], <String>[]],
+        finalAnswerChunkBatches: const [
+          ['Three diagnostics remain.'],
+          ['Two diagnostics remain.'],
+          ['One diagnostic remains.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'analyze_project': 'unused fallback'},
+        queuedResults: {
+          'analyze_project': [
+            _goalAutoContinueDiagnosticPayload(
+              count: 3,
+              path: 'bin/todo_cli.dart',
+            ),
+            _goalAutoContinueDiagnosticPayload(
+              count: 2,
+              path: 'bin/todo_cli.dart',
+            ),
+            _goalAutoContinueDiagnosticPayload(
+              count: 1,
+              path: 'bin/todo_cli.dart',
+            ),
+          ],
+        },
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'goal-auto-diagnostic-budget',
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'goal-auto-diagnostic-budget',
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Fix analyzer diagnostics',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 5,
+      );
+
+      await container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('Fix analyzer diagnostics.', bypassPlanMode: true);
+
+      await _waitForCondition(() {
+        final goal = container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal;
+        return !container.read(chatNotifierProvider).isLoading &&
+            goal?.status == ConversationGoalStatus.blocked;
+      });
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal;
+      expect(dataSource.initialRequestMessages, hasLength(4));
+      expect(goal?.blockedReason, contains('one progress-based extension'));
+    },
+  );
+
   test('goal continuation recovery recognizes the automatic prompt', () {
     final dataSource = _GoalAutoContinueChatDataSource(
       toolCallBatches: const [],

@@ -324,6 +324,8 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       workflowSourceHash: conversation.workflowSourceHash,
       workflowDerivedAt: conversation.workflowDerivedAt,
       executionProgress: conversation.executionProgress,
+      mutationGeneration: conversation.mutationGeneration,
+      verificationGeneration: conversation.verificationGeneration,
       openQuestionProgress: conversation.openQuestionProgress,
       goal: conversation.goal,
       planArtifact: conversation.planArtifact,
@@ -685,6 +687,8 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       executionProgress:
           checkpoint?.executionProgress ??
           const <ConversationExecutionTaskProgress>[],
+      mutationGeneration: checkpoint?.mutationGeneration ?? 0,
+      verificationGeneration: checkpoint?.verificationGeneration ?? -1,
       openQuestionProgress:
           checkpoint?.openQuestionProgress ??
           const <ConversationOpenQuestionProgress>[],
@@ -1233,6 +1237,28 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: now,
     );
     await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<void> recordCurrentMutationGeneration() async {
+    final conversation = state.currentConversation;
+    if (conversation == null) return;
+    await _persistUpdatedConversation(
+      conversation.copyWith(
+        mutationGeneration: conversation.mutationGeneration + 1,
+        updatedAt: DateTime.now(),
+      ),
+    );
+  }
+
+  Future<void> recordCurrentVerificationGeneration() async {
+    final conversation = state.currentConversation;
+    if (conversation == null) return;
+    await _persistUpdatedConversation(
+      conversation.copyWith(
+        verificationGeneration: conversation.mutationGeneration,
+        updatedAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> updateCurrentExecutionTaskProgressFromAssistantTurn({

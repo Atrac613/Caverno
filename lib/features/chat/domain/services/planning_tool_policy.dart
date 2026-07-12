@@ -146,6 +146,7 @@ class PlanningToolPolicy {
     return switch (toolName) {
       'write_file' ||
       'edit_file' ||
+      'delete_file' ||
       'rollback_last_file_change' ||
       'run_tests' ||
       'http_post' ||

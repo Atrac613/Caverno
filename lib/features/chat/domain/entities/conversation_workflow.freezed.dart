@@ -1155,9 +1155,574 @@ as String,
 
 
 /// @nodoc
+mixin _$ConversationContractSourceReference {
+
+ String get id; ConversationContractSourceKind get kind; String get locator; String get contentHash; String get section; String get toolCallId;
+/// Create a copy of ConversationContractSourceReference
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConversationContractSourceReferenceCopyWith<ConversationContractSourceReference> get copyWith => _$ConversationContractSourceReferenceCopyWithImpl<ConversationContractSourceReference>(this as ConversationContractSourceReference, _$identity);
+
+  /// Serializes this ConversationContractSourceReference to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationContractSourceReference&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.locator, locator) || other.locator == locator)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.section, section) || other.section == section)&&(identical(other.toolCallId, toolCallId) || other.toolCallId == toolCallId));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,kind,locator,contentHash,section,toolCallId);
+
+@override
+String toString() {
+  return 'ConversationContractSourceReference(id: $id, kind: $kind, locator: $locator, contentHash: $contentHash, section: $section, toolCallId: $toolCallId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConversationContractSourceReferenceCopyWith<$Res>  {
+  factory $ConversationContractSourceReferenceCopyWith(ConversationContractSourceReference value, $Res Function(ConversationContractSourceReference) _then) = _$ConversationContractSourceReferenceCopyWithImpl;
+@useResult
+$Res call({
+ String id, ConversationContractSourceKind kind, String locator, String contentHash, String section, String toolCallId
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConversationContractSourceReferenceCopyWithImpl<$Res>
+    implements $ConversationContractSourceReferenceCopyWith<$Res> {
+  _$ConversationContractSourceReferenceCopyWithImpl(this._self, this._then);
+
+  final ConversationContractSourceReference _self;
+  final $Res Function(ConversationContractSourceReference) _then;
+
+/// Create a copy of ConversationContractSourceReference
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? kind = null,Object? locator = null,Object? contentHash = null,Object? section = null,Object? toolCallId = null,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as ConversationContractSourceKind,locator: null == locator ? _self.locator : locator // ignore: cast_nullable_to_non_nullable
+as String,contentHash: null == contentHash ? _self.contentHash : contentHash // ignore: cast_nullable_to_non_nullable
+as String,section: null == section ? _self.section : section // ignore: cast_nullable_to_non_nullable
+as String,toolCallId: null == toolCallId ? _self.toolCallId : toolCallId // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ConversationContractSourceReference].
+extension ConversationContractSourceReferencePatterns on ConversationContractSourceReference {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ConversationContractSourceReference value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ConversationContractSourceReference() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ConversationContractSourceReference value)  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationContractSourceReference():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ConversationContractSourceReference value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationContractSourceReference() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  ConversationContractSourceKind kind,  String locator,  String contentHash,  String section,  String toolCallId)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ConversationContractSourceReference() when $default != null:
+return $default(_that.id,_that.kind,_that.locator,_that.contentHash,_that.section,_that.toolCallId);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  ConversationContractSourceKind kind,  String locator,  String contentHash,  String section,  String toolCallId)  $default,) {final _that = this;
+switch (_that) {
+case _ConversationContractSourceReference():
+return $default(_that.id,_that.kind,_that.locator,_that.contentHash,_that.section,_that.toolCallId);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  ConversationContractSourceKind kind,  String locator,  String contentHash,  String section,  String toolCallId)?  $default,) {final _that = this;
+switch (_that) {
+case _ConversationContractSourceReference() when $default != null:
+return $default(_that.id,_that.kind,_that.locator,_that.contentHash,_that.section,_that.toolCallId);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ConversationContractSourceReference extends ConversationContractSourceReference {
+  const _ConversationContractSourceReference({required this.id, required this.kind, this.locator = '', this.contentHash = '', this.section = '', this.toolCallId = ''}): super._();
+  factory _ConversationContractSourceReference.fromJson(Map<String, dynamic> json) => _$ConversationContractSourceReferenceFromJson(json);
+
+@override final  String id;
+@override final  ConversationContractSourceKind kind;
+@override@JsonKey() final  String locator;
+@override@JsonKey() final  String contentHash;
+@override@JsonKey() final  String section;
+@override@JsonKey() final  String toolCallId;
+
+/// Create a copy of ConversationContractSourceReference
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ConversationContractSourceReferenceCopyWith<_ConversationContractSourceReference> get copyWith => __$ConversationContractSourceReferenceCopyWithImpl<_ConversationContractSourceReference>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ConversationContractSourceReferenceToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationContractSourceReference&&(identical(other.id, id) || other.id == id)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.locator, locator) || other.locator == locator)&&(identical(other.contentHash, contentHash) || other.contentHash == contentHash)&&(identical(other.section, section) || other.section == section)&&(identical(other.toolCallId, toolCallId) || other.toolCallId == toolCallId));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,kind,locator,contentHash,section,toolCallId);
+
+@override
+String toString() {
+  return 'ConversationContractSourceReference(id: $id, kind: $kind, locator: $locator, contentHash: $contentHash, section: $section, toolCallId: $toolCallId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ConversationContractSourceReferenceCopyWith<$Res> implements $ConversationContractSourceReferenceCopyWith<$Res> {
+  factory _$ConversationContractSourceReferenceCopyWith(_ConversationContractSourceReference value, $Res Function(_ConversationContractSourceReference) _then) = __$ConversationContractSourceReferenceCopyWithImpl;
+@override @useResult
+$Res call({
+ String id, ConversationContractSourceKind kind, String locator, String contentHash, String section, String toolCallId
+});
+
+
+
+
+}
+/// @nodoc
+class __$ConversationContractSourceReferenceCopyWithImpl<$Res>
+    implements _$ConversationContractSourceReferenceCopyWith<$Res> {
+  __$ConversationContractSourceReferenceCopyWithImpl(this._self, this._then);
+
+  final _ConversationContractSourceReference _self;
+  final $Res Function(_ConversationContractSourceReference) _then;
+
+/// Create a copy of ConversationContractSourceReference
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? kind = null,Object? locator = null,Object? contentHash = null,Object? section = null,Object? toolCallId = null,}) {
+  return _then(_ConversationContractSourceReference(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as ConversationContractSourceKind,locator: null == locator ? _self.locator : locator // ignore: cast_nullable_to_non_nullable
+as String,contentHash: null == contentHash ? _self.contentHash : contentHash // ignore: cast_nullable_to_non_nullable
+as String,section: null == section ? _self.section : section // ignore: cast_nullable_to_non_nullable
+as String,toolCallId: null == toolCallId ? _self.toolCallId : toolCallId // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$ConversationContractItemProvenance {
+
+ String get itemId; ConversationContractItemKind get kind; List<String> get sourceIds; bool get assumption; bool get material; bool get confirmed; String get clarificationQuestion;
+/// Create a copy of ConversationContractItemProvenance
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConversationContractItemProvenanceCopyWith<ConversationContractItemProvenance> get copyWith => _$ConversationContractItemProvenanceCopyWithImpl<ConversationContractItemProvenance>(this as ConversationContractItemProvenance, _$identity);
+
+  /// Serializes this ConversationContractItemProvenance to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationContractItemProvenance&&(identical(other.itemId, itemId) || other.itemId == itemId)&&(identical(other.kind, kind) || other.kind == kind)&&const DeepCollectionEquality().equals(other.sourceIds, sourceIds)&&(identical(other.assumption, assumption) || other.assumption == assumption)&&(identical(other.material, material) || other.material == material)&&(identical(other.confirmed, confirmed) || other.confirmed == confirmed)&&(identical(other.clarificationQuestion, clarificationQuestion) || other.clarificationQuestion == clarificationQuestion));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,itemId,kind,const DeepCollectionEquality().hash(sourceIds),assumption,material,confirmed,clarificationQuestion);
+
+@override
+String toString() {
+  return 'ConversationContractItemProvenance(itemId: $itemId, kind: $kind, sourceIds: $sourceIds, assumption: $assumption, material: $material, confirmed: $confirmed, clarificationQuestion: $clarificationQuestion)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConversationContractItemProvenanceCopyWith<$Res>  {
+  factory $ConversationContractItemProvenanceCopyWith(ConversationContractItemProvenance value, $Res Function(ConversationContractItemProvenance) _then) = _$ConversationContractItemProvenanceCopyWithImpl;
+@useResult
+$Res call({
+ String itemId, ConversationContractItemKind kind, List<String> sourceIds, bool assumption, bool material, bool confirmed, String clarificationQuestion
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConversationContractItemProvenanceCopyWithImpl<$Res>
+    implements $ConversationContractItemProvenanceCopyWith<$Res> {
+  _$ConversationContractItemProvenanceCopyWithImpl(this._self, this._then);
+
+  final ConversationContractItemProvenance _self;
+  final $Res Function(ConversationContractItemProvenance) _then;
+
+/// Create a copy of ConversationContractItemProvenance
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? itemId = null,Object? kind = null,Object? sourceIds = null,Object? assumption = null,Object? material = null,Object? confirmed = null,Object? clarificationQuestion = null,}) {
+  return _then(_self.copyWith(
+itemId: null == itemId ? _self.itemId : itemId // ignore: cast_nullable_to_non_nullable
+as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as ConversationContractItemKind,sourceIds: null == sourceIds ? _self.sourceIds : sourceIds // ignore: cast_nullable_to_non_nullable
+as List<String>,assumption: null == assumption ? _self.assumption : assumption // ignore: cast_nullable_to_non_nullable
+as bool,material: null == material ? _self.material : material // ignore: cast_nullable_to_non_nullable
+as bool,confirmed: null == confirmed ? _self.confirmed : confirmed // ignore: cast_nullable_to_non_nullable
+as bool,clarificationQuestion: null == clarificationQuestion ? _self.clarificationQuestion : clarificationQuestion // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ConversationContractItemProvenance].
+extension ConversationContractItemProvenancePatterns on ConversationContractItemProvenance {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ConversationContractItemProvenance value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ConversationContractItemProvenance() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ConversationContractItemProvenance value)  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationContractItemProvenance():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ConversationContractItemProvenance value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationContractItemProvenance() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String itemId,  ConversationContractItemKind kind,  List<String> sourceIds,  bool assumption,  bool material,  bool confirmed,  String clarificationQuestion)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ConversationContractItemProvenance() when $default != null:
+return $default(_that.itemId,_that.kind,_that.sourceIds,_that.assumption,_that.material,_that.confirmed,_that.clarificationQuestion);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String itemId,  ConversationContractItemKind kind,  List<String> sourceIds,  bool assumption,  bool material,  bool confirmed,  String clarificationQuestion)  $default,) {final _that = this;
+switch (_that) {
+case _ConversationContractItemProvenance():
+return $default(_that.itemId,_that.kind,_that.sourceIds,_that.assumption,_that.material,_that.confirmed,_that.clarificationQuestion);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String itemId,  ConversationContractItemKind kind,  List<String> sourceIds,  bool assumption,  bool material,  bool confirmed,  String clarificationQuestion)?  $default,) {final _that = this;
+switch (_that) {
+case _ConversationContractItemProvenance() when $default != null:
+return $default(_that.itemId,_that.kind,_that.sourceIds,_that.assumption,_that.material,_that.confirmed,_that.clarificationQuestion);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ConversationContractItemProvenance extends ConversationContractItemProvenance {
+  const _ConversationContractItemProvenance({required this.itemId, required this.kind, final  List<String> sourceIds = const <String>[], this.assumption = false, this.material = false, this.confirmed = false, this.clarificationQuestion = ''}): _sourceIds = sourceIds,super._();
+  factory _ConversationContractItemProvenance.fromJson(Map<String, dynamic> json) => _$ConversationContractItemProvenanceFromJson(json);
+
+@override final  String itemId;
+@override final  ConversationContractItemKind kind;
+ final  List<String> _sourceIds;
+@override@JsonKey() List<String> get sourceIds {
+  if (_sourceIds is EqualUnmodifiableListView) return _sourceIds;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_sourceIds);
+}
+
+@override@JsonKey() final  bool assumption;
+@override@JsonKey() final  bool material;
+@override@JsonKey() final  bool confirmed;
+@override@JsonKey() final  String clarificationQuestion;
+
+/// Create a copy of ConversationContractItemProvenance
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ConversationContractItemProvenanceCopyWith<_ConversationContractItemProvenance> get copyWith => __$ConversationContractItemProvenanceCopyWithImpl<_ConversationContractItemProvenance>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ConversationContractItemProvenanceToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationContractItemProvenance&&(identical(other.itemId, itemId) || other.itemId == itemId)&&(identical(other.kind, kind) || other.kind == kind)&&const DeepCollectionEquality().equals(other._sourceIds, _sourceIds)&&(identical(other.assumption, assumption) || other.assumption == assumption)&&(identical(other.material, material) || other.material == material)&&(identical(other.confirmed, confirmed) || other.confirmed == confirmed)&&(identical(other.clarificationQuestion, clarificationQuestion) || other.clarificationQuestion == clarificationQuestion));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,itemId,kind,const DeepCollectionEquality().hash(_sourceIds),assumption,material,confirmed,clarificationQuestion);
+
+@override
+String toString() {
+  return 'ConversationContractItemProvenance(itemId: $itemId, kind: $kind, sourceIds: $sourceIds, assumption: $assumption, material: $material, confirmed: $confirmed, clarificationQuestion: $clarificationQuestion)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ConversationContractItemProvenanceCopyWith<$Res> implements $ConversationContractItemProvenanceCopyWith<$Res> {
+  factory _$ConversationContractItemProvenanceCopyWith(_ConversationContractItemProvenance value, $Res Function(_ConversationContractItemProvenance) _then) = __$ConversationContractItemProvenanceCopyWithImpl;
+@override @useResult
+$Res call({
+ String itemId, ConversationContractItemKind kind, List<String> sourceIds, bool assumption, bool material, bool confirmed, String clarificationQuestion
+});
+
+
+
+
+}
+/// @nodoc
+class __$ConversationContractItemProvenanceCopyWithImpl<$Res>
+    implements _$ConversationContractItemProvenanceCopyWith<$Res> {
+  __$ConversationContractItemProvenanceCopyWithImpl(this._self, this._then);
+
+  final _ConversationContractItemProvenance _self;
+  final $Res Function(_ConversationContractItemProvenance) _then;
+
+/// Create a copy of ConversationContractItemProvenance
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? itemId = null,Object? kind = null,Object? sourceIds = null,Object? assumption = null,Object? material = null,Object? confirmed = null,Object? clarificationQuestion = null,}) {
+  return _then(_ConversationContractItemProvenance(
+itemId: null == itemId ? _self.itemId : itemId // ignore: cast_nullable_to_non_nullable
+as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as ConversationContractItemKind,sourceIds: null == sourceIds ? _self._sourceIds : sourceIds // ignore: cast_nullable_to_non_nullable
+as List<String>,assumption: null == assumption ? _self.assumption : assumption // ignore: cast_nullable_to_non_nullable
+as bool,material: null == material ? _self.material : material // ignore: cast_nullable_to_non_nullable
+as bool,confirmed: null == confirmed ? _self.confirmed : confirmed // ignore: cast_nullable_to_non_nullable
+as bool,clarificationQuestion: null == clarificationQuestion ? _self.clarificationQuestion : clarificationQuestion // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$ConversationWorkflowSpec {
 
- String get goal; List<String> get constraints; List<String> get acceptanceCriteria; List<String> get openQuestions;@JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson) List<ConversationWorkflowTask> get tasks;
+ String get goal; List<String> get constraints; List<String> get acceptanceCriteria; List<String> get openQuestions;@JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson) List<ConversationWorkflowTask> get tasks;@JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson) List<ConversationContractSourceReference> get sources;@JsonKey(fromJson: _contractProvenanceFromJson, toJson: _contractProvenanceToJson) List<ConversationContractItemProvenance> get provenance;
 /// Create a copy of ConversationWorkflowSpec
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1170,16 +1735,16 @@ $ConversationWorkflowSpecCopyWith<ConversationWorkflowSpec> get copyWith => _$Co
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationWorkflowSpec&&(identical(other.goal, goal) || other.goal == goal)&&const DeepCollectionEquality().equals(other.constraints, constraints)&&const DeepCollectionEquality().equals(other.acceptanceCriteria, acceptanceCriteria)&&const DeepCollectionEquality().equals(other.openQuestions, openQuestions)&&const DeepCollectionEquality().equals(other.tasks, tasks));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationWorkflowSpec&&(identical(other.goal, goal) || other.goal == goal)&&const DeepCollectionEquality().equals(other.constraints, constraints)&&const DeepCollectionEquality().equals(other.acceptanceCriteria, acceptanceCriteria)&&const DeepCollectionEquality().equals(other.openQuestions, openQuestions)&&const DeepCollectionEquality().equals(other.tasks, tasks)&&const DeepCollectionEquality().equals(other.sources, sources)&&const DeepCollectionEquality().equals(other.provenance, provenance));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,goal,const DeepCollectionEquality().hash(constraints),const DeepCollectionEquality().hash(acceptanceCriteria),const DeepCollectionEquality().hash(openQuestions),const DeepCollectionEquality().hash(tasks));
+int get hashCode => Object.hash(runtimeType,goal,const DeepCollectionEquality().hash(constraints),const DeepCollectionEquality().hash(acceptanceCriteria),const DeepCollectionEquality().hash(openQuestions),const DeepCollectionEquality().hash(tasks),const DeepCollectionEquality().hash(sources),const DeepCollectionEquality().hash(provenance));
 
 @override
 String toString() {
-  return 'ConversationWorkflowSpec(goal: $goal, constraints: $constraints, acceptanceCriteria: $acceptanceCriteria, openQuestions: $openQuestions, tasks: $tasks)';
+  return 'ConversationWorkflowSpec(goal: $goal, constraints: $constraints, acceptanceCriteria: $acceptanceCriteria, openQuestions: $openQuestions, tasks: $tasks, sources: $sources, provenance: $provenance)';
 }
 
 
@@ -1190,7 +1755,7 @@ abstract mixin class $ConversationWorkflowSpecCopyWith<$Res>  {
   factory $ConversationWorkflowSpecCopyWith(ConversationWorkflowSpec value, $Res Function(ConversationWorkflowSpec) _then) = _$ConversationWorkflowSpecCopyWithImpl;
 @useResult
 $Res call({
- String goal, List<String> constraints, List<String> acceptanceCriteria, List<String> openQuestions,@JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson) List<ConversationWorkflowTask> tasks
+ String goal, List<String> constraints, List<String> acceptanceCriteria, List<String> openQuestions,@JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson) List<ConversationWorkflowTask> tasks,@JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson) List<ConversationContractSourceReference> sources,@JsonKey(fromJson: _contractProvenanceFromJson, toJson: _contractProvenanceToJson) List<ConversationContractItemProvenance> provenance
 });
 
 
@@ -1207,14 +1772,16 @@ class _$ConversationWorkflowSpecCopyWithImpl<$Res>
 
 /// Create a copy of ConversationWorkflowSpec
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? goal = null,Object? constraints = null,Object? acceptanceCriteria = null,Object? openQuestions = null,Object? tasks = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? goal = null,Object? constraints = null,Object? acceptanceCriteria = null,Object? openQuestions = null,Object? tasks = null,Object? sources = null,Object? provenance = null,}) {
   return _then(_self.copyWith(
 goal: null == goal ? _self.goal : goal // ignore: cast_nullable_to_non_nullable
 as String,constraints: null == constraints ? _self.constraints : constraints // ignore: cast_nullable_to_non_nullable
 as List<String>,acceptanceCriteria: null == acceptanceCriteria ? _self.acceptanceCriteria : acceptanceCriteria // ignore: cast_nullable_to_non_nullable
 as List<String>,openQuestions: null == openQuestions ? _self.openQuestions : openQuestions // ignore: cast_nullable_to_non_nullable
 as List<String>,tasks: null == tasks ? _self.tasks : tasks // ignore: cast_nullable_to_non_nullable
-as List<ConversationWorkflowTask>,
+as List<ConversationWorkflowTask>,sources: null == sources ? _self.sources : sources // ignore: cast_nullable_to_non_nullable
+as List<ConversationContractSourceReference>,provenance: null == provenance ? _self.provenance : provenance // ignore: cast_nullable_to_non_nullable
+as List<ConversationContractItemProvenance>,
   ));
 }
 
@@ -1299,10 +1866,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String goal,  List<String> constraints,  List<String> acceptanceCriteria,  List<String> openQuestions, @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson)  List<ConversationWorkflowTask> tasks)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String goal,  List<String> constraints,  List<String> acceptanceCriteria,  List<String> openQuestions, @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson)  List<ConversationWorkflowTask> tasks, @JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson)  List<ConversationContractSourceReference> sources, @JsonKey(fromJson: _contractProvenanceFromJson, toJson: _contractProvenanceToJson)  List<ConversationContractItemProvenance> provenance)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ConversationWorkflowSpec() when $default != null:
-return $default(_that.goal,_that.constraints,_that.acceptanceCriteria,_that.openQuestions,_that.tasks);case _:
+return $default(_that.goal,_that.constraints,_that.acceptanceCriteria,_that.openQuestions,_that.tasks,_that.sources,_that.provenance);case _:
   return orElse();
 
 }
@@ -1320,10 +1887,10 @@ return $default(_that.goal,_that.constraints,_that.acceptanceCriteria,_that.open
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String goal,  List<String> constraints,  List<String> acceptanceCriteria,  List<String> openQuestions, @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson)  List<ConversationWorkflowTask> tasks)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String goal,  List<String> constraints,  List<String> acceptanceCriteria,  List<String> openQuestions, @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson)  List<ConversationWorkflowTask> tasks, @JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson)  List<ConversationContractSourceReference> sources, @JsonKey(fromJson: _contractProvenanceFromJson, toJson: _contractProvenanceToJson)  List<ConversationContractItemProvenance> provenance)  $default,) {final _that = this;
 switch (_that) {
 case _ConversationWorkflowSpec():
-return $default(_that.goal,_that.constraints,_that.acceptanceCriteria,_that.openQuestions,_that.tasks);case _:
+return $default(_that.goal,_that.constraints,_that.acceptanceCriteria,_that.openQuestions,_that.tasks,_that.sources,_that.provenance);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1340,10 +1907,10 @@ return $default(_that.goal,_that.constraints,_that.acceptanceCriteria,_that.open
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String goal,  List<String> constraints,  List<String> acceptanceCriteria,  List<String> openQuestions, @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson)  List<ConversationWorkflowTask> tasks)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String goal,  List<String> constraints,  List<String> acceptanceCriteria,  List<String> openQuestions, @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson)  List<ConversationWorkflowTask> tasks, @JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson)  List<ConversationContractSourceReference> sources, @JsonKey(fromJson: _contractProvenanceFromJson, toJson: _contractProvenanceToJson)  List<ConversationContractItemProvenance> provenance)?  $default,) {final _that = this;
 switch (_that) {
 case _ConversationWorkflowSpec() when $default != null:
-return $default(_that.goal,_that.constraints,_that.acceptanceCriteria,_that.openQuestions,_that.tasks);case _:
+return $default(_that.goal,_that.constraints,_that.acceptanceCriteria,_that.openQuestions,_that.tasks,_that.sources,_that.provenance);case _:
   return null;
 
 }
@@ -1355,7 +1922,7 @@ return $default(_that.goal,_that.constraints,_that.acceptanceCriteria,_that.open
 @JsonSerializable()
 
 class _ConversationWorkflowSpec extends ConversationWorkflowSpec {
-  const _ConversationWorkflowSpec({this.goal = '', final  List<String> constraints = const <String>[], final  List<String> acceptanceCriteria = const <String>[], final  List<String> openQuestions = const <String>[], @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson) final  List<ConversationWorkflowTask> tasks = const <ConversationWorkflowTask>[]}): _constraints = constraints,_acceptanceCriteria = acceptanceCriteria,_openQuestions = openQuestions,_tasks = tasks,super._();
+  const _ConversationWorkflowSpec({this.goal = '', final  List<String> constraints = const <String>[], final  List<String> acceptanceCriteria = const <String>[], final  List<String> openQuestions = const <String>[], @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson) final  List<ConversationWorkflowTask> tasks = const <ConversationWorkflowTask>[], @JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson) final  List<ConversationContractSourceReference> sources = const <ConversationContractSourceReference>[], @JsonKey(fromJson: _contractProvenanceFromJson, toJson: _contractProvenanceToJson) final  List<ConversationContractItemProvenance> provenance = const <ConversationContractItemProvenance>[]}): _constraints = constraints,_acceptanceCriteria = acceptanceCriteria,_openQuestions = openQuestions,_tasks = tasks,_sources = sources,_provenance = provenance,super._();
   factory _ConversationWorkflowSpec.fromJson(Map<String, dynamic> json) => _$ConversationWorkflowSpecFromJson(json);
 
 @override@JsonKey() final  String goal;
@@ -1387,6 +1954,20 @@ class _ConversationWorkflowSpec extends ConversationWorkflowSpec {
   return EqualUnmodifiableListView(_tasks);
 }
 
+ final  List<ConversationContractSourceReference> _sources;
+@override@JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson) List<ConversationContractSourceReference> get sources {
+  if (_sources is EqualUnmodifiableListView) return _sources;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_sources);
+}
+
+ final  List<ConversationContractItemProvenance> _provenance;
+@override@JsonKey(fromJson: _contractProvenanceFromJson, toJson: _contractProvenanceToJson) List<ConversationContractItemProvenance> get provenance {
+  if (_provenance is EqualUnmodifiableListView) return _provenance;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_provenance);
+}
+
 
 /// Create a copy of ConversationWorkflowSpec
 /// with the given fields replaced by the non-null parameter values.
@@ -1401,16 +1982,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationWorkflowSpec&&(identical(other.goal, goal) || other.goal == goal)&&const DeepCollectionEquality().equals(other._constraints, _constraints)&&const DeepCollectionEquality().equals(other._acceptanceCriteria, _acceptanceCriteria)&&const DeepCollectionEquality().equals(other._openQuestions, _openQuestions)&&const DeepCollectionEquality().equals(other._tasks, _tasks));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationWorkflowSpec&&(identical(other.goal, goal) || other.goal == goal)&&const DeepCollectionEquality().equals(other._constraints, _constraints)&&const DeepCollectionEquality().equals(other._acceptanceCriteria, _acceptanceCriteria)&&const DeepCollectionEquality().equals(other._openQuestions, _openQuestions)&&const DeepCollectionEquality().equals(other._tasks, _tasks)&&const DeepCollectionEquality().equals(other._sources, _sources)&&const DeepCollectionEquality().equals(other._provenance, _provenance));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,goal,const DeepCollectionEquality().hash(_constraints),const DeepCollectionEquality().hash(_acceptanceCriteria),const DeepCollectionEquality().hash(_openQuestions),const DeepCollectionEquality().hash(_tasks));
+int get hashCode => Object.hash(runtimeType,goal,const DeepCollectionEquality().hash(_constraints),const DeepCollectionEquality().hash(_acceptanceCriteria),const DeepCollectionEquality().hash(_openQuestions),const DeepCollectionEquality().hash(_tasks),const DeepCollectionEquality().hash(_sources),const DeepCollectionEquality().hash(_provenance));
 
 @override
 String toString() {
-  return 'ConversationWorkflowSpec(goal: $goal, constraints: $constraints, acceptanceCriteria: $acceptanceCriteria, openQuestions: $openQuestions, tasks: $tasks)';
+  return 'ConversationWorkflowSpec(goal: $goal, constraints: $constraints, acceptanceCriteria: $acceptanceCriteria, openQuestions: $openQuestions, tasks: $tasks, sources: $sources, provenance: $provenance)';
 }
 
 
@@ -1421,7 +2002,7 @@ abstract mixin class _$ConversationWorkflowSpecCopyWith<$Res> implements $Conver
   factory _$ConversationWorkflowSpecCopyWith(_ConversationWorkflowSpec value, $Res Function(_ConversationWorkflowSpec) _then) = __$ConversationWorkflowSpecCopyWithImpl;
 @override @useResult
 $Res call({
- String goal, List<String> constraints, List<String> acceptanceCriteria, List<String> openQuestions,@JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson) List<ConversationWorkflowTask> tasks
+ String goal, List<String> constraints, List<String> acceptanceCriteria, List<String> openQuestions,@JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson) List<ConversationWorkflowTask> tasks,@JsonKey(fromJson: _contractSourcesFromJson, toJson: _contractSourcesToJson) List<ConversationContractSourceReference> sources,@JsonKey(fromJson: _contractProvenanceFromJson, toJson: _contractProvenanceToJson) List<ConversationContractItemProvenance> provenance
 });
 
 
@@ -1438,14 +2019,16 @@ class __$ConversationWorkflowSpecCopyWithImpl<$Res>
 
 /// Create a copy of ConversationWorkflowSpec
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? goal = null,Object? constraints = null,Object? acceptanceCriteria = null,Object? openQuestions = null,Object? tasks = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? goal = null,Object? constraints = null,Object? acceptanceCriteria = null,Object? openQuestions = null,Object? tasks = null,Object? sources = null,Object? provenance = null,}) {
   return _then(_ConversationWorkflowSpec(
 goal: null == goal ? _self.goal : goal // ignore: cast_nullable_to_non_nullable
 as String,constraints: null == constraints ? _self._constraints : constraints // ignore: cast_nullable_to_non_nullable
 as List<String>,acceptanceCriteria: null == acceptanceCriteria ? _self._acceptanceCriteria : acceptanceCriteria // ignore: cast_nullable_to_non_nullable
 as List<String>,openQuestions: null == openQuestions ? _self._openQuestions : openQuestions // ignore: cast_nullable_to_non_nullable
 as List<String>,tasks: null == tasks ? _self._tasks : tasks // ignore: cast_nullable_to_non_nullable
-as List<ConversationWorkflowTask>,
+as List<ConversationWorkflowTask>,sources: null == sources ? _self._sources : sources // ignore: cast_nullable_to_non_nullable
+as List<ConversationContractSourceReference>,provenance: null == provenance ? _self._provenance : provenance // ignore: cast_nullable_to_non_nullable
+as List<ConversationContractItemProvenance>,
   ));
 }
 

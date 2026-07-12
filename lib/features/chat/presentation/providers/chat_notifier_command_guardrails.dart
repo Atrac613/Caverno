@@ -5,6 +5,51 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierCommandGuardrails on ChatNotifier {
+  McpToolResult? _buildMaterialContractAssumptionGuardResult(
+    ToolCallInfo toolCall,
+  ) {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation?.workspaceMode != WorkspaceMode.coding) {
+      return null;
+    }
+    final assumptions = conversation!.effectiveWorkflowSpec.blockingAssumptions;
+    if (assumptions.isEmpty || !_isContractMutationToolCall(toolCall)) {
+      return null;
+    }
+    final question =
+        assumptions.first.normalizedClarificationQuestion ??
+        'Please confirm the material ${assumptions.first.kind.name} assumption.';
+    final payload = jsonEncode({
+      'ok': false,
+      'code': 'material_contract_assumption_unconfirmed',
+      'error':
+          'State mutation is blocked until the user confirms a material contract assumption.',
+      'clarification_question': question,
+      'required_action':
+          'Ask the user this one focused clarification question and wait for confirmation before mutating state.',
+    });
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: false,
+      errorMessage: 'Confirm the material contract assumption first.',
+    );
+  }
+
+  bool _isContractMutationToolCall(ToolCallInfo toolCall) {
+    final effect = const ToolCapabilityClassifier()
+        .classify(toolCall.name, arguments: toolCall.arguments)
+        .commandEffect;
+    return switch (effect) {
+      ToolCommandEffect.inspection ||
+      ToolCommandEffect.verification ||
+      ToolCommandEffect.unknown => false,
+      _ => true,
+    };
+  }
+
   McpToolResult? _buildAnalysisOptionsLintEditGuardResult(
     ToolCallInfo toolCall, {
     required List<ToolResultInfo> executedToolResults,

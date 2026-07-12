@@ -915,6 +915,7 @@ class FinalAnswerClaimDetector {
     switch (toolName.trim().toLowerCase()) {
       case 'write_file':
       case 'edit_file':
+      case 'delete_file':
       case 'rollback_last_file_change':
         return true;
     }

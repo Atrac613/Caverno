@@ -135,7 +135,9 @@ class ConversationPlanExecutionGuardrails {
     final fileMutationToolPaths = <String>{};
 
     for (final toolResult in toolResults) {
-      if (toolResult.name == 'write_file' || toolResult.name == 'edit_file') {
+      if (toolResult.name == 'write_file' ||
+          toolResult.name == 'edit_file' ||
+          toolResult.name == 'delete_file') {
         final path = _normalizePath(toolResult.arguments['path']?.toString());
         if (path.isEmpty) {
           continue;
@@ -247,6 +249,7 @@ class ConversationPlanExecutionGuardrails {
 
       if (toolResult.name == 'write_file' ||
           toolResult.name == 'edit_file' ||
+          toolResult.name == 'delete_file' ||
           toolResult.name == 'rollback_last_file_change') {
         final path = _normalizePath(toolResult.arguments['path']?.toString());
         if (path.isEmpty) {
@@ -1273,7 +1276,9 @@ class ConversationPlanExecutionGuardrails {
     if (normalizedResult.isEmpty) {
       return false;
     }
-    if (toolResult.name != 'write_file' && toolResult.name != 'edit_file') {
+    if (toolResult.name != 'write_file' &&
+        toolResult.name != 'edit_file' &&
+        toolResult.name != 'delete_file') {
       return false;
     }
     final decoded = _tryDecodeMap(toolResult.result);
@@ -1401,7 +1406,9 @@ class ConversationPlanExecutionGuardrails {
   ) {
     final inferredTargets = <String>{};
     for (final toolResult in toolResults) {
-      if (toolResult.name != 'write_file' && toolResult.name != 'edit_file') {
+      if (toolResult.name != 'write_file' &&
+          toolResult.name != 'edit_file' &&
+          toolResult.name != 'delete_file') {
         continue;
       }
       final path = _normalizePath(toolResult.arguments['path']?.toString());

@@ -55,6 +55,7 @@ final class _LocalFileToolHandlerModule implements ChatToolHandlerModule {
     return {
       'write_file': _notifier._handleWriteFile,
       'edit_file': _notifier._handleEditFile,
+      'delete_file': _notifier._handleDeleteFile,
       'rollback_last_file_change': _notifier._handleRollbackLastFileChange,
       'local_execute_command': _notifier._handleLocalExecuteCommand,
       'process_start': _notifier._handleProcessStart,

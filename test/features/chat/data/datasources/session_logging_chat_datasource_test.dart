@@ -219,6 +219,105 @@ void main() {
       ]);
     });
 
+    test(
+      'recordExecutionShadow appends only redacted decision state',
+      () async {
+        final store = LlmSessionLogStore(
+          rootDirectoryProvider: () async => tempDir,
+        );
+        const context = LlmSessionLogContext(
+          workspaceMode: WorkspaceMode.coding,
+          sessionId: 'conversation/shadow',
+          conversationId: 'conversation/shadow',
+        );
+
+        await store.recordExecutionShadow(
+          context: context,
+          at: DateTime(2026, 7, 11, 12),
+          contractHash: '1234abcd',
+          workflowStage: 'implement',
+          action: 'repair',
+          activeTaskRef: '89abcdef',
+          taskStatus: 'inProgress',
+          validationStatus: 'failed',
+          completedTaskCount: 1,
+          totalTaskCount: 3,
+          unresolvedQuestionCount: 0,
+          requiresValidation: true,
+          hasDiagnostic: true,
+        );
+
+        final file = await store.fileForContext(context);
+        final line = (await file.readAsLines()).single;
+        final decoded = jsonDecode(line) as Map<String, dynamic>;
+        expect(decoded['operation'], 'execution_shadow');
+        final marker = decoded['executionShadow'] as Map<String, dynamic>;
+        expect(marker, {
+          'contractHash': '1234abcd',
+          'workflowStage': 'implement',
+          'action': 'repair',
+          'activeTaskRef': '89abcdef',
+          'taskStatus': 'inProgress',
+          'validationStatus': 'failed',
+          'completedTaskCount': 1,
+          'totalTaskCount': 3,
+          'unresolvedQuestionCount': 0,
+          'requiresValidation': true,
+          'hasDiagnostic': true,
+        });
+        expect(line, isNot(contains('task-1')));
+        expect(line, isNot(contains('One test failed.')));
+      },
+    );
+
+    test('serializes concurrent request and marker writes', () async {
+      final store = LlmSessionLogStore(
+        rootDirectoryProvider: () async => tempDir,
+      );
+      const context = LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: 'conversation/concurrent',
+      );
+      final at = DateTime(2026, 7, 11, 12, 30);
+
+      await Future.wait([
+        store.recordExecutionShadow(
+          context: context,
+          at: at,
+          contractHash: '1234abcd',
+          workflowStage: 'implement',
+          action: 'execute',
+          activeTaskRef: '89abcdef',
+          taskStatus: 'inProgress',
+          validationStatus: 'unknown',
+          completedTaskCount: 0,
+          totalTaskCount: 1,
+          unresolvedQuestionCount: 0,
+          requiresValidation: true,
+          hasDiagnostic: false,
+        ),
+        store.record(
+          context: context,
+          request: const LlmSessionLogRequest(
+            operation: 'createChatCompletion',
+            messages: <Message>[],
+          ),
+          startedAt: at,
+          finishedAt: at,
+          response: const LlmSessionLogResponse(content: 'Done'),
+        ),
+      ]);
+
+      final file = await store.fileForContext(context);
+      final lines = await file.readAsLines();
+      expect(lines, hasLength(2));
+      final operations = lines
+          .map((line) => jsonDecode(line) as Map<String, dynamic>)
+          .map((entry) => entry['operation'])
+          .toList(growable: false);
+      expect(operations, ['execution_shadow', 'createChatCompletion']);
+    });
+
     test('redacts common secret patterns embedded in text', () async {
       final store = LlmSessionLogStore(
         rootDirectoryProvider: () async => tempDir,

@@ -263,6 +263,7 @@ class WorktreeAgentScopedToolDispatcher {
     'search_files',
     'write_file',
     'edit_file',
+    'delete_file',
   };
 
   static const Map<String, String> _pathArgumentByToolName = {
@@ -273,6 +274,7 @@ class WorktreeAgentScopedToolDispatcher {
     'search_files': 'path',
     'write_file': 'path',
     'edit_file': 'path',
+    'delete_file': 'path',
   };
 
   static const Set<String> _rootDefaultToolNames = {

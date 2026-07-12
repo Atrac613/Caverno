@@ -8,16 +8,30 @@ void main() {
   ToolCapabilityClass classOf(String name) =>
       classifier.classify(name).capabilityClass;
   ToolRiskTier riskOf(String name) => classifier.classify(name).riskTier;
+  ToolCommandEffect effectOf(String name, String command) =>
+      classifier.classify(name, arguments: {'command': command}).commandEffect;
 
   group('ToolCapabilityClassifier capability classes', () {
     test('classifies filesystem writes', () {
-      for (final name in ['write_file', 'edit_file', 'rollback_last_file_change']) {
-        expect(classOf(name), ToolCapabilityClass.filesystemWrite, reason: name);
+      for (final name in [
+        'write_file',
+        'edit_file',
+        'delete_file',
+        'rollback_last_file_change',
+      ]) {
+        expect(
+          classOf(name),
+          ToolCapabilityClass.filesystemWrite,
+          reason: name,
+        );
       }
     });
 
     test('classifies shell and process execution', () {
-      expect(classOf('local_execute_command'), ToolCapabilityClass.shellExecution);
+      expect(
+        classOf('local_execute_command'),
+        ToolCapabilityClass.shellExecution,
+      );
       expect(classOf('process_start'), ToolCapabilityClass.shellExecution);
       expect(classOf('process_status'), ToolCapabilityClass.shellExecution);
     });
@@ -122,13 +136,52 @@ void main() {
 
     test('accessesNetwork reflects network-crossing classes', () {
       expect(classifier.classify('http_get').accessesNetwork, isTrue);
-      expect(classifier.classify('ssh_execute_command').accessesNetwork, isTrue);
+      expect(
+        classifier.classify('ssh_execute_command').accessesNetwork,
+        isTrue,
+      );
       expect(
         classifier.classify('remote_coding_apply_patch').accessesNetwork,
         isTrue,
       );
       expect(classifier.classify('write_file').accessesNetwork, isFalse);
       expect(classifier.classify('read_file').accessesNetwork, isFalse);
+    });
+  });
+
+  group('ToolCapabilityClassifier command effects', () {
+    test('distinguishes dependency, build, verification, and generation', () {
+      expect(
+        effectOf('local_execute_command', 'dart pub get'),
+        ToolCommandEffect.dependencyResolution,
+      );
+      expect(
+        effectOf('local_execute_command', 'flutter build macos'),
+        ToolCommandEffect.build,
+      );
+      expect(
+        effectOf('local_execute_command', 'dart test'),
+        ToolCommandEffect.verification,
+      );
+      expect(
+        effectOf('local_execute_command', 'dart run build_runner build'),
+        ToolCommandEffect.codeGeneration,
+      );
+    });
+
+    test('distinguishes read-only and mutating git commands', () {
+      expect(
+        effectOf('git_execute_command', 'status --short'),
+        ToolCommandEffect.inspection,
+      );
+      expect(
+        effectOf('git_execute_command', 'commit -m test'),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf('git_execute_command', 'push origin main'),
+        ToolCommandEffect.externalSideEffect,
+      );
     });
   });
 }

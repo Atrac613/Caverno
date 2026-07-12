@@ -204,6 +204,8 @@ abstract class ConversationCheckpoint with _$ConversationCheckpoint {
     )
     @Default(<ConversationExecutionTaskProgress>[])
     List<ConversationExecutionTaskProgress> executionProgress,
+    @Default(0) int mutationGeneration,
+    @Default(-1) int verificationGeneration,
     @JsonKey(
       fromJson: _openQuestionProgressFromJson,
       toJson: _openQuestionProgressToJson,
@@ -257,6 +259,8 @@ abstract class Conversation with _$Conversation {
     )
     @Default(<ConversationExecutionTaskProgress>[])
     List<ConversationExecutionTaskProgress> executionProgress,
+    @Default(0) int mutationGeneration,
+    @Default(-1) int verificationGeneration,
     @JsonKey(
       fromJson: _openQuestionProgressFromJson,
       toJson: _openQuestionProgressToJson,
