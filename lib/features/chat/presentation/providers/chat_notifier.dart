@@ -89,6 +89,7 @@ import '../../domain/services/coding_command_output_guardrail_service.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
 import '../../domain/services/coding_verification_claim_guard.dart';
 import '../../domain/services/coding_verification_feedback_service.dart';
+import '../../domain/services/command_diagnostic_verifier_replay_policy.dart';
 import '../../domain/services/chat_tool_dispatcher.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/execution_snapshot_projector.dart';
@@ -98,6 +99,9 @@ import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/final_answer_claim_detector.dart';
 import '../../domain/services/final_answer_recovery_policy.dart';
+import '../../domain/services/pending_action_length_recovery_policy.dart';
+import '../../domain/services/successful_read_result_replay_cache.dart';
+import '../../domain/services/structured_coding_execution_deferral_detector.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/model_edit_apply_telemetry_service.dart';
 import '../../domain/services/narrated_transcript_claim_guard.dart';
@@ -114,6 +118,7 @@ import '../../domain/services/planning_tool_policy.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
+import '../../domain/services/tool_failure_classifier.dart';
 import '../../domain/services/tool_loop_recovery_policy.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import '../../domain/services/tool_terminal_response_policy.dart';
@@ -122,6 +127,7 @@ import '../../domain/services/turn_diff_service.dart';
 import '../../domain/services/unwritten_file_claim_guard.dart';
 import '../../domain/services/subagent_execution_service.dart';
 import '../../domain/services/subagent_tool_policy.dart';
+import '../../domain/services/stalled_diagnostic_repair_contract.dart';
 import '../../domain/services/workflow_task_proposal_quality_service.dart';
 import '../../../settings/domain/services/local_command_permission_service.dart';
 import 'active_response_registry.dart';
@@ -145,6 +151,7 @@ part 'chat_notifier_command_guardrails.dart';
 part 'chat_notifier_computer_use_handlers.dart';
 part 'chat_notifier_context_surgery.dart';
 part 'chat_notifier_duplicate_recovery.dart';
+part 'chat_notifier_final_answer_recovery.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
 part 'chat_notifier_mesh_routing.dart';
@@ -272,6 +279,8 @@ class ChatNotifier extends Notifier<ChatState> {
       const FinalAnswerClaimDetector();
   final FinalAnswerRecoveryPolicy _finalAnswerRecoveryPolicy =
       const FinalAnswerRecoveryPolicy();
+  final PendingActionLengthRecoveryPolicy _pendingActionLengthRecoveryPolicy =
+      const PendingActionLengthRecoveryPolicy();
   final UnwrittenFileClaimGuard _unwrittenFileClaimGuard =
       const UnwrittenFileClaimGuard();
   final CodingVerificationClaimGuard _codingVerificationClaimGuard =
@@ -2511,6 +2520,8 @@ class ChatNotifier extends Notifier<ChatState> {
   String? _pendingContentToolContinuationFallback;
   final List<QueuedChatMessage> _queuedChatMessages = [];
   final ToolApprovalCache _toolApprovalCache = ToolApprovalCache();
+  final SuccessfulReadResultReplayCache _successfulReadResultReplayCache =
+      SuccessfulReadResultReplayCache();
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
   final Set<int> _turnFinalizationRecoveryGenerations = {};
@@ -2553,6 +2564,9 @@ class ChatNotifier extends Notifier<ChatState> {
   final ActiveResponseRegistry _activeResponseRegistry =
       ActiveResponseRegistry();
   final Map<int, String> _lastStreamedToolResultFinalAnswersByGeneration =
+      <int, String>{};
+  final Set<int> _pendingActionLengthRecoveryGenerations = <int>{};
+  final Map<int, String> _explicitTerminalSuccessSummariesByGeneration =
       <int, String>{};
   final Map<int, LlmSessionLogContext> _llmSessionLogContextsByGeneration =
       <int, LlmSessionLogContext>{};
@@ -2661,6 +2675,8 @@ class ChatNotifier extends Notifier<ChatState> {
   void _clearActiveResponseForGeneration(int generation) {
     _activeResponseRegistry.clearGeneration(generation);
     _lastStreamedToolResultFinalAnswersByGeneration.remove(generation);
+    _pendingActionLengthRecoveryGenerations.remove(generation);
+    _explicitTerminalSuccessSummariesByGeneration.remove(generation);
     _llmSessionLogContextsByGeneration.remove(generation);
     _askUserQuestionTurnCache.removeGeneration(generation);
     _responseMetricTimersByGeneration.remove(generation)?.stop();
@@ -2670,6 +2686,8 @@ class ChatNotifier extends Notifier<ChatState> {
   void _clearAllActiveResponses() {
     _activeResponseRegistry.clearAll();
     _lastStreamedToolResultFinalAnswersByGeneration.clear();
+    _pendingActionLengthRecoveryGenerations.clear();
+    _explicitTerminalSuccessSummariesByGeneration.clear();
     _llmSessionLogContextsByGeneration.clear();
     _askUserQuestionTurnCache.clear();
     for (final timer in _responseMetricTimersByGeneration.values) {
@@ -3040,6 +3058,8 @@ class ChatNotifier extends Notifier<ChatState> {
     String languageCode = 'en',
     bool persistAssistantResponse = false,
     bool preserveGoalAutoContinueEvidence = false,
+    bool replayVerifierImmediatelyAfterMutation = false,
+    Set<String>? allowedToolNames,
   }) async {
     if (!ref.mounted) return;
 
@@ -3100,7 +3120,12 @@ class ChatNotifier extends Notifier<ChatState> {
         _settings.mcpEnabled &&
         _supportsToolAwareRequests) {
       appLog('[Tool] Sending hidden prompt in tool-aware mode');
-      await _sendWithTools(interactionGeneration: interactionGeneration);
+      await _sendWithTools(
+        interactionGeneration: interactionGeneration,
+        allowedToolNames: allowedToolNames,
+        replayVerifierImmediatelyAfterMutation:
+            replayVerifierImmediatelyAfterMutation,
+      );
     } else {
       appLog('[Tool] Sending hidden prompt in normal mode');
       await _sendWithoutTools(interactionGeneration: interactionGeneration);
@@ -3868,271 +3893,11 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  Future<String> _streamToolResultAnswerWithContextRetry({
-    required List<ToolResultInfo> toolResults,
-    required int interactionGeneration,
-    ToolResultCompletionEvidence? completionEvidence,
-  }) async {
-    Future<ChatCompletionResult?> requestConciseRecovery({
-      required FinalAnswerRecoveryReason reason,
-      required bool forceCompaction,
-    }) async {
-      final retryMessages = _prepareMessagesForLLM(
-        forceCompaction: forceCompaction,
-        toolDefinitionsOverride: const <Map<String, dynamic>>[],
-        interactionGeneration: interactionGeneration,
-      );
-      retryMessages.addAll(
-        _buildToolResultAnswerMessages(
-          toolResults,
-          budgetMode: ToolResultPromptBudgetMode.compact,
-          completionEvidence: completionEvidence,
-        ),
-      );
-      retryMessages.add(
-        Message(
-          id: 'final_answer_recovery',
-          content: _finalAnswerRecoveryPolicy.buildRetryPrompt(reason),
-          role: MessageRole.user,
-          timestamp: DateTime.now(),
-        ),
-      );
-      final configuredMaxTokens = _settings.maxTokens;
-      final retryMaxTokens =
-          configuredMaxTokens > 0 &&
-              configuredMaxTokens < FinalAnswerRecoveryPolicy.maxRetryTokens
-          ? configuredMaxTokens
-          : FinalAnswerRecoveryPolicy.maxRetryTokens;
-      appLog(
-        '[FinalAnswerRecovery] Retrying the tool-result final answer once; '
-        'reason=${reason.logToken}, maxTokens=$retryMaxTokens',
-      );
-      try {
-        return await _dataSource.createChatCompletion(
-          messages: retryMessages,
-          tools: const <Map<String, dynamic>>[],
-          model: _settings.model,
-          temperature: FinalAnswerRecoveryPolicy.retryTemperature,
-          maxTokens: retryMaxTokens,
-        );
-      } catch (error) {
-        appLog(
-          '[FinalAnswerRecovery] Concise retry failed; retaining the first '
-          'answer (${error.runtimeType}: $error)',
-        );
-        return null;
-      }
-    }
-
-    Future<String> streamAnswer({
-      required bool forceCompaction,
-      required ToolResultPromptBudgetMode budgetMode,
-    }) async {
-      return _runWithLlmSessionLogContextForGeneration(
-        interactionGeneration,
-        () async {
-          final streamedAnswer = StringBuffer();
-          final messagesForLLM = _prepareMessagesForLLM(
-            forceCompaction: forceCompaction,
-            toolDefinitionsOverride: const <Map<String, dynamic>>[],
-            interactionGeneration: interactionGeneration,
-          );
-          messagesForLLM.addAll(
-            _buildToolResultAnswerMessages(
-              toolResults,
-              budgetMode: budgetMode,
-              completionEvidence: completionEvidence,
-            ),
-          );
-
-          final preAnswerContent =
-              _lastMessageContentForGeneration(interactionGeneration) ?? '';
-          _appendToLastMessageForGeneration(interactionGeneration, '<think>');
-
-          final dataSource = _dataSource;
-          final stream = dataSource is SessionLoggingChatDataSource
-              ? dataSource.streamChatCompletionWithStructuredToolResults(
-                  messages: messagesForLLM,
-                  toolResults: toolResults,
-                  model: _settings.model,
-                  temperature: _assistantRequestTemperature,
-                  maxTokens: _settings.maxTokens,
-                )
-              : dataSource.streamChatCompletion(
-                  messages: messagesForLLM,
-                  model: _settings.model,
-                  temperature: _assistantRequestTemperature,
-                  maxTokens: _settings.maxTokens,
-                );
-
-          var isFirstChunk = true;
-          try {
-            await for (final chunk in stream.timeout(
-              const Duration(minutes: 2),
-            )) {
-              if (!_isCurrentInteractionGeneration(interactionGeneration)) {
-                return '';
-              }
-              if (!ref.mounted) return '';
-              if (isFirstChunk) {
-                isFirstChunk = false;
-                _removeTrailingThinkTagForGeneration(interactionGeneration);
-                final activeMessages =
-                    _activeResponseMessagesForGeneration(
-                      interactionGeneration,
-                    ) ??
-                    state.messages;
-                if (activeMessages.isNotEmpty &&
-                    activeMessages.last.content.isNotEmpty) {
-                  _appendToLastMessageForGeneration(
-                    interactionGeneration,
-                    '\n',
-                    scanForTools: false,
-                  );
-                }
-              }
-              _appendToLastMessageForGeneration(
-                interactionGeneration,
-                chunk,
-                scanForTools: false,
-              );
-              streamedAnswer.write(chunk);
-            }
-          } on TimeoutException {
-            _removeTrailingThinkTagForGeneration(interactionGeneration);
-            const timeoutResponse =
-                'The final response timed out. The task remains incomplete; '
-                'continue from the latest diagnostics.';
-            _appendRecoveredAssistantResponse(
-              timeoutResponse,
-              interactionGeneration: interactionGeneration,
-            );
-            appLog(
-              '[FinalAnswerRecovery] Tool-result final stream timed out; '
-              'returning incomplete evidence to goal continuation',
-            );
-            return timeoutResponse;
-          }
-          if (isFirstChunk) {
-            _removeTrailingThinkTagForGeneration(interactionGeneration);
-          }
-          var rawStreamedAnswer = streamedAnswer.toString();
-          final firstFinishReason = _latestFinishReason();
-          final recoveryReason = _finalAnswerRecoveryPolicy.recoveryReason(
-            content: ContentParser.stripToolArtifacts(rawStreamedAnswer),
-            finishReason: firstFinishReason,
-          );
-          if (recoveryReason != null) {
-            final retryResult = await requestConciseRecovery(
-              reason: recoveryReason,
-              forceCompaction: forceCompaction,
-            );
-            if (!_isCurrentInteractionGeneration(interactionGeneration) ||
-                !ref.mounted) {
-              return '';
-            }
-            final rawRetryContent = retryResult?.content.trim() ?? '';
-            final visibleRetryContent = ContentParser.stripToolArtifacts(
-              rawRetryContent,
-            ).trim();
-            if (retryResult != null && visibleRetryContent.isNotEmpty) {
-              _removeStreamedAnswerSuffixForGeneration(
-                interactionGeneration,
-                preAnswerContent: preAnswerContent,
-              );
-              final separator =
-                  preAnswerContent.isEmpty || preAnswerContent.endsWith('\n')
-                  ? ''
-                  : '\n\n';
-              _replaceLastMessageContentForGeneration(
-                interactionGeneration,
-                '$preAnswerContent$separator$visibleRetryContent',
-              );
-              rawStreamedAnswer = rawRetryContent;
-              final retryFinishReason = retryResult.finishReason.trim();
-              _finalAnswerFinishReasonOverride = retryFinishReason.isEmpty
-                  ? null
-                  : retryFinishReason;
-              _appliedTurnTransforms.add('final_answer_concise_retry');
-              appLog(
-                '[FinalAnswerRecovery] Applied concise final-answer retry; '
-                'reason=${recoveryReason.logToken}',
-              );
-            } else {
-              _finalAnswerFinishReasonOverride = firstFinishReason;
-            }
-          }
-          _stripToolArtifactsFromStreamedAnswerSuffix(
-            interactionGeneration,
-            preAnswerContent: preAnswerContent,
-          );
-          _appendUnexecutedToolRequestNoticeForContentIfNeeded(
-            interactionGeneration: interactionGeneration,
-            content: rawStreamedAnswer,
-            toolResults: toolResults,
-          );
-          _replaceTimedOutCommandSuccessClaimIfNeeded(
-            toolResults: toolResults,
-            interactionGeneration: interactionGeneration,
-          );
-          _replaceFailedCommandSuccessClaimIfNeeded(
-            toolResults: toolResults,
-            interactionGeneration: interactionGeneration,
-          );
-          _appendUnexecutedFileSideEffectNoticeIfNeeded(
-            toolResults: toolResults,
-            interactionGeneration: interactionGeneration,
-          );
-          final strippedStreamedAnswer = ContentParser.stripToolArtifacts(
-            rawStreamedAnswer,
-          ).trim();
-          if (strippedStreamedAnswer.isNotEmpty) {
-            _lastStreamedToolResultFinalAnswersByGeneration[interactionGeneration] =
-                strippedStreamedAnswer;
-          } else {
-            _lastStreamedToolResultFinalAnswersByGeneration.remove(
-              interactionGeneration,
-            );
-          }
-          return strippedStreamedAnswer;
-        },
-      );
-    }
-
-    try {
-      return await streamAnswer(
-        forceCompaction: false,
-        budgetMode: ToolResultPromptBudgetMode.normal,
-      );
-    } catch (error) {
-      final hasCompactableHistory = _hasCompactablePromptHistory();
-      final hasToolResultBudget = _hasAdditionalCompactToolResultBudget(
-        toolResults,
-      );
-      if (!ConversationCompactionService.isContextLengthError(
-            error.toString(),
-          ) ||
-          (!hasCompactableHistory && !hasToolResultBudget)) {
-        rethrow;
-      }
-      appLog(
-        '[Compaction] Retrying final tool-result answer after context-length '
-        'error with ${hasCompactableHistory ? 'forced prompt compaction' : 'unchanged prompt history'} '
-        'and compact tool results',
-      );
-      if (!_isCurrentInteractionGeneration(interactionGeneration)) return '';
-      _removeTrailingThinkTagForGeneration(interactionGeneration);
-      return streamAnswer(
-        forceCompaction: hasCompactableHistory,
-        budgetMode: ToolResultPromptBudgetMode.compact,
-      );
-    }
-  }
-
-  /// Sends a request with tool support (function calling).
   Future<void> _sendWithTools({
     bool allowContextRetry = true,
     int? interactionGeneration,
+    Set<String>? allowedToolNames,
+    bool replayVerifierImmediatelyAfterMutation = false,
   }) async {
     if (!ref.mounted) return;
     final generation = interactionGeneration ?? _interactionGeneration;
@@ -4150,8 +3915,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     _mcpToolService?.beginFileTurnCheckpoint('chat_generation_$generation');
     try {
-      // Fetch tool definitions from the MCP tool service.
-      final allTools = _mcpToolService?.getOpenAiToolDefinitions() ?? [];
+      final allTools = _toolDefinitionsAllowedBy(allowedToolNames);
       if (allTools.isEmpty) {
         // Fall back to normal streaming when no tools are available.
         await _sendWithoutTools(
@@ -4160,9 +3924,7 @@ class ChatNotifier extends Notifier<ChatState> {
         );
         return;
       }
-      appLog(
-        '[Tool] Tool definitions: ${allTools.map((t) => (t['function'] as Map?)?['name']).toList()}',
-      );
+      _logAllowedToolDefinitions(allTools);
 
       final prefixStableToolLoop = _settings.enablePrefixStableToolLoop;
       final initialToolSelection = prefixStableToolLoop
@@ -4187,6 +3949,10 @@ class ChatNotifier extends Notifier<ChatState> {
         );
       }
       nativeToolFallbackDefinitions = initialToolSelection.toolDefinitions;
+      final stableLoopToolDefinitions =
+          prefixStableToolLoop || allowedToolNames != null
+          ? initialToolSelection.toolDefinitions
+          : null;
       final streamedMessageIndex = state.messages.isEmpty
           ? -1
           : state.messages.length - 1;
@@ -4237,10 +4003,10 @@ class ChatNotifier extends Notifier<ChatState> {
           assistantContent: result.content.isNotEmpty ? result.content : null,
           toolSearchEnabled: initialToolSelection.toolSearchEnabled,
           selectedToolNames: initialToolSelection.selectedToolNames,
-          stableToolDefinitions: prefixStableToolLoop
-              ? initialToolSelection.toolDefinitions
-              : null,
+          stableToolDefinitions: stableLoopToolDefinitions,
           interactionGeneration: generation,
+          replayVerifierImmediatelyAfterMutation:
+              replayVerifierImmediatelyAfterMutation,
         );
       } else {
         final streamedAssistantContent = _extractAssistantStreamDelta(
@@ -4266,10 +4032,10 @@ class ChatNotifier extends Notifier<ChatState> {
               ...initialToolSelection.selectedToolNames,
               'load_skill',
             },
-            stableToolDefinitions: prefixStableToolLoop
-                ? initialToolSelection.toolDefinitions
-                : null,
+            stableToolDefinitions: stableLoopToolDefinitions,
             interactionGeneration: generation,
+            replayVerifierImmediatelyAfterMutation:
+                replayVerifierImmediatelyAfterMutation,
           );
           return;
         }
@@ -4295,10 +4061,10 @@ class ChatNotifier extends Notifier<ChatState> {
               ...initialToolSelection.selectedToolNames,
               ..._browserToolNamesFromDefinitions(allTools),
             },
-            stableToolDefinitions: prefixStableToolLoop
-                ? initialToolSelection.toolDefinitions
-                : null,
+            stableToolDefinitions: stableLoopToolDefinitions,
             interactionGeneration: generation,
+            replayVerifierImmediatelyAfterMutation:
+                replayVerifierImmediatelyAfterMutation,
           );
           return;
         }
@@ -4348,10 +4114,10 @@ class ChatNotifier extends Notifier<ChatState> {
                 ...initialToolSelection.selectedToolNames,
                 ...recoveredToolNames,
               },
-              stableToolDefinitions: prefixStableToolLoop
-                  ? initialToolSelection.toolDefinitions
-                  : null,
+              stableToolDefinitions: stableLoopToolDefinitions,
               interactionGeneration: generation,
+              replayVerifierImmediatelyAfterMutation:
+                  replayVerifierImmediatelyAfterMutation,
             );
             return;
           }
@@ -4412,6 +4178,7 @@ class ChatNotifier extends Notifier<ChatState> {
             () => _sendWithTools(
               allowContextRetry: false,
               interactionGeneration: generation,
+              allowedToolNames: allowedToolNames,
             ),
           )) {
         return;
@@ -5486,6 +5253,7 @@ class ChatNotifier extends Notifier<ChatState> {
     List<Map<String, dynamic>>? stableToolDefinitions,
     Map<String, int>? completionVerificationFailureCounts,
     Set<String>? narratedTranscriptRepairSignatures,
+    bool replayVerifierImmediatelyAfterMutation = false,
     required int interactionGeneration,
   }) async {
     var currentToolCalls = toolCalls;
@@ -5597,6 +5365,15 @@ class ChatNotifier extends Notifier<ChatState> {
       )) {
         hasTextResponse = true;
         break;
+      }
+      if (replayVerifierImmediatelyAfterMutation &&
+          await _replayVerifierAfterRepairMutation(
+            executedToolResults: executedToolResults,
+            verificationFailureCounts: verificationFailureCounts,
+            transcriptRepairSignatures: transcriptRepairSignatures,
+            interactionGeneration: interactionGeneration,
+          )) {
+        return;
       }
       if (batchResult.hasTextResponse) {
         hasTextResponse = true;
@@ -6575,18 +6352,113 @@ class ChatNotifier extends Notifier<ChatState> {
 
       final preFinalAnswerContent =
           _lastMessageContentForGeneration(interactionGeneration) ?? '';
-      final streamedFinalAnswer = await _streamToolResultAnswerWithContextRetry(
+      final toolResultCountBeforeFinalAnswer = finalToolResults.length;
+      final mcpToolService = _mcpToolService;
+      final recoveryTools = mcpToolService == null
+          ? const <Map<String, dynamic>>[]
+          : selectedDefinitionsFor(mcpToolService);
+      final canPreparePendingActionRecovery = _pendingActionLengthRecoveryPolicy
+          .canPrepareActionOnlyRecovery(
+            isCodingWorkspace: _isCodingWorkspaceOrMode(),
+            hasAvailableActionTools: _hasCodingContinuationRecoveryTools(
+              recoveryTools,
+            ),
+            retryAlreadyUsed: _pendingActionLengthRecoveryGenerations.contains(
+              interactionGeneration,
+            ),
+            completionEvidence: finalCompletionEvidence,
+          );
+      var streamedFinalAnswer = await _streamToolResultAnswerWithContextRetry(
         toolResults: finalToolResults,
         interactionGeneration: interactionGeneration,
         completionEvidence: finalCompletionEvidence,
+        deferIncompleteLengthRecovery: canPreparePendingActionRecovery,
       );
+      if (finalToolResults.length != toolResultCountBeforeFinalAnswer) {
+        finalCompletionEvidenceIsCurrent = false;
+      }
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
       if (!ref.mounted) return;
 
-      final mcpToolService = _mcpToolService;
+      final shouldRequestPendingActionRecovery =
+          _pendingActionLengthRecoveryPolicy.shouldRequestActionOnlyRecovery(
+            finishReason: _latestFinishReason(),
+            isCodingWorkspace: _isCodingWorkspaceOrMode(),
+            hasAvailableActionTools: _hasCodingContinuationRecoveryTools(
+              recoveryTools,
+            ),
+            retryAlreadyUsed: _pendingActionLengthRecoveryGenerations.contains(
+              interactionGeneration,
+            ),
+            completionEvidence: finalCompletionEvidence,
+          );
+      if (shouldRequestPendingActionRecovery) {
+        _pendingActionLengthRecoveryGenerations.add(interactionGeneration);
+        _appliedTurnTransforms.add('pending_action_length_recovery');
+        appLog(
+          '[PendingActionLengthRecovery] Requesting one bounded tool-aware '
+          'retry; evidence=${finalCompletionEvidence.summary}',
+        );
+        final recoveryResult = await _requestCodingContinuationRecovery(
+          candidateResponse: streamedFinalAnswer,
+          tools: recoveryTools,
+          interactionGeneration: interactionGeneration,
+          requireContinuationRequest: false,
+          executedToolResults: finalToolResults,
+          forcedRecoveryCode: 'length_truncated_pending_action',
+          forcedRecoveryPrompt: _pendingActionLengthRecoveryPolicy
+              .buildRetryPrompt(finalCompletionEvidence),
+        );
+        if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+        if (!ref.mounted) return;
+        if (recoveryResult?.hasToolCalls == true) {
+          appLog(
+            '[PendingActionLengthRecovery] Tool-aware retry requested one or '
+            'more tool calls',
+          );
+          _recordHiddenAssistantResponse(streamedFinalAnswer);
+          _removeStreamedAnswerSuffixForGeneration(
+            interactionGeneration,
+            preAnswerContent: preFinalAnswerContent,
+          );
+          final recoveredToolCalls = recoveryResult!.toolCalls!;
+          await _executeToolCalls(
+            recoveredToolCalls,
+            assistantContent: recoveryResult.content.isNotEmpty
+                ? recoveryResult.content
+                : streamedFinalAnswer,
+            toolSearchEnabled: toolSearchEnabled,
+            selectedToolNames: {
+              ...activeToolNames,
+              ...recoveredToolCalls.map((toolCall) => toolCall.name),
+            },
+            stableToolDefinitions: stableToolDefinitions,
+            completionVerificationFailureCounts: verificationFailureCounts,
+            narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+            replayVerifierImmediatelyAfterMutation:
+                replayVerifierImmediatelyAfterMutation,
+            interactionGeneration: interactionGeneration,
+          );
+          return;
+        }
+        final recoveryContent = recoveryResult?.content.trim() ?? '';
+        if (recoveryContent.isNotEmpty) {
+          _recordHiddenAssistantResponse(streamedFinalAnswer);
+          _removeStreamedAnswerSuffixForGeneration(
+            interactionGeneration,
+            preAnswerContent: preFinalAnswerContent,
+          );
+          _appendRecoveredAssistantResponse(
+            recoveryContent,
+            interactionGeneration: interactionGeneration,
+          );
+          streamedFinalAnswer = recoveryContent;
+        }
+      }
+
       if (mcpToolService != null) {
         final streamVerificationBatchToolResults = <ToolResultInfo>[];
-        final tools = selectedDefinitionsFor(mcpToolService);
+        final tools = recoveryTools;
         final backgroundProcessRepairResult =
             await _requestBackgroundProcessMonitorRepairForCompletionClaim(
               candidateResponse: streamedFinalAnswer,
@@ -6770,6 +6642,29 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     finalCompletionEvidence = finalCompletionEvidence
         .carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
+    final postMutationVerifierReplay = _takePostMutationVerifierReplay(
+      evidence: finalCompletionEvidence,
+      interactionGeneration: interactionGeneration,
+    );
+    if (postMutationVerifierReplay != null) {
+      appLog(
+        '[CodingVerification] Replaying the last executed verifier after '
+        'a later mutation',
+      );
+      await _executeToolCalls(
+        [postMutationVerifierReplay],
+        assistantContent:
+            'The implementation changed after its last verification. '
+            'Re-running the same verifier now.',
+        toolSearchEnabled: toolSearchEnabled,
+        selectedToolNames: activeToolNames,
+        stableToolDefinitions: stableToolDefinitions,
+        completionVerificationFailureCounts: verificationFailureCounts,
+        narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+        interactionGeneration: interactionGeneration,
+      );
+      return;
+    }
     await _recordSuccessfulVerificationGenerationIfNeeded(
       finalCompletionEvidence,
     );
@@ -6778,59 +6673,6 @@ class ChatNotifier extends Notifier<ChatState> {
       finalToolResults,
     );
     await _finishStreaming(interactionGeneration: interactionGeneration);
-  }
-
-  McpToolResult? _buildStaleProcessStartGuardResult(
-    ToolCallInfo toolCall,
-    McpToolResult result, {
-    required DateTime dispatchedAt,
-  }) {
-    if (toolCall.name.trim().toLowerCase() != 'process_start' ||
-        !result.isSuccess) {
-      return null;
-    }
-    final decoded = _tryDecodeMap(result.result);
-    if (decoded == null ||
-        decoded['ok'] != true ||
-        decoded['duplicate_existing'] == true) {
-      return null;
-    }
-    final startedAtText = decoded['started_at']?.toString().trim();
-    if (startedAtText == null || startedAtText.isEmpty) {
-      return null;
-    }
-    final startedAt = DateTime.tryParse(startedAtText);
-    if (startedAt == null) {
-      return null;
-    }
-    final staleBefore = dispatchedAt.subtract(const Duration(seconds: 5));
-    if (!startedAt.isBefore(staleBefore)) {
-      return null;
-    }
-
-    final payload = jsonEncode({
-      'ok': false,
-      'code': 'background_process_start_stale_result',
-      'error':
-          'process_start returned a non-duplicate job result whose started_at '
-          'predates this tool call. Treat the start result as stale until the '
-          'process state is verified.',
-      'job_id': decoded['job_id'],
-      'command': decoded['command'],
-      'working_directory': decoded['working_directory'],
-      'started_at': startedAtText,
-      'tool_dispatched_at': dispatchedAt.toIso8601String(),
-      'required_action':
-          'Use process_status, process_tail, or process_wait for the job_id '
-          'if it should still be monitored. Do not report the command as newly '
-          'started from this result.',
-    });
-    return McpToolResult(
-      toolName: toolCall.name,
-      result: payload,
-      isSuccess: false,
-      errorMessage: 'process_start returned a stale job result.',
-    );
   }
 
   List<ToolResultInfo> _toolResultsForFollowUpRequest({
@@ -8128,35 +7970,6 @@ class ChatNotifier extends Notifier<ChatState> {
     _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
   }
 
-  void _appendUnexecutedToolRequestNoticeForContentIfNeeded({
-    required int interactionGeneration,
-    required String content,
-    List<ToolResultInfo> toolResults = const [],
-  }) {
-    const notice =
-        'I could not execute the additional tool request above in this final-answer step. '
-        'Treat it as unexecuted; ask me to continue with a narrower follow-up '
-        'if the missing action still matters.';
-    if (content.contains(notice) ||
-        !_looksLikeUnexecutedToolRequest(content) ||
-        _shouldSkipUnexecutedToolRequestNoticeForToolResults(
-          content: content,
-          toolResults: toolResults,
-        )) {
-      return;
-    }
-    final currentContent = _lastMessageContentForGeneration(
-      interactionGeneration,
-    );
-    if (currentContent == null || currentContent.contains(notice)) {
-      return;
-    }
-    _replaceLastMessageContentForGeneration(
-      interactionGeneration,
-      '${currentContent.trimRight()}\n\n$notice',
-    );
-  }
-
   bool _shouldSkipUnexecutedToolRequestNoticeForToolResults({
     required String content,
     required List<ToolResultInfo> toolResults,
@@ -8501,6 +8314,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _looksLikeStructuredToolRequest(String content) {
+    if (ContentParser.extractCompletedToolCalls(content).isNotEmpty) {
+      return true;
+    }
     if (_looksLikeBracketedToolRequest(content)) {
       return true;
     }
@@ -8884,6 +8700,8 @@ class ChatNotifier extends Notifier<ChatState> {
     );
     if (!_isCurrentInteractionGeneration(generation)) return;
     state = state.copyWith(messages: updatedMessages, isLoading: false);
+    final explicitTerminalSuccessSummary =
+        _explicitTerminalSuccessSummariesByGeneration.remove(generation);
 
     // Persist messages.
     _contentToolContinuationCount = 0;
@@ -8911,7 +8729,10 @@ class ChatNotifier extends Notifier<ChatState> {
     await ref
         .read(conversationsNotifierProvider.notifier)
         .recordCurrentGoalTurn(
-          assistantResponse: finalizedLastMessage.content,
+          assistantResponse:
+              explicitTerminalSuccessSummary?.trim().isNotEmpty == true
+              ? explicitTerminalSuccessSummary!
+              : finalizedLastMessage.content,
           tokenUsageDelta: _accumulatedTokenUsage.totalTokens,
           completionEvidence: _latestGoalAutoContinueEvidence,
         );

@@ -198,6 +198,10 @@ void main() {
         'pending_batch_executed',
       );
       expect(
+        classifier.logToken(ToolLoopExitReason.unexecutedToolRequest),
+        'unexecuted_tool_request',
+      );
+      expect(
         classifier.logToken(ToolLoopExitReason.toolFailureAbort),
         'tool_failure_abort',
       );

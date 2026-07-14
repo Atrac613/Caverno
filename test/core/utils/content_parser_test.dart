@@ -26,6 +26,40 @@ void main() {
     expect(toolCalls.first.arguments['path'], 'pubspec.yaml');
   });
 
+  test('extractCompletedToolCalls parses compact named XML arguments', () {
+    const content =
+        '<tool_use>local_execute_command'
+        '<arg_name>command</arg_name>'
+        '<arg_value>dart run bin/todo_cli.dart list</arg_value>'
+        '<arg_name>reason</arg_name>'
+        '<arg_value>Verify unknown ID behavior</arg_value>'
+        '</tool_use>';
+
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+    expect(toolCalls, hasLength(1));
+    expect(toolCalls.first.name, 'local_execute_command');
+    expect(
+      toolCalls.first.arguments['command'],
+      'dart run bin/todo_cli.dart list',
+    );
+    expect(toolCalls.first.arguments['reason'], 'Verify unknown ID behavior');
+  });
+
+  test('extractCompletedToolCalls keeps legacy keyed XML arguments', () {
+    const content =
+        '<tool_use>read_file\n'
+        '<arg_key>path</arg_key>\n'
+        '<arg_value>pubspec.yaml</arg_value>'
+        '</tool_use>';
+
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+    expect(toolCalls, hasLength(1));
+    expect(toolCalls.first.name, 'read_file');
+    expect(toolCalls.first.arguments['path'], 'pubspec.yaml');
+  });
+
   test('extractCompletedToolCalls ignores display-only memory_update', () {
     const content =
         '<tool_use>{"name":"memory_update","status":"updated"}</tool_use>';
@@ -57,6 +91,53 @@ void main() {
     expect(toolCalls, hasLength(1));
     expect(toolCalls.first.name, 'read_file');
     expect(toolCalls.first.arguments['path'], 'pubspec.yaml');
+  });
+
+  test('extractCompletedToolCalls parses function parameter markup', () {
+    const content = '''
+The unexpected entrypoint must be removed.
+<tool_call>
+<function=delete_file>
+<parameter=path>
+/tmp/todo/bin/todo.dart
+</parameter>
+<parameter=reason>
+Remove unexpected entrypoint; only bin/todo_cli.dart should exist per verifier
+</parameter>
+</function>
+</tool_call>''';
+
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+    expect(toolCalls, hasLength(1));
+    expect(toolCalls.first.name, 'delete_file');
+    expect(toolCalls.first.arguments, {
+      'path': '/tmp/todo/bin/todo.dart',
+      'reason':
+          'Remove unexpected entrypoint; only bin/todo_cli.dart should exist per verifier',
+    });
+  });
+
+  test('extractCompletedToolCalls rejects ambiguous function markup', () {
+    const duplicateParameter = '''
+<tool_call><function=delete_file>
+<parameter=path>first.dart</parameter>
+<parameter=path>second.dart</parameter>
+</function></tool_call>''';
+    const missingParameter =
+        '<tool_call><function=delete_file></function></tool_call>';
+    const strayContent = '''
+<tool_call><function=delete_file>
+run this first
+<parameter=path>bin/todo.dart</parameter>
+</function></tool_call>''';
+
+    expect(
+      ContentParser.extractCompletedToolCalls(duplicateParameter),
+      isEmpty,
+    );
+    expect(ContentParser.extractCompletedToolCalls(missingParameter), isEmpty);
+    expect(ContentParser.extractCompletedToolCalls(strayContent), isEmpty);
   });
 
   test('extractRecoverableIncompleteToolCalls parses unclosed tool_use', () {

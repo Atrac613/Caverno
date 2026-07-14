@@ -434,7 +434,7 @@ void registerChatNotifierGitGuardrailTests() {
 
         await toolNotifier.sendMessage('Commit the selected version bump');
 
-        expect(toolService.executedToolNames, List.filled(12, 'read_file'));
+        expect(toolService.executedToolNames, ['read_file']);
         expect(toolDataSource.finalAnswerMessages, isNotEmpty);
         final finalPrompt = toolDataSource.finalAnswerMessages
             .map((message) => message.content)

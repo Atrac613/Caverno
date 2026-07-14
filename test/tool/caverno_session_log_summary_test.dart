@@ -309,6 +309,38 @@ void main() {
     },
   );
 
+  test('warns from an unexecuted command-action turn transform', () async {
+    final logFile = _writeSessionLog([
+      _entry(
+        operation: 'streamChatCompletionWithTools',
+        finishReason: 'stop',
+        requestMessages: [_message('user', 'Implement the requested MVP.')],
+        requestTools: [_toolDefinition('read_file')],
+        content: 'A structured execution plan was returned.',
+      ),
+      _entry(
+        operation: 'turn_exit',
+        turnExitTransforms: const ['unexecuted_command_action_notice'],
+      ),
+    ]);
+
+    final summary = await buildCavernoLlmSessionLogSummary(logFile: logFile);
+
+    expect(summary.result, 'complete');
+    expect(summary.finalAnswer?.lineNumber, 1);
+    expect(summary.hasWarnings, isTrue);
+    expect(summary.hasCodingActionPromiseWithoutToolWarning, isTrue);
+    expect(summary.warnings.single.lineNumber, 2);
+    expect(
+      summary.warnings.single.evidencePreview,
+      'unexecuted_command_action_notice',
+    );
+    expect(
+      summary.toMarkdown(),
+      contains('Coding action promise without tool: `yes`'),
+    );
+  });
+
   test('records malformed lines and error entries without crashing', () async {
     final logFile = _writeRawSessionLog([
       'not-json',
@@ -378,6 +410,7 @@ Map<String, Object?> _entry({
   List<Map<String, Object?>> requestMessages = const [],
   List<Map<String, Object?>> requestTools = const [],
   List<Map<String, Object?>> toolCalls = const [],
+  List<String> turnExitTransforms = const [],
   Map<String, Object?>? error,
 }) {
   return {
@@ -389,6 +422,8 @@ Map<String, Object?> _entry({
     'durationMs': 1000,
     'operation': operation,
     'context': {'phase': 'chat_turn', 'workspaceMode': 'coding'},
+    if (turnExitTransforms.isNotEmpty)
+      'turnExit': {'reason': 'text_response', 'transforms': turnExitTransforms},
     'request': {
       'messages': requestMessages,
       'tools': requestTools,

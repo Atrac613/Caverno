@@ -8,6 +8,8 @@ enum GoalAutoContinueDecisionKind { continueTurn, skip, stopAndBlock }
 
 enum GoalAutoContinueStopCause { turnBudget, goalBudget, noProgress }
 
+enum GoalAutoContinueCapabilityProfile { unrestricted, validation, repair }
+
 class GoalAutoContinueSafeBoundary {
   const GoalAutoContinueSafeBoundary({
     required this.isLoading,
@@ -81,8 +83,13 @@ class GoalAutoContinuePolicyInput {
     required this.diagnosticRepairContinuations,
     required this.diagnosticRepairExtensionUsed,
     required this.diagnosticEvidenceImproved,
-    required this.validationContinuations,
+    required this.postRepairVerifierAdvanced,
+    required this.repairContractProducedNoMutation,
+    required this.repairNoMutationRetryUsed,
+    required this.consecutiveValidationMisses,
+    required this.failedVerificationObserved,
     required this.noProgressStreak,
+    required this.identicalDiagnosticSignatureStreak,
     required this.finalAnswerEndsWithQuestion,
   });
 
@@ -93,8 +100,13 @@ class GoalAutoContinuePolicyInput {
   final int diagnosticRepairContinuations;
   final bool diagnosticRepairExtensionUsed;
   final bool diagnosticEvidenceImproved;
-  final int validationContinuations;
+  final bool postRepairVerifierAdvanced;
+  final bool repairContractProducedNoMutation;
+  final bool repairNoMutationRetryUsed;
+  final int consecutiveValidationMisses;
+  final bool failedVerificationObserved;
   final int noProgressStreak;
+  final int identicalDiagnosticSignatureStreak;
   final bool finalAnswerEndsWithQuestion;
 }
 
@@ -107,6 +119,7 @@ class GoalAutoContinueDecision {
     this.blockedReason,
     this.stopCause,
     this.usesDiagnosticRepairExtension = false,
+    this.usesRepairNoMutationRetry = false,
   });
 
   final GoalAutoContinueDecisionKind kind;
@@ -116,6 +129,7 @@ class GoalAutoContinueDecision {
   final String? blockedReason;
   final GoalAutoContinueStopCause? stopCause;
   final bool usesDiagnosticRepairExtension;
+  final bool usesRepairNoMutationRetry;
 
   bool get shouldContinue => kind == GoalAutoContinueDecisionKind.continueTurn;
 
@@ -126,6 +140,7 @@ class GoalAutoContinueDecision {
     required int effectiveTurnBudget,
     required int nextTurnNumber,
     bool usesDiagnosticRepairExtension = false,
+    bool usesRepairNoMutationRetry = false,
   }) {
     return GoalAutoContinueDecision._(
       kind: GoalAutoContinueDecisionKind.continueTurn,
@@ -133,6 +148,7 @@ class GoalAutoContinueDecision {
       effectiveTurnBudget: effectiveTurnBudget,
       nextTurnNumber: nextTurnNumber,
       usesDiagnosticRepairExtension: usesDiagnosticRepairExtension,
+      usesRepairNoMutationRetry: usesRepairNoMutationRetry,
     );
   }
 
@@ -161,6 +177,19 @@ class GoalAutoContinueDecision {
 
 class ConversationGoalAutoContinuePolicy {
   const ConversationGoalAutoContinuePolicy();
+
+  GoalAutoContinueCapabilityProfile selectCapabilityProfile({
+    required ToolResultCompletionEvidence evidence,
+    required bool hasRepairContract,
+  }) {
+    if (hasRepairContract) {
+      return GoalAutoContinueCapabilityProfile.repair;
+    }
+    if (evidence.requiresValidationContinuation) {
+      return GoalAutoContinueCapabilityProfile.validation;
+    }
+    return GoalAutoContinueCapabilityProfile.unrestricted;
+  }
 
   GoalAutoContinueDecision decide(GoalAutoContinuePolicyInput input) {
     final goal = input.goal;
@@ -191,15 +220,33 @@ class ConversationGoalAutoContinuePolicy {
     if (boundaryVeto != null) {
       return GoalAutoContinueDecision.skip(boundaryVeto);
     }
-    if (input.finalAnswerEndsWithQuestion) {
+    if (input.finalAnswerEndsWithQuestion &&
+        input.identicalDiagnosticSignatureStreak == 0) {
       return GoalAutoContinueDecision.skip('final answer asks a question');
     }
     if (!input.evidence.hasIncompleteEvidence) {
       return GoalAutoContinueDecision.skip('no incomplete evidence');
     }
 
+    if (input.repairContractProducedNoMutation) {
+      if (!input.repairNoMutationRetryUsed) {
+        return GoalAutoContinueDecision.continueTurn(
+          reason: 'repair contract made no mutation; one retry granted',
+          effectiveTurnBudget: effectiveTurnBudget,
+          nextTurnNumber: goal.turnsUsed + 1,
+          usesRepairNoMutationRetry: true,
+        );
+      }
+      return GoalAutoContinueDecision.stopAndBlock(
+        reason: 'repair contract made no mutation twice',
+        blockedReason:
+            'Goal auto-continue stopped because two constrained repair turns '
+            'ended without a file mutation.',
+      );
+    }
+
     if (input.evidence.requiresValidationContinuation) {
-      if (input.validationContinuations == 0) {
+      if (input.consecutiveValidationMisses == 0) {
         return GoalAutoContinueDecision.continueTurn(
           reason: input.evidence.hasPendingExecutionVerification
               ? 'execute the pending verification call'
@@ -208,7 +255,7 @@ class ConversationGoalAutoContinuePolicy {
           nextTurnNumber: goal.turnsUsed + 1,
         );
       }
-      if (input.validationContinuations == 1 &&
+      if (input.consecutiveValidationMisses == 1 &&
           (input.evidence.hasUnexecutedActionClaim ||
               (input.evidence.hasExecutionVerification &&
                   input.evidence.mutatedWithoutExecutionVerification))) {
@@ -221,14 +268,20 @@ class ConversationGoalAutoContinuePolicy {
         );
       }
       return GoalAutoContinueDecision.stopAndBlock(
-        reason: 'validation continuation was ignored',
-        blockedReason:
-            'Goal auto-continue stopped because execution verification '
-            'remained incomplete after a dedicated validation turn.',
+        reason: input.failedVerificationObserved
+            ? 'post-verification repair was not revalidated'
+            : 'validation continuation was ignored',
+        blockedReason: input.failedVerificationObserved
+            ? 'Goal auto-continue stopped because a repair made after failed '
+                  'verification was not verified again.'
+            : 'Goal auto-continue stopped because execution verification '
+                  'remained incomplete after a dedicated validation turn.',
       );
     }
 
-    if (input.noProgressStreak >= 2) {
+    if (input.noProgressStreak >= 2 &&
+        input.identicalDiagnosticSignatureStreak == 0 &&
+        !input.postRepairVerifierAdvanced) {
       if (input.evidence.hasDiagnosticEvidence) {
         return GoalAutoContinueDecision.stopAndBlock(
           reason: 'diagnostic evidence stalled',
@@ -245,10 +298,13 @@ class ConversationGoalAutoContinuePolicy {
     if (input.evidence.hasDiagnosticEvidence &&
         input.diagnosticRepairContinuations >=
             kGoalAutoContinueDiagnosticRepairBudget) {
-      if (input.diagnosticEvidenceImproved &&
+      if ((input.diagnosticEvidenceImproved ||
+              input.postRepairVerifierAdvanced) &&
           !input.diagnosticRepairExtensionUsed) {
         return GoalAutoContinueDecision.continueTurn(
-          reason: 'diagnostics improved; one repair extension granted',
+          reason: input.postRepairVerifierAdvanced
+              ? 'post-repair verifier advanced; one repair extension granted'
+              : 'diagnostics improved; one repair extension granted',
           effectiveTurnBudget: effectiveTurnBudget,
           nextTurnNumber: goal.turnsUsed + 1,
           usesDiagnosticRepairExtension: true,

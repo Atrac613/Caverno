@@ -164,8 +164,23 @@ void main() {
         ToolCommandEffect.verification,
       );
       expect(
+        effectOf(
+          'local_execute_command',
+          'dart run tool/verify_markdown_toc.dart',
+        ),
+        ToolCommandEffect.verification,
+      );
+      expect(
+        effectOf('local_execute_command', 'bash scripts/verify_fixture.sh'),
+        ToolCommandEffect.verification,
+      );
+      expect(
         effectOf('local_execute_command', 'dart run build_runner build'),
         ToolCommandEffect.codeGeneration,
+      );
+      expect(
+        effectOf('local_execute_command', 'echo verify the output'),
+        ToolCommandEffect.workspaceMutation,
       );
     });
 

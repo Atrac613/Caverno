@@ -12,13 +12,17 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
     required int interactionGeneration,
     required bool requireContinuationRequest,
     List<ToolResultInfo> executedToolResults = const [],
+    String? forcedRecoveryCode,
+    String? forcedRecoveryPrompt,
   }) async {
-    final recoveryCode = _codingContinuationRecoveryCode(
-      candidateResponse: candidateResponse,
-      tools: tools,
-      interactionGeneration: interactionGeneration,
-      requireContinuationRequest: requireContinuationRequest,
-    );
+    final recoveryCode =
+        forcedRecoveryCode ??
+        _codingContinuationRecoveryCode(
+          candidateResponse: candidateResponse,
+          tools: tools,
+          interactionGeneration: interactionGeneration,
+          requireContinuationRequest: requireContinuationRequest,
+        );
     if (recoveryCode == null) {
       return null;
     }
@@ -38,11 +42,13 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
         Message(
           id: '${recoveryCode}_recovery_${DateTime.now().millisecondsSinceEpoch}',
           role: MessageRole.user,
-          content: _buildCodingContinuationRecoveryPrompt(
-            candidateResponse,
-            recoveryCode: recoveryCode,
-            executedToolResults: executedToolResults,
-          ),
+          content:
+              forcedRecoveryPrompt ??
+              _buildCodingContinuationRecoveryPrompt(
+                candidateResponse,
+                recoveryCode: recoveryCode,
+                executedToolResults: executedToolResults,
+              ),
           timestamp: DateTime.now(),
         ),
       );
@@ -82,10 +88,20 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
     if (_lastSaveSkillGeneration == interactionGeneration) {
       return null;
     }
+    final hasStructuredExecutionDeferral =
+        const StructuredCodingExecutionDeferralDetector().matches(candidate);
+    final hasPendingStructuredExecutionDeferral =
+        hasStructuredExecutionDeferral &&
+        _hasPendingAutoContinueExecutionWorkflow();
+    if (hasStructuredExecutionDeferral &&
+        !hasPendingStructuredExecutionDeferral) {
+      return null;
+    }
     if (requireContinuationRequest &&
         !_looksLikeContinuationOnlyUserRequest(
           _latestUserContentForGeneration(interactionGeneration),
-        )) {
+        ) &&
+        !hasPendingStructuredExecutionDeferral) {
       return null;
     }
     if (_shouldAcceptTerminalToolRoleBlockerResponse(candidate)) {
@@ -96,10 +112,29 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
         _isCodingContinuationRecoveryToolName(bracketedToolName)) {
       return 'bracketed_coding_tool_request';
     }
-    if (_looksLikeProseOnlyCodingContinuation(candidate)) {
+    if (_looksLikeProseOnlyCodingContinuation(candidate) ||
+        hasPendingStructuredExecutionDeferral) {
       return 'prose_only_coding_continuation';
     }
     return null;
+  }
+
+  bool _hasPendingAutoContinueExecutionWorkflow() {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final goal = conversation?.goal;
+    if (conversation == null ||
+        goal == null ||
+        !goal.isActive ||
+        !goal.autoContinue ||
+        conversation.workflowStage != ConversationWorkflowStage.implement) {
+      return false;
+    }
+    final snapshot = const ExecutionSnapshotProjector().project(conversation);
+    return snapshot.action == ExecutionSnapshotAction.execute &&
+        snapshot.remainingTaskCount > 0 &&
+        snapshot.unresolvedQuestionCount == 0;
   }
 
   bool _isCodingWorkspaceOrMode() {
@@ -366,6 +401,9 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
   }
 
   String _codingContinuationRecoveryLogLabel(String recoveryCode) {
+    if (recoveryCode == 'length_truncated_pending_action') {
+      return 'length-truncated pending action recovery';
+    }
     if (recoveryCode == 'bracketed_coding_tool_request') {
       return 'bracketed coding tool request recovery';
     }
@@ -373,6 +411,9 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
   }
 
   String _codingContinuationRecoveryReason(String recoveryCode) {
+    if (recoveryCode == 'length_truncated_pending_action') {
+      return 'The assistant reached the output-token limit while trusted tool evidence still showed incomplete executable coding work.';
+    }
     if (recoveryCode == 'bracketed_coding_tool_request') {
       return 'The assistant returned a bracketed coding tool request in final-answer text instead of issuing an executable tool call.';
     }
@@ -380,6 +421,9 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
   }
 
   String _codingContinuationRecoveryError(String recoveryCode) {
+    if (recoveryCode == 'length_truncated_pending_action') {
+      return 'The assistant reached the output-token limit before issuing the next executable coding action.';
+    }
     if (recoveryCode == 'bracketed_coding_tool_request') {
       return 'The assistant response contained a bracketed coding tool request, but no executable tool call was issued.';
     }
@@ -387,6 +431,9 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
   }
 
   String _codingContinuationRecoveryRequiredAction(String recoveryCode) {
+    if (recoveryCode == 'length_truncated_pending_action') {
+      return 'Issue exactly one available tool call that advances the incomplete work.';
+    }
     if (recoveryCode == 'bracketed_coding_tool_request') {
       return 'Issue the requested coding tool call now. Do not describe bracketed tool blocks as already executed.';
     }

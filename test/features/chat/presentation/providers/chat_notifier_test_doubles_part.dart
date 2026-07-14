@@ -3,6 +3,18 @@
 // chat_notifier_test.dart (F1 test-file ratchet), no behavior change.
 part of 'chat_notifier_test.dart';
 
+List<String> _toolNames(List<Map<String, dynamic>> definitions) {
+  return definitions
+      .map((definition) {
+        final function = definition['function'];
+        if (function is! Map) return null;
+        final name = function['name'];
+        return name is String ? name : null;
+      })
+      .nonNulls
+      .toList(growable: false);
+}
+
 AppSettings _baseTestSettings() {
   return AppSettings.defaults().copyWith(enableLlmSessionLogs: false);
 }
@@ -221,6 +233,50 @@ class _GoalAutoContinueConversationsNotifier
                 : conversation,
           )
           .toList(growable: false),
+    );
+  }
+}
+
+class _TerminalSuccessGoalConversationsNotifier
+    extends _GoalAutoContinueConversationsNotifier {
+  String? recordedAssistantResponse;
+
+  @override
+  Future<void> recordCurrentVerificationGeneration() async {
+    final conversation = state.currentConversation;
+    if (conversation == null) return;
+    _replaceCurrentConversation(
+      conversation.copyWith(
+        verificationGeneration: conversation.mutationGeneration,
+      ),
+    );
+  }
+
+  @override
+  Future<void> recordCurrentGoalTurn({
+    required String assistantResponse,
+    required int tokenUsageDelta,
+    ToolResultCompletionEvidence completionEvidence =
+        const ToolResultCompletionEvidence(),
+  }) async {
+    recordedAssistantResponse = assistantResponse;
+    final conversation = state.currentConversation;
+    final goal = conversation?.goal;
+    if (conversation == null || goal == null) return;
+    final summary = assistantResponse
+        .split('\n')
+        .map((line) => line.trim())
+        .firstWhere((line) => line.isNotEmpty, orElse: () => '');
+    _replaceCurrentConversation(
+      conversation.copyWith(
+        goal: goal.copyWith(
+          status: ConversationGoalStatus.completed,
+          completionSummary: summary,
+          turnsUsed: goal.turnsUsed + 1,
+          tokenUsage: goal.tokenUsage + tokenUsageDelta,
+          updatedAt: DateTime(2026, 5, 25, 10, goal.turnsUsed + 1),
+        ),
+      ),
     );
   }
 }
@@ -1990,16 +2046,21 @@ class _FinalAnswerRecoveryChatDataSource
     required this.firstAnswer,
     required this.firstFinishReason,
     required this.recoveryResult,
+    this.pendingActionRecoveryResult,
   });
 
   final ToolCallInfo initialToolCall;
   final String firstAnswer;
   final String firstFinishReason;
   final ChatCompletionResult recoveryResult;
+  final ChatCompletionResult? pendingActionRecoveryResult;
+  final List<List<Map<String, dynamic>>> initialToolBatches = [];
   final List<List<Message>> recoveryRequestMessages = [];
   final List<List<Map<String, dynamic>>?> recoveryToolBatches = [];
   final List<double?> recoveryTemperatures = [];
   final List<int?> recoveryMaxTokens = [];
+  final List<List<Message>> pendingActionRecoveryRequestMessages = [];
+  final List<List<Map<String, dynamic>>> pendingActionRecoveryToolBatches = [];
   var finalAnswerStreamCount = 0;
   var toolResultCompletionCount = 0;
   String? _lastFinishReason;
@@ -2053,6 +2114,9 @@ class _FinalAnswerRecoveryChatDataSource
     double? temperature,
     int? maxTokens,
   }) {
+    initialToolBatches.add(
+      tools.map((tool) => Map<String, dynamic>.from(tool)).toList(),
+    );
     _lastFinishReason = 'tool_calls';
     return StreamWithToolsResult(
       stream: const Stream.empty(),
@@ -2108,6 +2172,20 @@ class _FinalAnswerRecoveryChatDataSource
     int? maxTokens,
   }) async {
     toolResultCompletionCount += 1;
+    final isPendingActionRecovery = messages.any(
+      (message) =>
+          message.id.startsWith('length_truncated_pending_action_recovery_'),
+    );
+    if (isPendingActionRecovery && pendingActionRecoveryResult != null) {
+      pendingActionRecoveryRequestMessages.add(List<Message>.from(messages));
+      pendingActionRecoveryToolBatches.add(
+        (tools ?? const <Map<String, dynamic>>[])
+            .map((tool) => Map<String, dynamic>.from(tool))
+            .toList(),
+      );
+      _lastFinishReason = pendingActionRecoveryResult!.finishReason;
+      return pendingActionRecoveryResult!;
+    }
     _lastFinishReason = 'stop';
     return ChatCompletionResult(content: '', finishReason: 'stop');
   }
@@ -2135,8 +2213,10 @@ class _GoalAutoContinueChatDataSource implements ChatDataSource {
   final Map<int, Future<void>> toolCompletionGates;
   final Queue<ChatCompletionResult> autoReviewResponses;
   final List<List<Message>> initialRequestMessages = [];
+  final List<List<Map<String, dynamic>>> initialToolDefinitions = [];
   final List<List<Message>> finalAnswerRequestMessages = [];
   final List<List<ToolResultInfo>> toolResultBatches = [];
+  final List<List<Map<String, dynamic>>> toolResultToolDefinitions = [];
   final List<List<Message>> autoReviewRequestMessages = [];
 
   @override
@@ -2183,6 +2263,9 @@ class _GoalAutoContinueChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) {
     initialRequestMessages.add(List<Message>.from(messages));
+    initialToolDefinitions.add(
+      tools.map((tool) => Map<String, dynamic>.from(tool)).toList(),
+    );
     final requestNumber = initialRequestMessages.length;
     final toolCalls = _toolCallBatches.isEmpty
         ? const <ToolCallInfo>[]
@@ -2248,6 +2331,11 @@ class _GoalAutoContinueChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
+    toolResultToolDefinitions.add(
+      (tools ?? const <Map<String, dynamic>>[])
+          .map((tool) => Map<String, dynamic>.from(tool))
+          .toList(growable: false),
+    );
     return ChatCompletionResult(
       content: assistantContent ?? '',
       finishReason: 'stop',
@@ -2814,6 +2902,35 @@ class _FakeMcpToolService extends McpToolService {
       result: results[name] ?? '',
       isSuccess: true,
     );
+  }
+}
+
+class _QueuedMcpToolResultService extends _FakeMcpToolService {
+  _QueuedMcpToolResultService(Map<String, List<McpToolResult>> results)
+    : _queuedToolResults = results.map(
+        (name, values) => MapEntry(name, Queue<McpToolResult>.from(values)),
+      ),
+      super(results: {for (final name in results.keys) name: ''});
+
+  final Map<String, Queue<McpToolResult>> _queuedToolResults;
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    executedToolArguments.add(Map<String, dynamic>.from(arguments));
+    final queued = _queuedToolResults[name];
+    if (queued == null || queued.isEmpty) {
+      return McpToolResult(
+        toolName: name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'No queued tool result for $name',
+      );
+    }
+    return queued.removeFirst();
   }
 }
 

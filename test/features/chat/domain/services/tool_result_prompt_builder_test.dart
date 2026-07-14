@@ -209,6 +209,16 @@ void main() {
       expect(evidence.unexecutedToolNames, ['edit_file']);
       expect(evidence.unresolvedErrorCount, 1);
       expect(evidence.unresolvedErrorPaths, ['lib/main.dart']);
+      expect(evidence.unresolvedErrorDiagnostics, hasLength(1));
+      expect(evidence.unresolvedErrorDiagnostics.single.path, 'lib/main.dart');
+      expect(
+        evidence.unresolvedErrorDiagnostics.single.code,
+        'UNDEFINED_IDENTIFIER',
+      );
+      expect(
+        evidence.unresolvedErrorDiagnostics.single.message,
+        'Undefined name.',
+      );
       expect(evidence.summary, contains('1 unresolved Error diagnostic'));
     });
 
@@ -364,6 +374,13 @@ void main() {
       const previous = ToolResultCompletionEvidence(
         unresolvedErrorCount: 2,
         unresolvedErrorPaths: ['lib/main.dart'],
+        unresolvedErrorDiagnostics: [
+          UnresolvedErrorDiagnostic(
+            path: 'lib/main.dart',
+            code: 'undefined_identifier',
+            message: 'Undefined name store.',
+          ),
+        ],
         hasExecutionVerification: true,
       );
 
@@ -372,6 +389,11 @@ void main() {
 
       expect(carried.unresolvedErrorCount, 2);
       expect(carried.unresolvedErrorPaths, ['lib/main.dart']);
+      expect(carried.unresolvedErrorDiagnostics, hasLength(1));
+      expect(
+        carried.unresolvedErrorDiagnostics.single.message,
+        'Undefined name store.',
+      );
       expect(carried.hasIncompleteEvidence, isTrue);
     });
 
@@ -389,6 +411,29 @@ void main() {
       expect(carried.unresolvedErrorCount, 2);
       expect(carried.hasIncompleteEvidence, isTrue);
     });
+
+    test(
+      'settles prior mutation evidence after failed execution verification',
+      () {
+        const previous = ToolResultCompletionEvidence(
+          mutatedWithoutExecutionVerification: true,
+          unverifiedChangePaths: ['bin/app.dart'],
+        );
+        const current = ToolResultCompletionEvidence(
+          hasExecutionVerification: true,
+          unresolvedErrorCount: 1,
+          unresolvedErrorPaths: ['bin/app.dart'],
+        );
+
+        final carried = current.carryForwardIncompleteFrom(previous);
+
+        expect(carried.hasExecutionVerification, isTrue);
+        expect(carried.mutatedWithoutExecutionVerification, isFalse);
+        expect(carried.unverifiedChangePaths, isEmpty);
+        expect(carried.unresolvedErrorCount, 1);
+        expect(carried.requiresValidationContinuation, isFalse);
+      },
+    );
 
     test('replaces prior errors with an authoritative clean snapshot', () {
       const previous = ToolResultCompletionEvidence(
@@ -441,6 +486,29 @@ void main() {
       expect(settled.hasIncompleteEvidence, isFalse);
       expect(settled.hasSuccessfulExecutionVerification, isTrue);
     });
+
+    test(
+      'keeps a later unexecuted tool request after generation settlement',
+      () {
+        const evidence = ToolResultCompletionEvidence(
+          boundedToolLoopExhausted: true,
+          unexecutedToolNames: ['local_execute_command'],
+          hasUnexecutedActionClaim: true,
+          mutatedWithoutExecutionVerification: true,
+        );
+
+        final settled = evidence.settleForExecutionGenerations(
+          mutationGeneration: 1,
+          verificationGeneration: 1,
+        );
+
+        expect(settled.hasSuccessfulExecutionVerification, isTrue);
+        expect(settled.boundedToolLoopExhausted, isTrue);
+        expect(settled.unexecutedToolNames, ['local_execute_command']);
+        expect(settled.hasUnexecutedActionClaim, isTrue);
+        expect(settled.mutatedWithoutExecutionVerification, isFalse);
+      },
+    );
 
     test('recognizes an unexecuted verifier as validation evidence', () {
       const evidence = ToolResultCompletionEvidence(

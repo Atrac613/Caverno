@@ -210,6 +210,129 @@ void main() {
     expect(prompt, isNot(contains('In scope: complete tasks.')));
   });
 
+  test('overlays repeated command diagnostics as a repair focus', () {
+    const snapshot = ExecutionSnapshot(
+      contractHash: 'contract',
+      workflowStage: ConversationWorkflowStage.implement,
+      action: ExecutionSnapshotAction.execute,
+      activeTaskId: 'task-1',
+      activeTaskStatus: ConversationWorkflowTaskStatus.inProgress,
+      validationStatus: ConversationExecutionValidationStatus.unknown,
+      completedTaskCount: 0,
+      remainingTaskCount: 1,
+      unresolvedQuestionCount: 0,
+      requiresValidation: true,
+      latestDiagnostic: null,
+    );
+
+    final focused = snapshot.withCommandDiagnosticRepairFocus(
+      diagnosticSummary:
+          'bin/todo_cli.dart: [todo_cli_missing] Required file is missing.',
+      streak: 2,
+      hasPathBackedDiagnostic: true,
+    );
+    final prompt = focused.toPromptContext();
+
+    expect(focused.action, ExecutionSnapshotAction.repair);
+    expect(
+      focused.validationStatus,
+      ConversationExecutionValidationStatus.failed,
+    );
+    expect(prompt, contains('Required next action: repair'));
+    expect(prompt, contains('Repeated command diagnostic streak: 2'));
+    expect(prompt, contains('make one concrete file mutation'));
+    expect(prompt, contains('Do not rerun unchanged validation again.'));
+  });
+
+  test('allows inspection but prevents an unchanged streak-one replay', () {
+    const snapshot = ExecutionSnapshot(
+      contractHash: 'contract',
+      workflowStage: ConversationWorkflowStage.implement,
+      action: ExecutionSnapshotAction.execute,
+      activeTaskId: 'task-1',
+      activeTaskStatus: ConversationWorkflowTaskStatus.inProgress,
+      validationStatus: ConversationExecutionValidationStatus.unknown,
+      completedTaskCount: 0,
+      remainingTaskCount: 1,
+      unresolvedQuestionCount: 0,
+      requiresValidation: true,
+      latestDiagnostic: null,
+    );
+
+    final focused = snapshot.withCommandDiagnosticRepairFocus(
+      diagnosticSummary:
+          'bin/todo_cli.dart: [todo_cli_missing] Required file is missing.',
+      streak: 1,
+      hasPathBackedDiagnostic: true,
+    );
+    final prompt = focused.toPromptContext();
+
+    expect(prompt, contains('Required next action: repair'));
+    expect(prompt, contains('Command diagnostic streak: 1'));
+    expect(prompt, contains('inspect the diagnostic context only as needed'));
+    expect(prompt, contains('make one concrete file mutation'));
+    expect(
+      prompt,
+      contains('Do not rerun unchanged validation before corrective action.'),
+    );
+  });
+
+  test('uses corrective-action wording for a pathless diagnostic', () {
+    const snapshot = ExecutionSnapshot(
+      contractHash: 'contract',
+      workflowStage: ConversationWorkflowStage.implement,
+      action: ExecutionSnapshotAction.execute,
+      activeTaskId: 'task-1',
+      activeTaskStatus: ConversationWorkflowTaskStatus.inProgress,
+      validationStatus: ConversationExecutionValidationStatus.unknown,
+      completedTaskCount: 0,
+      remainingTaskCount: 1,
+      unresolvedQuestionCount: 0,
+      requiresValidation: true,
+      latestDiagnostic: null,
+    );
+
+    final focused = snapshot.withCommandDiagnosticRepairFocus(
+      diagnosticSummary:
+          '[dependency_resolution_failed] Resolve the dependency constraint.',
+      streak: 1,
+      hasPathBackedDiagnostic: false,
+    );
+    final prompt = focused.toPromptContext();
+
+    expect(prompt, contains('take one concrete corrective action'));
+    expect(prompt, isNot(contains('file mutation')));
+  });
+
+  test('preserves clarification over a repeated diagnostic repair focus', () {
+    const snapshot = ExecutionSnapshot(
+      contractHash: 'contract',
+      workflowStage: ConversationWorkflowStage.implement,
+      action: ExecutionSnapshotAction.clarify,
+      activeTaskId: 'task-1',
+      activeTaskStatus: ConversationWorkflowTaskStatus.inProgress,
+      validationStatus: ConversationExecutionValidationStatus.unknown,
+      completedTaskCount: 0,
+      remainingTaskCount: 1,
+      unresolvedQuestionCount: 1,
+      requiresValidation: true,
+      latestDiagnostic: null,
+      clarificationQuestions: ['Which runtime is required?'],
+    );
+
+    final focused = snapshot.withCommandDiagnosticRepairFocus(
+      diagnosticSummary: 'lib/main.dart: [compile_error] Build failed.',
+      streak: 3,
+      hasPathBackedDiagnostic: true,
+    );
+
+    expect(focused.action, ExecutionSnapshotAction.clarify);
+    expect(
+      focused.toPromptContext(),
+      isNot(contains('make one concrete file mutation')),
+    );
+  });
+
   test('projects repair with the latest failed validation diagnostic', () {
     final snapshot = projector.project(
       conversation(

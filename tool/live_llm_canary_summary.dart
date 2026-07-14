@@ -250,6 +250,22 @@ class LiveLlmCanarySummary {
         '`${signals.codingContinuationRecoveryToolCallCount}`',
       )
       ..writeln(
+        '- Pending-action length deferral count: '
+        '`${signals.pendingActionLengthDeferralCount}`',
+      )
+      ..writeln(
+        '- Pending-action length recovery request count: '
+        '`${signals.pendingActionLengthRecoveryRequestCount}`',
+      )
+      ..writeln(
+        '- Pending-action length recovery tool-call count: '
+        '`${signals.pendingActionLengthRecoveryToolCallCount}`',
+      )
+      ..writeln(
+        '- Successful read-result replay count: '
+        '`${signals.successfulReadResultReplayCount}`',
+      )
+      ..writeln(
         '- Turn-finalization recovery request count: '
         '`${signals.turnFinalizationRecoveryRequestCount}`',
       )
@@ -328,6 +344,34 @@ class LiveLlmCanarySummary {
       ..writeln(
         '- Blocked after successful verifier: '
         '`${signals.goalAutoContinue.blockedAfterSuccessfulVerifier ? 'yes' : 'no'}`',
+      )
+      ..writeln(
+        '- Goal repair contract activation count: '
+        '`${signals.goalAutoContinue.repairContractActivationCount}`',
+      )
+      ..writeln(
+        '- Command diagnostic repair focus activation count: '
+        '`${signals.goalAutoContinue.commandDiagnosticRepairFocusActivationCount}`',
+      )
+      ..writeln(
+        '- Command diagnostic repair focus activation streaks: '
+        '`${signals.goalAutoContinue.commandDiagnosticRepairFocusActivationStreaks.isEmpty ? '(none)' : signals.goalAutoContinue.commandDiagnosticRepairFocusActivationStreaks.join(', ')}`',
+      )
+      ..writeln(
+        '- Unchanged verifier replays before repair focus: '
+        '`${signals.goalAutoContinue.unchangedVerifierReplayBeforeRepairCount}`',
+      )
+      ..writeln(
+        '- Blocked unchanged verifier replays after repair focus: '
+        '`${signals.goalAutoContinue.blockedUnchangedVerifierReplayCount}`',
+      )
+      ..writeln(
+        '- Diagnostic signature change count: '
+        '`${signals.goalAutoContinue.diagnosticSignatureChangeCount}`',
+      )
+      ..writeln(
+        '- Maximum identical diagnostic signature streak: '
+        '`${signals.goalAutoContinue.maxIdenticalDiagnosticSignatureStreak}`',
       )
       ..writeln()
       ..writeln('## Request Temperatures')
@@ -583,6 +627,10 @@ class LiveLlmCanarySignals {
     required this.toolResultCompactionRetryCount,
     required this.codingContinuationRecoveryRequestCount,
     required this.codingContinuationRecoveryToolCallCount,
+    required this.pendingActionLengthDeferralCount,
+    required this.pendingActionLengthRecoveryRequestCount,
+    required this.pendingActionLengthRecoveryToolCallCount,
+    required this.successfulReadResultReplayCount,
     required this.turnFinalizationRecoveryRequestCount,
     required this.turnFinalizationRecoveryToolCallCount,
     required this.incompleteContentToolRecoveryCount,
@@ -607,6 +655,10 @@ class LiveLlmCanarySignals {
   final int toolResultCompactionRetryCount;
   final int codingContinuationRecoveryRequestCount;
   final int codingContinuationRecoveryToolCallCount;
+  final int pendingActionLengthDeferralCount;
+  final int pendingActionLengthRecoveryRequestCount;
+  final int pendingActionLengthRecoveryToolCallCount;
+  final int successfulReadResultReplayCount;
   final int turnFinalizationRecoveryRequestCount;
   final int turnFinalizationRecoveryToolCallCount;
   final int incompleteContentToolRecoveryCount;
@@ -650,6 +702,28 @@ class LiveLlmCanarySignals {
         RegExp(
           r'\[Tool\] Coding continuation recovery requested (follow-up )?tool calls',
         ),
+      ),
+      pendingActionLengthDeferralCount: _countMatches(
+        rawLog,
+        RegExp(
+          r'\[PendingActionLengthRecovery\] Deferring truncated incomplete coding work',
+        ),
+      ),
+      pendingActionLengthRecoveryRequestCount: _countMatches(
+        rawLog,
+        RegExp(
+          r'\[PendingActionLengthRecovery\] Requesting one bounded tool-aware retry',
+        ),
+      ),
+      pendingActionLengthRecoveryToolCallCount: _countMatches(
+        rawLog,
+        RegExp(
+          r'\[PendingActionLengthRecovery\] Tool-aware retry requested one or more tool calls',
+        ),
+      ),
+      successfulReadResultReplayCount: _countMatches(
+        rawLog,
+        RegExp(r'\[InspectionReplay\] Replayed successful read_file result'),
       ),
       turnFinalizationRecoveryRequestCount: _countMatches(
         rawLog,
@@ -722,6 +796,12 @@ class LiveLlmCanarySignals {
           codingContinuationRecoveryRequestCount,
       'codingContinuationRecoveryToolCallCount':
           codingContinuationRecoveryToolCallCount,
+      'pendingActionLengthDeferralCount': pendingActionLengthDeferralCount,
+      'pendingActionLengthRecoveryRequestCount':
+          pendingActionLengthRecoveryRequestCount,
+      'pendingActionLengthRecoveryToolCallCount':
+          pendingActionLengthRecoveryToolCallCount,
+      'successfulReadResultReplayCount': successfulReadResultReplayCount,
       'turnFinalizationRecoveryRequestCount':
           turnFinalizationRecoveryRequestCount,
       'turnFinalizationRecoveryToolCallCount':
@@ -757,6 +837,13 @@ class LiveLlmCanaryGoalAutoContinueSignals {
     required this.successfulVerifierObserved,
     required this.terminalSuccessExitObserved,
     required this.blockedAfterSuccessfulVerifier,
+    required this.repairContractActivationCount,
+    required this.commandDiagnosticRepairFocusActivationCount,
+    required this.commandDiagnosticRepairFocusActivationStreaks,
+    required this.unchangedVerifierReplayBeforeRepairCount,
+    required this.blockedUnchangedVerifierReplayCount,
+    required this.diagnosticSignatureChangeCount,
+    required this.maxIdenticalDiagnosticSignatureStreak,
   });
 
   final int continuationCount;
@@ -767,6 +854,13 @@ class LiveLlmCanaryGoalAutoContinueSignals {
   final bool successfulVerifierObserved;
   final bool terminalSuccessExitObserved;
   final bool blockedAfterSuccessfulVerifier;
+  final int repairContractActivationCount;
+  final int commandDiagnosticRepairFocusActivationCount;
+  final List<int> commandDiagnosticRepairFocusActivationStreaks;
+  final int unchangedVerifierReplayBeforeRepairCount;
+  final int blockedUnchangedVerifierReplayCount;
+  final int diagnosticSignatureChangeCount;
+  final int maxIdenticalDiagnosticSignatureStreak;
 
   Map<String, dynamic> toJson() {
     return {
@@ -778,6 +872,18 @@ class LiveLlmCanaryGoalAutoContinueSignals {
       'successfulVerifierObserved': successfulVerifierObserved,
       'terminalSuccessExitObserved': terminalSuccessExitObserved,
       'blockedAfterSuccessfulVerifier': blockedAfterSuccessfulVerifier,
+      'repairContractActivationCount': repairContractActivationCount,
+      'commandDiagnosticRepairFocusActivationCount':
+          commandDiagnosticRepairFocusActivationCount,
+      'commandDiagnosticRepairFocusActivationStreaks':
+          commandDiagnosticRepairFocusActivationStreaks,
+      'unchangedVerifierReplayBeforeRepairCount':
+          unchangedVerifierReplayBeforeRepairCount,
+      'blockedUnchangedVerifierReplayCount':
+          blockedUnchangedVerifierReplayCount,
+      'diagnosticSignatureChangeCount': diagnosticSignatureChangeCount,
+      'maxIdenticalDiagnosticSignatureStreak':
+          maxIdenticalDiagnosticSignatureStreak,
     };
   }
 }
@@ -1530,6 +1636,21 @@ LiveLlmCanaryGoalAutoContinueSignals _extractGoalAutoContinueSignals(
     r'"command"\s*:\s*"[^"]*verify[^"]*".*"exit_code"\s*:\s*(?:0|"0")',
     caseSensitive: false,
   );
+  final repairContractPattern = RegExp(
+    r'\[DiagnosticRepairContract\] activated; signatureStreak=(\d+)',
+  );
+  final commandDiagnosticPattern = RegExp(
+    r'\[CommandDiagnostic\] observed; signatureStreak=(\d+)',
+  );
+  final repairFocusActivationPattern = RegExp(
+    r'\[CommandDiagnosticRepairFocus\] activated; signatureStreak=(\d+)',
+  );
+  final blockedVerifierReplayPattern = RegExp(
+    r'\[CommandDiagnosticRepairFocus\] blocked unchanged verifier replay;',
+  );
+  final legacyRepairFocusShadowPattern = RegExp(
+    r'\[ExecutionShadow\].*\baction=repair\b.*\bdiagnosticStreak=(\d+)',
+  );
   final diagnosticCounts = <int>[];
   var continuationCount = 0;
   var progressExtensionCount = 0;
@@ -1539,6 +1660,12 @@ LiveLlmCanaryGoalAutoContinueSignals _extractGoalAutoContinueSignals(
   var successfulVerifierObserved = false;
   var terminalSuccessExitObserved = false;
   var blockedAfterSuccessfulVerifier = false;
+  var repairContractActivationCount = 0;
+  final repairFocusActivationStreaks = <int>[];
+  final legacyRepairFocusActivationStreaks = <int>[];
+  var blockedUnchangedVerifierReplayCount = 0;
+  var diagnosticSignatureChangeCount = 0;
+  var maxIdenticalDiagnosticSignatureStreak = 0;
 
   for (final line in const LineSplitter().convert(rawLog)) {
     for (final message in _messagesFromLogLine(line)) {
@@ -1562,6 +1689,49 @@ LiveLlmCanaryGoalAutoContinueSignals _extractGoalAutoContinueSignals(
         successfulVerifierObserved = true;
         firstVerifierTurn ??= currentTurn;
       }
+      final repairContractMatch = repairContractPattern.firstMatch(message);
+      if (repairContractMatch != null) {
+        repairContractActivationCount += 1;
+        final streak = int.tryParse(repairContractMatch.group(1) ?? '') ?? 0;
+        if (streak > maxIdenticalDiagnosticSignatureStreak) {
+          maxIdenticalDiagnosticSignatureStreak = streak;
+        }
+      }
+      final commandDiagnosticMatch = commandDiagnosticPattern.firstMatch(
+        message,
+      );
+      if (commandDiagnosticMatch != null) {
+        final streak = int.tryParse(commandDiagnosticMatch.group(1) ?? '') ?? 0;
+        if (streak > maxIdenticalDiagnosticSignatureStreak) {
+          maxIdenticalDiagnosticSignatureStreak = streak;
+        }
+      }
+      final repairFocusActivationMatch = repairFocusActivationPattern
+          .firstMatch(message);
+      if (repairFocusActivationMatch != null) {
+        final streak =
+            int.tryParse(repairFocusActivationMatch.group(1) ?? '') ?? 0;
+        if (streak > 0) {
+          repairFocusActivationStreaks.add(streak);
+        }
+      }
+      if (blockedVerifierReplayPattern.hasMatch(message)) {
+        blockedUnchangedVerifierReplayCount += 1;
+      }
+      final legacyRepairFocusShadowMatch = legacyRepairFocusShadowPattern
+          .firstMatch(message);
+      if (legacyRepairFocusShadowMatch != null) {
+        final streak =
+            int.tryParse(legacyRepairFocusShadowMatch.group(1) ?? '') ?? 0;
+        if (streak == 2) {
+          legacyRepairFocusActivationStreaks.add(streak);
+        }
+      }
+      if (message.contains(
+        '[DiagnosticRepairContract] diagnostic signature changed',
+      )) {
+        diagnosticSignatureChangeCount += 1;
+      }
       if (message.contains(
         '[Tool] Terminal success accepted for current generation',
       )) {
@@ -1584,6 +1754,16 @@ LiveLlmCanaryGoalAutoContinueSignals _extractGoalAutoContinueSignals(
     }
   }
 
+  final effectiveRepairFocusActivationStreaks =
+      repairFocusActivationStreaks.isNotEmpty
+      ? repairFocusActivationStreaks
+      : legacyRepairFocusActivationStreaks;
+  final unchangedVerifierReplayBeforeRepairCount =
+      effectiveRepairFocusActivationStreaks.fold<int>(
+        0,
+        (total, streak) => total + (streak > 1 ? streak - 1 : 0),
+      );
+
   return LiveLlmCanaryGoalAutoContinueSignals(
     continuationCount: continuationCount,
     diagnosticCounts: List<int>.unmodifiable(diagnosticCounts),
@@ -1593,6 +1773,18 @@ LiveLlmCanaryGoalAutoContinueSignals _extractGoalAutoContinueSignals(
     successfulVerifierObserved: successfulVerifierObserved,
     terminalSuccessExitObserved: terminalSuccessExitObserved,
     blockedAfterSuccessfulVerifier: blockedAfterSuccessfulVerifier,
+    repairContractActivationCount: repairContractActivationCount,
+    commandDiagnosticRepairFocusActivationCount:
+        effectiveRepairFocusActivationStreaks.length,
+    commandDiagnosticRepairFocusActivationStreaks: List<int>.unmodifiable(
+      effectiveRepairFocusActivationStreaks,
+    ),
+    unchangedVerifierReplayBeforeRepairCount:
+        unchangedVerifierReplayBeforeRepairCount,
+    blockedUnchangedVerifierReplayCount: blockedUnchangedVerifierReplayCount,
+    diagnosticSignatureChangeCount: diagnosticSignatureChangeCount,
+    maxIdenticalDiagnosticSignatureStreak:
+        maxIdenticalDiagnosticSignatureStreak,
   );
 }
 

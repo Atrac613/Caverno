@@ -127,7 +127,12 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     if (toolResults.isEmpty) {
       return false;
     }
-    return _toolResultsContainSuccessfulCurrentSavedValidation(toolResults) ||
+    const terminalSuccessPolicy = ToolTerminalSuccessPolicy();
+    return toolResults.any(
+          (toolResult) =>
+              terminalSuccessPolicy.terminalMessage(toolResult.result) != null,
+        ) ||
+        _toolResultsContainSuccessfulCurrentSavedValidation(toolResults) ||
         _toolResultsSatisfyCurrentGoalGitLifecycle(toolResults);
   }
 

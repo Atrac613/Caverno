@@ -28,6 +28,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
+import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
@@ -35,6 +36,8 @@ import 'package:caverno/features/chat/presentation/providers/conversations_notif
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+
+import 'support/dart_cli_entrypoint_resolver.dart';
 
 const _verifyCommand = 'dart run tool/verify_todo_app.dart';
 const _wordFrequencyVerifyCommand =
@@ -82,7 +85,10 @@ const _markdownTocFixtureSpec = _MvpFixtureSpec(
   toolFailureMessage: 'Markdown TOC verifier failed.',
 );
 const _stagedFailureTurns = 2;
+const _stableDiagnosticFailureTurns = 2;
 const _postSuccessMutationCode = 'todo_post_success_mutation';
+const _todoTerminalMessage =
+    'The TODO app verifier passed. The requested work is complete.';
 
 String _exactShortMvpPrompt(String documentName) =>
     '$documentName を参考にしてMVPを実装。言語はdartとする。';
@@ -110,6 +116,14 @@ void main() {
       '1';
   final expenseTrackerEnabled =
       Platform.environment['CAVERNO_CODING_EXPENSE_TRACKER_LIVE_CANARY'] == '1';
+  final stalledDiagnosticRepairEnabled =
+      Platform
+          .environment['CAVERNO_CODING_STALLED_DIAGNOSTIC_REPAIR_LIVE_CANARY'] ==
+      '1';
+  final pendingActionLengthRecoveryEnabled =
+      Platform
+          .environment['CAVERNO_CODING_PENDING_ACTION_LENGTH_RECOVERY_LIVE_CANARY'] ==
+      '1';
 
   test('TODO fixture blocks mutations after verifier success', () async {
     final root = Directory.systemTemp.createTempSync(
@@ -175,6 +189,75 @@ void main() {
     } finally {
       root.deleteSync(recursive: true);
     }
+  });
+
+  test('MVP trace detects an unchanged path-backed verifier replay', () {
+    final verifierFailure = _fixtureVerifierCall(
+      command: _verifyCommand,
+      diagnostics: const [
+        {
+          'relative_path': 'bin/todo_cli.dart',
+          'code': 'todo_cli_missing',
+          'message': 'The entrypoint is missing.',
+        },
+      ],
+    );
+
+    final replays = _unchangedPathBackedVerifierReplays([
+      verifierFailure,
+      const _TodoToolCall(
+        name: 'read_file',
+        arguments: {'path': 'bin/todo_cli.dart'},
+        result: '{"content":""}',
+        success: true,
+      ),
+      verifierFailure,
+    ]);
+
+    expect(replays, hasLength(1));
+  });
+
+  test('MVP trace allows the verifier after a mutation attempt', () {
+    final verifierFailure = _fixtureVerifierCall(
+      command: _verifyCommand,
+      diagnostics: const [
+        {
+          'relative_path': 'bin/todo_cli.dart',
+          'code': 'todo_cli_missing',
+          'message': 'The entrypoint is missing.',
+        },
+      ],
+    );
+
+    final replays = _unchangedPathBackedVerifierReplays([
+      verifierFailure,
+      const _TodoToolCall(
+        name: 'edit_file',
+        arguments: {'path': 'bin/todo_cli.dart'},
+        result: '{"error":"old_text was not found"}',
+        success: false,
+      ),
+      verifierFailure,
+    ]);
+
+    expect(replays, isEmpty);
+  });
+
+  test('MVP trace ignores repeated pathless verifier diagnostics', () {
+    final verifierFailure = _fixtureVerifierCall(
+      command: _verifyCommand,
+      diagnostics: const [
+        {
+          'code': 'dependency_error',
+          'message': 'Resolve the missing dependency.',
+        },
+      ],
+    );
+
+    expect(
+      _unchangedPathBackedVerifierReplays([verifierFailure, verifierFailure]),
+      isEmpty,
+    );
   });
 
   test('TODO verifier copies source without prior runtime state', () {
@@ -340,6 +423,119 @@ void main(List<String> args) {
     },
   );
 
+  test('TODO adaptive verifier executes one alternate entrypoint', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'todo_adaptive_entrypoint_',
+    );
+    try {
+      Directory('${root.path}/bin').createSync(recursive: true);
+      File('${root.path}/pubspec.yaml').writeAsStringSync('name: fixture\n');
+      File('${root.path}/bin/todo.dart').writeAsStringSync(r'''
+import 'dart:io';
+
+void main(List<String> args) {
+  if (args.isEmpty || args.first == 'help') {
+    stdout.writeln('Usage: add list done delete');
+    return;
+  }
+  if (args.first == 'list') {
+    stdout.writeln('No tasks.');
+    return;
+  }
+  stderr.writeln('Not implemented.');
+  exitCode = 1;
+}
+''');
+      final service = _TodoToolService(
+        root,
+        stagedFailureTurns: 0,
+        entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+      );
+
+      final verification = await service.verifyTodoApp();
+      final codes = verification.diagnostics
+          .map((diagnostic) => diagnostic['code'])
+          .toSet();
+
+      expect(codes, isNot(contains('todo_cli_missing')));
+      expect(codes, isNot(contains('todo_cli_unexpected_entrypoint')));
+      expect(codes, isNot(contains('todo_cli_ambiguous_entrypoint')));
+      expect(codes, contains('todo_cli_add_first_failed'));
+      expect(
+        verification.diagnostics
+            .where(
+              (diagnostic) => diagnostic['code'] == 'todo_cli_add_first_failed',
+            )
+            .single['relative_path'],
+        'bin/todo.dart',
+      );
+      expect(verification.transcript, contains('== list =='));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('TODO adaptive verifier reports repairable ambiguity', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'todo_ambiguous_entrypoint_',
+    );
+    try {
+      Directory('${root.path}/bin').createSync(recursive: true);
+      File('${root.path}/pubspec.yaml').writeAsStringSync('name: fixture\n');
+      File('${root.path}/bin/a.dart').writeAsStringSync('void main() {}\n');
+      File('${root.path}/bin/b.dart').writeAsStringSync('void main() {}\n');
+      final service = _TodoToolService(
+        root,
+        stagedFailureTurns: 0,
+        entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+      );
+
+      final verification = await service.verifyTodoApp();
+      final diagnostic = verification.diagnostics.single;
+
+      expect(diagnostic['code'], 'todo_cli_ambiguous_entrypoint');
+      expect(diagnostic['relative_path'], 'bin/a.dart');
+      expect(diagnostic['path'], File('${root.path}/bin/a.dart').absolute.path);
+      expect(diagnostic['message'], contains('bin/a.dart, bin/b.dart'));
+      expect(diagnostic['message'], isNot(contains('_mvp_verification_')));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test(
+    'Markdown adaptive diagnostics target the selected alternate entrypoint',
+    () async {
+      final fixture = _TodoFixture.create(null);
+      try {
+        _configureMarkdownTocFixture(fixture.root);
+        File(
+          '${fixture.root.path}/bin/generate_toc.dart',
+        ).writeAsStringSync('void main() {}\n');
+        final service = _MarkdownTocToolService(
+          fixture.root,
+          entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+        );
+
+        final verification = await service.verifyMarkdownToc();
+
+        expect(verification.diagnostics, isNotEmpty);
+        expect(
+          verification.diagnostics.map(
+            (diagnostic) => diagnostic['relative_path'],
+          ),
+          everyElement('bin/generate_toc.dart'),
+        );
+        expect(
+          verification.diagnostics.map((diagnostic) => diagnostic['code']),
+          isNot(contains('markdown_toc_ambiguous_entrypoint')),
+        );
+      } finally {
+        fixture.dispose();
+      }
+    },
+  );
+
   test(
     'derived verifiers return repairable unexpected entrypoint paths',
     () async {
@@ -367,12 +563,14 @@ void main(List<String> args) {
     },
   );
 
-  test('word-frequency verifier accepts the canonical Dart behavior', () async {
-    final fixture = _TodoFixture.create(null);
-    try {
-      _configureWordFrequencyFixture(fixture.root);
-      File('${fixture.root.path}/bin/word_frequency.dart').writeAsStringSync(
-        r'''
+  test(
+    'word-frequency verifier accepts fixed and adaptive entrypoints',
+    () async {
+      final fixture = _TodoFixture.create(null);
+      try {
+        _configureWordFrequencyFixture(fixture.root);
+        final cli = File('${fixture.root.path}/bin/word_frequency.dart')
+          ..writeAsStringSync(r'''
 import 'dart:io';
 
 void main(List<String> args) {
@@ -407,21 +605,35 @@ void main(List<String> args) {
     stdout.writeln('${row.key} ${row.value}');
   }
 }
-''',
-      );
-      final service = _WordFrequencyToolService(fixture.root);
+''');
+        final service = _WordFrequencyToolService(fixture.root);
 
-      final verification = await service.verifyWordFrequency();
+        final verification = await service.verifyWordFrequency();
 
-      expect(
-        verification.diagnostics,
-        isEmpty,
-        reason: verification.transcript,
-      );
-    } finally {
-      fixture.dispose();
-    }
-  });
+        expect(
+          verification.diagnostics,
+          isEmpty,
+          reason: verification.transcript,
+        );
+
+        cli.renameSync('${fixture.root.path}/bin/count.dart');
+        final adaptiveService = _WordFrequencyToolService(
+          fixture.root,
+          entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+        );
+        final adaptiveVerification = await adaptiveService
+            .verifyWordFrequency();
+
+        expect(
+          adaptiveVerification.diagnostics,
+          isEmpty,
+          reason: adaptiveVerification.transcript,
+        );
+      } finally {
+        fixture.dispose();
+      }
+    },
+  );
 
   test('Expense tracker verifier enforces canonical Dart behavior', () async {
     final fixture = _TodoFixture.create(null);
@@ -880,7 +1092,10 @@ void main() {
 
   test(
     'live LLM assembles the todo_app.md MVP from the minimal Japanese prompt',
-    () => _runTodoMvpLiveScenario(_exactShortMvpPrompt('todo_app.md')),
+    () => _runTodoMvpLiveScenario(
+      _exactShortMvpPrompt('todo_app.md'),
+      entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+    ),
     skip: minimalPromptEnabled
         ? false
         : 'Set CAVERNO_CODING_TODO_APP_MINIMAL_PROMPT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
@@ -920,6 +1135,24 @@ void main() {
     skip: expenseTrackerEnabled
         ? false
         : 'Set CAVERNO_CODING_EXPENSE_TRACKER_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
+
+  test(
+    'live LLM repairs a stable diagnostic plateau with constrained tools',
+    _runStalledDiagnosticRepairLiveScenario,
+    skip: stalledDiagnosticRepairEnabled
+        ? false
+        : 'Set CAVERNO_CODING_STALLED_DIAGNOSTIC_REPAIR_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
+
+  test(
+    'live LLM recovers one length-truncated pending coding action',
+    _runPendingActionLengthRecoveryLiveScenario,
+    skip: pendingActionLengthRecoveryEnabled
+        ? false
+        : 'Set CAVERNO_CODING_PENDING_ACTION_LENGTH_RECOVERY_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 30)),
   );
 }
@@ -981,21 +1214,30 @@ void _expectVerifiedGoalNotBlocked(
 Future<void> _runExpenseTrackerLiveScenario() =>
     _runShortPromptMvpLiveScenario<_ExpenseTrackerToolService>(
       spec: _expenseTrackerFixtureSpec,
-      createService: _ExpenseTrackerToolService.new,
+      createService: (root) => _ExpenseTrackerToolService(
+        root,
+        entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+      ),
       verify: (service) => service.verifyExpenseTracker(),
     );
 
 Future<void> _runMarkdownTocLiveScenario() =>
     _runShortPromptMvpLiveScenario<_MarkdownTocToolService>(
       spec: _markdownTocFixtureSpec,
-      createService: _MarkdownTocToolService.new,
+      createService: (root) => _MarkdownTocToolService(
+        root,
+        entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+      ),
       verify: (service) => service.verifyMarkdownToc(),
     );
 
 Future<void> _runMarkdownTocExactShortLiveScenario() =>
     _runShortPromptMvpLiveScenario<_MarkdownTocToolService>(
       spec: _markdownTocFixtureSpec,
-      createService: _MarkdownTocToolService.new,
+      createService: (root) => _MarkdownTocToolService(
+        root,
+        entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+      ),
       verify: (service) => service.verifyMarkdownToc(),
       prompt: _exactShortMvpPrompt(_markdownTocFixtureSpec.documentName),
     );
@@ -1003,9 +1245,306 @@ Future<void> _runMarkdownTocExactShortLiveScenario() =>
 Future<void> _runWordFrequencyLiveScenario() =>
     _runShortPromptMvpLiveScenario<_WordFrequencyToolService>(
       spec: _wordFrequencyFixtureSpec,
-      createService: _WordFrequencyToolService.new,
+      createService: (root) => _WordFrequencyToolService(
+        root,
+        entrypointPolicy: DartCliEntrypointPolicy.singleUnderBin,
+      ),
       verify: (service) => service.verifyWordFrequency(),
     );
+
+Future<void> _runStalledDiagnosticRepairLiveScenario() async {
+  final env = _TodoFixtureEnv.fromEnvironment();
+  final fixture = _TodoFixture.create(env.workspaceRoot);
+  final sessionLogRoot = Directory(env.sessionLogRoot)
+    ..createSync(recursive: true);
+  final logStore = LlmSessionLogStore(
+    rootDirectoryProvider: () async => sessionLogRoot,
+  );
+  final dataSource = _TodoAutoContinueDataSource(
+    env,
+    stagedFailureTurns: _stableDiagnosticFailureTurns,
+  );
+  final toolService = _TodoToolService(
+    fixture.root,
+    stagedFailureTurns: 0,
+    stableDiagnosticFailureTurns: _stableDiagnosticFailureTurns,
+  );
+  final container = _buildContainer(
+    env: env,
+    fixture: fixture,
+    dataSource: dataSource,
+    toolService: toolService,
+    logStore: logStore,
+    disableCodingDiagnosticFeedback: true,
+  );
+  final prompt = _exactShortMvpPrompt('todo_app.md');
+
+  try {
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    conversations.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: fixture.project.id,
+    );
+    await conversations.saveCurrentGoal(
+      objective: prompt,
+      enabled: true,
+      autoContinue: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 60000,
+      turnBudget: 6,
+    );
+
+    await container
+        .read(chatNotifierProvider.notifier)
+        .sendMessage(prompt, bypassPlanMode: true);
+    await _waitForGoalTerminalOrIdle(container);
+
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!;
+    final logFile = await logStore.fileForContext(
+      LlmSessionLogContext(
+        workspaceMode: WorkspaceMode.coding,
+        sessionId: conversation.id,
+        conversationId: conversation.id,
+      ),
+      create: false,
+    );
+    final entries = await _readSessionLogEntries(logFile);
+    final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
+    final verifierCalls = toolService.executedCalls
+        .where(_isTodoVerifierCall)
+        .toList(growable: false);
+    final mutations = toolService.executedCalls
+        .asMap()
+        .entries
+        .where((entry) => toolService._isMutation(entry.value.name))
+        .where((entry) => entry.value.success)
+        .map((entry) => entry.key)
+        .toList(growable: false);
+    final repairToolRequests = entries
+        .where(_containsRepairContractRequest)
+        .where(_advertisesTools)
+        .toList(growable: false);
+    final unresolvedErrorCounts = entries
+        .map(_unresolvedErrorCount)
+        .whereType<int>()
+        .toList(growable: false);
+
+    expect(verifierCalls.length, greaterThanOrEqualTo(3), reason: diagnostic);
+    expect(
+      _diagnosticsFromCall(verifierCalls[0]),
+      _diagnosticsFromCall(verifierCalls[1]),
+      reason: diagnostic,
+    );
+    expect(
+      unresolvedErrorCounts.take(2),
+      orderedEquals(const [1, 1]),
+      reason: diagnostic,
+    );
+    expect(
+      entries.any(
+        (entry) => _requestContainsToolResult(
+          entry,
+          CodingDiagnosticFeedbackService.toolName,
+        ),
+      ),
+      isFalse,
+      reason: diagnostic,
+    );
+    final secondFailureIndex = toolService.executedCalls.indexOf(
+      verifierCalls[1],
+    );
+    final successIndex = toolService.executedCalls.lastIndexWhere((call) {
+      return _isTodoVerifierCall(call) &&
+          _tryDecodeObject(call.result)['exit_code'] == 0;
+    });
+    expect(
+      mutations.any(
+        (index) => index > secondFailureIndex && index < successIndex,
+      ),
+      isTrue,
+      reason: diagnostic,
+    );
+    expect(repairToolRequests, isNotEmpty, reason: diagnostic);
+    expect(
+      repairToolRequests.every(_usesOnlyRepairTools),
+      isTrue,
+      reason: diagnostic,
+    );
+    expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
+    _expectVerifiedGoalNotBlocked(container, diagnostic);
+    final completedGoal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.goal;
+    expect(
+      completedGoal?.status,
+      ConversationGoalStatus.completed,
+      reason: '$diagnostic\nTerminal verifier success must complete the goal.',
+    );
+    expect(
+      completedGoal?.completionSummary,
+      _todoTerminalMessage,
+      reason:
+          '$diagnostic\nThe goal summary must use terminal evidence instead '
+          'of earlier assistant narration.',
+    );
+    expect(
+      toolService.postSuccessMutationAttempts,
+      isEmpty,
+      reason: diagnostic,
+    );
+    final independentVerification = await toolService.verifyTodoApp();
+    expect(
+      independentVerification.diagnostics,
+      isEmpty,
+      reason: '$diagnostic\n${independentVerification.transcript}',
+    );
+  } finally {
+    container.dispose();
+    fixture.dispose();
+  }
+}
+
+List<dynamic> _diagnosticsFromCall(_TodoToolCall call) {
+  return _tryDecodeObject(call.result)['diagnostics'] as List<dynamic>? ??
+      const <dynamic>[];
+}
+
+_TodoToolCall _fixtureVerifierCall({
+  required String command,
+  required List<Map<String, dynamic>> diagnostics,
+}) {
+  return _TodoToolCall(
+    name: 'local_execute_command',
+    arguments: {'command': command},
+    result: jsonEncode({
+      'command': command,
+      'exit_code': diagnostics.isEmpty ? 0 : 1,
+      'diagnostics': diagnostics,
+    }),
+    success: diagnostics.isEmpty,
+  );
+}
+
+List<_TodoToolCall> _unchangedPathBackedVerifierReplays(
+  List<_TodoToolCall> calls,
+) {
+  final replays = <_TodoToolCall>[];
+  String? activeVerifierCommand;
+  var mutationAttempted = false;
+
+  for (final call in calls) {
+    if (_isFixtureMutationCall(call)) {
+      mutationAttempted = true;
+      continue;
+    }
+    final command = _fixtureVerifierCommand(call);
+    if (command == null) continue;
+
+    if (activeVerifierCommand == command && !mutationAttempted) {
+      replays.add(call);
+    }
+    final result = _tryDecodeObject(call.result);
+    if (_hasPathBackedDiagnostics(result['diagnostics']) &&
+        result['exit_code'] != 0) {
+      activeVerifierCommand = command;
+      mutationAttempted = false;
+    } else {
+      activeVerifierCommand = null;
+      mutationAttempted = false;
+    }
+  }
+
+  return replays;
+}
+
+bool _isFixtureMutationCall(_TodoToolCall call) =>
+    call.name == 'write_file' ||
+    call.name == 'edit_file' ||
+    call.name == 'delete_file';
+
+String? _fixtureVerifierCommand(_TodoToolCall call) {
+  if (call.name != 'local_execute_command') return null;
+  final result = _tryDecodeObject(call.result);
+  if (!result.containsKey('exit_code')) return null;
+  final rawCommand = call.arguments['command'] ?? result['command'];
+  if (rawCommand is! String || rawCommand.trim().isEmpty) return null;
+  return rawCommand.replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+bool _hasPathBackedDiagnostics(Object? rawDiagnostics) {
+  if (rawDiagnostics is! List) return false;
+  return rawDiagnostics.whereType<Map>().any((diagnostic) {
+    final relativePath = diagnostic['relative_path'];
+    final path = diagnostic['path'];
+    return (relativePath is String && relativePath.trim().isNotEmpty) ||
+        (path is String && path.trim().isNotEmpty);
+  });
+}
+
+bool _isTodoVerifierCall(_TodoToolCall call) {
+  if (call.name != 'local_execute_command') return false;
+  final command = (call.arguments['command'] as String? ?? _verifyCommand)
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  return command == _verifyCommand;
+}
+
+bool _containsRepairContractRequest(Map<String, dynamic> entry) {
+  final request = entry['request'];
+  if (request is! Map) return false;
+  final messages = request['messages'];
+  if (messages is! List) return false;
+  for (final message in messages.reversed) {
+    if (message is! Map || message['role'] != 'user') continue;
+    return (message['content'] as String? ?? '').contains('<repair_contract>');
+  }
+  return false;
+}
+
+bool _advertisesTools(Map<String, dynamic> entry) {
+  final request = entry['request'];
+  if (request is! Map) return false;
+  final tools = request['tools'];
+  return tools is List && tools.isNotEmpty;
+}
+
+bool _requestContainsToolResult(Map<String, dynamic> entry, String toolName) {
+  final request = entry['request'];
+  if (request is! Map) return false;
+  final toolResults = request['toolResults'];
+  if (toolResults is! List) return false;
+  return toolResults.whereType<Map>().any(
+    (result) => result['name'] == toolName,
+  );
+}
+
+bool _usesOnlyRepairTools(Map<String, dynamic> entry) {
+  final request = entry['request'];
+  if (request is! Map) return false;
+  final tools = request['tools'];
+  if (tools is! List) return false;
+  final names = tools
+      .whereType<Map>()
+      .map((tool) => tool['function'])
+      .whereType<Map>()
+      .map((function) => function['name'])
+      .whereType<String>()
+      .toSet();
+  return names.isNotEmpty &&
+      names.difference(const {
+        'list_directory',
+        'read_file',
+        'write_file',
+        'edit_file',
+        'delete_file',
+      }).isEmpty &&
+      !names.contains('local_execute_command');
+}
 
 Future<void> _runShortPromptMvpLiveScenario<T extends _TodoToolService>({
   required _MvpFixtureSpec spec,
@@ -1058,20 +1597,27 @@ Future<void> _runShortPromptMvpLiveScenario<T extends _TodoToolService>({
 
     final verification = await verify(toolService);
     final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
+    final entrypointResolution = toolService._resolveDartCliEntrypoint(
+      work: fixture.root,
+      canonicalRelativePath: spec.entrypoint,
+    );
+    expect(entrypointResolution.isResolved, isTrue, reason: diagnostic);
     expect(
-      File('${fixture.root.path}/${spec.entrypoint}').existsSync(),
+      File(
+        '${fixture.root.path}/${entrypointResolution.selectedRelativePath}',
+      ).existsSync(),
       isTrue,
       reason: diagnostic,
     );
-    final entrypointName = spec.entrypoint.split('/').last;
-    expect(
-      Directory(
-        '${fixture.root.path}/bin',
-      ).listSync().whereType<File>().map((file) => file.uri.pathSegments.last),
-      unorderedEquals([entrypointName]),
-      reason: diagnostic,
-    );
+    expect(entrypointResolution.candidates, hasLength(1), reason: diagnostic);
     expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
+    expect(
+      _unchangedPathBackedVerifierReplays(toolService.executedCalls),
+      isEmpty,
+      reason:
+          '$diagnostic\nThe same path-backed verifier must not be dispatched '
+          'again before a mutation attempt.',
+    );
     _expectVerifiedGoalNotBlocked(container, diagnostic);
     expect(
       toolService.postSuccessMutationAttempts,
@@ -1114,7 +1660,10 @@ void main() {}
 ''');
 }
 
-Future<void> _runTodoMvpLiveScenario(String prompt) async {
+Future<void> _runTodoMvpLiveScenario(
+  String prompt, {
+  DartCliEntrypointPolicy entrypointPolicy = DartCliEntrypointPolicy.fixed,
+}) async {
   final env = _TodoFixtureEnv.fromEnvironment();
   final fixture = _TodoFixture.create(env.workspaceRoot);
   final sessionLogRoot = Directory(env.sessionLogRoot)
@@ -1123,7 +1672,11 @@ Future<void> _runTodoMvpLiveScenario(String prompt) async {
     rootDirectoryProvider: () async => sessionLogRoot,
   );
   final dataSource = _TodoAutoContinueDataSource(env, stagedFailureTurns: 0);
-  final toolService = _TodoToolService(fixture.root, stagedFailureTurns: 0);
+  final toolService = _TodoToolService(
+    fixture.root,
+    stagedFailureTurns: 0,
+    entrypointPolicy: entrypointPolicy,
+  );
   final container = _buildContainer(
     env: env,
     fixture: fixture,
@@ -1159,19 +1712,20 @@ Future<void> _runTodoMvpLiveScenario(String prompt) async {
         .currentConversation!;
     final independentVerification = await toolService.verifyTodoApp();
     final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
+    final entrypointResolution = toolService._resolveDartCliEntrypoint(
+      work: fixture.root,
+      canonicalRelativePath: 'bin/todo_cli.dart',
+    );
 
+    expect(entrypointResolution.isResolved, isTrue, reason: diagnostic);
     expect(
-      File('${fixture.root.path}/bin/todo_cli.dart').existsSync(),
+      File(
+        '${fixture.root.path}/${entrypointResolution.selectedRelativePath}',
+      ).existsSync(),
       isTrue,
       reason: diagnostic,
     );
-    expect(
-      Directory(
-        '${fixture.root.path}/bin',
-      ).listSync().whereType<File>().map((file) => file.uri.pathSegments.last),
-      unorderedEquals(const ['todo_cli.dart']),
-      reason: diagnostic,
-    );
+    expect(entrypointResolution.candidates, hasLength(1), reason: diagnostic);
     _expectVerifiedGoalNotBlocked(container, diagnostic);
     expect(
       conversation.effectiveWorkflowSpec.sources.map((source) => source.kind),
@@ -1200,6 +1754,13 @@ Future<void> _runTodoMvpLiveScenario(String prompt) async {
     );
     expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
     expect(
+      _unchangedPathBackedVerifierReplays(toolService.executedCalls),
+      isEmpty,
+      reason:
+          '$diagnostic\nThe same path-backed verifier must not be dispatched '
+          'again before a mutation attempt.',
+    );
+    expect(
       toolService.postSuccessMutationAttempts,
       isEmpty,
       reason: '$diagnostic\npostSuccessMutationCode=$_postSuccessMutationCode',
@@ -1211,6 +1772,87 @@ Future<void> _runTodoMvpLiveScenario(String prompt) async {
           '$diagnostic\nindependentVerification='
           '${jsonEncode(independentVerification.diagnostics)}\n'
           '${independentVerification.transcript}',
+    );
+  } finally {
+    container.dispose();
+    fixture.dispose();
+  }
+}
+
+Future<void> _runPendingActionLengthRecoveryLiveScenario() async {
+  final env = _TodoFixtureEnv.fromEnvironment();
+  final fixture = _TodoFixture.create(env.workspaceRoot);
+  final sessionLogRoot = Directory(env.sessionLogRoot)
+    ..createSync(recursive: true);
+  final dataSource = _TodoAutoContinueDataSource(
+    env,
+    stagedFailureTurns: 0,
+    forcePendingActionLengthRecovery: true,
+  );
+  final toolService = _TodoToolService(fixture.root, stagedFailureTurns: 1);
+  final container = _buildContainer(
+    env: env,
+    fixture: fixture,
+    dataSource: dataSource,
+    toolService: toolService,
+    logStore: LlmSessionLogStore(
+      rootDirectoryProvider: () async => sessionLogRoot,
+    ),
+  );
+  final prompt = _exactShortMvpPrompt('todo_app.md');
+
+  try {
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    conversations.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: fixture.project.id,
+    );
+    await conversations.saveCurrentGoal(
+      objective: prompt,
+      enabled: true,
+      autoContinue: true,
+      status: ConversationGoalStatus.active,
+      tokenBudget: 60000,
+      turnBudget: 5,
+    );
+
+    await container
+        .read(chatNotifierProvider.notifier)
+        .sendMessage(prompt, bypassPlanMode: true);
+    await _waitForGoalTerminalOrIdle(container);
+
+    final verification = await toolService.verifyTodoApp();
+    final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
+    expect(dataSource.forcedPendingActionLengthCount, 1, reason: diagnostic);
+    expect(dataSource.pendingActionRecoveryRequestCount, 1, reason: diagnostic);
+    expect(
+      dataSource.pendingActionRecoveryToolCallCount,
+      greaterThan(0),
+      reason: diagnostic,
+    );
+    expect(
+      dataSource.pendingActionRecoveryToolNames,
+      dataSource.preTruncationToolNames,
+      reason: diagnostic,
+    );
+    expect(
+      toolService.verificationAttempts,
+      greaterThanOrEqualTo(2),
+      reason: diagnostic,
+    );
+    expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
+    _expectVerifiedGoalNotBlocked(container, diagnostic);
+    expect(
+      toolService.postSuccessMutationAttempts,
+      isEmpty,
+      reason: diagnostic,
+    );
+    expect(
+      verification.diagnostics,
+      isEmpty,
+      reason: '$diagnostic\n${verification.transcript}',
     );
   } finally {
     container.dispose();
@@ -1249,6 +1891,7 @@ ProviderContainer _buildContainer({
   required _TodoAutoContinueDataSource dataSource,
   required _TodoToolService toolService,
   required LlmSessionLogStore logStore,
+  bool disableCodingDiagnosticFeedback = false,
 }) {
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
@@ -1264,6 +1907,12 @@ ProviderContainer _buildContainer({
       chatRemoteDataSourceProvider.overrideWithValue(dataSource),
       mcpToolServiceProvider.overrideWithValue(toolService),
       llmSessionLogStoreProvider.overrideWithValue(logStore),
+      if (disableCodingDiagnosticFeedback)
+        codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+          CodingDiagnosticFeedbackService(
+            provider: const _NoopCodingDiagnosticFeedbackProvider(),
+          ),
+        ),
       sessionMemoryServiceProvider.overrideWithValue(
         _NoopSessionMemoryService(),
       ),
@@ -1672,6 +2321,22 @@ class _NoopBackgroundTaskService extends BackgroundTaskService {
   void dispose() {}
 }
 
+class _NoopCodingDiagnosticFeedbackProvider
+    implements CodingDiagnosticFeedbackProvider {
+  const _NoopCodingDiagnosticFeedbackProvider();
+
+  @override
+  String get providerName => 'noop';
+
+  @override
+  Future<CodingDiagnosticSnapshot?> collectSnapshot({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+  }) async {
+    return null;
+  }
+}
+
 class _NoopNotificationService extends NotificationService {
   @override
   Future<void> init() async {}
@@ -1716,11 +2381,19 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
   _TodoAutoContinueDataSource(
     _TodoFixtureEnv env, {
     required this.stagedFailureTurns,
+    this.forcePendingActionLengthRecovery = false,
   }) : super(baseUrl: env.baseUrl, apiKey: env.apiKey);
 
   final int stagedFailureTurns;
+  final bool forcePendingActionLengthRecovery;
 
   int forcedIncompleteTurns = 0;
+  int forcedPendingActionLengthCount = 0;
+  int pendingActionRecoveryRequestCount = 0;
+  int pendingActionRecoveryToolCallCount = 0;
+  Set<String> preTruncationToolNames = const {};
+  Set<String> pendingActionRecoveryToolNames = const {};
+  bool _awaitingForcedFinalStream = false;
 
   @override
   Future<ChatCompletionResult> createChatCompletionWithToolResults({
@@ -1731,7 +2404,34 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
     String? model,
     double? temperature,
     int? maxTokens,
-  }) {
+  }) async {
+    if (_isPendingActionRecoveryRequest(messages)) {
+      pendingActionRecoveryRequestCount += 1;
+      pendingActionRecoveryToolNames = _toolNames(tools);
+      final result = await super.createChatCompletionWithToolResults(
+        messages: messages,
+        toolResults: toolResults,
+        assistantContent: assistantContent,
+        tools: tools,
+        model: model,
+        temperature: temperature,
+        maxTokens: maxTokens,
+      );
+      if (result.hasToolCalls) {
+        pendingActionRecoveryToolCallCount += result.toolCalls!.length;
+      }
+      return result;
+    }
+    if (_shouldForcePendingActionLength(toolResults)) {
+      preTruncationToolNames = _toolNames(tools);
+      _awaitingForcedFinalStream = true;
+      lastFinishReason = 'stop';
+      return ChatCompletionResult(
+        content: '',
+        finishReason: 'stop',
+        usage: TokenUsage.zero,
+      );
+    }
     final forced = _forcedIncompleteResult(toolResults);
     if (forced != null) {
       return Future.value(forced);
@@ -1746,6 +2446,56 @@ class _TodoAutoContinueDataSource extends ChatRemoteDataSource {
       maxTokens: maxTokens,
     );
   }
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async* {
+    if (_awaitingForcedFinalStream) {
+      _awaitingForcedFinalStream = false;
+      forcedPendingActionLengthCount += 1;
+      lastFinishReason = 'length';
+      yield 'The verifier still reports unresolved diagnostics. I will';
+      return;
+    }
+    yield* super.streamChatCompletion(
+      messages: messages,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  bool _shouldForcePendingActionLength(List<ToolResultInfo> toolResults) {
+    if (!forcePendingActionLengthRecovery ||
+        forcedPendingActionLengthCount > 0 ||
+        _awaitingForcedFinalStream) {
+      return false;
+    }
+    return toolResults.any((result) {
+      final decoded = _tryDecodeObject(result.result);
+      return decoded['canary'] == 'todo_app' &&
+          decoded['exit_code'] != 0 &&
+          _hasPathBackedDiagnostics(decoded['diagnostics']);
+    });
+  }
+
+  bool _isPendingActionRecoveryRequest(List<Message> messages) => messages.any(
+    (message) =>
+        message.id.startsWith('length_truncated_pending_action_recovery_'),
+  );
+
+  Set<String> _toolNames(List<Map<String, dynamic>>? tools) =>
+      tools
+          ?.map((tool) => tool['function'])
+          .whereType<Map<String, dynamic>>()
+          .map((function) => function['name'])
+          .whereType<String>()
+          .toSet() ??
+      const {};
 
   @override
   Future<ChatCompletionResult> createChatCompletionWithToolResult({
@@ -1880,12 +2630,22 @@ class _TodoToolCall {
 }
 
 class _TodoToolService extends McpToolService {
-  _TodoToolService(this.root, {required this.stagedFailureTurns});
+  _TodoToolService(
+    this.root, {
+    required this.stagedFailureTurns,
+    this.stableDiagnosticFailureTurns = 0,
+    this.entrypointPolicy = DartCliEntrypointPolicy.fixed,
+  });
 
   final Directory root;
   final int stagedFailureTurns;
+  final int stableDiagnosticFailureTurns;
+  final DartCliEntrypointPolicy entrypointPolicy;
   final List<_TodoToolCall> executedCalls = [];
+  String? _resolvedDiagnosticEntrypoint;
   int verificationAttempts = 0;
+
+  String get _canonicalDiagnosticEntrypoint => 'bin/todo_cli.dart';
 
   bool get hasSuccessfulVerifierCall {
     return executedCalls.any((call) {
@@ -2184,11 +2944,38 @@ class _TodoToolService extends McpToolService {
     }
 
     verificationAttempts += 1;
+    if (verificationAttempts <= stableDiagnosticFailureTurns) {
+      return _stableDiagnosticVerifierFailure(name);
+    }
     if (verificationAttempts <= stagedFailureTurns) {
       return _stagedVerifierFailure(name, verificationAttempts);
     }
     final verification = await _verifyTodoApp();
     return _verifierResult(name, verification);
+  }
+
+  McpToolResult _stableDiagnosticVerifierFailure(String name) {
+    final payload = jsonEncode({
+      'canary': 'todo_app',
+      'command': _verifyCommand,
+      'working_directory': root.absolute.path,
+      'exit_code': 1,
+      'stdout': '',
+      'stderr': 'Stable TODO verifier diagnostic plateau.\n',
+      'diagnostics': [
+        _diagnosticJson(
+          code: 'todo_cli_stable_repair_probe',
+          message:
+              'The TODO implementation still requires one concrete repair before final verification.',
+        ),
+      ],
+    });
+    return McpToolResult(
+      toolName: name,
+      result: payload,
+      isSuccess: false,
+      errorMessage: 'TODO verifier reported a stable repair diagnostic.',
+    );
   }
 
   String _normalizedCommand(String? command) {
@@ -2251,27 +3038,27 @@ class _TodoToolService extends McpToolService {
   Future<_TodoVerification> _verifyTodoAppIn(Directory verificationRoot) async {
     final diagnostics = <Map<String, dynamic>>[];
     final transcript = StringBuffer();
-    final cli = File('${verificationRoot.path}/bin/todo_cli.dart');
-    if (!cli.existsSync()) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'todo_cli_missing',
-          message: 'bin/todo_cli.dart does not exist.',
-        ),
-      );
-      return _TodoVerification(diagnostics: diagnostics, transcript: '');
-    }
-    final unexpectedEntrypointDiagnostics = _unexpectedEntrypointDiagnostics(
+    final entrypointResolution = _resolveDartCliEntrypoint(
       work: verificationRoot,
-      expectedRelativePath: 'bin/todo_cli.dart',
-      code: 'todo_cli_unexpected_entrypoint',
+      canonicalRelativePath: 'bin/todo_cli.dart',
     );
-    if (unexpectedEntrypointDiagnostics.isNotEmpty) {
-      diagnostics.addAll(unexpectedEntrypointDiagnostics);
+    final entrypointDiagnostics = _entrypointDiagnostics(
+      entrypointResolution,
+      missingCode: 'todo_cli_missing',
+      unexpectedCode: 'todo_cli_unexpected_entrypoint',
+      ambiguousCode: 'todo_cli_ambiguous_entrypoint',
+    );
+    if (entrypointDiagnostics.isNotEmpty) {
+      diagnostics.addAll(entrypointDiagnostics);
       return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
+    final entrypoint = entrypointResolution.selectedRelativePath!;
 
-    final firstList = await _runTodoCommand(['list'], verificationRoot);
+    final firstList = await _runTodoCommand(
+      ['list'],
+      verificationRoot,
+      entrypoint: entrypoint,
+    );
     transcript.writeln(_formatProcess('list', firstList));
     final firstListText = [
       firstList.stdout as String,
@@ -2294,7 +3081,11 @@ class _TodoToolService extends McpToolService {
       );
     }
 
-    final noArguments = await _runTodoCommand(const [], verificationRoot);
+    final noArguments = await _runTodoCommand(
+      const [],
+      verificationRoot,
+      entrypoint: entrypoint,
+    );
     transcript.writeln(_formatProcess('no arguments', noArguments));
     final noArgumentsText = [
       noArguments.stdout as String,
@@ -2309,7 +3100,11 @@ class _TodoToolService extends McpToolService {
       );
     }
 
-    final help = await _runTodoCommand(const ['help'], verificationRoot);
+    final help = await _runTodoCommand(
+      const ['help'],
+      verificationRoot,
+      entrypoint: entrypoint,
+    );
     transcript.writeln(_formatProcess('help', help));
     final helpText = [
       help.stdout as String,
@@ -2324,15 +3119,17 @@ class _TodoToolService extends McpToolService {
       );
     }
 
-    final addMilk = await _runTodoCommand([
-      'add',
-      'buy milk',
-    ], verificationRoot);
+    final addMilk = await _runTodoCommand(
+      ['add', 'buy milk'],
+      verificationRoot,
+      entrypoint: entrypoint,
+    );
     transcript.writeln(_formatProcess('add buy milk', addMilk));
-    final addReport = await _runTodoCommand([
-      'add',
-      'write report',
-    ], verificationRoot);
+    final addReport = await _runTodoCommand(
+      ['add', 'write report'],
+      verificationRoot,
+      entrypoint: entrypoint,
+    );
     transcript.writeln(_formatProcess('add write report', addReport));
     final firstId = _extractId(addMilk.stdout as String);
     final secondId = _extractId(addReport.stdout as String);
@@ -2353,7 +3150,11 @@ class _TodoToolService extends McpToolService {
       );
     }
 
-    final list = await _runTodoCommand(['list'], verificationRoot);
+    final list = await _runTodoCommand(
+      ['list'],
+      verificationRoot,
+      entrypoint: entrypoint,
+    );
     transcript.writeln(_formatProcess('list after adds', list));
     final listOutput = (list.stdout as String).toLowerCase();
     if (list.exitCode != 0 ||
@@ -2368,9 +3169,17 @@ class _TodoToolService extends McpToolService {
     }
 
     if (firstId != null) {
-      final done = await _runTodoCommand(['done', firstId], verificationRoot);
+      final done = await _runTodoCommand(
+        ['done', firstId],
+        verificationRoot,
+        entrypoint: entrypoint,
+      );
       transcript.writeln(_formatProcess('done $firstId', done));
-      final afterDone = await _runTodoCommand(['list'], verificationRoot);
+      final afterDone = await _runTodoCommand(
+        ['list'],
+        verificationRoot,
+        entrypoint: entrypoint,
+      );
       transcript.writeln(_formatProcess('list after done', afterDone));
       final afterDoneOutput = (afterDone.stdout as String).toLowerCase();
       if (done.exitCode != 0 ||
@@ -2387,7 +3196,11 @@ class _TodoToolService extends McpToolService {
       }
     }
 
-    final persistenceList = await _runTodoCommand(['list'], verificationRoot);
+    final persistenceList = await _runTodoCommand(
+      ['list'],
+      verificationRoot,
+      entrypoint: entrypoint,
+    );
     transcript.writeln(_formatProcess('fresh list', persistenceList));
     if (persistenceList.exitCode != 0 ||
         !(persistenceList.stdout as String).toLowerCase().contains(
@@ -2402,12 +3215,17 @@ class _TodoToolService extends McpToolService {
     }
 
     if (secondId != null) {
-      final delete = await _runTodoCommand([
-        'delete',
-        secondId,
-      ], verificationRoot);
+      final delete = await _runTodoCommand(
+        ['delete', secondId],
+        verificationRoot,
+        entrypoint: entrypoint,
+      );
       transcript.writeln(_formatProcess('delete $secondId', delete));
-      final afterDelete = await _runTodoCommand(['list'], verificationRoot);
+      final afterDelete = await _runTodoCommand(
+        ['list'],
+        verificationRoot,
+        entrypoint: entrypoint,
+      );
       transcript.writeln(_formatProcess('list after delete', afterDelete));
       final afterDeleteOutput = (afterDelete.stdout as String).toLowerCase();
       if (delete.exitCode != 0 ||
@@ -2422,7 +3240,11 @@ class _TodoToolService extends McpToolService {
       }
     }
 
-    final unknown = await _runTodoCommand(['done', '999999'], verificationRoot);
+    final unknown = await _runTodoCommand(
+      ['done', '999999'],
+      verificationRoot,
+      entrypoint: entrypoint,
+    );
     transcript.writeln(_formatProcess('done unknown', unknown));
     final unknownText = [
       unknown.stdout as String,
@@ -2440,10 +3262,11 @@ class _TodoToolService extends McpToolService {
       );
     }
 
-    final unknownDelete = await _runTodoCommand([
-      'delete',
-      '999999',
-    ], verificationRoot);
+    final unknownDelete = await _runTodoCommand(
+      ['delete', '999999'],
+      verificationRoot,
+      entrypoint: entrypoint,
+    );
     transcript.writeln(_formatProcess('delete unknown', unknownDelete));
     final unknownDeleteText = [
       unknownDelete.stdout as String,
@@ -2469,12 +3292,13 @@ class _TodoToolService extends McpToolService {
 
   Future<ProcessResult> _runTodoCommand(
     List<String> args,
-    Directory verificationRoot,
-  ) {
+    Directory verificationRoot, {
+    String entrypoint = 'bin/todo_cli.dart',
+  }) {
     final usePub = File('${verificationRoot.path}/pubspec.yaml').existsSync();
     final processArgs = usePub
-        ? ['run', 'bin/todo_cli.dart', ...args]
-        : ['bin/todo_cli.dart', ...args];
+        ? ['run', entrypoint, ...args]
+        : [entrypoint, ...args];
     return _runIsolatedDartCommand(processArgs, verificationRoot);
   }
 
@@ -2615,8 +3439,7 @@ class _TodoToolService extends McpToolService {
       'diagnostics': verification.diagnostics,
       if (exitCode == 0) ...{
         'terminal_success': true,
-        'terminal_message':
-            'The TODO app verifier passed. The requested work is complete.',
+        'terminal_message': _todoTerminalMessage,
       },
     });
     return McpToolResult(
@@ -2632,13 +3455,16 @@ class _TodoToolService extends McpToolService {
   Map<String, dynamic> _diagnosticJson({
     required String code,
     required String message,
-    String relativePath = 'bin/todo_cli.dart',
+    String relativePath = '',
   }) {
-    final path = File('${root.path}/$relativePath').absolute.path;
+    final effectiveRelativePath = relativePath.isEmpty
+        ? (_resolvedDiagnosticEntrypoint ?? _canonicalDiagnosticEntrypoint)
+        : relativePath;
+    final path = File('${root.path}/$effectiveRelativePath').absolute.path;
     return {
       'severity': 'Error',
       'path': path,
-      'relative_path': relativePath,
+      'relative_path': effectiveRelativePath,
       'line': 1,
       'column': 1,
       'code': code,
@@ -2646,43 +3472,38 @@ class _TodoToolService extends McpToolService {
     };
   }
 
-  List<Map<String, dynamic>> _unexpectedEntrypointDiagnostics({
+  DartCliEntrypointResolution _resolveDartCliEntrypoint({
     required Directory work,
-    required String expectedRelativePath,
-    required String code,
+    required String canonicalRelativePath,
   }) {
-    final expected = File('${work.path}/$expectedRelativePath').absolute;
-    return expected.parent
-        .listSync()
-        .whereType<File>()
-        .where(
-          (file) =>
-              file.path.endsWith('.dart') &&
-              file.absolute.path != expected.path,
-        )
-        .map((file) {
-          final relativePath = _relativePathInside(work, file);
-          return _diagnosticJson(
-            code: code,
-            message:
-                'Unexpected Dart entrypoint $relativePath. Keep only '
-                '$expectedRelativePath and remove this file with delete_file.',
-            relativePath: relativePath,
-          );
-        })
-        .toList(growable: false);
+    final resolution = const DartCliEntrypointResolver().resolve(
+      root: work,
+      canonicalRelativePath: canonicalRelativePath,
+      policy: entrypointPolicy,
+    );
+    _resolvedDiagnosticEntrypoint = resolution.selectedRelativePath;
+    return resolution;
   }
 
-  String _relativePathInside(Directory base, File file) {
-    final basePath = base.absolute.path;
-    final filePath = file.absolute.path;
-    final prefix = '$basePath${Platform.pathSeparator}';
-    if (!filePath.startsWith(prefix)) {
-      throw StateError('Expected ${file.path} to stay inside ${base.path}.');
-    }
-    return filePath
-        .substring(prefix.length)
-        .replaceAll(Platform.pathSeparator, '/');
+  List<Map<String, dynamic>> _entrypointDiagnostics(
+    DartCliEntrypointResolution resolution, {
+    required String missingCode,
+    required String unexpectedCode,
+    required String ambiguousCode,
+  }) {
+    return resolution.issues
+        .map(
+          (issue) => _diagnosticJson(
+            code: switch (issue.kind) {
+              DartCliEntrypointIssueKind.missing => missingCode,
+              DartCliEntrypointIssueKind.unexpected => unexpectedCode,
+              DartCliEntrypointIssueKind.ambiguous => ambiguousCode,
+            },
+            message: issue.message,
+            relativePath: issue.relativePath,
+          ),
+        )
+        .toList(growable: false);
   }
 
   _ResolvedPath _resolveInsideRoot(
@@ -2751,8 +3572,11 @@ class _TodoToolService extends McpToolService {
 }
 
 abstract class _DerivedMvpToolService extends _TodoToolService {
-  _DerivedMvpToolService(super.root, this.fixtureSpec)
-    : super(stagedFailureTurns: 0);
+  _DerivedMvpToolService(
+    super.root,
+    this.fixtureSpec, {
+    super.entrypointPolicy = DartCliEntrypointPolicy.fixed,
+  }) : super(stagedFailureTurns: 0);
 
   final _MvpFixtureSpec fixtureSpec;
 
@@ -2874,24 +3698,18 @@ abstract class _DerivedMvpToolService extends _TodoToolService {
   }
 
   @override
-  Map<String, dynamic> _diagnosticJson({
-    required String code,
-    required String message,
-    String relativePath = '',
-  }) {
-    return super._diagnosticJson(
-      code: code,
-      message: message,
-      relativePath: relativePath.isEmpty
-          ? fixtureSpec.entrypoint
-          : relativePath,
-    );
-  }
+  String get _canonicalDiagnosticEntrypoint => fixtureSpec.entrypoint;
 }
 
 class _WordFrequencyToolService extends _DerivedMvpToolService {
-  _WordFrequencyToolService(Directory root)
-    : super(root, _wordFrequencyFixtureSpec);
+  _WordFrequencyToolService(
+    Directory root, {
+    DartCliEntrypointPolicy entrypointPolicy = DartCliEntrypointPolicy.fixed,
+  }) : super(
+         root,
+         _wordFrequencyFixtureSpec,
+         entrypointPolicy: entrypointPolicy,
+       );
 
   Future<_TodoVerification> verifyWordFrequency() => verifyFixture();
 
@@ -2899,23 +3717,18 @@ class _WordFrequencyToolService extends _DerivedMvpToolService {
   Future<_TodoVerification> verifyFixtureIn(Directory work) async {
     final diagnostics = <Map<String, dynamic>>[];
     final transcript = StringBuffer();
-    final cli = File('${work.path}/bin/word_frequency.dart');
-    if (!cli.existsSync()) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'word_frequency_cli_missing',
-          message: 'bin/word_frequency.dart does not exist.',
-        ),
-      );
-      return _TodoVerification(diagnostics: diagnostics, transcript: '');
-    }
-    final unexpectedEntrypointDiagnostics = _unexpectedEntrypointDiagnostics(
+    final entrypointResolution = _resolveDartCliEntrypoint(
       work: work,
-      expectedRelativePath: 'bin/word_frequency.dart',
-      code: 'word_frequency_unexpected_entrypoint',
+      canonicalRelativePath: fixtureSpec.entrypoint,
     );
-    if (unexpectedEntrypointDiagnostics.isNotEmpty) {
-      diagnostics.addAll(unexpectedEntrypointDiagnostics);
+    final entrypointDiagnostics = _entrypointDiagnostics(
+      entrypointResolution,
+      missingCode: 'word_frequency_cli_missing',
+      unexpectedCode: 'word_frequency_unexpected_entrypoint',
+      ambiguousCode: 'word_frequency_ambiguous_entrypoint',
+    );
+    if (entrypointDiagnostics.isNotEmpty) {
+      diagnostics.addAll(entrypointDiagnostics);
       return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
 
@@ -3031,11 +3844,11 @@ class _WordFrequencyToolService extends _DerivedMvpToolService {
   }
 
   Future<ProcessResult> _runWordCommand(List<String> args, Directory work) {
-    return _runIsolatedDartCommand([
-      'run',
-      'bin/word_frequency.dart',
-      ...args,
-    ], work);
+    final entrypoint = _resolveDartCliEntrypoint(
+      work: work,
+      canonicalRelativePath: fixtureSpec.entrypoint,
+    ).selectedRelativePath!;
+    return _runIsolatedDartCommand(['run', entrypoint, ...args], work);
   }
 
   Future<ProcessResult> _runWordCommandWithTopN(
@@ -3065,8 +3878,14 @@ class _WordFrequencyToolService extends _DerivedMvpToolService {
 }
 
 class _ExpenseTrackerToolService extends _DerivedMvpToolService {
-  _ExpenseTrackerToolService(Directory root)
-    : super(root, _expenseTrackerFixtureSpec);
+  _ExpenseTrackerToolService(
+    Directory root, {
+    DartCliEntrypointPolicy entrypointPolicy = DartCliEntrypointPolicy.fixed,
+  }) : super(
+         root,
+         _expenseTrackerFixtureSpec,
+         entrypointPolicy: entrypointPolicy,
+       );
 
   Future<_TodoVerification> verifyExpenseTracker() => verifyFixture();
 
@@ -3074,23 +3893,18 @@ class _ExpenseTrackerToolService extends _DerivedMvpToolService {
   Future<_TodoVerification> verifyFixtureIn(Directory work) async {
     final diagnostics = <Map<String, dynamic>>[];
     final transcript = StringBuffer();
-    final cli = File('${work.path}/bin/expense_tracker.dart');
-    if (!cli.existsSync()) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'expense_tracker_cli_missing',
-          message: 'bin/expense_tracker.dart does not exist.',
-        ),
-      );
-      return _TodoVerification(diagnostics: diagnostics, transcript: '');
-    }
-    final unexpectedEntrypointDiagnostics = _unexpectedEntrypointDiagnostics(
+    final entrypointResolution = _resolveDartCliEntrypoint(
       work: work,
-      expectedRelativePath: 'bin/expense_tracker.dart',
-      code: 'expense_tracker_unexpected_entrypoint',
+      canonicalRelativePath: fixtureSpec.entrypoint,
     );
-    if (unexpectedEntrypointDiagnostics.isNotEmpty) {
-      diagnostics.addAll(unexpectedEntrypointDiagnostics);
+    final entrypointDiagnostics = _entrypointDiagnostics(
+      entrypointResolution,
+      missingCode: 'expense_tracker_cli_missing',
+      unexpectedCode: 'expense_tracker_unexpected_entrypoint',
+      ambiguousCode: 'expense_tracker_ambiguous_entrypoint',
+    );
+    if (entrypointDiagnostics.isNotEmpty) {
+      diagnostics.addAll(entrypointDiagnostics);
       return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
 
@@ -3271,11 +4085,11 @@ class _ExpenseTrackerToolService extends _DerivedMvpToolService {
   }
 
   Future<ProcessResult> _runExpenseCommand(List<String> args, Directory work) {
-    return _runIsolatedDartCommand([
-      'run',
-      'bin/expense_tracker.dart',
-      ...args,
-    ], work);
+    final entrypoint = _resolveDartCliEntrypoint(
+      work: work,
+      canonicalRelativePath: fixtureSpec.entrypoint,
+    ).selectedRelativePath!;
+    return _runIsolatedDartCommand(['run', entrypoint, ...args], work);
   }
 
   String _processText(ProcessResult result) {
@@ -3358,8 +4172,10 @@ class _ExpenseTrackerToolService extends _DerivedMvpToolService {
 }
 
 class _MarkdownTocToolService extends _DerivedMvpToolService {
-  _MarkdownTocToolService(Directory root)
-    : super(root, _markdownTocFixtureSpec);
+  _MarkdownTocToolService(
+    Directory root, {
+    DartCliEntrypointPolicy entrypointPolicy = DartCliEntrypointPolicy.fixed,
+  }) : super(root, _markdownTocFixtureSpec, entrypointPolicy: entrypointPolicy);
 
   Future<_TodoVerification> verifyMarkdownToc() => verifyFixture();
 
@@ -3367,23 +4183,18 @@ class _MarkdownTocToolService extends _DerivedMvpToolService {
   Future<_TodoVerification> verifyFixtureIn(Directory work) async {
     final diagnostics = <Map<String, dynamic>>[];
     final transcript = StringBuffer();
-    final cli = File('${work.path}/bin/markdown_toc.dart');
-    if (!cli.existsSync()) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'markdown_toc_cli_missing',
-          message: 'bin/markdown_toc.dart does not exist.',
-        ),
-      );
-      return _TodoVerification(diagnostics: diagnostics, transcript: '');
-    }
-    final unexpectedEntrypointDiagnostics = _unexpectedEntrypointDiagnostics(
+    final entrypointResolution = _resolveDartCliEntrypoint(
       work: work,
-      expectedRelativePath: 'bin/markdown_toc.dart',
-      code: 'markdown_toc_unexpected_entrypoint',
+      canonicalRelativePath: fixtureSpec.entrypoint,
     );
-    if (unexpectedEntrypointDiagnostics.isNotEmpty) {
-      diagnostics.addAll(unexpectedEntrypointDiagnostics);
+    final entrypointDiagnostics = _entrypointDiagnostics(
+      entrypointResolution,
+      missingCode: 'markdown_toc_cli_missing',
+      unexpectedCode: 'markdown_toc_unexpected_entrypoint',
+      ambiguousCode: 'markdown_toc_ambiguous_entrypoint',
+    );
+    if (entrypointDiagnostics.isNotEmpty) {
+      diagnostics.addAll(entrypointDiagnostics);
       return _TodoVerification(diagnostics: diagnostics, transcript: '');
     }
 
@@ -3529,11 +4340,11 @@ class _MarkdownTocToolService extends _DerivedMvpToolService {
     List<String> args,
     Directory work,
   ) {
-    return _runIsolatedDartCommand([
-      'run',
-      'bin/markdown_toc.dart',
-      ...args,
-    ], work);
+    final entrypoint = _resolveDartCliEntrypoint(
+      work: work,
+      canonicalRelativePath: fixtureSpec.entrypoint,
+    ).selectedRelativePath!;
+    return _runIsolatedDartCommand(['run', entrypoint, ...args], work);
   }
 }
 

@@ -1,6 +1,34 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierToolHandlerRegistry on ChatNotifier {
+  List<Map<String, dynamic>> _toolDefinitionsAllowedBy(
+    Set<String>? allowedToolNames,
+  ) {
+    final availableTools = _mcpToolService?.getOpenAiToolDefinitions() ?? [];
+    if (allowedToolNames == null) return availableTools;
+    final allowedTools = availableTools
+        .where((definition) {
+          final function = definition['function'];
+          final name = function is Map ? function['name']?.toString() : null;
+          return name != null && allowedToolNames.contains(name);
+        })
+        .toList(growable: false);
+    if (allowedTools.isEmpty) {
+      appLog(
+        '[Tool] No definitions matched the hidden-turn capability gate: '
+        '${allowedToolNames.toList()}',
+      );
+    }
+    return allowedTools;
+  }
+
+  void _logAllowedToolDefinitions(List<Map<String, dynamic>> definitions) {
+    final names = definitions.map(
+      (definition) => (definition['function'] as Map?)?['name'],
+    );
+    appLog('[Tool] Tool definitions: ${names.toList()}');
+  }
+
   ChatToolHandlerRegistry _buildToolHandlerRegistry({
     int? interactionGeneration,
   }) {

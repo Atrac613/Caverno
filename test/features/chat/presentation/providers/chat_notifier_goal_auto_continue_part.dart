@@ -3,6 +3,103 @@ part of 'chat_notifier_test.dart';
 // Goal auto-continuation provider tests live in a part file so
 // chat_notifier_test.dart stays under its F1 size ratchet.
 void registerChatNotifierGoalAutoContinueTests() {
+  registerChatNotifierTerminalSuccessTests();
+  registerChatNotifierToolFailureClassificationTests();
+  test(
+    'goal auto-continue retries a structured tool request from the final answer',
+    () async {
+      const finalToolRequest =
+          '<tool_use>local_execute_command'
+          '<arg_name>command</arg_name>'
+          '<arg_value>dart run bin/todo_cli.dart show missing-id</arg_value>'
+          '<arg_name>reason</arg_name>'
+          '<arg_value>Verify unknown ID behavior</arg_value>'
+          '</tool_use>';
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: [
+          [
+            ToolCallInfo(
+              id: 'call-list-initial',
+              name: 'local_execute_command',
+              arguments: const {'command': 'dart run bin/todo_cli.dart list'},
+            ),
+          ],
+          [
+            ToolCallInfo(
+              id: 'call-verify-hidden',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'dart run bin/todo_cli.dart show missing-id',
+              },
+            ),
+          ],
+        ],
+        finalAnswerChunkBatches: const [
+          [finalToolRequest],
+          ['Validation completed successfully.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'local_execute_command': 'unused fallback'},
+        queuedResults: const {
+          'local_execute_command': [
+            '{"exit_code":0,"stdout":"No items.\\n","stderr":""}',
+            '{"exit_code":0,"stdout":"Item not found.\\n","stderr":""}',
+          ],
+        },
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'goal-auto-final-tool-request',
+        settingsBuilder: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'goal-auto-final-tool-request',
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Implement and verify the TODO CLI',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 5,
+      );
+
+      await container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('Implement the TODO CLI.', bypassPlanMode: true);
+
+      await _waitForCondition(() {
+        final state = container.read(chatNotifierProvider);
+        final goal = container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal;
+        return !state.isLoading &&
+            dataSource.initialRequestMessages.length == 2 &&
+            goal?.turnsUsed == 2;
+      });
+
+      expect(toolService.executedToolNames, [
+        'local_execute_command',
+        'local_execute_command',
+      ]);
+      expect(dataSource.finalAnswerRequestMessages, hasLength(2));
+      expect(
+        dataSource.initialToolDefinitions[1]
+            .map((definition) => definition['function'])
+            .whereType<Map>()
+            .map((function) => function['name']),
+        contains('local_execute_command'),
+      );
+    },
+  );
   test(
     'goal auto-continue dispatches one hidden continuation from current evidence',
     () async {
@@ -267,7 +364,7 @@ void registerChatNotifierGoalAutoContinueTests() {
           .currentConversation
           ?.goal;
       expect(dataSource.initialRequestMessages, hasLength(3));
-      expect(goal?.blockedReason, contains('no diagnostic progress'));
+      expect(goal?.blockedReason, contains('diagnostics remained'));
     },
   );
 
@@ -809,7 +906,7 @@ void registerChatNotifierGoalAutoContinueTests() {
         'analyze_project',
         'analyze_project',
       ]);
-      expect(goal?.blockedReason, contains('no diagnostic progress'));
+      expect(goal?.blockedReason, contains('diagnostics remained'));
       expect(chatNotifier.state.goalAutoContinueCount, 0);
       expect(chatNotifier.state.goalAutoContinueBudget, 0);
     },
@@ -821,15 +918,21 @@ void registerChatNotifierGoalAutoContinueTests() {
       final dataSource = _GoalAutoContinueChatDataSource(
         toolCallBatches: [
           [_goalAutoContinueWriteCall('call-write-initial')],
-          [_goalAutoContinueWriteCall('call-write-continue-1')],
+          <ToolCallInfo>[],
+        ],
+        streamChunkBatches: const [
+          <String>[],
+          ['Validation was not executed.'],
         ],
         finalAnswerChunkBatches: const [
           ['Updated the documentation.'],
-          ['Updated the documentation again.'],
         ],
       );
       final toolService = _FakeMcpToolService(
-        results: const {'write_file': 'unused'},
+        results: const {
+          'write_file': 'unused',
+          'local_execute_command': 'unused',
+        },
         queuedResults: const {
           'write_file': [
             '{"path":"/tmp/goal-auto-unverified/README.md","bytes_written":18}',
@@ -883,7 +986,13 @@ void registerChatNotifierGoalAutoContinueTests() {
           .currentConversation
           ?.goal;
       expect(dataSource.initialRequestMessages, hasLength(2));
-      expect(toolService.executedToolNames, ['write_file', 'write_file']);
+      expect(toolService.executedToolNames, ['write_file']);
+      expect(
+        ToolDefinitionSearchService.toolNamesFromDefinitions(
+          dataSource.initialToolDefinitions[1],
+        ),
+        {'local_execute_command'},
+      );
       expect(
         dataSource.initialRequestMessages[1]
             .where((message) => message.role == MessageRole.user)
@@ -898,6 +1007,432 @@ void registerChatNotifierGoalAutoContinueTests() {
       expect(chatNotifier.state.goalAutoContinueBudget, 0);
     },
   );
+
+  test(
+    'goal auto-continue extends once when repair replay advances diagnostics',
+    () async {
+      ToolCallInfo verifierCall(String id) => ToolCallInfo(
+        id: id,
+        name: 'local_execute_command',
+        arguments: const {
+          'command': 'dart run tool/verify.dart',
+          'working_directory': '/tmp/goal-auto-capability-gate',
+        },
+      );
+
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: [
+          [verifierCall('call-verify-failing')],
+          [verifierCall('call-verify-plateau')],
+          [_goalAutoContinueWriteCall('call-write-plateau-repair')],
+          [verifierCall('call-verify-advanced-diagnostics')],
+        ],
+        finalAnswerChunkBatches: const [
+          ['Verification found one concrete error.'],
+          ['Verification found the same concrete error.'],
+          ['Applied the plateau repair.'],
+          ['Verified the concrete follow-up repair.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file': 'unused',
+          'local_execute_command': 'unused',
+        },
+        queuedResults: {
+          'write_file': const [
+            '{"path":"/tmp/goal-auto-capability-gate/README.md","bytes_written":22}',
+          ],
+          'local_execute_command': [
+            jsonEncode({
+              'command': 'dart run tool/verify.dart',
+              'exit_code': 1,
+              'diagnostics': [
+                {
+                  'severity': 'Error',
+                  'path': '/tmp/goal-auto-capability-gate/README.md',
+                  'relative_path': 'README.md',
+                  'line': 1,
+                  'column': 1,
+                  'code': 'fixture_failure',
+                  'message': 'Expected repaired content.',
+                },
+              ],
+            }),
+            jsonEncode({
+              'command': 'dart run tool/verify.dart',
+              'exit_code': 1,
+              'diagnostics': [
+                {
+                  'severity': 'Error',
+                  'path': '/tmp/goal-auto-capability-gate/README.md',
+                  'relative_path': 'README.md',
+                  'line': 1,
+                  'column': 1,
+                  'code': 'fixture_failure',
+                  'message': 'Expected repaired content.',
+                },
+              ],
+            }),
+            jsonEncode({
+              'command': 'dart run tool/verify.dart',
+              'exit_code': 1,
+              'diagnostics': [
+                {
+                  'severity': 'Error',
+                  'path': '/tmp/goal-auto-capability-gate/README.md',
+                  'relative_path': 'README.md',
+                  'line': 2,
+                  'column': 1,
+                  'code': 'concrete_failure_one',
+                  'message': 'Apply the first concrete repair.',
+                },
+                {
+                  'severity': 'Error',
+                  'path': '/tmp/goal-auto-capability-gate/README.md',
+                  'relative_path': 'README.md',
+                  'line': 3,
+                  'column': 1,
+                  'code': 'concrete_failure_two',
+                  'message': 'Apply the second concrete repair.',
+                },
+              ],
+            }),
+            jsonEncode({
+              'command': 'dart run tool/verify.dart',
+              'exit_code': 0,
+              'diagnostics': const <Object>[],
+            }),
+          ],
+        },
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'goal-auto-capability-gate',
+        settingsBuilder: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'goal-auto-capability-gate',
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Implement and verify the fixture',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 5,
+      );
+
+      await container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('Implement the fixture.', bypassPlanMode: true);
+
+      await _waitForCondition(() {
+        final goal = container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal;
+        return !container.read(chatNotifierProvider).isLoading &&
+            dataSource.initialRequestMessages.length == 4 &&
+            goal?.turnsUsed == 4;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final offeredToolNames = dataSource.initialToolDefinitions
+          .map(ToolDefinitionSearchService.toolNamesFromDefinitions)
+          .toList(growable: false);
+      expect(offeredToolNames, [
+        {'write_file', 'local_execute_command'},
+        {'write_file', 'local_execute_command'},
+        {'write_file'},
+        {'write_file', 'local_execute_command'},
+      ]);
+      final repairPrompt = dataSource.initialRequestMessages[2]
+          .where((message) => message.role == MessageRole.user)
+          .map((message) => message.content)
+          .join('\n');
+      expect(repairPrompt, contains('<repair_contract>'));
+      expect(repairPrompt, contains('This is a repair-only continuation.'));
+      expect(
+        repairPrompt,
+        contains('README.md: [fixture_failure] Expected repaired content.'),
+      );
+      expect(
+        repairPrompt,
+        contains('write_file when a required file is missing'),
+      );
+      expect(
+        repairPrompt,
+        isNot(contains('This is a validation-only continuation.')),
+      );
+      expect(toolService.executedToolNames, [
+        'local_execute_command',
+        'local_execute_command',
+        'write_file',
+        'local_execute_command',
+        'local_execute_command',
+      ]);
+      expect(dataSource.toolResultToolDefinitions[2], isEmpty);
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal;
+      expect(goal?.status, isNot(ConversationGoalStatus.blocked));
+    },
+  );
+
+  test(
+    'goal auto-continue retries one repair turn that made no mutation',
+    () async {
+      ToolCallInfo verifierCall(String id) => ToolCallInfo(
+        id: id,
+        name: 'local_execute_command',
+        arguments: const {
+          'command': 'dart run tool/verify.dart',
+          'working_directory': '/tmp/goal-auto-no-mutation-retry',
+        },
+      );
+
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: [
+          [verifierCall('call-verify-failing')],
+          [verifierCall('call-verify-plateau')],
+          const <ToolCallInfo>[],
+          [_goalAutoContinueWriteCall('call-write-retry-repair')],
+        ],
+        streamChunkBatches: const [
+          <String>[],
+          <String>[],
+          ['Let me inspect the file before changing it.'],
+          <String>[],
+        ],
+        finalAnswerChunkBatches: const [
+          ['Verification found one concrete error.'],
+          ['Verification found the same concrete error.'],
+          ['Applied the retry repair.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file': 'unused',
+          'local_execute_command': 'unused',
+        },
+        queuedResults: {
+          'write_file': const [
+            '{"path":"/tmp/goal-auto-no-mutation-retry/README.md",'
+                '"bytes_written":22}',
+          ],
+          'local_execute_command': [
+            for (var index = 0; index < 2; index += 1)
+              jsonEncode({
+                'command': 'dart run tool/verify.dart',
+                'exit_code': 1,
+                'diagnostics': [
+                  {
+                    'severity': 'Error',
+                    'path': '/tmp/goal-auto-no-mutation-retry/README.md',
+                    'relative_path': 'README.md',
+                    'line': 1,
+                    'column': 1,
+                    'code': 'fixture_failure',
+                    'message': 'Expected repaired content.',
+                  },
+                ],
+              }),
+            jsonEncode({
+              'command': 'dart run tool/verify.dart',
+              'exit_code': 0,
+              'diagnostics': const <Object>[],
+            }),
+          ],
+        },
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'goal-auto-no-mutation-retry',
+        settingsBuilder: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'goal-auto-no-mutation-retry',
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Implement and verify the fixture',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 5,
+      );
+
+      await container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('Implement the fixture.', bypassPlanMode: true);
+
+      await _waitForCondition(() {
+        final goal = container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal;
+        return !container.read(chatNotifierProvider).isLoading &&
+            dataSource.initialRequestMessages.length == 4 &&
+            goal?.turnsUsed == 4;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final offeredToolNames = dataSource.initialToolDefinitions
+          .map(ToolDefinitionSearchService.toolNamesFromDefinitions)
+          .toList(growable: false);
+      expect(offeredToolNames, [
+        {'write_file', 'local_execute_command'},
+        {'write_file', 'local_execute_command'},
+        {'write_file'},
+        {'write_file'},
+      ]);
+      expect(toolService.executedToolNames, [
+        'local_execute_command',
+        'local_execute_command',
+        'write_file',
+        'local_execute_command',
+      ]);
+      final retryPrompt = dataSource.initialRequestMessages[3]
+          .where((message) => message.role == MessageRole.user)
+          .map((message) => message.content)
+          .join('\n');
+      expect(retryPrompt, contains('This is the only retry.'));
+      expect(retryPrompt, contains('call exactly one available'));
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal;
+      expect(goal?.status, isNot(ConversationGoalStatus.blocked));
+    },
+  );
+
+  test('replays the last verifier once after a later mutation', () async {
+    const verifierArguments = {
+      'command': 'dart run tool/verify_fixture.dart',
+      'working_directory': '/tmp/post-mutation-verifier-replay',
+      'reason': 'Verify the fixture.',
+    };
+    final dataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'verify-before-repair',
+          name: 'local_execute_command',
+          arguments: verifierArguments,
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: 'Checking the repaired source.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'analyze-before-repair',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'dart analyze bin/main.dart',
+                'working_directory': '/tmp/post-mutation-verifier-replay',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Applying the final repair.',
+          toolCalls: [_goalAutoContinueWriteCall('write-final-repair')],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'The repair is complete.',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content: 'The replayed verifier passed.',
+          finishReason: 'stop',
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'write_file': 'unused',
+        'local_execute_command': 'unused',
+      },
+      queuedResults: {
+        'local_execute_command': [
+          jsonEncode({...verifierArguments, 'exit_code': 0}),
+          jsonEncode({'command': 'dart analyze bin/main.dart', 'exit_code': 1}),
+          jsonEncode({...verifierArguments, 'exit_code': 0}),
+        ],
+        'write_file': const [
+          '{"path":"/tmp/post-mutation-verifier-replay/README.md","bytes_written":18}',
+        ],
+      },
+    );
+    final container = _goalAutoContinueContainer(
+      dataSource: dataSource,
+      toolService: toolService,
+      projectId: 'post-mutation-verifier-replay',
+      settingsBuilder: _ToolEnabledNoConfirmSettingsNotifier.new,
+    );
+    addTearDown(container.dispose);
+    container
+        .read(conversationsNotifierProvider.notifier)
+        .ensureCurrentConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'post-mutation-verifier-replay',
+        );
+
+    final chatNotifier = container.read(chatNotifierProvider.notifier);
+    expect(
+      chatNotifier.isVerifierReplayEligibleForTest(
+        ToolCallInfo(
+          id: 'compound-verifier',
+          name: 'local_execute_command',
+          arguments: const {'command': 'dart test && deploy production'},
+        ),
+      ),
+      isFalse,
+    );
+    expect(
+      chatNotifier.isVerifierReplayEligibleForTest(
+        ToolCallInfo(
+          id: 'scoped-verifier',
+          name: 'local_execute_command',
+          arguments: verifierArguments,
+        ),
+      ),
+      isTrue,
+    );
+
+    await chatNotifier.sendMessage(
+      'Implement and verify the fixture.',
+      bypassPlanMode: true,
+    );
+    await _waitForCondition(
+      () => !container.read(chatNotifierProvider).isLoading,
+    );
+
+    expect(toolService.executedToolNames, [
+      'local_execute_command',
+      'local_execute_command',
+      'write_file',
+      'local_execute_command',
+    ]);
+    expect(toolService.executedToolArguments.first, verifierArguments);
+    expect(toolService.executedToolArguments.last, verifierArguments);
+  });
 
   test('cancelStreaming clears the goal auto-continue indicator', () async {
     final hiddenPromptGate = Completer<void>();
@@ -1040,7 +1575,7 @@ void registerChatNotifierGoalAutoContinueTests() {
 }
 
 ProviderContainer _goalAutoContinueContainer({
-  required _GoalAutoContinueChatDataSource dataSource,
+  required ChatDataSource dataSource,
   required _FakeMcpToolService toolService,
   required String projectId,
   SettingsNotifier Function() settingsBuilder =

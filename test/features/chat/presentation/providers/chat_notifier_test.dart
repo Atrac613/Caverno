@@ -81,22 +81,12 @@ part 'chat_notifier_auto_review_escalation_part.dart';
 part 'chat_notifier_approval_cache_part.dart';
 part 'chat_notifier_pending_batch_part.dart';
 part 'chat_notifier_goal_auto_continue_part.dart';
+part 'chat_notifier_terminal_success_part.dart';
 part 'chat_notifier_unwritten_file_claim_part.dart';
 part 'chat_notifier_verification_claim_part.dart';
 part 'chat_notifier_narrated_transcript_part.dart';
 part 'chat_notifier_analysis_options_lint_guard_part.dart';
-
-List<String> _toolNames(List<Map<String, dynamic>> definitions) {
-  return definitions
-      .map((definition) {
-        final function = definition['function'];
-        if (function is! Map) return null;
-        final name = function['name'];
-        return name is String ? name : null;
-      })
-      .nonNulls
-      .toList(growable: false);
-}
+part 'chat_notifier_tool_failure_classification_part.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -8170,7 +8160,7 @@ with open(path, "rb") as file:
   );
 
   test(
-    'sendMessage allows repeated read_file retries across tool loops',
+    'sendMessage replays repeated read_file results across tool loops',
     () async {
       final toolDataSource = _ToolBatchChatDataSource(
         initialToolCalls: [
@@ -8222,7 +8212,7 @@ with open(path, "rb") as file:
 
         await toolNotifier.sendMessage('Retry the mismatched ping_cli edit');
 
-        expect(toolService.executedToolNames, ['read_file', 'read_file']);
+        expect(toolService.executedToolNames, ['read_file']);
         expect(toolDataSource.toolResultBatches, hasLength(2));
         expect(
           toolDataSource.toolResultBatches
@@ -9155,7 +9145,7 @@ with open(path, "rb") as file:
 
         await toolNotifier.sendMessage('Implement the ping CLI tool');
 
-        expect(toolService.executedToolNames, List.filled(10, 'read_file'));
+        expect(toolService.executedToolNames, ['read_file']);
         expect(toolDataSource.toolResultBatches, hasLength(10));
         expect(
           toolNotifier.state.messages.last.content,
@@ -9243,7 +9233,7 @@ with open(path, "rb") as file:
 
         await toolNotifier.sendMessage('Finish the current ping CLI task');
 
-        expect(toolService.executedToolNames, List.filled(12, 'read_file'));
+        expect(toolService.executedToolNames, ['read_file']);
         expect(toolDataSource.toolResultBatches, hasLength(13));
         expect(toolDataSource.finalAnswerMessages, isEmpty);
         expect(

@@ -390,4 +390,191 @@ void main() {
     expect(requestBodies.first['reasoning_effort'], 'high');
     expect(requestBodies.last.containsKey('reasoning_effort'), isFalse);
   });
+
+  test('promotes embedded function calls in tool-result follow-ups', () async {
+    const content = '''
+<tool_call>
+<function=delete_file>
+<parameter=path>/tmp/todo/bin/todo.dart</parameter>
+<parameter=reason>Remove the unexpected entrypoint.</parameter>
+</function>
+</tool_call>''';
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      httpClient: _completionClient(content: content),
+    );
+
+    final result = await dataSource.createChatCompletionWithToolResults(
+      messages: [_userMessage()],
+      toolResults: [
+        ToolResultInfo(
+          id: 'verifier-1',
+          name: 'local_execute_command',
+          arguments: {'command': 'dart run tool/verify.dart'},
+          result: '{"exit_code":1}',
+        ),
+      ],
+      tools: _deleteFileTools,
+      model: 'test-model',
+    );
+
+    expect(result.finishReason, 'tool_calls');
+    expect(result.toolCalls, hasLength(1));
+    expect(result.toolCalls!.single.name, 'delete_file');
+    expect(
+      result.toolCalls!.single.arguments['path'],
+      '/tmp/todo/bin/todo.dart',
+    );
+  });
+
+  test('promotes embedded calls in ordinary tool-aware completions', () async {
+    const content =
+        '<tool_call><function=delete_file><parameter=path>bin/old.dart</parameter></function></tool_call>';
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      httpClient: _completionClient(content: content),
+    );
+
+    final result = await dataSource.createChatCompletion(
+      messages: [_userMessage()],
+      tools: _deleteFileTools,
+      model: 'test-model',
+    );
+
+    expect(result.finishReason, 'tool_calls');
+    expect(result.toolCalls?.single.name, 'delete_file');
+  });
+
+  test('does not promote embedded calls without advertised tools', () async {
+    const content =
+        '<tool_call><function=delete_file><parameter=path>bin/old.dart</parameter></function></tool_call>';
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      httpClient: _completionClient(content: content),
+    );
+
+    final result = await dataSource.createChatCompletion(
+      messages: [_userMessage()],
+      model: 'test-model',
+    );
+
+    expect(result.finishReason, 'stop');
+    expect(result.toolCalls, isNull);
+    expect(result.content, content);
+  });
+
+  test('does not promote embedded calls for unadvertised tool names', () async {
+    const content =
+        '<tool_call><function=read_file><parameter=path>pubspec.yaml</parameter></function></tool_call>';
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      httpClient: _completionClient(content: content),
+    );
+
+    final result = await dataSource.createChatCompletion(
+      messages: [_userMessage()],
+      tools: _deleteFileTools,
+      model: 'test-model',
+    );
+
+    expect(result.finishReason, 'stop');
+    expect(result.toolCalls, isNull);
+  });
+
+  test('native tool calls take precedence over embedded calls', () async {
+    const content =
+        '<tool_call><function=delete_file><parameter=path>bin/old.dart</parameter></function></tool_call>';
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      httpClient: _completionClient(
+        content: content,
+        finishReason: 'tool_calls',
+        toolCalls: const [
+          {
+            'id': 'native-1',
+            'type': 'function',
+            'function': {
+              'name': 'read_file',
+              'arguments': '{"path":"pubspec.yaml"}',
+            },
+          },
+        ],
+      ),
+    );
+
+    final result = await dataSource.createChatCompletion(
+      messages: [_userMessage()],
+      tools: _deleteFileTools,
+      model: 'test-model',
+    );
+
+    expect(result.toolCalls, hasLength(1));
+    expect(result.toolCalls!.single.name, 'read_file');
+  });
+}
+
+const List<Map<String, dynamic>> _deleteFileTools = [
+  {
+    'type': 'function',
+    'function': {
+      'name': 'delete_file',
+      'description': 'Delete one file.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'path': {'type': 'string'},
+        },
+        'required': ['path'],
+      },
+    },
+  },
+];
+
+Message _userMessage() {
+  return Message(
+    id: 'message-1',
+    content: 'Continue the task.',
+    role: MessageRole.user,
+    timestamp: DateTime(2026),
+  );
+}
+
+MockClient _completionClient({
+  required String content,
+  String finishReason = 'stop',
+  List<Map<String, dynamic>>? toolCalls,
+}) {
+  return MockClient((request) async {
+    return http.Response(
+      jsonEncode({
+        'id': 'chatcmpl-embedded-tool-test',
+        'object': 'chat.completion',
+        'created': 0,
+        'model': 'test-model',
+        'choices': [
+          {
+            'index': 0,
+            'message': {
+              'role': 'assistant',
+              'content': content,
+              'tool_calls': ?toolCalls,
+            },
+            'finish_reason': finishReason,
+          },
+        ],
+        'usage': {
+          'prompt_tokens': 1,
+          'completion_tokens': 1,
+          'total_tokens': 2,
+        },
+      }),
+      200,
+      headers: const {'content-type': 'application/json'},
+    );
+  });
 }

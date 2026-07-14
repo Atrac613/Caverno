@@ -14,6 +14,9 @@ void main() {
       final markdownTocExactShortRunner = File(
         'tool/run_coding_markdown_toc_exact_short_live_canary.sh',
       ).readAsStringSync();
+      final pendingActionLengthRecoveryRunner = File(
+        'tool/run_coding_pending_action_length_recovery_live_canary.sh',
+      ).readAsStringSync();
       final autoContinueRunner = File(
         'tool/run_coding_goal_auto_continue_todo_fixture_live_canary.sh',
       ).readAsStringSync();
@@ -50,6 +53,26 @@ void main() {
         markdownTocExactShortRunner,
         contains('--canary-name coding_markdown_toc_exact_short_live_canary'),
       );
+      expect(
+        pendingActionLengthRecoveryRunner,
+        contains('CAVERNO_CODING_PENDING_ACTION_LENGTH_RECOVERY_LIVE_CANARY=1'),
+      );
+      expect(
+        pendingActionLengthRecoveryRunner,
+        contains(
+          '--plain-name "live LLM recovers one length-truncated pending coding action"',
+        ),
+      );
+      expect(
+        pendingActionLengthRecoveryRunner,
+        contains(
+          '--canary-name coding_pending_action_length_recovery_live_canary',
+        ),
+      );
+      expect(
+        pendingActionLengthRecoveryRunner,
+        isNot(contains('CAVERNO_CODING_GOAL_TODO_MAX_TOKENS')),
+      );
       expect(runner, contains('Language: Dart'));
       expect(runner, contains('docs/coding_mvp_fixtures/todo_app.md'));
       expect(runner, contains('--canary-name coding_todo_app_mvp_live_canary'));
@@ -79,12 +102,15 @@ void main() {
       expect(canary, contains('todo_post_success_mutation'));
       expect(canary, contains('autoContinue: true'));
       expect(canary, contains('ConversationContractSourceKind.userMessage'));
-      final notifier = File(
-        'lib/features/chat/presentation/providers/chat_notifier.dart',
+      final finalAnswerRecovery = File(
+        'lib/features/chat/presentation/providers/chat_notifier_final_answer_recovery.dart',
       ).readAsStringSync();
-      expect(notifier, contains('Tool-result final stream timed out'));
       expect(
-        notifier,
+        finalAnswerRecovery,
+        contains('Tool-result final stream timed out'),
+      );
+      expect(
+        finalAnswerRecovery,
         contains('returning incomplete evidence to goal continuation'),
       );
       expect(canary, contains('を参考にしてMVPを実装。言語はdartとする。'));

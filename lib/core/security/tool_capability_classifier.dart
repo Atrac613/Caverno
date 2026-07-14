@@ -217,7 +217,8 @@ class ToolCapabilityClassifier {
         ).hasMatch(normalized) ||
         RegExp(
           r'(^| )(pytest|cargo test|npm test|pnpm test|yarn test)( |$)',
-        ).hasMatch(normalized)) {
+        ).hasMatch(normalized) ||
+        _looksLikeVerifierScriptCommand(normalized)) {
       return ToolCommandEffect.verification;
     }
     if (RegExp(
@@ -253,6 +254,12 @@ class ToolCapabilityClassifier {
       return ToolCommandEffect.deploymentOrRelease;
     }
     return ToolCommandEffect.workspaceMutation;
+  }
+
+  bool _looksLikeVerifierScriptCommand(String command) {
+    return RegExp(
+      r'(^| )(dart run|python3?|bash|zsh|sh) [^ ]*(^|[/_-])verif(y|ier)[^ ]*( |$)',
+    ).hasMatch(command);
   }
 
   ToolCapabilityClass _classOf(String name) {

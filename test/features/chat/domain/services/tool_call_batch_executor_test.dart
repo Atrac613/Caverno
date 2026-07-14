@@ -126,6 +126,45 @@ void main() {
       expect(result.abortLoop, isTrue);
       expect(failures[policy.toolFailureKey(firstAttempt)], 2);
     });
+
+    test(
+      'keeps repeated structured command failures as repair feedback',
+      () async {
+        final call = _toolCall('local_execute_command', {
+          'command': 'dart run tool/verify.dart',
+        });
+        final failures = <String, int>{};
+        var dispatchCount = 0;
+
+        final result = await executor.execute(
+          toolCalls: [
+            call,
+            ToolCallInfo(
+              id: 'tool-command-retry',
+              name: call.name,
+              arguments: call.arguments,
+            ),
+          ],
+          dispatchToolCall: (toolCall) async {
+            dispatchCount += 1;
+            return McpToolResult(
+              toolName: toolCall.name,
+              result:
+                  '{"exit_code":1,"stdout":"","stderr":"Tests failed.","diagnostics":[{"code":"test_failure"}]}',
+              isSuccess: false,
+              errorMessage: 'Verifier found one issue.',
+            );
+          },
+          executedToolCallKeys: <String>{},
+          toolFailureCounts: failures,
+        );
+
+        expect(result.abortLoop, isFalse);
+        expect(result.toolResults, hasLength(2));
+        expect(dispatchCount, 2);
+        expect(failures, isEmpty);
+      },
+    );
   });
 }
 

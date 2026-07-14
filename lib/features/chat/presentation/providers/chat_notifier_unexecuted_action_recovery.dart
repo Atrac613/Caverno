@@ -6,6 +6,89 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
+  void _appendUnexecutedToolRequestNoticeForContentIfNeeded({
+    required int interactionGeneration,
+    required String content,
+    List<ToolResultInfo> toolResults = const [],
+  }) {
+    _recordUnexecutedFinalAnswerToolRequests(
+      content: content,
+      toolResults: toolResults,
+    );
+    const notice =
+        'I could not execute the additional tool request above in this final-answer step. '
+        'Treat it as unexecuted; ask me to continue with a narrower follow-up '
+        'if the missing action still matters.';
+    if (content.contains(notice) ||
+        !_looksLikeUnexecutedToolRequest(content) ||
+        _shouldSkipUnexecutedToolRequestNoticeForToolResults(
+          content: content,
+          toolResults: toolResults,
+        )) {
+      return;
+    }
+    final currentContent = _lastMessageContentForGeneration(
+      interactionGeneration,
+    );
+    if (currentContent == null || currentContent.contains(notice)) {
+      return;
+    }
+    _replaceLastMessageContentForGeneration(
+      interactionGeneration,
+      '${currentContent.trimRight()}\n\n$notice',
+    );
+  }
+
+  void _recordUnexecutedFinalAnswerToolRequests({
+    required String content,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+    if (toolCalls.isEmpty) {
+      return;
+    }
+
+    var recordedAny = false;
+    for (final toolCall in toolCalls) {
+      final signature = jsonEncode({
+        'name': toolCall.name,
+        'arguments': toolCall.arguments,
+      });
+      final alreadyRecorded = toolResults.any((result) {
+        final decoded = _tryDecodeMap(result.result);
+        return decoded?['reason'] == 'final_answer_tool_request' &&
+            decoded?['signature'] == signature;
+      });
+      if (alreadyRecorded) {
+        continue;
+      }
+      toolResults.add(
+        ToolResultInfo(
+          id: 'unexecuted_final_answer_${toolCall.occurrenceId ?? toolCall.name}',
+          name: toolCall.name,
+          arguments: toolCall.arguments,
+          result: jsonEncode({
+            'ok': false,
+            'code': 'tool_call_not_executed',
+            'reason': 'final_answer_tool_request',
+            'tool_name': toolCall.name,
+            'signature': signature,
+            'error':
+                'The final-answer response requested a tool, but final-answer streaming does not execute tools directly.',
+            'required_action':
+                'Retry this tool through the normal tool-aware continuation.',
+          }),
+        ),
+      );
+      recordedAny = true;
+    }
+    if (!recordedAny) {
+      return;
+    }
+    _turnExitReasonHint = ToolLoopExitReason.unexecutedToolRequest;
+    _appliedTurnTransforms.add('unexecuted_tool_request_notice');
+  }
+
   String _messageContentWithVerificationClaimNotice(String content) {
     final conversation = ref
         .read(conversationsNotifierProvider)
@@ -62,7 +145,8 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
   /// verification evidence). The feedback asks the model to actually run the
   /// narrated commands — if the claim was true the run proves it, if not the
   /// failure surfaces — instead of merely stamping the answer as unverified.
-  Future<ChatCompletionResult?> _requestNarratedTranscriptRepairForCompletionClaim({
+  Future<ChatCompletionResult?>
+  _requestNarratedTranscriptRepairForCompletionClaim({
     required String candidateResponse,
     required List<ToolResultInfo> executedToolResults,
     required List<ToolResultInfo> batchToolResults,

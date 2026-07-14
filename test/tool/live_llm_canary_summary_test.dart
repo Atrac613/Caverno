@@ -120,6 +120,46 @@ void main() {
         }),
         jsonEncode({
           'testID': 2,
+          'message': '[DiagnosticRepairContract] diagnostic signature changed',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message': '[DiagnosticRepairContract] activated; signatureStreak=2',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[CommandDiagnostic] observed; signatureStreak=6; signatureChanged=false',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[CommandDiagnosticRepairFocus] activated; signatureStreak=1',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[CommandDiagnosticRepairFocus] blocked unchanged verifier replay; signatureStreak=1',
+          'type': 'print',
+          'time': 37,
+        }),
+        jsonEncode({
+          'testID': 2,
+          'message':
+              '[ExecutionShadow] contract=1234abcd stage=implement action=repair activeTaskRef=89abcdef taskStatus=inProgress validation=failed tasks=0/1 questions=0 requiresValidation=true hasDiagnostic=true diagnosticStreak=1',
+          'type': 'print',
+          'time': 36,
+        }),
+        jsonEncode({
+          'testID': 2,
           'message':
               '[Tool] Arguments: {command: dart run tool/verify_fixture.dart, working_directory: /tmp/app}',
           'type': 'print',
@@ -239,6 +279,34 @@ void main() {
         }),
         jsonEncode({
           'testID': 3,
+          'message':
+              '[PendingActionLengthRecovery] Deferring truncated incomplete coding work',
+          'type': 'print',
+          'time': 138,
+        }),
+        jsonEncode({
+          'testID': 3,
+          'message':
+              '[PendingActionLengthRecovery] Requesting one bounded tool-aware retry',
+          'type': 'print',
+          'time': 138,
+        }),
+        jsonEncode({
+          'testID': 3,
+          'message':
+              '[PendingActionLengthRecovery] Tool-aware retry requested one or more tool calls',
+          'type': 'print',
+          'time': 138,
+        }),
+        jsonEncode({
+          'testID': 3,
+          'message':
+              '[InspectionReplay] Replayed successful read_file result for mutation generation 2',
+          'type': 'print',
+          'time': 138,
+        }),
+        jsonEncode({
+          'testID': 3,
           'message': '[Tool] Terminal success accepted for current generation',
           'type': 'print',
           'time': 135,
@@ -297,6 +365,10 @@ void main() {
     expect(summary.signals.toolResultCompactionRetryCount, 1);
     expect(summary.signals.codingContinuationRecoveryRequestCount, 1);
     expect(summary.signals.codingContinuationRecoveryToolCallCount, 2);
+    expect(summary.signals.pendingActionLengthDeferralCount, 1);
+    expect(summary.signals.pendingActionLengthRecoveryRequestCount, 1);
+    expect(summary.signals.pendingActionLengthRecoveryToolCallCount, 1);
+    expect(summary.signals.successfulReadResultReplayCount, 1);
     expect(summary.signals.turnFinalizationRecoveryRequestCount, 1);
     expect(summary.signals.turnFinalizationRecoveryToolCallCount, 1);
     expect(summary.signals.incompleteContentToolRecoveryCount, 1);
@@ -354,6 +426,34 @@ void main() {
       summary.signals.goalAutoContinue.blockedAfterSuccessfulVerifier,
       isTrue,
     );
+    expect(summary.signals.goalAutoContinue.repairContractActivationCount, 1);
+    expect(
+      summary
+          .signals
+          .goalAutoContinue
+          .commandDiagnosticRepairFocusActivationCount,
+      1,
+    );
+    expect(
+      summary
+          .signals
+          .goalAutoContinue
+          .commandDiagnosticRepairFocusActivationStreaks,
+      [1],
+    );
+    expect(
+      summary.signals.goalAutoContinue.unchangedVerifierReplayBeforeRepairCount,
+      0,
+    );
+    expect(
+      summary.signals.goalAutoContinue.blockedUnchangedVerifierReplayCount,
+      1,
+    );
+    expect(summary.signals.goalAutoContinue.diagnosticSignatureChangeCount, 1);
+    expect(
+      summary.signals.goalAutoContinue.maxIdenticalDiagnosticSignatureStreak,
+      6,
+    );
     expect(summary.signals.requestTemperatures.totalRequestCount, 3);
     expect(summary.signals.requestTemperatures.distinctTemperatures, [
       '0.2',
@@ -400,6 +500,22 @@ void main() {
     );
     expect(
       (json['signals'] as Map<String, dynamic>),
+      containsPair('pendingActionLengthDeferralCount', 1),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>),
+      containsPair('pendingActionLengthRecoveryRequestCount', 1),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>),
+      containsPair('pendingActionLengthRecoveryToolCallCount', 1),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>),
+      containsPair('successfulReadResultReplayCount', 1),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>),
       containsPair('turnFinalizationRecoveryRequestCount', 1),
     );
     expect(
@@ -427,6 +543,14 @@ void main() {
       containsPair('diagnosticCounts', [3, 1, 1]),
     );
     expect(
+      (json['signals'] as Map<String, dynamic>)['goalAutoContinue'],
+      containsPair('commandDiagnosticRepairFocusActivationStreaks', [1]),
+    );
+    expect(
+      (json['signals'] as Map<String, dynamic>)['goalAutoContinue'],
+      containsPair('blockedUnchangedVerifierReplayCount', 1),
+    );
+    expect(
       ((json['signals'] as Map<String, dynamic>)['requestTemperatures']
           as Map<String, dynamic>)['countsByTemperature'],
       {'0.2': 2, '1.7': 1},
@@ -446,6 +570,22 @@ void main() {
     expect(
       summary.toMarkdown(),
       contains('Terminal success exit observed: `yes`'),
+    );
+    expect(
+      summary.toMarkdown(),
+      contains('Goal repair contract activation count: `1`'),
+    );
+    expect(
+      summary.toMarkdown(),
+      contains('Command diagnostic repair focus activation count: `1`'),
+    );
+    expect(
+      summary.toMarkdown(),
+      contains('Unchanged verifier replays before repair focus: `0`'),
+    );
+    expect(
+      summary.toMarkdown(),
+      contains('Blocked unchanged verifier replays after repair focus: `1`'),
     );
     expect(summary.toMarkdown(), contains('Recovered stream fallback count'));
     expect(
@@ -485,6 +625,63 @@ void main() {
       contains('Command output feedback observed: `yes`'),
     );
     expect(summary.toMarkdown(), contains('python3 get_weather.py'));
+  });
+
+  test('uses ExecutionShadow as a repair-focus compatibility fallback', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'repair_focus_shadow_summary_test_',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final logFile = File('${directory.path}/flutter_test.jsonl')
+      ..writeAsStringSync(
+        [
+          jsonEncode({
+            'testID': 1,
+            'message':
+                '[ExecutionShadow] contract=1234abcd stage=implement action=repair activeTaskRef=89abcdef taskStatus=inProgress validation=failed tasks=0/1 questions=0 requiresValidation=true hasDiagnostic=true diagnosticStreak=2',
+            'type': 'print',
+            'time': 10,
+          }),
+          jsonEncode({
+            'testID': 1,
+            'result': 'success',
+            'skipped': false,
+            'hidden': false,
+            'type': 'testDone',
+            'time': 20,
+          }),
+          jsonEncode({'success': true, 'type': 'done', 'time': 20}),
+        ].join('\n'),
+      );
+
+    final summary = await buildLiveLlmCanarySummary(
+      logFile: logFile,
+      canaryName: 'repair_focus_shadow_canary',
+      surface: 'coding_mvp',
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'test-model',
+      command: 'tool/run_repair_focus_shadow_canary.sh',
+      generatedAt: DateTime.utc(2026, 7, 13),
+    );
+
+    expect(
+      summary
+          .signals
+          .goalAutoContinue
+          .commandDiagnosticRepairFocusActivationCount,
+      1,
+    );
+    expect(
+      summary
+          .signals
+          .goalAutoContinue
+          .commandDiagnosticRepairFocusActivationStreaks,
+      [2],
+    );
+    expect(
+      summary.signals.goalAutoContinue.unchangedVerifierReplayBeforeRepairCount,
+      1,
+    );
   });
 
   test('terminal success implies successful verifier evidence', () async {

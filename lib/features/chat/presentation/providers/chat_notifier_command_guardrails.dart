@@ -4,6 +4,11 @@
 
 part of 'chat_notifier.dart';
 
+const _unchangedVerifierReplayBeforeRepairBlockedCode =
+    'unchanged_verifier_replay_before_repair_blocked';
+const _commandDiagnosticVerifierReplayPolicy =
+    CommandDiagnosticVerifierReplayPolicy();
+
 extension ChatNotifierCommandGuardrails on ChatNotifier {
   McpToolResult? _buildMaterialContractAssumptionGuardResult(
     ToolCallInfo toolCall,
@@ -36,6 +41,67 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
       isSuccess: false,
       errorMessage: 'Confirm the material contract assumption first.',
     );
+  }
+
+  McpToolResult? _buildUnchangedVerifierReplayBeforeRepairGuardResult(
+    ToolCallInfo toolCall, {
+    required int commandRetryGeneration,
+    required List<ToolCallInfo> pendingToolCalls,
+  }) {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final focus = _commandDiagnosticRepairFocusFor(conversation);
+    final capability = const ToolCapabilityClassifier().classify(
+      toolCall.name,
+      arguments: toolCall.arguments,
+    );
+    final toolCallIndex = pendingToolCalls.indexWhere(
+      (pendingToolCall) => pendingToolCall.id == toolCall.id,
+    );
+    final hasPrecedingMutation =
+        toolCallIndex > 0 &&
+        pendingToolCalls.take(toolCallIndex).any(_isContractMutationToolCall);
+    final attemptedCommandKey = _toolFailureKey(
+      toolCall,
+      commandRetryGeneration: commandRetryGeneration,
+    );
+    if (!_commandDiagnosticVerifierReplayPolicy.shouldBlock(
+      focus: focus,
+      attemptedCommandKey: attemptedCommandKey,
+      isVerification:
+          capability.commandEffect == ToolCommandEffect.verification,
+      hasPrecedingMutation: hasPrecedingMutation,
+    )) {
+      return null;
+    }
+    final activeFocus = focus!;
+
+    appLog(
+      '[CommandDiagnosticRepairFocus] blocked unchanged verifier replay; '
+      'signatureStreak=${activeFocus.streak}',
+    );
+    final payload = jsonEncode({
+      'ok': false,
+      'code': _unchangedVerifierReplayBeforeRepairBlockedCode,
+      'error':
+          'The same verifier was not rerun because its path-backed diagnostic '
+          'has not been addressed by a mutation.',
+      'diagnostic': activeFocus.diagnosticSummary,
+      'required_action':
+          'Make one concrete mutation that directly addresses the sourced '
+          'diagnostic, then rerun this verifier.',
+    });
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: true,
+    );
+  }
+
+  bool _isUnchangedVerifierReplayBeforeRepairGuardResult(McpToolResult result) {
+    return _decodeJsonObject(result.result)?['code'] ==
+        _unchangedVerifierReplayBeforeRepairBlockedCode;
   }
 
   bool _isContractMutationToolCall(ToolCallInfo toolCall) {

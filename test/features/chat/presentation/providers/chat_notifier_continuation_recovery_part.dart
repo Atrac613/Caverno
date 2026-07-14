@@ -257,6 +257,202 @@ void registerChatNotifierContinuationRecoveryTests() {
   );
 
   test(
+    'sendMessage recovers a Japanese structured deferral for an active goal',
+    () async {
+      const structuredDeferral = '''
+## \u5b9f\u884c\u8a08\u753b
+
+### 1. todo_app.md \u3092\u8aad\u3080
+\u307e\u305a\u3001MVP\u306e\u8981\u4ef6\u3092\u628a\u63e1\u3057\u307e\u3059\u3002
+
+### 2. Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3092\u521d\u671f\u5316
+`dart create` \u3067CLI\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002
+
+### 3. main.dart \u3092\u5b9f\u88c5
+
+### 4. \u691c\u8a3c
+
+\u307e\u305a\u3001todo_app.md\u306e\u5185\u5bb9\u3092\u78ba\u8a8d\u3057\u307e\u3059\u3002
+''';
+      final project = CodingProject(
+        id: 'project-structured-execution-deferral',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 7, 14),
+        updatedAt: DateTime(2026, 7, 14),
+      );
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialCompletionContent: structuredDeferral,
+        initialFinishReason: 'stop',
+        initialStreamChunks: const [structuredDeferral],
+        intermediateToolRoleResponseContent:
+            'Recovering by reading the referenced specification.',
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'read-structured-deferral-spec',
+            name: 'read_file',
+            arguments: const {'path': '/tmp/project/todo_app.md'},
+          ),
+        ],
+        toolRoleResponseContent: 'The specification was inspected.',
+        finalAnswerChunks: const ['The implementation can now proceed.'],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'read_file': 'Read a local file.'},
+        results: const {
+          'read_file':
+              '{"path":"/tmp/project/todo_app.md","content":"Build a TODO CLI."}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+        createIfMissing: true,
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Implement the TODO MVP from todo_app.md.',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 5,
+      );
+      await conversations.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Implement the TODO MVP from todo_app.md.',
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'implement-todo-mvp',
+              title: 'Implement the TODO MVP',
+            ),
+          ],
+        ),
+      );
+
+      final notifier = container.read(chatNotifierProvider.notifier);
+      await notifier.sendMessage(
+        'Implement the TODO MVP from todo_app.md.',
+        bypassPlanMode: true,
+      );
+
+      expect(toolService.executedToolNames, ['read_file']);
+      expect(dataSource.toolResultBatches, hasLength(2));
+      expect(
+        dataSource.toolResultBatches.first.single.result,
+        contains('prose_only_coding_continuation'),
+      );
+      expect(
+        notifier.state.messages.last.content,
+        isNot(contains(structuredDeferral)),
+      );
+    },
+  );
+
+  test(
+    'sendMessage preserves a Japanese plan without an active execution goal',
+    () async {
+      const structuredPlan = '''
+## \u5b9f\u884c\u8a08\u753b
+
+todo_app.md \u3092\u8aad\u3093\u3067Dart\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3092\u78ba\u8a8d\u3057\u307e\u3059\u3002
+''';
+      final project = CodingProject(
+        id: 'project-structured-plan-no-goal',
+        name: 'Project',
+        rootPath: '/tmp/project',
+        createdAt: DateTime(2026, 7, 14),
+        updatedAt: DateTime(2026, 7, 14),
+      );
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: const [],
+        initialCompletionContent: structuredPlan,
+        initialFinishReason: 'stop',
+        initialStreamChunks: const [structuredPlan],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {'read_file': 'Read a local file.'},
+        results: const {'read_file': 'unused'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final container = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            _FakeConversationRepository(),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final notifier = container.read(chatNotifierProvider.notifier);
+
+      await notifier.sendMessage(
+        'Describe an implementation plan.',
+        bypassPlanMode: true,
+      );
+
+      expect(toolService.executedToolNames, isEmpty);
+      expect(dataSource.toolResultBatches, isEmpty);
+      expect(
+        notifier.state.messages.last.content,
+        contains(structuredPlan.trim()),
+      );
+    },
+  );
+
+  test(
     'sendMessage recovers prose-only coding continuation after tool results',
     () async {
       final continuationText = String.fromCharCodes(const [
@@ -479,9 +675,7 @@ void registerChatNotifierContinuationRecoveryTests() {
               ToolCallInfo(
                 id: 'read-entrypoint',
                 name: 'read_file',
-                arguments: const {
-                  'path': '/tmp/project/lib/main.dart',
-                },
+                arguments: const {'path': '/tmp/project/lib/main.dart'},
               ),
             ],
             finishReason: 'tool_calls',
@@ -571,7 +765,10 @@ void registerChatNotifierContinuationRecoveryTests() {
         recoveryPrompt,
         contains('a command exited with a non-zero status'),
       );
-      expect(recoveryPrompt, isNot(contains('Treat that response as unexecuted')));
+      expect(
+        recoveryPrompt,
+        isNot(contains('Treat that response as unexecuted')),
+      );
     },
   );
 
@@ -679,10 +876,12 @@ void registerChatNotifierContinuationRecoveryTests() {
       for (final batch in dataSource.toolResultBatches) {
         for (final result in batch) {
           expect(result.name, isNot('coding_continuation_recovery'));
-          expect(result.result, isNot(contains('prose_only_coding_continuation')));
+          expect(
+            result.result,
+            isNot(contains('prose_only_coding_continuation')),
+          );
         }
       }
     },
   );
-
 }

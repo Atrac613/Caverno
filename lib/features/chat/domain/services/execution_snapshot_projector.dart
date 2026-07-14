@@ -43,6 +43,8 @@ class ExecutionSnapshot {
     this.mutationGeneration = 0,
     this.verificationGeneration = -1,
     this.verificationCadence = VerificationCadence.notDue,
+    this.commandDiagnosticStreak = 0,
+    this.commandDiagnosticHasPath = false,
   });
 
   final String contractHash;
@@ -70,6 +72,8 @@ class ExecutionSnapshot {
   final int mutationGeneration;
   final int verificationGeneration;
   final VerificationCadence verificationCadence;
+  final int commandDiagnosticStreak;
+  final bool commandDiagnosticHasPath;
 
   bool get hasContract => contractHash.isNotEmpty;
 
@@ -93,6 +97,8 @@ class ExecutionSnapshot {
     unresolvedQuestionCount,
     requiresValidation,
     latestDiagnostic,
+    commandDiagnosticStreak,
+    commandDiagnosticHasPath,
     clarificationQuestions.join('\n'),
   ].join('|');
 
@@ -138,6 +144,32 @@ class ExecutionSnapshot {
     lines.add('Verification cadence: ${verificationCadence.name}');
     if (latestDiagnostic != null) {
       lines.add('Latest failed diagnostic: ${_clip(latestDiagnostic!, 600)}');
+    }
+    if (commandDiagnosticStreak > 0) {
+      final isRepeatedDiagnostic = commandDiagnosticStreak >= 2;
+      lines.add(
+        isRepeatedDiagnostic
+            ? 'Repeated command diagnostic streak: $commandDiagnosticStreak'
+            : 'Command diagnostic streak: $commandDiagnosticStreak',
+      );
+      if (action == ExecutionSnapshotAction.repair) {
+        final correctiveAction = commandDiagnosticHasPath
+            ? 'make one concrete file mutation'
+            : 'take one concrete corrective action';
+        if (isRepeatedDiagnostic) {
+          lines.add(
+            'Repair focus: this diagnostic repeated unchanged. '
+            '$correctiveAction that directly addresses it. Do not rerun '
+            'unchanged validation again.',
+          );
+        } else {
+          lines.add(
+            'Repair focus: inspect the diagnostic context only as needed, '
+            'then $correctiveAction that directly addresses it. Do not '
+            'rerun unchanged validation before corrective action.',
+          );
+        }
+      }
     }
     if (hasBlockingAssumptions) {
       lines.add(
@@ -193,7 +225,47 @@ class ExecutionSnapshot {
       'questions=$unresolvedQuestionCount',
       'requiresValidation=$requiresValidation',
       'hasDiagnostic=${latestDiagnostic != null}',
+      'diagnosticStreak=$commandDiagnosticStreak',
     ].join(' ');
+  }
+
+  ExecutionSnapshot withCommandDiagnosticRepairFocus({
+    required String diagnosticSummary,
+    required int streak,
+    required bool hasPathBackedDiagnostic,
+  }) {
+    final preservesBoundary =
+        action == ExecutionSnapshotAction.clarify ||
+        action == ExecutionSnapshotAction.blocked;
+    return ExecutionSnapshot(
+      contractHash: contractHash,
+      workflowStage: workflowStage,
+      action: preservesBoundary ? action : ExecutionSnapshotAction.repair,
+      activeTaskId: activeTaskId,
+      activeTaskStatus: activeTaskStatus,
+      validationStatus: ConversationExecutionValidationStatus.failed,
+      completedTaskCount: completedTaskCount,
+      remainingTaskCount: remainingTaskCount,
+      unresolvedQuestionCount: unresolvedQuestionCount,
+      requiresValidation: requiresValidation,
+      latestDiagnostic: diagnosticSummary,
+      objective: objective,
+      constraints: constraints,
+      acceptanceCriteria: acceptanceCriteria,
+      activeTaskTitle: activeTaskTitle,
+      activeTaskTargetFiles: activeTaskTargetFiles,
+      activeTaskValidationCommand: activeTaskValidationCommand,
+      remainingTaskIds: remainingTaskIds,
+      clarificationQuestions: clarificationQuestions,
+      blockingAssumptionCount: blockingAssumptionCount,
+      sourceCount: sourceCount,
+      sourcedItemCount: sourcedItemCount,
+      mutationGeneration: mutationGeneration,
+      verificationGeneration: verificationGeneration,
+      verificationCadence: verificationCadence,
+      commandDiagnosticStreak: streak,
+      commandDiagnosticHasPath: hasPathBackedDiagnostic,
+    );
   }
 }
 

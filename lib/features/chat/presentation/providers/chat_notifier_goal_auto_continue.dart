@@ -5,6 +5,13 @@
 part of 'chat_notifier.dart';
 
 const _goalAutoContinuePolicy = ConversationGoalAutoContinuePolicy();
+const _goalValidationToolNames = <String>{'local_execute_command', 'run_tests'};
+const _goalRepairToolNames = <String>{
+  'read_file',
+  'write_file',
+  'edit_file',
+  'delete_file',
+};
 
 final class _GoalAutoContinueTracker {
   _GoalAutoContinueTracker({
@@ -12,19 +19,261 @@ final class _GoalAutoContinueTracker {
     this.diagnosticRepairContinuations = 0,
     this.diagnosticRepairExtensionUsed = false,
     this.noProgressStreak = 0,
-    this.validationContinuations = 0,
+    this.consecutiveValidationMisses = 0,
+    this.failedVerificationObserved = false,
     this.previousEvidence,
+    this.verifierReplayCandidate,
+    this.previousDiagnosticSignature = '',
+    this.identicalDiagnosticSignatureStreak = 0,
+    this.pendingPostRepairReplayOutcome = false,
+    this.pendingRepairContractOutcome = false,
+    this.repairNoMutationRetryUsed = false,
   });
 
   int consecutiveAutoContinuations;
   int diagnosticRepairContinuations;
   bool diagnosticRepairExtensionUsed;
   int noProgressStreak;
-  int validationContinuations;
+  int consecutiveValidationMisses;
+  bool failedVerificationObserved;
   ToolResultCompletionEvidence? previousEvidence;
+  ToolCallInfo? verifierReplayCandidate;
+  int verifierReplayCandidatePriority = 0;
+  String previousDiagnosticSignature;
+  int identicalDiagnosticSignatureStreak;
+  bool pendingPostRepairReplayOutcome;
+  bool pendingRepairContractOutcome;
+  bool repairNoMutationRetryUsed;
+  final Set<int> replayedMutationGenerations = <int>{};
+  final Set<int> replayedInteractionGenerations = <int>{};
+  final CommandDiagnosticStreakTracker commandDiagnosticStreakTracker =
+      CommandDiagnosticStreakTracker();
+  CommandDiagnosticRepairFocus? activeCommandDiagnosticRepairFocus;
 }
 
 extension ChatNotifierGoalAutoContinue on ChatNotifier {
+  void _recordCommandDiagnosticStreak({
+    required String commandKey,
+    required ToolResultInfo toolResult,
+  }) {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null ||
+        conversation.workspaceMode != WorkspaceMode.coding) {
+      return;
+    }
+    final tracker = _goalAutoContinueTrackers.putIfAbsent(
+      conversation.id,
+      _GoalAutoContinueTracker.new,
+    );
+    final observation = tracker.commandDiagnosticStreakTracker.observe(
+      commandKey: commandKey,
+      toolResult: toolResult,
+    );
+    if (observation == null) {
+      return;
+    }
+    final activeFocus = tracker.activeCommandDiagnosticRepairFocus;
+    final activatesFocus = activeFocus?.commandKey != commandKey;
+    tracker.activeCommandDiagnosticRepairFocus = observation.repairFocus;
+    appLog(
+      '[CommandDiagnostic] observed; '
+      'signatureStreak=${observation.streak}; '
+      'signatureChanged=${observation.signatureChanged}',
+    );
+    if (activatesFocus) {
+      appLog(
+        '[CommandDiagnosticRepairFocus] activated; '
+        'signatureStreak=${observation.streak}',
+      );
+    }
+  }
+
+  void _resetCommandDiagnosticStreak(String commandKey) {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null) {
+      return;
+    }
+    final tracker = _goalAutoContinueTrackers[conversation.id];
+    tracker?.commandDiagnosticStreakTracker.reset(commandKey);
+    if (tracker?.activeCommandDiagnosticRepairFocus?.commandKey == commandKey) {
+      tracker?.activeCommandDiagnosticRepairFocus = null;
+    }
+  }
+
+  CommandDiagnosticRepairFocus? _commandDiagnosticRepairFocusFor(
+    Conversation? conversation,
+  ) {
+    if (conversation == null ||
+        conversation.workspaceMode != WorkspaceMode.coding) {
+      return null;
+    }
+    return _goalAutoContinueTrackers[conversation.id]
+        ?.activeCommandDiagnosticRepairFocus;
+  }
+
+  void _clearCommandDiagnosticRepairFocus() {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null) {
+      return;
+    }
+    _goalAutoContinueTrackers[conversation.id]
+            ?.activeCommandDiagnosticRepairFocus =
+        null;
+  }
+
+  void _recordExecutedVerifierReplayCandidate(ToolCallInfo toolCall) {
+    if (!_isReplayEligibleVerifierToolCall(toolCall)) {
+      return;
+    }
+    final capability = const ToolCapabilityClassifier().classify(
+      toolCall.name,
+      arguments: toolCall.arguments,
+    );
+    if (capability.commandEffect != ToolCommandEffect.verification) {
+      return;
+    }
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null ||
+        conversation.workspaceMode != WorkspaceMode.coding) {
+      return;
+    }
+    final tracker = _goalAutoContinueTrackers.putIfAbsent(
+      conversation.id,
+      _GoalAutoContinueTracker.new,
+    );
+    final priority = _verifierReplayPriority(toolCall);
+    if (priority < tracker.verifierReplayCandidatePriority) {
+      return;
+    }
+    tracker.verifierReplayCandidate = ToolCallInfo(
+      id: toolCall.id,
+      name: toolCall.name,
+      arguments: Map<String, dynamic>.unmodifiable(toolCall.arguments),
+    );
+    tracker.verifierReplayCandidatePriority = priority;
+  }
+
+  bool _isReplayEligibleVerifierToolCall(ToolCallInfo toolCall) {
+    final name = toolCall.name.trim().toLowerCase();
+    if (name == 'run_tests') {
+      return true;
+    }
+    if (name != 'local_execute_command' ||
+        toolCall.arguments['background'] == true) {
+      return false;
+    }
+    final command = (toolCall.arguments['command'] as String? ?? '').trim();
+    if (command.isEmpty || RegExp(r'[\r\n;&|`<>]|\$\(').hasMatch(command)) {
+      return false;
+    }
+    return true;
+  }
+
+  int _verifierReplayPriority(ToolCallInfo toolCall) {
+    if (toolCall.name.trim().toLowerCase() == 'run_tests') {
+      return 2;
+    }
+    final command = (toolCall.arguments['command'] as String? ?? '')
+        .toLowerCase();
+    return RegExp(r'(^|[/_-])verif(y|ier)').hasMatch(command) ? 2 : 1;
+  }
+
+  @visibleForTesting
+  bool isVerifierReplayEligibleForTest(ToolCallInfo toolCall) {
+    return _isReplayEligibleVerifierToolCall(toolCall) &&
+        const ToolCapabilityClassifier()
+                .classify(toolCall.name, arguments: toolCall.arguments)
+                .commandEffect ==
+            ToolCommandEffect.verification;
+  }
+
+  ToolCallInfo? _takePostMutationVerifierReplay({
+    required ToolResultCompletionEvidence evidence,
+    required int interactionGeneration,
+  }) {
+    if (!evidence.mutatedWithoutExecutionVerification) {
+      return null;
+    }
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null ||
+        conversation.workspaceMode != WorkspaceMode.coding ||
+        conversation.verificationGeneration >=
+            conversation.mutationGeneration) {
+      return null;
+    }
+    final tracker = _goalAutoContinueTrackers[conversation.id];
+    final candidate = tracker?.verifierReplayCandidate;
+    if (tracker == null ||
+        candidate == null ||
+        tracker.replayedMutationGenerations.contains(
+          conversation.mutationGeneration,
+        ) ||
+        tracker.replayedInteractionGenerations.contains(
+          interactionGeneration,
+        )) {
+      return null;
+    }
+    tracker.replayedMutationGenerations.add(conversation.mutationGeneration);
+    tracker.replayedInteractionGenerations.add(interactionGeneration);
+    return ToolCallInfo(
+      id:
+          'post_mutation_verifier_${conversation.mutationGeneration}_'
+          '${DateTime.now().microsecondsSinceEpoch}',
+      name: candidate.name,
+      arguments: candidate.arguments,
+    );
+  }
+
+  Future<bool> _replayVerifierAfterRepairMutation({
+    required List<ToolResultInfo> executedToolResults,
+    required Map<String, int> verificationFailureCounts,
+    required Set<String> transcriptRepairSignatures,
+    required int interactionGeneration,
+  }) async {
+    final evidence = ToolResultPromptBuilder.completionEvidence(
+      executedToolResults,
+    ).carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
+    final replay = _takePostMutationVerifierReplay(
+      evidence: evidence,
+      interactionGeneration: interactionGeneration,
+    );
+    if (replay == null) return false;
+
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final tracker = conversation == null
+        ? null
+        : _goalAutoContinueTrackers[conversation.id];
+    tracker?.pendingRepairContractOutcome = false;
+    tracker?.pendingPostRepairReplayOutcome = true;
+    appLog(
+      '[CodingVerification] Replaying the last executed verifier '
+      'immediately after a repair mutation',
+    );
+    await _executeToolCalls(
+      [replay],
+      assistantContent:
+          'The repair contract requires immediate verification after the '
+          'first successful mutation.',
+      stableToolDefinitions: const <Map<String, dynamic>>[],
+      completionVerificationFailureCounts: verificationFailureCounts,
+      narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+      interactionGeneration: interactionGeneration,
+    );
+    return true;
+  }
+
   Future<bool> _finishExplicitTerminalSuccess(
     String? message, {
     required int interactionGeneration,
@@ -34,6 +283,8 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       return false;
     }
     appLog('[Tool] Terminal success accepted for current generation');
+    _explicitTerminalSuccessSummariesByGeneration[interactionGeneration] =
+        message;
     _recordHiddenAssistantResponse(message);
     _appendRecoveredAssistantResponse(
       message,
@@ -183,6 +434,35 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       evidence: evidence,
     );
     final previousEvidence = tracker?.previousEvidence;
+    final diagnosticSignatureChanged =
+        tracker != null &&
+        evidence.diagnosticSignature.isNotEmpty &&
+        tracker.previousDiagnosticSignature.isNotEmpty &&
+        evidence.diagnosticSignature != tracker.previousDiagnosticSignature;
+    final postRepairVerifierAdvanced =
+        (tracker?.pendingPostRepairReplayOutcome ?? false) &&
+        diagnosticSignatureChanged;
+    final repairContractProducedNoMutation =
+        tracker?.pendingRepairContractOutcome ?? false;
+    if (tracker != null) {
+      tracker.pendingPostRepairReplayOutcome = false;
+      tracker.pendingRepairContractOutcome = false;
+    }
+    final candidateDiagnosticSignatureStreak = tracker == null
+        ? 0
+        : const StalledDiagnosticRepairContract().nextSignatureStreak(
+            previousSignature: tracker.previousDiagnosticSignature,
+            currentSignature: evidence.diagnosticSignature,
+            currentStreak: tracker.identicalDiagnosticSignatureStreak,
+          );
+    if (diagnosticSignatureChanged) {
+      appLog('[DiagnosticRepairContract] diagnostic signature changed');
+    }
+    if (evidence.hasExecutionVerification) {
+      tracker?.consecutiveValidationMisses = 0;
+      tracker?.failedVerificationObserved =
+          !evidence.hasSuccessfulExecutionVerification;
+    }
     final diagnosticEvidenceImproved =
         previousEvidence != null &&
         evidence.hasDiagnosticEvidence &&
@@ -200,8 +480,14 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         diagnosticRepairExtensionUsed:
             tracker?.diagnosticRepairExtensionUsed ?? false,
         diagnosticEvidenceImproved: diagnosticEvidenceImproved,
-        validationContinuations: tracker?.validationContinuations ?? 0,
+        postRepairVerifierAdvanced: postRepairVerifierAdvanced,
+        repairContractProducedNoMutation: repairContractProducedNoMutation,
+        repairNoMutationRetryUsed: tracker?.repairNoMutationRetryUsed ?? false,
+        consecutiveValidationMisses: tracker?.consecutiveValidationMisses ?? 0,
+        failedVerificationObserved:
+            tracker?.failedVerificationObserved ?? false,
         noProgressStreak: candidateNoProgressStreak,
+        identicalDiagnosticSignatureStreak: candidateDiagnosticSignatureStreak,
         finalAnswerEndsWithQuestion: _endsWithQuestionMark(
           finalizedAssistantResponse,
         ),
@@ -280,12 +566,33 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       return;
     }
 
+    final executionSnapshot = const ExecutionSnapshotProjector().project(
+      currentConversation,
+    );
+    final repairContract = const StalledDiagnosticRepairContract().build(
+      evidence: evidence,
+      executionSnapshot: executionSnapshot,
+      noProgressStreak: tracker?.verifierReplayCandidate == null
+          ? 0
+          : candidateDiagnosticSignatureStreak,
+    );
+    if (repairContract != null) {
+      appLog(
+        '[DiagnosticRepairContract] activated; '
+        'signatureStreak=$candidateDiagnosticSignatureStreak',
+      );
+    }
+    final capabilityProfile = _goalAutoContinuePolicy.selectCapabilityProfile(
+      evidence: evidence,
+      hasRepairContract: repairContract != null,
+    );
     final continuationPrompt = _buildGoalAutoContinuePrompt(
       goal: goal!,
       evidence: evidence,
-      executionSnapshot: const ExecutionSnapshotProjector().project(
-        currentConversation,
-      ),
+      executionSnapshot: executionSnapshot,
+      repairContract: repairContract,
+      repairNoMutationRetry: decision.usesRepairNoMutationRetry,
+      capabilityProfile: capabilityProfile,
       nextTurnNumber: decision.nextTurnNumber,
       effectiveTurnBudget: decision.effectiveTurnBudget,
       languageCode: languageCode,
@@ -295,6 +602,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       tracker.noProgressStreak = candidateNoProgressStreak;
       if (decision.usesDiagnosticRepairExtension) {
         tracker.diagnosticRepairExtensionUsed = true;
+      }
+      if (decision.usesRepairNoMutationRetry) {
+        tracker.repairNoMutationRetryUsed = true;
       }
     }
     await _recordGoalAutoContinueSessionLog(
@@ -325,19 +635,33 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         tracker?.diagnosticRepairContinuations += 1;
       }
       if (evidence.requiresValidationContinuation) {
-        tracker?.validationContinuations += 1;
+        tracker?.consecutiveValidationMisses += 1;
       }
       tracker?.previousEvidence = evidence;
+      if (tracker != null) {
+        tracker.previousDiagnosticSignature = evidence.diagnosticSignature;
+        tracker.identicalDiagnosticSignatureStreak =
+            candidateDiagnosticSignatureStreak;
+        tracker.pendingRepairContractOutcome = repairContract != null;
+      }
       final continuationFuture = sendHiddenPrompt(
         continuationPrompt,
         isVoiceMode: false,
         languageCode: languageCode,
         persistAssistantResponse: true,
         preserveGoalAutoContinueEvidence: true,
+        replayVerifierImmediatelyAfterMutation: repairContract != null,
+        allowedToolNames: switch (capabilityProfile) {
+          GoalAutoContinueCapabilityProfile.repair => _goalRepairToolNames,
+          GoalAutoContinueCapabilityProfile.validation =>
+            _goalValidationToolNames,
+          GoalAutoContinueCapabilityProfile.unrestricted => null,
+        },
       );
       _isSchedulingGoalAutoContinue = false;
       await continuationFuture;
     } on Object catch (error, stackTrace) {
+      tracker?.pendingRepairContractOutcome = false;
       appLog(
         '[GoalAutoContinue] hidden continuation failed: '
         '${error.runtimeType}: $error',
@@ -423,6 +747,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     required ConversationGoal goal,
     required ToolResultCompletionEvidence evidence,
     required ExecutionSnapshot executionSnapshot,
+    required String? repairContract,
+    required bool repairNoMutationRetry,
+    required GoalAutoContinueCapabilityProfile capabilityProfile,
     required int nextTurnNumber,
     required int effectiveTurnBudget,
     required String languageCode,
@@ -445,8 +772,22 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         executionSnapshot.toPromptContext(),
         '</execution_snapshot>',
       ],
+      if (repairContract != null) ...['', repairContract],
+      if (repairNoMutationRetry) ...[
+        '',
+        'The previous constrained repair turn ended without a file mutation. '
+            'This is the only retry. Do not narrate another future action. '
+            'Use read_file only if essential, then call exactly one available '
+            'write, edit, or delete tool in this turn. If no safe mutation is '
+            'possible, state the concrete blocker instead.',
+      ],
       '',
-      if (evidence.requiresValidationContinuation) ...[
+      if (capabilityProfile == GoalAutoContinueCapabilityProfile.repair) ...[
+        'This is a repair-only continuation. Use the available file tools to '
+            'make the contract repair now. Do not run a verification command; '
+            'the harness will replay the saved verifier after a mutation.',
+      ] else if (capabilityProfile ==
+          GoalAutoContinueCapabilityProfile.validation) ...[
         'This is a validation-only continuation. Do not edit files unless a '
             'verification command reports a concrete failure. Run the '
             'available project verifier now. A verifier request that was '
@@ -516,11 +857,16 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             'noProgressStreak': tracker?.noProgressStreak ?? 0,
             'diagnosticRepairContinuations':
                 tracker?.diagnosticRepairContinuations ?? 0,
-            'validationContinuations': tracker?.validationContinuations ?? 0,
+            'consecutiveValidationMisses':
+                tracker?.consecutiveValidationMisses ?? 0,
             'diagnosticRepairExtensionUsed':
                 tracker?.diagnosticRepairExtensionUsed ?? false,
             'previousUnresolvedErrorCount':
                 tracker?.previousEvidence?.unresolvedErrorCount,
+            'diagnosticSignaturePresent':
+                evidence.diagnosticSignature.isNotEmpty,
+            'identicalDiagnosticSignatureStreak':
+                tracker?.identicalDiagnosticSignatureStreak ?? 0,
             'boundedToolLoopExhausted': evidence.boundedToolLoopExhausted,
             'unexecutedToolNames': evidence.unexecutedToolNames,
             'unresolvedErrorCount': evidence.unresolvedErrorCount,

@@ -67,6 +67,7 @@ WEIGHT_ABNORMAL_EXIT = 0.5
 
 # turn_exit reasons that are abnormal (everything except a healthy text answer).
 _ABNORMAL_EXIT_REASONS = frozenset({
+    "unexecuted_tool_request",
     "tool_failure_abort",
     "max_iterations",
     "guardrail_block",

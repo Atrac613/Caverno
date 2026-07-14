@@ -124,8 +124,17 @@ class ContentParser {
     r'^call\s*:\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*(\{.*\})$',
     dotAll: true,
   );
-  static final _xmlArgPattern = RegExp(
-    r'^(\w+)\s*[\n\r]+<arg_key>(\w+)</arg_key>\s*[\n\r]*<arg_value>(.+?)</arg_value>',
+  static final _xmlToolNamePattern = RegExp(r'^([a-zA-Z_][a-zA-Z0-9_.-]*)\s*');
+  static final _xmlArgPairPattern = RegExp(
+    r'<arg_(?:key|name)>([a-zA-Z_][a-zA-Z0-9_-]*)</arg_(?:key|name)>\s*<arg_value>(.*?)</arg_value>',
+    dotAll: true,
+  );
+  static final _functionToolPattern = RegExp(
+    r'^<function\s*=\s*([a-zA-Z_][a-zA-Z0-9_.-]*)\s*>(.*?)</function>\s*$',
+    dotAll: true,
+  );
+  static final _functionParameterPattern = RegExp(
+    r'<parameter\s*=\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*>(.*?)</parameter>',
     dotAll: true,
   );
   static final _simpleToolCallPattern = RegExp(r'(\w+)\s*\(\s*"([^"]+)"\s*\)');
@@ -549,16 +558,46 @@ class ContentParser {
       }
     }
 
-    // XML format: tool_name\n<arg_key>key</arg_key>\n<arg_value>value</arg_value>
-    // e.g.: web_search\n<arg_key>query</arg_key>\n<arg_value>search query</arg_value>
-    final xmlMatch = _xmlArgPattern.firstMatch(trimmed);
-    if (xmlMatch != null) {
-      final name = xmlMatch.group(1)!;
-      final argKey = xmlMatch.group(2)!;
-      final argValue = xmlMatch.group(3)!.trim();
+    // Compatibility format emitted by some OpenAI-compatible local models:
+    // <function=tool_name><parameter=key>value</parameter></function>
+    final functionMatch = _functionToolPattern.firstMatch(trimmed);
+    if (functionMatch != null) {
+      final body = functionMatch.group(2)!;
+      final arguments = <String, dynamic>{};
+      var cursor = 0;
+      for (final parameterMatch in _functionParameterPattern.allMatches(body)) {
+        if (body.substring(cursor, parameterMatch.start).trim().isNotEmpty) {
+          return null;
+        }
+        final name = parameterMatch.group(1)!;
+        if (arguments.containsKey(name)) {
+          return null;
+        }
+        arguments[name] = parameterMatch.group(2)!.trim();
+        cursor = parameterMatch.end;
+      }
+      if (arguments.isEmpty || body.substring(cursor).trim().isNotEmpty) {
+        return null;
+      }
       return ToolCallData(
-        name: name,
-        arguments: sanitizeToolArguments({argKey: argValue}),
+        name: functionMatch.group(1)!,
+        arguments: sanitizeToolArguments(arguments),
+        isComplete: true,
+      );
+    }
+
+    // XML format accepts legacy arg_key and OpenAI-style arg_name pairs.
+    final xmlNameMatch = _xmlToolNamePattern.firstMatch(trimmed);
+    final xmlArguments = <String, dynamic>{};
+    if (xmlNameMatch != null) {
+      for (final match in _xmlArgPairPattern.allMatches(trimmed)) {
+        xmlArguments[match.group(1)!] = match.group(2)!.trim();
+      }
+    }
+    if (xmlNameMatch != null && xmlArguments.isNotEmpty) {
+      return ToolCallData(
+        name: xmlNameMatch.group(1)!,
+        arguments: sanitizeToolArguments(xmlArguments),
         isComplete: true,
       );
     }

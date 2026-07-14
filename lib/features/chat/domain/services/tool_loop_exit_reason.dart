@@ -33,6 +33,10 @@ enum ToolLoopExitReason {
   /// and then finalized without requesting another tool-aware model round.
   pendingBatchExecuted,
 
+  /// The final-answer stream emitted a structured tool request that this
+  /// non-tool-aware step could not execute.
+  unexecutedToolRequest,
+
   /// The same tool call failed repeatedly with identical arguments and the loop
   /// gave up (the current `toolFailureCounts[key] >= 2` break — LL29's target).
   toolFailureAbort,
@@ -185,6 +189,9 @@ class ToolLoopExitClassifier {
       case ToolLoopExitReason.textResponse:
       case ToolLoopExitReason.pendingBatchExecuted:
         return null;
+      case ToolLoopExitReason.unexecutedToolRequest:
+        return 'The final answer requested another tool, but that request was '
+            'not executed in this step. Ask me to continue so I can retry it.';
       case ToolLoopExitReason.maxIterations:
         return 'I stopped because the turn reached its tool-call limit before '
             'finishing. Ask me to continue and I will pick up where I left off.';
@@ -223,6 +230,8 @@ class ToolLoopExitClassifier {
         return 'max_iterations';
       case ToolLoopExitReason.pendingBatchExecuted:
         return 'pending_batch_executed';
+      case ToolLoopExitReason.unexecutedToolRequest:
+        return 'unexecuted_tool_request';
       case ToolLoopExitReason.toolFailureAbort:
         return 'tool_failure_abort';
       case ToolLoopExitReason.guardrailBlock:

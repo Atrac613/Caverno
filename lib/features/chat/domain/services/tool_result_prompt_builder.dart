@@ -9,30 +9,46 @@ enum ToolResultPromptBudgetMode { normal, compact }
 
 enum GoalEvidenceProgress { improved, noProgress }
 
+class UnresolvedErrorDiagnostic {
+  const UnresolvedErrorDiagnostic({
+    required this.path,
+    required this.code,
+    required this.message,
+  });
+
+  final String path;
+  final String code;
+  final String message;
+}
+
 class ToolResultCompletionEvidence {
   const ToolResultCompletionEvidence({
     this.boundedToolLoopExhausted = false,
     this.unexecutedToolNames = const <String>[],
     this.unresolvedErrorCount = 0,
     this.unresolvedErrorPaths = const <String>[],
+    this.unresolvedErrorDiagnostics = const <UnresolvedErrorDiagnostic>[],
     this.unverifiedChangePaths = const <String>[],
     this.mutatedWithoutExecutionVerification = false,
     this.hasExecutionVerification = false,
     this.hasSuccessfulExecutionVerification = false,
     this.hasAuthoritativeDiagnosticSnapshot = false,
     this.hasUnexecutedActionClaim = false,
+    this.diagnosticSignature = '',
   });
 
   final bool boundedToolLoopExhausted;
   final List<String> unexecutedToolNames;
   final int unresolvedErrorCount;
   final List<String> unresolvedErrorPaths;
+  final List<UnresolvedErrorDiagnostic> unresolvedErrorDiagnostics;
   final List<String> unverifiedChangePaths;
   final bool mutatedWithoutExecutionVerification;
   final bool hasExecutionVerification;
   final bool hasSuccessfulExecutionVerification;
   final bool hasAuthoritativeDiagnosticSnapshot;
   final bool hasUnexecutedActionClaim;
+  final String diagnosticSignature;
 
   bool get hasIncompleteEvidence =>
       boundedToolLoopExhausted ||
@@ -118,8 +134,9 @@ class ToolResultCompletionEvidence {
         !hasAuthoritativeDiagnosticSnapshot &&
         unresolvedErrorCount == 0 &&
         previous.unresolvedErrorCount > 0;
+    final carryPriorMutationEvidence = !hasExecutionVerification;
     final carriedUnverifiedPaths = <String>{
-      ...previous.unverifiedChangePaths,
+      if (carryPriorMutationEvidence) ...previous.unverifiedChangePaths,
       ...unverifiedChangePaths,
     }.toList(growable: false);
     return ToolResultCompletionEvidence(
@@ -131,15 +148,22 @@ class ToolResultCompletionEvidence {
       unresolvedErrorPaths: carryDiagnostics
           ? previous.unresolvedErrorPaths
           : unresolvedErrorPaths,
+      unresolvedErrorDiagnostics: carryDiagnostics
+          ? previous.unresolvedErrorDiagnostics
+          : unresolvedErrorDiagnostics,
       unverifiedChangePaths: carriedUnverifiedPaths,
       mutatedWithoutExecutionVerification:
           mutatedWithoutExecutionVerification ||
-          previous.mutatedWithoutExecutionVerification,
+          (carryPriorMutationEvidence &&
+              previous.mutatedWithoutExecutionVerification),
       hasExecutionVerification: hasExecutionVerification,
       hasSuccessfulExecutionVerification: hasSuccessfulExecutionVerification,
       hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
       hasUnexecutedActionClaim:
           hasUnexecutedActionClaim || previous.hasUnexecutedActionClaim,
+      diagnosticSignature: carryDiagnostics
+          ? previous.diagnosticSignature
+          : diagnosticSignature,
     );
   }
 
@@ -151,9 +175,13 @@ class ToolResultCompletionEvidence {
         verificationGeneration != mutationGeneration) {
       return this;
     }
-    return const ToolResultCompletionEvidence(
+    return ToolResultCompletionEvidence(
+      boundedToolLoopExhausted:
+          boundedToolLoopExhausted && unexecutedToolNames.isNotEmpty,
+      unexecutedToolNames: unexecutedToolNames,
       hasExecutionVerification: true,
       hasSuccessfulExecutionVerification: true,
+      hasUnexecutedActionClaim: hasUnexecutedActionClaim,
     );
   }
 }
@@ -577,7 +605,9 @@ class ToolResultPromptBuilder {
 
     final unexecutedToolNames = <String>{};
     final unresolvedErrorPaths = <String>{};
+    final unresolvedErrorDiagnostics = <UnresolvedErrorDiagnostic>[];
     final seenDiagnosticKeys = <String>{};
+    final diagnosticSignatureComponents = <String>{};
     var hasAuthoritativeDiagnosticSnapshot = false;
     var hasUnexecutedActionClaim = false;
     var unresolvedErrorCount = 0;
@@ -633,12 +663,22 @@ class ToolResultPromptBuilder {
           if (!seenDiagnosticKeys.add(diagnosticKey)) {
             continue;
           }
+          diagnosticSignatureComponents.add(
+            _diagnosticSignatureComponent(diagnostic),
+          );
           unresolvedErrorCount += 1;
           final displayPath =
               (diagnostic['relative_path'] ?? diagnostic['path'])?.toString();
           if (displayPath != null && displayPath.trim().isNotEmpty) {
             unresolvedErrorPaths.add(displayPath.trim());
           }
+          unresolvedErrorDiagnostics.add(
+            UnresolvedErrorDiagnostic(
+              path: displayPath?.trim() ?? '',
+              code: diagnostic['code']?.toString().trim() ?? '',
+              message: diagnostic['message']?.toString().trim() ?? '',
+            ),
+          );
         }
       }
     }
@@ -663,6 +703,7 @@ class ToolResultPromptBuilder {
       unexecutedToolNames: unexecutedToolNames.toList(growable: false),
       unresolvedErrorCount: unresolvedErrorCount,
       unresolvedErrorPaths: unresolvedErrorPaths.toList(growable: false),
+      unresolvedErrorDiagnostics: List.unmodifiable(unresolvedErrorDiagnostics),
       unverifiedChangePaths: unverifiedChangePaths,
       mutatedWithoutExecutionVerification: mutatedWithoutExecutionVerification,
       hasExecutionVerification: hasExecutionVerification,
@@ -671,7 +712,39 @@ class ToolResultPromptBuilder {
       ),
       hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
       hasUnexecutedActionClaim: hasUnexecutedActionClaim,
+      diagnosticSignature: (diagnosticSignatureComponents.toList()..sort())
+          .join('\n'),
     );
+  }
+
+  static String _diagnosticSignatureComponent(Map diagnostic) {
+    final path = (diagnostic['relative_path'] ?? diagnostic['path'])
+        ?.toString()
+        .trim()
+        .replaceAll('\\', '/');
+    final normalizedPath = path == null || path.isEmpty
+        ? ''
+        : path.startsWith('/')
+        ? path.split('/').where((part) => part.isNotEmpty).last
+        : path;
+    var message = diagnostic['message']?.toString() ?? '';
+    final absolutePath = diagnostic['path']?.toString().trim();
+    if (absolutePath != null && absolutePath.isNotEmpty) {
+      message = message.replaceAll(absolutePath, normalizedPath);
+    }
+    message = message
+        .toLowerCase()
+        .replaceAll(RegExp(r':\d+(?::\d+)?'), ':<location>')
+        .replaceAll(RegExp(r'\bline\s+\d+\b'), 'line <location>')
+        .replaceAll(RegExp(r'\bcolumn\s+\d+\b'), 'column <location>')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return [
+      normalizedPath,
+      diagnostic['severity']?.toString().trim().toLowerCase() ?? '',
+      diagnostic['code']?.toString().trim().toLowerCase() ?? '',
+      message,
+    ].join('|');
   }
 
   static ToolResultCompletionEvidence reconcileFinalizationEvidence({

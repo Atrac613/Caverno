@@ -7,6 +7,8 @@ part of 'chat_notifier.dart';
 
 enum _ToolLoopBatchStatus { completed, textResponse, cancelled }
 
+const _toolFailureClassifier = ToolFailureClassifier();
+
 class _ToolLoopBatchExecutionResult {
   const _ToolLoopBatchExecutionResult({
     required this.status,
@@ -131,6 +133,10 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       );
     }
 
+    final allowSuccessfulReadResultReplay = !pendingBatchCalls.any(
+      _isContractMutationToolCall,
+    );
+
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
       execute: (toolCall) async {
@@ -190,6 +196,15 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         if (savedTaskTargetScopeGuardResult != null) {
           return savedTaskTargetScopeGuardResult;
         }
+        final verifierReplayGuardResult =
+            _buildUnchangedVerifierReplayBeforeRepairGuardResult(
+              toolCall,
+              commandRetryGeneration: nextCommandRetryGeneration,
+              pendingToolCalls: pendingBatchCalls,
+            );
+        if (verifierReplayGuardResult != null) {
+          return verifierReplayGuardResult;
+        }
         final unexecutedFileMutationGuardResult =
             _buildUnexecutedFileMutationBeforeCommandGuardResult(
               toolCall,
@@ -200,17 +215,57 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         if (unexecutedFileMutationGuardResult != null) {
           return unexecutedFileMutationGuardResult;
         }
+        final mutationGeneration =
+            ref
+                .read(conversationsNotifierProvider)
+                .currentConversation
+                ?.mutationGeneration ??
+            0;
+        if (allowSuccessfulReadResultReplay) {
+          final replayedResult = _successfulReadResultReplayCache.lookup(
+            toolCall: toolCall,
+            interactionGeneration: interactionGeneration,
+            mutationGeneration: mutationGeneration,
+            resolveProjectPath: _normalizeToolPathForDedup,
+          );
+          if (replayedResult != null) {
+            appLog(
+              '[InspectionReplay] Replayed successful read_file result for '
+              'mutation generation $mutationGeneration',
+            );
+            return McpToolResult(
+              toolName: toolCall.name,
+              result: replayedResult,
+              isSuccess: true,
+            );
+          }
+        }
         final dispatchedAt = DateTime.now();
         final dispatchResult = await _dispatchToolCall(
           toolCall,
           interactionGeneration: interactionGeneration,
         );
-        return _buildStaleProcessStartGuardResult(
+        final effectiveResult =
+            _buildStaleProcessStartGuardResult(
               toolCall,
               dispatchResult,
               dispatchedAt: dispatchedAt,
             ) ??
             dispatchResult;
+        if (!_toolFailureClassifier.isApprovalDenial(effectiveResult)) {
+          _recordExecutedVerifierReplayCandidate(toolCall);
+        }
+        if (allowSuccessfulReadResultReplay) {
+          _successfulReadResultReplayCache.record(
+            toolCall: toolCall,
+            result: effectiveResult.result,
+            isSuccess: effectiveResult.isSuccess,
+            interactionGeneration: interactionGeneration,
+            mutationGeneration: mutationGeneration,
+            resolveProjectPath: _normalizeToolPathForDedup,
+          );
+        }
+        return effectiveResult;
       },
       onLifecycle: (event) =>
           _logScheduledToolLifecycleEvent(event, loopIndex: iteration),
@@ -280,8 +335,17 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       batchToolResults.add(promptToolResult);
       executedToolResults.add(promptToolResult);
 
-      if (result.isSuccess) {
+      final disposition = _toolFailureClassifier.classify(toolCall, result);
+      if (_isUnchangedVerifierReplayBeforeRepairGuardResult(result)) {
+        toolFailureCounts.remove(toolFailureKey);
+      } else if (disposition == ToolResultDisposition.success) {
+        if (_isCommandExecutionTool(toolCall.name)) {
+          _resetCommandDiagnosticStreak(toolFailureKey);
+        }
         final isMutationTool = _isContractMutationToolCall(toolCall);
+        if (isMutationTool) {
+          _clearCommandDiagnosticRepairFocus();
+        }
         final hasExplicitTerminalSuccess = terminalSuccessState
             .observeSuccessfulResult(
               rawResult: result.result,
@@ -304,6 +368,17 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         if (_advancesCommandRetryGeneration(toolCall)) {
           nextCommandRetryGeneration += 1;
         }
+      } else if (disposition ==
+          ToolResultDisposition.actionableCommandFailure) {
+        toolFailureCounts.remove(toolFailureKey);
+        _recordCommandDiagnosticStreak(
+          commandKey: toolFailureKey,
+          toolResult: promptToolResult,
+        );
+        appLog(
+          '[Tool] Command completed with an actionable non-zero outcome; '
+          'returning diagnostics without counting an execution failure',
+        );
       } else {
         await _recordMalformedToolCallRuntimeFeedback(
           '${result.errorMessage ?? ''}\n${result.result}',
@@ -311,7 +386,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         final failureCount = (toolFailureCounts[toolFailureKey] ?? 0) + 1;
         toolFailureCounts[toolFailureKey] = failureCount;
         if (failureCount >= 2) {
-          final isDenial = _isApprovalDenialResult(result);
+          final isDenial = disposition == ToolResultDisposition.approvalDenied;
           appLog(
             '[Tool] Same tool (${toolCall.name}) '
             '${isDenial ? 'was denied' : 'failed'} '
@@ -447,19 +522,6 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     );
   }
 
-  /// Whether a failed tool result is an approval denial (auto-review, manual,
-  /// or a saved permission rule) rather than a genuine execution error. Used to
-  /// phrase the consecutive-failure abort correctly: a denial is a policy stop,
-  /// not a broken endpoint.
-  bool _isApprovalDenialResult(McpToolResult result) {
-    if (result.isSuccess) {
-      return false;
-    }
-    final haystack = '${result.errorMessage ?? ''}\n${result.result}'
-        .toLowerCase();
-    return haystack.contains('denied') || haystack.contains('auto-review');
-  }
-
   Future<ToolResultInfo?> _persistToolResultForPrompt(
     ToolResultInfo toolResult, {
     required int interactionGeneration,
@@ -528,6 +590,59 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     appLog(
       '[BackgroundProcess] Monitoring ${snapshot.jobId} '
       '(${snapshot.status})',
+    );
+  }
+
+  McpToolResult? _buildStaleProcessStartGuardResult(
+    ToolCallInfo toolCall,
+    McpToolResult result, {
+    required DateTime dispatchedAt,
+  }) {
+    if (toolCall.name.trim().toLowerCase() != 'process_start' ||
+        !result.isSuccess) {
+      return null;
+    }
+    final decoded = _tryDecodeMap(result.result);
+    if (decoded == null ||
+        decoded['ok'] != true ||
+        decoded['duplicate_existing'] == true) {
+      return null;
+    }
+    final startedAtText = decoded['started_at']?.toString().trim();
+    if (startedAtText == null || startedAtText.isEmpty) {
+      return null;
+    }
+    final startedAt = DateTime.tryParse(startedAtText);
+    if (startedAt == null) {
+      return null;
+    }
+    final staleBefore = dispatchedAt.subtract(const Duration(seconds: 5));
+    if (!startedAt.isBefore(staleBefore)) {
+      return null;
+    }
+
+    final payload = jsonEncode({
+      'ok': false,
+      'code': 'background_process_start_stale_result',
+      'error':
+          'process_start returned a non-duplicate job result whose started_at '
+          'predates this tool call. Treat the start result as stale until the '
+          'process state is verified.',
+      'job_id': decoded['job_id'],
+      'command': decoded['command'],
+      'working_directory': decoded['working_directory'],
+      'started_at': startedAtText,
+      'tool_dispatched_at': dispatchedAt.toIso8601String(),
+      'required_action':
+          'Use process_status, process_tail, or process_wait for the job_id '
+          'if it should still be monitored. Do not report the command as newly '
+          'started from this result.',
+    });
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: false,
+      errorMessage: 'process_start returned a stale job result.',
     );
   }
 

@@ -27,9 +27,19 @@ extension ChatNotifierPromptContext on ChatNotifier {
     final resolvedAssistantMode = _resolveAssistantMode(
       currentConversation: currentConversation,
     );
-    final executionSnapshot = const ExecutionSnapshotProjector().project(
+    final projectedExecutionSnapshot = const ExecutionSnapshotProjector()
+        .project(currentConversation);
+    final commandDiagnosticRepairFocus = _commandDiagnosticRepairFocusFor(
       currentConversation,
     );
+    final executionSnapshot = commandDiagnosticRepairFocus == null
+        ? projectedExecutionSnapshot
+        : projectedExecutionSnapshot.withCommandDiagnosticRepairFocus(
+            diagnosticSummary: commandDiagnosticRepairFocus.diagnosticSummary,
+            streak: commandDiagnosticRepairFocus.streak,
+            hasPathBackedDiagnostic:
+                commandDiagnosticRepairFocus.hasPathBackedDiagnostic,
+          );
     _observeExecutionSnapshot(currentConversation, executionSnapshot);
     final content = SystemPromptBuilder.build(
       now: now,

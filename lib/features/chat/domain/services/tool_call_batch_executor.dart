@@ -1,6 +1,7 @@
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
 import 'tool_call_execution_policy.dart';
+import 'tool_failure_classifier.dart';
 
 typedef ToolCallDispatch =
     Future<McpToolResult> Function(ToolCallInfo toolCall);
@@ -19,9 +20,12 @@ class ToolCallBatchExecutor {
   const ToolCallBatchExecutor({
     ToolCallExecutionPolicy toolCallExecutionPolicy =
         const ToolCallExecutionPolicy(),
-  }) : _toolCallExecutionPolicy = toolCallExecutionPolicy;
+    ToolFailureClassifier toolFailureClassifier = const ToolFailureClassifier(),
+  }) : _toolCallExecutionPolicy = toolCallExecutionPolicy,
+       _toolFailureClassifier = toolFailureClassifier;
 
   final ToolCallExecutionPolicy _toolCallExecutionPolicy;
+  final ToolFailureClassifier _toolFailureClassifier;
 
   Future<ToolCallBatchExecutionResult> execute({
     required List<ToolCallInfo> toolCalls,
@@ -65,8 +69,12 @@ class ToolCallBatchExecutor {
         ),
       );
 
-      if (result.isSuccess) {
+      final disposition = _toolFailureClassifier.classify(toolCall, result);
+      if (disposition == ToolResultDisposition.success) {
         executedToolCallKeys.add(toolCallKey);
+        toolFailureCounts.remove(toolFailureKey);
+      } else if (disposition ==
+          ToolResultDisposition.actionableCommandFailure) {
         toolFailureCounts.remove(toolFailureKey);
       } else {
         final failureCount = (toolFailureCounts[toolFailureKey] ?? 0) + 1;

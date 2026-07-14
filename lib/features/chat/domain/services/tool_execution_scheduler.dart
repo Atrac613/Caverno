@@ -1,5 +1,6 @@
 import '../entities/mcp_tool_entity.dart';
 import '../entities/tool_call_info.dart';
+import 'tool_failure_classifier.dart';
 
 enum ToolExecutionBatchMode { serial, parallelFileRead, parallelNetworkRead }
 
@@ -53,6 +54,8 @@ class ToolExecutionScheduler {
   ToolExecutionScheduler._();
 
   static const int maxParallelBatchSize = 3;
+  static const ToolFailureClassifier _toolFailureClassifier =
+      ToolFailureClassifier();
 
   static const Set<String> _fileReadToolNames = {
     'list_directory',
@@ -207,7 +210,10 @@ class ToolExecutionScheduler {
           toolCall: toolCall,
           state: ToolExecutionLifecycleState.completed,
           schedulerMode: executionMode,
-          resultStatus: result.isSuccess ? 'success' : 'tool_failure',
+          resultStatus: _toolFailureClassifier.lifecycleResultStatus(
+            toolCall,
+            result,
+          ),
           durationMs: stopwatch.elapsedMilliseconds,
         ),
       );

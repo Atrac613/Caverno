@@ -15,6 +15,30 @@ void main() {
     expect(decision.effectiveTurnBudget, kGoalAutoContinueDefaultTurnBudget);
   });
 
+  test('selects repair capabilities over pending validation', () {
+    const evidence = ToolResultCompletionEvidence(
+      boundedToolLoopExhausted: true,
+      unexecutedToolNames: ['local_execute_command'],
+      unresolvedErrorCount: 1,
+      unresolvedErrorPaths: ['bin/todo_cli.dart'],
+    );
+
+    expect(
+      policy.selectCapabilityProfile(
+        evidence: evidence,
+        hasRepairContract: true,
+      ),
+      GoalAutoContinueCapabilityProfile.repair,
+    );
+    expect(
+      policy.selectCapabilityProfile(
+        evidence: evidence,
+        hasRepairContract: false,
+      ),
+      GoalAutoContinueCapabilityProfile.validation,
+    );
+  });
+
   test('skips when auto continue is disabled by default', () {
     final decision = policy.decide(_input(goal: _goal(autoContinue: false)));
 
@@ -132,7 +156,7 @@ void main() {
           mutatedWithoutExecutionVerification: true,
           unverifiedChangePaths: ['bin/todo_cli.dart'],
         ),
-        validationContinuations: 1,
+        consecutiveValidationMisses: 1,
       ),
     );
 
@@ -147,7 +171,7 @@ void main() {
           mutatedWithoutExecutionVerification: true,
           hasUnexecutedActionClaim: true,
         ),
-        validationContinuations: 1,
+        consecutiveValidationMisses: 1,
       ),
     );
 
@@ -163,7 +187,7 @@ void main() {
           mutatedWithoutExecutionVerification: true,
           unresolvedErrorCount: 1,
         ),
-        validationContinuations: 1,
+        consecutiveValidationMisses: 1,
       ),
     );
 
@@ -182,12 +206,14 @@ void main() {
           mutatedWithoutExecutionVerification: true,
           unresolvedErrorCount: 1,
         ),
-        validationContinuations: 2,
+        consecutiveValidationMisses: 2,
+        failedVerificationObserved: true,
       ),
     );
 
     expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
-    expect(decision.reason, 'validation continuation was ignored');
+    expect(decision.reason, 'post-verification repair was not revalidated');
+    expect(decision.blockedReason, contains('not verified again'));
   });
 
   test('blocks after the unexecuted validation action retry is ignored', () {
@@ -197,7 +223,7 @@ void main() {
           mutatedWithoutExecutionVerification: true,
           hasUnexecutedActionClaim: true,
         ),
-        validationContinuations: 2,
+        consecutiveValidationMisses: 2,
       ),
     );
 
@@ -229,7 +255,7 @@ void main() {
           unexecutedToolNames: ['local_execute_command'],
           unresolvedErrorCount: 3,
         ),
-        validationContinuations: 1,
+        consecutiveValidationMisses: 1,
       ),
     );
 
@@ -293,6 +319,30 @@ void main() {
     expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
   });
 
+  test('continues a stable diagnostic plateau despite a final question', () {
+    final decision = policy.decide(
+      _input(
+        evidence: _evidence(count: 1, paths: const ['bin/todo_cli.dart']),
+        identicalDiagnosticSignatureStreak: 1,
+        finalAnswerEndsWithQuestion: true,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+  });
+
+  test('prioritizes the first stable diagnostic repair over no-progress', () {
+    final decision = policy.decide(
+      _input(
+        evidence: _evidence(count: 1, paths: const ['bin/todo_cli.dart']),
+        noProgressStreak: 2,
+        identicalDiagnosticSignatureStreak: 1,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+  });
+
   test('blocks after two consecutive diagnostic no-progress comparisons', () {
     final evidence = _evidence(count: 2, paths: const ['bin/todo_cli.dart']);
     final decision = policy.decide(
@@ -348,6 +398,75 @@ void main() {
 
     expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
     expect(decision.reason, contains('repair continuation budget'));
+  });
+
+  test('grants one extension when a post-repair verifier advances', () {
+    final decision = policy.decide(
+      _input(
+        evidence: _evidence(count: 2, paths: const ['bin/todo_cli.dart']),
+        diagnosticRepairContinuations: kGoalAutoContinueDiagnosticRepairBudget,
+        noProgressStreak: 2,
+        postRepairVerifierAdvanced: true,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+    expect(decision.usesDiagnosticRepairExtension, isTrue);
+    expect(decision.reason, contains('post-repair verifier advanced'));
+  });
+
+  test('does not grant a second post-repair verifier extension', () {
+    final decision = policy.decide(
+      _input(
+        evidence: _evidence(count: 2, paths: const ['bin/todo_cli.dart']),
+        diagnosticRepairContinuations: kGoalAutoContinueDiagnosticRepairBudget,
+        diagnosticRepairExtensionUsed: true,
+        noProgressStreak: 2,
+        postRepairVerifierAdvanced: true,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
+    expect(decision.reason, contains('repair continuation budget'));
+  });
+
+  test('retries one repair contract that made no mutation', () {
+    final decision = policy.decide(
+      _input(
+        evidence: const ToolResultCompletionEvidence(
+          boundedToolLoopExhausted: true,
+          unexecutedToolNames: ['local_execute_command'],
+          unresolvedErrorCount: 1,
+          unresolvedErrorPaths: ['bin/todo_cli.dart'],
+          diagnosticSignature: 'stable-diagnostic',
+        ),
+        diagnosticRepairContinuations: kGoalAutoContinueDiagnosticRepairBudget,
+        noProgressStreak: 2,
+        identicalDiagnosticSignatureStreak: 2,
+        repairContractProducedNoMutation: true,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+    expect(decision.usesRepairNoMutationRetry, isTrue);
+    expect(decision.reason, contains('one retry granted'));
+  });
+
+  test('blocks when a repair contract makes no mutation twice', () {
+    final decision = policy.decide(
+      _input(
+        evidence: _evidence(count: 1, paths: const ['bin/todo_cli.dart']),
+        diagnosticRepairContinuations: kGoalAutoContinueDiagnosticRepairBudget,
+        noProgressStreak: 3,
+        identicalDiagnosticSignatureStreak: 3,
+        repairContractProducedNoMutation: true,
+        repairNoMutationRetryUsed: true,
+      ),
+    );
+
+    expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
+    expect(decision.reason, contains('no mutation twice'));
+    expect(decision.blockedReason, contains('without a file mutation'));
   });
 
   test('allows the last diagnostic repair continuation in the budget', () {
@@ -474,8 +593,13 @@ GoalAutoContinuePolicyInput _input({
   int diagnosticRepairContinuations = 0,
   bool diagnosticRepairExtensionUsed = false,
   bool diagnosticEvidenceImproved = false,
-  int validationContinuations = 0,
+  bool postRepairVerifierAdvanced = false,
+  bool repairContractProducedNoMutation = false,
+  bool repairNoMutationRetryUsed = false,
+  int consecutiveValidationMisses = 0,
+  bool failedVerificationObserved = false,
   int noProgressStreak = 0,
+  int identicalDiagnosticSignatureStreak = 0,
   bool finalAnswerEndsWithQuestion = false,
 }) {
   return GoalAutoContinuePolicyInput(
@@ -486,8 +610,13 @@ GoalAutoContinuePolicyInput _input({
     diagnosticRepairContinuations: diagnosticRepairContinuations,
     diagnosticRepairExtensionUsed: diagnosticRepairExtensionUsed,
     diagnosticEvidenceImproved: diagnosticEvidenceImproved,
-    validationContinuations: validationContinuations,
+    postRepairVerifierAdvanced: postRepairVerifierAdvanced,
+    repairContractProducedNoMutation: repairContractProducedNoMutation,
+    repairNoMutationRetryUsed: repairNoMutationRetryUsed,
+    consecutiveValidationMisses: consecutiveValidationMisses,
+    failedVerificationObserved: failedVerificationObserved,
     noProgressStreak: noProgressStreak,
+    identicalDiagnosticSignatureStreak: identicalDiagnosticSignatureStreak,
     finalAnswerEndsWithQuestion: finalAnswerEndsWithQuestion,
   );
 }

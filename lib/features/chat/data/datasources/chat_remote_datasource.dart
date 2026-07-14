@@ -639,9 +639,16 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         responseContent = '<think>$reasoning</think>$responseContent';
       }
 
-      // Parse tool calls
-      final toolCalls = _parseToolCalls(message.toolCalls);
-      final finishReason = choice.finishReason?.value ?? 'stop';
+      // Prefer native calls, but recover complete textual calls when this was
+      // explicitly a tool-aware request and the provider returned only text.
+      final nativeToolCalls = _parseToolCalls(message.toolCalls);
+      final embeddedToolCalls = nativeToolCalls == null
+          ? _parseAdvertisedEmbeddedToolCalls(responseContent, tools)
+          : null;
+      final toolCalls = nativeToolCalls ?? embeddedToolCalls;
+      final finishReason = embeddedToolCalls == null
+          ? choice.finishReason?.value ?? 'stop'
+          : 'tool_calls';
       lastFinishReason = finishReason;
 
       appLog('[LLM] ==========================================');
@@ -946,8 +953,14 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         responseContent = '<think>$reasoning</think>$responseContent';
       }
 
-      final toolCallsResult = _parseToolCalls(message.toolCalls);
-      final finishReason = choice.finishReason?.value ?? 'stop';
+      final nativeToolCalls = _parseToolCalls(message.toolCalls);
+      final embeddedToolCalls = nativeToolCalls == null
+          ? _parseAdvertisedEmbeddedToolCalls(responseContent, tools)
+          : null;
+      final toolCallsResult = nativeToolCalls ?? embeddedToolCalls;
+      final finishReason = embeddedToolCalls == null
+          ? choice.finishReason?.value ?? 'stop'
+          : 'tool_calls';
       lastFinishReason = finishReason;
 
       appLog('[LLM] ==========================================');
@@ -1206,5 +1219,26 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           ),
         )
         .toList(growable: false);
+  }
+
+  List<ToolCallInfo>? _parseAdvertisedEmbeddedToolCalls(
+    String content,
+    List<Map<String, dynamic>>? tools,
+  ) {
+    if (tools == null || tools.isEmpty) {
+      return null;
+    }
+    final advertisedNames = tools
+        .map((tool) => tool['function'])
+        .whereType<Map<String, dynamic>>()
+        .map((function) => function['name'])
+        .whereType<String>()
+        .toSet();
+    final calls = _parseEmbeddedToolCalls(content);
+    if (calls == null ||
+        calls.any((call) => !advertisedNames.contains(call.name))) {
+      return null;
+    }
+    return calls;
   }
 }

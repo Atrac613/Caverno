@@ -70,6 +70,7 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     parsedEntryCount += 1;
 
     final context = _asStringMap(decoded['context']);
+    final turnExit = _asStringMap(decoded['turnExit']);
     final request = _asStringMap(decoded['request']);
     final response = _asStringMap(decoded['response']);
     final error = _asStringMap(decoded['error']);
@@ -90,6 +91,9 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
     final hasLoopLimitPrompt = _hasLoopLimitPrompt(requestText);
     final hasToolCalls = responseToolCalls.isNotEmpty;
     final hasError = error != null;
+    final turnTransforms = _asList(
+      turnExit?['transforms'],
+    ).map(_asString).whereType<String>().toList(growable: false);
 
     operationCounts.update(operation, (count) => count + 1, ifAbsent: () => 1);
     if (finishReason != null) {
@@ -128,6 +132,23 @@ Future<CavernoLlmSessionLogSummary> buildCavernoLlmSessionLogSummary({
           message:
               _asString(error['message']) ??
               _preview(jsonEncode(error), previewLength),
+        ),
+      );
+    }
+    if (turnTransforms.contains('unexecuted_command_action_notice') &&
+        !warnings.any(
+          (warning) => warning.code == 'coding_action_promise_without_tool',
+        )) {
+      warnings.add(
+        SessionLogWarningEntry(
+          code: 'coding_action_promise_without_tool',
+          lineNumber: lineNumber,
+          message:
+              'The turn exited after applying the unexecuted command-action '
+              'notice. A coding action was promised without matching command '
+              'execution, even if the response text did not match the '
+              'summary lexical heuristic.',
+          evidencePreview: _preview(turnTransforms.join(', '), previewLength),
         ),
       );
     }

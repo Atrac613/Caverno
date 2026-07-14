@@ -122,13 +122,146 @@ void registerChatNotifierFinalAnswerRecoveryTests() {
       expect(visibleAnswer, isNot(contains(repeatedLine)));
     },
   );
+
+  test(
+    'truncated incomplete coding work gets one bounded tool-aware retry',
+    () async {
+      final fixture = await _createFinalAnswerRecoveryFixture(
+        toolResults: {
+          'read_file': jsonEncode({
+            'path': 'lib/main.dart',
+            'content': 'int value() => missingValue;',
+            'diagnostics': const [
+              {
+                'severity': 'Error',
+                'relative_path': 'lib/main.dart',
+                'path': 'lib/main.dart',
+                'code': 'undefined_identifier',
+                'message': 'Undefined name missingValue.',
+              },
+            ],
+          }),
+          'edit_file': jsonEncode({
+            'path': 'lib/main.dart',
+            'bytes_written': 17,
+          }),
+        },
+        firstAnswer: 'I need to reason through the repair before editing.',
+        recoveryAnswer: 'The bounded action retry was already used.',
+        recoveryFinishReason: 'stop',
+        pendingActionRecoveryResult: ChatCompletionResult(
+          content: '',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'repair-1',
+              name: 'edit_file',
+              arguments: {
+                'path': 'lib/main.dart',
+                'old_text': 'missingValue',
+                'new_text': '1',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      );
+      addTearDown(fixture.dispose);
+      fixture.container
+          .read(conversationsNotifierProvider.notifier)
+          .ensureCurrentConversation(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: 'project-1',
+          );
+      final notifier = fixture.container.read(chatNotifierProvider.notifier);
+
+      await notifier.sendMessage('Repair the current diagnostics');
+
+      expect(fixture.toolService.executedToolNames, ['read_file']);
+      expect(fixture.dataSource.toolResultCompletionCount, 3);
+      expect(
+        fixture.dataSource.pendingActionRecoveryRequestMessages,
+        hasLength(1),
+      );
+      final actionPrompt = fixture
+          .dataSource
+          .pendingActionRecoveryRequestMessages
+          .single
+          .singleWhere(
+            (message) => message.id.startsWith(
+              'length_truncated_pending_action_recovery_',
+            ),
+          );
+      expect(actionPrompt.content, contains('exactly one available tool call'));
+      expect(actionPrompt.content, contains('1 unresolved Error diagnostic'));
+      expect(
+        _toolNames(fixture.dataSource.pendingActionRecoveryToolBatches.single),
+        _toolNames(fixture.dataSource.initialToolBatches.single),
+      );
+      expect(fixture.dataSource.recoveryRequestMessages, hasLength(1));
+    },
+  );
+
+  test(
+    'pending-action recovery replays an unchanged successful read',
+    () async {
+      final fixture = await _createFinalAnswerRecoveryFixture(
+        toolResults: {
+          'read_file': jsonEncode({
+            'path': 'lib/main.dart',
+            'content': 'int value() => missingValue;',
+            'diagnostics': const [
+              {
+                'severity': 'Error',
+                'relative_path': 'lib/main.dart',
+                'path': 'lib/main.dart',
+                'code': 'undefined_identifier',
+                'message': 'Undefined name missingValue.',
+              },
+            ],
+          }),
+        },
+        firstAnswer: 'I need to inspect the failing file again before editing.',
+        recoveryAnswer: 'The bounded action retry was already used.',
+        recoveryFinishReason: 'stop',
+        pendingActionRecoveryResult: ChatCompletionResult(
+          content: '',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'repeat-read-1',
+              name: 'read_file',
+              arguments: const {
+                'path': 'lib/main.dart',
+                'reason': 'Inspect the current diagnostic again',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      );
+      addTearDown(fixture.dispose);
+      fixture.container
+          .read(conversationsNotifierProvider.notifier)
+          .ensureCurrentConversation(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: 'project-1',
+          );
+      final notifier = fixture.container.read(chatNotifierProvider.notifier);
+
+      await notifier.sendMessage('Repair the current diagnostics');
+
+      expect(fixture.toolService.executedToolNames, ['read_file']);
+      expect(fixture.dataSource.toolResultCompletionCount, greaterThan(1));
+    },
+  );
 }
 
 Future<_FinalAnswerRecoveryFixture> _createFinalAnswerRecoveryFixture({
+  Map<String, String>? toolResults,
   required String firstAnswer,
   String firstFinishReason = 'length',
   required String recoveryAnswer,
   required String recoveryFinishReason,
+  ChatCompletionResult? pendingActionRecoveryResult,
 }) async {
   final sessionLogRoot = await Directory.systemTemp.createTemp(
     'final_answer_recovery_logs_',
@@ -148,9 +281,10 @@ Future<_FinalAnswerRecoveryFixture> _createFinalAnswerRecoveryFixture({
       content: recoveryAnswer,
       finishReason: recoveryFinishReason,
     ),
+    pendingActionRecoveryResult: pendingActionRecoveryResult,
   );
   final toolService = _FakeMcpToolService(
-    results: const {'read_file': '{"content":"void main() {}"}'},
+    results: toolResults ?? const {'read_file': '{"content":"void main() {}"}'},
   );
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
@@ -161,6 +295,9 @@ Future<_FinalAnswerRecoveryFixture> _createFinalAnswerRecoveryFixture({
       ),
       conversationsNotifierProvider.overrideWith(
         _TestConversationsNotifier.new,
+      ),
+      codingProjectsNotifierProvider.overrideWith(
+        _TestCodingProjectsNotifier.new,
       ),
       chatRemoteDataSourceProvider.overrideWithValue(dataSource),
       sessionMemoryServiceProvider.overrideWithValue(

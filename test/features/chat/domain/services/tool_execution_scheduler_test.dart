@@ -374,4 +374,31 @@ void main() {
     expect(failedLifecycleEvent.resultStatus, 'exception');
     expect(failedLifecycleEvent.durationMs, isNotNull);
   });
+
+  test('labels structured non-zero command outcomes separately', () async {
+    final lifecycleEvents = <ToolExecutionLifecycleEvent>[];
+
+    await ToolExecutionScheduler.executeBatch(
+      toolCalls: [
+        ToolCallInfo(
+          id: 'command-1',
+          name: 'local_execute_command',
+          arguments: const {'command': 'dart test'},
+        ),
+      ],
+      execute: (toolCall) async => McpToolResult(
+        toolName: toolCall.name,
+        result:
+            '{"exit_code":1,"stdout":"","stderr":"Tests failed."}',
+        isSuccess: false,
+        errorMessage: 'Command exited non-zero.',
+      ),
+      onLifecycle: lifecycleEvents.add,
+    );
+
+    final completed = lifecycleEvents.singleWhere(
+      (event) => event.state == ToolExecutionLifecycleState.completed,
+    );
+    expect(completed.resultStatus, 'command_failure');
+  });
 }

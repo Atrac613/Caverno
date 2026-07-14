@@ -127,7 +127,9 @@ For each model switch, run this minimum set before comparing model quality:
    This variant places the canonical `todo_app.md` at the scratch root and sends
    only the exact short Japanese request used for manual validation. It uses the
    same independent verifier and post-success mutation gate as the
-   detailed-prompt canary.
+   detailed-prompt canary. Unlike the detailed controlled run, it accepts the
+   single Dart entrypoint the model creates directly under `bin/`; zero
+   candidates are reported as missing and multiple candidates as ambiguous.
 
    To apply the same exact-short prompt shape to the structurally different
    Markdown TOC fixture, run:
@@ -152,7 +154,8 @@ For each model switch, run this minimum set before comparing model quality:
    `docs/coding_mvp_fixtures/word_frequency_cli.md`. Its isolated verifier checks
    case folding, punctuation stripping, deterministic alphabetical tie breaks,
    exact top-N behavior, oversized N, empty input, and missing input errors.
-   The expected Dart entrypoint is `bin/word_frequency.dart`.
+   The verifier executes the single Dart entrypoint created directly under
+   `bin/` rather than requiring a fixture-specific filename.
 
    To exercise exact money aggregation, validation, persistence, and CSV
    export with the intermediate Expense tracker fixture:
@@ -169,7 +172,7 @@ For each model switch, run this minimum set before comparing model quality:
    exact decimal totals without binary floating-point artifacts, rejected
    amount inputs without state mutation, category and grand totals, CSV
    quoting for commas and quotes, and persistence across fresh processes. The
-   expected Dart entrypoint is `bin/expense_tracker.dart`.
+   verifier executes the single Dart entrypoint created directly under `bin/`.
 
    To exercise structural Markdown parsing with the intermediate fixture:
 
@@ -184,8 +187,8 @@ For each model switch, run this minimum set before comparing model quality:
    `docs/coding_mvp_fixtures/markdown_toc_generator.md`. Its isolated verifier
    checks heading hierarchy, GitHub-style slugs, duplicate suffixes, backtick
    and tilde fence exclusion, seven-hash rejection, and empty output for a
-   document without headings. The expected Dart entrypoint is
-   `bin/markdown_toc.dart`.
+   document without headings. The verifier executes the single Dart entrypoint
+   created directly under `bin/`.
 
 5. Coding overwrite transparency check:
 
@@ -416,6 +419,54 @@ allowed-warning, compaction-retry, and analyzer feedback increases are recorded
 as watch signals instead of hard failures.
 
 ## Latest Full-Surface Evidence
+
+### 2026-07-14: `qwen3.6-27b-vision` Markdown TOC Adaptive Pass
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model: `qwen3.6-27b-vision`
+- API key: `no-key`
+- Build commit: `70d6bc54`
+- Command: `tool/run_coding_markdown_toc_exact_short_live_canary.sh`
+- Scope note: three consecutive exact-short-prompt runs after propagating the
+  adaptively selected Dart entrypoint into behavioral diagnostics.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding MVP | Markdown TOC short prompt | Passed | 3/3 runs ready | One run created only `bin/markdown_toc.dart`; two created only `bin/generate_toc.dart`. All reached verifier success on turn 1 without entrypoint ambiguity. |
+| Turn finalization | Structured terminal success | Passed | 0 coding-continuation and 0 turn-finalization recovery requests across 3 runs | No run was blocked after successful verification. |
+
+Artifacts:
+
+- Run 1 summary:
+  `build/integration_test_reports/coding_markdown_toc_exact_short_live_canary_1784012653/canary_summary.json`
+- Run 2 summary:
+  `build/integration_test_reports/coding_markdown_toc_exact_short_live_canary_1784013349/canary_summary.json`
+- Run 3 summary:
+  `build/integration_test_reports/coding_markdown_toc_exact_short_live_canary_1784013548/canary_summary.json`
+
+### 2026-07-14: `qwen3.6-27b-vision` Minimal TODO Adaptive Entrypoint Pass
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model: `qwen3.6-27b-vision`
+- API key: `no-key`
+- Build commit: `5e3a39e3`
+- Command: `tool/run_coding_todo_app_minimal_prompt_live_canary.sh`
+- Scope note: three consecutive exact-short-prompt runs after adaptive Dart CLI
+  entrypoint discovery and structured terminal-success finalization recovery.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding MVP | Minimal TODO short prompt | Passed | 3/3 runs ready | All runs created only `bin/todo.dart`, reached verifier success on turn 1, and recorded no missing, unexpected, or ambiguous entrypoint diagnostics. |
+| Turn finalization | Structured terminal success | Passed | 0 continuation and 0 turn-finalization recovery requests across 3 runs | No post-success mutation was attempted and no completed goal was blocked. |
+
+Artifacts:
+
+- Run 1 summary:
+  `build/integration_test_reports/coding_todo_app_minimal_prompt_live_canary_1784009123/canary_summary.json`
+- Run 2 summary:
+  `build/integration_test_reports/coding_todo_app_minimal_prompt_live_canary_1784009257/canary_summary.json`
+- Run 3 summary:
+  `build/integration_test_reports/coding_todo_app_minimal_prompt_live_canary_1784009382/canary_summary.json`
 
 ### 2026-06-18: `qwen3.6-35b-a3b-vision` Main Gate Recovery Pass
 

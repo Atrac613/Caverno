@@ -125,6 +125,66 @@ void main() {
       expect(content, startsWith('A command failed'));
       expect(content, contains('All tests passed.'));
     });
+
+    test('recognizes Japanese command verification promises', () {
+      final verifyPromise = String.fromCharCodes(const [
+        0x6b8b,
+        0x308a,
+        0x306e,
+        0x53d7,
+        0x3051,
+        0x5165,
+        0x308c,
+        0x57fa,
+        0x6e96,
+        0x3092,
+        0x30b3,
+        0x30de,
+        0x30f3,
+        0x30c9,
+        0x3067,
+        0x691c,
+        0x8a3c,
+        0x3057,
+        0x307e,
+        0x3059,
+        0x3002,
+      ]);
+      final inspectPromise = String.fromCharCodes(const [
+        0x4e0d,
+        0x660e,
+        0x306a,
+        0x49,
+        0x44,
+        0x306e,
+        0x52d5,
+        0x4f5c,
+        0x3092,
+        0x30ed,
+        0x30fc,
+        0x30ab,
+        0x30eb,
+        0x30b3,
+        0x30de,
+        0x30f3,
+        0x30c9,
+        0x3067,
+        0x78ba,
+        0x8a8d,
+        0x3057,
+        0x307e,
+        0x3059,
+        0x3002,
+      ]);
+      expect(
+        detector.looksLikeFutureCommandExecutionAction(verifyPromise),
+        isTrue,
+      );
+      expect(
+        detector.looksLikeFutureCommandExecutionAction(inspectPromise),
+        isTrue,
+      );
+    });
   });
 }
 
