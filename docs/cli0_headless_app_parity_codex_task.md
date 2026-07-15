@@ -75,9 +75,27 @@ model with its default three headless runs and one macOS run.
 
 ## Handoff Notes
 
-- Summary: Pending implementation and Live evidence.
-- Tests run: Pending.
-- Coverage or low-coverage notes: The deterministic tests will cover report
-  aggregation and orchestration. The Live gate supplies behavioral evidence.
+- Summary: Implemented the comparison orchestrator and JSON summarizer, then
+  passed the gate against `qwen3.6-27b-vision` at the configured local
+  endpoint. All three headless runs and the macOS application-path run passed
+  with no task drift or report-quality blockers. The aggregate report is
+  `build/integration_test_reports/plan_mode_todo_app_cli0_comparison_1784130590/cli0_comparison_summary.json`.
+- Live results: The headless runs completed in 284,232 ms, 213,605 ms, and
+  385,315 ms. They recorded 35 tool loops, 38 tool calls, two recovered tool
+  failures, ten successful validations, and zero recovery-policy activations.
+  The macOS run completed in 476,977 ms with 21 tool loops, 27 tool calls, one
+  recovered tool failure, four successful validations, and zero
+  recovery-policy activations.
+- Tests run:
+  - `tool/codex_verify.sh --test test/tool/plan_mode_cli0_comparison_summary_test.dart --test test/tool/run_plan_mode_todo_app_cli0_comparison_test.dart`
+  - `fvm flutter test --no-pub test/features/chat/presentation/providers/chat_notifier_test.dart`
+    (307 tests)
+  - The default three-headless-plus-one-macOS Live gate
+- Coverage or low-coverage notes: Deterministic tests cover report aggregation
+  and orchestration. The Live gate covers the shared workflow and validates
+  the macOS application bootstrap, but the headless lane intentionally records
+  no screenshots or application-open markers.
 - Risks or follow-ups: A passing parity gate does not prove TTY behavior,
   signal handling, stable terminal exit codes, or a frontend-neutral runtime.
+  CLI1 should now extract the smallest frontend-neutral runtime seam, starting
+  with typed terminal events and approval ports for one one-shot chat turn.
