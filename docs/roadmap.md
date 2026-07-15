@@ -59,7 +59,8 @@ handoffs can refer to the same unit of work over time.
 | Remote Coding | RC0 | done | Ship the P0 LAN mobile control safety gate for existing desktop coding projects. | Use `dart run tool/remote_coding_p0_release_gate.dart` before P0 release review. |
 | Remote Coding | RC1 | later | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Keep light manual smoke as sufficient until P1 release evidence becomes a release priority. |
 | Caverno CLI | CLI0 | done | Establish a no-window production-path canary and freeze the terminal execution contract. | Keep the passing three-headless-plus-one-macOS comparison gate as the shared CLI baseline. |
-| Caverno CLI | CLI1 | next | Extract a shared application execution runtime without changing GUI behavior. | Define typed frontend-neutral events and approval ports, then migrate one one-shot chat turn. |
+| Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
+| Caverno CLI | CLI2 | next | Ship the interactive terminal MVP on the shared execution runtime. | Implement the one-shot `chat` command with terminal rendering, cancellation, approvals, and stable exit codes. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
@@ -857,7 +858,7 @@ Next action:
 
 ### CLI1: Shared Application Execution Runtime
 
-Status: `next`
+Status: `done`
 
 Scope:
 - Move runtime composition out of `lib/main.dart` and test-only canary builders
@@ -884,13 +885,27 @@ Dependencies:
 - Continue the F2/F5 large-file decomposition pattern instead of adding a new
   orchestration state machine beside `ChatNotifier`.
 
+Evidence:
+- `docs/cli1_shared_execution_runtime_codex_task.md`
+- `lib/features/chat/application/runtime/caverno_execution_runtime.dart`
+- `lib/features/chat/application/runtime/caverno_runtime_event.dart`
+- `lib/features/chat/application/runtime/caverno_runtime_ports.dart`
+- `lib/features/chat/presentation/providers/caverno_execution_runtime_provider.dart`
+- `test/features/chat/application/runtime/caverno_execution_runtime_test.dart`
+- `test/features/chat/presentation/providers/chat_notifier_execution_runtime_part.dart`
+- `build/integration_test_reports/cli1_live/plan_mode_todo_app_cli0_comparison_1784149029/headless/`
+- `build/integration_test_reports/cli1_macos_after_harness_fix/plan_mode_todo_app_live_canary_1784152249/plan_mode/plan_mode_live_suite_macos_report.json`
+- Repository-standard verification passed Flutter analysis and 347 focused/full
+  tests across the runtime, `ChatNotifier`, harness, and scenario configuration.
+
 Next action:
-- Define the frontend-neutral event and approval interfaces, then migrate one
-  one-shot chat turn through them without changing the GUI result.
+- Start CLI2 with a one-shot `chat` command and a terminal presenter over the
+  shared event stream. Keep coding and Plan Mode commands behind approval,
+  cancellation, and exit-code tests.
 
 ### CLI2: Interactive Terminal MVP
 
-Status: `later`
+Status: `next`
 
 Scope:
 - Add a supported `caverno` executable with `chat`, `coding`, and `plan`

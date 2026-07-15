@@ -76,10 +76,12 @@
 ## Verification
 
 ```bash
-dart test test/features/chat/application/runtime
 tool/codex_verify.sh \
-  --test test/features/chat/presentation/providers/chat_notifier_runtime_test.dart \
-  --test test/integration_support/plan_mode_live_harness_execution_test.dart
+  --no-codegen \
+  --test test/features/chat/application/runtime/caverno_execution_runtime_test.dart \
+  --test test/features/chat/presentation/providers/chat_notifier_test.dart \
+  --test test/integration_support/plan_mode_live_harness_execution_test.dart \
+  --test test/integration_support/plan_mode_scenario_config_test.dart
 ```
 
 After deterministic verification, rerun the CLI0 three-headless-plus-one-macOS
@@ -87,11 +89,32 @@ comparison to prove behavior parity through the shared composition.
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pure runtime tests must cover every event
-  type, ordering, terminal idempotence, failure, and closure. Flutter tests
-  cover the production adapter and shared provider identity.
-- Risks or follow-ups: CLI1 provides the runtime boundary, not the public
-  terminal UX. CLI2 remains responsible for TTY rendering, JSON Lines output,
-  SIGINT handling, and process exit codes.
+- Summary: Implemented `CavernoExecutionRuntime` as a pure Dart event runtime,
+  added explicit frontend-neutral ports, and connected visible, hidden, direct
+  Plan Mode, approval, question, usage, workflow, and terminal paths from
+  `ChatNotifier` through the shared Riverpod composition. The headless scenario
+  builder selects the same runtime API with a headless surface value.
+- Tests run:
+  - `tool/codex_verify.sh --no-codegen ...` passed Flutter analysis and 347
+    runtime, ChatNotifier, harness, and scenario-configuration tests.
+  - The deterministic no-window scenario passed at
+    `build/integration_test_reports/cli1_deterministic_headless/plan_mode_suite_headless_report.json`.
+  - Three consecutive live headless TODO runs passed under
+    `build/integration_test_reports/cli1_live/plan_mode_todo_app_cli0_comparison_1784149029/headless/`.
+  - The final production-path macOS TODO run passed with 81 complete tool
+    lifecycle events, zero incomplete tools, and zero warnings at
+    `build/integration_test_reports/cli1_macos_after_harness_fix/plan_mode_todo_app_live_canary_1784152249/plan_mode/plan_mode_live_suite_macos_report.json`.
+- Coverage or low-coverage notes: Pure runtime tests cover every event type,
+  strict ordering, hidden-content isolation, duplicate active turn IDs,
+  failure, and closure. Flutter tests cover production adapter lifecycle,
+  approval, question, and shared provider behavior.
+- Live findings fixed: A zero-exit saved validation with failed output-guard
+  feedback now retains repair tools, and exact saved validations may run
+  `dart format --set-exit-if-changed` only when every affected Dart file is an
+  active task target. Unsafe flags, escaping paths, unrelated Dart files, and
+  links remain denied.
+- Risks or follow-ups: A later full-comparison retry recorded a weak-model
+  headless convergence failure while rewriting a generated package import; it
+  did not expose a shared-runtime exception. CLI1 provides the runtime boundary,
+  not the public terminal UX. CLI2 remains responsible for TTY rendering, JSON
+  Lines output, SIGINT handling, and process exit codes.
