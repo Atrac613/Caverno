@@ -5724,6 +5724,19 @@ class ChatNotifier extends Notifier<ChatState> {
         batchToolResults: batchToolResults,
         executedToolResults: executedToolResults,
       );
+      final savedValidationSucceeded =
+          _toolResultsContainSuccessfulCurrentSavedValidation(batchToolResults);
+      final validationEvidenceRequiresRepair =
+          _postSavedValidationEvidenceRequiresRepair(batchToolResults);
+      final followUpTools =
+          savedValidationSucceeded && !validationEvidenceRequiresRepair
+          ? const <Map<String, dynamic>>[]
+          : tools;
+      if (followUpTools.isEmpty && tools.isNotEmpty) {
+        appLog(
+          '[Tool] Withholding tool definitions after saved validation success',
+        );
+      }
       // Remind the model what read-only context it already gathered so it does
       // not re-list directories / re-read files across the loop (and after a
       // recovery re-entry that resets the per-call dedup set).
@@ -5742,12 +5755,12 @@ class ChatNotifier extends Notifier<ChatState> {
         interactionGeneration: interactionGeneration,
         buildMessages: (forceCompaction) => _prepareMessagesForLLM(
           forceCompaction: forceCompaction,
-          toolDefinitionsOverride: tools,
+          toolDefinitionsOverride: followUpTools,
           interactionGeneration: interactionGeneration,
         ),
         toolResults: followUpToolResults,
         assistantContent: followUpAssistantContent,
-        tools: tools,
+        tools: followUpTools,
       );
 
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
@@ -5758,10 +5771,6 @@ class ChatNotifier extends Notifier<ChatState> {
 
       _lengthTruncatedToolCallIds = _truncationCasualtyToolCallIds(nextResult);
 
-      final savedValidationSucceeded =
-          _toolResultsContainSuccessfulCurrentSavedValidation(batchToolResults);
-      final validationEvidenceRequiresRepair =
-          _postSavedValidationEvidenceRequiresRepair(batchToolResults);
       if (validationEvidenceRequiresRepair) {
         savedValidationSucceededInLoop = false;
         appLog('[Tool] Validation evidence exposed a repair requirement');

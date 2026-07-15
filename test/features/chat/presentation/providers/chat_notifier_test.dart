@@ -11488,6 +11488,11 @@ with open(path, "rb") as file:
         ]);
         expect(toolDataSource.finalAnswerMessages, isEmpty);
         expect(
+          toolDataSource.toolResultToolDefinitionCounts.first,
+          greaterThan(0),
+        );
+        expect(toolDataSource.toolResultToolDefinitionCounts.last, 0);
+        expect(
           toolNotifier.state.messages.last.content,
           contains('README task is complete'),
         );
