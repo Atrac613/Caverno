@@ -791,6 +791,7 @@ bool _isSafeHarnessSavedValidationCommand(
           scenarioDir,
           task,
         ) ||
+        _isSafeHarnessDartFormatCommand(segment, scenarioDir, task) ||
         _isSafeHarnessStateResetCommand(segment, scenarioDir, task) ||
         _isSafeHarnessReadOnlyValidationCommand(segment, scenarioDir) ||
         _isSafeHarnessTargetCliProbeCommand(segment, scenarioDir, task),
@@ -982,6 +983,77 @@ bool _isSafeHarnessDartProjectCommand(
             (!argument.startsWith('-') &&
                 _isSafeHarnessCommandPath(argument, scenarioDir)),
       );
+}
+
+bool _isSafeHarnessDartFormatCommand(
+  List<String> args,
+  Directory scenarioDir,
+  ConversationWorkflowTask task,
+) {
+  var command = args;
+  if (command.first.split('/').last.toLowerCase() == 'fvm') {
+    if (command.length < 3) {
+      return false;
+    }
+    command = command.sublist(1);
+  }
+  if (command.length < 3 ||
+      command.first.split('/').last.toLowerCase() != 'dart' ||
+      command[1] != 'format') {
+    return false;
+  }
+
+  final paths = <String>[];
+  for (final argument in command.skip(2)) {
+    if (argument == '--set-exit-if-changed') {
+      continue;
+    }
+    if (argument.startsWith('-')) {
+      return false;
+    }
+    paths.add(argument);
+  }
+  if (paths.isEmpty) {
+    return false;
+  }
+
+  final normalizedTargets = task.targetFiles
+      .map((path) => _normalizeHarnessRelativePath(path, scenarioDir))
+      .whereType<String>()
+      .where((path) => path.toLowerCase().endsWith('.dart'))
+      .toSet();
+  if (normalizedTargets.isEmpty) {
+    return false;
+  }
+
+  for (final path in paths) {
+    final normalized = _normalizeHarnessRelativePath(path, scenarioDir);
+    if (normalized == null) {
+      return false;
+    }
+    if (normalizedTargets.contains(normalized)) {
+      continue;
+    }
+    final directory = Directory('${scenarioDir.path}/$normalized');
+    if (!directory.existsSync() ||
+        FileSystemEntity.isLinkSync(directory.path)) {
+      return false;
+    }
+    final entities = directory.listSync(recursive: true, followLinks: false);
+    if (entities.whereType<Link>().isNotEmpty) {
+      return false;
+    }
+    final dartFiles = entities
+        .whereType<File>()
+        .where((file) => file.path.toLowerCase().endsWith('.dart'))
+        .map((file) => _normalizeHarnessRelativePath(file.path, scenarioDir))
+        .whereType<String>()
+        .toSet();
+    if (dartFiles.isEmpty || !normalizedTargets.containsAll(dartFiles)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool _isSafeHarnessDirectoryCreationCommand(

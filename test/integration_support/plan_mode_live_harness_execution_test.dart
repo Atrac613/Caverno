@@ -672,6 +672,109 @@ void main() {
     );
   });
 
+  test('approves saved Dart format only for active task targets', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_dart_format_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+    final binDir = Directory('${tempDir.path}/bin')..createSync();
+    File('${binDir.path}/todo_app.dart').writeAsStringSync('void main() {}\n');
+
+    const task = ConversationWorkflowTask(
+      id: 'task-dart-format',
+      title: 'Format and analyze the Dart application',
+      targetFiles: <String>['bin/todo_app.dart', 'pubspec.yaml'],
+      validationCommand:
+          'dart format --set-exit-if-changed bin/ && dart analyze',
+    );
+
+    expect(
+      isSafePlanModeHarnessLocalCommand(
+        pending: _pendingLocalCommand(
+          command: task.validationCommand,
+          workingDirectory: tempDir.path,
+        ),
+        scenarioDir: tempDir,
+        task: task,
+      ),
+      isTrue,
+    );
+
+    final unrelatedFile = File('${binDir.path}/unrelated.dart')
+      ..writeAsStringSync('void unrelated() {}\n');
+
+    expect(
+      isSafePlanModeHarnessLocalCommand(
+        pending: _pendingLocalCommand(
+          command: task.validationCommand,
+          workingDirectory: tempDir.path,
+        ),
+        scenarioDir: tempDir,
+        task: task,
+      ),
+      isFalse,
+    );
+
+    unrelatedFile.deleteSync();
+    Link(
+      '${binDir.path}/linked.dart',
+    ).createSync('${binDir.path}/todo_app.dart');
+
+    expect(
+      isSafePlanModeHarnessLocalCommand(
+        pending: _pendingLocalCommand(
+          command: task.validationCommand,
+          workingDirectory: tempDir.path,
+        ),
+        scenarioDir: tempDir,
+        task: task,
+      ),
+      isFalse,
+    );
+  });
+
+  test('rejects unsafe Dart format saved validation variants', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_unsafe_dart_format_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+    final binDir = Directory('${tempDir.path}/bin')..createSync();
+    File('${binDir.path}/todo_app.dart').writeAsStringSync('void main() {}\n');
+
+    for (final command in <String>[
+      'dart format',
+      'dart format --output=show bin/todo_app.dart',
+      'dart format ../outside.dart',
+    ]) {
+      final task = ConversationWorkflowTask(
+        id: 'task-unsafe-dart-format',
+        title: 'Reject unsafe Dart format commands',
+        targetFiles: const <String>['bin/todo_app.dart'],
+        validationCommand: command,
+      );
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isFalse,
+        reason: command,
+      );
+    }
+  });
+
   test(
     'rejects saved validation directory changes outside the scenario root',
     () {
