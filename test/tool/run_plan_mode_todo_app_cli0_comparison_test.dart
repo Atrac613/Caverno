@@ -13,6 +13,11 @@ void main() {
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
       expect(fixture.headlessLog.readAsLinesSync(), hasLength(3));
       expect(fixture.macosLog.readAsLinesSync(), hasLength(1));
+      expect(
+        fixture.headlessLog.readAsLinesSync(),
+        everyElement(contains('|900|1380')),
+      );
+      expect(fixture.macosLog.readAsStringSync(), contains('|900|1380'));
       final summaryArguments = fixture.summaryLog.readAsStringSync();
       expect(summaryArguments, contains('--headless-root'));
       expect(summaryArguments, contains('--macos-suite-report'));
@@ -47,6 +52,8 @@ void main() {
       ).readAsStringSync();
 
       expect(runner, contains('CAVERNO_CLI0_HEADLESS_REPEAT_COUNT:-3'));
+      expect(runner, contains('CAVERNO_CLI0_EXECUTION_TIMEOUT_SECONDS:-900'));
+      expect(runner, contains('CAVERNO_CLI0_RUN_TIMEOUT_SECONDS:-1380'));
       expect(
         runner,
         contains('run_plan_mode_todo_app_headless_live_canary.sh'),
@@ -100,7 +107,7 @@ class _ComparisonFixture {
       '''
 #!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "\${CAVERNO_PLAN_MODE_TODO_HEADLESS_REPORT_ROOT}" >> "\${HEADLESS_LOG}"
+printf '%s|%s|%s\n' "\${CAVERNO_PLAN_MODE_TODO_HEADLESS_REPORT_ROOT}" "\${CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS}" "\${CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS}" >> "\${HEADLESS_LOG}"
 '''
           .trimLeft(),
     );
@@ -108,7 +115,7 @@ printf '%s\n' "\${CAVERNO_PLAN_MODE_TODO_HEADLESS_REPORT_ROOT}" >> "\${HEADLESS_
       '''
 #!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "\${CAVERNO_PLAN_MODE_TODO_REPORT_ROOT}" >> "\${MACOS_LOG}"
+printf '%s|%s|%s\n' "\${CAVERNO_PLAN_MODE_TODO_REPORT_ROOT}" "\${CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS}" "\${CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS}" >> "\${MACOS_LOG}"
 report_dir="\${CAVERNO_PLAN_MODE_TODO_REPORT_ROOT}/fake/plan_mode"
 mkdir -p "\${report_dir}"
 printf '{}\n' > "\${report_dir}/plan_mode_live_suite_macos_report.json"

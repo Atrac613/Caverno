@@ -31,6 +31,9 @@ Map<String, Object?> buildPlanModeHeadlessCanarySummary({
   final convergence = Map<String, dynamic>.from(
     scenarioReport['toolLoopConvergence'] as Map? ?? const <String, dynamic>{},
   );
+  final budgets = Map<String, dynamic>.from(
+    scenarioReport['budgets'] as Map? ?? const <String, dynamic>{},
+  );
   final approvalPath = scenarioReport['approvalPath']?.toString() ?? 'none';
   final usedHarnessApprovalFallback =
       scenarioReport['usedHarnessApprovalFallback'] == true;
@@ -48,6 +51,8 @@ Map<String, Object?> buildPlanModeHeadlessCanarySummary({
     'startedAt': scenario['startedAt'],
     'finishedAt': scenario['finishedAt'],
     'durationMs': scenario['durationMs'],
+    'executionTimeoutMs': budgets['executionTimeoutMs'],
+    'overallTimeoutMs': budgets['overallTimeoutMs'],
     'reportQualityReady': quality['ready'] == true,
     'reportQualityBlockerCount': quality['blockerCount'] ?? 0,
     'taskDriftDetected': scenario['taskDriftDetected'] == true,

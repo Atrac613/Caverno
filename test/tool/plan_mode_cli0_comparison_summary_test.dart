@@ -12,6 +12,10 @@ void main() {
       ],
       macosSuiteReport: _macosSuiteReport(),
       macosScenarioReport: <String, dynamic>{
+        'budgets': <String, dynamic>{
+          'executionTimeoutMs': 900000,
+          'overallTimeoutMs': 1380000,
+        },
         'approvalPath': 'liveHarnessApprovalFallback',
         'usedHarnessApprovalFallback': true,
         'screenshots': <String>['/tmp/completed.png'],
@@ -43,6 +47,8 @@ void main() {
     expect(headless['passedCount'], 3);
     expect(headless['passRate'], 1.0);
     expect(headless['toolLoopCount'], 6);
+    expect(headless['executionTimeoutMs'], 900000);
+    expect(headless['overallTimeoutMs'], 1380000);
     expect(headless['toolCallCount'], 9);
     expect(headless['recoveryCount'], 0);
     expect(headless['approvalDecisionCount'], 3);
@@ -63,6 +69,8 @@ void main() {
 
     final macos = summary['macos']! as Map<String, Object?>;
     expect(macos['status'], 'passed');
+    expect(macos['executionTimeoutMs'], 900000);
+    expect(macos['overallTimeoutMs'], 1380000);
     expect(macos['toolLoopCount'], 2);
     expect(macos['toolCallCount'], 4);
     expect(macos['successfulValidationCount'], 2);
@@ -82,6 +90,10 @@ void main() {
       headlessSummaries: <Map<String, dynamic>>[mismatched],
       macosSuiteReport: _macosSuiteReport(),
       macosScenarioReport: <String, dynamic>{
+        'budgets': <String, dynamic>{
+          'executionTimeoutMs': 900000,
+          'overallTimeoutMs': 1380000,
+        },
         'capturedLogs': <String>[],
         'toolLifecycle': <String, dynamic>{},
         'toolLoopConvergence': <String, dynamic>{},
@@ -134,6 +146,8 @@ Map<String, dynamic> _headlessSummary({
     'startedAt': '2026-07-15T14:00:0$index.000Z',
     'finishedAt': '2026-07-15T14:00:1$index.000Z',
     'durationMs': durationMs,
+    'executionTimeoutMs': 900000,
+    'overallTimeoutMs': 1380000,
     'reportQualityReady': true,
     'reportQualityBlockerCount': 0,
     'taskDriftDetected': false,

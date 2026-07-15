@@ -45,6 +45,9 @@ Map<String, Object?> buildPlanModeCli0ComparisonSummary({
     macosScenarioReport['toolLoopConvergence'] as Map? ??
         const <String, dynamic>{},
   );
+  final macosBudgets = Map<String, dynamic>.from(
+    macosScenarioReport['budgets'] as Map? ?? const <String, dynamic>{},
+  );
 
   final sortedHeadless = [...headlessSummaries]
     ..sort(
@@ -59,6 +62,8 @@ Map<String, Object?> buildPlanModeCli0ComparisonSummary({
           'startedAt': summary['startedAt'],
           'finishedAt': summary['finishedAt'],
           'durationMs': _integer(summary['durationMs']),
+          'executionTimeoutMs': _integer(summary['executionTimeoutMs']),
+          'overallTimeoutMs': _integer(summary['overallTimeoutMs']),
           'toolLoopCount': _integer(summary['toolLoopCount']),
           'toolCallCount': _integer(summary['toolCallCount']),
           'toolFailureCount': _integer(summary['toolFailureCount']),
@@ -159,6 +164,22 @@ Map<String, Object?> buildPlanModeCli0ComparisonSummary({
   if (sortedMacosSessionLogs.isEmpty) {
     failureReasons.add('macos_session_log_missing');
   }
+  final headlessExecutionTimeouts = sortedHeadless
+      .map((summary) => _integer(summary['executionTimeoutMs']))
+      .toSet();
+  final headlessOverallTimeouts = sortedHeadless
+      .map((summary) => _integer(summary['overallTimeoutMs']))
+      .toSet();
+  final macosExecutionTimeoutMs = _integer(macosBudgets['executionTimeoutMs']);
+  final macosOverallTimeoutMs = _integer(macosBudgets['overallTimeoutMs']);
+  if (macosExecutionTimeoutMs < 1 ||
+      macosOverallTimeoutMs < 1 ||
+      headlessExecutionTimeouts.length != 1 ||
+      headlessOverallTimeouts.length != 1 ||
+      !headlessExecutionTimeouts.contains(macosExecutionTimeoutMs) ||
+      !headlessOverallTimeouts.contains(macosOverallTimeoutMs)) {
+    failureReasons.add('budget_mismatch');
+  }
 
   return <String, Object?>{
     'schema': 'caverno_plan_mode_cli0_comparison_summary',
@@ -192,6 +213,12 @@ Map<String, Object?> buildPlanModeCli0ComparisonSummary({
                       durations.length)
                   .round(),
       },
+      'executionTimeoutMs': headlessExecutionTimeouts.length == 1
+          ? headlessExecutionTimeouts.single
+          : 0,
+      'overallTimeoutMs': headlessOverallTimeouts.length == 1
+          ? headlessOverallTimeouts.single
+          : 0,
       'toolLoopCount': _sum(sortedHeadless, 'toolLoopCount'),
       'toolCallCount': _sum(sortedHeadless, 'toolCallCount'),
       'toolFailureCount': _sum(sortedHeadless, 'toolFailureCount'),
@@ -220,6 +247,8 @@ Map<String, Object?> buildPlanModeCli0ComparisonSummary({
       'startedAt': macosScenario['startedAt'],
       'finishedAt': macosScenario['finishedAt'],
       'durationMs': _integer(macosScenario['durationMs']),
+      'executionTimeoutMs': macosExecutionTimeoutMs,
+      'overallTimeoutMs': macosOverallTimeoutMs,
       'toolLoopCount': _countContaining(capturedLogs, '[Tool] Tool loop ['),
       'toolCallCount': _integer(macosToolLifecycle['toolCallCount']),
       'toolFailureCount': _integer(macosToolLifecycle['failedCount']),

@@ -24,6 +24,10 @@ void main() {
         ],
       },
       scenarioReport: <String, dynamic>{
+        'budgets': <String, dynamic>{
+          'executionTimeoutMs': 900000,
+          'overallTimeoutMs': 1380000,
+        },
         'approvalPath': 'liveHarnessApprovalFallback',
         'usedHarnessApprovalFallback': true,
         'screenshots': <String>[],
@@ -48,6 +52,8 @@ void main() {
     expect(summary['model'], 'test-model');
     expect(summary['status'], 'passed');
     expect(summary['durationMs'], 60000);
+    expect(summary['executionTimeoutMs'], 900000);
+    expect(summary['overallTimeoutMs'], 1380000);
     expect(summary['reportQualityReady'], isTrue);
     expect(summary['taskDriftDetected'], isFalse);
     expect(summary['toolLoopCount'], 2);

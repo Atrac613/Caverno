@@ -14,6 +14,17 @@ if ! [[ "${HEADLESS_REPEAT_COUNT}" =~ ^[0-9]+$ ]] || [[ "${HEADLESS_REPEAT_COUNT
   exit 2
 fi
 
+EXECUTION_TIMEOUT_SECONDS="${CAVERNO_CLI0_EXECUTION_TIMEOUT_SECONDS:-900}"
+RUN_TIMEOUT_SECONDS="${CAVERNO_CLI0_RUN_TIMEOUT_SECONDS:-1380}"
+if ! [[ "${EXECUTION_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] || [[ "${EXECUTION_TIMEOUT_SECONDS}" -lt 1 ]]; then
+  echo "CAVERNO_CLI0_EXECUTION_TIMEOUT_SECONDS must be a positive integer." >&2
+  exit 2
+fi
+if ! [[ "${RUN_TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]] || [[ "${RUN_TIMEOUT_SECONDS}" -le "${EXECUTION_TIMEOUT_SECONDS}" ]]; then
+  echo "CAVERNO_CLI0_RUN_TIMEOUT_SECONDS must exceed the execution timeout." >&2
+  exit 2
+fi
+
 REPORT_ROOT="${CAVERNO_PLAN_MODE_TODO_CLI0_COMPARISON_REPORT_ROOT:-${CAVERNO_LIVE_LLM_CANARY_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}}"
 RUN_DIR="${REPORT_ROOT}/plan_mode_todo_app_cli0_comparison_$(date +%s)"
 HEADLESS_ROOT="${RUN_DIR}/headless"
@@ -35,6 +46,8 @@ echo "Running CLI0 headless and macOS comparison"
 echo "  Scenario: live_todo_app_plan_completion"
 echo "  Headless runs: ${HEADLESS_REPEAT_COUNT}"
 echo "  macOS runs: 1"
+echo "  Execution timeout: ${EXECUTION_TIMEOUT_SECONDS}s"
+echo "  Overall timeout: ${RUN_TIMEOUT_SECONDS}s"
 echo "  Base URL: ${CAVERNO_LLM_BASE_URL}"
 echo "  Model: ${CAVERNO_LLM_MODEL}"
 echo "  Report directory: ${RUN_DIR}"
@@ -42,12 +55,16 @@ echo "  Report directory: ${RUN_DIR}"
 for ((iteration = 1; iteration <= HEADLESS_REPEAT_COUNT; iteration += 1)); do
   echo
   echo "Running headless TODO canary ${iteration}/${HEADLESS_REPEAT_COUNT}"
+  CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS="${EXECUTION_TIMEOUT_SECONDS}" \
+  CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS}" \
   CAVERNO_PLAN_MODE_TODO_HEADLESS_REPORT_ROOT="${HEADLESS_ROOT}" \
     "${HEADLESS_RUNNER}"
 done
 
 echo
 echo "Running macOS application-path TODO canary 1/1"
+CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS="${EXECUTION_TIMEOUT_SECONDS}" \
+CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS}" \
 CAVERNO_PLAN_MODE_TODO_REPORT_ROOT="${MACOS_ROOT}" \
   "${MACOS_RUNNER}"
 

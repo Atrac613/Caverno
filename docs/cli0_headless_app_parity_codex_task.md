@@ -32,7 +32,10 @@
 - Constraints: Use the same endpoint, model, scenario, exact prompt, fixture,
   post-validator, and strict report-quality policy for every run. Fail the gate
   if a run is missing, failed, drifted, blocked by report quality, or reports a
-  different model or scenario.
+  different model, scenario, or timeout budget. The comparison lane allows 15
+  minutes for active execution and retains the 150-second no-progress stall
+  guard, so a progressing weak-model repair is not cut off at the old
+  10-minute boundary.
 - Generated files needed: None.
 - Migration or data compatibility concerns: The comparison report is a new
   schema. Existing suite and per-run summary schemas remain readable.
