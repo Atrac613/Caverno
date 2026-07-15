@@ -12,6 +12,11 @@
 class BuildInfo {
   BuildInfo._();
 
+  static const String version = String.fromEnvironment(
+    'CAVERNO_BUILD_VERSION',
+    defaultValue: '1.3.13',
+  );
+
   /// Short git commit hash the binary was built from, or `'unknown'`.
   static const String commit = String.fromEnvironment(
     'CAVERNO_BUILD_COMMIT',

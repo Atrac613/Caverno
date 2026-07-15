@@ -32,6 +32,8 @@ final class CavernoExecutionRuntime {
 
   bool get isClosed => _closed;
 
+  bool get hasActiveTurns => _activeTurns.isNotEmpty;
+
   CavernoRuntimeTurnHandle startTurn(CavernoRuntimeTurnRequest request) {
     if (_closed) {
       throw StateError('The execution runtime is closed.');
@@ -51,23 +53,28 @@ final class CavernoExecutionRuntime {
       hidden: request.hidden,
     );
     _activeTurns[request.turnId] = handle;
-    final started = _publish(
-      (sequence, timestamp) => CavernoRuntimeRunStarted(
-        sequence: sequence,
-        timestamp: timestamp,
-        turnId: request.turnId,
-        conversationId: conversationId,
-        surface: composition.surface,
-        mode: settings.mode,
-        model: settings.model,
-        baseUrl: settings.baseUrl,
-        workspace: settings.workspace,
-        toolNames: List<String>.unmodifiable(
-          composition.tools.availableToolNames,
-        ),
-        hidden: request.hidden,
-      ),
-    ) as CavernoRuntimeRunStarted;
+    final started =
+        _publish(
+              (sequence, timestamp) => CavernoRuntimeRunStarted(
+                sequence: sequence,
+                timestamp: timestamp,
+                turnId: request.turnId,
+                conversationId: conversationId,
+                surface: composition.surface,
+                mode: settings.mode,
+                model: settings.model,
+                baseUrl: settings.baseUrl,
+                workspace: settings.workspace,
+                toolNames: List<String>.unmodifiable(
+                  composition.tools.availableToolNames,
+                ),
+                hidden: request.hidden,
+                frontendDiagnostics: Map<String, String>.unmodifiable(
+                  settings.frontendDiagnostics,
+                ),
+              ),
+            )
+            as CavernoRuntimeRunStarted;
     composition.lifecycle.onTurnStarted(started);
     return handle;
   }
@@ -141,14 +148,26 @@ final class CavernoExecutionRuntime {
       return;
     }
     _closed = true;
-    for (final handle in _activeTurns.values.toList(growable: false)) {
-      handle.fail(
-        code: 'runtime_closed',
-        message: 'The execution runtime closed before the turn completed.',
-        exitCode: 130,
-      );
-    }
+    terminateActiveTurns(
+      code: 'runtime_closed',
+      message: 'The execution runtime closed before the turn completed.',
+      exitCode: 130,
+    );
     await _events.close();
+  }
+
+  List<CavernoRuntimeTerminalEvent> terminateActiveTurns({
+    required String code,
+    required String message,
+    required int exitCode,
+  }) {
+    return _activeTurns.values
+        .toList(growable: false)
+        .map(
+          (handle) =>
+              handle.fail(code: code, message: message, exitCode: exitCode),
+        )
+        .toList(growable: false);
   }
 }
 

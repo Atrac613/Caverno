@@ -56,6 +56,7 @@ final class CavernoRuntimeRunStarted extends CavernoRuntimeEvent {
     required this.workspace,
     required this.toolNames,
     required this.hidden,
+    this.frontendDiagnostics = const <String, String>{},
     super.conversationId,
   });
 
@@ -66,6 +67,7 @@ final class CavernoRuntimeRunStarted extends CavernoRuntimeEvent {
   final String? workspace;
   final List<String> toolNames;
   final bool hidden;
+  final Map<String, String> frontendDiagnostics;
 
   @override
   String get type => 'run_started';
@@ -79,6 +81,7 @@ final class CavernoRuntimeRunStarted extends CavernoRuntimeEvent {
     if (workspace != null) 'workspace': workspace,
     'toolNames': toolNames,
     'hidden': hidden,
+    if (frontendDiagnostics.isNotEmpty) 'configuration': frontendDiagnostics,
   };
 }
 

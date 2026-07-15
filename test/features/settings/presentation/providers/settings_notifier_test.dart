@@ -10,6 +10,40 @@ import 'package:caverno/features/settings/presentation/providers/settings_notifi
 
 void main() {
   test(
+    'transient runtime overrides do not persist CLI configuration',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+
+      container
+          .read(settingsNotifierProvider.notifier)
+          .applyTransientRuntimeOverrides(
+            assistantMode: AssistantMode.coding,
+            baseUrl: 'http://terminal.test/v1',
+            model: 'terminal-model',
+            apiKey: 'terminal-key',
+            disabledBuiltInTools: const {'computer_click'},
+          );
+
+      final effective = container.read(settingsNotifierProvider);
+      expect(effective.assistantMode, AssistantMode.coding);
+      expect(effective.baseUrl, 'http://terminal.test/v1');
+      expect(effective.model, 'terminal-model');
+      expect(effective.codingApprovalMode, ToolApprovalMode.defaultPermissions);
+      expect(effective.disabledBuiltInTools, contains('computer_click'));
+
+      final persisted = SettingsRepository(prefs).load();
+      expect(persisted.baseUrl, ApiConstants.defaultBaseUrl);
+      expect(persisted.model, ApiConstants.defaultModel);
+      expect(persisted.apiKey, ApiConstants.defaultApiKey);
+    },
+  );
+
+  test(
     'new MCP servers start pending and editing a trusted server resets trust',
     () async {
       SharedPreferences.setMockInitialValues({});

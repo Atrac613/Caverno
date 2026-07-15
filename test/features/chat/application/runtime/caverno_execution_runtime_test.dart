@@ -5,6 +5,32 @@ import 'package:test/test.dart';
 
 void main() {
   group('CavernoExecutionRuntime', () {
+    test(
+      'terminates every active turn with a caller-selected exit code',
+      () async {
+        final fixture = _RuntimeFixture();
+        final runtime = fixture.runtime;
+        final first = runtime.startTurn(
+          const CavernoRuntimeTurnRequest(turnId: 'turn-1'),
+        );
+        final second = runtime.startTurn(
+          const CavernoRuntimeTurnRequest(turnId: 'turn-2'),
+        );
+
+        final terminal = runtime.terminateActiveTurns(
+          code: 'approval_unavailable',
+          message: 'A terminal approval is unavailable.',
+          exitCode: 77,
+        );
+
+        expect(runtime.hasActiveTurns, isFalse);
+        expect(terminal, hasLength(2));
+        expect(await first.done, isA<CavernoRuntimeRunFailed>());
+        expect((await second.done as CavernoRuntimeRunFailed).exitCode, 77);
+        await runtime.close();
+      },
+    );
+
     test('emits every typed event in strict sequence order', () async {
       final fixture = _RuntimeFixture();
       final events = <CavernoRuntimeEvent>[];
@@ -68,6 +94,10 @@ void main() {
         orderedEquals(List<int>.generate(events.length, (index) => index + 1)),
       );
       expect(events.first, isA<CavernoRuntimeRunStarted>());
+      expect(
+        (events.first as CavernoRuntimeRunStarted).frontendDiagnostics,
+        containsPair('approvalMode', 'manual'),
+      );
       expect(events.last, isA<CavernoRuntimeRunCompleted>());
       expect(
         events.first.toJson(),
@@ -191,6 +221,7 @@ final class _SettingsPort implements CavernoRuntimeSettingsPort {
         model: 'test-model',
         baseUrl: 'http://localhost:1234/v1',
         workspace: '/workspace',
+        frontendDiagnostics: <String, String>{'approvalMode': 'manual'},
       );
 }
 

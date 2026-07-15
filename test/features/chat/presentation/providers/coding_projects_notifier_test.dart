@@ -59,6 +59,31 @@ void main() {
     expect(state.projects.single.securityScopedBookmark, 'bookmark-1');
   });
 
+  test('useTransientProject does not persist the terminal project', () {
+    const projectPath = '/tmp/terminal-project';
+    final project = container
+        .read(codingProjectsNotifierProvider.notifier)
+        .useTransientProject(projectPath);
+
+    expect(project.rootPath, projectPath);
+    expect(project.securityScopedBookmark, isNull);
+    expect(
+      container.read(codingProjectsNotifierProvider).selectedProject,
+      same(project),
+    );
+
+    final reloaded = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        securityScopedBookmarkServiceProvider.overrideWithValue(
+          bookmarkService,
+        ),
+      ],
+    );
+    addTearDown(reloaded.dispose);
+    expect(reloaded.read(codingProjectsNotifierProvider).projects, isEmpty);
+  });
+
   test('re-adding a project refreshes its bookmark', () async {
     const projectPath = '/Users/test/Documents/sample_project';
     bookmarkService.createdBookmarks[projectPath] = 'bookmark-1';

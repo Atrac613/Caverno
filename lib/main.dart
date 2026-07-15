@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, exit;
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -35,9 +35,14 @@ import 'features/settings/presentation/providers/settings_notifier.dart';
 import 'features/settings/presentation/widgets/onboarding_dialog.dart';
 import 'features/settings/presentation/widgets/settings_modal.dart';
 import 'features/remote_coding/presentation/remote_coding_server_notifier.dart';
+import 'features/terminal/application/caverno_cli_arguments.dart';
+import 'features/terminal/presentation/caverno_cli_process.dart';
 
-void main() async {
+Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (CavernoCliInvocation.looksLikeCliInvocation(arguments)) {
+    exit(await runCavernoCliProcess(arguments));
+  }
   await EasyLocalization.ensureInitialized();
 
   // Initialize Hive

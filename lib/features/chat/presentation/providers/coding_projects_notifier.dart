@@ -75,6 +75,34 @@ class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
     );
   }
 
+  CodingProject useTransientProject(String rootPath) {
+    final normalizedPath = rootPath.trim();
+    if (normalizedPath.isEmpty) {
+      throw ArgumentError.value(rootPath, 'rootPath', 'Project path is empty.');
+    }
+    final existing = state.projects
+        .where((project) => project.normalizedRootPath == normalizedPath)
+        .firstOrNull;
+    if (existing != null) {
+      state = state.copyWith(selectedProjectId: existing.id);
+      return existing;
+    }
+
+    final now = DateTime.now();
+    final project = CodingProject(
+      id: 'terminal-${_uuid.v4()}',
+      name: _displayNameFromPath(normalizedPath),
+      rootPath: normalizedPath,
+      createdAt: now,
+      updatedAt: now,
+    );
+    state = state.copyWith(
+      projects: <CodingProject>[project, ...state.projects],
+      selectedProjectId: project.id,
+    );
+    return project;
+  }
+
   Future<CodingProject?> addProject(String rootPath) async {
     final normalizedPath = rootPath.trim();
     if (normalizedPath.isEmpty) return null;

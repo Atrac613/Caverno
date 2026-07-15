@@ -6,12 +6,14 @@ final class CavernoRuntimeSettingsSnapshot {
     required this.model,
     required this.baseUrl,
     this.workspace,
+    this.frontendDiagnostics = const <String, String>{},
   });
 
   final String mode;
   final String model;
   final String baseUrl;
   final String? workspace;
+  final Map<String, String> frontendDiagnostics;
 }
 
 abstract interface class CavernoRuntimeSettingsPort {

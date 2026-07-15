@@ -36,6 +36,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
   late final SettingsQrService _qrService;
   late final ExternalSettingsService _externalSettingsService;
   bool _isSyncingExternalSettings = false;
+  bool _hasTransientRuntimeOverrides = false;
 
   @override
   AppSettings build() {
@@ -616,7 +617,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<bool> syncExternalSettings() async {
-    if (_isSyncingExternalSettings) {
+    if (_isSyncingExternalSettings || _hasTransientRuntimeOverrides) {
       return false;
     }
     _isSyncingExternalSettings = true;
@@ -683,6 +684,33 @@ class SettingsNotifier extends Notifier<AppSettings> {
       ),
     );
     await _repository.save(state);
+  }
+
+  void applyTransientRuntimeOverrides({
+    required AssistantMode assistantMode,
+    required String baseUrl,
+    required String model,
+    required String apiKey,
+    Set<String> disabledBuiltInTools = const <String>{},
+  }) {
+    _hasTransientRuntimeOverrides = true;
+    state = state.copyWith(
+      llmProvider: LlmProvider.openAiCompatible,
+      assistantMode: assistantMode,
+      baseUrl: baseUrl,
+      model: model,
+      apiKey: apiKey,
+      codingApprovalMode: ToolApprovalMode.defaultPermissions,
+      chatApprovalMode: ToolApprovalMode.defaultPermissions,
+      confirmFileMutations: true,
+      confirmLocalCommands: true,
+      confirmGitWrites: true,
+      disabledBuiltInTools: <String>{
+        ...state.disabledBuiltInTools,
+        ...disabledBuiltInTools,
+      }.toList(growable: false),
+      externalSettingsSyncEnabled: false,
+    );
   }
 
   AssistantMode _assistantModeForProvider({

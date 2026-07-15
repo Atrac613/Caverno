@@ -16,19 +16,29 @@ final cavernoRuntimeSurfaceProvider = Provider<CavernoRuntimeSurface>(
   (ref) => CavernoRuntimeSurface.flutterGui,
 );
 
+final cavernoRuntimeFrontendDiagnosticsProvider = Provider<Map<String, String>>(
+  (ref) => const <String, String>{},
+);
+
 final cavernoRuntimeSettingsPortProvider = Provider<CavernoRuntimeSettingsPort>(
-  (ref) => _CallbackRuntimeSettingsPort(() {
-    final settings = ref.read(settingsNotifierProvider);
-    final project = settings.assistantMode == AssistantMode.general
-        ? null
-        : ref.read(codingProjectsNotifierProvider).selectedProject;
-    return CavernoRuntimeSettingsSnapshot(
-      mode: settings.assistantMode.name,
-      model: settings.model,
-      baseUrl: settings.baseUrl,
-      workspace: project?.rootPath,
+  (ref) {
+    final frontendDiagnostics = ref.watch(
+      cavernoRuntimeFrontendDiagnosticsProvider,
     );
-  }),
+    return _CallbackRuntimeSettingsPort(() {
+      final settings = ref.read(settingsNotifierProvider);
+      final project = settings.assistantMode == AssistantMode.general
+          ? null
+          : ref.read(codingProjectsNotifierProvider).selectedProject;
+      return CavernoRuntimeSettingsSnapshot(
+        mode: settings.assistantMode.name,
+        model: settings.model,
+        baseUrl: settings.baseUrl,
+        workspace: project?.rootPath,
+        frontendDiagnostics: frontendDiagnostics,
+      );
+    });
+  },
 );
 
 final cavernoRuntimeRepositoryPortProvider =
