@@ -40,5 +40,33 @@ void main() {
         isTrue,
       );
     });
+
+    test('accepts a Japanese completion marker', () {
+      expect(
+        todoListEntryLooksCompleted(
+          '[id: 1] [完了] buy milk\n[id: 2] [未完了] write report\n',
+          'buy milk',
+        ),
+        isTrue,
+      );
+    });
+
+    test('does not treat Japanese undone as completed', () {
+      expect(
+        todoListEntryLooksCompleted('[id: 1] [未完了] buy milk\n', 'buy milk'),
+        isFalse,
+      );
+    });
+  });
+
+  group('todoEmptyListMessageLooksFriendly', () {
+    test('accepts the Japanese empty-list message from the live artifact', () {
+      expect(todoEmptyListMessageLooksFriendly('タスクはありません。'), isTrue);
+    });
+
+    test('rejects a blank or unrelated message', () {
+      expect(todoEmptyListMessageLooksFriendly(''), isFalse);
+      expect(todoEmptyListMessageLooksFriendly('Unknown command.'), isFalse);
+    });
   });
 }

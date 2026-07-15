@@ -61,12 +61,7 @@ class TodoAppBehaviorVerifier {
     final firstListText = _processText(firstList);
     if (firstList.exitCode != 0 ||
         firstListText.trim().isEmpty ||
-        !_containsAny(firstListText, const [
-          'no task',
-          'no todo',
-          'empty',
-          'nothing',
-        ])) {
+        !todoEmptyListMessageLooksFriendly(firstListText)) {
       diagnostics.add(
         _diagnostic(
           code: 'todo_cli_first_list_failed',
@@ -467,11 +462,42 @@ bool todoListEntryLooksCompleted(String listOutput, String taskText) {
       continue;
     }
     final statusText = line.replaceFirst(normalizedTaskText, '');
+    if (_containsTodoUndoneMarker(statusText)) {
+      return false;
+    }
     return statusText.contains('[x]') ||
         statusText.contains('done') ||
         statusText.contains('complete') ||
+        statusText.contains('完了') ||
+        statusText.contains('済') ||
         statusText.contains('✓') ||
         RegExp(r'(^|[\s\[\]():|])x(?=$|[\s\[\]():|])').hasMatch(statusText);
   }
   return false;
+}
+
+bool todoEmptyListMessageLooksFriendly(String output) {
+  final normalized = output.toLowerCase();
+  return const <String>[
+    'no task',
+    'no todo',
+    'empty',
+    'nothing',
+    'タスクはありません',
+    'todoはありません',
+    '項目はありません',
+    '空です',
+  ].any(normalized.contains);
+}
+
+bool _containsTodoUndoneMarker(String statusText) {
+  return const <String>[
+    '[ ]',
+    'not done',
+    'undone',
+    'incomplete',
+    'pending',
+    '未完了',
+    '未完',
+  ].any(statusText.contains);
 }
