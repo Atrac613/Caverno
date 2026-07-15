@@ -11506,7 +11506,7 @@ with open(path, "rb") as file:
     },
   );
 
-  test('sendMessage trusts saved validation over future-action phrasing', () async {
+  test('sendMessage accepts localized saved validation completion', () async {
     final conversation = Conversation(
       id: 'conversation-saved-validation-terminal',
       title: 'Plan thread',
@@ -11552,8 +11552,7 @@ with open(path, "rb") as file:
           finishReason: 'tool_calls',
         ),
         ChatCompletionResult(
-          content:
-              'The saved validation passed. I will check the completed result below.',
+          content: '検証コマンドは正常に完了しました。すべての受け入れ基準を満たしています。',
           finishReason: 'stop',
         ),
         ChatCompletionResult(
@@ -11611,10 +11610,15 @@ with open(path, "rb") as file:
       expect(toolService.executedToolNames, [
         'write_file',
         'local_execute_command',
-        ]);
-        expect(toolDataSource.toolResultBatches, hasLength(2));
-        expect(toolDataSource.toolResultToolDefinitionCounts.last, 0);
-      } finally {
+      ]);
+      expect(toolDataSource.toolResultBatches, hasLength(2));
+      expect(toolDataSource.toolResultToolDefinitionCounts.last, 0);
+      expect(toolDataSource.finalAnswerMessages, isEmpty);
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('すべての受け入れ基準を満たしています'),
+      );
+    } finally {
       toolContainer.dispose();
     }
   });
@@ -12212,14 +12216,10 @@ with open(path, "rb") as file:
           'write_file',
           'local_execute_command',
         ]);
-        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
-        final finalPrompt = toolDataSource.finalAnswerMessages.singleWhere(
-          (message) => message.content.contains('[Tool: write_file]'),
-        );
-        expect(finalPrompt.content, isNot(contains('UNVERIFIED CHANGE:')));
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
         expect(
           toolNotifier.state.messages.last.content,
-          contains('Natural stop final answer.'),
+          contains('README task is complete'),
         );
       } finally {
         toolContainer.dispose();

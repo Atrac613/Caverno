@@ -461,7 +461,7 @@ void registerChatNotifierSavedWorkflowGuardrailTests() {
         );
         expect(
           toolNotifier.state.messages.last.content,
-          contains('Requirements task complete.'),
+          contains('requirements task is complete'),
         );
       } finally {
         toolContainer.dispose();

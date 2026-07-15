@@ -6280,6 +6280,18 @@ class ChatNotifier extends Notifier<ChatState> {
             );
           }
         }
+        if (savedValidationSucceededInLoop && fallbackResponse.isNotEmpty) {
+          appLog(
+            '[Tool] Accepting saved-validation final text without final answer fallback',
+          );
+          _appendRecoveredAssistantResponse(
+            fallbackResponse,
+            interactionGeneration: interactionGeneration,
+          );
+          currentAssistantContent = fallbackResponse;
+          hasTextResponse = true;
+          break;
+        }
         if (_shouldAcceptTerminalToolRoleFinalTextResponse(fallbackResponse)) {
           appLog(
             '[Tool] Accepting terminal tool-role final text response without final answer fallback',
