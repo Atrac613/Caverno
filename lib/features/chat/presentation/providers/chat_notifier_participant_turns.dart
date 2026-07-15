@@ -455,16 +455,24 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
     required ConversationParticipant participant,
   }) {
     final completer = Completer<bool>();
-    state = state.copyWith(
-      pendingParticipantToolApproval: PendingParticipantToolApproval(
-        id: const Uuid().v4(),
-        participantName: participant.effectiveDisplayName,
-        participantRoleLabel: participant.effectiveRoleLabel,
-        toolName: toolCall.name,
-        arguments: Map<String, dynamic>.from(toolCall.arguments),
-        reason: toolCall.arguments['reason'] as String?,
-        completer: completer,
-      ),
+    final reason = toolCall.arguments['reason'] as String?;
+    final pending = PendingParticipantToolApproval(
+      id: const Uuid().v4(),
+      participantName: participant.effectiveDisplayName,
+      participantRoleLabel: participant.effectiveRoleLabel,
+      toolName: toolCall.name,
+      arguments: Map<String, dynamic>.from(toolCall.arguments),
+      reason: reason,
+      completer: completer,
+    );
+    state = state.copyWith(pendingParticipantToolApproval: pending);
+    _emitRuntimeApprovalRequired(
+      id: pending.id,
+      capability: 'participant_tool',
+      summary: reason?.trim().isNotEmpty == true
+          ? reason!.trim()
+          : '${participant.effectiveDisplayName}: ${toolCall.name}',
+      target: participant.effectiveDisplayName,
     );
     return completer.future;
   }

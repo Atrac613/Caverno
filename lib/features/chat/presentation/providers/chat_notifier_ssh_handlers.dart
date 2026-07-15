@@ -265,15 +265,20 @@ extension ChatNotifierSshHandlers on ChatNotifier {
     }
 
     final completer = Completer<SshConnectApproval?>();
-    state = state.copyWith(
-      pendingSshConnect: PendingSshConnect(
-        id: const Uuid().v4(),
-        host: host,
-        port: port,
-        username: username,
-        savedPassword: savedPassword,
-        completer: completer,
-      ),
+    final pending = PendingSshConnect(
+      id: const Uuid().v4(),
+      host: host,
+      port: port,
+      username: username,
+      savedPassword: savedPassword,
+      completer: completer,
+    );
+    state = state.copyWith(pendingSshConnect: pending);
+    _emitRuntimeApprovalRequired(
+      id: pending.id,
+      capability: 'ssh_connection',
+      summary: 'Connect to $username@$host:$port',
+      target: host,
     );
     return completer.future;
   }
@@ -293,15 +298,21 @@ extension ChatNotifierSshHandlers on ChatNotifier {
   Future<bool> requestSshCommand({required String command, String? reason}) {
     final session = ref.read(sshServiceProvider).activeSession;
     final completer = Completer<bool>();
-    state = state.copyWith(
-      pendingSshCommand: PendingSshCommand(
-        id: const Uuid().v4(),
-        command: command,
-        reason: reason,
-        host: session?.host ?? '(no session)',
-        username: session?.username ?? '',
-        completer: completer,
-      ),
+    final pending = PendingSshCommand(
+      id: const Uuid().v4(),
+      command: command,
+      reason: reason,
+      host: session?.host ?? '(no session)',
+      username: session?.username ?? '',
+      completer: completer,
+    );
+    state = state.copyWith(pendingSshCommand: pending);
+    _emitRuntimeApprovalRequired(
+      id: pending.id,
+      capability: 'remote_command',
+      summary: reason?.trim().isNotEmpty == true ? reason!.trim() : command,
+      target: pending.host,
+      rememberAllowed: true,
     );
     return completer.future;
   }

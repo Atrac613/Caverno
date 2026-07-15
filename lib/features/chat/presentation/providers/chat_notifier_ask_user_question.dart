@@ -173,6 +173,16 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
         conversationId == resolvedTargetConversationId) {
       state = state.copyWith(pendingAskUserQuestion: pending);
     }
+    _emitRuntimeQuestionRequired(
+      CavernoRuntimeQuestionRequest(
+        id: pending.id,
+        prompt: pending.question,
+        options: pending.options
+            .map((option) => option.label)
+            .toList(growable: false),
+        multiple: pending.allowMultiple,
+      ),
+    );
     return completer.future;
   }
 

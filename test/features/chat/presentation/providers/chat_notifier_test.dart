@@ -29,6 +29,7 @@ import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
+import 'package:caverno/features/chat/application/runtime/caverno_runtime_event.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
@@ -55,6 +56,7 @@ import 'package:caverno/features/chat/domain/services/tool_definition_search_ser
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
+import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/subagent_task_notifier.dart';
@@ -89,6 +91,7 @@ part 'chat_notifier_verification_claim_part.dart';
 part 'chat_notifier_narrated_transcript_part.dart';
 part 'chat_notifier_analysis_options_lint_guard_part.dart';
 part 'chat_notifier_tool_failure_classification_part.dart';
+part 'chat_notifier_execution_runtime_part.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -150,6 +153,7 @@ void main() {
   registerChatNotifierVerificationClaimTests();
   registerChatNotifierNarratedTranscriptTests();
   registerChatNotifierAnalysisOptionsLintGuardTests();
+  registerChatNotifierExecutionRuntimeTests();
 
   test('failed-command correction notice keeps the original answer', () {
     const notice =

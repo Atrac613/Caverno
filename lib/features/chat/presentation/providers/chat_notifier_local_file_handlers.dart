@@ -1308,17 +1308,23 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     String? warningMessage,
   }) {
     final completer = Completer<LocalCommandApproval>();
-    state = state.copyWith(
-      pendingLocalCommand: PendingLocalCommand(
-        id: const Uuid().v4(),
-        command: command,
-        workingDirectory: workingDirectory,
-        reason: reason,
-        warningTitle: warningTitle,
-        warningMessage: warningMessage,
-        completer: completer,
-        origin: _activeInteractionOrigin,
-      ),
+    final pending = PendingLocalCommand(
+      id: const Uuid().v4(),
+      command: command,
+      workingDirectory: workingDirectory,
+      reason: reason,
+      warningTitle: warningTitle,
+      warningMessage: warningMessage,
+      completer: completer,
+      origin: _activeInteractionOrigin,
+    );
+    state = state.copyWith(pendingLocalCommand: pending);
+    _emitRuntimeApprovalRequired(
+      id: pending.id,
+      capability: 'command_execution',
+      summary: reason?.trim().isNotEmpty == true ? reason!.trim() : command,
+      target: workingDirectory,
+      rememberAllowed: true,
     );
     return completer.future;
   }
@@ -1342,16 +1348,23 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     String? reason,
   }) {
     final completer = Completer<bool>();
-    state = state.copyWith(
-      pendingFileOperation: PendingFileOperation(
-        id: const Uuid().v4(),
-        operation: operation,
-        path: path,
-        preview: preview,
-        reason: reason,
-        completer: completer,
-        origin: _activeInteractionOrigin,
-      ),
+    final pending = PendingFileOperation(
+      id: const Uuid().v4(),
+      operation: operation,
+      path: path,
+      preview: preview,
+      reason: reason,
+      completer: completer,
+      origin: _activeInteractionOrigin,
+    );
+    state = state.copyWith(pendingFileOperation: pending);
+    _emitRuntimeApprovalRequired(
+      id: pending.id,
+      capability: 'file_mutation',
+      summary: reason?.trim().isNotEmpty == true
+          ? reason!.trim()
+          : '$operation $path',
+      target: path,
     );
     return completer.future;
   }

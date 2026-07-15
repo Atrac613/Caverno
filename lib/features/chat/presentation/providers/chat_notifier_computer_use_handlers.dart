@@ -370,32 +370,37 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
     String? reason,
   }) {
     final completer = Completer<ComputerUseActionApprovalDecision>();
-    state = state.copyWith(
-      pendingComputerUseAction: PendingComputerUseAction(
-        id: const Uuid().v4(),
-        toolName: toolName,
-        title: title,
-        riskCategory: riskCategory,
-        riskLabel: riskLabel,
-        warningMessage: warningMessage,
-        approveLabel: approveLabel,
-        requiresUserApproval: requiresUserApproval,
-        requiresSmokeArming: requiresSmokeArming,
-        emergencyStop: emergencyStop,
-        summary: summary,
-        details: details,
-        targetSummary: targetSummary,
-        targetDetails: targetDetails,
-        exactTextPreview: exactTextPreview,
-        exactTextLength: exactTextLength,
-        approvalBoundaries: approvalBoundaries,
-        approvalBlockerCodes: approvalBlockerCodes,
-        actionProposalNextAction: actionProposalNextAction,
-        visionObservationSummary: visionObservationSummary,
-        visionObservationDetails: visionObservationDetails,
-        reason: reason,
-        completer: completer,
-      ),
+    final pending = PendingComputerUseAction(
+      id: const Uuid().v4(),
+      toolName: toolName,
+      title: title,
+      riskCategory: riskCategory,
+      riskLabel: riskLabel,
+      warningMessage: warningMessage,
+      approveLabel: approveLabel,
+      requiresUserApproval: requiresUserApproval,
+      requiresSmokeArming: requiresSmokeArming,
+      emergencyStop: emergencyStop,
+      summary: summary,
+      details: details,
+      targetSummary: targetSummary,
+      targetDetails: targetDetails,
+      exactTextPreview: exactTextPreview,
+      exactTextLength: exactTextLength,
+      approvalBoundaries: approvalBoundaries,
+      approvalBlockerCodes: approvalBlockerCodes,
+      actionProposalNextAction: actionProposalNextAction,
+      visionObservationSummary: visionObservationSummary,
+      visionObservationDetails: visionObservationDetails,
+      reason: reason,
+      completer: completer,
+    );
+    state = state.copyWith(pendingComputerUseAction: pending);
+    _emitRuntimeApprovalRequired(
+      id: pending.id,
+      capability: 'computer_use',
+      summary: reason?.trim().isNotEmpty == true ? reason!.trim() : summary,
+      target: targetSummary,
     );
     return completer.future;
   }

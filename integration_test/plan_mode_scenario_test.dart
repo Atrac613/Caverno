@@ -20,10 +20,12 @@ import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
+import 'package:caverno/features/chat/application/runtime/caverno_runtime_event.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
@@ -84,6 +86,7 @@ Future<Widget> _buildScenarioApp({
   required ChatDataSource dataSource,
   required PlanModeScenarioSpec scenario,
   required GlobalKey screenshotBoundaryKey,
+  required CavernoRuntimeSurface runtimeSurface,
 }) async {
   await EasyLocalization.ensureInitialized();
   return EasyLocalization(
@@ -96,6 +99,7 @@ Future<Widget> _buildScenarioApp({
       builder: (context) {
         return ProviderScope(
           overrides: [
+            cavernoRuntimeSurfaceProvider.overrideWithValue(runtimeSurface),
             sharedPreferencesProvider.overrideWithValue(prefs),
             conversationBoxProvider.overrideWithValue(conversationBox),
             chatMemoryBoxProvider.overrideWithValue(memoryBox),
@@ -198,6 +202,9 @@ Future<_ScenarioRunResult> _runScenario({
       dataSource: dataSource,
       scenario: scenario,
       screenshotBoundaryKey: screenshotBoundaryKey,
+      runtimeSurface: config.usesHeadlessRunner
+          ? CavernoRuntimeSurface.headless
+          : CavernoRuntimeSurface.flutterGui,
     ),
   );
   await pumpPlanModeUntilIdle(tester);

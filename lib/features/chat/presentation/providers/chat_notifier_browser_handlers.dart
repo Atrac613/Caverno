@@ -135,21 +135,26 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
     String? reason,
   }) {
     final completer = Completer<bool>();
-    state = state.copyWith(
-      pendingBrowserAction: PendingBrowserAction(
-        id: const Uuid().v4(),
-        toolName: toolName,
-        title: title,
-        riskLabel: riskLabel,
-        warningMessage: warningMessage,
-        approveLabel: approveLabel,
-        summary: summary,
-        details: details,
-        targetSummary: targetSummary,
-        sensitiveValuePreview: sensitiveValuePreview,
-        reason: reason,
-        completer: completer,
-      ),
+    final pending = PendingBrowserAction(
+      id: const Uuid().v4(),
+      toolName: toolName,
+      title: title,
+      riskLabel: riskLabel,
+      warningMessage: warningMessage,
+      approveLabel: approveLabel,
+      summary: summary,
+      details: details,
+      targetSummary: targetSummary,
+      sensitiveValuePreview: sensitiveValuePreview,
+      reason: reason,
+      completer: completer,
+    );
+    state = state.copyWith(pendingBrowserAction: pending);
+    _emitRuntimeApprovalRequired(
+      id: pending.id,
+      capability: 'browser_action',
+      summary: reason?.trim().isNotEmpty == true ? reason!.trim() : summary,
+      target: targetSummary,
     );
     return completer.future;
   }

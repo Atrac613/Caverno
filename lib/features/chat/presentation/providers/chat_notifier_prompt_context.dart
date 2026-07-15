@@ -141,6 +141,11 @@ extension ChatNotifierPromptContext on ChatNotifier {
         eventType: ConversationExecutionTaskEventType.started,
         eventTimestamp: startedAt,
       );
+      _emitRuntimeWorkflowTransition(
+        stage: 'implement',
+        taskId: task.id,
+        taskStatus: ConversationWorkflowTaskStatus.inProgress.name,
+      );
     } catch (error) {
       appLog('[ExecutionProgress] Failed to persist task start: $error');
     }

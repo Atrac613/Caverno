@@ -22,6 +22,8 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
+import '../../application/runtime/caverno_execution_runtime.dart';
+import '../../application/runtime/caverno_runtime_event.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
 import '../../domain/services/conversation_goal_suggestion_service.dart';
@@ -135,6 +137,7 @@ import 'active_response_registry.dart';
 import 'chat_state.dart';
 import 'chat_tool_execution_log_formatter.dart';
 import 'coding_projects_notifier.dart';
+import 'caverno_execution_runtime_provider.dart';
 import 'conversations_notifier.dart';
 import 'macos_computer_use_approval_copy.dart';
 import 'mcp_tool_provider.dart';
@@ -152,6 +155,7 @@ part 'chat_notifier_command_guardrails.dart';
 part 'chat_notifier_computer_use_handlers.dart';
 part 'chat_notifier_context_surgery.dart';
 part 'chat_notifier_duplicate_recovery.dart';
+part 'chat_notifier_execution_runtime.dart';
 part 'chat_notifier_final_answer_recovery.dart';
 part 'chat_notifier_git_handlers.dart';
 part 'chat_notifier_local_file_handlers.dart';
@@ -261,6 +265,7 @@ final class _PendingPrimaryModelPreparation {
 }
 
 class ChatNotifier extends Notifier<ChatState> {
+  late CavernoExecutionRuntime _executionRuntime;
   late ChatDataSource _dataSource;
   late MeshSecondaryCompletionRunner<ChatDataSource> _meshRunner;
   late ParticipantCompletionRunner _participantCompletionRunner;
@@ -291,6 +296,8 @@ class ChatNotifier extends Notifier<ChatState> {
   final PlanningToolPolicy _planningToolPolicy = const PlanningToolPolicy();
   final ToolLoopContextDigest _toolLoopContextDigest =
       const ToolLoopContextDigest();
+  final Map<int, CavernoRuntimeTurnHandle> _runtimeTurnsByGeneration =
+      <int, CavernoRuntimeTurnHandle>{};
 
   /// SEC2: accumulates the trust levels of evidence entering the current turn so
   /// the approval auto-reviewer is told when untrusted content is in context.
@@ -336,6 +343,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   @override
   ChatState build() {
+    _executionRuntime = ref.read(cavernoExecutionRuntimeProvider);
     _settings = ref.read(settingsNotifierProvider);
     _hasLoadedSettings = true;
     _dataSource = _withChatSessionLogging(
@@ -2824,6 +2832,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final shouldUseTemporalTool = _temporalReferenceContext != null;
     currentConversation = conversationsState.currentConversation;
     conversationId = currentConversation?.id;
+    _startRuntimeTurn(generation: interactionGeneration, hidden: false);
     _resetGoalAutoContinueTrackerForConversation(conversationId);
     final shouldAutoEnterPlanning =
         !bypassPlanMode && _shouldAutoEnterPlanningSession(currentConversation);
@@ -2923,6 +2932,11 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       if (currentConversation == null) {
         state = state.copyWith(isLoading: false);
+        _failRuntimeTurn(
+          interactionGeneration,
+          code: 'conversation_unavailable',
+          message: 'No conversation is available for Plan Mode execution.',
+        );
         return;
       }
       currentConversation = ref
@@ -2931,11 +2945,17 @@ class ChatNotifier extends Notifier<ChatState> {
       conversationId = currentConversation?.id;
       if (currentConversation == null) {
         state = state.copyWith(isLoading: false);
+        _failRuntimeTurn(
+          interactionGeneration,
+          code: 'conversation_unavailable',
+          message: 'No conversation is available for Plan Mode execution.',
+        );
         return;
       }
       await _runPlanProposalFlow(
         currentConversation: currentConversation,
         languageCode: languageCode,
+        interactionGeneration: interactionGeneration,
       );
       return;
     }
@@ -3095,6 +3115,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     _persistHiddenPromptAssistantResponse = persistAssistantResponse;
     final interactionGeneration = _beginInteractionGeneration();
+    _startRuntimeTurn(generation: interactionGeneration, hidden: true);
     _clearTurnDiffCapture();
     _hiddenPrompt = Message(
       id: _uuid.v4(),
@@ -3335,10 +3356,14 @@ class ChatNotifier extends Notifier<ChatState> {
         .read(conversationsNotifierProvider)
         .currentConversation;
     if (currentConversation == null) return;
+    conversationId = currentConversation.id;
+    final interactionGeneration = _beginInteractionGeneration();
+    _startRuntimeTurn(generation: interactionGeneration, hidden: false);
 
     await _runPlanProposalFlow(
       currentConversation: currentConversation,
       languageCode: languageCode,
+      interactionGeneration: interactionGeneration,
       additionalPlanningContext: additionalPlanningContext,
     );
   }
@@ -3414,14 +3439,24 @@ class ChatNotifier extends Notifier<ChatState> {
     required WorkflowPlanningDecision decision,
   }) {
     final completer = Completer<WorkflowPlanningDecisionAnswer?>();
+    final pending = PendingWorkflowDecision(
+      id: const Uuid().v4(),
+      decision: decision,
+      completer: completer,
+    );
     state = state.copyWith(
       isLoading: false,
       isGeneratingWorkflowProposal: false,
       isGeneratingTaskProposal: false,
-      pendingWorkflowDecision: PendingWorkflowDecision(
-        id: const Uuid().v4(),
-        decision: decision,
-        completer: completer,
+      pendingWorkflowDecision: pending,
+    );
+    _emitRuntimeQuestionRequired(
+      CavernoRuntimeQuestionRequest(
+        id: pending.id,
+        prompt: decision.question,
+        options: decision.options
+            .map((option) => option.label)
+            .toList(growable: false),
       ),
     );
     return completer.future;
@@ -3461,6 +3496,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<void> _runPlanProposalFlow({
     required Conversation currentConversation,
     required String languageCode,
+    required int interactionGeneration,
     String? additionalPlanningContext,
   }) async {
     if (!ref.mounted) return;
@@ -3513,6 +3549,12 @@ class ChatNotifier extends Notifier<ChatState> {
         taskProposalError: null,
         pendingWorkflowDecision: null,
       );
+      _failRuntimeTurn(
+        interactionGeneration,
+        code: 'workflow_proposal_cancelled',
+        message: 'Workflow proposal generation was cancelled.',
+        exitCode: 130,
+      );
       return;
     } catch (error) {
       if (!ref.mounted) return;
@@ -3524,6 +3566,11 @@ class ChatNotifier extends Notifier<ChatState> {
         taskProposalDraft: null,
         workflowProposalError: error.toString(),
         pendingWorkflowDecision: null,
+      );
+      _failRuntimeTurn(
+        interactionGeneration,
+        code: 'workflow_proposal_failed',
+        message: error.toString(),
       );
       return;
     }
@@ -3552,6 +3599,11 @@ class ChatNotifier extends Notifier<ChatState> {
         taskProposalDraft: taskDraft,
         taskProposalError: null,
       );
+      _emitRuntimeWorkflowTransition(
+        stage: taskDraft.tasks.isEmpty ? 'tasks' : 'implement',
+        taskStatus: 'proposal_ready',
+      );
+      _completeRuntimeTurn(interactionGeneration, content: '');
     } catch (error) {
       if (!ref.mounted) return;
       state = state.copyWith(
@@ -3559,6 +3611,11 @@ class ChatNotifier extends Notifier<ChatState> {
         isGeneratingTaskProposal: false,
         taskProposalDraft: null,
         taskProposalError: error.toString(),
+      );
+      _failRuntimeTurn(
+        interactionGeneration,
+        code: 'task_proposal_failed',
+        message: error.toString(),
       );
     }
   }
@@ -5270,6 +5327,16 @@ class ChatNotifier extends Notifier<ChatState> {
     ToolExecutionLifecycleEvent event, {
     required int loopIndex,
   }) {
+    _emitRuntimeToolLifecycle(
+      generation: _interactionGeneration,
+      toolCallId: event.toolCall.id,
+      toolName: event.toolCall.name,
+      state: _runtimeToolLifecycleState(event.state),
+      loopIndex: loopIndex,
+      schedulerClass: event.schedulerMode.name,
+      resultStatus: event.resultStatus,
+      durationMs: event.durationMs,
+    );
     appLog(
       ChatToolExecutionLogFormatter.lifecycleLineForEvent(
         event,
@@ -5287,6 +5354,22 @@ class ChatNotifier extends Notifier<ChatState> {
     String? skipReason,
     int? durationMs,
   }) {
+    final runtimeState = switch (lifecycleState) {
+      'queued' => CavernoRuntimeToolLifecycleState.queued,
+      'started' => CavernoRuntimeToolLifecycleState.started,
+      _ => CavernoRuntimeToolLifecycleState.completed,
+    };
+    _emitRuntimeToolLifecycle(
+      generation: _interactionGeneration,
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      state: runtimeState,
+      loopIndex: loopIndex,
+      schedulerClass: schedulerMode?.name,
+      resultStatus: resultStatus,
+      skipReason: skipReason,
+      durationMs: durationMs,
+    );
     appLog(
       ChatToolExecutionLogFormatter.lifecycleLine(
         toolCall: toolCall,
@@ -6822,6 +6905,7 @@ class ChatNotifier extends Notifier<ChatState> {
     String chunk, {
     bool scanForTools = true,
   }) {
+    _emitRuntimeAssistantDelta(generation, chunk);
     if (_isActiveResponseDetachedForGeneration(generation)) {
       final activeMessages = _activeResponseMessagesForGeneration(generation);
       if (activeMessages == null || activeMessages.isEmpty) return;
@@ -7756,6 +7840,7 @@ class ChatNotifier extends Notifier<ChatState> {
       completionTokens: _accumulatedTokenUsage.completionTokens,
       totalTokens: _accumulatedTokenUsage.totalTokens,
     );
+    _emitRuntimeUsage(_interactionGeneration, _accumulatedTokenUsage);
   }
 
   void _recoverIncompleteContentToolCallsFromLastMessage({
@@ -8775,6 +8860,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _hiddenPrompt = null;
       _persistHiddenPromptAssistantResponse = false;
       _onResponseCompleted('');
+      _completeRuntimeTurn(generation, content: '');
       if (!_isCurrentInteractionGeneration(generation)) return;
       await _drainQueuedChatMessagesIfIdle();
       return;
@@ -8827,6 +8913,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (shouldDropLastAssistant || updatedMessages.isEmpty) {
       _clearTurnDiffCapture();
       _onResponseCompleted('');
+      _completeRuntimeTurn(generation, content: '');
       if (!_isCurrentInteractionGeneration(generation)) return;
       await _drainQueuedChatMessagesIfIdle();
       _clearGoalAutoContinueIndicator();
@@ -8869,6 +8956,10 @@ class ChatNotifier extends Notifier<ChatState> {
       _onResponseCompleted('');
       _dispatchExternalToolHook('Stop');
     }
+    _completeRuntimeTurn(
+      generation,
+      content: lastMsg.role == MessageRole.assistant ? lastMsg.content : '',
+    );
     if (!_isCurrentInteractionGeneration(generation)) return;
     await _drainQueuedChatMessagesIfIdle();
     if (!_isCurrentInteractionGeneration(generation)) return;
@@ -9334,6 +9425,11 @@ class ChatNotifier extends Notifier<ChatState> {
       messages: updatedMessages,
       isLoading: false,
       error: displayError,
+    );
+    _failRuntimeTurn(
+      _interactionGeneration,
+      code: 'turn_failed',
+      message: displayError,
     );
     _clearTurnDiffCapture();
     _dispatchExternalToolHook('Stop', error: displayError);

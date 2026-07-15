@@ -359,15 +359,21 @@ extension ChatNotifierGitHandlers on ChatNotifier {
     String? reason,
   }) {
     final completer = Completer<bool>();
-    state = state.copyWith(
-      pendingGitCommand: PendingGitCommand(
-        id: const Uuid().v4(),
-        command: command,
-        workingDirectory: workingDirectory,
-        reason: reason,
-        completer: completer,
-        origin: _activeInteractionOrigin,
-      ),
+    final pending = PendingGitCommand(
+      id: const Uuid().v4(),
+      command: command,
+      workingDirectory: workingDirectory,
+      reason: reason,
+      completer: completer,
+      origin: _activeInteractionOrigin,
+    );
+    state = state.copyWith(pendingGitCommand: pending);
+    _emitRuntimeApprovalRequired(
+      id: pending.id,
+      capability: 'git_mutation',
+      summary: reason?.trim().isNotEmpty == true ? reason!.trim() : command,
+      target: workingDirectory,
+      rememberAllowed: true,
     );
     return completer.future;
   }

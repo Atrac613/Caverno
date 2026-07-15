@@ -16,6 +16,11 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
         activeMessages == null ||
         activeMessages.isEmpty) {
       _clearActiveResponseForGeneration(generation);
+      _failRuntimeTurn(
+        generation,
+        code: 'detached_response_missing',
+        message: 'The detached response could not be finalized.',
+      );
       return;
     }
 
@@ -87,5 +92,6 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
     _clearActiveResponseForGeneration(generation);
     _contentToolContinuationCount = 0;
     _onResponseCompleted(completedContent);
+    _completeRuntimeTurn(generation, content: completedContent);
   }
 }

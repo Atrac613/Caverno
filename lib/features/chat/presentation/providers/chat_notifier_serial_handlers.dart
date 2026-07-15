@@ -124,13 +124,18 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
     required int baudRate,
   }) {
     final completer = Completer<bool>();
-    state = state.copyWith(
-      pendingSerialOpen: PendingSerialOpen(
-        id: const Uuid().v4(),
-        portName: portName,
-        baudRate: baudRate,
-        completer: completer,
-      ),
+    final pending = PendingSerialOpen(
+      id: const Uuid().v4(),
+      portName: portName,
+      baudRate: baudRate,
+      completer: completer,
+    );
+    state = state.copyWith(pendingSerialOpen: pending);
+    _emitRuntimeApprovalRequired(
+      id: pending.id,
+      capability: 'serial_connection',
+      summary: 'Open $portName at $baudRate baud',
+      target: portName,
     );
     return completer.future;
   }

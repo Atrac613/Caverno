@@ -114,13 +114,18 @@ extension ChatNotifierBleHandlers on ChatNotifier {
     String? deviceName,
   }) {
     final completer = Completer<bool>();
-    state = state.copyWith(
-      pendingBleConnect: PendingBleConnect(
-        id: const Uuid().v4(),
-        deviceId: deviceId,
-        deviceName: deviceName,
-        completer: completer,
-      ),
+    final pending = PendingBleConnect(
+      id: const Uuid().v4(),
+      deviceId: deviceId,
+      deviceName: deviceName,
+      completer: completer,
+    );
+    state = state.copyWith(pendingBleConnect: pending);
+    _emitRuntimeApprovalRequired(
+      id: pending.id,
+      capability: 'ble_connection',
+      summary: 'Connect to ${deviceName ?? deviceId}',
+      target: deviceId,
     );
     return completer.future;
   }
