@@ -4,6 +4,7 @@ class PlanModeExecutionHeartbeat {
     required this.workflowSnapshot,
     required this.toolResultCount,
     required this.fileWriteCount,
+    required this.executionActivityCount,
     required this.hasPendingApprovals,
     required this.isLoading,
   });
@@ -12,6 +13,7 @@ class PlanModeExecutionHeartbeat {
   final String workflowSnapshot;
   final int toolResultCount;
   final int fileWriteCount;
+  final int executionActivityCount;
   final bool hasPendingApprovals;
   final bool isLoading;
 
@@ -21,6 +23,7 @@ class PlanModeExecutionHeartbeat {
       workflowSnapshot,
       toolResultCount,
       fileWriteCount,
+      executionActivityCount,
       hasPendingApprovals,
       isLoading,
     ].join('|');
@@ -32,6 +35,7 @@ class PlanModeExecutionHeartbeat {
       'workflowSnapshot': workflowSnapshot,
       'toolResultCount': toolResultCount,
       'fileWriteCount': fileWriteCount,
+      'executionActivityCount': executionActivityCount,
       'hasPendingApprovals': hasPendingApprovals,
       'isLoading': isLoading,
     };

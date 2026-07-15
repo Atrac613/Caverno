@@ -1,6 +1,6 @@
 import 'dart:io';
 
-enum DartCliEntrypointPolicy { fixed, singleUnderBin }
+enum DartCliEntrypointPolicy { fixed, singleUnderBin, singleConventional }
 
 enum DartCliEntrypointIssueKind { missing, unexpected, ambiguous }
 
@@ -52,16 +52,22 @@ class DartCliEntrypointResolver {
       '${root.absolute.path}${Platform.pathSeparator}'
       '${canonical.substring(0, separator).replaceAll('/', Platform.pathSeparator)}',
     );
-    final candidates = _dartFiles(entrypointDirectory, root);
+    final binCandidates = _dartFiles(entrypointDirectory, root);
     return switch (policy) {
       DartCliEntrypointPolicy.fixed => _resolveFixed(
         root: root,
         canonical: canonical,
-        candidates: candidates,
+        candidates: binCandidates,
       ),
       DartCliEntrypointPolicy.singleUnderBin => _resolveSingle(
         canonical: canonical,
-        candidates: candidates,
+        candidates: binCandidates,
+        locationDescription: 'under bin/',
+      ),
+      DartCliEntrypointPolicy.singleConventional => _resolveSingle(
+        canonical: canonical,
+        candidates: _conventionalCandidates(root, binCandidates),
+        locationDescription: 'under bin/ or at lib/main.dart or main.dart',
       ),
     };
   }
@@ -110,6 +116,7 @@ class DartCliEntrypointResolver {
   DartCliEntrypointResolution _resolveSingle({
     required String canonical,
     required List<String> candidates,
+    required String locationDescription,
   }) {
     if (candidates.isEmpty) {
       return DartCliEntrypointResolution(
@@ -119,8 +126,9 @@ class DartCliEntrypointResolver {
             kind: DartCliEntrypointIssueKind.missing,
             relativePath: canonical,
             message:
-                'No Dart entrypoint exists under bin/. Create exactly one Dart '
-                'file there, for example $canonical.',
+                'No Dart entrypoint exists $locationDescription. Create '
+                'exactly one conventional Dart CLI entrypoint, for example '
+                '$canonical.',
           ),
         ],
       );
@@ -139,12 +147,29 @@ class DartCliEntrypointResolver {
           kind: DartCliEntrypointIssueKind.ambiguous,
           relativePath: candidates.first,
           message:
-              'Multiple Dart entrypoints exist under bin/: '
+              'Multiple Dart entrypoints exist $locationDescription: '
               '${candidates.join(', ')}. Keep exactly one and rerun the '
               'verifier.',
         ),
       ],
     );
+  }
+
+  List<String> _conventionalCandidates(
+    Directory root,
+    List<String> binCandidates,
+  ) {
+    final candidates = <String>{...binCandidates};
+    for (final path in const <String>['lib/main.dart', 'main.dart']) {
+      final file = File(
+        '${root.absolute.path}${Platform.pathSeparator}'
+        '${path.replaceAll('/', Platform.pathSeparator)}',
+      );
+      if (file.existsSync()) {
+        candidates.add(path);
+      }
+    }
+    return candidates.toList(growable: false)..sort();
   }
 
   List<String> _dartFiles(Directory directory, Directory root) {

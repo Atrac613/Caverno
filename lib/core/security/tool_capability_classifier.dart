@@ -212,6 +212,34 @@ class ToolCapabilityClassifier {
       }
       return ToolCommandEffect.workspaceMutation;
     }
+    final commandSegments = _splitShellCommandSegments(normalized);
+    if (commandSegments.length > 1) {
+      final segmentEffects = commandSegments
+          .map(
+            (segment) =>
+                _isShellStatusReportingSegment(segment) ||
+                    _isShellWorkingDirectorySegment(segment)
+                ? ToolCommandEffect.inspection
+                : _commandEffect(segment, git: false),
+          )
+          .toSet();
+      if (segmentEffects.contains(ToolCommandEffect.verification) &&
+          segmentEffects.every(
+            (effect) =>
+                effect == ToolCommandEffect.verification ||
+                effect == ToolCommandEffect.inspection,
+          )) {
+        return ToolCommandEffect.verification;
+      }
+      return segmentEffects.length == 1
+          ? segmentEffects.single
+          : ToolCommandEffect.workspaceMutation;
+    }
+    if (_containsShellRedirection(normalized) ||
+        normalized.contains(r'$(') ||
+        normalized.contains('`')) {
+      return ToolCommandEffect.workspaceMutation;
+    }
     if (RegExp(
           r'(^| )(dart|flutter) (test|analyze)( |$)',
         ).hasMatch(normalized) ||
@@ -239,6 +267,12 @@ class ToolCapabilityClassifier {
         normalized.contains('generate')) {
       return ToolCommandEffect.codeGeneration;
     }
+    if (_looksLikeDeploymentOrReleaseCommand(normalized)) {
+      return ToolCommandEffect.deploymentOrRelease;
+    }
+    if (_looksLikeRuntimeBehaviorCheck(normalized)) {
+      return ToolCommandEffect.verification;
+    }
     if (RegExp(
           r'(^| )(dart|flutter|cargo|npm|pnpm|yarn) (run )?build( |$)',
         ).hasMatch(normalized) ||
@@ -250,10 +284,97 @@ class ToolCapabilityClassifier {
     ).hasMatch(normalized)) {
       return ToolCommandEffect.inspection;
     }
-    if (RegExp(r'(^| )(deploy|release|publish)( |$)').hasMatch(normalized)) {
-      return ToolCommandEffect.deploymentOrRelease;
-    }
     return ToolCommandEffect.workspaceMutation;
+  }
+
+  bool _containsShellRedirection(String command) {
+    return RegExp(r'(^|\s)\d*(?:>>?|<<-?)\s*\S').hasMatch(command);
+  }
+
+  List<String> _splitShellCommandSegments(String command) {
+    final segments = <String>[];
+    final buffer = StringBuffer();
+    String? quote;
+
+    for (var index = 0; index < command.length; index += 1) {
+      final character = command[index];
+      if (quote != null) {
+        if (character == '\\' && quote == '"' && index + 1 < command.length) {
+          buffer
+            ..write(character)
+            ..write(command[index + 1]);
+          index += 1;
+          continue;
+        }
+        if (character == quote) {
+          quote = null;
+        }
+        buffer.write(character);
+        continue;
+      }
+      if (character == '"' || character == "'") {
+        quote = character;
+        buffer.write(character);
+        continue;
+      }
+      final isDoubleOperator =
+          index + 1 < command.length &&
+          ((character == '&' && command[index + 1] == '&') ||
+              (character == '|' && command[index + 1] == '|'));
+      if (isDoubleOperator ||
+          character == '&' ||
+          character == ';' ||
+          character == '|') {
+        _appendShellCommandSegment(segments, buffer);
+        if (isDoubleOperator) {
+          index += 1;
+        }
+        continue;
+      }
+      buffer.write(character);
+    }
+    _appendShellCommandSegment(segments, buffer);
+    return segments;
+  }
+
+  void _appendShellCommandSegment(List<String> segments, StringBuffer buffer) {
+    final segment = buffer.toString().trim();
+    if (segment.isNotEmpty) {
+      segments.add(segment);
+    }
+    buffer.clear();
+  }
+
+  bool _isShellStatusReportingSegment(String command) {
+    final normalized = command.trim();
+    return RegExp(r'^(echo|printf)( |$)').hasMatch(normalized) &&
+        !_containsShellRedirection(normalized) &&
+        !normalized.contains(r'$(') &&
+        !normalized.contains('`');
+  }
+
+  bool _isShellWorkingDirectorySegment(String command) {
+    final normalized = command.trim();
+    return RegExp(
+          r'''^cd(?:\s+--)?\s+(?:'[^']*'|"[^"]*"|[^\s]+)$''',
+        ).hasMatch(normalized) &&
+        !_containsShellRedirection(normalized) &&
+        !normalized.contains(r'$(') &&
+        !normalized.contains('`') &&
+        !normalized.contains('<(') &&
+        !normalized.contains('>(');
+  }
+
+  bool _looksLikeRuntimeBehaviorCheck(String command) {
+    return RegExp(
+      r'(^| )(?:(dart run|python3?|node|bun|deno run|ruby|go run|cargo run)\s+[^ ]+|dart\s+[^ ]+\.dart(?: |$))',
+    ).hasMatch(command);
+  }
+
+  bool _looksLikeDeploymentOrReleaseCommand(String command) {
+    return RegExp(
+      r'(^|[ /_.-])(deploy|release|publish)($|[ /_.-])',
+    ).hasMatch(command);
   }
 
   bool _looksLikeVerifierScriptCommand(String command) {

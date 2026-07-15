@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 
 void main() {
@@ -263,6 +264,150 @@ void main() {
       expect(evidence.hasIncompleteEvidence, isTrue);
       expect(evidence.hasUnexecutedActionClaim, isTrue);
       expect(evidence.summary, contains('actions were not executed'));
+    });
+
+    test(
+      'keeps exit-zero command output failures after later command success',
+      () {
+        final failedCommandResult = ToolResultInfo(
+          id: 'verify-runtime-behavior',
+          name: 'local_execute_command',
+          arguments: const {
+            'command': 'dart run bin/todo.dart done 999',
+            'working_directory': '/tmp/todo',
+          },
+          result: jsonEncode({
+            'command': 'dart run bin/todo.dart done 999',
+            'working_directory': '/tmp/todo',
+            'exit_code': 0,
+            'stdout': '',
+            'stderr': 'Unhandled exception: Bad state: task not found.',
+          }),
+        );
+        final feedback = const CodingCommandOutputGuardrailService()
+            .buildFeedbackToolResult(
+              toolResults: [failedCommandResult],
+              now: DateTime(2026, 7, 15),
+            );
+        final evidence = ToolResultPromptBuilder.completionEvidence([
+          failedCommandResult,
+          feedback!,
+          ToolResultInfo(
+            id: 'later-analysis',
+            name: 'local_execute_command',
+            arguments: const {'command': 'dart analyze'},
+            result: jsonEncode({
+              'command': 'dart analyze',
+              'exit_code': 0,
+              'stdout': 'No issues found.',
+              'stderr': '',
+            }),
+          ),
+        ]);
+
+        expect(evidence.hasExecutionVerification, isTrue);
+        expect(evidence.hasSuccessfulExecutionVerification, isFalse);
+        expect(evidence.hasIncompleteEvidence, isTrue);
+        expect(evidence.hasBlockingEvidence, isTrue);
+        expect(evidence.unresolvedErrorCount, 1);
+        expect(evidence.unresolvedErrorDiagnostics, hasLength(1));
+        expect(
+          evidence.unresolvedErrorDiagnostics.single.code,
+          'command_output_failure',
+        );
+        expect(
+          evidence.unresolvedErrorDiagnostics.single.message,
+          contains('runtime failure signal'),
+        );
+      },
+    );
+
+    test('keeps mixed verifier failures blocking in either result order', () {
+      final analyzeSuccess = ToolResultInfo(
+        id: 'analyze-success',
+        name: 'local_execute_command',
+        arguments: const {'command': 'dart analyze'},
+        result: jsonEncode({
+          'command': 'dart analyze',
+          'exit_code': 0,
+          'stdout': 'No errors found.',
+          'stderr': '',
+        }),
+      );
+      final testFailure = ToolResultInfo(
+        id: 'test-failure',
+        name: 'run_tests',
+        arguments: const {
+          'runner': 'dart',
+          'test_path': 'test',
+          'working_directory': '/tmp/todo',
+        },
+        result: jsonEncode({
+          'command': "dart test 'test'",
+          'exit_code': 65,
+          'stdout': 'Could not find package `test`.',
+          'stderr': '',
+        }),
+      );
+
+      for (final toolResults in [
+        [analyzeSuccess, testFailure],
+        [testFailure, analyzeSuccess],
+      ]) {
+        final evidence = ToolResultPromptBuilder.completionEvidence(
+          toolResults,
+        );
+
+        expect(evidence.hasExecutionVerification, isTrue);
+        expect(evidence.hasSuccessfulExecutionVerification, isFalse);
+        expect(evidence.hasFailedExecutionVerification, isTrue);
+        expect(evidence.hasIncompleteEvidence, isTrue);
+        expect(evidence.hasBlockingEvidence, isTrue);
+        expect(evidence.summary, contains('execution verification failed'));
+      }
+    });
+
+    test('does not count local inspection as execution verification', () {
+      final evidence = ToolResultPromptBuilder.completionEvidence([
+        ToolResultInfo(
+          id: 'inspect-state',
+          name: 'local_execute_command',
+          arguments: const {'command': 'cat .todo.json'},
+          result: jsonEncode({
+            'command': 'cat .todo.json',
+            'exit_code': 0,
+            'stdout': '[]',
+            'stderr': '',
+          }),
+        ),
+      ]);
+
+      expect(evidence.hasExecutionVerification, isFalse);
+      expect(evidence.hasSuccessfulExecutionVerification, isFalse);
+    });
+
+    test('does not settle current blocking evidence by generation alone', () {
+      const evidence = ToolResultCompletionEvidence(
+        unresolvedErrorCount: 1,
+        unresolvedErrorDiagnostics: [
+          UnresolvedErrorDiagnostic(
+            path: '',
+            code: 'command_output_failure',
+            message: 'Runtime behavior failed.',
+          ),
+        ],
+        hasExecutionVerification: true,
+        hasFailedExecutionVerification: true,
+      );
+
+      final settled = evidence.settleForExecutionGenerations(
+        mutationGeneration: 4,
+        verificationGeneration: 4,
+      );
+
+      expect(settled.hasIncompleteEvidence, isTrue);
+      expect(settled.hasSuccessfulExecutionVerification, isFalse);
+      expect(settled.unresolvedErrorCount, 1);
     });
 
     test('does not treat an already-applied edit as a new mutation', () {
@@ -677,7 +822,9 @@ void main() {
           ToolResultInfo(
             id: 'execution',
             name: toolName,
-            arguments: const {},
+            arguments: toolName == 'local_execute_command'
+                ? const {'command': 'dart test'}
+                : const {},
             result: jsonEncode(
               toolName.startsWith('process_') ? {'ok': true} : {'exit_code': 0},
             ),

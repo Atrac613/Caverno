@@ -23,6 +23,9 @@ void main() {
       final canary = File(
         'tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart',
       ).readAsStringSync();
+      final todoVerifier = File(
+        'tool/canaries/support/todo_app_behavior_verifier.dart',
+      ).readAsStringSync();
 
       expect(runner, contains('CAVERNO_CODING_TODO_APP_MVP_LIVE_CANARY=1'));
       expect(
@@ -129,9 +132,15 @@ void main() {
       expect(canary, contains("name: 'edit_file'"));
       expect(canary, contains("name: 'list_directory'"));
       expect(canary, isNot(contains("name: 'run_tests'")));
-      expect(canary, contains('todo_cli_no_arguments_usage_failed'));
-      expect(canary, contains('todo_cli_help_failed'));
-      expect(canary, contains('todo_cli_unknown_delete_failed'));
+      expect(canary, contains('TodoAppBehaviorVerifier'));
+      expect(todoVerifier, contains('todo_cli_no_arguments_usage_failed'));
+      expect(
+        todoVerifier,
+        contains('if (!_looksLikeUsage(_processText(noArguments)))'),
+      );
+      expect(todoVerifier, isNot(contains('noArguments.exitCode != 0 ||')));
+      expect(todoVerifier, contains('todo_cli_help_failed'));
+      expect(todoVerifier, contains('todo_cli_unknown_delete_failed'));
       expect(canary, contains('toolService.hasSuccessfulVerifierCall'));
     });
 

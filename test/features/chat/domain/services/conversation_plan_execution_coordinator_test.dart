@@ -50,7 +50,13 @@ void main() {
     expect(
       prompt,
       contains(
-        'Stop after the saved validation step and report that result before moving on.',
+        'After the saved validation step succeeds, report the result and end this turn without calling another tool or starting another saved task.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'The workflow executor will start the next pending saved task in a separate turn.',
       ),
     );
     expect(
@@ -148,7 +154,13 @@ void main() {
     expect(
       prompt,
       contains(
-        'Stop after the saved validation step and report that result before moving on.',
+        'After the saved validation step succeeds, report the result and end this turn without calling another tool or starting another saved task.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'The workflow executor will start the next pending saved task in a separate turn.',
       ),
     );
     expect(
@@ -210,12 +222,8 @@ void main() {
       ),
     );
     expect(prompt, contains('Saved task ID: task-2'));
-    expect(
-      prompt,
-      contains(
-        'Your next reply must either modify one of the saved target files or run the saved validation command now.',
-      ),
-    );
+    expect(prompt, contains('call read_file on one saved target file now'));
+    expect(prompt, contains('do not return prose without a tool call'));
     expect(
       prompt,
       contains(
@@ -284,12 +292,7 @@ void main() {
       );
       expect(prompt, contains('Target files: main.py'));
       expect(prompt, contains('Validation: python3 main.py 8.8.8.8'));
-      expect(
-        prompt,
-        contains(
-          'Your next reply must either modify one of the saved target files or run the saved validation command now.',
-        ),
-      );
+      expect(prompt, contains('call read_file on one saved target file now'));
     },
   );
 

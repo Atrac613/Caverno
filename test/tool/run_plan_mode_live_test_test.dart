@@ -154,6 +154,14 @@ exit $exitCode
 } > "\${FLUTTER_LOG}"
 exit 0
 ''');
+    _writeExecutable('fvm', '''
+#!/usr/bin/env bash
+if [[ "\${1:-}" != "flutter" ]]; then
+  exit 64
+fi
+shift
+exec flutter "\$@"
+''');
   }
 
   Future<ProcessResult> runLiveHelper({

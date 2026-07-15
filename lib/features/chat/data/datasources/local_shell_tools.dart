@@ -121,7 +121,11 @@ class LocalShellTools {
     final shellExecutable = Platform.isWindows ? 'cmd' : 'sh';
     final shellArgs = Platform.isWindows
         ? ['/C', normalizedCommand]
-        : ['-e', '-c', normalizedCommand];
+        : [
+            if (_shouldEnableImplicitErrexit(normalizedCommand)) '-e',
+            '-c',
+            normalizedCommand,
+          ];
 
     try {
       return _executeWithProcessHandle(
@@ -251,6 +255,66 @@ class LocalShellTools {
     }
     final milliseconds = timeout.inMilliseconds;
     return '$milliseconds ${milliseconds == 1 ? 'millisecond' : 'milliseconds'}';
+  }
+
+  static bool _shouldEnableImplicitErrexit(String command) {
+    String? quoteChar;
+
+    for (var index = 0; index < command.length; index++) {
+      final char = command[index];
+
+      if (quoteChar != null) {
+        if (quoteChar == '"' && char == '\\') {
+          index += 1;
+          continue;
+        }
+        if (char == quoteChar) {
+          quoteChar = null;
+        }
+        continue;
+      }
+
+      if (char == '\\') {
+        index += 1;
+        continue;
+      }
+      if (char == '"' || char == "'") {
+        quoteChar = char;
+        continue;
+      }
+      if (char == '#' && _startsShellComment(command, index)) {
+        while (index + 1 < command.length && command[index + 1] != '\n') {
+          index += 1;
+        }
+        continue;
+      }
+      if (char == ';') {
+        return false;
+      }
+      if (char == '|' &&
+          index + 1 < command.length &&
+          command[index + 1] == '|') {
+        return false;
+      }
+      if (char == '<' &&
+          index + 1 < command.length &&
+          command[index + 1] == '<') {
+        return false;
+      }
+    }
+
+    final containsMultilineControlFlow = RegExp(
+      r'(^|\n)\s*(if|then|elif|else|fi|for|while|until|case|esac|select|do|done)\b',
+      multiLine: true,
+    ).hasMatch(command);
+    return !containsMultilineControlFlow;
+  }
+
+  static bool _startsShellComment(String command, int index) {
+    if (index == 0) {
+      return true;
+    }
+    return RegExp(r'[\s;&|()<>]').hasMatch(command[index - 1]);
   }
 
   static bool _hasUnsafeShellSyntax(String command) {

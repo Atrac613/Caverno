@@ -1,6 +1,122 @@
 part of 'chat_notifier_test.dart';
 
 void registerChatNotifierAskUserQuestionTests() {
+  test(
+    'saved workflow continuation questions resolve without pausing',
+    () async {
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'caverno_saved_workflow_question_',
+      );
+      addTearDown(() => projectRoot.delete(recursive: true));
+      final project = CodingProject(
+        id: 'project-saved-workflow-question',
+        name: 'Saved workflow question project',
+        rootPath: projectRoot.path,
+        createdAt: DateTime(2026, 7, 15, 10),
+        updatedAt: DateTime(2026, 7, 15, 10),
+      );
+      final continuationQuestion = String.fromCharCodes(const [
+        0x6b21,
+        0x306e,
+        0x30bf,
+        0x30b9,
+        0x30af,
+        0x306b,
+        0x9032,
+        0x307f,
+        0x307e,
+        0x3059,
+        0x304b,
+        0xff1f,
+      ]);
+      final dataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-ask-next-task',
+            name: 'ask_user_question',
+            arguments: {
+              'question': continuationQuestion,
+              'options': [
+                {'label': 'Continue'},
+                {'label': 'Pause'},
+              ],
+            },
+          ),
+        ],
+        toolRoleResponseContent: 'I will run the saved validation now.',
+      );
+      final repository = _FakeConversationRepository();
+      final toolService = _FakeMcpToolService(
+        results: const {'ask_user_question': ''},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final threadContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(repository),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      addTearDown(threadContainer.dispose);
+
+      final conversationsNotifier = threadContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversationsNotifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: project.id,
+        createIfMissing: true,
+      );
+      await conversationsNotifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Implement a TODO CLI\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Implement the TODO CLI\n'
+              '   - Status: inProgress\n'
+              '   - Target files: bin/todo.dart\n'
+              '   - Validation: dart analyze bin/todo.dart\n',
+        ),
+      );
+      await conversationsNotifier
+          .refreshCurrentWorkflowProjectionFromApprovedPlan();
+      final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
+
+      await chatNotifier.sendMessage('Implement the current saved task');
+
+      expect(chatNotifier.state.pendingAskUserQuestion, isNull);
+      expect(dataSource.toolResultBatches, isNotEmpty);
+      final result =
+          jsonDecode(dataSource.toolResultBatches.first.single.result)
+              as Map<String, dynamic>;
+      expect(result['status'], 'policy_resolved');
+      expect(result['saved_validation_command'], 'dart analyze bin/todo.dart');
+      expect(result['answer'], contains('Run its saved validation'));
+    },
+  );
+
   test('ask-user-question response survives switching away and back', () async {
     final initialCompletion = Completer<ChatCompletionResult>();
     final dataSource = _DelayedAskQuestionToolChatDataSource(

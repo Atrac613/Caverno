@@ -467,7 +467,7 @@
     "workflow_task_status_completed": "完了",
     "workflow_task_status_blocked": "ブロック中",
     "workflow_task_use_prompt_intro": "このコーディングスレッドに保存されたタスク「{title}」を使って進めてください。",
-    "workflow_task_use_prompt_outro": "保存済み workflow を守りながらこの task を前に進め、実装前に次の具体的な変更を説明してください。この task が完了したら、blocker がある、要件が変わった、承認済み workflow を変更する必要がある場合を除き、次の pending task に自動で進んでください。アプリがファイル変更やコマンド実行の承認を表示した場合は、それを十分な承認として扱い、自然言語で重ねて許可を求めないでください。",
+    "workflow_task_use_prompt_outro": "保存済み workflow を守りながらこの task を前に進め、実装前に次の具体的な変更を説明してください。この task が完了したら、完了根拠を報告し、別の saved task を開始せずに現在の turn を終了してください。workflow executor が次の pending task を別の turn で自動的に開始します。アプリがファイル変更やコマンド実行の承認を表示した場合は、それを十分な承認として扱い、自然言語で重ねて許可を求めないでください。",
     "workflow_task_review_prompt_outro": "保存済み workflow を前提に、この完了済み task をレビューしてください。不足、リスク、未検証点を先に挙げてください。",
     "workflow_task_validation_prompt_intro": "Run the saved validation step for task \"{title}\" in this coding thread.",
     "workflow_task_validation_prompt_outro": "Use the approved plan and the current task context, run the validation when possible, and report failures before suggesting a replan.",

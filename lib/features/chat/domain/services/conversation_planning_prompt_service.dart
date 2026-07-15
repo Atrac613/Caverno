@@ -244,6 +244,18 @@ class ConversationPlanningPromptService {
         '- For implementation tasks, validationCommand must verify the target file or module directly. Avoid generic checks such as "module importable" or validation that only appends src to sys.path.',
       )
       ..writeln(
+        '- Include a final verification task whose validationCommand covers the saved acceptance criteria and observable functional requirements that earlier file-level checks do not exercise. Preserve required success and failure exit semantics.',
+      )
+      ..writeln(
+        '- Keep validation commands hermetic to the project workspace. Use repo-relative state and output paths, and do not invent absolute paths such as /tmp or /dev/null unless an exact path is required by the saved specification.',
+      )
+      ..writeln(
+        '- A compound validation command must return non-zero when any required check fails. Do not append "echo \$?" or another successful command that masks the failing exit status.',
+      )
+      ..writeln(
+        '- A verification task must list every implementation file that its failed validation may need to repair in targetFiles.',
+      )
+      ..writeln(
         '- For requirements.txt tasks, validate file existence or expected dependency text with ls, test, cat, or grep. Do not parse requirements.txt as Python code.',
       )
       ..writeln(

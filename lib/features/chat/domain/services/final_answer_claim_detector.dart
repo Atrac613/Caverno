@@ -58,7 +58,9 @@ class FinalAnswerClaimDetector {
     required String latestUserContent,
   }) {
     if (!looksLikeFileSideEffectRequest(latestUserContent) ||
-        hasSuccessfulFileSideEffectResult(toolResults)) {
+        hasSuccessfulFileSideEffectResult(toolResults) ||
+        (!_looksLikeCompletedFileSideEffectClaim(candidateResponse) &&
+            !looksLikeFutureFileSideEffectAction(candidateResponse))) {
       return null;
     }
 
@@ -495,11 +497,39 @@ class FinalAnswerClaimDetector {
       return false;
     }
 
+    return _looksLikeCompletedFileSideEffectClaim(content);
+  }
+
+  bool _looksLikeCompletedFileSideEffectClaim(String content) {
+    final normalized = content.trim().toLowerCase();
+    if (normalized.isEmpty ||
+        containsAny(normalized, const [
+          'not saved',
+          'not created',
+          'not downloaded',
+          'not executed',
+          'not yet',
+          'unexecuted',
+          'was not',
+          'were not',
+          'could not save',
+          'could not create',
+          'could not download',
+          'no file',
+          'no successful file-operation',
+        ]) ||
+        containsAnyCodeUnitSequence(content, const [
+          [0x3067, 0x304d, 0x307e, 0x305b, 0x3093],
+          [0x672a, 0x5b9f, 0x884c],
+        ])) {
+      return false;
+    }
     return containsFileMutationCompletionMarker(normalized) ||
         containsAnyCodeUnitSequence(content, const [
           [0x4fdd, 0x5b58],
           [0x4f5c, 0x6210],
-          [0x5b8c, 0x4e86],
+          [0x66f4, 0x65b0],
+          [0x66f8, 0x304d, 0x8fbc],
         ]);
   }
 

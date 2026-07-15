@@ -563,7 +563,7 @@ class SystemPromptBuilder {
             'Prefer moving the highest-priority unfinished saved task forward unless the user redirects you.',
           );
           buffer.writeln(
-            'When a saved task is complete, continue to the next pending saved task automatically instead of asking for confirmation between tasks.',
+            'When a saved task is complete, report its evidence and end the current turn. The workflow executor will start the next pending saved task automatically in a separate turn without asking for confirmation.',
           );
           buffer.writeln(
             'When writing CLI validation scripts, assert success versus non-zero failure semantics unless the saved task explicitly requires a platform-specific exit code.',

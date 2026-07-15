@@ -116,6 +116,34 @@ void main() {
       );
     });
 
+    test(
+      'does not invent a file save for existing implementation validation',
+      () {
+        final unexecuted = detector.buildUnexecutedFileSideEffectToolResult(
+          candidateResponse:
+              'bin/todo.dart is already implemented. Running acceptance validation.',
+          toolResults: const [],
+          latestUserContent: 'Create a Dart TODO application.',
+        );
+
+        expect(unexecuted, isNull);
+      },
+    );
+
+    test('retains a missing future file mutation action', () {
+      final unexecuted = detector.buildUnexecutedFileSideEffectToolResult(
+        candidateResponse: 'I will create the requested Markdown file now.',
+        toolResults: const [],
+        latestUserContent: 'Save this as a Markdown file.',
+      );
+
+      expect(unexecuted, isNotNull);
+      expect(
+        jsonDecode(unexecuted!.result),
+        containsPair('code', 'unexecuted_file_save'),
+      );
+    });
+
     test('prepends claim correction notices without dropping content', () {
       final content = detector.messageContentWithPrependedClaimCorrectionNotice(
         'All tests passed.',

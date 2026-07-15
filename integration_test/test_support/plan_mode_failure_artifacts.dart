@@ -5,6 +5,7 @@ import 'plan_mode_heartbeat.dart';
 import 'plan_mode_live_diagnostics.dart';
 import 'plan_mode_report_summary.dart';
 import 'plan_mode_scenario_spec.dart';
+import 'plan_mode_scenario_seed_files.dart';
 import 'plan_mode_screenshot_policy.dart';
 import 'plan_mode_task_drift.dart';
 import 'plan_mode_tool_lifecycle.dart';
@@ -64,22 +65,19 @@ List<String> resolvePlanModeFailureSavedTaskTargetFiles({
     r'Target files:\s*([^\r\n]+)',
     caseSensitive: false,
   );
-  for (final log in logs.reversed) {
-    final match = targetPattern.firstMatch(log);
-    if (match == null) {
-      continue;
-    }
-    final targets = (match.group(1) ?? '')
-        .split(',')
-        .map((target) => target.replaceAll('`', '').trim())
-        .where((target) => target.isNotEmpty)
-        .where((target) => target.toLowerCase() != 'none')
-        .toList(growable: false);
-    if (targets.isNotEmpty) {
-      return targets;
+  final targets = <String>{};
+  for (final log in logs) {
+    for (final match in targetPattern.allMatches(log)) {
+      targets.addAll(
+        (match.group(1) ?? '')
+            .split(',')
+            .map((target) => target.replaceAll('`', '').trim())
+            .where((target) => target.isNotEmpty)
+            .where((target) => target.toLowerCase() != 'none'),
+      );
     }
   }
-  return const <String>[];
+  return targets.toList(growable: false);
 }
 
 Future<void> writePlanModeFailureScenarioArtifacts({
@@ -131,6 +129,9 @@ Future<void> writePlanModeFailureScenarioArtifacts({
         : const <String>[],
     savedTaskTargetFiles: savedTaskTargetFiles,
     scenarioDir: scenarioDir,
+    excludedPaths: planModeScenarioTaskDriftExcludedSeedPaths(
+      scenario.seedFiles,
+    ).followedBy(scenario.taskDriftExcludedPaths),
   ).toJson();
   final toolLoopConvergence = buildPlanModeToolLoopConvergenceReport(logs);
   final toolLifecycle = buildPlanModeToolLifecycleReport(logs);

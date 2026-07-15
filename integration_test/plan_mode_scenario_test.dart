@@ -46,6 +46,7 @@ import 'test_support/plan_mode_report_summary.dart';
 import 'test_support/plan_mode_saved_workflow_assertions.dart';
 import 'test_support/plan_mode_screenshot_policy.dart';
 import 'test_support/plan_mode_scenario_reporting.dart';
+import 'test_support/plan_mode_scenario_seed_files.dart';
 import 'test_support/plan_mode_suite_report.dart';
 import 'test_support/plan_mode_warning_policy.dart';
 import 'test_support/plan_mode_scenario_config.dart';
@@ -89,7 +90,7 @@ Future<Widget> _buildScenarioApp({
     supportedLocales: const [Locale('en'), Locale('ja')],
     path: 'assets/translations',
     fallbackLocale: const Locale('en'),
-    startLocale: const Locale('en'),
+    startLocale: Locale(scenario.languageCode),
     useOnlyLangCode: true,
     child: Builder(
       builder: (context) {
@@ -146,6 +147,10 @@ Future<_ScenarioRunResult> _runScenario({
   required String heartbeatPath,
   required PlanModePlanningReadyObserver planningReadyObserver,
 }) async {
+  await seedPlanModeScenarioFiles(
+    scenarioDir: scenarioDir,
+    seedFiles: scenario.seedFiles,
+  );
   final heartbeatWriter = PlanModeLiveHeartbeatWriter(
     scenarioName: scenario.name,
     path: heartbeatPath,
@@ -161,8 +166,10 @@ Future<_ScenarioRunResult> _runScenario({
     baseUrl: config.baseUrl ?? AppSettings.defaults().baseUrl,
     model: config.model ?? AppSettings.defaults().model,
     apiKey: config.apiKey ?? AppSettings.defaults().apiKey,
+    temperature: scenario.temperature ?? AppSettings.defaults().temperature,
+    maxTokens: scenario.maxTokens ?? AppSettings.defaults().maxTokens,
     assistantMode: AssistantMode.plan,
-    language: 'en',
+    language: scenario.languageCode,
     mcpEnabled: true,
     mcpUrl: '',
     mcpUrls: const [],
@@ -240,7 +247,13 @@ Future<_ScenarioRunResult> _runScenario({
       );
   await pumpPlanModeUntilIdle(tester);
 
-  expect(find.text('Coding'), findsAtLeastNWidgets(1));
+  expect(
+    container
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.workspaceMode,
+    WorkspaceMode.coding,
+  );
 
   await submitPlanModeScenarioPrompt(
     tester,
@@ -303,6 +316,7 @@ Future<_ScenarioRunResult> _runScenario({
       heartbeatWriter: heartbeatWriter,
       budgets: budgets,
       taskExecutionLimit: scenario.harnessTaskExecutionLimit,
+      languageCode: scenario.languageCode,
     );
   } else if (approvalFallbackDecision.shouldFailMissingUi) {
     throw StateError(approvalFallbackDecision.missingUiFailureMessage!);
@@ -459,6 +473,28 @@ Future<_ScenarioRunResult> _runScenario({
     scenario.resolvedArtifactExpectations,
     mode: scenario.artifactExpectationMode,
   );
+  assertPlanModeScenarioSeedFilesUnchanged(
+    scenarioDir: scenarioDir,
+    seedFiles: scenario.seedFiles,
+  );
+
+  final postValidator = scenario.postValidator;
+  if (postValidator != null) {
+    final postValidation = await postValidator(scenarioDir);
+    final postValidationFile = File(
+      '${scenarioDir.path}/scenario_post_validation.json',
+    );
+    await postValidationFile.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(postValidation),
+    );
+    if (postValidation['passed'] != true) {
+      throw StateError(
+        'Scenario post-validation failed: '
+        '${postValidation['diagnostics'] ?? postValidation}',
+      );
+    }
+    appLog('[Scenario] Post-validation passed');
+  }
 
   assertPlanModeUiExpectations(
     tester,

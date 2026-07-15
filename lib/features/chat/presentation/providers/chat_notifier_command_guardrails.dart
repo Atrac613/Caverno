@@ -6,10 +6,46 @@ part of 'chat_notifier.dart';
 
 const _unchangedVerifierReplayBeforeRepairBlockedCode =
     'unchanged_verifier_replay_before_repair_blocked';
+const _goalValidationProbeRequiresVerifierCode =
+    'goal_validation_probe_requires_verifier';
 const _commandDiagnosticVerifierReplayPolicy =
     CommandDiagnosticVerifierReplayPolicy();
 
 extension ChatNotifierCommandGuardrails on ChatNotifier {
+  McpToolResult? _buildGoalValidationProbeCommandGuardResult(
+    ToolCallInfo toolCall, {
+    required bool verifierOnlyContinuation,
+  }) {
+    if (!verifierOnlyContinuation) {
+      return null;
+    }
+    final effect = const ToolCapabilityClassifier()
+        .classify(toolCall.name, arguments: toolCall.arguments)
+        .commandEffect;
+    if (effect == ToolCommandEffect.verification) {
+      return null;
+    }
+    final payload = jsonEncode({
+      'ok': false,
+      'code': _goalValidationProbeRequiresVerifierCode,
+      'error':
+          'A validation-only continuation rejected a non-verification tool call.',
+      'attempted_effect': effect.name,
+      'required_action':
+          'Run one project verification command now. If it fails, report the concrete failure and end this turn so the next continuation can repair it.',
+    });
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: true,
+    );
+  }
+
+  bool _isGoalValidationProbeCommandGuardResult(McpToolResult result) {
+    return _decodeJsonObject(result.result)?['code'] ==
+        _goalValidationProbeRequiresVerifierCode;
+  }
+
   McpToolResult? _buildMaterialContractAssumptionGuardResult(
     ToolCallInfo toolCall,
   ) {
@@ -373,11 +409,15 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
     if (task == null || task.targetFiles.isEmpty) {
       return null;
     }
+    final allowedTargetFiles = _allowedSavedTaskTargetFiles(task);
     final path = _toolPathFromArguments(toolCall.arguments);
     if (path == null) {
       return null;
     }
-    if (_savedTaskTargetAllowsPath(path: path, targetFiles: task.targetFiles)) {
+    if (_savedTaskTargetAllowsPath(
+      path: path,
+      targetFiles: allowedTargetFiles,
+    )) {
       return null;
     }
 
@@ -390,7 +430,7 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
       'task_id': task.id,
       'task_title': task.title,
       'attempted_path': path,
-      'allowed_target_files': task.targetFiles,
+      'allowed_target_files': allowedTargetFiles,
       'required_action':
           'Modify only the active saved task target files, or finish the '
           'current saved task before starting work on another file.',
@@ -401,6 +441,22 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
       isSuccess: false,
       errorMessage: 'File mutation is outside the active saved task targets.',
     );
+  }
+
+  @visibleForTesting
+  List<String> allowedSavedTaskTargetFilesForTest(
+    ConversationWorkflowTask task,
+  ) {
+    return _allowedSavedTaskTargetFiles(task);
+  }
+
+  List<String> _allowedSavedTaskTargetFiles(ConversationWorkflowTask task) {
+    return <String>{
+      ...task.targetFiles,
+      ...ConversationPlanExecutionGuardrails.validationExecutablePathsForTask(
+        task,
+      ),
+    }.toList(growable: false);
   }
 
   McpToolResult? _buildUnexecutedFileMutationBeforeCommandGuardResult(

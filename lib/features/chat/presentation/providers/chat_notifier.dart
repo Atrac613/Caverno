@@ -92,6 +92,7 @@ import '../../domain/services/coding_verification_feedback_service.dart';
 import '../../domain/services/command_diagnostic_verifier_replay_policy.dart';
 import '../../domain/services/chat_tool_dispatcher.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
+import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/execution_snapshot_projector.dart';
 import '../../domain/services/execution_budget_policy.dart';
 import '../../domain/services/short_prompt_contract_builder.dart';
@@ -2891,6 +2892,21 @@ class ChatNotifier extends Notifier<ChatState> {
         .read(conversationsNotifierProvider)
         .currentConversation;
     conversationId = currentConversation?.id;
+    await _ensureShortPromptExecutionContract(
+      currentConversation: currentConversation,
+      userMessage: userMessage,
+      conversationsNotifier: conversationsNotifier,
+    );
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+    await _markPendingExecutionTaskStarted(
+      conversationsNotifier: conversationsNotifier,
+      bypassPlanMode: bypassPlanMode,
+    );
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
+    currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    conversationId = currentConversation?.id;
     await _preparePrimaryModelForPendingRouteIfNeeded();
     if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
     final shouldInterceptForPlanMode =
@@ -2920,16 +2936,6 @@ class ChatNotifier extends Notifier<ChatState> {
       );
       return;
     }
-
-    await _ensureShortPromptExecutionContract(
-      currentConversation: currentConversation,
-      userMessage: userMessage,
-      conversationsNotifier: conversationsNotifier,
-    );
-    currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    conversationId = currentConversation?.id;
 
     if (currentConversation != null &&
         currentConversation.workspaceMode == WorkspaceMode.chat &&
@@ -3059,6 +3065,7 @@ class ChatNotifier extends Notifier<ChatState> {
     bool persistAssistantResponse = false,
     bool preserveGoalAutoContinueEvidence = false,
     bool replayVerifierImmediatelyAfterMutation = false,
+    bool verifierOnlyContinuation = false,
     Set<String>? allowedToolNames,
   }) async {
     if (!ref.mounted) return;
@@ -3125,6 +3132,7 @@ class ChatNotifier extends Notifier<ChatState> {
         allowedToolNames: allowedToolNames,
         replayVerifierImmediatelyAfterMutation:
             replayVerifierImmediatelyAfterMutation,
+        verifierOnlyContinuation: verifierOnlyContinuation,
       );
     } else {
       appLog('[Tool] Sending hidden prompt in normal mode');
@@ -3898,6 +3906,7 @@ class ChatNotifier extends Notifier<ChatState> {
     int? interactionGeneration,
     Set<String>? allowedToolNames,
     bool replayVerifierImmediatelyAfterMutation = false,
+    bool verifierOnlyContinuation = false,
   }) async {
     if (!ref.mounted) return;
     final generation = interactionGeneration ?? _interactionGeneration;
@@ -4007,6 +4016,7 @@ class ChatNotifier extends Notifier<ChatState> {
           interactionGeneration: generation,
           replayVerifierImmediatelyAfterMutation:
               replayVerifierImmediatelyAfterMutation,
+          verifierOnlyContinuation: verifierOnlyContinuation,
         );
       } else {
         final streamedAssistantContent = _extractAssistantStreamDelta(
@@ -4036,6 +4046,7 @@ class ChatNotifier extends Notifier<ChatState> {
             interactionGeneration: generation,
             replayVerifierImmediatelyAfterMutation:
                 replayVerifierImmediatelyAfterMutation,
+            verifierOnlyContinuation: verifierOnlyContinuation,
           );
           return;
         }
@@ -4065,6 +4076,7 @@ class ChatNotifier extends Notifier<ChatState> {
             interactionGeneration: generation,
             replayVerifierImmediatelyAfterMutation:
                 replayVerifierImmediatelyAfterMutation,
+            verifierOnlyContinuation: verifierOnlyContinuation,
           );
           return;
         }
@@ -4118,6 +4130,7 @@ class ChatNotifier extends Notifier<ChatState> {
               interactionGeneration: generation,
               replayVerifierImmediatelyAfterMutation:
                   replayVerifierImmediatelyAfterMutation,
+              verifierOnlyContinuation: verifierOnlyContinuation,
             );
             return;
           }
@@ -4147,6 +4160,10 @@ class ChatNotifier extends Notifier<ChatState> {
         );
         if (unexecutedCommandAction != null) {
           _latestCompletedToolResults = [unexecutedCommandAction];
+          _latestGoalAutoContinueEvidence =
+              ToolResultPromptBuilder.completionEvidence(
+                _latestCompletedToolResults,
+              ).carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
           _appendUnexecutedCommandActionNoticeIfNeeded(
             toolResults: [unexecutedCommandAction],
             interactionGeneration: generation,
@@ -4179,6 +4196,7 @@ class ChatNotifier extends Notifier<ChatState> {
               allowContextRetry: false,
               interactionGeneration: generation,
               allowedToolNames: allowedToolNames,
+              verifierOnlyContinuation: verifierOnlyContinuation,
             ),
           )) {
         return;
@@ -5101,6 +5119,42 @@ class ChatNotifier extends Notifier<ChatState> {
     return false;
   }
 
+  bool _isPostSavedValidationEvidenceToolCall(ToolCallInfo toolCall) {
+    final effect = const ToolCapabilityClassifier()
+        .classify(toolCall.name, arguments: toolCall.arguments)
+        .commandEffect;
+    return effect == ToolCommandEffect.inspection ||
+        effect == ToolCommandEffect.verification;
+  }
+
+  bool _postSavedValidationEvidenceRequiresRepair(
+    List<ToolResultInfo> toolResults,
+  ) {
+    for (final result in toolResults) {
+      final effect = const ToolCapabilityClassifier()
+          .classify(result.name, arguments: result.arguments)
+          .commandEffect;
+      if (effect != ToolCommandEffect.verification) {
+        continue;
+      }
+      if (!_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) {
+        return true;
+      }
+      final output = _toolCallExecutionPolicy
+          .toolResultOutputText(result)
+          .toLowerCase();
+      if (output.contains('unhandled exception') ||
+          output.contains('stack trace') ||
+          output.contains('traceback (most recent call last)') ||
+          output.contains('assertionerror') ||
+          output.contains('validation failed') ||
+          output.contains('validation failure')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool _isSuccessfulFileMutationToolResult(ToolResultInfo toolResult) {
     final normalized = toolResult.result.trim().toLowerCase();
     if (normalized.isEmpty ||
@@ -5254,6 +5308,7 @@ class ChatNotifier extends Notifier<ChatState> {
     Map<String, int>? completionVerificationFailureCounts,
     Set<String>? narratedTranscriptRepairSignatures,
     bool replayVerifierImmediatelyAfterMutation = false,
+    bool verifierOnlyContinuation = false,
     required int interactionGeneration,
   }) async {
     var currentToolCalls = toolCalls;
@@ -5302,6 +5357,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var attemptedPythonAttachmentPathRepair = false;
     var forcedBackgroundProcessFollowUpCount = 0;
     var attemptedCodingContinuationRecovery = false;
+    var savedValidationSucceededInLoop = false;
     final attemptedCompletionVerificationMutationSignatures = <String>{};
     final verificationFailureCounts =
         completionVerificationFailureCounts ?? <String, int>{};
@@ -5353,6 +5409,7 @@ class ChatNotifier extends Notifier<ChatState> {
         commandRetryGeneration: commandRetryGeneration,
         iteration: iteration,
         interactionGeneration: interactionGeneration,
+        verifierOnlyContinuation: verifierOnlyContinuation,
       );
       if (batchResult.didCancel) return;
       commandRetryGeneration = batchResult.commandRetryGeneration;
@@ -5700,7 +5757,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
       final savedValidationSucceeded =
           _toolResultsContainSuccessfulCurrentSavedValidation(batchToolResults);
-      if (savedValidationSucceeded) {
+      final validationEvidenceRequiresRepair =
+          _postSavedValidationEvidenceRequiresRepair(batchToolResults);
+      if (validationEvidenceRequiresRepair) {
+        savedValidationSucceededInLoop = false;
+        appLog('[Tool] Validation evidence exposed a repair requirement');
+      } else if (savedValidationSucceeded) {
+        savedValidationSucceededInLoop = true;
         appLog('[Tool] Saved validation command succeeded');
       }
       final gitLifecycleSucceeded = _toolResultsSatisfyCurrentGoalGitLifecycle(
@@ -5712,24 +5775,37 @@ class ChatNotifier extends Notifier<ChatState> {
 
       // Continue looping if the LLM asks for another tool call.
       if (nextResult.hasToolCalls) {
-        final nextToolCalls = nextResult.toolCalls!;
+        var nextToolCalls = nextResult.toolCalls!;
         final fallbackResponse = nextResult.content.trim();
-        if (savedValidationSucceeded) {
-          appLog(
-            '[Tool] Ignoring follow-up tool calls after saved validation success',
-          );
-          currentToolCalls = [];
-          final completionResponse = fallbackResponse.isNotEmpty
-              ? fallbackResponse
-              : 'The saved validation command succeeded for the current saved task, so the current saved task is complete.';
-          _recordHiddenAssistantResponse(completionResponse);
-          _appendRecoveredAssistantResponse(
-            completionResponse,
-            interactionGeneration: interactionGeneration,
-          );
-          currentAssistantContent = completionResponse;
-          hasTextResponse = true;
-          break;
+        if (savedValidationSucceededInLoop) {
+          final evidenceToolCalls = nextToolCalls
+              .where(_isPostSavedValidationEvidenceToolCall)
+              .toList(growable: false);
+          if (evidenceToolCalls.isNotEmpty) {
+            if (evidenceToolCalls.length != nextToolCalls.length) {
+              appLog(
+                '[Tool] Ignoring non-evidence follow-up tool calls after saved validation success',
+              );
+            }
+            appLog('[Tool] Continuing post-validation evidence tool calls');
+            nextToolCalls = evidenceToolCalls;
+          } else {
+            appLog(
+              '[Tool] Ignoring follow-up tool calls after saved validation success',
+            );
+            currentToolCalls = [];
+            final completionResponse = fallbackResponse.isNotEmpty
+                ? fallbackResponse
+                : 'The saved validation command succeeded for the current saved task, so the current saved task is complete.';
+            _recordHiddenAssistantResponse(completionResponse);
+            _appendRecoveredAssistantResponse(
+              completionResponse,
+              interactionGeneration: interactionGeneration,
+            );
+            currentAssistantContent = completionResponse;
+            hasTextResponse = true;
+            break;
+          }
         }
         if (gitLifecycleSucceeded) {
           appLog(
@@ -6293,6 +6369,7 @@ class ChatNotifier extends Notifier<ChatState> {
         commandRetryGeneration: commandRetryGeneration,
         iteration: iteration + 1,
         interactionGeneration: interactionGeneration,
+        verifierOnlyContinuation: verifierOnlyContinuation,
       );
       if (finalBatchResult.didCancel) return;
       if (!_isCurrentInteractionGeneration(interactionGeneration)) return;
@@ -6340,6 +6417,10 @@ class ChatNotifier extends Notifier<ChatState> {
     ];
     var finalCompletionEvidence = ToolResultPromptBuilder.completionEvidence(
       finalToolResults,
+    );
+    finalCompletionEvidence = _settleFinalEvidenceForSuccessfulSavedValidation(
+      finalCompletionEvidence,
+      savedValidationSucceeded: savedValidationSucceededInLoop,
     );
     var finalCompletionEvidenceIsCurrent = true;
 
@@ -6437,6 +6518,7 @@ class ChatNotifier extends Notifier<ChatState> {
             narratedTranscriptRepairSignatures: transcriptRepairSignatures,
             replayVerifierImmediatelyAfterMutation:
                 replayVerifierImmediatelyAfterMutation,
+            verifierOnlyContinuation: verifierOnlyContinuation,
             interactionGeneration: interactionGeneration,
           );
           return;
@@ -6490,6 +6572,7 @@ class ChatNotifier extends Notifier<ChatState> {
               stableToolDefinitions: stableToolDefinitions,
               completionVerificationFailureCounts: verificationFailureCounts,
               narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+              verifierOnlyContinuation: verifierOnlyContinuation,
               interactionGeneration: interactionGeneration,
             );
             return;
@@ -6516,6 +6599,7 @@ class ChatNotifier extends Notifier<ChatState> {
               stableToolDefinitions: stableToolDefinitions,
               completionVerificationFailureCounts: verificationFailureCounts,
               narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+              verifierOnlyContinuation: verifierOnlyContinuation,
               interactionGeneration: interactionGeneration,
             );
             return;
@@ -6565,6 +6649,7 @@ class ChatNotifier extends Notifier<ChatState> {
               stableToolDefinitions: stableToolDefinitions,
               completionVerificationFailureCounts: verificationFailureCounts,
               narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+              verifierOnlyContinuation: verifierOnlyContinuation,
               interactionGeneration: interactionGeneration,
             );
             return;
@@ -6639,6 +6724,11 @@ class ChatNotifier extends Notifier<ChatState> {
       finalCompletionEvidence = ToolResultPromptBuilder.completionEvidence(
         finalToolResults,
       );
+      finalCompletionEvidence =
+          _settleFinalEvidenceForSuccessfulSavedValidation(
+            finalCompletionEvidence,
+            savedValidationSucceeded: savedValidationSucceededInLoop,
+          );
     }
     finalCompletionEvidence = finalCompletionEvidence
         .carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
@@ -6661,6 +6751,7 @@ class ChatNotifier extends Notifier<ChatState> {
         stableToolDefinitions: stableToolDefinitions,
         completionVerificationFailureCounts: verificationFailureCounts,
         narratedTranscriptRepairSignatures: transcriptRepairSignatures,
+        verifierOnlyContinuation: verifierOnlyContinuation,
         interactionGeneration: interactionGeneration,
       );
       return;

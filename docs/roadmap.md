@@ -21,6 +21,8 @@ handoffs can refer to the same unit of work over time.
   milestones documented in `docs/tools_mvp_roadmap.md`.
 - Use `FORK<number>` for conversation fork/branching (chat + coding)
   milestones documented in this file under "Conversation Fork Track".
+- Use `CLI<number>` for the headless runtime and user-facing terminal client
+  milestones documented in this file under "Caverno CLI Track".
 - Use one of these statuses: `done`, `current`, `next`, `blocked`, `later`.
 - Every active milestone should record scope, acceptance criteria, verification
   evidence, and the next action.
@@ -56,6 +58,7 @@ handoffs can refer to the same unit of work over time.
 | Computer Use | M56 | done | Hand off the approved post-expansion rollout decision to the next user-operated rollout branch. | Use `bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh` for rollout decision handoff evidence. |
 | Remote Coding | RC0 | done | Ship the P0 LAN mobile control safety gate for existing desktop coding projects. | Use `dart run tool/remote_coding_p0_release_gate.dart` before P0 release review. |
 | Remote Coding | RC1 | later | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Keep light manual smoke as sufficient until P1 release evidence becomes a release priority. |
+| Caverno CLI | CLI0 | next | Establish a no-window production-path canary and freeze the terminal execution contract. | Extract a reusable headless driver from the existing Coding and Plan Mode canaries, then compare three headless TODO runs with one macOS app-path run. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
@@ -730,6 +733,240 @@ Next action:
 - Use the final sign-off as the current Plan Mode productization baseline and
   open new PM milestones only from scheduled guardrail evidence, compatibility
   changes, or user reports.
+
+## Caverno CLI Track
+
+The long-term goal is a supported `caverno` terminal client for chat, coding,
+and Plan Mode. The product CLI must reuse Caverno's execution behavior rather
+than wrapping a test command or maintaining a second tool loop.
+
+The current repository provides two useful but incomplete starting points:
+
+- Coding Live canaries run `ChatNotifier` inside a `ProviderContainer` through
+  `flutter test` without launching a desktop application window. They already
+  exercise live OpenAI-compatible requests, built-in coding tools, session
+  logs, Goal Auto-Continue, and independent artifact verifiers.
+- Production-path Plan Mode canaries run
+  `integration_test/plan_mode_scenario_test.dart -d macos`. They exercise the
+  app composition and Plan Mode workflow path but launch the macOS app and keep
+  test-only approval bypasses in the integration harness.
+- `lib/main.dart` currently owns Flutter binding, localization, Hive,
+  SharedPreferences, drift migration, window restoration, and provider
+  overrides in one GUI composition root. A supported Dart executable cannot
+  depend on that bootstrap unchanged.
+- Pending approvals are represented as state and completed by UI listeners.
+  A terminal frontend therefore needs an explicit approval presenter rather
+  than implicit approval when no dialog is available.
+
+Target architecture:
+
+```text
+Flutter GUI ---------+
+                     +--> Caverno execution runtime --> LLM and tool policies
+Terminal CLI --------+             |
+                                   +--> repositories, session logs, checkpoints
+```
+
+Architecture constraints:
+
+- Keep one prompt builder, tool dispatcher, tool-loop policy, Plan Mode state
+  machine, Goal Auto-Continue implementation, and evidence guardrail stack.
+- Keep frontend rendering outside the execution runtime. Flutter sheets and
+  terminal prompts adapt the same typed pending approval and question events.
+- Start with an in-process runtime. Preserve interfaces that permit a local
+  daemon later, but do not introduce IPC until concurrent GUI/CLI evidence
+  justifies it.
+- Reuse the existing Caverno data directory and redacted session-log schema.
+  Define locking and ownership before the GUI and CLI can mutate the same
+  conversation or coding project concurrently.
+- Non-interactive execution fails closed when a tool requires approval. A
+  machine-readable denial must include the pending capability and a stable exit
+  code; absence of a GUI must never become approval.
+- Computer Use remains unavailable from a headless CLI until a dedicated host,
+  fresh arming flow, and observable approval boundary exist. Result replay or a
+  remembered coding-command rule must not authorize a physical desktop action.
+- Preserve project-root containment, verifier protection, high-risk approval
+  review, checkpoint/rollback behavior, and sensitive-log redaction across
+  both frontends.
+- Treat SIGINT as cancellation: stop new LLM/tool work, terminate owned child
+  processes through the existing process lifecycle, flush logs, and preserve a
+  resumable conversation state.
+- Support human-readable streaming by default and a versioned `--json` event
+  stream for automation. Do not parse formatted terminal prose to recover
+  tool, approval, token, or completion state.
+
+Verification policy:
+
+- Frequent weak-model and repeated Live LLM canaries use the headless lane and
+  must not launch a desktop application window.
+- The macOS application lane remains a separate release and UI-change gate for
+  app bootstrap, localization, proposal presentation, and approval rendering.
+- Both lanes reuse the same scenario contract, short prompt, saved workflow
+  assertions, post-validator, session-log schema, and report vocabulary.
+- A headless pass does not replace the app-path smoke, and an app-path pass does
+  not replace terminal TTY, exit-code, signal, and non-interactive tests.
+
+### CLI0: Headless Production-Path Baseline And Contract
+
+Status: `next`
+
+Scope:
+- Extract a reusable no-window execution driver from the current Coding Live
+  canary container and Plan Mode live harness.
+- Run the exact short TODO prompt through chat, coding, and Plan Mode runtime
+  entrypoints without `-d macos`, while retaining the independent TODO
+  verifier and report bundle.
+- Record a terminal contract for command names, stdin/prompt input, streaming
+  output, JSON events, exit codes, cancellation, configuration precedence, and
+  approval behavior.
+- Keep the current macOS production-path canary unchanged as the comparison
+  lane.
+
+Acceptance criteria:
+- A headless Plan Mode TODO canary completes from a shell without opening or
+  foregrounding Caverno.app.
+- The headless and macOS lanes consume the same fixture, exact prompt,
+  scenario-level expectations, and post-validator.
+- Three consecutive headless runs record pass/fail, duration, tool-loop count,
+  recovery count, approval decisions, and session-log paths.
+- One macOS comparison run demonstrates which coverage remains UI-specific.
+- The CLI contract explicitly denies approval-required actions in non-TTY mode
+  and reserves Computer Use for a later armed host design.
+
+Current evidence:
+- `tool/run_coding_todo_app_minimal_prompt_live_canary.sh`
+- `tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart`
+- `tool/run_plan_mode_todo_app_live_canary.sh`
+- `integration_test/plan_mode_scenario_test.dart`
+- `integration_test/test_support/plan_mode_live_harness_execution.dart`
+- `docs/production_path_todo_live_canary_codex_task.md`
+
+Next action:
+- Write the terminal contract and extract the smallest headless Plan Mode
+  driver that can run the existing TODO scenario without a desktop device.
+
+### CLI1: Shared Application Execution Runtime
+
+Status: `later`
+
+Scope:
+- Move runtime composition out of `lib/main.dart` and test-only canary builders
+  into a reusable application layer with explicit settings, repository, LLM,
+  tool, approval, logging, and lifecycle ports.
+- Keep `ChatNotifier` and Flutter pages as GUI adapters while moving terminal-
+  relevant orchestration behind a frontend-neutral facade.
+- Remove `dart:ui`, widget, window-manager, notification, and platform-plugin
+  requirements from the code imported by a Dart CLI executable.
+- Preserve existing behavior before changing command UX or persistence.
+
+Acceptance criteria:
+- GUI and headless tests instantiate the same runtime composition API.
+- The execution runtime exposes typed streams for assistant text, tool
+  lifecycle, approval requests, questions, workflow transitions, usage, and
+  terminal completion.
+- The pure runtime test target runs under `dart test` or an equivalent
+  no-window runner without Flutter widget bindings.
+- Existing chat, coding, Plan Mode, routine-tool, approval, and session-log
+  regression suites remain green.
+
+Dependencies:
+- CLI0 contract and headless baseline.
+- Continue the F2/F5 large-file decomposition pattern instead of adding a new
+  orchestration state machine beside `ChatNotifier`.
+
+Next action:
+- Define the frontend-neutral event and approval interfaces, then migrate one
+  one-shot chat turn through them without changing the GUI result.
+
+### CLI2: Interactive Terminal MVP
+
+Status: `later`
+
+Scope:
+- Add a supported `caverno` executable with `chat`, `coding`, and `plan`
+  commands. Coding and Plan Mode require an explicit project root.
+- Stream assistant output and concise tool lifecycle events to a TTY.
+- Render typed approval, question, workflow-decision, and recovery events as
+  terminal interactions using the same underlying policies as the GUI.
+- Provide `--json` and stdin input for automation while keeping mutation
+  approvals fail-closed when no TTY is attached.
+
+Acceptance criteria:
+- `caverno chat <prompt>`, `caverno coding --project <path> <prompt>`, and
+  `caverno plan --project <path> <prompt>` use the shared runtime.
+- Successful, blocked, denied, cancelled, transport-failed, and verification-
+  failed outcomes have documented stable exit codes.
+- Interactive local command, git, file, browser, and user-question boundaries
+  are covered by terminal presenter tests.
+- CLI output never leaks API keys, unredacted approval packets, or protected
+  verifier content.
+- The CLI does not advertise Computer Use support.
+
+Dependencies:
+- CLI1 shared runtime.
+
+Next action:
+- Implement the one-shot `chat` command first, then add coding and Plan Mode
+  only after approval and cancellation tests are green.
+
+### CLI3: Persistence, Resume, And Concurrent Ownership
+
+Status: `later`
+
+Scope:
+- Reuse Caverno settings, drift conversations, memory, coding projects,
+  checkpoints, routines, and session logs without test-only repositories.
+- Add conversation listing and resume commands with stable identifiers.
+- Define an execution lease for a conversation and coding project so GUI and
+  CLI processes cannot perform conflicting mutations.
+- Decide from measured contention whether direct storage locking is sufficient
+  or a local Caverno daemon is justified.
+
+Acceptance criteria:
+- A conversation started in one frontend can be listed and resumed in the
+  other without losing messages, workflow state, or provenance.
+- Simultaneous execution against the same conversation/project is rejected or
+  serialized with an actionable owner diagnostic.
+- Storage migrations remain idempotent and recoverable when only the CLI is
+  launched.
+- Config precedence is deterministic: explicit CLI flags, environment,
+  persisted Caverno settings, then built-in defaults.
+
+Dependencies:
+- CLI2 interactive MVP and F4 drift storage.
+
+Next action:
+- Add read-only `list` and `show` commands before permitting cross-frontend
+  resume or mutation.
+
+### CLI4: Packaging, Automation, And Release Gate
+
+Status: `later`
+
+Scope:
+- Package signed or checksummed executables for supported desktop platforms.
+- Add shell completion, version/doctor output, signal handling, terminal
+  capability detection, and upgrade guidance.
+- Publish a CLI release gate combining pure runtime tests, TTY integration
+  tests, non-interactive denial tests, headless Live LLM canaries, and one
+  macOS app-path comparison smoke.
+- Document unsupported tools and platform-specific degradation explicitly.
+
+Acceptance criteria:
+- Release artifacts run without a Flutter test runner or a visible Caverno app
+  process.
+- `caverno doctor` reports endpoint, model, configuration, storage, project,
+  and tool-runtime readiness without exposing secrets.
+- Automation consumes versioned JSON events and stable exit codes.
+- The release gate proves approval, containment, cancellation, persistence,
+  logging, and headless/app-path parity boundaries.
+
+Dependencies:
+- CLI3 persistence and ownership behavior.
+
+Next action:
+- Define the supported platform matrix and artifact format after CLI3 proves
+  the runtime can operate safely outside the GUI process.
 
 ## macOS Computer Use Track
 

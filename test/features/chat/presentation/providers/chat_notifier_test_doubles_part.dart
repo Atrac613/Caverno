@@ -134,6 +134,31 @@ class _TestConversationsNotifier extends ConversationsNotifier {
 class _GoalAutoContinueConversationsNotifier
     extends _TestConversationsNotifier {
   @override
+  Future<void> updateCurrentWorkflow({
+    ConversationWorkflowStage? workflowStage,
+    ConversationWorkflowSpec? workflowSpec,
+    String? workflowSourceHash,
+    DateTime? workflowDerivedAt,
+    bool clearWorkflowSpec = false,
+    bool preserveWorkflowProjection = false,
+  }) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return;
+    }
+    _replaceCurrentConversation(
+      conversation.copyWith(
+        workflowStage: workflowStage ?? conversation.workflowStage,
+        workflowSpec: clearWorkflowSpec
+            ? null
+            : (workflowSpec ?? conversation.workflowSpec),
+        workflowSourceHash: workflowSourceHash ?? '',
+        workflowDerivedAt: workflowDerivedAt,
+      ),
+    );
+  }
+
+  @override
   Future<void> saveCurrentGoal({
     required String objective,
     required bool enabled,

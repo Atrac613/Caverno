@@ -96,6 +96,9 @@ void main() {
       File('${tempDir.path}/scenario_report.json').writeAsStringSync('{}');
       File('${tempDir.path}/scenario_log.txt').writeAsStringSync('log\n');
       File(
+        '${tempDir.path}/scenario_post_validation.json',
+      ).writeAsStringSync('{}');
+      File(
         '${tempDir.path}/plan_mode_completed.png',
       ).writeAsBytesSync(const <int>[0]);
       File('${tempDir.path}/.DS_Store').writeAsStringSync('');
@@ -104,6 +107,37 @@ void main() {
         'readme.md',
         'src/main.py',
       ]);
+    });
+
+    test('excludes immutable scenario seed paths', () {
+      File('${tempDir.path}/todo_app.md').writeAsStringSync('# Contract\n');
+      Directory('${tempDir.path}/bin').createSync();
+      File('${tempDir.path}/bin/todo.dart').writeAsStringSync('void main() {}');
+
+      expect(
+        collectPlanModeScenarioChangedFiles(
+          tempDir,
+          excludedPaths: const <String>['todo_app.md'],
+        ),
+        <String>['bin/todo.dart'],
+      );
+    });
+
+    test('excludes declared files and directory prefixes', () {
+      Directory('${tempDir.path}/.dart_tool').createSync();
+      File(
+        '${tempDir.path}/.dart_tool/package_config.json',
+      ).writeAsStringSync('{}');
+      File('${tempDir.path}/pubspec.lock').writeAsStringSync('packages: {}\n');
+      File('${tempDir.path}/main.dart').writeAsStringSync('void main() {}');
+
+      expect(
+        collectPlanModeScenarioChangedFiles(
+          tempDir,
+          excludedPaths: const <String>['.dart_tool/', 'pubspec.lock'],
+        ),
+        <String>['main.dart'],
+      );
     });
 
     test('returns empty when scenario directory is missing', () {

@@ -81,7 +81,9 @@ Future<bool> waitForPlanModeReviewablePlanApprovalUi(
 }
 
 Finder findPreferredPlanModeApproveAction() {
-  final approveLabel = find.text('Approve and start');
+  final approveLabel = find.textContaining(
+    RegExp('^(?:Approve and start|\u627F\u8A8D\u3057\u3066\u958B\u59CB)\$'),
+  );
   final reviewSheet = find.byType(PlanReviewSheet);
   if (reviewSheet.evaluate().isNotEmpty) {
     final sheetApprove = find.descendant(

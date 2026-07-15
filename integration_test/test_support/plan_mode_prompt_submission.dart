@@ -21,7 +21,10 @@ Future<void> submitPlanModeScenarioPrompt(
     unawaited(
       container
           .read(chatNotifierProvider.notifier)
-          .sendMessage(scenario.userPrompt, languageCode: 'en'),
+          .sendMessage(
+            scenario.userPrompt,
+            languageCode: scenario.languageCode,
+          ),
     );
     await Future<void>.delayed(const Duration(milliseconds: 100));
     return;

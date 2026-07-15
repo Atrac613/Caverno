@@ -207,7 +207,11 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
 
   bool _looksLikeProseOnlyCodingContinuation(String text) {
     final trimmed = text.trim();
-    if (trimmed.isEmpty || trimmed.length > 1600) {
+    if (trimmed.isEmpty) {
+      return false;
+    }
+    final hasFencedCode = trimmed.contains('```');
+    if (trimmed.length > 1600 && (!hasFencedCode || trimmed.length > 12000)) {
       return false;
     }
     final normalized = trimmed.toLowerCase();

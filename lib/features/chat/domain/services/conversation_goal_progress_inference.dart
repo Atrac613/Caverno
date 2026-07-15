@@ -231,11 +231,12 @@ class ConversationGoalProgressInference {
     required String assistantResponse,
     required Iterable<ConversationWorkflowTask> tasks,
   }) {
+    final taskList = tasks.toList(growable: false);
     final normalizedResponse = assistantResponse.trim();
     final lowercaseResponse = normalizedResponse.toLowerCase();
     final summary = _extractSummary(normalizedResponse);
 
-    if (_allTasksCompleted(tasks)) {
+    if (_allTasksCompleted(taskList)) {
       return ConversationGoalProgressInferenceResult(
         status: ConversationGoalStatus.completed,
         completionSummary: summary.isEmpty
@@ -244,7 +245,11 @@ class ConversationGoalProgressInference {
       );
     }
 
-    if (_looksComplete(lowercaseResponse)) {
+    // A task-scoped execution turn can truthfully report completion while
+    // later saved tasks are still pending. In that case the persisted task
+    // states, rather than lexical completion in the assistant response, own
+    // the aggregate goal lifecycle.
+    if (taskList.isEmpty && _looksComplete(lowercaseResponse)) {
       return ConversationGoalProgressInferenceResult(
         status: ConversationGoalStatus.completed,
         completionSummary: summary.isEmpty

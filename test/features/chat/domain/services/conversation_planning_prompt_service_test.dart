@@ -205,6 +205,24 @@ void main() {
     expect(
       prompt,
       contains(
+        'Include a final verification task whose validationCommand covers the saved acceptance criteria and observable functional requirements that earlier file-level checks do not exercise.',
+      ),
+    );
+    expect(
+      prompt,
+      contains('Keep validation commands hermetic to the project workspace.'),
+    );
+    expect(prompt, contains('do not invent absolute paths'));
+    expect(prompt, contains('Do not append "echo \$?"'));
+    expect(
+      prompt,
+      contains(
+        'A verification task must list every implementation file that its failed validation may need to repair in targetFiles.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
         'Prefer deterministic CLI validation such as --help or loopback hosts.',
       ),
     );

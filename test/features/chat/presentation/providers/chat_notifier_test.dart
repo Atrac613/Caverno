@@ -81,6 +81,8 @@ part 'chat_notifier_auto_review_escalation_part.dart';
 part 'chat_notifier_approval_cache_part.dart';
 part 'chat_notifier_pending_batch_part.dart';
 part 'chat_notifier_goal_auto_continue_part.dart';
+part 'chat_notifier_saved_workflow_guardrails_part.dart';
+part 'chat_notifier_planning_contract_part.dart';
 part 'chat_notifier_terminal_success_part.dart';
 part 'chat_notifier_unwritten_file_claim_part.dart';
 part 'chat_notifier_verification_claim_part.dart';
@@ -142,6 +144,8 @@ void main() {
   registerChatNotifierApprovalCacheTests();
   registerChatNotifierPendingBatchTests();
   registerChatNotifierGoalAutoContinueTests();
+  registerChatNotifierSavedWorkflowGuardrailTests();
+  registerChatNotifierPlanningContractTests();
   registerChatNotifierUnwrittenFileClaimTests();
   registerChatNotifierVerificationClaimTests();
   registerChatNotifierNarratedTranscriptTests();
@@ -11657,146 +11661,6 @@ with open(path, "rb") as file:
   );
 
   test(
-    'sendMessage blocks file writes outside the active saved task target',
-    () async {
-      final conversation = Conversation(
-        id: 'conversation-tool-loop-target-scope',
-        title: 'Plan thread',
-        messages: const <Message>[],
-        createdAt: DateTime(2026, 4, 24, 12),
-        updatedAt: DateTime(2026, 4, 24, 12, 5),
-        workspaceMode: WorkspaceMode.coding,
-        projectId: 'project-1',
-        workflowStage: ConversationWorkflowStage.implement,
-        workflowSpec: const ConversationWorkflowSpec(
-          tasks: [
-            ConversationWorkflowTask(
-              id: 'task-requirements',
-              title: 'Create requirements.txt for the host health CLI',
-              targetFiles: ['requirements.txt'],
-              validationCommand: 'test -f requirements.txt',
-              status: ConversationWorkflowTaskStatus.inProgress,
-            ),
-          ],
-        ),
-      );
-      final toolDataSource = _QueuedToolLoopChatDataSource(
-        initialToolCalls: [
-          ToolCallInfo(
-            id: 'tool-write-requirements',
-            name: 'write_file',
-            arguments: const {
-              'path': 'requirements.txt',
-              'content': 'requests>=2.32\n',
-            },
-          ),
-        ],
-        toolLoopResponses: [
-          ChatCompletionResult(
-            content: 'I will add README notes next.',
-            toolCalls: [
-              ToolCallInfo(
-                id: 'tool-write-readme',
-                name: 'write_file',
-                arguments: const {
-                  'path': 'README.md',
-                  'content': '# Host health CLI\n',
-                },
-              ),
-            ],
-            finishReason: 'tool_calls',
-          ),
-          ChatCompletionResult(
-            content: 'I will stay on the active saved task and validate it.',
-            toolCalls: [
-              ToolCallInfo(
-                id: 'tool-validate-requirements',
-                name: 'local_execute_command',
-                arguments: const {
-                  'command': 'test -f requirements.txt',
-                  'working_directory': '/tmp',
-                },
-              ),
-            ],
-            finishReason: 'tool_calls',
-          ),
-          ChatCompletionResult(
-            content:
-                'The saved validation command passed, so the requirements task is complete.',
-            finishReason: 'stop',
-          ),
-        ],
-        finalAnswerChunks: const ['Requirements task complete.'],
-      );
-      final toolService = _FakeMcpToolService(
-        results: const {
-          'write_file': '{"path":"/tmp/requirements.txt","bytes_written":15}',
-          'local_execute_command':
-              '{"command":"test -f requirements.txt","exit_code":0,"stdout":"","stderr":""}',
-        },
-      );
-      final appLifecycleService = _MockAppLifecycleService();
-      when(() => appLifecycleService.isInBackground).thenReturn(false);
-      final toolContainer = ProviderContainer(
-        overrides: [
-          settingsNotifierProvider.overrideWith(
-            _ToolEnabledNoConfirmSettingsNotifier.new,
-          ),
-          conversationsNotifierProvider.overrideWith(
-            () => _WorkflowTestConversationsNotifier(conversation),
-          ),
-          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
-          sessionMemoryServiceProvider.overrideWithValue(
-            _TestSessionMemoryService(),
-          ),
-          codingProjectsNotifierProvider.overrideWith(
-            _TestCodingProjectsNotifier.new,
-          ),
-          mcpToolServiceProvider.overrideWithValue(toolService),
-          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-          backgroundTaskServiceProvider.overrideWithValue(
-            _TestBackgroundTaskService(),
-          ),
-        ],
-      );
-
-      try {
-        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
-
-        await toolNotifier.sendMessage('Create requirements.txt first');
-
-        expect(toolService.executedToolNames, [
-          'write_file',
-          'local_execute_command',
-        ]);
-        expect(
-          toolService.executedToolArguments,
-          isNot(contains(containsPair('path', 'README.md'))),
-        );
-        expect(toolDataSource.toolResultBatches, hasLength(3));
-        final guardPayload =
-            jsonDecode(toolDataSource.toolResultBatches[1].single.result)
-                as Map<String, dynamic>;
-        expect(
-          guardPayload,
-          containsPair('code', 'saved_task_target_scope_violation'),
-        );
-        expect(guardPayload, containsPair('attempted_path', 'README.md'));
-        expect(
-          guardPayload['allowed_target_files'],
-          contains('requirements.txt'),
-        );
-        expect(
-          toolNotifier.state.messages.last.content,
-          contains('Requirements task complete.'),
-        );
-      } finally {
-        toolContainer.dispose();
-      }
-    },
-  );
-
-  test(
     'sendMessage rejects saved validation commands with resolved paths',
     () async {
       final now = DateTime(2026, 4, 24, 12);
@@ -12147,7 +12011,8 @@ with open(path, "rb") as file:
               id: 'task-readme',
               title: 'Create README.md with project description',
               targetFiles: ['README.md'],
-              validationCommand: 'ls README.md',
+              validationCommand:
+                  "test -f README.md && grep -q 'Host Health' README.md",
               status: ConversationWorkflowTaskStatus.inProgress,
             ),
           ],
@@ -12172,7 +12037,8 @@ with open(path, "rb") as file:
                 id: 'tool-validate',
                 name: 'local_execute_command',
                 arguments: const {
-                  'command': 'ls README.md',
+                  'command':
+                      "test -f README.md && grep -q 'Host Health' README.md",
                   'working_directory': '/tmp',
                 },
               ),
@@ -12191,7 +12057,7 @@ with open(path, "rb") as file:
         results: const {
           'write_file': '{"path":"/tmp/README.md","bytes_written":22}',
           'local_execute_command':
-              '{"command":"ls README.md","exit_code":0,"stdout":"README.md\\n","stderr":""}',
+              '{"command":"test -f README.md && grep -q \'Host Health\' README.md","exit_code":0,"stdout":"","stderr":""}',
         },
       );
       final appLifecycleService = _MockAppLifecycleService();
@@ -12229,6 +12095,10 @@ with open(path, "rb") as file:
           'local_execute_command',
         ]);
         expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        final finalPrompt = toolDataSource.finalAnswerMessages.singleWhere(
+          (message) => message.content.contains('[Tool: write_file]'),
+        );
+        expect(finalPrompt.content, isNot(contains('UNVERIFIED CHANGE:')));
         expect(
           toolNotifier.state.messages.last.content,
           contains('Natural stop final answer.'),

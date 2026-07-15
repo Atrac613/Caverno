@@ -9,6 +9,7 @@ import 'verification_cadence_policy.dart';
 enum ExecutionSnapshotAction {
   idle,
   clarify,
+  plan,
   execute,
   verify,
   repair,
@@ -236,6 +237,7 @@ class ExecutionSnapshot {
   }) {
     final preservesBoundary =
         action == ExecutionSnapshotAction.clarify ||
+        action == ExecutionSnapshotAction.plan ||
         action == ExecutionSnapshotAction.blocked;
     return ExecutionSnapshot(
       contractHash: contractHash,
@@ -335,6 +337,7 @@ class ExecutionSnapshotProjector {
       contractHash: _contractHash(conversation.effectiveWorkflowSpec),
       workflowStage: conversation.workflowStage,
       action: _actionFor(
+        workflowStage: conversation.workflowStage,
         tasks: tasks,
         activeTask: activeTask,
         progress: progress,
@@ -375,6 +378,7 @@ class ExecutionSnapshotProjector {
   }
 
   ExecutionSnapshotAction _actionFor({
+    required ConversationWorkflowStage workflowStage,
     required List<ConversationWorkflowTask> tasks,
     required ConversationWorkflowTask? activeTask,
     required ConversationExecutionTaskProgress? progress,
@@ -387,6 +391,9 @@ class ExecutionSnapshotProjector {
     if (activeTask?.status == ConversationWorkflowTaskStatus.blocked ||
         progress?.status == ConversationWorkflowTaskStatus.blocked) {
       return ExecutionSnapshotAction.blocked;
+    }
+    if (workflowStage == ConversationWorkflowStage.plan) {
+      return ExecutionSnapshotAction.plan;
     }
     if (progress?.validationStatus ==
         ConversationExecutionValidationStatus.failed) {

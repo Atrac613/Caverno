@@ -78,6 +78,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     required int commandRetryGeneration,
     required int iteration,
     required int interactionGeneration,
+    required bool verifierOnlyContinuation,
   }) async {
     final batchToolResults = <ToolResultInfo>[];
     final pendingBatchCalls = <ToolCallInfo>[];
@@ -140,6 +141,14 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     final scheduledResults = await ToolExecutionScheduler.executeBatch(
       toolCalls: pendingBatchCalls,
       execute: (toolCall) async {
+        final validationProbeGuardResult =
+            _buildGoalValidationProbeCommandGuardResult(
+              toolCall,
+              verifierOnlyContinuation: verifierOnlyContinuation,
+            );
+        if (validationProbeGuardResult != null) {
+          return validationProbeGuardResult;
+        }
         final materialAssumptionGuardResult =
             _buildMaterialContractAssumptionGuardResult(toolCall);
         if (materialAssumptionGuardResult != null) {
@@ -342,7 +351,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         if (_isCommandExecutionTool(toolCall.name)) {
           _resetCommandDiagnosticStreak(toolFailureKey);
         }
-        final isMutationTool = _isContractMutationToolCall(toolCall);
+        final isMutationTool =
+            !_isGoalValidationProbeCommandGuardResult(result) &&
+            _isContractMutationToolCall(toolCall);
         if (isMutationTool) {
           _clearCommandDiagnosticRepairFocus();
         }

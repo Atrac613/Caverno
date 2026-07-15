@@ -70,6 +70,47 @@ void main() {
     );
   });
 
+  test('requires matching tool evidence before completing a saved task', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-add-list',
+      title: 'Implement add and list',
+      targetFiles: <String>['bin/todo_cli.dart', 'lib/storage.dart'],
+      validationCommand:
+          'dart run bin/todo_cli.dart add test && dart run bin/todo_cli.dart list',
+    );
+
+    final staleAssessment = assessPlanModeHarnessTaskCompletion(
+      task: task,
+      toolResults: <ToolResultInfo>[
+        _toolResult(
+          name: 'local_execute_command',
+          arguments: const <String, dynamic>{
+            'command': 'dart analyze lib/storage.dart',
+          },
+          result:
+              '{"command":"dart analyze lib/storage.dart","exit_code":0,"stdout":"No issues found!"}',
+        ),
+      ],
+    );
+    final matchingAssessment = assessPlanModeHarnessTaskCompletion(
+      task: task,
+      toolResults: <ToolResultInfo>[
+        _toolResult(
+          name: 'local_execute_command',
+          arguments: const <String, dynamic>{
+            'command':
+                'dart run bin/todo_cli.dart add test && dart run bin/todo_cli.dart list',
+          },
+          result:
+              '{"command":"dart run bin/todo_cli.dart add test && dart run bin/todo_cli.dart list","exit_code":0,"stdout":"Added task\\n[test]"}',
+        ),
+      ],
+    );
+
+    expect(staleAssessment.shouldMarkCompleted, isFalse);
+    expect(matchingAssessment.shouldMarkCompleted, isTrue);
+  });
+
   test('resolves cleanup timeout for fake and live runs', () {
     final shortBudgets = _budgets(
       executionTimeout: const Duration(seconds: 20),
@@ -311,6 +352,571 @@ void main() {
       isFalse,
     );
   });
+
+  test('approves exact saved Dart help validation for target file', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_dart_help_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    const task = ConversationWorkflowTask(
+      id: 'task-dart-help',
+      title: 'Create the Dart CLI',
+      targetFiles: <String>['bin/todo_cli.dart'],
+      validationCommand: 'dart run bin/todo_cli.dart help',
+    );
+
+    expect(
+      isSafePlanModeHarnessLocalCommand(
+        pending: _pendingLocalCommand(
+          command: task.validationCommand,
+          workingDirectory: tempDir.path,
+        ),
+        scenarioDir: tempDir,
+        task: task,
+      ),
+      isTrue,
+    );
+    expect(
+      isSafePlanModeHarnessLocalCommand(
+        pending: _pendingLocalCommand(
+          command: 'dart run bin/other.dart help',
+          workingDirectory: tempDir.path,
+        ),
+        scenarioDir: tempDir,
+        task: task,
+      ),
+      isFalse,
+    );
+    expect(
+      isSafePlanModeHarnessLocalCommand(
+        pending: _pendingLocalCommand(
+          command: 'dart run bin/todo_cli.dart add unsafe',
+          workingDirectory: tempDir.path,
+        ),
+        scenarioDir: tempDir,
+        task: task,
+      ),
+      isFalse,
+    );
+  });
+
+  test('approves exact saved Dart project setup and analysis commands', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_dart_project_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    for (final command in <String>[
+      'dart pub get',
+      'fvm dart pub get',
+      'dart analyze lib/',
+      'fvm flutter analyze --fatal-warnings lib/',
+    ]) {
+      final task = ConversationWorkflowTask(
+        id: 'task-dart-project',
+        title: 'Prepare and analyze the Dart project',
+        targetFiles: const <String>['pubspec.yaml', 'lib/'],
+        validationCommand: command,
+      );
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isTrue,
+        reason: command,
+      );
+    }
+  });
+
+  test('approves contained saved Dart compile validations', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_dart_compile_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    for (final command in <String>[
+      'dart compile exe bin/todo.dart -o /dev/null',
+      'dart compile exe bin/todo.dart -o build/todo',
+    ]) {
+      final task = ConversationWorkflowTask(
+        id: 'task-dart-compile',
+        title: 'Compile the Dart CLI',
+        targetFiles: const <String>['bin/todo.dart'],
+        validationCommand: command,
+      );
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isTrue,
+        reason: command,
+      );
+    }
+  });
+
+  test('rejects uncontained saved Dart compile validations', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_dart_compile_reject_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    for (final command in <String>[
+      'dart compile exe bin/other.dart -o /dev/null',
+      'dart compile exe bin/todo.dart -o /tmp/todo',
+      'dart compile exe ../todo.dart -o build/todo',
+    ]) {
+      final task = ConversationWorkflowTask(
+        id: 'task-dart-compile',
+        title: 'Compile the Dart CLI',
+        targetFiles: const <String>['bin/todo.dart'],
+        validationCommand: command,
+      );
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isFalse,
+        reason: command,
+      );
+    }
+  });
+
+  test('approves safe Dart runtime information commands', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_dart_runtime_info_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    const task = ConversationWorkflowTask(
+      id: 'task-dart-project',
+      title: 'Prepare the Dart project',
+      targetFiles: <String>['pubspec.yaml'],
+      validationCommand: 'dart pub get',
+    );
+    for (final command in <String>[
+      'dart --version',
+      'flutter --version',
+      'fvm dart --version',
+    ]) {
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(command: command, workingDirectory: ''),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isTrue,
+        reason: command,
+      );
+    }
+  });
+
+  test('approves workspace-root Dart CLI scaffolding for a saved task', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_dart_scaffold_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    const task = ConversationWorkflowTask(
+      id: 'task-dart-scaffold',
+      title: 'Create the Dart CLI scaffold',
+      targetFiles: <String>['pubspec.yaml', 'bin/todo_app.dart'],
+      validationCommand: 'dart pub get',
+    );
+    for (final command in <String>[
+      'dart create -t console-full .',
+      'dart create -t console-full --force .',
+      'fvm dart create --template=console --no-pub .',
+      'dart create --template console ${tempDir.path}',
+    ]) {
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isTrue,
+        reason: command,
+      );
+    }
+  });
+
+  test('rejects Dart scaffolding outside the saved workspace contract', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_unsafe_dart_scaffold_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    const task = ConversationWorkflowTask(
+      id: 'task-dart-scaffold',
+      title: 'Create the Dart CLI scaffold',
+      targetFiles: <String>['pubspec.yaml', 'bin/todo_app.dart'],
+      validationCommand: 'dart pub get',
+    );
+    for (final command in <String>[
+      'dart create -t console-full ../outside',
+      'dart create -t package .',
+      'dart create --output .',
+    ]) {
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isFalse,
+        reason: command,
+      );
+    }
+    expect(
+      isSafePlanModeHarnessLocalCommand(
+        pending: _pendingLocalCommand(
+          command: 'dart create -t console-full .',
+          workingDirectory: tempDir.path,
+        ),
+        scenarioDir: tempDir,
+        task: task.copyWith(targetFiles: const <String>['lib/main.dart']),
+      ),
+      isFalse,
+    );
+  });
+
+  test('approves saved validation chains with safe Dart project commands', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_dart_validation_chain_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    const task = ConversationWorkflowTask(
+      id: 'task-dart-project',
+      title: 'Prepare the Dart project',
+      targetFiles: <String>['pubspec.yaml'],
+      validationCommand: 'ls pubspec.yaml && dart pub get',
+    );
+
+    expect(
+      isSafePlanModeHarnessLocalCommand(
+        pending: _pendingLocalCommand(
+          command: task.validationCommand,
+          workingDirectory: '',
+        ),
+        scenarioDir: tempDir,
+        task: task,
+      ),
+      isTrue,
+    );
+
+    expect(
+      isSafePlanModeHarnessLocalCommand(
+        pending: _pendingLocalCommand(
+          command: 'cd ${tempDir.path} && ${task.validationCommand}',
+          workingDirectory: tempDir.path,
+        ),
+        scenarioDir: tempDir,
+        task: task,
+      ),
+      isTrue,
+    );
+  });
+
+  test(
+    'rejects saved validation directory changes outside the scenario root',
+    () {
+      final tempDir = Directory.systemTemp.createTempSync(
+        'plan_mode_harness_dart_validation_cd_',
+      );
+      final childDir = Directory('${tempDir.path}/child')..createSync();
+      addTearDown(() {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      });
+
+      const task = ConversationWorkflowTask(
+        id: 'task-dart-project',
+        title: 'Prepare the Dart project',
+        targetFiles: <String>['pubspec.yaml'],
+        validationCommand: 'dart pub get && dart analyze',
+      );
+
+      for (final directory in <String>[
+        childDir.path,
+        Directory.systemTemp.path,
+        '${tempDir.path}/../${tempDir.path.split(Platform.pathSeparator).last}',
+      ]) {
+        expect(
+          isSafePlanModeHarnessLocalCommand(
+            pending: _pendingLocalCommand(
+              command: 'cd $directory && ${task.validationCommand}',
+              workingDirectory: tempDir.path,
+            ),
+            scenarioDir: tempDir,
+            task: task,
+          ),
+          isFalse,
+          reason: directory,
+        );
+      }
+    },
+  );
+
+  test('approves contained wrappers around a saved Dart CLI validation', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_dart_cli_wrapper_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    const task = ConversationWorkflowTask(
+      id: 'task-add-list',
+      title: 'Implement add and list',
+      targetFiles: <String>['bin/todo_cli.dart', 'lib/storage.dart'],
+      validationCommand:
+          'dart run bin/todo_cli.dart add test && dart run bin/todo_cli.dart list',
+    );
+
+    for (final command in <String>[
+      'rm -f tasks.json && ${task.validationCommand}',
+      'dart analyze bin/todo_cli.dart lib/storage.dart && ${task.validationCommand}',
+    ]) {
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isTrue,
+        reason: command,
+      );
+    }
+
+    for (final command in <String>[
+      'rm -f heartbeat.json && ${task.validationCommand}',
+      'rm -rf tasks.json && ${task.validationCommand}',
+      'rm -f ../tasks.json && ${task.validationCommand}',
+    ]) {
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isFalse,
+        reason: command,
+      );
+    }
+  });
+
+  test('approves safe Dart commands with the implicit scenario workspace', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_implicit_workspace_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    const task = ConversationWorkflowTask(
+      id: 'task-dart-implementation',
+      title: 'Implement the Dart application',
+      targetFiles: <String>['lib/main.dart'],
+      validationCommand: 'dart run lib/main.dart --help',
+    );
+
+    for (final command in <String>[
+      'dart pub get',
+      'dart analyze lib/main.dart',
+      'dart run lib/main.dart --help',
+    ]) {
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(command: command, workingDirectory: ''),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isTrue,
+        reason: command,
+      );
+    }
+  });
+
+  test('approves safe proactive Dart analysis in the scenario workspace', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_proactive_analysis_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    const task = ConversationWorkflowTask(
+      id: 'task-dart-help',
+      title: 'Create the Dart CLI',
+      targetFiles: <String>['bin/todo_cli.dart'],
+      validationCommand: 'dart run bin/todo_cli.dart help',
+    );
+
+    expect(
+      isSafePlanModeHarnessLocalCommand(
+        pending: _pendingLocalCommand(
+          command: 'dart analyze bin/todo_cli.dart',
+          workingDirectory: tempDir.path,
+        ),
+        scenarioDir: tempDir,
+        task: task,
+      ),
+      isTrue,
+    );
+  });
+
+  test('approves workspace-contained directory creation', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_mkdir_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    const task = ConversationWorkflowTask(
+      id: 'task-scaffold',
+      title: 'Create the project scaffold',
+      targetFiles: <String>['bin/main.dart'],
+      validationCommand: 'dart pub get',
+    );
+
+    for (final command in <String>['mkdir bin', 'mkdir -p bin lib/src']) {
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(command: command, workingDirectory: ''),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isTrue,
+        reason: command,
+      );
+    }
+    for (final command in <String>[
+      'mkdir -p ../outside',
+      'mkdir --mode 777 bin',
+      'rm -rf bin',
+    ]) {
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isFalse,
+        reason: command,
+      );
+    }
+  });
+
+  test('rejects unsafe Dart project command variants', () {
+    final tempDir = Directory.systemTemp.createTempSync(
+      'plan_mode_harness_unsafe_dart_project_',
+    );
+    addTearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    for (final command in <String>[
+      'dart pub publish',
+      'dart analyze ../outside',
+      'dart analyze --packages=../outside/package_config.json',
+      'dart run tool/mutate.dart',
+    ]) {
+      final task = ConversationWorkflowTask(
+        id: 'task-unsafe-dart-project',
+        title: 'Reject unsafe commands',
+        targetFiles: const <String>['pubspec.yaml'],
+        validationCommand: command,
+      );
+      expect(
+        isSafePlanModeHarnessLocalCommand(
+          pending: _pendingLocalCommand(
+            command: command,
+            workingDirectory: tempDir.path,
+          ),
+          scenarioDir: tempDir,
+          task: task,
+        ),
+        isFalse,
+        reason: command,
+      );
+    }
+  });
 }
 
 Conversation _conversation(List<Message> messages) {
@@ -337,12 +943,16 @@ Message _message({
   );
 }
 
-ToolResultInfo _toolResult({required String name}) {
+ToolResultInfo _toolResult({
+  required String name,
+  Map<String, dynamic> arguments = const <String, dynamic>{},
+  String result = 'ok',
+}) {
   return ToolResultInfo(
     id: name,
     name: name,
-    arguments: const <String, dynamic>{},
-    result: 'ok',
+    arguments: arguments,
+    result: result,
   );
 }
 

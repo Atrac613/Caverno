@@ -65,6 +65,7 @@ class _ControllableChatNotifier extends ChatNotifier {
     bool persistAssistantResponse = false,
     bool preserveGoalAutoContinueEvidence = false,
     bool replayVerifierImmediatelyAfterMutation = false,
+    bool verifierOnlyContinuation = false,
     Set<String>? allowedToolNames,
   }) async {
     hiddenPrompts.add(instruction);

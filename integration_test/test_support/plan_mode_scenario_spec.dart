@@ -11,9 +11,28 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 
 import 'plan_mode_tool_loop_convergence.dart';
+import 'plan_mode_todo_post_validation.dart';
 
 const _liveExactPreservationLine =
     'EXACT_PRESERVATION_VALUE: https://example.test/downloads/build_2026-06-10.tar.zst?sha=abc123_def | ZX-900_α | 2026-06-12 | ¥3,980 | 12 GiB';
+const _liveTodoExactShortPrompt =
+    'todo_app.md \u3092\u53C2\u8003\u306B\u3057\u3066MVP\u3092\u5B9F\u88C5\u3002'
+    '\u8A00\u8A9E\u306Fdart\u3068\u3059\u308B\u3002';
+
+typedef PlanModeScenarioPostValidator =
+    Future<Map<String, Object?>> Function(Directory scenarioDir);
+
+class PlanModeScenarioSeedFile {
+  const PlanModeScenarioSeedFile({
+    required this.sourcePath,
+    required this.destinationPath,
+    this.immutable = true,
+  });
+
+  final String sourcePath;
+  final String destinationPath;
+  final bool immutable;
+}
 
 class PlanModeScenarioTaskSpec {
   const PlanModeScenarioTaskSpec({
@@ -299,6 +318,12 @@ class PlanModeScenarioSpec {
     this.harnessTaskExecutionLimit,
     this.executionCompletionTimeout = const Duration(seconds: 20),
     this.executionStallTimeout = const Duration(seconds: 45),
+    this.seedFiles = const <PlanModeScenarioSeedFile>[],
+    this.taskDriftExcludedPaths = const <String>[],
+    this.languageCode = 'en',
+    this.temperature,
+    this.maxTokens,
+    this.postValidator,
   });
 
   final String name;
@@ -324,6 +349,12 @@ class PlanModeScenarioSpec {
   final int? harnessTaskExecutionLimit;
   final Duration executionCompletionTimeout;
   final Duration executionStallTimeout;
+  final List<PlanModeScenarioSeedFile> seedFiles;
+  final List<String> taskDriftExcludedPaths;
+  final String languageCode;
+  final double? temperature;
+  final int? maxTokens;
+  final PlanModeScenarioPostValidator? postValidator;
 
   String get initialTaskTitle => taskProposal.first.title;
 
@@ -1717,6 +1748,85 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
           minCount: 1,
         ),
+      ],
+    ),
+    PlanModeScenarioSpec(
+      name: 'live_todo_app_plan_completion',
+      userPrompt: _liveTodoExactShortPrompt,
+      projectName: 'tmp-live-todo-app',
+      tags: const <String>['live', 'canary', 'production_path', 'todo_app'],
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      seedFiles: const <PlanModeScenarioSeedFile>[
+        PlanModeScenarioSeedFile(
+          sourcePath: 'docs/coding_mvp_fixtures/todo_app.md',
+          destinationPath: 'todo_app.md',
+        ),
+      ],
+      taskDriftExcludedPaths: const <String>[
+        '.dart_tool/',
+        '.todo.json',
+        '.todo_app.json',
+        '.todos.json',
+        'pubspec.lock',
+        'tasks.json',
+        'todo.json',
+        'todo_app.json',
+        'todo_state.json',
+        'todos.json',
+      ],
+      languageCode: 'ja',
+      temperature: 0.2,
+      maxTokens: 8192,
+      postValidator: validatePlanModeTodoScenario,
+      uiExpectations: const <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: '\u627F\u8A8D\u3057\u3066\u958B\u59CB',
+        ),
+      ],
+      planningProposalTimeout: const Duration(minutes: 3),
+      waitForExecutionCompletion: true,
+      executionCompletionTimeout: const Duration(minutes: 10),
+      executionStallTimeout: const Duration(seconds: 150),
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        minTaskCount: 1,
+      ),
+      logExpectations: const <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[Workflow] Planning research pass started',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== createChatCompletion ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: planModeSavedValidationSuccessPattern,
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: planModeSavedValidationConvergenceGuardPattern,
+          maxCount: 0,
+        ),
+        PlanModeLogExpectation(
+          pattern: 'unexecuted_command_action_notice',
+          maxCount: 0,
+        ),
+      ],
+      allowedWarningPatterns: const <String>[
+        '[Workflow] Workflow proposal parse failed',
+        '[Workflow] Workflow proposal recovered on retry',
+        '[Workflow] Using fallback proposal',
+        '[LLM] Recovered raw text response after create parse failure',
       ],
     ),
     PlanModeScenarioSpec(

@@ -38,4 +38,22 @@ void main() {
     expect(approveAction, findsOneWidget);
     expect(tester.widget(approveAction), isA<Text>());
   });
+
+  testWidgets('finds the Japanese approval action', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: FilledButton(
+            onPressed: () {},
+            child: const Text('\u627F\u8A8D\u3057\u3066\u958B\u59CB'),
+          ),
+        ),
+      ),
+    );
+
+    final approveAction = findPreferredPlanModeApproveAction();
+
+    expect(approveAction, findsOneWidget);
+    expect(tester.widget(approveAction), isA<FilledButton>());
+  });
 }

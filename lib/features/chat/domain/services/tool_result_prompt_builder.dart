@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import '../../../../core/constants/system_prompt_constants.dart';
+import '../../../../core/security/tool_capability_classifier.dart';
 import '../entities/tool_call_info.dart';
+import 'coding_command_output_guardrail_service.dart';
 import 'context_surgery_observation_service.dart';
 
 enum ToolResultPromptBudgetMode { normal, compact }
@@ -32,6 +34,7 @@ class ToolResultCompletionEvidence {
     this.mutatedWithoutExecutionVerification = false,
     this.hasExecutionVerification = false,
     this.hasSuccessfulExecutionVerification = false,
+    this.hasFailedExecutionVerification = false,
     this.hasAuthoritativeDiagnosticSnapshot = false,
     this.hasUnexecutedActionClaim = false,
     this.diagnosticSignature = '',
@@ -46,19 +49,23 @@ class ToolResultCompletionEvidence {
   final bool mutatedWithoutExecutionVerification;
   final bool hasExecutionVerification;
   final bool hasSuccessfulExecutionVerification;
+  final bool hasFailedExecutionVerification;
   final bool hasAuthoritativeDiagnosticSnapshot;
   final bool hasUnexecutedActionClaim;
   final String diagnosticSignature;
 
   bool get hasIncompleteEvidence =>
       boundedToolLoopExhausted ||
+      hasFailedExecutionVerification ||
       unresolvedErrorCount > 0 ||
       unverifiedChangePaths.isNotEmpty ||
       mutatedWithoutExecutionVerification ||
       hasUnexecutedActionClaim;
 
   bool get hasBlockingEvidence =>
-      boundedToolLoopExhausted || unresolvedErrorCount > 0;
+      boundedToolLoopExhausted ||
+      hasFailedExecutionVerification ||
+      unresolvedErrorCount > 0;
 
   bool get hasDiagnosticEvidence => unresolvedErrorCount > 0;
 
@@ -73,6 +80,9 @@ class ToolResultCompletionEvidence {
 
   String get summary {
     final parts = <String>[];
+    if (hasFailedExecutionVerification) {
+      parts.add('execution verification failed');
+    }
     if (unresolvedErrorCount > 0) {
       final pathSuffix = unresolvedErrorPaths.isEmpty
           ? ''
@@ -158,6 +168,10 @@ class ToolResultCompletionEvidence {
               previous.mutatedWithoutExecutionVerification),
       hasExecutionVerification: hasExecutionVerification,
       hasSuccessfulExecutionVerification: hasSuccessfulExecutionVerification,
+      hasFailedExecutionVerification:
+          hasFailedExecutionVerification ||
+          (!hasExecutionVerification &&
+              previous.hasFailedExecutionVerification),
       hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
       hasUnexecutedActionClaim:
           hasUnexecutedActionClaim || previous.hasUnexecutedActionClaim,
@@ -171,7 +185,8 @@ class ToolResultCompletionEvidence {
     required int mutationGeneration,
     required int verificationGeneration,
   }) {
-    if (verificationGeneration < 0 ||
+    if (hasFailedExecutionVerification ||
+        verificationGeneration < 0 ||
         verificationGeneration != mutationGeneration) {
       return this;
     }
@@ -691,6 +706,16 @@ class ToolResultPromptBuilder {
       toolResults,
       afterIndex: latestMutationIndex,
     );
+    final hasFailedExecutionVerification = _hasFailedExecutionVerification(
+      toolResults,
+      afterIndex: latestMutationIndex,
+    );
+    final hasSuccessfulExecutionVerification =
+        !hasFailedExecutionVerification &&
+        _hasSuccessfulExecutionVerification(
+          toolResults,
+          afterIndex: latestMutationIndex,
+        );
     final mutatedWithoutExecutionVerification =
         lastMutationIndexByPath.isNotEmpty && !hasExecutionVerification;
     final unverifiedChangePaths =
@@ -707,9 +732,8 @@ class ToolResultPromptBuilder {
       unverifiedChangePaths: unverifiedChangePaths,
       mutatedWithoutExecutionVerification: mutatedWithoutExecutionVerification,
       hasExecutionVerification: hasExecutionVerification,
-      hasSuccessfulExecutionVerification: _hasSuccessfulExecutionVerification(
-        toolResults,
-      ),
+      hasSuccessfulExecutionVerification: hasSuccessfulExecutionVerification,
+      hasFailedExecutionVerification: hasFailedExecutionVerification,
       hasAuthoritativeDiagnosticSnapshot: hasAuthoritativeDiagnosticSnapshot,
       hasUnexecutedActionClaim: hasUnexecutedActionClaim,
       diagnosticSignature: (diagnosticSignatureComponents.toList()..sort())
@@ -761,22 +785,15 @@ class ToolResultPromptBuilder {
   }
 
   static bool _hasSuccessfulExecutionVerification(
-    List<ToolResultInfo> toolResults,
-  ) {
-    final mutationIndexes = _lastSuccessfulFileMutationIndexByPath(
-      toolResults,
-    ).values;
-    final latestMutationIndex = mutationIndexes.fold(
-      -1,
-      (latest, index) => index > latest ? index : latest,
-    );
-    for (
-      var index = latestMutationIndex + 1;
-      index < toolResults.length;
-      index++
-    ) {
+    List<ToolResultInfo> toolResults, {
+    required int afterIndex,
+  }) {
+    if (_hasFailedCommandOutputFeedback(toolResults, afterIndex: afterIndex)) {
+      return false;
+    }
+    for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolName(toolResult.name)) continue;
+      if (!_isVerificationRunToolResult(toolResult)) continue;
       final decoded = _tryDecodeJsonMap(toolResult.result);
       if (decoded == null) continue;
       final exitCode = decoded['exit_code'];
@@ -801,6 +818,59 @@ class ToolResultPromptBuilder {
     return false;
   }
 
+  static bool _hasFailedExecutionVerification(
+    List<ToolResultInfo> toolResults, {
+    required int afterIndex,
+  }) {
+    if (_hasFailedCommandOutputFeedback(toolResults, afterIndex: afterIndex)) {
+      return true;
+    }
+    for (var index = afterIndex + 1; index < toolResults.length; index++) {
+      final toolResult = toolResults[index];
+      if (!_isVerificationRunToolResult(toolResult)) {
+        continue;
+      }
+      final decoded = _tryDecodeJsonMap(toolResult.result);
+      if (decoded == null) {
+        continue;
+      }
+      final exitCode = _parseExitCode(decoded['exit_code']);
+      if (exitCode != null && exitCode != 0) {
+        return true;
+      }
+      if (decoded['timed_out'] == true) {
+        return true;
+      }
+      final normalizedName = toolResult.name.trim().toLowerCase();
+      if (normalizedName == 'dart_analyze_feedback') {
+        final diagnostics = decoded['diagnostics'];
+        if (diagnostics is List &&
+            diagnostics.any(
+              (item) =>
+                  item is Map &&
+                  item['severity']?.toString().toLowerCase() == 'error',
+            )) {
+          return true;
+        }
+      }
+      if (normalizedName == 'dart_test_feedback' &&
+          decoded['validationStatus']?.toString().toLowerCase() == 'failed') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static int? _parseExitCode(Object? value) {
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value.trim());
+    }
+    return null;
+  }
+
   /// Whether an execution-class tool produced a result that proves dispatch.
   static bool _hasAnyExecutionVerification(
     List<ToolResultInfo> toolResults, {
@@ -808,7 +878,7 @@ class ToolResultPromptBuilder {
   }) {
     for (var index = afterIndex + 1; index < toolResults.length; index++) {
       final toolResult = toolResults[index];
-      if (!_isVerificationRunToolName(toolResult.name)) {
+      if (!_isVerificationRunToolResult(toolResult)) {
         continue;
       }
       final decoded = _tryDecodeJsonMap(toolResult.result);
@@ -831,15 +901,46 @@ class ToolResultPromptBuilder {
     return false;
   }
 
-  static bool _isVerificationRunToolName(String toolName) {
-    switch (toolName.trim().toLowerCase()) {
-      case 'local_execute_command':
+  static bool _isVerificationRunToolResult(ToolResultInfo toolResult) {
+    final normalizedName = toolResult.name.trim().toLowerCase();
+    if (normalizedName == 'local_execute_command') {
+      return const ToolCapabilityClassifier()
+              .classify(toolResult.name, arguments: toolResult.arguments)
+              .commandEffect ==
+          ToolCommandEffect.verification;
+    }
+    switch (normalizedName) {
       case 'analyze_project':
       case 'run_tests':
       case 'git_execute_command':
       case 'process_start':
       case 'process_wait':
         return true;
+    }
+    return false;
+  }
+
+  static bool _hasFailedCommandOutputFeedback(
+    List<ToolResultInfo> toolResults, {
+    required int afterIndex,
+  }) {
+    for (var index = afterIndex + 1; index < toolResults.length; index++) {
+      final toolResult = toolResults[index];
+      if (toolResult.name.trim().toLowerCase() !=
+          CodingCommandOutputGuardrailService.toolName) {
+        continue;
+      }
+      final decoded = _tryDecodeJsonMap(toolResult.result);
+      if (decoded == null) {
+        continue;
+      }
+      final validationStatus = decoded['validation_status']
+          ?.toString()
+          .trim()
+          .toLowerCase();
+      if (decoded['success'] == false || validationStatus == 'failed') {
+        return true;
+      }
     }
     return false;
   }

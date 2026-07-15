@@ -11,6 +11,35 @@ class SpecificationContractInput {
 class ShortPromptContractBuilder {
   const ShortPromptContractBuilder();
 
+  static const syntheticRequestTaskTitle = 'Fulfill the sourced user request';
+
+  static bool isSyntheticRequestContract(ConversationWorkflowSpec spec) {
+    if (spec.tasks.length != 1) {
+      return false;
+    }
+    final task = spec.tasks.single;
+    if (!task.id.startsWith('request-') ||
+        task.title != syntheticRequestTaskTitle) {
+      return false;
+    }
+    final userMessageSourceIds = spec.sources
+        .where(
+          (source) => source.kind == ConversationContractSourceKind.userMessage,
+        )
+        .map((source) => source.id)
+        .toSet();
+    if (userMessageSourceIds.isEmpty) {
+      return false;
+    }
+    return spec.provenance.any(
+      (item) =>
+          item.kind == ConversationContractItemKind.task &&
+          item.itemId == 'task:${task.id}' &&
+          item.sourceIds.isNotEmpty &&
+          item.sourceIds.every(userMessageSourceIds.contains),
+    );
+  }
+
   ConversationWorkflowSpec? build({
     required String userMessageId,
     required String userRequest,
@@ -38,10 +67,7 @@ class ShortPromptContractBuilder {
       constraints: extracted.constraints,
       acceptanceCriteria: extracted.acceptanceCriteria,
       tasks: [
-        ConversationWorkflowTask(
-          id: taskId,
-          title: 'Fulfill the sourced user request',
-        ),
+        ConversationWorkflowTask(id: taskId, title: syntheticRequestTaskTitle),
       ],
       sources: [
         ConversationContractSourceReference(
@@ -106,9 +132,11 @@ class ShortPromptContractBuilder {
         listLabel = line.substring(0, line.length - 1).trim();
         continue;
       }
-      final bullet = RegExp(r'^[-*]\s+(?:\[[ xX]\]\s*)?(.+)$').firstMatch(line);
-      if (bullet != null) {
-        final value = bullet.group(1)!.trim();
+      final listItem = RegExp(
+        r'^(?:[-*]|\d+[.)])\s+(?:\[[ xX]\]\s*)?(.+)$',
+      ).firstMatch(line);
+      if (listItem != null) {
+        final value = listItem.group(1)!.trim();
         sections
             .putIfAbsent(section, () => <String>[])
             .add(listLabel.isEmpty ? value : '$listLabel: $value');

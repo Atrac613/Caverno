@@ -107,6 +107,15 @@ int countPlanModeValidationLikeExecutions(List<String> logs) {
       .length;
 }
 
+int countPlanModeExecutionActivities(List<String> logs) {
+  return logs.where((line) {
+    return (line.contains('[Tool] Lifecycle') &&
+            (line.contains('"lifecycleState":"completed"') ||
+                line.contains('"lifecycleState":"skipped"'))) ||
+        line.contains('[LLM] === Response');
+  }).length;
+}
+
 String resolvePlanModeExecutionSubphase(
   PlanModePhaseTrace phaseTrace,
   String? activeTaskTitle,

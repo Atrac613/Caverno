@@ -84,9 +84,12 @@ extension ChatNotifierPromptContext on ChatNotifier {
     required Message userMessage,
     required ConversationsNotifier conversationsNotifier,
   }) async {
+    final isActiveAutoGoal =
+        (currentConversation?.goal?.isActive ?? false) &&
+        (currentConversation?.goal?.autoContinue ?? false);
     if (currentConversation?.workspaceMode != WorkspaceMode.coding ||
-        !(currentConversation?.goal?.isActive ?? false) ||
-        !(currentConversation?.goal?.autoContinue ?? false) ||
+        (!(currentConversation?.isPlanningSession ?? false) &&
+            !isActiveAutoGoal) ||
         currentConversation!.effectiveWorkflowSpec.hasContent) {
       return;
     }
@@ -98,13 +101,48 @@ extension ChatNotifierPromptContext on ChatNotifier {
     if (workflowSpec == null) return;
     try {
       await conversationsNotifier.updateCurrentWorkflow(
-        workflowStage: ConversationWorkflowStage.implement,
+        workflowStage: currentConversation.isPlanningSession
+            ? ConversationWorkflowStage.plan
+            : ConversationWorkflowStage.implement,
         workflowSpec: workflowSpec,
       );
     } catch (error) {
       appLog(
         '[ExecutionContract] Failed to persist short-prompt contract: $error',
       );
+    }
+  }
+
+  Future<void> _markPendingExecutionTaskStarted({
+    required ConversationsNotifier conversationsNotifier,
+    required bool bypassPlanMode,
+  }) async {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null ||
+        conversation.workspaceMode != WorkspaceMode.coding ||
+        (conversation.isPlanningSession && !bypassPlanMode)) {
+      return;
+    }
+    final task = ConversationPlanExecutionCoordinator.executionFocusTask(
+      conversation,
+    );
+    if (task == null || task.status != ConversationWorkflowTaskStatus.pending) {
+      return;
+    }
+
+    final startedAt = DateTime.now();
+    try {
+      await conversationsNotifier.updateCurrentExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.inProgress,
+        lastRunAt: startedAt,
+        eventType: ConversationExecutionTaskEventType.started,
+        eventTimestamp: startedAt,
+      );
+    } catch (error) {
+      appLog('[ExecutionProgress] Failed to persist task start: $error');
     }
   }
 

@@ -175,8 +175,20 @@ void main() {
         ToolCommandEffect.verification,
       );
       expect(
+        effectOf('local_execute_command', 'dart bin/todo.dart done 999'),
+        ToolCommandEffect.verification,
+      );
+      expect(
         effectOf('local_execute_command', 'dart run build_runner build'),
         ToolCommandEffect.codeGeneration,
+      );
+      expect(
+        effectOf('local_execute_command', 'dart run tool/release.dart'),
+        ToolCommandEffect.deploymentOrRelease,
+      );
+      expect(
+        effectOf('local_execute_command', 'python scripts/deploy.py'),
+        ToolCommandEffect.deploymentOrRelease,
       );
       expect(
         effectOf('local_execute_command', 'echo verify the output'),
@@ -196,6 +208,99 @@ void main() {
       expect(
         effectOf('git_execute_command', 'push origin main'),
         ToolCommandEffect.externalSideEffect,
+      );
+    });
+
+    test('classifies shell redirection and heredocs as workspace mutation', () {
+      for (final command in [
+        'cat README.md > README.copy.md',
+        "cat > README.md <<'EOF'\nchanged\nEOF",
+        "python3 - <<'PY'\nprint('changed')\nPY",
+      ]) {
+        expect(
+          effectOf('local_execute_command', command),
+          ToolCommandEffect.workspaceMutation,
+          reason: command,
+        );
+      }
+    });
+
+    test('classifies compound commands by every command effect', () {
+      expect(
+        effectOf('local_execute_command', 'dart test && flutter analyze'),
+        ToolCommandEffect.verification,
+      );
+      expect(
+        effectOf(
+          'local_execute_command',
+          'cd /tmp/todo && dart analyze && dart test',
+        ),
+        ToolCommandEffect.verification,
+      );
+      expect(
+        effectOf(
+          'local_execute_command',
+          r'dart run bin/todo_cli.dart done 999; echo "exit=$?"',
+        ),
+        ToolCommandEffect.verification,
+      );
+      expect(
+        effectOf('local_execute_command', 'dart test && rm -rf build'),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf(
+          'local_execute_command',
+          'rm -f .todo.json && dart run bin/todo_cli.dart done 999',
+        ),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf('local_execute_command', 'dart test & rm -rf build'),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf('local_execute_command', r'dart test $(rm -rf build)'),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf(
+          'local_execute_command',
+          'dart test; echo passed > result.txt',
+        ),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf('local_execute_command', r'dart test; echo $(rm -rf build)'),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf(
+          'local_execute_command',
+          r'cd "$(rm -rf build)" && dart analyze',
+        ),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf(
+          'local_execute_command',
+          'cd /tmp/todo && rm -f .todo.json && dart test',
+        ),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf(
+          'local_execute_command',
+          'cd /tmp/todo\nrm -f .todo.json && dart test',
+        ),
+        ToolCommandEffect.workspaceMutation,
+      );
+      expect(
+        effectOf(
+          'local_execute_command',
+          "dart run tool/verify.dart --label 'test && analyze'",
+        ),
+        ToolCommandEffect.verification,
       );
     });
   });

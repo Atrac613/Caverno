@@ -124,11 +124,15 @@ PlanModeTaskDriftReport buildPlanModeScenarioTaskDriftReport({
   required Iterable<String> expectedTargetFiles,
   required Directory scenarioDir,
   Iterable<String> savedTaskTargetFiles = const <String>[],
+  Iterable<String> excludedPaths = const <String>[],
 }) {
   return buildPlanModeTaskDriftReport(
     expectedTargetFiles: expectedTargetFiles,
     savedTaskTargetFiles: savedTaskTargetFiles,
-    actualChangedFiles: collectPlanModeScenarioChangedFiles(scenarioDir),
+    actualChangedFiles: collectPlanModeScenarioChangedFiles(
+      scenarioDir,
+      excludedPaths: excludedPaths,
+    ),
   );
 }
 
@@ -148,7 +152,10 @@ List<String> resolvePlanModeScenarioExpectedTaskDriftTargetFiles({
   return expectation.firstTaskTargetFilesContain;
 }
 
-List<String> collectPlanModeScenarioChangedFiles(Directory scenarioDir) {
+List<String> collectPlanModeScenarioChangedFiles(
+  Directory scenarioDir, {
+  Iterable<String> excludedPaths = const <String>[],
+}) {
   if (!scenarioDir.existsSync()) {
     return const <String>[];
   }
@@ -157,6 +164,13 @@ List<String> collectPlanModeScenarioChangedFiles(Directory scenarioDir) {
       ? scenarioDir.path
       : '${scenarioDir.path}${Platform.pathSeparator}';
   final files = <String>[];
+  final normalizedExcludedPaths = excludedPaths
+      .map(normalizePlanModeTaskDriftPath)
+      .where((path) => path.isNotEmpty)
+      .toSet();
+  final excludedPrefixes = normalizedExcludedPaths
+      .where((path) => path.endsWith('/'))
+      .toList(growable: false);
   for (final entity in scenarioDir.listSync(
     recursive: true,
     followLinks: false,
@@ -169,6 +183,8 @@ List<String> collectPlanModeScenarioChangedFiles(Directory scenarioDir) {
         .replaceAll(Platform.pathSeparator, '/');
     final normalizedPath = normalizePlanModeTaskDriftPath(relativePath);
     if (normalizedPath.isEmpty ||
+        normalizedExcludedPaths.contains(normalizedPath) ||
+        excludedPrefixes.any(normalizedPath.startsWith) ||
         isPlanModeScenarioHarnessArtifact(normalizedPath)) {
       continue;
     }
@@ -181,6 +197,7 @@ List<String> collectPlanModeScenarioChangedFiles(Directory scenarioDir) {
 bool isPlanModeScenarioHarnessArtifact(String normalizedPath) {
   return normalizedPath == 'scenario_report.json' ||
       normalizedPath == 'scenario_log.txt' ||
+      normalizedPath == 'scenario_post_validation.json' ||
       normalizedPath == 'heartbeat.json' ||
       normalizedPath == '.ds_store' ||
       normalizedPath.endsWith('/.ds_store') ||

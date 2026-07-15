@@ -589,7 +589,7 @@ Dart symbols:
     expect(
       prompt,
       contains(
-        'When a saved task is complete, continue to the next pending saved task automatically instead of asking for confirmation between tasks.',
+        'When a saved task is complete, report its evidence and end the current turn. The workflow executor will start the next pending saved task automatically in a separate turn without asking for confirmation.',
       ),
     );
     expect(

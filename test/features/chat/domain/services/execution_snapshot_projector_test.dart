@@ -119,6 +119,23 @@ void main() {
     expect(snapshot.toPromptContext(), contains('Open questions:'));
   });
 
+  test('projects planning before execution for a sourced draft contract', () {
+    final snapshot = projector.project(
+      conversation(
+        stage: ConversationWorkflowStage.plan,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Plan the CLI',
+          tasks: [
+            ConversationWorkflowTask(id: 'task-1', title: 'Build the CLI'),
+          ],
+        ),
+      ),
+    );
+
+    expect(snapshot.action, ExecutionSnapshotAction.plan);
+    expect(snapshot.toPromptContext(), contains('Required next action: plan'));
+  });
+
   test('injects sourced contract state and blocks material assumptions', () {
     final snapshot = projector.project(
       conversation(

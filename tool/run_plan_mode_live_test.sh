@@ -21,6 +21,12 @@ PREFLIGHT_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS:-5}"
 LOG_TOOL_SCHEMAS="${CAVERNO_LLM_LOG_TOOL_SCHEMAS:-0}"
 REPORT_ROOT="${CAVERNO_PLAN_MODE_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}"
 
+if command -v fvm >/dev/null 2>&1 && { [[ -f "${ROOT_DIR}/.fvmrc" ]] || [[ -d "${ROOT_DIR}/.fvm" ]]; }; then
+  FLUTTER_CMD=(fvm flutter)
+else
+  FLUTTER_CMD=(flutter)
+fi
+
 echo "Running Plan mode live scenarios"
 echo "  Base URL: ${BASE_URL}"
 echo "  Model: ${MODEL}"
@@ -66,7 +72,7 @@ export CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS="${FAIL_ON_WARNINGS}"
 export CAVERNO_PLAN_MODE_REPORT_ROOT="${REPORT_ROOT}"
 
 if [[ ${#DART_DEFINES[@]} -gt 0 ]]; then
-  flutter test integration_test/plan_mode_scenario_test.dart -d "${DEVICE}" -r "${REPORTER}" "${DART_DEFINES[@]}"
+  "${FLUTTER_CMD[@]}" test integration_test/plan_mode_scenario_test.dart -d "${DEVICE}" -r "${REPORTER}" "${DART_DEFINES[@]}"
 else
-  flutter test integration_test/plan_mode_scenario_test.dart -d "${DEVICE}" -r "${REPORTER}"
+  "${FLUTTER_CMD[@]}" test integration_test/plan_mode_scenario_test.dart -d "${DEVICE}" -r "${REPORTER}"
 fi

@@ -43,6 +43,28 @@ void main() {
     expect(result.hasCompletion, isFalse);
   });
 
+  test('does not complete while later saved tasks remain pending', () {
+    final result = ConversationGoalProgressInference.infer(
+      assistantResponse:
+          'Task 1 is complete. The saved validation command exited with code 0.',
+      tasks: const [
+        ConversationWorkflowTask(
+          id: 'task-1',
+          title: 'Initialize the project',
+          status: ConversationWorkflowTaskStatus.inProgress,
+        ),
+        ConversationWorkflowTask(
+          id: 'task-2',
+          title: 'Implement the CLI',
+          status: ConversationWorkflowTaskStatus.pending,
+        ),
+      ],
+    );
+
+    expect(result.status, isNull);
+    expect(result.hasCompletion, isFalse);
+  });
+
   test('does not complete on negative validation narration', () {
     final result = ConversationGoalProgressInference.infer(
       assistantResponse:

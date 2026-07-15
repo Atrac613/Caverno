@@ -467,7 +467,7 @@
     "workflow_task_status_completed": "Completed",
     "workflow_task_status_blocked": "Blocked",
     "workflow_task_use_prompt_intro": "Use the saved task \"{title}\" from this coding thread.",
-    "workflow_task_use_prompt_outro": "Move this task forward while respecting the saved workflow, and explain the next concrete change before implementing it. When this task is complete, continue to the next pending saved task automatically unless you are blocked, requirements changed, or the approved workflow must change. If the app shows file or command approvals, treat them as sufficient and do not ask for duplicate permission in natural language.",
+    "workflow_task_use_prompt_outro": "Move this task forward while respecting the saved workflow, and explain the next concrete change before implementing it. When this task is complete, report its evidence and end the current turn without starting another saved task. The workflow executor will start the next pending task automatically in a separate turn. If the app shows file or command approvals, treat them as sufficient and do not ask for duplicate permission in natural language.",
     "workflow_task_review_prompt_outro": "Review this completed task against the saved workflow and call out gaps, risks, or missing validation first.",
     "workflow_task_validation_prompt_intro": "Run the saved validation step for task \"{title}\" in this coding thread.",
     "workflow_task_validation_prompt_outro": "Use the approved plan and the current task context, run the validation when possible, and report failures before suggesting a replan.",

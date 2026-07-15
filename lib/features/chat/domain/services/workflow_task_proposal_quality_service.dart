@@ -713,6 +713,15 @@ class WorkflowTaskProposalQualityService {
     bool projectLooksEmpty,
     ConversationWorkflowSpec workflowSpec,
   ) {
+    if (_taskProposalHasUnbackedAbsoluteValidationPath(
+          finalized.tasks,
+          workflowSpec,
+        ) ||
+        _taskProposalMasksValidationFailure(finalized.tasks) ||
+        (projectLooksEmpty &&
+            _taskProposalHasUnderscopedFinalVerification(finalized.tasks))) {
+      return true;
+    }
     final violatesExplicitFirstSlice =
         _taskProposalViolatesExplicitFirstSliceTargets(
           finalized.tasks,
@@ -734,6 +743,91 @@ class WorkflowTaskProposalQualityService {
       return false;
     }
     return !_workflowAllowsSingleReadmeTask(finalized, workflowSpec);
+  }
+
+  bool _taskProposalHasUnbackedAbsoluteValidationPath(
+    List<ConversationWorkflowTask> tasks,
+    ConversationWorkflowSpec workflowSpec,
+  ) {
+    final specification = _workflowSpecText(workflowSpec);
+    final unixPathPattern = RegExp(r'''(^|[\s="'<>])(/[^\s;&|"'<>]+)''');
+    final windowsPathPattern = RegExp(
+      r'''(^|[\s="'<>])([A-Za-z]:[\\/][^\s;&|"'<>]+)''',
+    );
+    for (final task in tasks) {
+      final command = task.validationCommand.trim();
+      if (command.isEmpty) {
+        continue;
+      }
+      final paths = <String>[
+        ...unixPathPattern
+            .allMatches(command)
+            .map((match) => match.group(2))
+            .whereType<String>(),
+        ...windowsPathPattern
+            .allMatches(command)
+            .map((match) => match.group(2))
+            .whereType<String>(),
+      ];
+      if (paths.any((path) => !specification.contains(path.toLowerCase()))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _taskProposalMasksValidationFailure(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    final echoStatusPattern = RegExp(
+      r';\s*echo\b[^;&|]*\$\?[^;&|]*$',
+      caseSensitive: false,
+    );
+    final bareStatusTestPattern = RegExp(
+      r''';\s*(?:test\s+["']?\$\?["']?|\[\s+["']?\$\?["']?\s*\])\s*$''',
+      caseSensitive: false,
+    );
+    return tasks.any((task) {
+      final command = task.validationCommand.trim();
+      return echoStatusPattern.hasMatch(command) ||
+          bareStatusTestPattern.hasMatch(command);
+    });
+  }
+
+  bool _taskProposalHasUnderscopedFinalVerification(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    if (tasks.length < 2) {
+      return false;
+    }
+    final priorImplementationTargets = tasks
+        .take(tasks.length - 1)
+        .expand((task) => task.targetFiles)
+        .where(_looksLikeImplementationTargetFile)
+        .map((path) => path.trim().replaceAll('\\', '/').toLowerCase())
+        .toSet();
+    if (priorImplementationTargets.length < 2) {
+      return false;
+    }
+
+    final finalTask = tasks.last;
+    if (finalTask.validationCommand.trim().isEmpty) {
+      return false;
+    }
+    final finalImplementationTargets = finalTask.targetFiles
+        .where(_looksLikeImplementationTargetFile)
+        .map((path) => path.trim().replaceAll('\\', '/').toLowerCase())
+        .toSet();
+    final reusesOnlyPriorTargets =
+        finalImplementationTargets.isNotEmpty &&
+        finalImplementationTargets.every(priorImplementationTargets.contains);
+    if (!_looksLikeVerificationTaskProposal(finalTask) &&
+        !reusesOnlyPriorTargets) {
+      return false;
+    }
+    return priorImplementationTargets.any(
+      (target) => !finalImplementationTargets.contains(target),
+    );
   }
 
   bool _workflowAllowsExplicitSingleTaskProposal(

@@ -1,0 +1,71 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('Caverno CLI roadmap', () {
+    late String roadmap;
+
+    setUpAll(() {
+      roadmap = File('docs/roadmap.md').readAsStringSync();
+    });
+
+    test('registers the CLI track and phased milestones', () {
+      expect(roadmap, contains('Use `CLI<number>`'));
+      expect(roadmap, contains('| Caverno CLI | CLI0 | next |'));
+      expect(roadmap, contains('## Caverno CLI Track'));
+      expect(
+        roadmap,
+        contains('### CLI0: Headless Production-Path Baseline And Contract'),
+      );
+      expect(
+        roadmap,
+        contains('### CLI1: Shared Application Execution Runtime'),
+      );
+      expect(roadmap, contains('### CLI2: Interactive Terminal MVP'));
+      expect(
+        roadmap,
+        contains('### CLI3: Persistence, Resume, And Concurrent Ownership'),
+      );
+      expect(
+        roadmap,
+        contains('### CLI4: Packaging, Automation, And Release Gate'),
+      );
+    });
+
+    test('keeps headless and application canary responsibilities separate', () {
+      expect(roadmap, contains('must not launch a desktop application window'));
+      expect(
+        roadmap,
+        contains('macOS application lane remains a separate release'),
+      );
+      expect(
+        roadmap,
+        contains('same scenario contract, short prompt, saved workflow'),
+      );
+    });
+
+    test('preserves fail-closed approval and Computer Use boundaries', () {
+      expect(roadmap, contains('Non-interactive execution fails closed'));
+      expect(roadmap, contains('absence of a GUI must never become approval'));
+      expect(
+        roadmap,
+        contains('Computer Use remains unavailable from a headless CLI'),
+      );
+      expect(roadmap, contains('Treat SIGINT as cancellation'));
+    });
+
+    test('requires one runtime instead of a test-runner product wrapper', () {
+      expect(roadmap, contains('must reuse Caverno\'s execution behavior'));
+      expect(roadmap, contains('than wrapping a test command'));
+      expect(
+        roadmap,
+        contains('Keep one prompt builder, tool dispatcher, tool-loop policy'),
+      );
+      expect(
+        roadmap,
+        contains('Release artifacts run without a Flutter test runner'),
+      );
+    });
+  });
+}

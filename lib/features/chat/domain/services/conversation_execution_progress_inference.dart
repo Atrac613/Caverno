@@ -1,4 +1,5 @@
 import '../entities/conversation_workflow.dart';
+import 'final_answer_claim_detector.dart';
 
 class ConversationExecutionProgressInferenceResult {
   const ConversationExecutionProgressInferenceResult({
@@ -69,13 +70,16 @@ class ConversationExecutionProgressInference {
     required bool isValidationRun,
     String? fallbackAssistantResponse,
   }) {
+    final primaryHasUnexecutedEvidence = _hasUnexecutedEvidence(
+      assistantResponse,
+    );
     final primary = _inferSingle(
       assistantResponse: assistantResponse,
       task: task,
       isValidationRun: isValidationRun,
     );
     final fallback = fallbackAssistantResponse?.trim();
-    if (fallback == null || fallback.isEmpty) {
+    if (fallback == null || fallback.isEmpty || primaryHasUnexecutedEvidence) {
       return primary;
     }
 
@@ -110,14 +114,25 @@ class ConversationExecutionProgressInference {
 
     final summary = _extractSummary(normalizedResponse);
     final lowercaseResponse = normalizedResponse.toLowerCase();
+    if (_hasUnexecutedEvidence(normalizedResponse)) {
+      return ConversationExecutionProgressInferenceResult(
+        status: task.status == ConversationWorkflowTaskStatus.completed
+            ? ConversationWorkflowTaskStatus.completed
+            : ConversationWorkflowTaskStatus.inProgress,
+        summary: summary,
+        validationStatus: ConversationExecutionValidationStatus.unknown,
+        validationSummary: isValidationRun ? summary : null,
+      );
+    }
+    final completionEvidenceText = _withoutMarkdownCode(lowercaseResponse);
     final hasBlockedSignal = _containsAny(lowercaseResponse, _blockedSignals);
     final hasCompletionSignal = _containsAny(
-      lowercaseResponse,
+      completionEvidenceText,
       _completionSignals,
     );
     final hasValidationPassedSignal =
-        _containsAny(lowercaseResponse, _validationPassedSignals) ||
-        _looksLikeValidationSuccessNarrative(lowercaseResponse);
+        _containsAny(completionEvidenceText, _validationPassedSignals) ||
+        _looksLikeValidationSuccessNarrative(completionEvidenceText);
     final looksLikeTaskTransitionNarration = _containsAny(
       lowercaseResponse,
       _transitionNarrationSignals,
@@ -269,6 +284,24 @@ class ConversationExecutionProgressInference {
       }
     }
     return false;
+  }
+
+  static bool _hasUnexecutedEvidence(String response) {
+    return response.contains(
+          FinalAnswerClaimDetector.unexecutedCommandActionNotice,
+        ) ||
+        response.contains(
+          FinalAnswerClaimDetector.unexecutedFileSideEffectNotice,
+        ) ||
+        response.contains(
+          FinalAnswerClaimDetector.unverifiedReadOnlyInspectionNotice,
+        );
+  }
+
+  static String _withoutMarkdownCode(String value) {
+    return value
+        .replaceAll(RegExp(r'```[\s\S]*?```'), ' ')
+        .replaceAll(RegExp(r'`[^`\n]*`'), ' ');
   }
 
   static bool _looksLikeValidationSuccessNarrative(String value) {

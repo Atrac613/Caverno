@@ -156,6 +156,15 @@ class CodingCommandOutputGuardrailService {
       'instruction':
           'Treat the coding task as incomplete. Inspect and repair the script, generated file, or data lookup, then rerun the relevant command before claiming completion.',
       'issues': issues.map((issue) => issue.toJson()).toList(growable: false),
+      'diagnostics': issues
+          .map(
+            (issue) => {
+              'severity': 'Error',
+              'code': 'command_output_failure',
+              'message': '${issue.summary} ${issue.excerpt}'.trim(),
+            },
+          )
+          .toList(growable: false),
     };
 
     return ToolResultInfo(

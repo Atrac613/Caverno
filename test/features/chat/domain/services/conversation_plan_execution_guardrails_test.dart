@@ -100,6 +100,528 @@ void main() {
     );
   });
 
+  test('assessTaskCompletion accepts success after an earlier failure', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-project-setup',
+      title: 'Set up the Dart project',
+      targetFiles: ['pubspec.yaml'],
+      validationCommand: 'dart pub get',
+    );
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+      task: task,
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-denied-wrapper',
+          name: 'local_execute_command',
+          arguments: {
+            'command': 'cd /tmp/project && dart pub get && dart analyze',
+          },
+          result: 'Error: User denied local command execution',
+        ),
+        ToolResultInfo(
+          id: 'tool-saved-validation',
+          name: 'local_execute_command',
+          arguments: {'command': 'dart pub get'},
+          result:
+              '{"command":"dart pub get","exit_code":0,"stdout":"Got dependencies!"}',
+        ),
+      ],
+    );
+
+    expect(assessment.hasFailure, isFalse);
+    expect(assessment.failedValidationCommands, isNotEmpty);
+    expect(assessment.successfulValidationCommands, contains('dart pub get'));
+    expect(assessment.shouldMarkCompleted, isTrue);
+  });
+
+  test(
+    'assessTaskCompletion recovers setup failure after mutation and validation',
+    () {
+      const validationCommand = 'test -f pubspec.yaml';
+      const task = ConversationWorkflowTask(
+        id: 'task-project-setup-recovery',
+        title: 'Set up the Dart project',
+        targetFiles: ['pubspec.yaml'],
+        validationCommand: validationCommand,
+      );
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: [
+              ToolResultInfo(
+                id: 'tool-malformed-scaffold',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'dart create --id cli_app live_todo',
+                },
+                result: jsonEncode({
+                  'ok': false,
+                  'code': 'dart_create_multiple_targets',
+                  'error': 'Dart create specifies multiple target directories.',
+                }),
+              ),
+              ToolResultInfo(
+                id: 'tool-write-pubspec',
+                name: 'write_file',
+                arguments: const {'path': 'pubspec.yaml'},
+                result: jsonEncode({'path': 'pubspec.yaml', 'created': true}),
+              ),
+              ToolResultInfo(
+                id: 'tool-saved-validation',
+                name: 'local_execute_command',
+                arguments: const {'command': validationCommand},
+                result: jsonEncode({
+                  'command': validationCommand,
+                  'exit_code': 0,
+                  'stdout': '',
+                  'stderr': '',
+                }),
+              ),
+            ],
+          );
+
+      expect(assessment.hasFailure, isFalse);
+      expect(assessment.successfulValidationCommands, [validationCommand]);
+      expect(assessment.shouldMarkCompleted, isTrue);
+    },
+  );
+
+  test('assessTaskCompletion retains a failure after saved validation', () {
+    const validationCommand = 'test -f pubspec.yaml';
+    const task = ConversationWorkflowTask(
+      id: 'task-project-setup-late-failure',
+      title: 'Set up the Dart project',
+      targetFiles: ['pubspec.yaml'],
+      validationCommand: validationCommand,
+    );
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+      task: task,
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-write-pubspec',
+          name: 'write_file',
+          arguments: const {'path': 'pubspec.yaml'},
+          result: jsonEncode({'path': 'pubspec.yaml', 'created': true}),
+        ),
+        ToolResultInfo(
+          id: 'tool-saved-validation',
+          name: 'local_execute_command',
+          arguments: const {'command': validationCommand},
+          result: jsonEncode({
+            'command': validationCommand,
+            'exit_code': 0,
+            'stdout': '',
+            'stderr': '',
+          }),
+        ),
+        ToolResultInfo(
+          id: 'tool-late-failure',
+          name: 'local_execute_command',
+          arguments: const {'command': 'dart analyze missing.dart'},
+          result: jsonEncode({
+            'command': 'dart analyze missing.dart',
+            'exit_code': 1,
+            'stderr': 'File not found.',
+          }),
+        ),
+      ],
+    );
+
+    expect(assessment.hasFailure, isTrue);
+    expect(assessment.shouldMarkCompleted, isFalse);
+  });
+
+  test('assessTaskCompletion rejects partial compound validation success', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-dart-scaffold',
+      title: 'Create the Dart project scaffold',
+      targetFiles: ['pubspec.yaml', 'bin/todo.dart'],
+      validationCommand:
+          'dart pub get && dart compile exe bin/todo.dart -o /dev/null',
+    );
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+      task: task,
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-pub-get',
+          name: 'local_execute_command',
+          arguments: {'command': 'dart pub get'},
+          result:
+              '{"command":"dart pub get","exit_code":0,"stdout":"Got dependencies!"}',
+        ),
+        ToolResultInfo(
+          id: 'tool-analyze',
+          name: 'local_execute_command',
+          arguments: {'command': 'dart analyze bin/todo.dart'},
+          result:
+              '{"command":"dart analyze bin/todo.dart","exit_code":0,"stdout":"No issues found!"}',
+        ),
+      ],
+    );
+
+    expect(assessment.successfulValidationCommands, isEmpty);
+    expect(assessment.shouldMarkCompleted, isFalse);
+  });
+
+  test(
+    'assessTaskCompletion ignores failure words in inspected source before validation',
+    () {
+      const validationCommand =
+          'dart run bin/todo_app.dart done 999; test \$? -ne 0';
+      const task = ConversationWorkflowTask(
+        id: 'task-todo-validation',
+        title: 'Verify the TODO acceptance criteria',
+        targetFiles: ['bin/todo_app.dart'],
+        validationCommand: validationCommand,
+      );
+      final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+        task: task,
+        toolResults: [
+          ToolResultInfo(
+            id: 'tool-read-source',
+            name: 'read_file',
+            arguments: {'path': 'bin/todo_app.dart'},
+            result:
+                '{"path":"bin/todo_app.dart","content":"on FormatException { return; }"}',
+          ),
+          ToolResultInfo(
+            id: 'tool-validation',
+            name: 'local_execute_command',
+            arguments: {'command': validationCommand},
+            result:
+                '{"command":"dart run bin/todo_app.dart done 999; test \$? -ne 0","exit_code":0,"stdout":"Error: Task with id 999 not found.","stderr":""}',
+          ),
+        ],
+      );
+
+      expect(assessment.hasFailure, isFalse);
+      expect(
+        assessment.successfulValidationCommands,
+        contains(validationCommand),
+      );
+      expect(assessment.shouldMarkCompleted, isTrue);
+    },
+  );
+
+  test(
+    'assessTaskCompletion accepts expected error output from a matching command',
+    () {
+      const validationCommand =
+          'rm -f tasks.json && dart bin/todo.dart done 999; test \$?';
+      const task = ConversationWorkflowTask(
+        id: 'task-todo-acceptance',
+        title: 'Validate the TODO acceptance criteria',
+        targetFiles: ['bin/todo.dart', 'lib/store.dart'],
+        validationCommand: validationCommand,
+      );
+      final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+        task: task,
+        toolResults: [
+          ToolResultInfo(
+            id: 'tool-validation',
+            name: 'local_execute_command',
+            arguments: {'command': validationCommand},
+            result:
+                '{"command":"rm -f tasks.json && dart bin/todo.dart done 999; test \$?","exit_code":0,"stdout":"Error: Task #999 not found.\\n","stderr":""}',
+          ),
+        ],
+      );
+
+      expect(assessment.hasFailure, isFalse);
+      expect(
+        assessment.successfulValidationCommands,
+        contains(validationCommand),
+      );
+      expect(assessment.shouldMarkCompleted, isTrue);
+    },
+  );
+
+  test('assessTaskCompletion still records structured mutation errors', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-edit',
+      title: 'Update the TODO implementation',
+      targetFiles: ['bin/todo_app.dart'],
+    );
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+      task: task,
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-edit',
+          name: 'edit_file',
+          arguments: {'path': 'bin/todo_app.dart'},
+          result: '{"error":"old_text was not found"}',
+        ),
+      ],
+    );
+
+    expect(assessment.hasFailure, isTrue);
+    expect(assessment.shouldMarkCompleted, isFalse);
+  });
+
+  test(
+    'assessTaskCompletion recovers an edit mismatch after saved validation',
+    () {
+      const validationCommand = 'dart analyze bin/todo_app.dart';
+      const task = ConversationWorkflowTask(
+        id: 'task-edit-recovery',
+        title: 'Update the TODO implementation',
+        targetFiles: ['bin/todo_app.dart'],
+        validationCommand: validationCommand,
+      );
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: [
+              ToolResultInfo(
+                id: 'tool-edit',
+                name: 'edit_file',
+                arguments: const {'path': 'bin/todo_app.dart'},
+                result: jsonEncode({
+                  'error': 'old_text was not found in the target file',
+                }),
+              ),
+              ToolResultInfo(
+                id: 'tool-validation',
+                name: 'local_execute_command',
+                arguments: const {'command': validationCommand},
+                result: jsonEncode({
+                  'command': validationCommand,
+                  'exit_code': 0,
+                  'stdout': 'No issues found!',
+                  'stderr': '',
+                }),
+              ),
+            ],
+          );
+
+      expect(assessment.hasFailure, isFalse);
+      expect(assessment.shouldMarkCompleted, isTrue);
+    },
+  );
+
+  test('assessTaskCompletion retains an edit mismatch after validation', () {
+    const validationCommand = 'dart analyze bin/todo_app.dart';
+    const task = ConversationWorkflowTask(
+      id: 'task-edit-late-failure',
+      title: 'Update the TODO implementation',
+      targetFiles: ['bin/todo_app.dart'],
+      validationCommand: validationCommand,
+    );
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+      task: task,
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-validation',
+          name: 'local_execute_command',
+          arguments: const {'command': validationCommand},
+          result: jsonEncode({
+            'command': validationCommand,
+            'exit_code': 0,
+            'stdout': 'No issues found!',
+            'stderr': '',
+          }),
+        ),
+        ToolResultInfo(
+          id: 'tool-edit',
+          name: 'edit_file',
+          arguments: const {'path': 'bin/todo_app.dart'},
+          result: jsonEncode({
+            'error': 'old_text was not found in the target file',
+          }),
+        ),
+      ],
+    );
+
+    expect(assessment.hasFailure, isTrue);
+    expect(assessment.shouldMarkCompleted, isFalse);
+  });
+
+  test(
+    'assessTaskCompletion supersedes an unwritten claim after a real write',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-project-setup',
+        title: 'Set up the Dart project',
+        targetFiles: ['pubspec.yaml'],
+        validationCommand: 'test -f pubspec.yaml',
+      );
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: [
+              ToolResultInfo(
+                id: 'tool-blocked-command',
+                name: 'local_execute_command',
+                arguments: const {'command': 'mkdir -p bin'},
+                result: jsonEncode({
+                  'ok': false,
+                  'code': 'unexecuted_file_save',
+                  'error': 'No successful file mutation was available.',
+                }),
+              ),
+              ToolResultInfo(
+                id: 'tool-write',
+                name: 'write_file',
+                arguments: const {'path': 'pubspec.yaml'},
+                result: jsonEncode({'path': 'pubspec.yaml', 'created': true}),
+              ),
+              ToolResultInfo(
+                id: 'tool-validation',
+                name: 'local_execute_command',
+                arguments: const {'command': 'test -f pubspec.yaml'},
+                result: jsonEncode({
+                  'command': 'test -f pubspec.yaml',
+                  'exit_code': 0,
+                  'stdout': '',
+                  'stderr': '',
+                }),
+              ),
+            ],
+          );
+
+      expect(assessment.hasFailure, isFalse);
+      expect(assessment.shouldMarkCompleted, isTrue);
+    },
+  );
+
+  test('assessTaskCompletion retains an unwritten claim without recovery', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-project-setup',
+      title: 'Set up the Dart project',
+      targetFiles: ['pubspec.yaml'],
+      validationCommand: 'test -f pubspec.yaml',
+    );
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+      task: task,
+      toolResults: [
+        ToolResultInfo(
+          id: 'tool-validation',
+          name: 'local_execute_command',
+          arguments: const {'command': 'test -f pubspec.yaml'},
+          result: jsonEncode({
+            'command': 'test -f pubspec.yaml',
+            'exit_code': 0,
+            'stdout': '',
+            'stderr': '',
+          }),
+        ),
+        ToolResultInfo(
+          id: 'tool-blocked-command',
+          name: 'local_execute_command',
+          arguments: const {'command': 'mkdir -p bin'},
+          result: jsonEncode({
+            'ok': false,
+            'code': 'unexecuted_file_save',
+            'error': 'No successful file mutation was available.',
+          }),
+        ),
+      ],
+    );
+
+    expect(assessment.hasFailure, isTrue);
+    expect(assessment.shouldMarkCompleted, isFalse);
+  });
+
+  test('classifies synthetic non-execution results as tool-less evidence', () {
+    final results = [
+      for (final code in const [
+        'unexecuted_browser_action',
+        'unexecuted_command_action',
+        'unexecuted_file_save',
+        'unverified_read_only_inspection_claim',
+        'tool_call_not_executed',
+      ])
+        ToolResultInfo(
+          id: code,
+          name: 'local_execute_command',
+          arguments: const {},
+          result: jsonEncode({'ok': false, 'code': code}),
+        ),
+    ];
+
+    expect(
+      ConversationPlanExecutionGuardrails.hasOnlySyntheticNonExecutionResults(
+        results,
+      ),
+      isTrue,
+    );
+  });
+
+  test('classifies bounded tool-loop exhaustion as non-execution', () {
+    final result = ToolResultInfo(
+      id: 'pending-tool',
+      name: 'write_file',
+      arguments: const {'path': 'lib/main.dart'},
+      result: jsonEncode({
+        'ok': false,
+        'reason': 'bounded_tool_loop_exhausted',
+      }),
+    );
+
+    expect(
+      ConversationPlanExecutionGuardrails.hasOnlySyntheticNonExecutionResults([
+        result,
+      ]),
+      isTrue,
+    );
+  });
+
+  test('does not hide real tool evidence in a mixed result batch', () {
+    final results = [
+      ToolResultInfo(
+        id: 'unexecuted-command',
+        name: 'local_execute_command',
+        arguments: const {},
+        result: jsonEncode({'ok': false, 'code': 'unexecuted_command_action'}),
+      ),
+      ToolResultInfo(
+        id: 'read-source',
+        name: 'read_file',
+        arguments: const {'path': 'lib/main.dart'},
+        result: jsonEncode({
+          'path': 'lib/main.dart',
+          'content': 'void main() {}',
+        }),
+      ),
+    ];
+
+    expect(
+      ConversationPlanExecutionGuardrails.hasOnlySyntheticNonExecutionResults(
+        results,
+      ),
+      isFalse,
+    );
+  });
+
+  test('does not reclassify a real failed command as tool-less', () {
+    final result = ToolResultInfo(
+      id: 'failed-test',
+      name: 'local_execute_command',
+      arguments: const {'command': 'dart test'},
+      result: jsonEncode({
+        'command': 'dart test',
+        'exit_code': 1,
+        'stderr': 'Tests failed.',
+      }),
+    );
+
+    expect(
+      ConversationPlanExecutionGuardrails.hasOnlySyntheticNonExecutionResults([
+        result,
+      ]),
+      isFalse,
+    );
+  });
+
+  test('does not classify an empty batch as synthetic evidence', () {
+    expect(
+      ConversationPlanExecutionGuardrails.hasOnlySyntheticNonExecutionResults(
+        const [],
+      ),
+      isFalse,
+    );
+  });
+
   test('assessTaskDrift uses captured changed file paths', () {
     const task = ConversationWorkflowTask(
       id: 'task',
@@ -996,6 +1518,23 @@ void main() {
     );
   });
 
+  test('validationExecutablePathsForTask excludes runtime state files', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-acceptance',
+      title: 'Verify the CLI acceptance criteria',
+      targetFiles: ['lib/main.dart', 'lib/todo_store.dart'],
+      validationCommand:
+          'rm -f tasks.json && dart run bin/todo.dart add A && dart run bin/todo.dart list',
+    );
+
+    expect(
+      ConversationPlanExecutionGuardrails.validationExecutablePathsForTask(
+        task,
+      ),
+      ['bin/todo.dart'],
+    );
+  });
+
   test('effectiveTargetPathsForTask prefers sufficient scaffold targets', () {
     const task = ConversationWorkflowTask(
       id: 'task-scaffold-main',
@@ -1051,7 +1590,7 @@ void main() {
   });
 
   test(
-    'assessTaskCompletion preserves scaffold completion after malformed write failures',
+    'assessTaskCompletion recovers scaffold completion after malformed write failures',
     () {
       final task = loadFixtureTask(
         'plan_mode_ping_cli_malformed_scaffold_completion_replay.json',
@@ -1066,8 +1605,8 @@ void main() {
             toolResults: toolResults,
           );
 
-      expect(assessment.hasFailure, isTrue);
-      expect(assessment.shouldMarkCompleted, isFalse);
+      expect(assessment.hasFailure, isFalse);
+      expect(assessment.shouldMarkCompleted, isTrue);
       expect(assessment.hasCompletionEvidenceIgnoringFailures, isTrue);
       expect(assessment.successfulValidationCommands, contains('ls -a'));
       expect(

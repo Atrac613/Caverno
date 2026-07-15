@@ -3757,7 +3757,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (!mounted) {
       return false;
     }
-    if (toolResults.isNotEmpty) {
+    if (toolResults.isNotEmpty &&
+        !ConversationPlanExecutionGuardrails.hasOnlySyntheticNonExecutionResults(
+          toolResults,
+        )) {
       return false;
     }
 

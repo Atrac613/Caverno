@@ -134,9 +134,12 @@ class ConversationPlanExecutionCoordinator {
       );
     } else {
       promptLines.add(
-        'Your next reply must either modify one of the saved target files or run the saved validation command now.',
+        'Call one available tool in your next reply. If you need exact current content before editing, call read_file on one saved target file now; otherwise modify a saved target file or run the saved validation command.',
       );
     }
+    promptLines.add(
+      'Do not merely say that you will inspect a file, do not invent tool output, and do not return prose without a tool call.',
+    );
     promptLines.add(
       'Do not restate the plan, do not ask for confirmation, and do not describe future tasks.',
     );
@@ -719,7 +722,10 @@ class ConversationPlanExecutionCoordinator {
     }
     if (task.validationCommand.trim().isNotEmpty) {
       lines.add(
-        'Stop after the saved validation step and report that result before moving on.',
+        'After the saved validation step succeeds, report the result and end this turn without calling another tool or starting another saved task.',
+      );
+      lines.add(
+        'The workflow executor will start the next pending saved task in a separate turn.',
       );
       lines.add(
         'Do not run the saved validation command until the current task target files exist and you have created or updated the relevant target file for this task.',

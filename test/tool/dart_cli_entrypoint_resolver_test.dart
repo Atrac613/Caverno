@@ -94,6 +94,46 @@ void main() {
     expect(ambiguous.candidates, ['bin/a.dart', 'bin/b.dart']);
   });
 
+  test('conventional policy accepts lib or root main entrypoints', () {
+    final libRoot = _fixtureRoot();
+    final rootMain = _fixtureRoot();
+    addTearDown(() => libRoot.deleteSync(recursive: true));
+    addTearDown(() => rootMain.deleteSync(recursive: true));
+    _write(libRoot, 'lib/main.dart');
+    _write(rootMain, 'main.dart');
+
+    final libResolution = resolver.resolve(
+      root: libRoot,
+      canonicalRelativePath: 'bin/todo_cli.dart',
+      policy: DartCliEntrypointPolicy.singleConventional,
+    );
+    final rootResolution = resolver.resolve(
+      root: rootMain,
+      canonicalRelativePath: 'bin/todo_cli.dart',
+      policy: DartCliEntrypointPolicy.singleConventional,
+    );
+
+    expect(libResolution.selectedRelativePath, 'lib/main.dart');
+    expect(rootResolution.selectedRelativePath, 'main.dart');
+  });
+
+  test('conventional policy rejects ambiguous entrypoints across layouts', () {
+    final root = _fixtureRoot();
+    addTearDown(() => root.deleteSync(recursive: true));
+    _write(root, 'bin/todo.dart');
+    _write(root, 'lib/main.dart');
+
+    final resolution = resolver.resolve(
+      root: root,
+      canonicalRelativePath: 'bin/todo_cli.dart',
+      policy: DartCliEntrypointPolicy.singleConventional,
+    );
+
+    expect(resolution.isResolved, isFalse);
+    expect(resolution.issues.single.kind, DartCliEntrypointIssueKind.ambiguous);
+    expect(resolution.candidates, ['bin/todo.dart', 'lib/main.dart']);
+  });
+
   test('resolver rejects unsafe canonical paths', () {
     final root = _fixtureRoot();
     addTearDown(() => root.deleteSync(recursive: true));

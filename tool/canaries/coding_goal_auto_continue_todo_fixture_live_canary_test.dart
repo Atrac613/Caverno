@@ -38,6 +38,7 @@ import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 import 'support/dart_cli_entrypoint_resolver.dart';
+import 'support/todo_app_behavior_verifier.dart';
 
 const _verifyCommand = 'dart run tool/verify_todo_app.dart';
 const _wordFrequencyVerifyCommand =
@@ -3036,257 +3037,13 @@ class _TodoToolService extends McpToolService {
   }
 
   Future<_TodoVerification> _verifyTodoAppIn(Directory verificationRoot) async {
-    final diagnostics = <Map<String, dynamic>>[];
-    final transcript = StringBuffer();
-    final entrypointResolution = _resolveDartCliEntrypoint(
-      work: verificationRoot,
-      canonicalRelativePath: 'bin/todo_cli.dart',
-    );
-    final entrypointDiagnostics = _entrypointDiagnostics(
-      entrypointResolution,
-      missingCode: 'todo_cli_missing',
-      unexpectedCode: 'todo_cli_unexpected_entrypoint',
-      ambiguousCode: 'todo_cli_ambiguous_entrypoint',
-    );
-    if (entrypointDiagnostics.isNotEmpty) {
-      diagnostics.addAll(entrypointDiagnostics);
-      return _TodoVerification(diagnostics: diagnostics, transcript: '');
-    }
-    final entrypoint = entrypointResolution.selectedRelativePath!;
-
-    final firstList = await _runTodoCommand(
-      ['list'],
-      verificationRoot,
-      entrypoint: entrypoint,
-    );
-    transcript.writeln(_formatProcess('list', firstList));
-    final firstListText = [
-      firstList.stdout as String,
-      firstList.stderr as String,
-    ].join('\n').toLowerCase();
-    if (firstList.exitCode != 0 ||
-        firstListText.trim().isEmpty ||
-        (!_containsAny(firstListText, const [
-          'no task',
-          'no todo',
-          'empty',
-          'nothing',
-        ]))) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'todo_cli_first_list_failed',
-          message:
-              'First-ever list must succeed and print a friendly empty-list message.',
-        ),
-      );
-    }
-
-    final noArguments = await _runTodoCommand(
-      const [],
-      verificationRoot,
-      entrypoint: entrypoint,
-    );
-    transcript.writeln(_formatProcess('no arguments', noArguments));
-    final noArgumentsText = [
-      noArguments.stdout as String,
-      noArguments.stderr as String,
-    ].join('\n').toLowerCase();
-    if (noArguments.exitCode != 0 || !_looksLikeUsage(noArgumentsText)) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'todo_cli_no_arguments_usage_failed',
-          message: 'Running without arguments must succeed and print usage.',
-        ),
-      );
-    }
-
-    final help = await _runTodoCommand(
-      const ['help'],
-      verificationRoot,
-      entrypoint: entrypoint,
-    );
-    transcript.writeln(_formatProcess('help', help));
-    final helpText = [
-      help.stdout as String,
-      help.stderr as String,
-    ].join('\n').toLowerCase();
-    if (help.exitCode != 0 || !_looksLikeUsage(helpText)) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'todo_cli_help_failed',
-          message: 'The help command must succeed and print usage.',
-        ),
-      );
-    }
-
-    final addMilk = await _runTodoCommand(
-      ['add', 'buy milk'],
-      verificationRoot,
-      entrypoint: entrypoint,
-    );
-    transcript.writeln(_formatProcess('add buy milk', addMilk));
-    final addReport = await _runTodoCommand(
-      ['add', 'write report'],
-      verificationRoot,
-      entrypoint: entrypoint,
-    );
-    transcript.writeln(_formatProcess('add write report', addReport));
-    final firstId = _extractId(addMilk.stdout as String);
-    final secondId = _extractId(addReport.stdout as String);
-    if (addMilk.exitCode != 0 || firstId == null) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'todo_cli_add_first_failed',
-          message: 'Adding the first task did not print a stable id.',
-        ),
-      );
-    }
-    if (addReport.exitCode != 0 || secondId == null || secondId == firstId) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'todo_cli_add_second_failed',
-          message: 'Adding the second task did not print a distinct stable id.',
-        ),
-      );
-    }
-
-    final list = await _runTodoCommand(
-      ['list'],
-      verificationRoot,
-      entrypoint: entrypoint,
-    );
-    transcript.writeln(_formatProcess('list after adds', list));
-    final listOutput = (list.stdout as String).toLowerCase();
-    if (list.exitCode != 0 ||
-        !listOutput.contains('buy milk') ||
-        !listOutput.contains('write report')) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'todo_cli_list_missing_tasks',
-          message: 'Listing after two adds did not show both tasks.',
-        ),
-      );
-    }
-
-    if (firstId != null) {
-      final done = await _runTodoCommand(
-        ['done', firstId],
-        verificationRoot,
-        entrypoint: entrypoint,
-      );
-      transcript.writeln(_formatProcess('done $firstId', done));
-      final afterDone = await _runTodoCommand(
-        ['list'],
-        verificationRoot,
-        entrypoint: entrypoint,
-      );
-      transcript.writeln(_formatProcess('list after done', afterDone));
-      final afterDoneOutput = (afterDone.stdout as String).toLowerCase();
-      if (done.exitCode != 0 ||
-          !afterDoneOutput.contains('buy milk') ||
-          !_looksCompleted(afterDoneOutput, 'buy milk') ||
-          !_looksUndone(afterDoneOutput, 'write report')) {
-        diagnostics.add(
-          _diagnosticJson(
-            code: 'todo_cli_done_not_persisted',
-            message:
-                'Done did not persist task 1 as completed while task 2 stayed undone.',
-          ),
-        );
-      }
-    }
-
-    final persistenceList = await _runTodoCommand(
-      ['list'],
-      verificationRoot,
-      entrypoint: entrypoint,
-    );
-    transcript.writeln(_formatProcess('fresh list', persistenceList));
-    if (persistenceList.exitCode != 0 ||
-        !(persistenceList.stdout as String).toLowerCase().contains(
-          'buy milk',
-        )) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'todo_cli_persistence_failed',
-          message: 'A fresh list run did not reflect prior state.',
-        ),
-      );
-    }
-
-    if (secondId != null) {
-      final delete = await _runTodoCommand(
-        ['delete', secondId],
-        verificationRoot,
-        entrypoint: entrypoint,
-      );
-      transcript.writeln(_formatProcess('delete $secondId', delete));
-      final afterDelete = await _runTodoCommand(
-        ['list'],
-        verificationRoot,
-        entrypoint: entrypoint,
-      );
-      transcript.writeln(_formatProcess('list after delete', afterDelete));
-      final afterDeleteOutput = (afterDelete.stdout as String).toLowerCase();
-      if (delete.exitCode != 0 ||
-          afterDeleteOutput.contains('write report') ||
-          !afterDeleteOutput.contains('buy milk')) {
-        diagnostics.add(
-          _diagnosticJson(
-            code: 'todo_cli_delete_failed',
-            message: 'Delete did not remove only the requested task.',
-          ),
-        );
-      }
-    }
-
-    final unknown = await _runTodoCommand(
-      ['done', '999999'],
-      verificationRoot,
-      entrypoint: entrypoint,
-    );
-    transcript.writeln(_formatProcess('done unknown', unknown));
-    final unknownText = [
-      unknown.stdout as String,
-      unknown.stderr as String,
-    ].join('\n').toLowerCase();
-    if (unknown.exitCode == 0 ||
-        unknownText.trim().isEmpty ||
-        _looksLikeStackTrace(unknownText)) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'todo_cli_unknown_id_failed',
-          message:
-              'Unknown id did not produce a clear message and non-zero exit code.',
-        ),
-      );
-    }
-
-    final unknownDelete = await _runTodoCommand(
-      ['delete', '999999'],
-      verificationRoot,
-      entrypoint: entrypoint,
-    );
-    transcript.writeln(_formatProcess('delete unknown', unknownDelete));
-    final unknownDeleteText = [
-      unknownDelete.stdout as String,
-      unknownDelete.stderr as String,
-    ].join('\n').toLowerCase();
-    if (unknownDelete.exitCode == 0 ||
-        unknownDeleteText.trim().isEmpty ||
-        _looksLikeStackTrace(unknownDeleteText)) {
-      diagnostics.add(
-        _diagnosticJson(
-          code: 'todo_cli_unknown_delete_failed',
-          message:
-              'Unknown delete id did not produce a clear message and non-zero exit code.',
-        ),
-      );
-    }
-
+    final result = await TodoAppBehaviorVerifier(
+      root: root,
+      entrypointPolicy: entrypointPolicy,
+    ).verifyIn(verificationRoot);
     return _TodoVerification(
-      diagnostics: diagnostics,
-      transcript: transcript.toString(),
+      diagnostics: result.diagnostics,
+      transcript: result.transcript,
     );
   }
 
@@ -3295,11 +3052,10 @@ class _TodoToolService extends McpToolService {
     Directory verificationRoot, {
     String entrypoint = 'bin/todo_cli.dart',
   }) {
-    final usePub = File('${verificationRoot.path}/pubspec.yaml').existsSync();
-    final processArgs = usePub
-        ? ['run', entrypoint, ...args]
-        : [entrypoint, ...args];
-    return _runIsolatedDartCommand(processArgs, verificationRoot);
+    return TodoAppBehaviorVerifier(
+      root: root,
+      entrypointPolicy: entrypointPolicy,
+    ).runCommand(args, verificationRoot, entrypoint: entrypoint);
   }
 
   Future<ProcessResult> _runIsolatedDartCommand(
@@ -3341,79 +3097,16 @@ class _TodoToolService extends McpToolService {
   }
 
   Directory _createVerificationRoot() {
-    final verificationRoot = Directory.systemTemp.createTempSync(
-      'todo_mvp_verification_',
-    );
-    for (final entity in root.listSync(recursive: true, followLinks: false)) {
-      if (entity is! File) {
-        continue;
-      }
-      final relativePath = _relativePath(entity.path);
-      if (relativePath == null ||
-          relativePath == 'tool/verify_todo_app.dart' ||
-          (relativePath != 'pubspec.yaml' && !relativePath.endsWith('.dart'))) {
-        continue;
-      }
-      final target = File('${verificationRoot.path}/$relativePath');
-      target.parent.createSync(recursive: true);
-      target.writeAsBytesSync(entity.readAsBytesSync());
-    }
-    return verificationRoot;
-  }
-
-  String? _extractId(String output) {
-    final match = RegExp(r'\b([0-9]{1,9})\b').firstMatch(output);
-    return match?.group(1);
-  }
-
-  bool _looksCompleted(String listOutput, String taskText) {
-    final line = _lineContaining(listOutput, taskText);
-    if (line == null) {
-      return false;
-    }
-    return line.contains('[x]') ||
-        line.contains('done') ||
-        line.contains('complete') ||
-        line.contains('✓');
-  }
-
-  bool _looksUndone(String listOutput, String taskText) {
-    final line = _lineContaining(listOutput, taskText);
-    if (line == null) {
-      return false;
-    }
-    return line.contains('[ ]') ||
-        line.contains('todo') ||
-        line.contains('undone') ||
-        (!line.contains('[x]') &&
-            !line.contains('done') &&
-            !line.contains('complete') &&
-            !line.contains('✓'));
-  }
-
-  bool _looksLikeUsage(String output) {
-    return output.contains('usage') ||
-        (_containsAny(output, const ['add', 'list']) &&
-            _containsAny(output, const ['done', 'delete']));
+    return TodoAppBehaviorVerifier(
+      root: root,
+      entrypointPolicy: entrypointPolicy,
+    ).createVerificationRoot();
   }
 
   bool _looksLikeStackTrace(String output) {
     return output.contains('stack trace') ||
         output.contains('unhandled exception') ||
         output.contains('#0 ');
-  }
-
-  bool _containsAny(String value, List<String> needles) {
-    return needles.any(value.contains);
-  }
-
-  String? _lineContaining(String text, String needle) {
-    for (final line in const LineSplitter().convert(text)) {
-      if (line.toLowerCase().contains(needle)) {
-        return line.toLowerCase();
-      }
-    }
-    return null;
   }
 
   String _formatProcess(String label, ProcessResult result) {

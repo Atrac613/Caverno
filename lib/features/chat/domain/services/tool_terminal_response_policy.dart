@@ -141,6 +141,27 @@ class ToolTerminalResponsePolicy {
     return _shouldAcceptTerminalToolRoleBlockerResponse(response);
   }
 
+  bool isSavedWorkflowContinuationQuestion(String response) {
+    final candidate = response.trim();
+    if (candidate.isEmpty) {
+      return false;
+    }
+    final hasQuestion =
+        candidate.contains('?') ||
+        candidate.contains(String.fromCharCode(0xff1f));
+    if (!hasQuestion) {
+      return false;
+    }
+    return RegExp(
+      r'\b(?:shall|should|can|may) i (?:continue|proceed)\b|'
+      r'\b(?:continue|proceed) (?:to|with) the next (?:saved )?task\b|'
+      r'\b(?:do you want|would you like) me to (?:continue|proceed)\b|'
+      '\u6b21\u306e\u30bf\u30b9\u30af|'
+      '\u9032\u307f\u307e\u3059\u304b',
+      caseSensitive: false,
+    ).hasMatch(candidate);
+  }
+
   bool _containsAny(String value, List<String> markers) {
     return markers.any(value.contains);
   }

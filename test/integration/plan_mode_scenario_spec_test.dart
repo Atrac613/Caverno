@@ -230,6 +230,57 @@ void main() {
     );
   });
 
+  test('production-path TODO canary keeps the exact runtime contract', () {
+    final scenario = buildLivePlanModeScenarios().firstWhere(
+      (item) => item.name == 'live_todo_app_plan_completion',
+    );
+
+    expect(
+      scenario.userPrompt,
+      'todo_app.md \u3092\u53C2\u8003\u306B\u3057\u3066MVP\u3092\u5B9F\u88C5\u3002'
+      '\u8A00\u8A9E\u306Fdart\u3068\u3059\u308B\u3002',
+    );
+    expect(scenario.languageCode, 'ja');
+    expect(scenario.temperature, 0.2);
+    expect(scenario.maxTokens, 8192);
+    expect(scenario.waitForExecutionCompletion, isTrue);
+    expect(scenario.executionStallTimeout, const Duration(seconds: 150));
+    expect(scenario.postValidator, isNotNull);
+    expect(scenario.seedFiles, hasLength(1));
+    expect(scenario.seedFiles.single.destinationPath, 'todo_app.md');
+    expect(scenario.seedFiles.single.immutable, isTrue);
+    expect(
+      scenario.taskDriftExcludedPaths,
+      containsAll(<String>[
+        '.todo.json',
+        '.todo_app.json',
+        '.todos.json',
+        'tasks.json',
+        'todo.json',
+        'todo_app.json',
+        'todo_state.json',
+        'todos.json',
+      ]),
+    );
+    expect(
+      scenario.logExpectations
+          .singleWhere(
+            (item) =>
+                item.pattern == planModeSavedValidationConvergenceGuardPattern,
+          )
+          .maxCount,
+      0,
+    );
+    expect(
+      scenario.logExpectations
+          .singleWhere(
+            (item) => item.pattern == 'unexecuted_command_action_notice',
+          )
+          .maxCount,
+      0,
+    );
+  });
+
   test('PM5 clarify recovery live scenario requires a planning decision', () {
     final scenario = buildLivePlanModeScenarios().firstWhere(
       (item) => item.name == 'live_clarify_recovery',

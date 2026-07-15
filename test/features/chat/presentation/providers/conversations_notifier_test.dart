@@ -16,6 +16,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/entities/turn_diff.dart';
 import 'package:caverno/features/chat/domain/services/conversation_validation_tool_result_inference.dart';
+import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 
 class _MockConversationBox extends Mock implements Box<String> {}
@@ -1583,6 +1584,66 @@ void main() {
       expect(
         refreshedConversation?.workflowStage,
         ConversationWorkflowStage.review,
+      );
+    },
+  );
+
+  test(
+    'updateCurrentExecutionTaskProgressFromAssistantTurn rejects corrected tool-less completion claims',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Build a TODO CLI\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Implement the TODO CLI\n'
+              '   - Status: inProgress\n'
+              '   - Validation: dart test\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final task = currentConversation!.projectedExecutionTasks.single;
+
+      await notifier.updateCurrentExecutionTaskProgressFromAssistantTurn(
+        task: task,
+        assistantResponse:
+            'The TODO MVP is complete. Use `dart run todo done <id>` to '
+            'complete a task.\n\n'
+            '${FinalAnswerClaimDetector.unexecutedCommandActionNotice}',
+        fallbackAssistantResponse:
+            'The TODO MVP is complete and all checks passed.',
+        isValidationRun: false,
+      );
+
+      final refreshedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final progress = refreshedConversation?.executionProgressForTask(task.id);
+      expect(progress, isNotNull);
+      expect(progress!.status, ConversationWorkflowTaskStatus.inProgress);
+      expect(
+        refreshedConversation?.workflowStage,
+        ConversationWorkflowStage.implement,
       );
     },
   );

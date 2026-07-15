@@ -14,6 +14,10 @@ void main() {
 
     expect(contract, isNotNull);
     expect(contract!.goal, 'Implement the MVP described in docs/todo_app.md.');
+    expect(
+      ShortPromptContractBuilder.isSyntheticRequestContract(contract),
+      isTrue,
+    );
     expect(contract.tasks, hasLength(1));
     expect(
       contract.sources.single.kind,
@@ -21,6 +25,37 @@ void main() {
     );
     expect(contract.provenance, hasLength(2));
     expect(contract.blockingAssumptions, isEmpty);
+  });
+
+  test('does not classify an approved plan as a synthetic request', () {
+    const contract = ConversationWorkflowSpec(
+      goal: 'Build the application',
+      tasks: [
+        ConversationWorkflowTask(
+          id: 'request-approved-plan',
+          title: ShortPromptContractBuilder.syntheticRequestTaskTitle,
+        ),
+      ],
+      sources: [
+        ConversationContractSourceReference(
+          id: 'approved-plan:1',
+          kind: ConversationContractSourceKind.approvedPlan,
+          locator: 'plan.md',
+        ),
+      ],
+      provenance: [
+        ConversationContractItemProvenance(
+          itemId: 'task:request-approved-plan',
+          kind: ConversationContractItemKind.task,
+          sourceIds: ['approved-plan:1'],
+        ),
+      ],
+    );
+
+    expect(
+      ShortPromptContractBuilder.isSyntheticRequestContract(contract),
+      isFalse,
+    );
   });
 
   test('does not invent acceptance criteria or constraints', () {
@@ -146,5 +181,34 @@ Out of scope:
     expect(contract.acceptanceCriteria, [
       'A fresh process reads persisted records.',
     ]);
+  });
+
+  test('preserves numbered functional requirements and continuations', () {
+    final contract = builder.build(
+      userMessageId: 'message-4',
+      userRequest: 'Implement cli_spec.md.',
+      specification: const SpecificationContractInput(
+        path: 'cli_spec.md',
+        content: '''
+## Functional requirements
+
+1. Running without arguments prints usage.
+2. Unknown identifiers print a clear error and
+   exit non-zero.
+3) State persists across process runs.
+
+## Acceptance criteria
+
+- [ ] The help command prints usage.
+''',
+      ),
+    )!;
+
+    expect(contract.constraints, [
+      'Running without arguments prints usage.',
+      'Unknown identifiers print a clear error and exit non-zero.',
+      'State persists across process runs.',
+    ]);
+    expect(contract.acceptanceCriteria, ['The help command prints usage.']);
   });
 }

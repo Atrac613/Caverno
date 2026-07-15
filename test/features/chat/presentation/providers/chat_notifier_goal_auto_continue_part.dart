@@ -6,6 +6,171 @@ void registerChatNotifierGoalAutoContinueTests() {
   registerChatNotifierTerminalSuccessTests();
   registerChatNotifierToolFailureClassificationTests();
   test(
+    'goal auto-continue recovers an unexecuted short-prompt completion claim',
+    () async {
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: [
+          const <ToolCallInfo>[],
+          [
+            ToolCallInfo(
+              id: 'call-recover-unexecuted-work',
+              name: 'local_execute_command',
+              arguments: const {'command': 'dart test'},
+            ),
+          ],
+        ],
+        streamChunkBatches: const [
+          [
+            'Implementation complete. I created lib/todo_store.dart and '
+                'bin/todo.dart. The dart test command completed successfully.',
+          ],
+          <String>[],
+        ],
+        finalAnswerChunkBatches: const [
+          ['The requested implementation is now verified.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        descriptions: const {
+          'local_execute_command': 'Run a local shell command.',
+        },
+        results: const {
+          'local_execute_command':
+              '{"exit_code":0,"stdout":"All tests passed.\\n","stderr":""}',
+        },
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'goal-auto-unexecuted-short-prompt',
+        settingsBuilder: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'goal-auto-unexecuted-short-prompt',
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Implement and verify the TODO CLI',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 2,
+      );
+
+      await container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('Implement the TODO CLI.', bypassPlanMode: true);
+
+      await _waitForCondition(() {
+        final state = container.read(chatNotifierProvider);
+        final goal = container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal;
+        return !state.isLoading &&
+            dataSource.initialRequestMessages.length == 2 &&
+            goal?.turnsUsed == 2;
+      });
+
+      expect(toolService.executedToolNames, ['local_execute_command']);
+      final continuationPrompt = dataSource.initialRequestMessages.last
+          .where((message) => message.role == MessageRole.user)
+          .map((message) => message.content)
+          .join('\n');
+      expect(continuationPrompt, contains('Automatic goal continuation 2/2.'));
+      expect(
+        continuationPrompt,
+        contains('claimed file or command actions without tool evidence'),
+      );
+      final assistantContents = container
+          .read(chatNotifierProvider)
+          .messages
+          .where((message) => message.role == MessageRole.assistant)
+          .map((message) => message.content)
+          .toList(growable: false);
+      expect(assistantContents, everyElement(isNot(contains('I created'))));
+      expect(
+        assistantContents,
+        anyElement(contains('The requested command was not executed')),
+      );
+    },
+  );
+  test(
+    'goal auto-continue starts the active task before the first request ends',
+    () async {
+      final firstRequestGate = Completer<void>();
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: const [<ToolCallInfo>[]],
+        streamChunkBatches: const [
+          ['Execution is still running.'],
+        ],
+        toolCompletionGates: {1: firstRequestGate.future},
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: _FakeMcpToolService(
+          descriptions: const {
+            'local_execute_command': 'Execute a local command.',
+          },
+          results: const {'local_execute_command': 'unused'},
+        ),
+        projectId: 'goal-auto-live-progress',
+        useRealConversationsNotifier: true,
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'goal-auto-live-progress',
+        createIfMissing: true,
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Implement and verify the TODO CLI',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 1,
+      );
+
+      final chatNotifier = container.read(chatNotifierProvider.notifier);
+      final sendFuture = chatNotifier.sendMessage(
+        'Implement the TODO CLI.',
+        bypassPlanMode: true,
+      );
+
+      await _waitForCondition(
+        () => dataSource.initialRequestMessages.length == 1,
+      );
+      final activeConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!;
+      final task = activeConversation.projectedExecutionTasks.single;
+      final progress = activeConversation.executionProgressForTask(task.id);
+      expect(task.status, ConversationWorkflowTaskStatus.inProgress);
+      expect(progress?.lastRunAt, isNotNull);
+      expect(progress?.recentEvents, hasLength(1));
+      expect(
+        progress?.recentEvents.single.type,
+        ConversationExecutionTaskEventType.started,
+      );
+      final systemPrompt = dataSource.initialRequestMessages.single
+          .firstWhere((message) => message.role == MessageRole.system)
+          .content;
+      expect(systemPrompt, contains('Active task status: inProgress'));
+
+      firstRequestGate.complete();
+      await sendFuture;
+    },
+  );
+  test(
     'goal auto-continue retries a structured tool request from the final answer',
     () async {
       const finalToolRequest =
@@ -271,11 +436,18 @@ void registerChatNotifierGoalAutoContinueTests() {
           .toList(growable: false);
       expect(
         sessionLogEntries.map((entry) => entry['operation']),
-        containsAllInOrder(['turn_exit', 'goal_auto_continue', 'turn_exit']),
+        containsAllInOrder([
+          'turn_exit',
+          'goal_auto_continue',
+          'turn_exit',
+          'goal_auto_continue',
+        ]),
       );
-      final continuationEntry = sessionLogEntries.singleWhere(
-        (entry) => entry['operation'] == 'goal_auto_continue',
-      );
+      final goalAutoContinueEntries = sessionLogEntries
+          .where((entry) => entry['operation'] == 'goal_auto_continue')
+          .toList(growable: false);
+      expect(goalAutoContinueEntries, hasLength(2));
+      final continuationEntry = goalAutoContinueEntries.first;
       final marker =
           continuationEntry['goalAutoContinue'] as Map<String, dynamic>;
       expect(marker['decision'], 'continue');
@@ -286,6 +458,205 @@ void registerChatNotifierGoalAutoContinueTests() {
       expect(
         marker['evidence']['unresolvedErrorPaths'],
         contains('bin/todo_cli.dart'),
+      );
+      expect(marker['evidence']['safeBoundaryVeto'], isNull);
+      final skipMarker =
+          goalAutoContinueEntries.last['goalAutoContinue']
+              as Map<String, dynamic>;
+      expect(skipMarker['decision'], 'skip');
+      expect(skipMarker['reason'], 'no incomplete evidence');
+      expect(skipMarker['evidence']['hasIncompleteEvidence'], isFalse);
+      expect(skipMarker['evidence']['safeBoundaryVeto'], isNull);
+    },
+  );
+
+  test('goal auto-continue keeps mixed verifier failures blocking', () async {
+    final dataSource = _GoalAutoContinueChatDataSource(
+      toolCallBatches: [
+        [
+          ToolCallInfo(
+            id: 'call-analyze-success',
+            name: 'local_execute_command',
+            arguments: const {'command': 'dart analyze'},
+          ),
+          ToolCallInfo(
+            id: 'call-test-failure',
+            name: 'local_execute_command',
+            arguments: const {'command': 'dart test'},
+          ),
+        ],
+        const <ToolCallInfo>[],
+      ],
+      streamChunkBatches: const [
+        <String>[],
+        ['The failed verification still requires repair.'],
+      ],
+      finalAnswerChunkBatches: const [
+        ['Analysis passed, but the test command failed.'],
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      descriptions: const {
+        'local_execute_command': 'Run a local shell command.',
+      },
+      results: const {'local_execute_command': 'unused'},
+      queuedResults: {
+        'local_execute_command': [
+          jsonEncode({
+            'command': 'dart analyze',
+            'exit_code': 0,
+            'stdout': 'No issues found!',
+            'stderr': '',
+          }),
+          jsonEncode({
+            'command': 'dart test',
+            'exit_code': 65,
+            'stdout': '',
+            'stderr': 'No tests found.',
+          }),
+        ],
+      },
+    );
+    final container = _goalAutoContinueContainer(
+      dataSource: dataSource,
+      toolService: toolService,
+      projectId: 'goal-auto-mixed-verifier-failure',
+      useRealConversationsNotifier: true,
+      settingsBuilder: _ToolEnabledNoConfirmSettingsNotifier.new,
+    );
+    addTearDown(container.dispose);
+
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    conversations.activateWorkspace(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'goal-auto-mixed-verifier-failure',
+      createIfMissing: true,
+    );
+    await conversations.saveCurrentGoal(
+      objective: 'Implement and verify the TODO CLI',
+      enabled: true,
+      autoContinue: true,
+      status: ConversationGoalStatus.active,
+      turnBudget: 2,
+    );
+
+    await container
+        .read(chatNotifierProvider.notifier)
+        .sendMessage('Implement the TODO CLI.', bypassPlanMode: true);
+
+    await _waitForCondition(() {
+      final state = container.read(chatNotifierProvider);
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.goal;
+      return !state.isLoading &&
+          dataSource.initialRequestMessages.length == 2 &&
+          goal?.turnsUsed == 2;
+    });
+
+    expect(toolService.executedToolNames, [
+      'local_execute_command',
+      'local_execute_command',
+    ]);
+    final continuationPrompt = dataSource.initialRequestMessages.last
+        .where((message) => message.role == MessageRole.user)
+        .map((message) => message.content)
+        .join('\n');
+    expect(continuationPrompt, contains('Automatic goal continuation 2/2.'));
+    expect(continuationPrompt, contains('execution verification failed'));
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!;
+    expect(conversation.mutationGeneration, 0);
+    expect(conversation.verificationGeneration, -1);
+  });
+
+  test(
+    'saved workflow retains task tool results for its own continuation',
+    () async {
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: [
+          [_goalAutoContinueAnalyzeCall('call-workflow-analyze')],
+        ],
+        finalAnswerChunkBatches: const [
+          ['The current saved task still has unresolved diagnostics.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'analyze_project': jsonEncode({
+            'diagnostics': [
+              {
+                'severity': 'Error',
+                'path': '/tmp/workflow-owned/lib/main.dart',
+                'relative_path': 'lib/main.dart',
+                'line': 4,
+                'column': 3,
+                'code': 'undefined_identifier',
+                'message': 'Undefined name store',
+              },
+            ],
+          }),
+        },
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'workflow-owned',
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'workflow-owned',
+      );
+      await conversations.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Implement the saved workflow',
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-1',
+              title: 'Implement the store',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+            ConversationWorkflowTask(id: 'task-2', title: 'Implement the CLI'),
+          ],
+        ),
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Implement the saved workflow',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 5,
+      );
+
+      final chatNotifier = container.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendMessage(
+        'Run the first saved task.',
+        bypassPlanMode: true,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(dataSource.initialRequestMessages, hasLength(1));
+      expect(
+        chatNotifier.takeLatestToolResults().map((result) => result.name),
+        contains('analyze_project'),
+      );
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal
+            ?.status,
+        ConversationGoalStatus.active,
       );
     },
   );
@@ -497,10 +868,47 @@ void registerChatNotifierGoalAutoContinueTests() {
   });
 
   test(
+    'coding continuation recovery recognizes a long fenced implementation',
+    () {
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: const [],
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: _FakeMcpToolService(results: const {}),
+        projectId: 'long-fenced-implementation-recovery',
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(chatNotifierProvider.notifier);
+      final response = StringBuffer(
+        'Next I will implement the project file.\n```dart\n',
+      );
+      for (var index = 0; index < 180; index += 1) {
+        response.writeln('void helper$index() {}');
+      }
+      response.write('```');
+
+      expect(response.length, greaterThan(1600));
+      expect(
+        notifier.looksLikeProseOnlyCodingContinuationForTest(
+          response.toString(),
+        ),
+        isTrue,
+      );
+      expect(
+        notifier.looksLikeProseOnlyCodingContinuationForTest(
+          'The project contains a long explanation. ${'details ' * 300}',
+        ),
+        isFalse,
+      );
+    },
+  );
+
+  test(
     'goal auto-continue clears approval result cache before hidden turns',
     () async {
       final commandArguments = {
-        'command': 'rm -rf build',
+        'command': 'dart test',
         'working_directory': '/tmp/goal-auto-approval-cache',
       };
       final commandCall = ToolCallInfo(
@@ -1009,6 +1417,307 @@ void registerChatNotifierGoalAutoContinueTests() {
   );
 
   test(
+    'goal auto-continue repairs exit-zero command output failures',
+    () async {
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: [
+          [_goalAutoContinueWriteCall('call-write-initial')],
+          [
+            ToolCallInfo(
+              id: 'call-runtime-validation',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'dart run bin/todo.dart done 999',
+                'working_directory': '/tmp/goal-auto-output-feedback',
+              },
+            ),
+          ],
+          const <ToolCallInfo>[],
+        ],
+        streamChunkBatches: const [
+          <String>[],
+          <String>[],
+          ['Concrete runtime failure recorded.'],
+        ],
+        finalAnswerChunkBatches: const [
+          ['Initial implementation requires validation.'],
+          ['Validation found a runtime failure.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file': 'unused',
+          'local_execute_command': 'unused',
+        },
+        queuedResults: {
+          'write_file': const [
+            '{"path":"/tmp/goal-auto-output-feedback/README.md",'
+                '"bytes_written":18}',
+          ],
+          'local_execute_command': [
+            jsonEncode({
+              'command': 'dart run bin/todo.dart done 999',
+              'working_directory': '/tmp/goal-auto-output-feedback',
+              'exit_code': 0,
+              'stdout': '',
+              'stderr':
+                  'Unhandled exception: Bad state: task with id 999 not found.',
+            }),
+          ],
+        },
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'goal-auto-output-feedback',
+        settingsBuilder: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'goal-auto-output-feedback',
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Implement and verify the TODO CLI',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 3,
+      );
+
+      await container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('Implement the TODO CLI.', bypassPlanMode: true);
+
+      await _waitForCondition(() {
+        final goal = container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal;
+        return !container.read(chatNotifierProvider).isLoading &&
+            dataSource.initialRequestMessages.length == 3 &&
+            goal?.turnsUsed == 3;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(toolService.executedToolNames, [
+        'write_file',
+        'local_execute_command',
+      ]);
+      expect(
+        dataSource.toolResultBatches[1].map((result) => result.name),
+        containsAll([
+          'local_execute_command',
+          CodingCommandOutputGuardrailService.toolName,
+        ]),
+      );
+      final offeredToolNames = dataSource.initialToolDefinitions
+          .map(ToolDefinitionSearchService.toolNamesFromDefinitions)
+          .toList(growable: false);
+      expect(offeredToolNames[1], {'local_execute_command'});
+      expect(offeredToolNames[2], {'write_file', 'local_execute_command'});
+      final repairPrompt = dataSource.initialRequestMessages[2]
+          .where((message) => message.role == MessageRole.user)
+          .map((message) => message.content)
+          .join('\n');
+      expect(repairPrompt, contains('execution verification failed'));
+      expect(repairPrompt, contains('unresolved Error diagnostic'));
+      expect(
+        repairPrompt,
+        isNot(contains('This is a validation-only continuation.')),
+      );
+    },
+  );
+
+  test(
+    'goal auto-continue rejects shell mutations during validation-only turns',
+    () async {
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: [
+          [_goalAutoContinueWriteCall('call-write-before-validation')],
+          [
+            ToolCallInfo(
+              id: 'call-shell-mutation-during-validation',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': "cat > README.md <<'EOF'\nchanged\nEOF",
+                'working_directory': '/tmp/goal-auto-validation-shell-guard',
+              },
+            ),
+          ],
+        ],
+        finalAnswerChunkBatches: const [
+          ['Initial implementation requires validation.'],
+          ['The validation-only command was rejected.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file': 'unused',
+          'local_execute_command': '{"command":"unexpected","exit_code":0}',
+        },
+        queuedResults: const {
+          'write_file': [
+            '{"path":"/tmp/goal-auto-validation-shell-guard/README.md",'
+                '"bytes_written":18}',
+          ],
+        },
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'goal-auto-validation-shell-guard',
+        settingsBuilder: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'goal-auto-validation-shell-guard',
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Implement and verify the fixture',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 5,
+      );
+
+      await container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('Implement the fixture.', bypassPlanMode: true);
+
+      await _waitForCondition(() {
+        final goal = container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal;
+        return !container.read(chatNotifierProvider).isLoading &&
+            dataSource.initialRequestMessages.length == 2 &&
+            goal?.status == ConversationGoalStatus.blocked;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(toolService.executedToolNames, ['write_file']);
+      expect(
+        dataSource.toolResultBatches[1].single.result,
+        contains('goal_validation_probe_requires_verifier'),
+      );
+      expect(
+        dataSource.toolResultBatches[1].single.result,
+        contains('workspaceMutation'),
+      );
+      final validationPrompt = dataSource.initialRequestMessages[1]
+          .where((message) => message.role == MessageRole.user)
+          .map((message) => message.content)
+          .join('\n');
+      expect(validationPrompt, contains('Only verification-effect commands'));
+      expect(validationPrompt, contains('shell-based file mutation'));
+      expect(validationPrompt, contains('next bounded continuation'));
+    },
+  );
+
+  test(
+    'goal validation accepts a scoped compound verification command',
+    () async {
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: [
+          [_goalAutoContinueWriteCall('call-write-before-scoped-validation')],
+          [
+            ToolCallInfo(
+              id: 'call-scoped-validation',
+              name: 'local_execute_command',
+              arguments: const {
+                'command':
+                    'cd /tmp/goal-auto-scoped-validation && dart analyze',
+                'working_directory': '/tmp/goal-auto-scoped-validation',
+              },
+            ),
+          ],
+        ],
+        finalAnswerChunkBatches: const [
+          ['Initial implementation requires validation.'],
+          ['The scoped analyzer command passed.'],
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file': 'unused',
+          'local_execute_command': 'unused',
+        },
+        queuedResults: const {
+          'write_file': [
+            '{"path":"/tmp/goal-auto-scoped-validation/README.md",'
+                '"bytes_written":18}',
+          ],
+          'local_execute_command': [
+            '{"command":"cd /tmp/goal-auto-scoped-validation && '
+                'dart analyze","exit_code":0,"stdout":"No issues found."}',
+          ],
+        },
+      );
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'goal-auto-scoped-validation',
+        useRealConversationsNotifier: true,
+        settingsBuilder: _ToolEnabledNoConfirmSettingsNotifier.new,
+      );
+      addTearDown(container.dispose);
+
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'goal-auto-scoped-validation',
+        createIfMissing: true,
+      );
+      await conversations.saveCurrentGoal(
+        objective: 'Implement and verify the fixture',
+        enabled: true,
+        autoContinue: true,
+        status: ConversationGoalStatus.active,
+        turnBudget: 2,
+      );
+
+      await container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage('Implement the fixture.', bypassPlanMode: true);
+
+      await _waitForCondition(() {
+        final goal = container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal;
+        return !container.read(chatNotifierProvider).isLoading &&
+            dataSource.initialRequestMessages.length == 2 &&
+            goal?.turnsUsed == 2;
+      });
+
+      expect(toolService.executedToolNames, [
+        'write_file',
+        'local_execute_command',
+      ]);
+      expect(
+        dataSource.toolResultBatches[1].single.result,
+        isNot(contains('goal_validation_probe_requires_verifier')),
+      );
+      expect(
+        dataSource.toolResultBatches[1].single.result,
+        contains('exit_code'),
+      );
+    },
+  );
+
+  test(
     'goal auto-continue extends once when repair replay advances diagnostics',
     () async {
       ToolCallInfo verifierCall(String id) => ToolCallInfo(
@@ -1434,6 +2143,89 @@ void registerChatNotifierGoalAutoContinueTests() {
     expect(toolService.executedToolArguments.last, verifierArguments);
   });
 
+  test(
+    'does not carry a verifier replay candidate into the next task',
+    () async {
+      final dataSource = _GoalAutoContinueChatDataSource(
+        toolCallBatches: const [],
+      );
+      final toolService = _FakeMcpToolService(results: const {});
+      final container = _goalAutoContinueContainer(
+        dataSource: dataSource,
+        toolService: toolService,
+        projectId: 'task-scoped-verifier-replay',
+      );
+      addTearDown(container.dispose);
+      final conversations = container.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversations.ensureCurrentConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'task-scoped-verifier-replay',
+      );
+      await conversations.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-1',
+              title: 'Build storage',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+            ConversationWorkflowTask(id: 'task-2', title: 'Build the CLI'),
+          ],
+        ),
+      );
+
+      final chatNotifier = container.read(chatNotifierProvider.notifier);
+      chatNotifier.recordExecutedVerifierReplayCandidateForTest(
+        ToolCallInfo(
+          id: 'task-1-verifier',
+          name: 'run_tests',
+          arguments: {'test_path': 'test/storage_test.dart'},
+        ),
+      );
+      expect(
+        chatNotifier.hasVerifierReplayCandidateForCurrentTaskForTest(),
+        isTrue,
+      );
+
+      await conversations.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-1',
+              title: 'Build storage',
+              status: ConversationWorkflowTaskStatus.completed,
+            ),
+            ConversationWorkflowTask(
+              id: 'task-2',
+              title: 'Build the CLI',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        chatNotifier.hasVerifierReplayCandidateForCurrentTaskForTest(),
+        isFalse,
+      );
+      chatNotifier.recordExecutedVerifierReplayCandidateForTest(
+        ToolCallInfo(
+          id: 'task-2-verifier',
+          name: 'local_execute_command',
+          arguments: {'command': 'dart analyze bin/todo_cli.dart'},
+        ),
+      );
+      expect(
+        chatNotifier.hasVerifierReplayCandidateForCurrentTaskForTest(),
+        isTrue,
+      );
+    },
+  );
+
   test('cancelStreaming clears the goal auto-continue indicator', () async {
     final hiddenPromptGate = Completer<void>();
     final dataSource = _GoalAutoContinueChatDataSource(
@@ -1578,6 +2370,7 @@ ProviderContainer _goalAutoContinueContainer({
   required ChatDataSource dataSource,
   required _FakeMcpToolService toolService,
   required String projectId,
+  bool useRealConversationsNotifier = false,
   SettingsNotifier Function() settingsBuilder =
       _ToolEnabledSettingsNotifier.new,
 }) {
@@ -1596,9 +2389,10 @@ ProviderContainer _goalAutoContinueContainer({
       codingProjectsNotifierProvider.overrideWith(
         () => _FixedCodingProjectsNotifier(project),
       ),
-      conversationsNotifierProvider.overrideWith(
-        _GoalAutoContinueConversationsNotifier.new,
-      ),
+      if (!useRealConversationsNotifier)
+        conversationsNotifierProvider.overrideWith(
+          _GoalAutoContinueConversationsNotifier.new,
+        ),
       conversationRepositoryProvider.overrideWithValue(
         _FakeConversationRepository(),
       ),

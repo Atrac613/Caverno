@@ -20,6 +20,30 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
     }
 
     final options = _parseAskUserQuestionOptions(toolCall.arguments['options']);
+    final savedTask = _currentSavedTaskForToolLoop();
+    if (savedTask != null &&
+        _terminalToolResponsePolicy.isSavedWorkflowContinuationQuestion(
+          question,
+        )) {
+      appLog(
+        '[AskUserQuestion] Resolving saved workflow continuation question '
+        'from the execution policy',
+      );
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'status': 'policy_resolved',
+          'question': question,
+          'answer':
+              'Continue autonomously with the current saved task. Run its '
+              'saved validation before moving to the next task.',
+          'saved_task_id': savedTask.id,
+          if (savedTask.validationCommand.trim().isNotEmpty)
+            'saved_validation_command': savedTask.validationCommand.trim(),
+        }),
+        isSuccess: true,
+      );
+    }
     final existingResult = interactionGeneration == null
         ? null
         : _askUserQuestionTurnCache.findReusable(

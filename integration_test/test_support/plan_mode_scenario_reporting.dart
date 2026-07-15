@@ -12,6 +12,7 @@ import 'plan_mode_live_diagnostics.dart';
 import 'plan_mode_post_scenario_settle.dart';
 import 'plan_mode_report_summary.dart';
 import 'plan_mode_scenario_spec.dart';
+import 'plan_mode_scenario_seed_files.dart';
 import 'plan_mode_screenshot_policy.dart';
 import 'plan_mode_task_drift.dart';
 import 'plan_mode_tool_lifecycle.dart';
@@ -116,6 +117,9 @@ Map<String, Object?> buildPlanModePassedScenarioReport({
     ),
     savedTaskTargetFiles: savedTaskTargetFiles,
     scenarioDir: scenarioDir,
+    excludedPaths: planModeScenarioTaskDriftExcludedSeedPaths(
+      scenario.seedFiles,
+    ).followedBy(scenario.taskDriftExcludedPaths),
   ).toJson();
   final toolLoopConvergence = buildPlanModeToolLoopConvergenceReport(logs);
   final toolLifecycle = buildPlanModeToolLifecycleReport(logs);

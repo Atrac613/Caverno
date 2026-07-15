@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_execution_progress_inference.dart';
+import 'package:caverno/features/chat/domain/services/final_answer_claim_detector.dart';
 
 void main() {
   ConversationWorkflowTask loadFixtureTask(String fixtureName) {
@@ -59,6 +60,34 @@ void main() {
       result.summary,
       'Task 1 is complete because the saved validation command passed.',
     );
+  });
+
+  test('does not infer completion from command names inside code spans', () {
+    final result = ConversationExecutionProgressInference.infer(
+      assistantResponse:
+          'Supported commands are `add <text>`, `list`, `done <id>`, and '
+          '`delete <id>`.',
+      task: task,
+      isValidationRun: false,
+    );
+
+    expect(result.status, ConversationWorkflowTaskStatus.inProgress);
+  });
+
+  test('keeps corrected unexecuted completion claims in progress', () {
+    final result = ConversationExecutionProgressInference.infer(
+      assistantResponse:
+          'The TODO MVP is complete and all checks passed.\n\n'
+          'Use `dart run todo done <id>` to complete a task.\n\n'
+          '${FinalAnswerClaimDetector.unexecutedCommandActionNotice}',
+      fallbackAssistantResponse:
+          'The TODO MVP is complete and all checks passed.',
+      task: task,
+      isValidationRun: false,
+    );
+
+    expect(result.status, ConversationWorkflowTaskStatus.inProgress);
+    expect(result.blockedReason, isNull);
   });
 
   test('infers blocked validation output from the assistant response', () {

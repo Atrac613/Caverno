@@ -826,6 +826,200 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     },
   );
 
+  test('quality gate rejects invented absolute validation paths', () {
+    const workflowSpec = ConversationWorkflowSpec(
+      goal: 'Build a Dart TODO CLI',
+      acceptanceCriteria: ['Tasks persist between process runs'],
+    );
+    const proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        ConversationWorkflowTask(
+          id: 'task-implement',
+          title: 'Implement the Dart TODO CLI',
+          targetFiles: ['bin/todo.dart', 'lib/todo_store.dart'],
+          validationCommand: 'dart analyze bin/todo.dart lib/todo_store.dart',
+        ),
+        ConversationWorkflowTask(
+          id: 'task-verify',
+          title: 'Verify TODO persistence',
+          targetFiles: ['bin/todo.dart', 'lib/todo_store.dart'],
+          validationCommand:
+              'rm -f /tmp/todo.json && dart run bin/todo.dart list',
+        ),
+      ],
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForWorkflowForTest(
+        proposal,
+        proposal,
+        false,
+        workflowSpec,
+      ),
+      isTrue,
+    );
+  });
+
+  test('quality gate preserves specification-backed absolute paths', () {
+    const workflowSpec = ConversationWorkflowSpec(
+      goal: 'Build a CLI that writes state to /tmp/specified-state.json',
+      constraints: ['Use /tmp/specified-state.json exactly'],
+    );
+    const proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        ConversationWorkflowTask(
+          id: 'task-implement',
+          title: 'Implement the stateful CLI',
+          targetFiles: ['bin/app.dart'],
+          validationCommand:
+              'rm -f /tmp/specified-state.json && dart run bin/app.dart',
+        ),
+      ],
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForWorkflowForTest(
+        proposal,
+        proposal,
+        false,
+        workflowSpec,
+      ),
+      isFalse,
+    );
+  });
+
+  test('quality gate rejects validation exit masking', () {
+    const workflowSpec = ConversationWorkflowSpec(
+      goal: 'Build a Dart TODO CLI',
+      acceptanceCriteria: ['Unknown IDs return non-zero'],
+    );
+    const proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        ConversationWorkflowTask(
+          id: 'task-verify',
+          title: 'Verify unknown ID handling',
+          targetFiles: ['bin/todo.dart'],
+          validationCommand: 'dart run bin/todo.dart done 999; echo "\$?"',
+        ),
+      ],
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForWorkflowForTest(
+        proposal,
+        proposal,
+        false,
+        workflowSpec,
+      ),
+      isTrue,
+    );
+  });
+
+  test('quality gate rejects bare shell status tests', () {
+    const workflowSpec = ConversationWorkflowSpec(
+      goal: 'Build a Dart TODO CLI',
+      acceptanceCriteria: ['Unknown IDs return non-zero'],
+    );
+    const proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        ConversationWorkflowTask(
+          id: 'task-verify',
+          title: 'Verify unknown ID handling',
+          targetFiles: ['bin/todo.dart'],
+          validationCommand: 'dart run bin/todo.dart done 999; test \$?',
+        ),
+      ],
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForWorkflowForTest(
+        proposal,
+        proposal,
+        false,
+        workflowSpec,
+      ),
+      isTrue,
+    );
+  });
+
+  test('quality gate rejects underscoped final verification repairs', () {
+    const workflowSpec = ConversationWorkflowSpec(
+      goal: 'Build a Dart TODO CLI',
+      acceptanceCriteria: ['CRUD behavior persists between process runs'],
+    );
+    const proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        ConversationWorkflowTask(
+          id: 'task-store',
+          title: 'Implement the TODO store',
+          targetFiles: ['lib/todo_store.dart'],
+          validationCommand: 'dart analyze lib/todo_store.dart',
+        ),
+        ConversationWorkflowTask(
+          id: 'task-cli',
+          title: 'Implement the TODO CLI',
+          targetFiles: ['bin/todo.dart'],
+          validationCommand: 'dart analyze bin/todo.dart',
+        ),
+        ConversationWorkflowTask(
+          id: 'task-verify',
+          title: 'Verify TODO behavior',
+          targetFiles: ['bin/todo.dart'],
+          validationCommand: 'dart run bin/todo.dart list',
+        ),
+      ],
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForWorkflowForTest(
+        proposal,
+        proposal,
+        true,
+        workflowSpec,
+      ),
+      isTrue,
+    );
+  });
+
+  test('quality gate accepts complete final verification repair scope', () {
+    const workflowSpec = ConversationWorkflowSpec(
+      goal: 'Build a Dart TODO CLI',
+      acceptanceCriteria: ['CRUD behavior persists between process runs'],
+    );
+    const proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        ConversationWorkflowTask(
+          id: 'task-store',
+          title: 'Implement the TODO store',
+          targetFiles: ['lib/todo_store.dart'],
+          validationCommand: 'dart analyze lib/todo_store.dart',
+        ),
+        ConversationWorkflowTask(
+          id: 'task-cli',
+          title: 'Implement the TODO CLI',
+          targetFiles: ['bin/todo.dart'],
+          validationCommand: 'dart analyze bin/todo.dart',
+        ),
+        ConversationWorkflowTask(
+          id: 'task-verify',
+          title: 'Verify TODO behavior',
+          targetFiles: ['bin/todo.dart', 'lib/todo_store.dart'],
+          validationCommand: 'dart run bin/todo.dart list',
+        ),
+      ],
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForWorkflowForTest(
+        proposal,
+        proposal,
+        true,
+        workflowSpec,
+      ),
+      isFalse,
+    );
+  });
+
   test('quality gate keeps explicit README-only single-task proposals', () {
     const workflowSpec = ConversationWorkflowSpec(
       goal: 'Create README.md for a Python host health checker.',

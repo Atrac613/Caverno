@@ -23,6 +23,7 @@ final class _GoalAutoContinueTracker {
     this.failedVerificationObserved = false,
     this.previousEvidence,
     this.verifierReplayCandidate,
+    this.verifierReplayCandidateTaskId,
     this.previousDiagnosticSignature = '',
     this.identicalDiagnosticSignatureStreak = 0,
     this.pendingPostRepairReplayOutcome = false,
@@ -38,6 +39,7 @@ final class _GoalAutoContinueTracker {
   bool failedVerificationObserved;
   ToolResultCompletionEvidence? previousEvidence;
   ToolCallInfo? verifierReplayCandidate;
+  String? verifierReplayCandidateTaskId;
   int verifierReplayCandidatePriority = 0;
   String previousDiagnosticSignature;
   int identicalDiagnosticSignatureStreak;
@@ -149,6 +151,14 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       conversation.id,
       _GoalAutoContinueTracker.new,
     );
+    final activeTaskId =
+        ConversationPlanExecutionCoordinator.executionFocusTask(
+          conversation,
+        )?.id.trim();
+    if (tracker.verifierReplayCandidateTaskId != activeTaskId) {
+      tracker.verifierReplayCandidate = null;
+      tracker.verifierReplayCandidatePriority = 0;
+    }
     final priority = _verifierReplayPriority(toolCall);
     if (priority < tracker.verifierReplayCandidatePriority) {
       return;
@@ -158,7 +168,30 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       name: toolCall.name,
       arguments: Map<String, dynamic>.unmodifiable(toolCall.arguments),
     );
+    tracker.verifierReplayCandidateTaskId = activeTaskId;
     tracker.verifierReplayCandidatePriority = priority;
+  }
+
+  @visibleForTesting
+  void recordExecutedVerifierReplayCandidateForTest(ToolCallInfo toolCall) {
+    _recordExecutedVerifierReplayCandidate(toolCall);
+  }
+
+  @visibleForTesting
+  bool hasVerifierReplayCandidateForCurrentTaskForTest() {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null) {
+      return false;
+    }
+    final tracker = _goalAutoContinueTrackers[conversation.id];
+    final activeTaskId =
+        ConversationPlanExecutionCoordinator.executionFocusTask(
+          conversation,
+        )?.id.trim();
+    return tracker?.verifierReplayCandidate != null &&
+        tracker?.verifierReplayCandidateTaskId == activeTaskId;
   }
 
   bool _isReplayEligibleVerifierToolCall(ToolCallInfo toolCall) {
@@ -213,8 +246,13 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     }
     final tracker = _goalAutoContinueTrackers[conversation.id];
     final candidate = tracker?.verifierReplayCandidate;
+    final activeTaskId =
+        ConversationPlanExecutionCoordinator.executionFocusTask(
+          conversation,
+        )?.id.trim();
     if (tracker == null ||
         candidate == null ||
+        tracker.verifierReplayCandidateTaskId != activeTaskId ||
         tracker.replayedMutationGenerations.contains(
           conversation.mutationGeneration,
         ) ||
@@ -334,6 +372,25 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     }
   }
 
+  ToolResultCompletionEvidence _settleFinalEvidenceForSuccessfulSavedValidation(
+    ToolResultCompletionEvidence evidence, {
+    required bool savedValidationSucceeded,
+  }) {
+    if (!savedValidationSucceeded || evidence.hasBlockingEvidence) {
+      return evidence;
+    }
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null) {
+      return evidence;
+    }
+    return evidence.settleForExecutionGenerations(
+      mutationGeneration: conversation.mutationGeneration,
+      verificationGeneration: conversation.mutationGeneration,
+    );
+  }
+
   void _reconcileGoalAutoContinueEvidenceForFinalization() {
     _latestGoalAutoContinueEvidence =
         ToolResultPromptBuilder.reconcileFinalizationEvidence(
@@ -428,6 +485,20 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       _clearGoalAutoContinueIndicator();
       return;
     }
+    final savedTasks = currentConversation!.projectedExecutionTasks;
+    if (savedTasks.isNotEmpty &&
+        !ShortPromptContractBuilder.isSyntheticRequestContract(
+          currentConversation.effectiveWorkflowSpec,
+        ) &&
+        savedTasks.any(
+          (task) => task.status != ConversationWorkflowTaskStatus.completed,
+        )) {
+      _logGoalAutoContinueSkip(
+        'saved workflow execution owns pending task continuation',
+      );
+      _clearGoalAutoContinueIndicator();
+      return;
+    }
 
     final candidateNoProgressStreak = _candidateGoalAutoContinueProgressStreak(
       tracker: tracker,
@@ -468,10 +539,11 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         evidence.hasDiagnosticEvidence &&
         evidence.compareProgress(previousEvidence) ==
             GoalEvidenceProgress.improved;
+    final safeBoundary = _goalAutoContinueSafeBoundaryFromState();
     final decision = _goalAutoContinuePolicy.decide(
       GoalAutoContinuePolicyInput(
         goal: goal,
-        safeBoundary: _goalAutoContinueSafeBoundaryFromState(),
+        safeBoundary: safeBoundary,
         evidence: evidence,
         consecutiveAutoContinuations:
             tracker?.consecutiveAutoContinuations ?? 0,
@@ -509,6 +581,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         effectiveTurnBudget: _effectiveGoalAutoContinueBudget(goal),
         tracker: tracker,
         evidence: evidence,
+        safeBoundary: safeBoundary,
       );
       appLog(
         '[GoalAutoContinue] stopAndBlock: ${decision.reason}; '
@@ -534,24 +607,39 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         tracker.noProgressStreak = candidateNoProgressStreak;
       }
       final noticeKey = _goalAutoContinueNoticeKeyForStop(decision.stopCause);
-      if (noticeKey != null &&
-          _goalAutoContinueBudgetNotifiedConversations.add(
-            currentConversationId,
-          )) {
+      if (noticeKey != null) {
+        if (_goalAutoContinueBudgetNotifiedConversations.add(
+          currentConversationId,
+        )) {
+          await _recordGoalAutoContinueSessionLog(
+            decision: _goalAutoContinueSessionDecisionForStop(
+              decision.stopCause,
+            ),
+            reason: decision.reason,
+            goal: goal,
+            nextTurnNumber: goal?.turnsUsed,
+            effectiveTurnBudget: _effectiveGoalAutoContinueBudget(goal),
+            tracker: tracker,
+            evidence: evidence,
+            safeBoundary: safeBoundary,
+          );
+          appLog(
+            '[GoalAutoContinue] stopped; goal remains active for '
+            'manual continuation. conversation=$currentConversationId',
+          );
+          state = state.copyWith(goalAutoContinueNotice: noticeKey);
+        }
+      } else if (goal?.isActive == true && goal!.autoContinue) {
         await _recordGoalAutoContinueSessionLog(
-          decision: _goalAutoContinueSessionDecisionForStop(decision.stopCause),
+          decision: 'skip',
           reason: decision.reason,
           goal: goal,
-          nextTurnNumber: goal?.turnsUsed,
+          nextTurnNumber: goal.turnsUsed,
           effectiveTurnBudget: _effectiveGoalAutoContinueBudget(goal),
           tracker: tracker,
           evidence: evidence,
+          safeBoundary: safeBoundary,
         );
-        appLog(
-          '[GoalAutoContinue] stopped; goal remains active for '
-          'manual continuation. conversation=$currentConversationId',
-        );
-        state = state.copyWith(goalAutoContinueNotice: noticeKey);
       }
       _clearGoalAutoContinueIndicator();
       return;
@@ -615,6 +703,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       effectiveTurnBudget: decision.effectiveTurnBudget,
       tracker: tracker,
       evidence: evidence,
+      safeBoundary: safeBoundary,
     );
 
     appLog(
@@ -651,6 +740,8 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         persistAssistantResponse: true,
         preserveGoalAutoContinueEvidence: true,
         replayVerifierImmediatelyAfterMutation: repairContract != null,
+        verifierOnlyContinuation:
+            capabilityProfile == GoalAutoContinueCapabilityProfile.validation,
         allowedToolNames: switch (capabilityProfile) {
           GoalAutoContinueCapabilityProfile.repair => _goalRepairToolNames,
           GoalAutoContinueCapabilityProfile.validation =>
@@ -788,11 +879,14 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             'the harness will replay the saved verifier after a mutation.',
       ] else if (capabilityProfile ==
           GoalAutoContinueCapabilityProfile.validation) ...[
-        'This is a validation-only continuation. Do not edit files unless a '
-            'verification command reports a concrete failure. Run the '
-            'available project verifier now. A verifier request that was '
+        'This is a validation-only continuation. Only verification-effect '
+            'commands are accepted; inspection, setup, and shell-based file '
+            'mutation will be rejected. Run the available project verifier '
+            'now. A verifier request that was '
             'left unexecuted by the previous tool-loop boundary must be '
-            'retried before any other work. Finish immediately if it succeeds.',
+            'retried before any other work. Finish immediately if it succeeds. '
+            'If it fails, report the concrete failure and finish this turn; '
+            'the next bounded continuation will provide repair tools.',
       ] else if (evidence.hasUnexecutedActionClaim) ...[
         'The previous answer claimed file or command actions without tool '
             'evidence. Do not repeat or summarize those claims. Use the '
@@ -833,6 +927,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     required int? effectiveTurnBudget,
     required _GoalAutoContinueTracker? tracker,
     required ToolResultCompletionEvidence evidence,
+    required GoalAutoContinueSafeBoundary safeBoundary,
   }) async {
     if (!LlmSessionLogStore.isEnabled(
       settingsEnabled: _settings.enableLlmSessionLogs,
@@ -854,6 +949,8 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             'summary': evidence.summary,
             'hasIncompleteEvidence': evidence.hasIncompleteEvidence,
             'hasBlockingEvidence': evidence.hasBlockingEvidence,
+            'hasUnexecutedActionClaim': evidence.hasUnexecutedActionClaim,
+            'safeBoundaryVeto': safeBoundary.firstVetoReason,
             'noProgressStreak': tracker?.noProgressStreak ?? 0,
             'diagnosticRepairContinuations':
                 tracker?.diagnosticRepairContinuations ?? 0,

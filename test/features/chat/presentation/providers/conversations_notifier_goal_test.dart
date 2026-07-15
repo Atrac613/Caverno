@@ -7,6 +7,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 
@@ -195,6 +196,55 @@ void main() {
           .goal!;
       expect(goal.status, ConversationGoalStatus.active);
       expect(goal.tokenUsage, 90);
+      expect(goal.turnsUsed, 1);
+      expect(goal.completedAt, isNull);
+    },
+  );
+
+  test(
+    'recordCurrentGoalTurn keeps the goal active while saved tasks remain',
+    () async {
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await notifier.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Build the TODO CLI',
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-1',
+              title: 'Initialize the project',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+            ConversationWorkflowTask(id: 'task-2', title: 'Implement the CLI'),
+          ],
+        ),
+      );
+      await notifier.saveCurrentGoal(
+        objective: 'Build the TODO CLI',
+        enabled: true,
+        status: ConversationGoalStatus.active,
+        tokenBudget: 1000,
+        turnBudget: 5,
+      );
+
+      await notifier.recordCurrentGoalTurn(
+        assistantResponse:
+            'Task 1 is complete. The saved validation exited with code 0.',
+        tokenUsageDelta: 80,
+      );
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.active);
       expect(goal.turnsUsed, 1);
       expect(goal.completedAt, isNull);
     },

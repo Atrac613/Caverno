@@ -211,6 +211,7 @@ Future<void> waitForPlanModeWorkflowExecutionCompletion(
       workflowSnapshot: workflowSnapshot,
       toolResultCount: countPlanModeContentToolResults(logs),
       fileWriteCount: countPlanModeFileWriteExecutions(logs),
+      executionActivityCount: countPlanModeExecutionActivities(logs),
       hasPendingApprovals: hasPendingApprovals,
       isLoading: chatState.isLoading,
     );

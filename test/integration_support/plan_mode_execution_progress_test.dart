@@ -255,11 +255,16 @@ void main() {
         '[McpToolService] Executing tool: local_execute_command',
         '[McpToolService] Executing tool: run_tests',
         '[McpToolService] Executing tool: read_file',
+        '[Tool] Lifecycle {"lifecycleState":"completed"}',
+        '[Tool] Lifecycle {"lifecycleState":"skipped"}',
+        '[Tool] Lifecycle {"lifecycleState":"started"}',
+        '[LLM] === Response ===',
       ];
 
       expect(countPlanModeContentToolResults(logs), 1);
       expect(countPlanModeFileWriteExecutions(logs), 3);
       expect(countPlanModeValidationLikeExecutions(logs), 2);
+      expect(countPlanModeExecutionActivities(logs), 3);
     });
   });
 

@@ -16,6 +16,7 @@ void main() {
           workflowSnapshot: 'Config loader:pending',
           toolResultCount: 0,
           fileWriteCount: 0,
+          executionActivityCount: 0,
           hasPendingApprovals: false,
           isLoading: true,
         ),
@@ -30,6 +31,7 @@ void main() {
           workflowSnapshot: 'Config loader:inProgress',
           toolResultCount: 1,
           fileWriteCount: 0,
+          executionActivityCount: 1,
           hasPendingApprovals: false,
           isLoading: true,
         ),
@@ -44,6 +46,7 @@ void main() {
           workflowSnapshot: 'Config loader:inProgress',
           toolResultCount: 2,
           fileWriteCount: 0,
+          executionActivityCount: 2,
           hasPendingApprovals: false,
           isLoading: true,
         ),
@@ -65,6 +68,7 @@ void main() {
         workflowSnapshot: 'Config loader:inProgress',
         toolResultCount: 1,
         fileWriteCount: 1,
+        executionActivityCount: 1,
         hasPendingApprovals: false,
         isLoading: true,
       ),
@@ -76,6 +80,7 @@ void main() {
         workflowSnapshot: 'Config loader:inProgress',
         toolResultCount: 1,
         fileWriteCount: 1,
+        executionActivityCount: 1,
         hasPendingApprovals: false,
         isLoading: true,
       ),
@@ -86,5 +91,56 @@ void main() {
     expect(stalledSample!.stalledFor, const Duration(seconds: 11));
     expect(stalledSample.heartbeat.activeTaskTitle, 'Config loader');
     expect(stalledSample.heartbeat.toolResultCount, 1);
+  });
+
+  test('resets the timer when native tool activity advances', () {
+    final watchdog = PlanModeExecutionWatchdog(
+      stallTimeout: const Duration(seconds: 10),
+    );
+    final startedAt = DateTime(2026, 7, 15, 7, 40);
+
+    watchdog.recordHeartbeat(
+      const PlanModeExecutionHeartbeat(
+        activeTaskTitle: 'Implement CLI',
+        workflowSnapshot: 'Implement CLI:inProgress',
+        toolResultCount: 0,
+        fileWriteCount: 1,
+        executionActivityCount: 3,
+        hasPendingApprovals: false,
+        isLoading: true,
+      ),
+      startedAt,
+    );
+
+    expect(
+      watchdog.recordHeartbeat(
+        const PlanModeExecutionHeartbeat(
+          activeTaskTitle: 'Implement CLI',
+          workflowSnapshot: 'Implement CLI:inProgress',
+          toolResultCount: 0,
+          fileWriteCount: 1,
+          executionActivityCount: 4,
+          hasPendingApprovals: false,
+          isLoading: true,
+        ),
+        startedAt.add(const Duration(seconds: 9)),
+      ),
+      isNull,
+    );
+    expect(
+      watchdog.recordHeartbeat(
+        const PlanModeExecutionHeartbeat(
+          activeTaskTitle: 'Implement CLI',
+          workflowSnapshot: 'Implement CLI:inProgress',
+          toolResultCount: 0,
+          fileWriteCount: 1,
+          executionActivityCount: 4,
+          hasPendingApprovals: false,
+          isLoading: true,
+        ),
+        startedAt.add(const Duration(seconds: 18)),
+      ),
+      isNull,
+    );
   });
 }

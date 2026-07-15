@@ -81,6 +81,16 @@ void main() {
       ),
       const <String>['requirements.txt', 'README.md'],
     );
+    expect(
+      resolvePlanModeFailureSavedTaskTargetFiles(
+        logs: const <String>[
+          '[LLM] user: Target files: pubspec.yaml, bin/todo.dart',
+          '[LLM] user: Target files: lib/todo_store.dart\n'
+              'Target files: bin/todo.dart, lib/todo_store.dart',
+        ],
+      ),
+      const <String>['pubspec.yaml', 'bin/todo.dart', 'lib/todo_store.dart'],
+    );
   });
 
   test('writes failure report and full scenario log', () async {
@@ -169,6 +179,8 @@ void main() {
   test('uses logged target files for failure task drift', () async {
     final scenarioDir = Directory('${tempDir.path}/scenario')..createSync();
     File('${scenarioDir.path}/README.md').writeAsStringSync('# Project\n');
+    Directory('${scenarioDir.path}/.cache').createSync();
+    File('${scenarioDir.path}/.cache/state.json').writeAsStringSync('{}');
     final phaseTrace = PlanModePhaseTrace()
       ..proposalReadyAt = DateTime(2026, 5, 12, 12)
       ..taskProposalReadyAt = DateTime(2026, 5, 12, 12, 1);
@@ -262,5 +274,6 @@ PlanModeScenarioSpec _scenario() {
     savedWorkflowExpectation: PlanModeSavedWorkflowExpectation(
       firstTaskTargetFilesContain: <String>['README.md'],
     ),
+    taskDriftExcludedPaths: <String>['.cache/'],
   );
 }

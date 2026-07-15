@@ -135,6 +135,55 @@ void main() {
     expect(File('${tempDir.path}/second.txt').existsSync(), isFalse);
   });
 
+  test('preserves explicit exit status handling after a failure', () async {
+    if (Platform.isWindows) {
+      return;
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp(
+      'local_shell_tools_status_handling_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final raw = await LocalShellTools.execute(
+      command: "sh -c 'exit 7'; test \$? -eq 7",
+      workingDirectory: tempDir.path,
+    );
+
+    final result = jsonDecode(raw) as Map<String, dynamic>;
+    expect(result['exit_code'], 0);
+    expect(result['stderr'], isEmpty);
+  });
+
+  test('preserves explicit or-list recovery after a failure', () async {
+    if (Platform.isWindows) {
+      return;
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp(
+      'local_shell_tools_or_list_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final raw = await LocalShellTools.execute(
+      command: "false || printf 'recovered\\n'",
+      workingDirectory: tempDir.path,
+    );
+
+    final result = jsonDecode(raw) as Map<String, dynamic>;
+    expect(result['exit_code'], 0);
+    expect(result['stdout'], 'recovered\n');
+    expect(result['stderr'], isEmpty);
+  });
+
   test('preserves a newline after a trailing shell comment', () async {
     if (Platform.isWindows) {
       return;
@@ -160,6 +209,35 @@ void main() {
     expect(result['stdout'], isNot(contains('false-green')));
     expect(result['executed_internally'], isNull);
   });
+
+  test(
+    'ignores quoted and commented semicolons when enabling fail-fast',
+    () async {
+      if (Platform.isWindows) {
+        return;
+      }
+
+      final tempDir = await Directory.systemTemp.createTemp(
+        'local_shell_tools_comment_semicolon_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      final raw = await LocalShellTools.execute(
+        command:
+            "printf ';\\n' # comment ; not a command\nfalse\nprintf 'false-green\\n'",
+        workingDirectory: tempDir.path,
+      );
+
+      final result = jsonDecode(raw) as Map<String, dynamic>;
+      expect(result['exit_code'], isNot(0));
+      expect(result['stdout'], ';\n');
+      expect(result['stdout'], isNot(contains('false-green')));
+    },
+  );
 
   test('preserves heredoc delimiters and content', () async {
     if (Platform.isWindows) {
