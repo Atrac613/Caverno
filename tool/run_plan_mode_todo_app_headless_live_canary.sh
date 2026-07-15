@@ -12,6 +12,13 @@ REPORT_ROOT="${CAVERNO_PLAN_MODE_TODO_HEADLESS_REPORT_ROOT:-${CAVERNO_LIVE_LLM_C
 RUN_DIR="${REPORT_ROOT}/plan_mode_todo_app_headless_live_canary_$(date +%s)"
 SESSION_LOG_ROOT="${RUN_DIR}/session_logs"
 PLAN_REPORT_ROOT="${RUN_DIR}/plan_mode"
+SUMMARY_PATH="${RUN_DIR}/headless_canary_summary.json"
+
+if command -v fvm >/dev/null 2>&1 && { [[ -f "${ROOT_DIR}/.fvmrc" ]] || [[ -d "${ROOT_DIR}/.fvm" ]]; }; then
+  DART_CMD=(fvm dart)
+else
+  DART_CMD=(dart)
+fi
 
 mkdir -p "${SESSION_LOG_ROOT}" "${PLAN_REPORT_ROOT}"
 
@@ -55,5 +62,11 @@ if quality.get("ready") is not True or blocker_count != 0:
     sys.exit(1)
 PY
 
+"${DART_CMD[@]}" run "${ROOT_DIR}/tool/plan_mode_headless_canary_summary.dart" \
+  --suite-report "${SUITE_REPORT}" \
+  --session-log-root "${SESSION_LOG_ROOT}" \
+  --out "${SUMMARY_PATH}"
+
 echo "Headless TODO app Live canary passed."
 echo "  Report directory: ${RUN_DIR}"
+echo "  Summary: ${SUMMARY_PATH}"

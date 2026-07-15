@@ -21,5 +21,8 @@ void main() {
     expect(runner, contains('reportQualitySummary'));
     expect(runner, contains('blockerCount'));
     expect(runner, contains('quality.get("ready") is not True'));
+    expect(runner, contains('plan_mode_headless_canary_summary.dart'));
+    expect(runner, contains('headless_canary_summary.json'));
+    expect(runner, contains('--session-log-root'));
   });
 }

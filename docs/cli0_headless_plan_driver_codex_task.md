@@ -48,8 +48,9 @@
 - Required behavior: `CAVERNO_PLAN_MODE_DEVICE=headless` runs the selected Plan
   Mode scenario without passing a desktop device to Flutter.
 - Edge cases: Existing macOS and explicit device selection remain unchanged.
-- Failure paths: Unknown runner modes fail before Flutter starts, and endpoint
-  preflight retains its existing exit behavior.
+- Failure paths: Endpoint preflight retains its existing exit behavior. The
+  reserved `headless` value is the only device value routed away from Flutter
+  device selection; other explicit values retain Flutter's device validation.
 - Accessibility, localization, or platform expectations: The headless lane
   preserves the scenario language and exact prompt but has no UI assertions or
   screenshots of its own.
@@ -68,7 +69,26 @@ configured local model and inspect the suite report and session log.
 
 ## Handoff Notes
 
-- Summary: Pending.
-- Tests run: Pending.
-- Coverage or low-coverage notes: Pending.
-- Risks or follow-ups: Pending.
+- Summary: The shared Plan Mode suite now has a no-window test-runner
+  entrypoint, local Hive and SharedPreferences adapters, direct prompt
+  submission, headless plan approval, and a dedicated TODO wrapper. Each Live
+  run writes `headless_canary_summary.json` with duration, tool-loop, recovery,
+  approval-path, drift, quality, and session-log metrics.
+- Tests run: CLI contract docs passed 6 tests; runner/config/summary coverage
+  passed 12 focused tests; `tool/codex_verify.sh` passed generated-file checks,
+  project analysis, and the focused runner tests; deterministic
+  `host_health_scaffold` passed without selecting a desktop device. Live run
+  `plan_mode_todo_app_headless_live_canary_1784121906` passed 1/1 scenarios and
+  its independent TODO post-validator against `qwen3.6-27b-vision`.
+- Coverage or low-coverage notes: The Live summary recorded 384288 ms, eight
+  tool-loop iterations, nine completed tool calls, two successful saved
+  validations, zero tool failures, zero recoveries, one explicit harness plan
+  approval path, zero screenshots, zero app-open markers, zero task drift, and
+  zero report-quality blockers.
+- Risks or follow-ups: This CLI0 lane is intentionally transitional: it runs
+  the shared widget scenario suite under `flutter test`, not a released
+  `caverno` executable or the CLI1 frontend-neutral runtime. Flutter prints an
+  integration-test plugin warning because the wrapper lives outside
+  `integration_test`; the scenario and quality reports remain green. Complete
+  the three-run headless comparison and one macOS comparison before extracting
+  the runtime facade.

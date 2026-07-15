@@ -58,7 +58,7 @@ handoffs can refer to the same unit of work over time.
 | Computer Use | M56 | done | Hand off the approved post-expansion rollout decision to the next user-operated rollout branch. | Use `bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh` for rollout decision handoff evidence. |
 | Remote Coding | RC0 | done | Ship the P0 LAN mobile control safety gate for existing desktop coding projects. | Use `dart run tool/remote_coding_p0_release_gate.dart` before P0 release review. |
 | Remote Coding | RC1 | later | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Keep light manual smoke as sufficient until P1 release evidence becomes a release priority. |
-| Caverno CLI | CLI0 | next | Establish a no-window production-path canary and freeze the terminal execution contract. | Extract a reusable headless driver from the existing Coding and Plan Mode canaries, then compare three headless TODO runs with one macOS app-path run. |
+| Caverno CLI | CLI0 | current | Establish a no-window production-path canary and freeze the terminal execution contract. | The terminal contract and transitional no-window Plan Mode lane are implemented; compare three headless TODO runs with one macOS app-path run. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
@@ -808,7 +808,7 @@ Verification policy:
 
 ### CLI0: Headless Production-Path Baseline And Contract
 
-Status: `next`
+Status: `current`
 
 Scope:
 - Extract a reusable no-window execution driver from the current Coding Live
@@ -834,6 +834,10 @@ Acceptance criteria:
   and reserves Computer Use for a later armed host design.
 
 Current evidence:
+- `docs/caverno_cli_terminal_contract.md`
+- `tool/run_plan_mode_todo_app_headless_live_canary.sh`
+- `tool/canaries/plan_mode_headless_scenario_canary_test.dart`
+- `tool/plan_mode_headless_canary_summary.dart`
 - `tool/run_coding_todo_app_minimal_prompt_live_canary.sh`
 - `tool/canaries/coding_goal_auto_continue_todo_fixture_live_canary_test.dart`
 - `tool/run_plan_mode_todo_app_live_canary.sh`
@@ -842,8 +846,9 @@ Current evidence:
 - `docs/production_path_todo_live_canary_codex_task.md`
 
 Next action:
-- Write the terminal contract and extract the smallest headless Plan Mode
-  driver that can run the existing TODO scenario without a desktop device.
+- Run the TODO scenario three consecutive times through the headless lane,
+  compare one macOS application-path run, and record the remaining composition
+  differences before starting the CLI1 runtime-facade extraction.
 
 ### CLI1: Shared Application Execution Runtime
 
