@@ -20,6 +20,11 @@ PREFLIGHT="${CAVERNO_PLAN_MODE_PREFLIGHT:-1}"
 PREFLIGHT_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS:-5}"
 LOG_TOOL_SCHEMAS="${CAVERNO_LLM_LOG_TOOL_SCHEMAS:-0}"
 REPORT_ROOT="${CAVERNO_PLAN_MODE_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}"
+TEST_TARGET="integration_test/plan_mode_scenario_test.dart"
+
+if [[ "${DEVICE}" == "headless" ]]; then
+  TEST_TARGET="tool/canaries/plan_mode_headless_scenario_canary_test.dart"
+fi
 
 if command -v fvm >/dev/null 2>&1 && { [[ -f "${ROOT_DIR}/.fvmrc" ]] || [[ -d "${ROOT_DIR}/.fvm" ]]; }; then
   FLUTTER_CMD=(fvm flutter)
@@ -31,6 +36,7 @@ echo "Running Plan mode live scenarios"
 echo "  Base URL: ${BASE_URL}"
 echo "  Model: ${MODEL}"
 echo "  Device: ${DEVICE}"
+echo "  Test target: ${TEST_TARGET}"
 echo "  Fail on warnings: ${FAIL_ON_WARNINGS}"
 echo "  Log tool schemas: ${LOG_TOOL_SCHEMAS}"
 echo "  Report root: ${REPORT_ROOT}"
@@ -71,8 +77,13 @@ export CAVERNO_PLAN_MODE_TAGS="${TAGS}"
 export CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS="${FAIL_ON_WARNINGS}"
 export CAVERNO_PLAN_MODE_REPORT_ROOT="${REPORT_ROOT}"
 
-if [[ ${#DART_DEFINES[@]} -gt 0 ]]; then
-  "${FLUTTER_CMD[@]}" test integration_test/plan_mode_scenario_test.dart -d "${DEVICE}" -r "${REPORTER}" "${DART_DEFINES[@]}"
-else
-  "${FLUTTER_CMD[@]}" test integration_test/plan_mode_scenario_test.dart -d "${DEVICE}" -r "${REPORTER}"
+FLUTTER_ARGS=(test "${TEST_TARGET}")
+if [[ "${DEVICE}" != "headless" ]]; then
+  FLUTTER_ARGS+=(-d "${DEVICE}")
 fi
+FLUTTER_ARGS+=(-r "${REPORTER}")
+if [[ ${#DART_DEFINES[@]} -gt 0 ]]; then
+  FLUTTER_ARGS+=("${DART_DEFINES[@]}")
+fi
+
+"${FLUTTER_CMD[@]}" "${FLUTTER_ARGS[@]}"

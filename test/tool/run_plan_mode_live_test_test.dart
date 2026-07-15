@@ -111,6 +111,45 @@ void main() {
       final flutterLog = fixture.flutterLog.readAsStringSync();
       expect(flutterLog, isNot(contains('CAVERNO_LLM_LOG_TOOL_SCHEMAS')));
     });
+
+    test('routes headless mode through the no-window canary target', () async {
+      final fixture = _ScriptFixture.create();
+      fixture.writeCurl(exitCode: 99);
+      fixture.writeFlutter();
+
+      final result = await fixture.runLiveHelper(
+        environment: const {
+          'CAVERNO_LLM_BASE_URL': 'http://localhost:65535/v1',
+          'CAVERNO_LLM_API_KEY': 'test-token',
+          'CAVERNO_LLM_MODEL': 'test-model',
+          'CAVERNO_PLAN_MODE_PREFLIGHT': '0',
+          'CAVERNO_PLAN_MODE_DEVICE': 'headless',
+          'CAVERNO_PLAN_MODE_REPORTER': 'json',
+        },
+      );
+
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('Device: headless'));
+      expect(
+        result.stdout,
+        contains(
+          'Test target: '
+          'tool/canaries/plan_mode_headless_scenario_canary_test.dart',
+        ),
+      );
+
+      final flutterLog = fixture.flutterLog.readAsStringSync();
+      expect(
+        flutterLog,
+        contains(
+          'ARGS:test '
+          'tool/canaries/plan_mode_headless_scenario_canary_test.dart '
+          '-r json',
+        ),
+      );
+      expect(flutterLog, isNot(contains(' -d ')));
+      expect(flutterLog, contains('DEVICE:headless'));
+    });
   });
 }
 
@@ -151,6 +190,7 @@ exit $exitCode
   printf 'SCENARIOS:%s\\n' "\${CAVERNO_PLAN_MODE_SCENARIOS:-}"
   printf 'TAGS:%s\\n' "\${CAVERNO_PLAN_MODE_TAGS:-}"
   printf 'FAIL_ON_WARNINGS:%s\\n' "\${CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS:-}"
+  printf 'DEVICE:%s\\n' "\${CAVERNO_PLAN_MODE_DEVICE:-}"
 } > "\${FLUTTER_LOG}"
 exit 0
 ''');

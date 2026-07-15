@@ -17,7 +17,7 @@ Future<void> submitPlanModeScenarioPrompt(
   required PlanModeScenarioTestConfig config,
   required PlanModeScenarioSpec scenario,
 }) async {
-  if (config.usesLiveLlm) {
+  if (config.usesLiveLlm || config.usesHeadlessRunner) {
     unawaited(
       container
           .read(chatNotifierProvider.notifier)

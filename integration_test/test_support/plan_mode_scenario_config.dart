@@ -34,6 +34,8 @@ class PlanModeScenarioTestConfig {
   final String? model;
 
   bool get usesLiveLlm => mode == PlanModeScenarioExecutionMode.live;
+
+  bool get usesHeadlessRunner => deviceName == 'headless';
 }
 
 bool planModeEnvFlagEnabled(Map<String, String> environment, String name) {

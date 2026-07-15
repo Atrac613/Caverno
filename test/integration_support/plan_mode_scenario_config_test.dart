@@ -99,6 +99,20 @@ void main() {
       expect(config.reportRootPath, '/tmp/caverno-qwen-gate');
     });
 
+    test('recognizes the no-window headless runner', () {
+      final config = resolvePlanModeScenarioTestConfig(
+        environment: const {'CAVERNO_PLAN_MODE_DEVICE': 'headless'},
+        defaultDeviceName: 'macos',
+        deterministicScenarios: <PlanModeScenarioSpec>[_scenario('fake')],
+        liveScenarios: <PlanModeScenarioSpec>[_scenario('live')],
+      );
+
+      expect(config.deviceName, 'headless');
+      expect(config.usesHeadlessRunner, isTrue);
+      expect(config.suiteName, 'plan_mode_scenarios_headless');
+      expect(config.reportPrefix, 'plan_mode_suite_headless');
+    });
+
     test('resolves timeout overrides from seconds', () {
       final scenario = _scenario(
         'timeouts',

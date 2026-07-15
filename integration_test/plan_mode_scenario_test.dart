@@ -294,11 +294,11 @@ Future<_ScenarioRunResult> _runScenario({
     tester,
     container,
     timeout: const Duration(seconds: 20),
-    allowArtifactReadyFallback: config.usesLiveLlm,
+    allowArtifactReadyFallback: config.usesLiveLlm || config.usesHeadlessRunner,
   );
   final approvalFallbackDecision = resolvePlanModeApprovalFallbackDecision(
     proposalUiReady: proposalUiReady,
-    usesLiveLlm: config.usesLiveLlm,
+    usesLiveLlm: config.usesLiveLlm || config.usesHeadlessRunner,
   );
   PlanModeHarnessExecutionHandle? harnessExecutionHandle;
   if (approvalFallbackDecision.shouldBypassUi) {
@@ -496,11 +496,13 @@ Future<_ScenarioRunResult> _runScenario({
     appLog('[Scenario] Post-validation passed');
   }
 
-  assertPlanModeUiExpectations(
-    tester,
-    scenario.uiExpectations,
-    PlanModeUiPhase.finalResult,
-  );
+  if (!config.usesHeadlessRunner) {
+    assertPlanModeUiExpectations(
+      tester,
+      scenario.uiExpectations,
+      PlanModeUiPhase.finalResult,
+    );
+  }
 
   assertPlanModeLogExpectations(logs, scenario.logExpectations);
   final warnings = collectPlanModeScenarioWarnings(logs);
@@ -534,16 +536,18 @@ Future<_ScenarioRunResult> _runScenario({
     artifactExpectations: scenario.resolvedArtifactExpectations,
     allowArtifactExpectationFallback: config.usesLiveLlm,
   );
-  await capturePlanModeScenarioScreenshot(
-    usesLiveLlm: config.usesLiveLlm,
-    binding: binding,
-    tester: tester,
-    repaintBoundaryKey: screenshotBoundaryKey,
-    scenarioName: scenario.name,
-    phase: PlanModeScreenshotPhase.completed,
-    outputDirectory: scenarioDir,
-    failureMode: PlanModeScreenshotFailureMode.fail,
-  );
+  if (!config.usesHeadlessRunner) {
+    await capturePlanModeScenarioScreenshot(
+      usesLiveLlm: config.usesLiveLlm,
+      binding: binding,
+      tester: tester,
+      repaintBoundaryKey: screenshotBoundaryKey,
+      scenarioName: scenario.name,
+      phase: PlanModeScreenshotPhase.completed,
+      outputDirectory: scenarioDir,
+      failureMode: PlanModeScreenshotFailureMode.fail,
+    );
+  }
 
   final reportArtifacts = await writePlanModePassedScenarioReport(
     scenario: scenario,
@@ -576,14 +580,17 @@ Future<_ScenarioRunResult> _runScenario({
   );
 }
 
-void main() {
+void main() => registerPlanModeScenarioSuite();
+
+void registerPlanModeScenarioSuite() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   final config = resolvePlanModeScenarioTestConfig();
   final scenarios = config.scenarios;
 
   group(config.suiteName, () {
-    late Box<String> conversationBox;
-    late Box<String> memoryBox;
+    Box<String>? conversationBox;
+    Box<String>? memoryBox;
+    Directory? headlessHiveDirectory;
     late DebugPrintCallback originalDebugPrint;
     late PlanModePlanningReadyObserver planningReadyObserver;
     late List<String> logs;
@@ -604,9 +611,6 @@ void main() {
     });
 
     setUp(() async {
-      await Hive.initFlutter();
-      await EasyLocalization.ensureInitialized();
-
       logs = <String>[];
       planningReadyObserver = PlanModePlanningReadyObserver(logs: logs);
       originalDebugPrint = debugPrint;
@@ -618,6 +622,17 @@ void main() {
         originalDebugPrint(message, wrapWidth: wrapWidth);
       };
 
+      if (config.usesHeadlessRunner) {
+        headlessHiveDirectory = await Directory.systemTemp.createTemp(
+          'caverno_plan_mode_headless_hive_',
+        );
+        Hive.init(headlessHiveDirectory!.path);
+        SharedPreferences.setMockInitialValues(const <String, Object>{});
+      } else {
+        await Hive.initFlutter();
+      }
+      await EasyLocalization.ensureInitialized();
+
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       conversationBox = await Hive.openBox<String>('plan_mode_conv_$timestamp');
       memoryBox = await Hive.openBox<String>('plan_mode_mem_$timestamp');
@@ -626,8 +641,15 @@ void main() {
     tearDown(() async {
       debugPrint = originalDebugPrint;
       planningReadyObserver.clear();
-      await conversationBox.close();
-      await memoryBox.close();
+      await conversationBox?.close();
+      await memoryBox?.close();
+      conversationBox = null;
+      memoryBox = null;
+      final hiveDirectory = headlessHiveDirectory;
+      headlessHiveDirectory = null;
+      if (hiveDirectory != null && hiveDirectory.existsSync()) {
+        hiveDirectory.deleteSync(recursive: true);
+      }
     });
 
     tearDownAll(() async {
@@ -681,8 +703,8 @@ void main() {
           final scenarioRun = _runScenario(
             tester: tester,
             binding: binding,
-            conversationBox: conversationBox,
-            memoryBox: memoryBox,
+            conversationBox: conversationBox!,
+            memoryBox: memoryBox!,
             logs: logs,
             config: config,
             scenario: scenario,
