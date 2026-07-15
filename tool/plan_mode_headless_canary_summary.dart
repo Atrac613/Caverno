@@ -41,6 +41,8 @@ Map<String, Object?> buildPlanModeHeadlessCanarySummary({
     'schemaVersion': 1,
     'generatedAt': generatedAt.toUtc().toIso8601String(),
     'surface': 'plan_mode_headless',
+    'baseUrl': suiteReport['baseUrl'],
+    'model': suiteReport['model'],
     'scenario': scenario['scenario'],
     'status': scenario['status'],
     'startedAt': scenario['startedAt'],

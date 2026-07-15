@@ -6,6 +6,8 @@ void main() {
   test('summarizes headless execution and report quality metrics', () {
     final summary = buildPlanModeHeadlessCanarySummary(
       suiteReport: <String, dynamic>{
+        'baseUrl': 'http://127.0.0.1:1234/v1',
+        'model': 'test-model',
         'reportQualitySummary': <String, dynamic>{
           'ready': true,
           'blockerCount': 0,
@@ -42,6 +44,8 @@ void main() {
 
     expect(summary['schemaVersion'], 1);
     expect(summary['surface'], 'plan_mode_headless');
+    expect(summary['baseUrl'], 'http://127.0.0.1:1234/v1');
+    expect(summary['model'], 'test-model');
     expect(summary['status'], 'passed');
     expect(summary['durationMs'], 60000);
     expect(summary['reportQualityReady'], isTrue);
