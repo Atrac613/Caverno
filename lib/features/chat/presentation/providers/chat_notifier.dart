@@ -2351,11 +2351,14 @@ class ChatNotifier extends Notifier<ChatState> {
               : state.messages)
         : (_activeResponseMessagesForGeneration(interactionGeneration) ??
               state.messages);
-    final messages = sourceMessages
-        .where((m) => !m.isStreaming)
-        .map(_sanitizeMessageForModelHistory)
-        .where(_shouldKeepMessageForModelHistory)
-        .toList();
+    final messages =
+        ConversationPlanExecutionCoordinator.filterSupersededTaskExecutionTurns(
+              messages: sourceMessages.where((message) => !message.isStreaming),
+              currentExecutionPrompt: _hiddenPrompt?.content,
+            )
+            .map(_sanitizeMessageForModelHistory)
+            .where(_shouldKeepMessageForModelHistory)
+            .toList();
     final modelSwitchHandoffBrief = _takePendingModelSwitchHandoffBrief(
       currentConversation?.id,
     );

@@ -68,6 +68,111 @@ void main() {
     expect(prompt, contains('Reply with the implementation result.'));
   });
 
+  test('filterSupersededTaskExecutionTurns removes stale task control turns', () {
+    final timestamp = DateTime(2026, 7, 15, 23, 30);
+    final messages = <Message>[
+      Message(
+        id: 'request',
+        content: 'Build the requested CLI.',
+        role: MessageRole.user,
+        timestamp: timestamp,
+      ),
+      Message(
+        id: 'task-1-prompt',
+        content:
+            'Use the approved saved task now: Create the scaffold\n'
+            'Saved task ID: task-1\n'
+            'Work only on this saved task.',
+        role: MessageRole.user,
+        timestamp: timestamp,
+      ),
+      Message(
+        id: 'task-1-response',
+        content: 'The scaffold is complete.',
+        role: MessageRole.assistant,
+        timestamp: timestamp,
+      ),
+      Message(
+        id: 'unrelated-user',
+        content: 'Keep the implementation portable.',
+        role: MessageRole.user,
+        timestamp: timestamp,
+      ),
+    ];
+
+    final filtered =
+        ConversationPlanExecutionCoordinator.filterSupersededTaskExecutionTurns(
+          messages: messages,
+          currentExecutionPrompt:
+              'The saved task stalled without any concrete tool call.\n'
+              'Saved task ID: task-2',
+        );
+
+    expect(filtered.map((message) => message.id), [
+      'request',
+      'unrelated-user',
+    ]);
+  });
+
+  test('filterSupersededTaskExecutionTurns keeps the active task turn', () {
+    final timestamp = DateTime(2026, 7, 15, 23, 30);
+    final messages = <Message>[
+      Message(
+        id: 'task-2-prompt',
+        content:
+            'Use the approved saved task now: Implement the CLI\n'
+            'Saved task ID: task-2',
+        role: MessageRole.user,
+        timestamp: timestamp,
+      ),
+      Message(
+        id: 'task-2-response',
+        content: 'Reading the current implementation.',
+        role: MessageRole.assistant,
+        timestamp: timestamp,
+      ),
+    ];
+
+    final filtered =
+        ConversationPlanExecutionCoordinator.filterSupersededTaskExecutionTurns(
+          messages: messages,
+          currentExecutionPrompt:
+              'The previous saved task is complete. Continue immediately '
+              'with the next pending saved task without asking for '
+              'confirmation.\nNext task ID: task-2',
+        );
+
+    expect(filtered.map((message) => message.id), [
+      'task-2-prompt',
+      'task-2-response',
+    ]);
+  });
+
+  test(
+    'filterSupersededTaskExecutionTurns leaves normal hidden prompts unchanged',
+    () {
+      final timestamp = DateTime(2026, 7, 15, 23, 30);
+      final messages = <Message>[
+        Message(
+          id: 'task-1-prompt',
+          content:
+              'Use the approved saved task now: Create the scaffold\n'
+              'Saved task ID: task-1',
+          role: MessageRole.user,
+          timestamp: timestamp,
+        ),
+      ];
+
+      final filtered =
+          ConversationPlanExecutionCoordinator.filterSupersededTaskExecutionTurns(
+            messages: messages,
+            currentExecutionPrompt: 'Continue the voice conversation.',
+          );
+
+      expect(filtered.single.id, 'task-1-prompt');
+    },
+  );
+
   test('buildBlockedTaskReplanContext preserves unrelated task ids', () {
     final conversation = Conversation(
       id: 'conversation-1',

@@ -1,8 +1,80 @@
 import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
+import '../entities/message.dart';
 
 class ConversationPlanExecutionCoordinator {
   ConversationPlanExecutionCoordinator._();
+
+  static List<Message> filterSupersededTaskExecutionTurns({
+    required Iterable<Message> messages,
+    required String? currentExecutionPrompt,
+  }) {
+    final currentTaskId = _taskIdFromExecutionPrompt(currentExecutionPrompt);
+    if (currentTaskId == null) {
+      return messages.toList(growable: false);
+    }
+
+    final filtered = <Message>[];
+    var dropAssistantResponsesForSupersededTask = false;
+    for (final message in messages) {
+      if (message.role == MessageRole.user) {
+        final promptTaskId = _taskIdFromExecutionPrompt(message.content);
+        dropAssistantResponsesForSupersededTask =
+            _isInternalTaskExecutionPrompt(message.content) &&
+            promptTaskId != null &&
+            promptTaskId != currentTaskId;
+        if (!dropAssistantResponsesForSupersededTask) {
+          filtered.add(message);
+        }
+        continue;
+      }
+
+      if (message.role == MessageRole.assistant &&
+          dropAssistantResponsesForSupersededTask) {
+        continue;
+      }
+      filtered.add(message);
+    }
+    return filtered.toList(growable: false);
+  }
+
+  static String? _taskIdFromExecutionPrompt(String? prompt) {
+    final normalizedPrompt = prompt?.trim() ?? '';
+    if (normalizedPrompt.isEmpty) {
+      return null;
+    }
+    for (final label in const ['Next task ID:', 'Saved task ID:']) {
+      final match = RegExp(
+        '^${RegExp.escape(label)}\\s*(\\S+)\\s*\$',
+        multiLine: true,
+      ).firstMatch(normalizedPrompt);
+      final taskId = match?.group(1)?.trim();
+      if (taskId != null && taskId.isNotEmpty) {
+        return taskId;
+      }
+    }
+    return null;
+  }
+
+  static bool _isInternalTaskExecutionPrompt(String prompt) {
+    final normalizedPrompt = prompt.trim();
+    return normalizedPrompt.startsWith('Use the approved saved task now:') ||
+        normalizedPrompt.startsWith(
+          'The previous saved task is complete. Continue immediately with the next pending saved task',
+        ) ||
+        normalizedPrompt.startsWith(
+          'The saved task stalled without any concrete tool call',
+        ) ||
+        normalizedPrompt.startsWith(
+          'The saved verification task stalled before running its concrete check',
+        ) ||
+        normalizedPrompt.startsWith(
+          'The saved validation command already failed for the current task',
+        ) ||
+        normalizedPrompt.startsWith(
+          'The scaffold task already created some target files but is still incomplete',
+        );
+  }
 
   static String buildTaskPrompt({
     required ConversationWorkflowTask task,
