@@ -169,6 +169,9 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
         _hasUnexecutedFileSideEffectResult(toolResults)) {
       return false;
     }
+    if (_toolResultsContainSuccessfulCurrentSavedValidation(toolResults)) {
+      return true;
+    }
     if (!_hasSuccessfulFinalAnswerToolEvidence(toolResults)) {
       return false;
     }

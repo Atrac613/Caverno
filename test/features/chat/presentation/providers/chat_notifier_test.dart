@@ -11506,6 +11506,119 @@ with open(path, "rb") as file:
     },
   );
 
+  test('sendMessage trusts saved validation over future-action phrasing', () async {
+    final conversation = Conversation(
+      id: 'conversation-saved-validation-terminal',
+      title: 'Plan thread',
+      messages: const <Message>[],
+      createdAt: DateTime(2026, 7, 16),
+      updatedAt: DateTime(2026, 7, 16, 0, 5),
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+      workflowStage: ConversationWorkflowStage.implement,
+      workflowSpec: const ConversationWorkflowSpec(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-readme',
+            title: 'Create README.md with project description',
+            targetFiles: ['README.md'],
+            validationCommand: 'ls README.md',
+            status: ConversationWorkflowTaskStatus.inProgress,
+          ),
+        ],
+      ),
+    );
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-write',
+          name: 'write_file',
+          arguments: const {'path': 'README.md', 'content': '# Host health\n'},
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: '',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-validate',
+              name: 'local_execute_command',
+              arguments: const {
+                'command': 'ls README.md',
+                'working_directory': '/tmp',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content:
+              'The saved validation passed. I will check the completed result below.',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content: 'This recovery must not run.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-read-after-success',
+              name: 'read_file',
+              arguments: const {'path': 'README.md'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+      ],
+      finalAnswerChunks: const ['This final answer should never be requested.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'write_file': '{"path":"/tmp/README.md","bytes_written":14}',
+        'local_execute_command':
+            '{"command":"ls README.md","exit_code":0,"stdout":"README.md\\n","stderr":""}',
+        'read_file': '{"path":"/tmp/README.md","content":"# Host health"}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          () => _WorkflowTestConversationsNotifier(conversation),
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          _TestCodingProjectsNotifier.new,
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Create the README first');
+
+      expect(toolService.executedToolNames, [
+        'write_file',
+        'local_execute_command',
+        ]);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(toolDataSource.toolResultToolDefinitionCounts.last, 0);
+      } finally {
+      toolContainer.dispose();
+    }
+  });
+
   test(
     'sendMessage rejects modified saved validation commands and recovers',
     () async {
