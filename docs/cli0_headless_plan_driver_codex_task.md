@@ -75,7 +75,7 @@ configured local model and inspect the suite report and session log.
   run writes `headless_canary_summary.json` with duration, tool-loop, recovery,
   approval-path, drift, quality, and session-log metrics.
 - Tests run: CLI contract docs passed 6 tests; runner/config/summary coverage
-  passed 12 focused tests; `tool/codex_verify.sh` passed generated-file checks,
+  passed 14 focused tests; `tool/codex_verify.sh` passed generated-file checks,
   project analysis, and the focused runner tests; deterministic
   `host_health_scaffold` passed without selecting a desktop device. Live run
   `plan_mode_todo_app_headless_live_canary_1784121906` passed 1/1 scenarios and
