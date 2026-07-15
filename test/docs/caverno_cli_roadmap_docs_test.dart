@@ -5,9 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('Caverno CLI roadmap', () {
     late String roadmap;
+    late String terminalContract;
 
     setUpAll(() {
       roadmap = File('docs/roadmap.md').readAsStringSync();
+      terminalContract = File(
+        'docs/caverno_cli_terminal_contract.md',
+      ).readAsStringSync();
     });
 
     test('registers the CLI track and phased milestones', () {
@@ -66,6 +70,35 @@ void main() {
         roadmap,
         contains('Release artifacts run without a Flutter test runner'),
       );
+    });
+
+    test('freezes the CLI0 terminal input and output contract', () {
+      expect(terminalContract, contains('caverno chat [input options]'));
+      expect(terminalContract, contains('caverno coding --project <path>'));
+      expect(terminalContract, contains('caverno plan --project <path>'));
+      expect(terminalContract, contains('Configuration Precedence'));
+      expect(terminalContract, contains('`schema`: `caverno_cli_event`'));
+      expect(terminalContract, contains('`schemaVersion`: `1`'));
+      expect(terminalContract, contains('| `130` |'));
+    });
+
+    test('freezes fail-closed non-TTY and cancellation behavior', () {
+      expect(
+        terminalContract,
+        contains('Non-TTY mode fails closed when an action requires approval'),
+      );
+      expect(
+        terminalContract,
+        allOf(
+          contains('the absence of a GUI'),
+          contains('never grants approval'),
+        ),
+      );
+      expect(
+        terminalContract,
+        contains('Computer Use is unavailable from the headless CLI'),
+      );
+      expect(terminalContract, contains('SIGINT stops new LLM and tool work'));
     });
   });
 }
