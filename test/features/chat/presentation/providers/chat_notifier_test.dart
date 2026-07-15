@@ -11510,6 +11510,176 @@ with open(path, "rb") as file:
     },
   );
 
+  test(
+    'sendMessage keeps tools available when saved validation output fails',
+    () async {
+      const validationCommand =
+          'dart run bin/todo.dart done 999; test \$? -ne 0';
+      final conversation = Conversation(
+        id: 'conversation-output-guarded-validation',
+        title: 'Plan thread',
+        messages: const <Message>[],
+        createdAt: DateTime(2026, 7, 16),
+        updatedAt: DateTime(2026, 7, 16, 0, 5),
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-todo',
+              title: 'Handle an unknown task ID',
+              targetFiles: ['bin/todo.dart'],
+              validationCommand: validationCommand,
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+          ],
+        ),
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-write-initial',
+            name: 'write_file',
+            arguments: const {
+              'path': 'bin/todo.dart',
+              'content': 'void main() {}\n',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Run the saved validation.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-validate-failing-output',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': validationCommand,
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Repair the unhandled exception.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-write-repair',
+                name: 'write_file',
+                arguments: const {
+                  'path': 'bin/todo.dart',
+                  'content': 'void main() { print("Task not found"); }\n',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Rerun the saved validation after the repair.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-validate-repaired-output',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': validationCommand,
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The repaired saved validation passed.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file': '{"path":"/tmp/bin/todo.dart","bytes_written":1}',
+          'local_execute_command':
+              '{"command":"$validationCommand","exit_code":0,"stdout":"Task not found\\n","stderr":""}',
+        },
+        queuedResults: const {
+          'write_file': [
+            '{"path":"/tmp/bin/todo.dart","bytes_written":15}',
+            '{"path":"/tmp/bin/todo.dart","bytes_written":39}',
+          ],
+          'local_execute_command': [
+            '{"command":"$validationCommand","exit_code":0,"stdout":"","stderr":"Unhandled exception:\\nBad state: Task 999 not found\\n"}',
+            '{"command":"$validationCommand","exit_code":0,"stdout":"Task not found\\n","stderr":""}',
+          ],
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            () => _WorkflowTestConversationsNotifier(conversation),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          codingDiagnosticFeedbackServiceProvider.overrideWithValue(
+            _FakeCodingDiagnosticFeedbackService(null),
+          ),
+          codingVerificationFeedbackServiceProvider.overrideWithValue(
+            _FakeCodingVerificationFeedbackService(null),
+          ),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Fix the unknown ID behavior');
+
+        expect(toolService.executedToolNames, [
+          'write_file',
+          'local_execute_command',
+          'write_file',
+          'local_execute_command',
+        ]);
+        expect(
+          toolDataSource.toolResultBatches[1].map((result) => result.name),
+          [
+            'local_execute_command',
+            CodingCommandOutputGuardrailService.toolName,
+          ],
+        );
+        expect(
+          toolDataSource.toolResultToolDefinitionCounts[1],
+          greaterThan(0),
+        );
+        expect(toolDataSource.toolResultToolDefinitionCounts.last, 0);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('repaired saved validation passed'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
   test('sendMessage accepts localized saved validation completion', () async {
     final conversation = Conversation(
       id: 'conversation-saved-validation-terminal',

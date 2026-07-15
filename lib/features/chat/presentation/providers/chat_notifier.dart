@@ -5191,6 +5191,13 @@ class ChatNotifier extends Notifier<ChatState> {
     List<ToolResultInfo> toolResults,
   ) {
     for (final result in toolResults) {
+      if (result.name == CodingCommandOutputGuardrailService.toolName) {
+        final payload = _tryDecodeMap(result.result);
+        if (payload?['success'] == false ||
+            payload?['validation_status'] == 'failed') {
+          return true;
+        }
+      }
       final effect = const ToolCapabilityClassifier()
           .classify(result.name, arguments: result.arguments)
           .commandEffect;
