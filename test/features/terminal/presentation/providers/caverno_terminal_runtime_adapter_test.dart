@@ -92,6 +92,8 @@ void main() {
 
   test('waits for pending persistence before closing the runtime', () async {
     final testNotifier = notifier as _TerminalTestChatNotifier;
+    await adapter.resolveApproval(id: 'missing', approved: false);
+    final runtimeSubscription = adapter.events.listen((_) {});
     final runtime = container.read(cavernoExecutionRuntimeProvider);
 
     final closeFuture = adapter.close();
@@ -101,7 +103,33 @@ void main() {
     testNotifier.completePendingPersistence();
     await closeFuture;
     expect(runtime.isClosed, isTrue);
+    await runtimeSubscription.cancel();
   });
+
+  test(
+    'closing an unused adapter does not initialize the chat runtime',
+    () async {
+      var buildCount = 0;
+      final lazyContainer = ProviderContainer(
+        overrides: [
+          chatNotifierProvider.overrideWith(
+            () => _CountingChatNotifier(() {
+              buildCount += 1;
+            }),
+          ),
+        ],
+      );
+      final lazyAdapter = CavernoTerminalRuntimeAdapter(
+        container: lazyContainer,
+        environment: const <String, String>{},
+      );
+
+      await lazyAdapter.close();
+
+      expect(buildCount, 0);
+      lazyContainer.dispose();
+    },
+  );
 }
 
 final class _TerminalTestChatNotifier extends ChatNotifier {
@@ -117,5 +145,17 @@ final class _TerminalTestChatNotifier extends ChatNotifier {
     if (!_pendingPersistence.isCompleted) {
       _pendingPersistence.complete();
     }
+  }
+}
+
+final class _CountingChatNotifier extends ChatNotifier {
+  _CountingChatNotifier(this.onBuild);
+
+  final void Function() onBuild;
+
+  @override
+  ChatState build() {
+    onBuild();
+    return ChatState.initial();
   }
 }

@@ -25,9 +25,33 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
 
   final ProviderContainer container;
   final Map<String, String> environment;
+  CavernoExecutionRuntime? _resolvedRuntime;
+  ChatNotifier? _resolvedChatNotifier;
 
-  CavernoExecutionRuntime get _runtime =>
-      container.read(cavernoExecutionRuntimeProvider);
+  CavernoExecutionRuntime get _runtime {
+    final resolved = _resolvedRuntime;
+    if (resolved != null) {
+      return resolved;
+    }
+    final created = container.read(cavernoExecutionRuntimeProvider);
+    _resolvedRuntime = created;
+    return created;
+  }
+
+  ChatNotifier get _chatNotifier {
+    final resolved = _resolvedChatNotifier;
+    if (resolved != null) {
+      return resolved;
+    }
+    final created = container.read(chatNotifierProvider.notifier);
+    _resolvedChatNotifier = created;
+    return created;
+  }
+
+  ChatState get _chatState {
+    _chatNotifier;
+    return container.read(chatNotifierProvider);
+  }
 
   @override
   Stream<CavernoRuntimeEvent> get events => _runtime.events;
@@ -111,9 +135,7 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
     required CavernoCliInvocation invocation,
     required String prompt,
   }) {
-    return container
-        .read(chatNotifierProvider.notifier)
-        .sendMessage(prompt, languageCode: 'en');
+    return _chatNotifier.sendMessage(prompt, languageCode: 'en');
   }
 
   @override
@@ -121,8 +143,8 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
     required String id,
     required bool approved,
   }) async {
-    final state = container.read(chatNotifierProvider);
-    final notifier = container.read(chatNotifierProvider.notifier);
+    final state = _chatState;
+    final notifier = _chatNotifier;
     if (state.pendingLocalCommand?.id == id) {
       notifier.resolveLocalCommand(
         id: id,
@@ -151,8 +173,8 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
 
   @override
   Future<void> resolveQuestion({required String id, String? answer}) async {
-    final state = container.read(chatNotifierProvider);
-    final notifier = container.read(chatNotifierProvider.notifier);
+    final state = _chatState;
+    final notifier = _chatNotifier;
     final pendingQuestion = state.pendingAskUserQuestion;
     if (pendingQuestion?.id == id) {
       notifier.resolveAskUserQuestion(
@@ -177,7 +199,7 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
     required String message,
     required int exitCode,
   }) async {
-    container.read(chatNotifierProvider.notifier).cancelStreaming();
+    _chatNotifier.cancelStreaming();
     _runtime.terminateActiveTurns(
       code: code,
       message: message,
@@ -196,10 +218,8 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
 
   @override
   Future<void> close() async {
-    await container
-        .read(chatNotifierProvider.notifier)
-        .flushPendingPersistence();
-    await _runtime.close();
+    await _resolvedChatNotifier?.flushPendingPersistence();
+    await _resolvedRuntime?.close();
   }
 
   String _firstNonEmpty(List<String?> candidates) {

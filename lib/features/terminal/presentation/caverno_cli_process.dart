@@ -7,17 +7,20 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/build_info.dart';
+import '../../chat/application/persistence/caverno_persistence_bootstrap.dart';
 import '../../chat/application/runtime/caverno_runtime_event.dart';
 import '../../chat/data/repositories/chat_memory_repository.dart';
 import '../../chat/data/repositories/conversation_repository.dart';
 import '../../chat/data/repositories/skill_repository.dart';
 import '../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
+import '../../chat/presentation/providers/semantic_search_provider.dart';
 import '../../settings/data/settings_repository.dart';
 import '../../settings/presentation/providers/settings_notifier.dart';
 import '../application/caverno_cli_application.dart';
 import '../application/caverno_cli_arguments.dart';
 import '../application/caverno_cli_contract.dart';
 import '../application/caverno_cli_input.dart';
+import '../application/caverno_cli_persistence.dart';
 import 'caverno_cli_redactor.dart';
 import 'caverno_terminal_presenter.dart';
 import 'providers/caverno_terminal_runtime_adapter.dart';
@@ -66,29 +69,50 @@ Future<int> runCavernoCliProcess(
     invocation.dataDirectory,
     resolvedEnvironment['CAVERNO_HOME'],
   ]);
+  final resolvedDataDirectory = dataDirectory.isEmpty
+      ? null
+      : Directory(dataDirectory).absolute;
   Box<String>? conversationBox;
   Box<String>? memoryBox;
   Box<String>? skillBox;
+  Box<bool>? migrationBox;
+  CavernoPersistenceStorage? persistenceStorage;
   ProviderContainer? container;
   try {
-    if (dataDirectory.isEmpty) {
+    if (resolvedDataDirectory == null) {
       await Hive.initFlutter();
     } else {
-      final directory = Directory(dataDirectory).absolute;
-      await directory.create(recursive: true);
-      Hive.init(directory.path);
+      await resolvedDataDirectory.create(recursive: true);
+      Hive.init(resolvedDataDirectory.path);
     }
     conversationBox = await Hive.openBox<String>('conversations');
     memoryBox = await Hive.openBox<String>('chat_memory');
     skillBox = await Hive.openBox<String>('skills');
+    if (resolvedDataDirectory != null) {
+      migrationBox = await Hive.openBox<bool>(cavernoCliMigrationBoxName);
+    }
     final preferences = await SharedPreferences.getInstance();
     final persistedApiKey = SettingsRepository(preferences).load().apiKey;
+    persistenceStorage = await openCavernoCliPersistence(
+      dataDirectory: resolvedDataDirectory,
+      preferences: preferences,
+      conversationBox: conversationBox,
+      memoryBox: memoryBox,
+      migrationBox: migrationBox,
+    );
     container = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(preferences),
         conversationBoxProvider.overrideWithValue(conversationBox),
         chatMemoryBoxProvider.overrideWithValue(memoryBox),
         skillBoxProvider.overrideWithValue(skillBox),
+        conversationRepositoryProvider.overrideWithValue(
+          persistenceStorage.conversationRepository,
+        ),
+        chatMemoryRepositoryProvider.overrideWithValue(
+          persistenceStorage.chatMemoryRepository,
+        ),
+        appDatabaseProvider.overrideWithValue(persistenceStorage.database),
         cavernoRuntimeSurfaceProvider.overrideWithValue(
           CavernoRuntimeSurface.terminal,
         ),
@@ -96,9 +120,9 @@ Future<int> runCavernoCliProcess(
             .overrideWithValue(<String, String>{
               'approvalMode': 'manual',
               'outputMode': invocation.outputMode.name,
-              'dataDirectory': dataDirectory.isEmpty
+              'dataDirectory': resolvedDataDirectory == null
                   ? 'application_default'
-                  : Directory(dataDirectory).absolute.path,
+                  : resolvedDataDirectory.path,
             }),
       ],
     );
@@ -148,6 +172,8 @@ Future<int> runCavernoCliProcess(
     return exitCode;
   } finally {
     container?.dispose();
+    await persistenceStorage?.close();
+    await migrationBox?.close();
     await skillBox?.close();
     await memoryBox?.close();
     await conversationBox?.close();

@@ -8,6 +8,9 @@ import '../../data/repositories/drift_conversation_repository.dart';
 import '../../data/repositories/key_value_store.dart';
 import '../../domain/entities/conversation.dart';
 
+const cavernoConversationsMigrationKey = 'f4_conversations_migrated_v1';
+const cavernoChatMemoryMigrationKey = 'f4_chat_memory_migrated_v1';
+
 typedef CavernoAppDatabaseOpener = Future<AppDatabase> Function();
 typedef CavernoAppDatabaseCloser = Future<void> Function(AppDatabase database);
 typedef LegacyConversationReader = Future<List<Conversation>> Function();

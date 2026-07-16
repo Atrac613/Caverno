@@ -108,9 +108,6 @@ Future<void> main(List<String> arguments) async {
   );
 }
 
-const _conversationsMigratedKey = 'f4_conversations_migrated_v1';
-const _chatMemoryMigratedKey = 'f4_chat_memory_migrated_v1';
-
 /// F4: open the drift database, run the one-time Hive->drift migrations, and
 /// return the drift-backed repositories to serve conversations and chat memory.
 /// On any failure returns null so the app keeps using the Hive-backed providers
@@ -123,18 +120,19 @@ Future<CavernoPersistenceStorage?> _initDriftStorage({
   try {
     return await const CavernoPersistenceBootstrap().open(
       openDatabase: openAppDatabase,
-      conversationsMigrated: prefs.getBool(_conversationsMigratedKey) ?? false,
-      chatMemoryMigrated: prefs.getBool(_chatMemoryMigratedKey) ?? false,
+      conversationsMigrated:
+          prefs.getBool(cavernoConversationsMigrationKey) ?? false,
+      chatMemoryMigrated: prefs.getBool(cavernoChatMemoryMigrationKey) ?? false,
       readLegacyConversations: () async =>
           ConversationRepository(conversationBox).getAll(),
       readLegacyChatMemory: () async => {
         for (final key in memoryBox.keys) key.toString(): ?memoryBox.get(key),
       },
       markConversationsMigrated: () async {
-        await prefs.setBool(_conversationsMigratedKey, true);
+        await prefs.setBool(cavernoConversationsMigrationKey, true);
       },
       markChatMemoryMigrated: () async {
-        await prefs.setBool(_chatMemoryMigratedKey, true);
+        await prefs.setBool(cavernoChatMemoryMigrationKey, true);
       },
     );
   } catch (error, stackTrace) {
