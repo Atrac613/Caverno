@@ -5,8 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
-import 'package:caverno/features/chat/application/runtime/caverno_runtime_event.dart';
-import 'package:caverno/features/chat/application/runtime/caverno_runtime_ports.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';

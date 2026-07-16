@@ -233,6 +233,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "8.12.6"
+  caverno_execution_runtime:
+    dependency: "direct main"
+    description:
+      path: "packages/caverno_execution_runtime"
+      relative: true
+    source: path
+    version: "0.1.0"
   characters:
     dependency: transitive
     description:

@@ -5,10 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/utils/logger.dart';
-import '../../application/runtime/caverno_execution_runtime.dart';
 import '../../application/runtime/caverno_execution_lease.dart';
-import '../../application/runtime/caverno_runtime_event.dart';
-import '../../application/runtime/caverno_runtime_ports.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import 'coding_projects_notifier.dart';
 import 'chat_notifier.dart';

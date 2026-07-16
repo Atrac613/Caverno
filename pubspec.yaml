@@ -33,6 +33,10 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
+  # Shared runtime contract for GUI, headless, and terminal frontends
+  caverno_execution_runtime:
+    path: packages/caverno_execution_runtime
+
   cupertino_icons: ^1.0.9
 
   # Internationalization

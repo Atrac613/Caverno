@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import '../../chat/application/runtime/caverno_runtime_event.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import '../presentation/caverno_cli_redactor.dart';
 import '../presentation/caverno_terminal_presenter.dart';
 import 'caverno_cli_arguments.dart';

@@ -1,4 +1,4 @@
-import '../../chat/application/runtime/caverno_runtime_event.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'caverno_cli_arguments.dart';
 import 'caverno_terminal_interaction_controller.dart';
 

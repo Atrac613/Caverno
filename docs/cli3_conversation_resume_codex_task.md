@@ -83,10 +83,11 @@
 ## Verification
 
 ```bash
+(cd packages/caverno_execution_runtime && \
+  fvm dart test test/caverno_execution_runtime_test.dart)
 tool/codex_verify.sh \
   --test test/features/terminal/application/caverno_cli_arguments_test.dart \
-  --test test/features/terminal/presentation/providers/caverno_terminal_runtime_adapter_test.dart \
-  --test test/features/chat/application/runtime/caverno_execution_runtime_test.dart
+  --test test/features/terminal/presentation/providers/caverno_terminal_runtime_adapter_test.dart
 ```
 
 Then run `tool/codex_verify.sh`, build the Debug macOS application, and execute

@@ -29,7 +29,7 @@ import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
-import 'package:caverno/features/chat/application/runtime/caverno_runtime_event.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';

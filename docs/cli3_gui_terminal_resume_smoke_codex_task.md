@@ -69,10 +69,11 @@
 ## Verification
 
 ```bash
+(cd packages/caverno_execution_runtime && \
+  fvm dart test test/caverno_execution_runtime_test.dart)
 tool/codex_verify.sh \
   --test test/features/terminal/presentation/providers/caverno_gui_terminal_resume_test.dart \
-  --test test/features/terminal/presentation/providers/caverno_terminal_runtime_adapter_test.dart \
-  --test test/features/chat/application/runtime/caverno_execution_runtime_test.dart
+  --test test/features/terminal/presentation/providers/caverno_terminal_runtime_adapter_test.dart
 ```
 
 Then run `tool/codex_verify.sh` and update `docs/roadmap.md` with the verified

@@ -62,11 +62,12 @@ handoffs can refer to the same unit of work over time.
 | Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
 | Caverno CLI | CLI2 | done | Ship the interactive terminal MVP on the shared execution runtime. | Preserve the passing terminal and three-headless-plus-one-macOS parity gates as the CLI2 baseline; keep persistence, resume, and concurrent ownership in CLI3. |
 | Caverno CLI | CLI3 | done | Reuse production persistence and enforce cross-process ownership before conversation resume. | Preserve the persistence, resume, migration-retry, and direct-lock contention gates as the CLI3 baseline. |
-| Caverno CLI | CLI4 | later | Package and release the terminal client with automation-grade diagnostics. | Resume after F5 package-boundary stabilization, then complete the signed macOS doctor and release gates. |
+| Caverno CLI | CLI4 | later | Package and release the terminal client with automation-grade diagnostics. | Resume after the F5 runtime package foundation is merged and the combined root/package gate passes; require the signed packaged doctor for promotion and release. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
 | Foundation | F3 | done | Keep major dependencies current, starting with `openai_dart` 6.x. | `openai_dart` is on 6.2.0; remaining major upgrades (serious_python 2, etc.) are tracked as isolated follow-up slices. |
+| Foundation | F5 | current | Stabilize package boundaries while continuing behavior-preserving large-file decomposition. | Extract the shared pure-Dart execution runtime, enforce one-way package dependencies, and continue ChatPage and MCP decomposition in later slices. |
 | Local LLM | LL1 | done | Route secondary LLM calls (memory extraction, subagents, goal suggestions, approval auto-review) to a configurable small model. | Surface the routing settings in user docs when LL9 model guidance lands. |
 | Local LLM | LL2 | done | Whole-turn file-change checkpoints with one-action revert. | Keep checkpoint store and UI rollback coverage green while using LL2 as the safety net for later agent changes. |
 | Local LLM | LL3 | done | Persist model capability profiles, run bounded probes on model selection, and feed profile guidance into agent prompts. | Use the LL3 profile-injection canary evidence as the baseline for LL4, LL6, LL7, and LL15. |
@@ -117,7 +118,7 @@ handoffs can refer to the same unit of work over time.
 | Fork | FORK2 | later | Coding conversation fork: reproduce the worktree/git + LL2 file state as of the fork point into an isolated worktree/branch (never shared with the parent), with a non-git snapshot fallback. Gated on FORK1 + LL2 + LL13. | Seed a fresh worktree from the parent's turn commit or LL2 checkpoint; carry `projectId`; assign a new `worktreePath`/branch. |
 | Fork | FORK3 | later | Fork-tree navigation and compare: drawer fork tree, jump-to-parent, and parent-vs-fork diff. | Start after FORK1/FORK2 ship; reuse `TurnDiff` rendering for the compare view. |
 
-Remaining Foundation F5/F6 and the future platform vision milestones are
+Foundation F5 and the future platform vision milestones are
 detailed in `docs/local_llm_agent_roadmap.md`. The user-created Tools MVP is
 detailed in `docs/tools_mvp_roadmap.md`. Conversation fork milestones are
 detailed below under "Conversation Fork Track".
@@ -889,11 +890,11 @@ Dependencies:
 
 Evidence:
 - `docs/cli1_shared_execution_runtime_codex_task.md`
-- `lib/features/chat/application/runtime/caverno_execution_runtime.dart`
-- `lib/features/chat/application/runtime/caverno_runtime_event.dart`
-- `lib/features/chat/application/runtime/caverno_runtime_ports.dart`
+- `packages/caverno_execution_runtime/lib/src/caverno_execution_runtime.dart`
+- `packages/caverno_execution_runtime/lib/src/caverno_runtime_event.dart`
+- `packages/caverno_execution_runtime/lib/src/caverno_runtime_ports.dart`
 - `lib/features/chat/presentation/providers/caverno_execution_runtime_provider.dart`
-- `test/features/chat/application/runtime/caverno_execution_runtime_test.dart`
+- `packages/caverno_execution_runtime/test/caverno_execution_runtime_test.dart`
 - `test/features/chat/presentation/providers/chat_notifier_execution_runtime_part.dart`
 - `build/integration_test_reports/cli1_live/plan_mode_todo_app_cli0_comparison_1784149029/headless/`
 - `build/integration_test_reports/cli1_macos_after_harness_fix/plan_mode_todo_app_live_canary_1784152249/plan_mode/plan_mode_live_suite_macos_report.json`
@@ -1155,6 +1156,8 @@ Acceptance criteria:
 
 Dependencies:
 - CLI3 persistence and ownership behavior.
+- The F5 runtime package foundation merged with the combined root and internal-
+  package verification gate passing.
 
 Current evidence:
 - The doctor foundation has argument, configuration, bounded endpoint, model,
@@ -1166,10 +1169,11 @@ Current evidence:
   existing older app bundle.
 
 Next action:
-- Resume after F5 package-boundary stabilization. Restore signing timestamp
-  connectivity, rebuild the macOS app, and run `doctor --json` through the
-  packaged executable with an isolated data root before continuing packaging,
-  shell completion, or platform expansion.
+- Resume CLI4 after the F5 runtime package foundation is merged and the combined
+  root and internal-package gate passes. Restore signing timestamp connectivity,
+  rebuild the macOS app, and run `doctor --json` through the packaged executable
+  with an isolated data root. Treat that signed packaged doctor as a promotion
+  and release gate, not as a prerequisite for starting CLI4 implementation.
 
 ## macOS Computer Use Track
 

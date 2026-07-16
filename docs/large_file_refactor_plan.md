@@ -7,18 +7,24 @@ otherwise.
 
 ## Current Inventory
 
-The live inventory below was refreshed on 2026-07-02 with `wc -l`. Refresh it
+The live inventory below was refreshed on 2026-07-16 with `wc -l`. Refresh it
 again before starting a new refactor branch.
 
 | File | Lines | Primary concern |
 |------|------:|-----------------|
-| `lib/features/chat/presentation/providers/chat_notifier.dart` | 9607 | Chat orchestration, tool loops, memory, workflows, persistence |
-| `lib/features/chat/presentation/pages/chat_page.dart` | 5217 | Chat screen layout, drawers, modals, input wiring, plan UI |
-| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 5260 | Tool registry, MCP execution, built-in tool adapters |
+| `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
+| `lib/features/chat/presentation/pages/chat_page.dart` | 5168 | Chat screen layout, drawers, modals, input wiring, plan UI |
+| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 5269 | Tool registry, MCP execution, built-in tool adapters |
 | `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 3270 | Computer Use settings layout and validation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
 | `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
-| `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18637 | Broad chat orchestration regression coverage |
+| `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18648 | Broad chat orchestration regression coverage |
+
+The primary files understate the effective library size because Dart `part`
+files share private state and compile as one library. Current aggregate sizes
+are 23,005 lines for the ChatNotifier library, 12,774 for the ChatPage library,
+5,612 for the McpToolService library, and 33,189 for the ChatNotifier test
+library. Ratchets must cover both the primary file and its aggregate library.
 
 ## Refactor Rules
 
@@ -32,6 +38,57 @@ again before starting a new refactor branch.
   code or stale imports.
 - Use `tool/codex_verify.sh --coverage` when the slice changes behavior around
   tool execution, Plan Mode, persistence, approval, or recovery.
+
+## Phase 0: Package Boundary Foundation
+
+Goal: use packages to enforce stable reusable boundaries, not to relocate
+application composition or hide large files.
+
+Dependency direction:
+
+```text
+Caverno Flutter application
+  -> internal pure-Dart packages
+  -> external Dart packages
+```
+
+Internal packages must never import `package:caverno`, Flutter, Riverpod,
+storage plugins, or platform plugins. The first package is
+`caverno_execution_runtime`, containing the shared runtime event, ports,
+execution engine, and failure classifier used by GUI and terminal frontends.
+File-backed ownership leases, persistence, Riverpod adapters, and frontend
+composition remain in the application.
+
+Follow-up package candidates require a stable second consumer and an acyclic
+dependency graph. `ChatNotifier`, `ChatPage`, `McpToolService`, and settings or
+debug pages remain application composition and must be decomposed in place.
+
+Exit criteria:
+
+- Package boundaries are checked by an architecture test.
+- Repository verification resolves, analyzes, and tests every internal package.
+- The root application depends on packages in one direction only.
+- Runtime event schemas and frontend behavior remain unchanged.
+
+Foundation status (2026-07-16):
+
+- `packages/caverno_execution_runtime` now owns the shared event, ports,
+  execution engine, and failure classifier behind one public library.
+- The package has no Flutter, Riverpod, storage, platform, or root Caverno
+  dependency. IO ownership and application composition remain in the root app.
+- `test/quality/package_boundary_test.dart` rejects legacy imports, platform
+  dependencies, root-package imports, and relative paths that escape the
+  package.
+- `tool/codex_verify.sh` discovers internal packages and runs dependency
+  resolution, analysis, and tests for each package before root focused tests.
+- The package passed 13 tests; the focused root integration gate passed 32
+  tests; root and package analysis reported no findings.
+
+Next slice:
+
+- Add characterization coverage for the ChatPage workflow execution and
+  recovery paths, then extract the workflow task run coordinator described in
+  Phase 2 Tranche 2.
 
 ## Phase 1: ChatNotifier Decomposition
 

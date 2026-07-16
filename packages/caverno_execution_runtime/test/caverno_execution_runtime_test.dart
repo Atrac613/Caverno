@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'package:caverno/features/chat/application/runtime/caverno_execution_runtime.dart';
-import 'package:caverno/features/chat/application/runtime/caverno_runtime_event.dart';
-import 'package:caverno/features/chat/application/runtime/caverno_runtime_ports.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:test/test.dart';
 
 void main() {

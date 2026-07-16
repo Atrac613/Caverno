@@ -76,9 +76,10 @@
 ## Verification
 
 ```bash
+(cd packages/caverno_execution_runtime && \
+  fvm dart test test/caverno_execution_runtime_test.dart)
 tool/codex_verify.sh \
   --no-codegen \
-  --test test/features/chat/application/runtime/caverno_execution_runtime_test.dart \
   --test test/features/chat/presentation/providers/chat_notifier_test.dart \
   --test test/integration_support/plan_mode_live_harness_execution_test.dart \
   --test test/integration_support/plan_mode_scenario_config_test.dart

@@ -9,24 +9,31 @@ import 'package:flutter_test/flutter_test.dart';
 /// raise a budget to make this test pass; extract code instead, following
 /// docs/large_file_refactor_plan.md.
 ///
-/// NOTE (2026-06-25): chat_page.dart, mcp_tool_service.dart and
-/// chat_notifier_test.dart were already over their previous budgets on main
-/// before this gate ran against them. Their budgets are reconciled here to the
-/// exact current line counts (zero headroom, so the ratchet still blocks any
-/// further growth). Extraction back under the prior budgets is tracked as
-/// follow-up per docs/large_file_refactor_plan.md. chat_notifier.dart was
-/// instead extracted, so its budget is lowered as slices land rather than
-/// reconciled up.
+/// Budgets match the exact 2026-07-16 baseline. Primary-file budgets prevent
+/// local regrowth, while library budgets include declared `part` files so a
+/// move into shared private state cannot hide aggregate growth.
 const Map<String, int> _lineBudgets = {
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 9505,
-  'lib/features/chat/presentation/pages/chat_page.dart': 8297,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 5270,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 9468,
+  'lib/features/chat/presentation/pages/chat_page.dart': 5168,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 5269,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':
-      3300,
-  'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 2900,
-  'lib/features/chat/data/datasources/network_tools.dart': 2600,
+      3270,
+  'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 2864,
+  'lib/features/chat/data/datasources/network_tools.dart': 2578,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 18648,
 };
+
+const Map<String, int> _libraryLineBudgets = {
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 23005,
+  'lib/features/chat/presentation/pages/chat_page.dart': 12774,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 5612,
+  'test/features/chat/presentation/providers/chat_notifier_test.dart': 33189,
+};
+
+final RegExp _partDirectivePattern = RegExp(
+  r"^part\s+'([^']+)';",
+  multiLine: true,
+);
 
 void main() {
   group('file size ratchet', () {
@@ -50,6 +57,49 @@ void main() {
               '${entry.value}. Do not raise the budget. Extract code per '
               'docs/large_file_refactor_plan.md and '
               'docs/local_llm_agent_roadmap.md (F1).',
+        );
+      });
+    }
+
+    for (final entry in _libraryLineBudgets.entries) {
+      test('${entry.key} library stays within ${entry.value} lines', () {
+        final libraryFile = File(entry.key);
+        expect(
+          libraryFile.existsSync(),
+          isTrue,
+          reason: '${entry.key} is budgeted but missing.',
+        );
+
+        final partPaths = _partDirectivePattern
+            .allMatches(libraryFile.readAsStringSync())
+            .map((match) => match.group(1)!)
+            .toList(growable: false);
+        final partFiles = partPaths
+            .map((path) => File('${libraryFile.parent.path}/$path'))
+            .toList(growable: false);
+        final missingParts = partFiles
+            .where((file) => !file.existsSync())
+            .map((file) => file.path)
+            .toList(growable: false);
+
+        expect(
+          missingParts,
+          isEmpty,
+          reason: '${entry.key} declares missing part files.',
+        );
+
+        final lineCount = <File>[
+          libraryFile,
+          ...partFiles,
+        ].fold<int>(0, (total, file) => total + file.readAsLinesSync().length);
+        expect(
+          lineCount,
+          lessThanOrEqualTo(entry.value),
+          reason:
+              '${entry.key} and its declared parts have $lineCount lines, '
+              'over their aggregate ratchet budget of ${entry.value}. '
+              'Extract an independent service or widget instead of adding '
+              'another part file.',
         );
       });
     }

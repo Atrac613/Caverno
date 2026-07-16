@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:caverno/features/chat/application/runtime/caverno_runtime_event.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:caverno/features/terminal/application/caverno_cli_contract.dart';
 import 'package:caverno/features/terminal/presentation/caverno_cli_redactor.dart';
 import 'package:caverno/features/terminal/presentation/caverno_terminal_presenter.dart';

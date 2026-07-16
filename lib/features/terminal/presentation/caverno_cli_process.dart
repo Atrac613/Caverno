@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/build_info.dart';
 import '../../chat/application/persistence/caverno_chat_memory_mutation_coordinator.dart';
 import '../../chat/application/persistence/caverno_persistence_bootstrap.dart';
-import '../../chat/application/runtime/caverno_runtime_event.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import '../../chat/data/datasources/session_logging_chat_datasource.dart';
 import '../../chat/data/repositories/chat_memory_repository.dart';
 import '../../chat/data/repositories/coding_project_repository.dart';

@@ -4,8 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
-import '../../../chat/application/runtime/caverno_execution_runtime.dart';
-import '../../../chat/application/runtime/caverno_runtime_event.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import '../../../chat/domain/entities/conversation.dart';
 import '../../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';

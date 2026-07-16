@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../../chat/application/runtime/caverno_runtime_event.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import '../application/caverno_cli_contract.dart';
 import 'caverno_cli_redactor.dart';
 

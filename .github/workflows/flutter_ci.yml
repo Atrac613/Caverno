@@ -91,11 +91,8 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Analyze project
-        run: flutter analyze
+      - name: Analyze project and internal packages
+        run: bash tool/codex_verify.sh --no-codegen --no-tests
 
   test:
     name: Test

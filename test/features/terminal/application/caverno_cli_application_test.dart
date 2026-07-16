@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:caverno/features/chat/application/runtime/caverno_runtime_event.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:caverno/features/terminal/application/caverno_cli_application.dart';
 import 'package:caverno/features/terminal/application/caverno_cli_arguments.dart';
 import 'package:caverno/features/terminal/application/caverno_cli_contract.dart';

@@ -13,6 +13,7 @@ RUN_TESTS=true
 RUN_COVERAGE=false
 COVERAGE_THRESHOLD=60
 TEST_TARGETS=()
+PACKAGE_DIRS=()
 
 usage() {
   cat <<'EOF'
@@ -95,6 +96,21 @@ run_step() {
   printf ' %q' "$@"
   printf '\n'
   "$@"
+}
+
+run_in_directory_step() {
+  local label="$1"
+  local directory="$2"
+  shift 2
+
+  printf '\n== %s ==\n' "$label"
+  printf '$ cd %q &&' "$directory"
+  printf ' %q' "$@"
+  printf '\n'
+  (
+    cd "$directory"
+    "$@"
+  )
 }
 
 summarize_coverage() {
@@ -180,7 +196,18 @@ summarize_coverage() {
   rm -f "$low_file" "$summary_file" "$total_file"
 }
 
+while IFS= read -r package_pubspec; do
+  PACKAGE_DIRS+=("${package_pubspec%/pubspec.yaml}")
+done < <(find packages -mindepth 2 -maxdepth 2 -name pubspec.yaml -print 2>/dev/null | sort)
+
 run_step "Install dependencies" "${FLUTTER_CMD[@]}" pub get
+
+for package_dir in "${PACKAGE_DIRS[@]}"; do
+  run_in_directory_step \
+    "Install package dependencies: $package_dir" \
+    "$package_dir" \
+    "${DART_CMD[@]}" pub get
+done
 
 if $RUN_CODEGEN; then
   run_step "Regenerate Freezed and JSON files" \
@@ -191,9 +218,22 @@ fi
 
 if $RUN_ANALYZE; then
   run_step "Analyze project" "${FLUTTER_CMD[@]}" analyze
+  for package_dir in "${PACKAGE_DIRS[@]}"; do
+    run_in_directory_step \
+      "Analyze package: $package_dir" \
+      "$package_dir" \
+      "${DART_CMD[@]}" analyze
+  done
 fi
 
 if $RUN_TESTS; then
+  for package_dir in "${PACKAGE_DIRS[@]}"; do
+    run_in_directory_step \
+      "Test package: $package_dir" \
+      "$package_dir" \
+      "${DART_CMD[@]}" test
+  done
+
   if [[ ${#TEST_TARGETS[@]} -gt 0 ]]; then
     if $RUN_COVERAGE; then
       run_step "Run focused tests with coverage" \

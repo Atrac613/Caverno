@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/features/chat/application/runtime/caverno_runtime_failure_classifier.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
+import 'package:test/test.dart';
 
 void main() {
   const classifier = CavernoRuntimeFailureClassifier();
