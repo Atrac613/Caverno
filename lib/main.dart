@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform, exit;
+import 'dart:io' show Directory, File, Platform, exit;
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -16,12 +16,14 @@ import 'core/services/window_settings_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/logger.dart';
 import 'features/chat/application/persistence/caverno_persistence_bootstrap.dart';
+import 'features/chat/application/persistence/caverno_chat_memory_mutation_coordinator.dart';
 import 'features/chat/data/datasources/app_database.dart';
 import 'features/chat/data/repositories/chat_memory_repository.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
 import 'features/chat/data/repositories/skill_repository.dart';
 import 'features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'features/chat/presentation/pages/chat_page.dart';
+import 'features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'features/chat/presentation/providers/semantic_search_provider.dart';
 import 'features/maintenance/presentation/providers/maintenance_scheduler_provider.dart';
 import 'features/settings/data/settings_repository.dart';
@@ -47,6 +49,7 @@ Future<void> main(List<String> arguments) async {
   final skillBox = await Hive.openBox<String>('skills');
 
   final prefs = await SharedPreferences.getInstance();
+  final dataRoot = await resolveCavernoDataRoot();
 
   // F4: migrate conversations and chat memory from Hive to drift/SQLite and
   // serve them from drift. Any failure degrades to the existing Hive path, so
@@ -56,6 +59,7 @@ Future<void> main(List<String> arguments) async {
     prefs: prefs,
     conversationBox: conversationBox,
     memoryBox: memoryBox,
+    dataRoot: dataRoot,
   );
 
   final initialSettings = SettingsRepository(prefs).load();
@@ -92,6 +96,7 @@ Future<void> main(List<String> arguments) async {
           conversationBoxProvider.overrideWithValue(conversationBox),
           chatMemoryBoxProvider.overrideWithValue(memoryBox),
           skillBoxProvider.overrideWithValue(skillBox),
+          cavernoRuntimeDataRootProvider.overrideWithValue(dataRoot),
           if (driftStorage != null) ...[
             conversationRepositoryProvider.overrideWithValue(
               driftStorage.conversationRepository,
@@ -116,10 +121,13 @@ Future<CavernoPersistenceStorage?> _initDriftStorage({
   required SharedPreferences prefs,
   required Box<String> conversationBox,
   required Box<String> memoryBox,
+  required Directory dataRoot,
 }) async {
   try {
     return await const CavernoPersistenceBootstrap().open(
-      openDatabase: openAppDatabase,
+      openDatabase: () => openAppDatabase(
+        databaseFile: File('${dataRoot.path}/caverno.sqlite'),
+      ),
       conversationsMigrated:
           prefs.getBool(cavernoConversationsMigrationKey) ?? false,
       chatMemoryMigrated: prefs.getBool(cavernoChatMemoryMigrationKey) ?? false,
@@ -134,6 +142,10 @@ Future<CavernoPersistenceStorage?> _initDriftStorage({
       markChatMemoryMigrated: () async {
         await prefs.setBool(cavernoChatMemoryMigrationKey, true);
       },
+      mutationCoordinator: CavernoChatMemoryMutationCoordinator(
+        dataRoot: dataRoot,
+        frontend: 'flutterGui',
+      ),
     );
   } catch (error, stackTrace) {
     appLog('[F4] drift storage init failed; falling back to Hive: $error');

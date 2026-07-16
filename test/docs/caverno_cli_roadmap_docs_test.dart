@@ -17,7 +17,8 @@ void main() {
     test('registers the CLI track and phased milestones', () {
       expect(roadmap, contains('Use `CLI<number>`'));
       expect(roadmap, contains('| Caverno CLI | CLI2 | done |'));
-      expect(roadmap, contains('| Caverno CLI | CLI3 | current |'));
+      expect(roadmap, contains('| Caverno CLI | CLI3 | done |'));
+      expect(roadmap, contains('| Caverno CLI | CLI4 | next |'));
       expect(roadmap, contains('## Caverno CLI Track'));
       expect(
         roadmap,
@@ -36,6 +37,7 @@ void main() {
         roadmap,
         contains('### CLI4: Packaging, Automation, And Release Gate'),
       );
+      expect(roadmap, contains('direct_file_locking_sufficient'));
     });
 
     test('keeps headless and application canary responsibilities separate', () {
@@ -73,14 +75,22 @@ void main() {
       );
     });
 
-    test('freezes the CLI0 terminal input and output contract', () {
+    test('freezes the terminal input and output contract', () {
       expect(terminalContract, contains('caverno chat [input options]'));
       expect(terminalContract, contains('caverno coding --project <path>'));
       expect(terminalContract, contains('caverno plan --project <path>'));
+      expect(terminalContract, contains('caverno conversations list'));
+      expect(terminalContract, contains('caverno conversations show'));
       expect(terminalContract, contains('Configuration Precedence'));
       expect(terminalContract, contains('`schema`: `caverno_cli_event`'));
       expect(terminalContract, contains('`schemaVersion`: `1`'));
       expect(terminalContract, contains('| `130` |'));
+      expect(terminalContract, contains('`conversation_list`'));
+      expect(terminalContract, contains('`conversation_detail`'));
+      expect(
+        terminalContract,
+        contains('do not initialize the LLM runtime, MCP clients, tools'),
+      );
     });
 
     test('freezes fail-closed non-TTY and cancellation behavior', () {

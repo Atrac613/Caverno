@@ -7,6 +7,7 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../chat/application/runtime/caverno_execution_runtime.dart';
 import '../../../chat/application/runtime/caverno_runtime_event.dart';
+import '../../../chat/domain/entities/conversation.dart';
 import '../../../chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import '../../../chat/presentation/providers/chat_notifier.dart';
 import '../../../chat/presentation/providers/chat_state.dart';
@@ -15,6 +16,7 @@ import '../../../chat/presentation/providers/conversations_notifier.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../application/caverno_cli_arguments.dart';
 import '../../application/caverno_cli_contract.dart';
+import '../../application/caverno_cli_runtime_configuration.dart';
 import '../../application/caverno_cli_runtime_port.dart';
 
 final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
@@ -25,6 +27,10 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
 
   final ProviderContainer container;
   final Map<String, String> environment;
+  static const Set<String> _unsupportedTerminalTools = <String>{
+    'load_skill',
+    'save_skill',
+  };
   CavernoExecutionRuntime? _resolvedRuntime;
   ChatNotifier? _resolvedChatNotifier;
 
@@ -59,7 +65,9 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
   @override
   Future<void> prepare(CavernoCliInvocation invocation) async {
     final command = invocation.command;
-    if (command == null) {
+    final isResume =
+        invocation.action == CavernoCliInvocationAction.conversationResume;
+    if (command == null && !isResume) {
       throw const CavernoCliFailure(
         code: 'command_required',
         message: 'A runnable CLI command is required.',
@@ -67,24 +75,21 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
       );
     }
 
+    final conversations = container.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final resumedConversation = isResume
+        ? await _prepareResumedConversation(invocation, conversations)
+        : null;
+
     final currentSettings = container.read(settingsNotifierProvider);
-    final baseUrl = _firstNonEmpty(<String?>[
-      invocation.baseUrl,
-      environment['CAVERNO_LLM_BASE_URL'],
-      currentSettings.baseUrl,
-    ]);
-    final model = _firstNonEmpty(<String?>[
-      invocation.model,
-      environment['CAVERNO_LLM_MODEL'],
-      currentSettings.model,
-    ]);
-    final apiKey = _firstNonEmpty(<String?>[
-      invocation.apiKey,
-      environment['CAVERNO_LLM_API_KEY'],
-      currentSettings.apiKey,
-    ]);
-    _validateEndpoint(baseUrl);
-    if (model.isEmpty) {
+    final runtimeConfiguration = resolveCavernoCliRuntimeConfiguration(
+      invocation: invocation,
+      environment: environment,
+      persistedSettings: currentSettings,
+    );
+    _validateEndpoint(runtimeConfiguration.baseUrl);
+    if (runtimeConfiguration.model.isEmpty) {
       throw const CavernoCliFailure(
         code: 'model_required',
         message: 'The effective model is empty.',
@@ -92,33 +97,38 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
       );
     }
 
-    final assistantMode = switch (command) {
-      CavernoCliCommand.chat => AssistantMode.general,
-      CavernoCliCommand.coding => AssistantMode.coding,
-      CavernoCliCommand.plan => AssistantMode.plan,
-    };
+    final assistantMode = resumedConversation == null
+        ? switch (command!) {
+            CavernoCliCommand.chat => AssistantMode.general,
+            CavernoCliCommand.coding => AssistantMode.coding,
+            CavernoCliCommand.plan => AssistantMode.plan,
+          }
+        : _assistantModeForConversation(resumedConversation);
     container
         .read(settingsNotifierProvider.notifier)
         .applyTransientRuntimeOverrides(
           assistantMode: assistantMode,
-          baseUrl: baseUrl,
-          model: model,
-          apiKey: apiKey,
-          disabledBuiltInTools: MacosComputerUseToolPolicy.allToolNames,
+          baseUrl: runtimeConfiguration.baseUrl,
+          model: runtimeConfiguration.model,
+          apiKey: runtimeConfiguration.apiKey,
+          disabledBuiltInTools: <String>{
+            ...MacosComputerUseToolPolicy.allToolNames,
+            ..._unsupportedTerminalTools,
+          },
         );
 
-    final conversations = container.read(
-      conversationsNotifierProvider.notifier,
-    );
+    if (resumedConversation != null) {
+      return;
+    }
     if (command == CavernoCliCommand.chat) {
       conversations.activateWorkspace(workspaceMode: WorkspaceMode.chat);
       return;
     }
 
     final projectPath = await _canonicalProjectPath(invocation.projectPath!);
-    final project = container
+    final project = await container
         .read(codingProjectsNotifierProvider.notifier)
-        .useTransientProject(projectPath);
+        .ensureTerminalProject(projectPath);
     conversations.activateWorkspace(
       workspaceMode: WorkspaceMode.coding,
       projectId: project.id,
@@ -127,6 +137,101 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
       await conversations.enterPlanningSession();
     } else {
       await conversations.exitPlanningSession();
+    }
+  }
+
+  Future<Conversation> _prepareResumedConversation(
+    CavernoCliInvocation invocation,
+    ConversationsNotifier conversations,
+  ) async {
+    final conversationId = invocation.conversationId?.trim() ?? '';
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .conversations
+        .where((item) => item.id == conversationId)
+        .firstOrNull;
+    if (conversation == null) {
+      throw CavernoCliFailure(
+        code: 'conversation_not_found',
+        message: 'Conversation not found: $conversationId',
+        exitCode: CavernoCliExitCode.input,
+      );
+    }
+    if (!conversation.workspaceMode.usesConversations) {
+      throw CavernoCliFailure(
+        code: 'conversation_not_resumable',
+        message: 'Conversation $conversationId cannot be resumed.',
+        exitCode: CavernoCliExitCode.input,
+      );
+    }
+
+    if (conversation.workspaceMode == WorkspaceMode.coding) {
+      final projectId = conversation.normalizedProjectId;
+      final projectsState = container.read(codingProjectsNotifierProvider);
+      final project = projectsState.findById(projectId);
+      if (project == null || project.normalizedRootPath.isEmpty) {
+        throw CavernoCliFailure(
+          code: 'conversation_project_unavailable',
+          message:
+              'The saved coding project for conversation $conversationId is unavailable.',
+          exitCode: CavernoCliExitCode.input,
+        );
+      }
+      await _requireSavedDirectory(
+        project.normalizedRootPath,
+        code: 'conversation_project_unavailable',
+        label: 'project',
+        conversationId: conversationId,
+      );
+      final worktreePath = conversation.normalizedWorktreePath;
+      if (worktreePath.isNotEmpty) {
+        await _requireSavedDirectory(
+          worktreePath,
+          code: 'conversation_worktree_unavailable',
+          label: 'worktree',
+          conversationId: conversationId,
+        );
+      }
+      final projects = container.read(codingProjectsNotifierProvider.notifier);
+      if (!await projects.ensureProjectAccess(project.id)) {
+        throw CavernoCliFailure(
+          code: 'conversation_project_access_denied',
+          message:
+              'Access to the saved coding project for conversation $conversationId could not be restored.',
+          exitCode: CavernoCliExitCode.input,
+        );
+      }
+      projects.selectProject(project.id);
+    }
+
+    conversations.selectConversation(conversation.id);
+    return conversation;
+  }
+
+  AssistantMode _assistantModeForConversation(Conversation conversation) {
+    if (conversation.workspaceMode != WorkspaceMode.coding) {
+      return AssistantMode.general;
+    }
+    return conversation.isPlanningSession
+        ? AssistantMode.plan
+        : AssistantMode.coding;
+  }
+
+  Future<void> _requireSavedDirectory(
+    String value, {
+    required String code,
+    required String label,
+    required String conversationId,
+  }) async {
+    final normalized = value.trim();
+    if (!Directory(normalized).isAbsolute ||
+        !await Directory(normalized).exists()) {
+      throw CavernoCliFailure(
+        code: code,
+        message:
+            'The saved $label for conversation $conversationId is unavailable: $normalized',
+        exitCode: CavernoCliExitCode.input,
+      );
     }
   }
 
@@ -220,16 +325,6 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
   Future<void> close() async {
     await _resolvedChatNotifier?.flushPendingPersistence();
     await _resolvedRuntime?.close();
-  }
-
-  String _firstNonEmpty(List<String?> candidates) {
-    for (final candidate in candidates) {
-      final value = candidate?.trim() ?? '';
-      if (value.isNotEmpty) {
-        return value;
-      }
-    }
-    return '';
   }
 
   void _validateEndpoint(String value) {

@@ -37,6 +37,17 @@ class CachedDriftConversationRepository implements ConversationRepositoryApi {
   Conversation? getById(String id) => _cache[id];
 
   @override
+  Future<Conversation?> refresh(String id) async {
+    final conversation = await _store.getById(id);
+    if (conversation == null) {
+      _cache.remove(id);
+    } else {
+      _cache[id] = conversation;
+    }
+    return conversation;
+  }
+
+  @override
   Future<void> save(Conversation conversation) async {
     _cache[conversation.id] = conversation;
     await _store.save(conversation);

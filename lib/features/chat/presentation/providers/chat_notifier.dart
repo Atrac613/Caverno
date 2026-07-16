@@ -151,6 +151,7 @@ part 'chat_notifier_approval_handlers.dart';
 part 'chat_notifier_ask_user_question.dart';
 part 'chat_notifier_ble_handlers.dart';
 part 'chat_notifier_browser_handlers.dart';
+part 'chat_notifier_cancellation.dart';
 part 'chat_notifier_coding_continuation_recovery.dart';
 part 'chat_notifier_command_guardrails.dart';
 part 'chat_notifier_computer_use_handlers.dart';
@@ -2839,7 +2840,15 @@ class ChatNotifier extends Notifier<ChatState> {
     final shouldUseTemporalTool = _temporalReferenceContext != null;
     currentConversation = conversationsState.currentConversation;
     conversationId = currentConversation?.id;
-    _startRuntimeTurn(generation: interactionGeneration, hidden: false);
+    if (!await _startRuntimeTurn(
+      generation: interactionGeneration,
+      hidden: false,
+    )) {
+      return;
+    }
+    conversationsState = ref.read(conversationsNotifierProvider);
+    currentConversation = conversationsState.currentConversation;
+    conversationId = currentConversation?.id;
     _resetGoalAutoContinueTrackerForConversation(conversationId);
     final shouldAutoEnterPlanning =
         !bypassPlanMode && _shouldAutoEnterPlanningSession(currentConversation);
@@ -3122,7 +3131,12 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     _persistHiddenPromptAssistantResponse = persistAssistantResponse;
     final interactionGeneration = _beginInteractionGeneration();
-    _startRuntimeTurn(generation: interactionGeneration, hidden: true);
+    if (!await _startRuntimeTurn(
+      generation: interactionGeneration,
+      hidden: true,
+    )) {
+      return;
+    }
     _clearTurnDiffCapture();
     _hiddenPrompt = Message(
       id: _uuid.v4(),
@@ -3359,13 +3373,31 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
-    final currentConversation = ref
+    var currentConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
     if (currentConversation == null) return;
     conversationId = currentConversation.id;
     final interactionGeneration = _beginInteractionGeneration();
-    _startRuntimeTurn(generation: interactionGeneration, hidden: false);
+    if (!await _startRuntimeTurn(
+      generation: interactionGeneration,
+      hidden: false,
+    )) {
+      return;
+    }
+    currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      _failRuntimeTurn(
+        interactionGeneration,
+        code: 'conversation_unavailable',
+        message: 'The selected conversation is no longer available.',
+        exitCode: 65,
+      );
+      return;
+    }
+    conversationId = currentConversation.id;
 
     await _runPlanProposalFlow(
       currentConversation: currentConversation,
@@ -9384,78 +9416,15 @@ class ChatNotifier extends Notifier<ChatState> {
     return '<tool_use>${jsonEncode(payload)}</tool_use>';
   }
 
-  void cancelStreaming() {
-    _streamSubscription?.cancel();
-    _streamSubscription = null;
-    _dismissAllPendingAskUserQuestions();
-    _isSchedulingGoalAutoContinue = false;
-    _persistHiddenPromptAssistantResponse = false;
+  bool get _isCancellationMounted => ref.mounted;
 
-    // Advance the interaction generation so the in-flight recursive
-    // tool-calling loop's generation guards (_isCurrentInteractionGeneration)
-    // start failing and it stops issuing further completions/tool calls.
-    // Previously this method left _interactionGeneration untouched, so the
-    // loop's captured generation stayed current and the stop was ignored — the
-    // loop kept running (and the session log kept growing) in the background
-    // even though the streaming output had been detached from the UI.
-    _beginInteractionGeneration();
+  ChatState get _cancellationState => state;
 
-    // Drop any queued loop continuation so nothing re-enters the loop after the
-    // generation bump. A new turn resets these as well, but clearing them now
-    // prevents an already-scheduled continuation from acting before then.
-    _pendingContentToolResults.clear();
-    _pendingContentToolContinuationFallback = null;
-    _pendingToolExecutions.clear();
-    _contentToolContinuationCount = 0;
-    _latestGoalAutoContinueEvidence = const ToolResultCompletionEvidence();
-    _clearAllActiveResponses();
-
-    // The generation has advanced, so _finishStreaming would early-return on its
-    // own guard. Finalize the partial assistant bubble inline instead: keep
-    // whatever was streamed, drop an empty placeholder, clear the loading
-    // state, and persist what remains.
-    if (!ref.mounted) return;
-    if (state.messages.isEmpty) {
-      _clearGoalAutoContinueIndicator();
-      return;
-    }
-    final updatedMessages = [...state.messages];
-    final lastIndex = updatedMessages.length - 1;
-    final lastMessage = updatedMessages[lastIndex];
-    var changedMessages = false;
-    if (lastMessage.role == MessageRole.assistant &&
-        !_assistantMessageHasVisibleContent(lastMessage.content)) {
-      updatedMessages.removeAt(lastIndex);
-      changedMessages = true;
-    } else if (lastMessage.isStreaming) {
-      updatedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
-      changedMessages = true;
-    }
-    if (changedMessages) {
-      state = state.copyWith(
-        messages: updatedMessages,
-        isLoading: false,
-        participantTurnRuntime: null,
-      );
-      final save = _cancelledMessagePersistenceTail.then(
-        (_) => _saveMessages(updateSessionMemory: false),
-      );
-      _cancelledMessagePersistenceTail = save.catchError((
-        Object error,
-        StackTrace stackTrace,
-      ) {
-        appLog(
-          '[ChatNotifier] Cancelled message persistence failed: '
-          '${error.runtimeType}: $error',
-        );
-        appLog('[ChatNotifier] stackTrace: $stackTrace');
-      });
-      unawaited(_cancelledMessagePersistenceTail);
-    } else if (state.isLoading) {
-      state = state.copyWith(isLoading: false, participantTurnRuntime: null);
-    }
-    _clearGoalAutoContinueIndicator();
+  void _setCancellationState(ChatState nextState) {
+    state = nextState;
   }
+
+  void cancelStreaming() => _cancelStreaming();
 
   /// Waits for message writes that must finish before a headless frontend
   /// disposes its provider container.

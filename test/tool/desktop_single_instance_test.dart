@@ -4,11 +4,26 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'macOS runner activates an existing app instance before Flutter starts',
+    'macOS runner keeps GUI single-instance activation but admits CLI starts',
     () {
       final source = File('macos/Runner/AppDelegate.swift').readAsStringSync();
 
       expect(source, contains('applicationWillFinishLaunching'));
+      expect(source, contains('isCommandLineInvocation(arguments: arguments)'));
+      expect(source, contains('arguments.dropFirst().first'));
+      for (final command in <String>[
+        'chat',
+        'coding',
+        'plan',
+        'conversations',
+        '--help',
+        '-h',
+        '--version',
+      ]) {
+        expect(source, contains('"$command"'));
+      }
+      expect(source, contains('!firstArgument.hasPrefix("-psn_")'));
+      expect(source, contains('!firstArgument.hasPrefix("-")'));
       expect(source, contains('activateExistingInstanceIfNeeded'));
       expect(source, contains('runningApplications('));
       expect(source, contains('withBundleIdentifier: bundleIdentifier'));

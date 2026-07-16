@@ -10,14 +10,20 @@ part 'app_database.g.dart';
 /// Opens the production drift database backed by a SQLite file in the app
 /// support directory. F4 bootstrap calls this once; failures fall back to Hive.
 Future<AppDatabase> openAppDatabase({File? databaseFile}) async {
-  final file = databaseFile ?? await _defaultDatabaseFile();
+  final file =
+      databaseFile ??
+      File('${(await resolveCavernoDataRoot()).path}/caverno.sqlite');
   await file.parent.create(recursive: true);
   return AppDatabase(NativeDatabase.createInBackground(file));
 }
 
-Future<File> _defaultDatabaseFile() async {
-  final directory = await getApplicationSupportDirectory();
-  return File('${directory.path}/caverno.sqlite');
+/// Resolves the shared persistence and execution-lease root for a frontend.
+Future<Directory> resolveCavernoDataRoot({
+  Directory? explicitDataDirectory,
+}) async {
+  final directory =
+      explicitDataDirectory ?? await getApplicationSupportDirectory();
+  return Directory.fromUri(directory.absolute.uri.normalizePath());
 }
 
 /// F4: conversations stored in SQLite via drift.

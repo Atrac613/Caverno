@@ -5,7 +5,10 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierExecutionRuntime on ChatNotifier {
-  void _startRuntimeTurn({required int generation, required bool hidden}) {
+  Future<bool> _startRuntimeTurn({
+    required int generation,
+    required bool hidden,
+  }) async {
     _runtimeVisibleAssistantContentByGeneration.remove(generation);
     final previous = _runtimeTurnsByGeneration.remove(generation);
     if (previous != null && !previous.isTerminal) {
@@ -15,13 +18,29 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
         exitCode: 130,
       );
     }
-    _runtimeTurnsByGeneration[generation] = _executionRuntime.startTurn(
-      CavernoRuntimeTurnRequest(
-        turnId: 'gen-$generation',
-        conversationId: conversationId,
-        hidden: hidden,
-      ),
-    );
+    try {
+      _runtimeTurnsByGeneration[generation] = await _executionRuntime.startTurn(
+        CavernoRuntimeTurnRequest(
+          turnId: 'gen-$generation',
+          conversationId: conversationId,
+          hidden: hidden,
+        ),
+      );
+      return true;
+    } on CavernoRuntimeTurnStartException catch (error) {
+      if (ref.mounted) {
+        state = state.copyWith(isLoading: false, error: error.terminal.message);
+      }
+      return false;
+    } on Object {
+      if (ref.mounted) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'The execution runtime could not start the turn.',
+        );
+      }
+      return false;
+    }
   }
 
   CavernoRuntimeTurnHandle? _runtimeTurnForGeneration(int generation) {

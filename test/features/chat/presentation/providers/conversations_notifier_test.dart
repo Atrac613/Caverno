@@ -131,6 +131,95 @@ void main() {
     expect(repository.getAll(), hasLength(1));
   });
 
+  test('headless resume startup defers unrelated chat creation', () async {
+    final savedConversation = Conversation(
+      id: 'saved-chat',
+      title: 'Saved chat',
+      messages: [
+        Message(
+          id: 'saved-message',
+          content: 'Persisted context',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 7, 16, 10),
+        ),
+      ],
+      createdAt: DateTime(2026, 7, 16, 10),
+      updatedAt: DateTime(2026, 7, 16, 10),
+      workspaceMode: WorkspaceMode.chat,
+    );
+    await repository.save(savedConversation);
+    container.dispose();
+    container = ProviderContainer(
+      overrides: [
+        conversationRepositoryProvider.overrideWithValue(repository),
+        toolResultArtifactStoreProvider.overrideWithValue(artifactStore),
+        deferInitialConversationCreationProvider.overrideWithValue(true),
+      ],
+    );
+
+    final state = container.read(conversationsNotifierProvider);
+
+    expect(state.currentConversationId, isNull);
+    expect(state.conversations, <Conversation>[savedConversation]);
+    expect(repository.getAll(), <Conversation>[savedConversation]);
+  });
+
+  test(
+    'execution refresh replaces notifier state from the repository',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+      final initial = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!;
+      final external = initial.copyWith(
+        title: 'Updated by another frontend',
+        updatedAt: initial.updatedAt.add(const Duration(minutes: 1)),
+      );
+      await repository.save(external);
+
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .title,
+        isNot(external.title),
+      );
+
+      expect(
+        await notifier.refreshConversationForExecution(initial.id),
+        isTrue,
+      );
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .currentConversation!
+            .title,
+        external.title,
+      );
+    },
+  );
+
+  test('execution refresh clears a conversation deleted externally', () async {
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+    final initial = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!;
+    await repository.delete(initial.id);
+
+    expect(await notifier.refreshConversationForExecution(initial.id), isFalse);
+    expect(
+      container.read(conversationsNotifierProvider).currentConversation,
+      isNull,
+    );
+    expect(
+      container
+          .read(conversationsNotifierProvider)
+          .conversations
+          .where((conversation) => conversation.id == initial.id),
+      isEmpty,
+    );
+  });
+
   test(
     'rewind trims messages and restores checkpointed workflow state',
     () async {

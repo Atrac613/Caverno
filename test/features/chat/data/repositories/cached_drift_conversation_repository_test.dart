@@ -53,6 +53,30 @@ void main() {
     },
   );
 
+  test('refresh replaces a stale cache entry from drift', () async {
+    await store.save(_conversation('x', updatedAtMs: 5));
+    final repo = await CachedDriftConversationRepository.hydrate(store);
+
+    await store.save(_conversation('x', updatedAtMs: 25));
+    expect(repo.getById('x')!.updatedAt.millisecondsSinceEpoch, 5);
+
+    final refreshed = await repo.refresh('x');
+
+    expect(refreshed!.updatedAt.millisecondsSinceEpoch, 25);
+    expect(repo.getById('x'), same(refreshed));
+  });
+
+  test('refresh removes a cache entry deleted from drift', () async {
+    await store.save(_conversation('x', updatedAtMs: 5));
+    final repo = await CachedDriftConversationRepository.hydrate(store);
+
+    await store.delete('x');
+    expect(repo.getById('x'), isNotNull);
+
+    expect(await repo.refresh('x'), isNull);
+    expect(repo.getById('x'), isNull);
+  });
+
   test('search delegates to the drift store FTS index', () async {
     final repo = await CachedDriftConversationRepository.hydrate(store);
     await repo.save(_conversation('a', updatedAtMs: 1));

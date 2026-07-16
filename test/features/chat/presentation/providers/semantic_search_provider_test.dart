@@ -20,6 +20,8 @@ class _FakeConversationRepository implements ConversationRepositoryApi {
   @override
   Conversation? getById(String id) => null;
   @override
+  Future<Conversation?> refresh(String id) async => null;
+  @override
   Future<void> save(Conversation conversation) async {}
   @override
   Future<void> delete(String id) async {}

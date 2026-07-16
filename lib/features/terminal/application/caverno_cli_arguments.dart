@@ -5,6 +5,9 @@ final class CavernoCliInvocation {
     required this.action,
     required this.outputMode,
     this.command,
+    this.conversationCommand,
+    this.conversationId,
+    this.conversationLimit = 20,
     this.prompt,
     this.promptFile,
     this.projectPath,
@@ -17,6 +20,9 @@ final class CavernoCliInvocation {
   final CavernoCliInvocationAction action;
   final CavernoCliOutputMode outputMode;
   final CavernoCliCommand? command;
+  final CavernoCliConversationCommand? conversationCommand;
+  final String? conversationId;
+  final int conversationLimit;
   final String? prompt;
   final String? promptFile;
   final String? projectPath;
@@ -39,6 +45,7 @@ final class CavernoCliInvocation {
           'chat',
           'coding',
           'plan',
+          'conversations',
           '--help',
           '-h',
           '--version',
@@ -50,7 +57,8 @@ final class CavernoCliInvocation {
     if (arguments.isEmpty) {
       throw const CavernoCliFailure(
         code: 'command_required',
-        message: 'A command is required. Use chat, coding, or plan.',
+        message:
+            'A command is required. Use chat, coding, plan, or conversations.',
         exitCode: CavernoCliExitCode.usage,
       );
     }
@@ -67,6 +75,10 @@ final class CavernoCliInvocation {
         action: CavernoCliInvocationAction.version,
         outputMode: CavernoCliOutputMode.human,
       );
+    }
+
+    if (arguments.first == 'conversations') {
+      return _parseConversationInvocation(arguments);
     }
 
     final command = switch (arguments.first) {
@@ -193,6 +205,211 @@ final class CavernoCliInvocation {
       model: model,
       apiKey: apiKey,
       dataDirectory: dataDirectory,
+    );
+  }
+
+  static CavernoCliInvocation _parseConversationInvocation(
+    List<String> arguments,
+  ) {
+    if (arguments.length == 1) {
+      throw const CavernoCliFailure(
+        code: 'conversation_command_required',
+        message:
+            'A conversation command is required. Use list, show, or resume.',
+        exitCode: CavernoCliExitCode.usage,
+      );
+    }
+    if (arguments.length == 2 &&
+        (arguments[1] == '--help' || arguments[1] == '-h')) {
+      return const CavernoCliInvocation(
+        action: CavernoCliInvocationAction.help,
+        outputMode: CavernoCliOutputMode.human,
+      );
+    }
+
+    final conversationCommand = switch (arguments[1]) {
+      'list' => CavernoCliConversationCommand.list,
+      'show' => CavernoCliConversationCommand.show,
+      'resume' => CavernoCliConversationCommand.resume,
+      final value => throw CavernoCliFailure(
+        code: 'unknown_conversation_command',
+        message: 'Unknown conversation command: $value',
+        exitCode: CavernoCliExitCode.usage,
+      ),
+    };
+    var outputMode = CavernoCliOutputMode.human;
+    String? dataDirectory;
+    String? explicitPrompt;
+    String? promptFile;
+    String? baseUrl;
+    String? model;
+    String? apiKey;
+    var conversationLimit = 20;
+    var limitSpecified = false;
+    var help = false;
+    var optionsEnded = false;
+    final positional = <String>[];
+
+    for (var index = 2; index < arguments.length; index += 1) {
+      final argument = arguments[index];
+      if (optionsEnded) {
+        positional.add(argument);
+        continue;
+      }
+      if (argument == '--') {
+        optionsEnded = true;
+        continue;
+      }
+      if (argument == '--json') {
+        outputMode = CavernoCliOutputMode.json;
+        continue;
+      }
+      if (argument == '--help' || argument == '-h') {
+        help = true;
+        continue;
+      }
+      if (!argument.startsWith('-')) {
+        positional.add(argument);
+        continue;
+      }
+
+      final parsed = _parseOption(argument);
+      switch (parsed.name) {
+        case '--data-dir':
+          dataDirectory = _optionValue(arguments, parsed, index: index);
+        case '--prompt':
+          _requireResumeOption(conversationCommand, parsed.name);
+          explicitPrompt = _optionValue(arguments, parsed, index: index);
+        case '--prompt-file':
+          _requireResumeOption(conversationCommand, parsed.name);
+          promptFile = _optionValue(arguments, parsed, index: index);
+        case '--base-url':
+          _requireResumeOption(conversationCommand, parsed.name);
+          baseUrl = _optionValue(arguments, parsed, index: index);
+        case '--model':
+          _requireResumeOption(conversationCommand, parsed.name);
+          model = _optionValue(arguments, parsed, index: index);
+        case '--api-key':
+          _requireResumeOption(conversationCommand, parsed.name);
+          apiKey = _optionValue(arguments, parsed, index: index);
+        case '--limit':
+          limitSpecified = true;
+          final value = _optionValue(arguments, parsed, index: index);
+          final parsedLimit = int.tryParse(value);
+          if (parsedLimit == null || parsedLimit < 1 || parsedLimit > 200) {
+            throw const CavernoCliFailure(
+              code: 'invalid_limit',
+              message: '--limit must be an integer from 1 through 200.',
+              exitCode: CavernoCliExitCode.usage,
+            );
+          }
+          conversationLimit = parsedLimit;
+        default:
+          throw CavernoCliFailure(
+            code: 'unknown_flag',
+            message: 'Unknown flag: ${parsed.name}',
+            exitCode: CavernoCliExitCode.usage,
+          );
+      }
+      if (parsed.inlineValue == null) {
+        index += 1;
+      }
+    }
+
+    if (help) {
+      return CavernoCliInvocation(
+        action: CavernoCliInvocationAction.help,
+        outputMode: outputMode,
+        conversationCommand: conversationCommand,
+      );
+    }
+    if (conversationCommand == CavernoCliConversationCommand.list) {
+      if (positional.isNotEmpty) {
+        throw const CavernoCliFailure(
+          code: 'unexpected_conversation_argument',
+          message: 'The conversations list command does not accept an ID.',
+          exitCode: CavernoCliExitCode.usage,
+        );
+      }
+      return CavernoCliInvocation(
+        action: CavernoCliInvocationAction.conversationList,
+        outputMode: outputMode,
+        conversationCommand: conversationCommand,
+        conversationLimit: conversationLimit,
+        dataDirectory: dataDirectory,
+      );
+    }
+    if (limitSpecified) {
+      throw const CavernoCliFailure(
+        code: 'limit_not_supported',
+        message: '--limit is only valid for the conversations list command.',
+        exitCode: CavernoCliExitCode.usage,
+      );
+    }
+    if (conversationCommand == CavernoCliConversationCommand.resume) {
+      if (positional.isEmpty || positional.first.trim().isEmpty) {
+        throw const CavernoCliFailure(
+          code: 'conversation_id_required',
+          message: 'The conversations resume command requires exactly one ID.',
+          exitCode: CavernoCliExitCode.usage,
+        );
+      }
+      final positionalPrompt = positional.length <= 1
+          ? null
+          : positional.skip(1).join(' ');
+      final explicitSourceCount = <String?>[
+        explicitPrompt,
+        promptFile,
+        positionalPrompt,
+      ].where((value) => value != null).length;
+      if (explicitSourceCount > 1) {
+        throw const CavernoCliFailure(
+          code: 'conflicting_input_sources',
+          message:
+              'Use exactly one of a positional prompt, --prompt, or --prompt-file.',
+          exitCode: CavernoCliExitCode.usage,
+        );
+      }
+      return CavernoCliInvocation(
+        action: CavernoCliInvocationAction.conversationResume,
+        outputMode: outputMode,
+        conversationCommand: conversationCommand,
+        conversationId: positional.first.trim(),
+        prompt: explicitPrompt ?? positionalPrompt,
+        promptFile: promptFile,
+        baseUrl: baseUrl,
+        model: model,
+        apiKey: apiKey,
+        dataDirectory: dataDirectory,
+      );
+    }
+    if (positional.length != 1 || positional.single.trim().isEmpty) {
+      throw const CavernoCliFailure(
+        code: 'conversation_id_required',
+        message: 'The conversations show command requires exactly one ID.',
+        exitCode: CavernoCliExitCode.usage,
+      );
+    }
+    return CavernoCliInvocation(
+      action: CavernoCliInvocationAction.conversationShow,
+      outputMode: outputMode,
+      conversationCommand: conversationCommand,
+      conversationId: positional.single,
+      dataDirectory: dataDirectory,
+    );
+  }
+
+  static void _requireResumeOption(
+    CavernoCliConversationCommand command,
+    String option,
+  ) {
+    if (command == CavernoCliConversationCommand.resume) {
+      return;
+    }
+    throw CavernoCliFailure(
+      code: 'unknown_flag',
+      message: 'Unknown flag: $option',
+      exitCode: CavernoCliExitCode.usage,
     );
   }
 

@@ -11,6 +11,7 @@ import 'drift_chat_memory_store.dart';
 abstract interface class KeyValueStore {
   bool get isReady;
   String? get(String key);
+  Future<void> refresh(Iterable<String> keys);
   Future<void> put(String key, String value);
   Future<void> delete(String key);
 }
@@ -36,6 +37,9 @@ class HiveKeyValueStore implements KeyValueStore {
       rethrow;
     }
   }
+
+  @override
+  Future<void> refresh(Iterable<String> keys) async {}
 
   @override
   Future<void> put(String key, String value) async {
@@ -84,6 +88,18 @@ class CachedDriftKeyValueStore implements KeyValueStore {
 
   @override
   String? get(String key) => _cache[key];
+
+  @override
+  Future<void> refresh(Iterable<String> keys) async {
+    for (final key in keys.toSet()) {
+      final value = await _store.getValue(key);
+      if (value == null) {
+        _cache.remove(key);
+      } else {
+        _cache[key] = value;
+      }
+    }
+  }
 
   @override
   Future<void> put(String key, String value) async {

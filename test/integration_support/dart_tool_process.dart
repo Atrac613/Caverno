@@ -1,13 +1,13 @@
 import 'dart:io';
 
 Future<ProcessResult> runDartTool(String toolPath, List<String> arguments) {
-  return Process.run(_dartExecutable(), <String>[
+  return Process.run(dartToolExecutable(), <String>[
     toolPath,
     ...arguments,
   ], workingDirectory: Directory.current.path);
 }
 
-String _dartExecutable() {
+String dartToolExecutable() {
   final executableName = Platform.isWindows ? 'dart.exe' : 'dart';
   final flutterRoots = [
     Directory.current.uri.resolve('.fvm/flutter_sdk/').toFilePath(),

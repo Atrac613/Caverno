@@ -61,7 +61,8 @@ handoffs can refer to the same unit of work over time.
 | Caverno CLI | CLI0 | done | Establish a no-window production-path canary and freeze the terminal execution contract. | Keep the passing three-headless-plus-one-macOS comparison gate as the shared CLI baseline. |
 | Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
 | Caverno CLI | CLI2 | done | Ship the interactive terminal MVP on the shared execution runtime. | Preserve the passing terminal and three-headless-plus-one-macOS parity gates as the CLI2 baseline; keep persistence, resume, and concurrent ownership in CLI3. |
-| Caverno CLI | CLI3 | current | Reuse production persistence before adding conversation resume and concurrent ownership. | Add read-only conversation `list` and `show` commands on the shared drift bootstrap before permitting resume or mutation. |
+| Caverno CLI | CLI3 | done | Reuse production persistence and enforce cross-process ownership before conversation resume. | Preserve the persistence, resume, migration-retry, and direct-lock contention gates as the CLI3 baseline. |
+| Caverno CLI | CLI4 | next | Package and release the terminal client with automation-grade diagnostics. | Define the supported platform matrix and artifact format, then add the first `caverno doctor` slice. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
@@ -948,7 +949,7 @@ Next action:
 
 ### CLI3: Persistence, Resume, And Concurrent Ownership
 
-Status: `current`
+Status: `done`
 
 Scope:
 - Reuse Caverno settings, drift conversations, memory, coding projects,
@@ -974,6 +975,11 @@ Dependencies:
 
 Evidence:
 - `docs/cli3_shared_persistence_bootstrap_codex_task.md`
+- `docs/cli3_read_only_conversation_commands_codex_task.md`
+- `docs/cli3_execution_lease_foundation_codex_task.md`
+- `docs/cli3_runtime_lease_integration_codex_task.md`
+- `docs/cli3_conversation_resume_codex_task.md`
+- `docs/cli3_gui_terminal_resume_smoke_codex_task.md`
 - `lib/features/chat/application/persistence/caverno_persistence_bootstrap.dart`
   now owns the shared F4 migration, repository hydration, and database cleanup
   used by GUI and terminal frontends.
@@ -984,14 +990,150 @@ Evidence:
 - Focused persistence and terminal-lifecycle tests passed, and a rebuilt macOS
   CLI process created the isolated drift store without starting MCP clients or
   producing a post-close persistence error on an early validation failure.
+- `lib/features/terminal/application/caverno_conversation_query.dart` now emits
+  redacted human output or schema-versioned `conversation_list` and
+  `conversation_detail` events from exact drift repository reads.
+- `lib/features/terminal/presentation/caverno_cli_process.dart` completes
+  read-only queries before creating the Riverpod execution container, MCP
+  clients, tools, or the LLM runtime. Completed migrations also avoid opening
+  legacy conversation and chat-memory Hive boxes.
+- Focused parser, query, and persistence tests cover bounded lists, exact-ID
+  details, redaction, omitted attachment internals, missing IDs, and migration
+  reader requirements.
+- A rebuilt macOS executable emitted one empty `conversation_list` event from
+  an isolated store on consecutive runs. The migrated second run still passed
+  while both legacy data files were temporarily unreadable, confirming that
+  the read-only path did not reopen those boxes.
+- `CavernoExecutionLeaseService` now owns non-blocking OS file locks under each
+  data root. Conversation and canonical workspace resources use hashed
+  filenames, safe owner metadata, deterministic multi-resource ordering, and
+  an in-process guard for POSIX process-scoped lock behavior.
+- Separate-process tests cover contention, partial-acquisition rollback,
+  independent resources and data roots, invalid diagnostics, and automatic
+  recovery after abrupt owner exit.
+- The macOS runner now bypasses duplicate-GUI activation only for CLI-shaped
+  arguments. The full verification suite and a Debug macOS build passed, and
+  the built executable returned its version through the terminal entry point.
+- `CavernoExecutionRuntime` now acquires conversation and effective workspace
+  leases before `run_started`, refreshes the authoritative conversation, and
+  retains ownership until terminal persistence drains. Conflict, missing
+  conversation, cancellation, preparation failure, completion, and shutdown
+  paths have focused lifecycle coverage.
+- GUI and terminal providers now resolve the same production data root for
+  execution ownership. Explicit terminal data directories remain isolated,
+  and Coding or Plan Mode leases the effective worktree instead of the source
+  project when one is active.
+- The migrated terminal path closes legacy conversation and chat-memory Hive
+  boxes before execution and uses transient in-memory skill storage without
+  exposing skill mutation tools. Packaged isolated and unreadable-legacy-file
+  smokes reached runtime execution without Hive or provider errors.
+- `tool/codex_verify.sh` passed with no generated-file drift, no analyzer
+  findings, and 3,355 passing tests. A Debug macOS build passed, and two
+  packaged Coding CLI processes using the same data root and workspace proved
+  live contention: the second process emitted no `run_started`, returned
+  `execution_lease_conflict`, and exited `75` while the first held ownership.
+- `conversations resume` now resolves only a complete stable ID, selects the
+  persisted conversation before ChatNotifier initialization, infers its saved
+  Chat, Coding, or Plan Mode, and restores its saved project and worktree without
+  accepting project reassignment.
+- Headless resume startup defers unrelated empty-chat creation until the exact
+  conversation is selected. This prevents a database-close race when a resume
+  attempt loses its lease before normal chat initialization.
+- Parser, notifier, terminal adapter, and runtime tests cover prompt-source
+  conflicts, exact-ID enforcement, restored message history and planning
+  workspace, missing project/worktree failures, refresh ordering, and live
+  lease rejection. `tool/codex_verify.sh` passed with no generated-file drift,
+  no analyzer findings, and 3,363 passing tests; a Debug macOS build also passed.
+- A packaged isolated chat smoke against Qwen3.6 35B A3B Vision seeded a
+  conversation, resumed its exact ID, and persisted the original and resumed
+  user/assistant turns in order. Missing-ID resume returned
+  `conversation_not_found` with exit `65`. A second packaged resume against a
+  held conversation emitted only `execution_lease_conflict`, returned exit
+  `75`, and produced neither `run_started` nor a post-close Drift exception.
+- `caverno_gui_terminal_resume_test.dart` now writes separate Coding and Plan
+  Mode conversations through the GUI-facing project and conversation notifiers
+  into a temporary production drift database. It closes and reopens storage,
+  resumes each exact ID through the terminal runtime lease, appends one
+  deterministic terminal turn, and reopens storage again for final assertions.
+- The cross-frontend smoke preserves the saved project, worktree, initial and
+  appended messages, execution mode, workflow stage and tasks, source hash and
+  timestamp, source references, and item provenance. Both cases emit
+  `run_started` and `run_completed` with the saved worktree as the effective
+  workspace. The focused gate passed 22 tests and the full gate passed 3,365
+  tests with no generated-file drift or analyzer findings.
+- `docs/cli3_terminal_project_persistence_codex_task.md`
+- Terminal Coding and Plan Mode preparation now persists a generated canonical
+  project record before activating a conversation. Application-default runs
+  share the GUI shared-preferences registry, while an explicit data root owns
+  an atomically replaced `coding_projects.json` registry and does not pollute
+  application-default preferences.
+- Deterministic restart tests create both execution modes in one terminal
+  container, close and reopen the production drift database and project
+  registry, resume each stable ID in a new container, append messages, and
+  reopen storage again to verify mode, project ID, and message continuity. The
+  focused gate passed 21 tests and the full gate passed 3,372 tests with no
+  generated-file drift or analyzer findings.
+- `docs/cli3_global_state_storage_scope_codex_task.md`
+- Chat memory now has explicit storage-ownership evidence: sequential default
+  frontend openings observe the same drift-backed profile, while separate
+  explicit data roots cannot observe or overwrite each other's profile.
+- Terminal routine composition now shares the GUI SharedPreferences registry
+  only for the application-default root. Explicit data roots receive an
+  atomically replaced local `routines.json` repository, so future provider
+  initialization cannot cross into the default registry before routine commands
+  are exposed. The focused gate passed 22 tests and the full gate passed 3,378
+  tests with no generated-file drift or analyzer findings.
+- `docs/cli3_chat_memory_atomic_merge_codex_task.md`
+- Drift-backed chat-memory mutations now acquire a short global memory lease,
+  refresh all six authoritative sections, and merge against that snapshot.
+  Zone-scoped reentrancy keeps a composite session-memory update under one
+  boundary without serializing the complete LLM turn.
+- GUI and terminal bootstrap inject the same coordinator contract using their
+  resolved data root. Conflicts retry for a bounded interval, stable timeouts
+  identify unresolved contention, and every success or failure path releases
+  ownership.
+- A deterministic stale-cache regression opens two repositories before either
+  writes, then proves distinct memories and conversation summaries from both
+  frontend owners survive a database reopen. The focused gate passed 38 tests
+  and the full gate passed 3,383 tests with no generated-file drift or analyzer
+  findings.
+- `docs/cli3_completion_audit_codex_task.md`
+- Terminal LLM configuration now resolves through one tested flags,
+  environment, persisted-settings, and built-in-default precedence helper.
+  Blank higher-priority values fall through without exposing API-key values.
+- Session-log composition keeps application-default runs on the GUI-compatible
+  store. An explicit terminal data root owns `session_logs/` beneath that root,
+  while `CAVERNO_SESSION_LOG_DIR` remains the dedicated highest-priority log
+  override.
+- Migration recovery now has an end-to-end retry regression: a failed first
+  bootstrap closes its database and leaves the marker unset, then a second
+  bootstrap migrates the legacy records and commits the marker without manual
+  cleanup.
+- `tool/cli3_contention_soak.dart` runs GUI-like and terminal-like workers as
+  separate operating-system processes behind one start barrier. It exercises
+  the same conversation, canonical workspace, and global chat-memory resources
+  and emits redacted schema-versioned JSON and Markdown decision reports.
+- Three consecutive two-worker, 100-iteration soaks completed all 200 runtime
+  and 200 chat-memory operations per run with zero timeouts and zero invalid
+  owner diagnostics. Runtime p95 was 5.454, 5.333, and 5.075 ms; chat-memory
+  p95 was 6.317, 4.961, and 4.528 ms; throughput was 365.985, 362.857, and
+  376.869 operations/s. All results stayed below the 250 ms p95 threshold, so
+  the recorded decision is `direct_file_locking_sufficient`; a local daemon is
+  not justified by current CLI3 contention evidence.
+- A rebuilt Debug macOS application returned `Caverno 1.3.13` and a
+  schema-versioned empty conversation list through the CLI entrypoint against
+  an isolated data root, with both commands exiting successfully.
+- The focused completion gate passed 14 tests. The final repository gate passed
+  3,394 tests with no generated-file drift or analyzer findings.
 
 Next action:
-- Add read-only conversation `list` and `show` commands on this shared drift
-  bootstrap before permitting cross-frontend resume or mutation.
+- Start CLI4 by defining the supported platform matrix and artifact format,
+  then add the first `caverno doctor` slice. Keep terminal routine execution
+  unavailable until its separate per-routine lease contract is defined.
 
 ### CLI4: Packaging, Automation, And Release Gate
 
-Status: `later`
+Status: `next`
 
 Scope:
 - Package signed or checksummed executables for supported desktop platforms.

@@ -185,6 +185,62 @@ void registerChatNotifierExecutionRuntimeTests() {
     expect(events.map((event) => event.sequence), orderedEquals([1, 2, 3, 4]));
   });
 
+  test('stream cancellation terminalizes the shared runtime turn', () async {
+    final streamController = StreamController<String>();
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final runtimeContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(
+          _StreamingChatDataSource(streamController),
+        ),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(null),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+    final runtime = runtimeContainer.read(cavernoExecutionRuntimeProvider);
+    final terminalEvent = Completer<CavernoRuntimeTerminalEvent>();
+    final subscription = runtime.events.listen((event) {
+      if (event is CavernoRuntimeTerminalEvent && !terminalEvent.isCompleted) {
+        terminalEvent.complete(event);
+      }
+    });
+    addTearDown(() async {
+      await subscription.cancel();
+      runtimeContainer.dispose();
+      if (!streamController.isClosed) {
+        await streamController.close();
+      }
+    });
+
+    final chatNotifier = runtimeContainer.read(chatNotifierProvider.notifier);
+    final sendFuture = chatNotifier.sendMessage('Start a long response');
+    await Future<void>.delayed(Duration.zero);
+    streamController.add('Partial response');
+    await Future<void>.delayed(Duration.zero);
+
+    chatNotifier.cancelStreaming();
+
+    final terminal = await terminalEvent.future.timeout(
+      const Duration(seconds: 5),
+    );
+    expect(terminal, isA<CavernoRuntimeRunFailed>());
+    expect((terminal as CavernoRuntimeRunFailed).code, 'cancelled');
+    expect(terminal.exitCode, 130);
+    await streamController.close();
+    await sendFuture;
+  });
+
   test('runtime output excludes embedded reasoning and tool markers', () async {
     final streamController = StreamController<String>();
     final appLifecycleService = _MockAppLifecycleService();

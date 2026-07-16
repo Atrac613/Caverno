@@ -59,7 +59,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
   final Uuid _uuid = const Uuid();
   static const int _maxStoredRuns = 8;
 
-  late RoutineRepository _repository;
+  late RoutineRepositoryApi _repository;
 
   @override
   RoutinesState build() {

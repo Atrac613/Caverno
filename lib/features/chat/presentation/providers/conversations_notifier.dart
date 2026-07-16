@@ -105,6 +105,10 @@ final conversationsNotifierProvider =
       ConversationsNotifier.new,
     );
 
+/// Headless resume frontends override this to avoid creating and persisting an
+/// unrelated empty chat conversation before selecting the requested ID.
+final deferInitialConversationCreationProvider = Provider<bool>((ref) => false);
+
 /// Default title for new conversations (used as a sentinel for auto-title).
 const defaultConversationTitle = '__new_conversation__';
 
@@ -125,17 +129,23 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   ConversationsState build() {
     _repository = ref.read(conversationRepositoryProvider);
     _toolResultArtifactStore = ref.read(toolResultArtifactStoreProvider);
+    final deferInitialConversationCreation = ref.watch(
+      deferInitialConversationCreationProvider,
+    );
     final initialWorkspaceMode = WorkspaceMode.chat;
     final initialProjectId = _normalizeProjectId(initialWorkspaceMode, null);
-    _freshConversationScopes.add(
-      _conversationScopeKey(initialWorkspaceMode, initialProjectId),
-    );
+    if (!deferInitialConversationCreation) {
+      _freshConversationScopes.add(
+        _conversationScopeKey(initialWorkspaceMode, initialProjectId),
+      );
+    }
     final scopedState = _buildScopedState(
       conversations: _repository.getAll(),
       workspaceMode: initialWorkspaceMode,
       projectId: initialProjectId,
-      createIfMissing: true,
-      createFreshConversation: true,
+      createIfMissing: !deferInitialConversationCreation,
+      createFreshConversation: !deferInitialConversationCreation,
+      preferNoConversation: deferInitialConversationCreation,
     );
     Future<void>.microtask(() async {
       if (!ref.mounted) {
@@ -462,6 +472,31 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     );
     _repository.save(conversation);
     return conversation;
+  }
+
+  /// Refreshes a conversation from authoritative storage before a runtime
+  /// turn mutates it. Returns false when another frontend deleted it.
+  Future<bool> refreshConversationForExecution(String id) async {
+    final refreshed = await _repository.refresh(id);
+    if (refreshed == null) {
+      final remaining = state.conversations
+          .where((conversation) => conversation.id != id)
+          .toList(growable: false);
+      state = state.copyWith(
+        conversations: remaining,
+        clearCurrentConversation: state.currentConversationId == id,
+      );
+      return false;
+    }
+
+    final conversations = <Conversation>[
+      for (final conversation in state.conversations)
+        if (conversation.id != id) conversation,
+      refreshed,
+    ];
+    _sortConversations(conversations);
+    state = state.copyWith(conversations: conversations);
+    return true;
   }
 
   /// Selects a conversation.

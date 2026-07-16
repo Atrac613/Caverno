@@ -53,7 +53,7 @@ final codingProjectsNotifierProvider =
     );
 
 class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
-  late final CodingProjectRepository _repository;
+  late final CodingProjectRepositoryApi _repository;
   late final SecurityScopedBookmarkService _bookmarkService;
   final _uuid = const Uuid();
 
@@ -75,7 +75,7 @@ class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
     );
   }
 
-  CodingProject useTransientProject(String rootPath) {
+  Future<CodingProject> ensureTerminalProject(String rootPath) async {
     final normalizedPath = rootPath.trim();
     if (normalizedPath.isEmpty) {
       throw ArgumentError.value(rootPath, 'rootPath', 'Project path is empty.');
@@ -96,10 +96,9 @@ class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
       createdAt: now,
       updatedAt: now,
     );
-    state = state.copyWith(
-      projects: <CodingProject>[project, ...state.projects],
-      selectedProjectId: project.id,
-    );
+    final projects = <CodingProject>[project, ...state.projects];
+    await _repository.saveAll(projects);
+    state = state.copyWith(projects: projects, selectedProjectId: project.id);
     return project;
   }
 

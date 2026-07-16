@@ -23,7 +23,44 @@ abstract interface class CavernoRuntimeSettingsPort {
 abstract interface class CavernoRuntimeRepositoryPort {
   String? get currentConversationId;
 
+  Future<bool> refreshConversation(String conversationId);
+
+  Future<void> flushPendingPersistence();
+
   void onTurnTerminal(CavernoRuntimeTerminalEvent event);
+}
+
+final class CavernoRuntimeOwnershipRequest {
+  const CavernoRuntimeOwnershipRequest({
+    required this.surface,
+    required this.mode,
+    required this.conversationId,
+    required this.workspace,
+  });
+
+  final CavernoRuntimeSurface surface;
+  final String mode;
+  final String? conversationId;
+  final String? workspace;
+}
+
+abstract interface class CavernoRuntimeOwnershipHandle {
+  void release();
+}
+
+abstract interface class CavernoRuntimeOwnershipPort {
+  Future<CavernoRuntimeOwnershipHandle> acquire(
+    CavernoRuntimeOwnershipRequest request,
+  );
+}
+
+final class CavernoRuntimeOwnershipConflict implements Exception {
+  const CavernoRuntimeOwnershipConflict(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 abstract interface class CavernoRuntimeLlmPort {
@@ -53,6 +90,7 @@ final class CavernoRuntimeComposition {
     required this.surface,
     required this.settings,
     required this.repository,
+    required this.ownership,
     required this.llm,
     required this.tools,
     required this.approvals,
@@ -63,6 +101,7 @@ final class CavernoRuntimeComposition {
   final CavernoRuntimeSurface surface;
   final CavernoRuntimeSettingsPort settings;
   final CavernoRuntimeRepositoryPort repository;
+  final CavernoRuntimeOwnershipPort ownership;
   final CavernoRuntimeLlmPort llm;
   final CavernoRuntimeToolPort tools;
   final CavernoRuntimeApprovalPort approvals;

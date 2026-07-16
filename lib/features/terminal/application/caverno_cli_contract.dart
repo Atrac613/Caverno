@@ -1,8 +1,17 @@
 enum CavernoCliCommand { chat, coding, plan }
 
+enum CavernoCliConversationCommand { list, show, resume }
+
 enum CavernoCliOutputMode { human, json }
 
-enum CavernoCliInvocationAction { run, help, version }
+enum CavernoCliInvocationAction {
+  run,
+  conversationList,
+  conversationShow,
+  conversationResume,
+  help,
+  version,
+}
 
 abstract final class CavernoCliExitCode {
   static const success = 0;
@@ -11,6 +20,7 @@ abstract final class CavernoCliExitCode {
   static const input = 65;
   static const unavailable = 69;
   static const persistence = 74;
+  static const temporary = 75;
   static const approval = 77;
   static const cancelled = 130;
 }

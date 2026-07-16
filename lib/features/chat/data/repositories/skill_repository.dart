@@ -15,14 +15,21 @@ final skillRepositoryProvider = Provider<SkillRepository>((ref) {
 });
 
 class SkillRepository {
-  SkillRepository(this._box);
+  SkillRepository(Box<String> box) : _box = box, _memory = null;
 
-  final Box<String> _box;
+  SkillRepository.inMemory() : _box = null, _memory = <String, String>{};
+
+  final Box<String>? _box;
+  final Map<String, String>? _memory;
+
+  Iterable<dynamic> get _keys => _box?.keys ?? _memory!.keys;
+
+  String? _get(String key) => _box?.get(key) ?? _memory?[key];
 
   List<Skill> getAll() {
     final skills = <Skill>[];
-    for (final key in _box.keys) {
-      final json = _box.get(key);
+    for (final key in _keys) {
+      final json = _get(key.toString());
       if (json == null) {
         continue;
       }
@@ -42,7 +49,7 @@ class SkillRepository {
   }
 
   Skill? getById(String id) {
-    final json = _box.get(id);
+    final json = _get(id);
     if (json == null) {
       return null;
     }
@@ -73,10 +80,21 @@ class SkillRepository {
   }
 
   Future<void> save(Skill skill) async {
-    await _box.put(skill.id, jsonEncode(skill.toJson()));
+    final encoded = jsonEncode(skill.toJson());
+    final box = _box;
+    if (box != null) {
+      await box.put(skill.id, encoded);
+    } else {
+      _memory![skill.id] = encoded;
+    }
   }
 
   Future<void> delete(String id) async {
-    await _box.delete(id);
+    final box = _box;
+    if (box != null) {
+      await box.delete(id);
+    } else {
+      _memory!.remove(id);
+    }
   }
 }

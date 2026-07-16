@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../../../core/utils/logger.dart';
 
 import '../../domain/entities/session_memory.dart';
+import 'chat_memory_mutation_coordinator.dart';
 import 'key_value_store.dart';
 
 final chatMemoryBoxProvider = Provider<Box<String>>((ref) {
@@ -32,14 +34,22 @@ class MemoryUpsertResult {
 }
 
 class ChatMemoryRepository {
-  ChatMemoryRepository(this._store);
+  ChatMemoryRepository(
+    this._store, {
+    ChatMemoryMutationCoordinator mutationCoordinator =
+        const DirectChatMemoryMutationCoordinator(),
+  }) : _mutationCoordinator = mutationCoordinator;
 
   /// Convenience for the Hive-backed path (production default and existing
   /// tests that supply a `Box<String>`).
   ChatMemoryRepository.fromBox(Box<String> box)
-    : _store = HiveKeyValueStore(box);
+    : _store = HiveKeyValueStore(box),
+      _mutationCoordinator = const DirectChatMemoryMutationCoordinator();
 
   final KeyValueStore _store;
+  final ChatMemoryMutationCoordinator _mutationCoordinator;
+
+  static final Object _mutationZoneKey = Object();
 
   static const _profileKey = 'profile';
   static const _sessionSummariesKey = 'session_summaries';
@@ -47,6 +57,28 @@ class ChatMemoryRepository {
   static const _memoryReviewQueueKey = 'memory_review_queue';
   static const _memorySuppressionRulesKey = 'memory_suppression_rules';
   static const _memorySuppressionHitCountKey = 'memory_suppression_hit_count';
+  static const _allKeys = <String>{
+    _profileKey,
+    _sessionSummariesKey,
+    _memoriesKey,
+    _memoryReviewQueueKey,
+    _memorySuppressionRulesKey,
+    _memorySuppressionHitCountKey,
+  };
+
+  /// Refreshes authoritative state and keeps one logical mutation serialized.
+  Future<T> runAtomicMutation<T>(Future<T> Function() mutation) {
+    if (identical(Zone.current[_mutationZoneKey], this)) {
+      return mutation();
+    }
+    return _mutationCoordinator.run<T>(() async {
+      await _store.refresh(_allKeys);
+      return runZoned<Future<T>>(
+        mutation,
+        zoneValues: <Object?, Object?>{_mutationZoneKey: this},
+      );
+    });
+  }
 
   UserMemoryProfile loadProfile() {
     if (!_store.isReady) return UserMemoryProfile.empty();
@@ -64,7 +96,9 @@ class ChatMemoryRepository {
   }
 
   Future<void> saveProfile(UserMemoryProfile profile) async {
-    await _store.put(_profileKey, jsonEncode(profile.toJson()));
+    await runAtomicMutation<void>(() async {
+      await _store.put(_profileKey, jsonEncode(profile.toJson()));
+    });
   }
 
   List<MemorySessionSummary> loadSessionSummaries() {
@@ -88,27 +122,29 @@ class ChatMemoryRepository {
     MemorySessionSummary summary, {
     int maxItems = 20,
   }) async {
-    if (!_store.isReady) return;
-    final summaries = loadSessionSummaries();
-    final existingIndex = summaries.indexWhere(
-      (s) => s.conversationId == summary.conversationId,
-    );
+    await runAtomicMutation<void>(() async {
+      if (!_store.isReady) return;
+      final summaries = loadSessionSummaries();
+      final existingIndex = summaries.indexWhere(
+        (s) => s.conversationId == summary.conversationId,
+      );
 
-    if (existingIndex >= 0) {
-      summaries[existingIndex] = summary;
-    } else {
-      summaries.add(summary);
-    }
+      if (existingIndex >= 0) {
+        summaries[existingIndex] = summary;
+      } else {
+        summaries.add(summary);
+      }
 
-    summaries.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    if (summaries.length > maxItems) {
-      summaries.removeRange(maxItems, summaries.length);
-    }
+      summaries.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      if (summaries.length > maxItems) {
+        summaries.removeRange(maxItems, summaries.length);
+      }
 
-    await _store.put(
-      _sessionSummariesKey,
-      jsonEncode(summaries.map((s) => s.toJson()).toList()),
-    );
+      await _store.put(
+        _sessionSummariesKey,
+        jsonEncode(summaries.map((s) => s.toJson()).toList()),
+      );
+    });
   }
 
   List<MemoryEntry> loadMemories() {
@@ -133,72 +169,76 @@ class ChatMemoryRepository {
     List<MemoryEntry> entries, {
     int maxItems = 300,
   }) async {
-    if (!_store.isReady) {
-      return const MemoryUpsertResult(addedCount: 0, updatedCount: 0);
-    }
-    final memories = loadMemories();
-    var addedCount = 0;
-    var updatedCount = 0;
-
-    for (final entry in entries) {
-      final normalized = _normalize(entry.text);
-      if (normalized.isEmpty) continue;
-
-      final existingIndex = memories.indexWhere((m) {
-        return _normalize(m.text) == normalized;
-      });
-
-      if (existingIndex >= 0) {
-        final current = memories[existingIndex];
-        memories[existingIndex] = current.copyWith(
-          type: entry.type,
-          confidence: entry.confidence > current.confidence
-              ? entry.confidence
-              : current.confidence,
-          importance: entry.importance > current.importance
-              ? entry.importance
-              : current.importance,
-          updatedAt: entry.updatedAt,
-          sourceConversationId: entry.sourceConversationId,
-          expiresAt: entry.expiresAt,
-        );
-        updatedCount++;
-      } else {
-        memories.add(entry);
-        addedCount++;
+    return runAtomicMutation<MemoryUpsertResult>(() async {
+      if (!_store.isReady) {
+        return const MemoryUpsertResult(addedCount: 0, updatedCount: 0);
       }
-    }
+      final memories = loadMemories();
+      var addedCount = 0;
+      var updatedCount = 0;
 
-    memories.removeWhere((m) => m.isExpired);
-    memories.sort((a, b) {
-      final importanceOrder = b.importance.compareTo(a.importance);
-      if (importanceOrder != 0) return importanceOrder;
-      return b.updatedAt.compareTo(a.updatedAt);
+      for (final entry in entries) {
+        final normalized = _normalize(entry.text);
+        if (normalized.isEmpty) continue;
+
+        final existingIndex = memories.indexWhere((m) {
+          return _normalize(m.text) == normalized;
+        });
+
+        if (existingIndex >= 0) {
+          final current = memories[existingIndex];
+          memories[existingIndex] = current.copyWith(
+            type: entry.type,
+            confidence: entry.confidence > current.confidence
+                ? entry.confidence
+                : current.confidence,
+            importance: entry.importance > current.importance
+                ? entry.importance
+                : current.importance,
+            updatedAt: entry.updatedAt,
+            sourceConversationId: entry.sourceConversationId,
+            expiresAt: entry.expiresAt,
+          );
+          updatedCount++;
+        } else {
+          memories.add(entry);
+          addedCount++;
+        }
+      }
+
+      memories.removeWhere((m) => m.isExpired);
+      memories.sort((a, b) {
+        final importanceOrder = b.importance.compareTo(a.importance);
+        if (importanceOrder != 0) return importanceOrder;
+        return b.updatedAt.compareTo(a.updatedAt);
+      });
+      if (memories.length > maxItems) {
+        memories.removeRange(maxItems, memories.length);
+      }
+
+      await _store.put(
+        _memoriesKey,
+        jsonEncode(memories.map((m) => m.toJson()).toList()),
+      );
+
+      return MemoryUpsertResult(
+        addedCount: addedCount,
+        updatedCount: updatedCount,
+      );
     });
-    if (memories.length > maxItems) {
-      memories.removeRange(maxItems, memories.length);
-    }
-
-    await _store.put(
-      _memoriesKey,
-      jsonEncode(memories.map((m) => m.toJson()).toList()),
-    );
-
-    return MemoryUpsertResult(
-      addedCount: addedCount,
-      updatedCount: updatedCount,
-    );
   }
 
   Future<void> deleteMemoryEntry(String id) async {
-    if (!_store.isReady) return;
-    final memories = loadMemories()
-        .where((memory) => memory.id != id)
-        .toList(growable: false);
-    await _store.put(
-      _memoriesKey,
-      jsonEncode(memories.map((memory) => memory.toJson()).toList()),
-    );
+    await runAtomicMutation<void>(() async {
+      if (!_store.isReady) return;
+      final memories = loadMemories()
+          .where((memory) => memory.id != id)
+          .toList(growable: false);
+      await _store.put(
+        _memoriesKey,
+        jsonEncode(memories.map((memory) => memory.toJson()).toList()),
+      );
+    });
   }
 
   List<MemoryReviewItem> loadReviewQueue() {
@@ -225,42 +265,46 @@ class ChatMemoryRepository {
     List<MemoryReviewItem> items, {
     int maxItems = 100,
   }) async {
-    if (!_store.isReady || items.isEmpty) return;
-    final queue = loadReviewQueue();
+    await runAtomicMutation<void>(() async {
+      if (!_store.isReady || items.isEmpty) return;
+      final queue = loadReviewQueue();
 
-    for (final item in items) {
-      final normalized = _normalize(item.text);
-      if (normalized.isEmpty) continue;
-      final index = queue.indexWhere((entry) {
-        return _normalize(entry.text) == normalized;
-      });
-      if (index >= 0) {
-        queue[index] = item;
-      } else {
-        queue.add(item);
+      for (final item in items) {
+        final normalized = _normalize(item.text);
+        if (normalized.isEmpty) continue;
+        final index = queue.indexWhere((entry) {
+          return _normalize(entry.text) == normalized;
+        });
+        if (index >= 0) {
+          queue[index] = item;
+        } else {
+          queue.add(item);
+        }
       }
-    }
 
-    queue.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    if (queue.length > maxItems) {
-      queue.removeRange(maxItems, queue.length);
-    }
+      queue.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      if (queue.length > maxItems) {
+        queue.removeRange(maxItems, queue.length);
+      }
 
-    await _store.put(
-      _memoryReviewQueueKey,
-      jsonEncode(queue.map((item) => item.toJson()).toList()),
-    );
+      await _store.put(
+        _memoryReviewQueueKey,
+        jsonEncode(queue.map((item) => item.toJson()).toList()),
+      );
+    });
   }
 
   Future<void> removeReviewQueueItem(String id) async {
-    if (!_store.isReady) return;
-    final queue = loadReviewQueue()
-        .where((item) => item.id != id)
-        .toList(growable: false);
-    await _store.put(
-      _memoryReviewQueueKey,
-      jsonEncode(queue.map((item) => item.toJson()).toList()),
-    );
+    await runAtomicMutation<void>(() async {
+      if (!_store.isReady) return;
+      final queue = loadReviewQueue()
+          .where((item) => item.id != id)
+          .toList(growable: false);
+      await _store.put(
+        _memoryReviewQueueKey,
+        jsonEncode(queue.map((item) => item.toJson()).toList()),
+      );
+    });
   }
 
   List<MemorySuppressionRule> loadSuppressionRules() {
@@ -289,24 +333,26 @@ class ChatMemoryRepository {
     MemorySuppressionRule rule, {
     int maxItems = 200,
   }) async {
-    if (!_store.isReady || rule.normalizedPattern.isEmpty) return;
-    final rules = loadSuppressionRules();
-    final existingIndex = rules.indexWhere((item) {
-      return item.normalizedPattern == rule.normalizedPattern;
+    await runAtomicMutation<void>(() async {
+      if (!_store.isReady || rule.normalizedPattern.isEmpty) return;
+      final rules = loadSuppressionRules();
+      final existingIndex = rules.indexWhere((item) {
+        return item.normalizedPattern == rule.normalizedPattern;
+      });
+      if (existingIndex >= 0) {
+        rules[existingIndex] = rule;
+      } else {
+        rules.add(rule);
+      }
+      rules.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      if (rules.length > maxItems) {
+        rules.removeRange(maxItems, rules.length);
+      }
+      await _store.put(
+        _memorySuppressionRulesKey,
+        jsonEncode(rules.map((item) => item.toJson()).toList()),
+      );
     });
-    if (existingIndex >= 0) {
-      rules[existingIndex] = rule;
-    } else {
-      rules.add(rule);
-    }
-    rules.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    if (rules.length > maxItems) {
-      rules.removeRange(maxItems, rules.length);
-    }
-    await _store.put(
-      _memorySuppressionRulesKey,
-      jsonEncode(rules.map((item) => item.toJson()).toList()),
-    );
   }
 
   int loadSuppressionHitCount() {
@@ -316,21 +362,25 @@ class ChatMemoryRepository {
   }
 
   Future<void> incrementSuppressionHitCount(int count) async {
-    if (!_store.isReady || count <= 0) return;
-    final current = loadSuppressionHitCount();
-    await _store.put(
-      _memorySuppressionHitCountKey,
-      (current + count).toString(),
-    );
+    await runAtomicMutation<void>(() async {
+      if (!_store.isReady || count <= 0) return;
+      final current = loadSuppressionHitCount();
+      await _store.put(
+        _memorySuppressionHitCountKey,
+        (current + count).toString(),
+      );
+    });
   }
 
   Future<void> clearAll() async {
-    await _store.delete(_profileKey);
-    await _store.delete(_sessionSummariesKey);
-    await _store.delete(_memoriesKey);
-    await _store.delete(_memoryReviewQueueKey);
-    await _store.delete(_memorySuppressionRulesKey);
-    await _store.delete(_memorySuppressionHitCountKey);
+    await runAtomicMutation<void>(() async {
+      await _store.delete(_profileKey);
+      await _store.delete(_sessionSummariesKey);
+      await _store.delete(_memoriesKey);
+      await _store.delete(_memoryReviewQueueKey);
+      await _store.delete(_memorySuppressionRulesKey);
+      await _store.delete(_memorySuppressionHitCountKey);
+    });
   }
 
   String _normalize(String text) {

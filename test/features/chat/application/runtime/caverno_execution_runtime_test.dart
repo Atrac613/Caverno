@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:caverno/features/chat/application/runtime/caverno_execution_runtime.dart';
 import 'package:caverno/features/chat/application/runtime/caverno_runtime_event.dart';
 import 'package:caverno/features/chat/application/runtime/caverno_runtime_ports.dart';
@@ -10,10 +12,10 @@ void main() {
       () async {
         final fixture = _RuntimeFixture();
         final runtime = fixture.runtime;
-        final first = runtime.startTurn(
+        final first = await runtime.startTurn(
           const CavernoRuntimeTurnRequest(turnId: 'turn-1'),
         );
-        final second = runtime.startTurn(
+        final second = await runtime.startTurn(
           const CavernoRuntimeTurnRequest(turnId: 'turn-2'),
         );
 
@@ -36,7 +38,7 @@ void main() {
       final events = <CavernoRuntimeEvent>[];
       final subscription = fixture.runtime.events.listen(events.add);
 
-      final handle = fixture.runtime.startTurn(
+      final handle = await fixture.runtime.startTurn(
         const CavernoRuntimeTurnRequest(
           turnId: 'turn-1',
           conversationId: 'conversation-1',
@@ -130,7 +132,7 @@ void main() {
       final events = <CavernoRuntimeEvent>[];
       final subscription = fixture.runtime.events.listen(events.add);
 
-      final handle = fixture.runtime.startTurn(
+      final handle = await fixture.runtime.startTurn(
         const CavernoRuntimeTurnRequest(turnId: 'hidden-1', hidden: true),
       );
       handle.emitAssistantDelta('secret continuation');
@@ -148,7 +150,7 @@ void main() {
       final fixture = _RuntimeFixture();
       final events = <CavernoRuntimeEvent>[];
       final subscription = fixture.runtime.events.listen(events.add);
-      final handle = fixture.runtime.startTurn(
+      final handle = await fixture.runtime.startTurn(
         const CavernoRuntimeTurnRequest(turnId: 'turn-close'),
       );
 
@@ -159,8 +161,8 @@ void main() {
       expect((terminal as CavernoRuntimeRunFailed).code, 'runtime_closed');
       expect(terminal.exitCode, 130);
       expect(fixture.runtime.isClosed, isTrue);
-      expect(
-        () => fixture.runtime.startTurn(
+      await expectLater(
+        fixture.runtime.startTurn(
           const CavernoRuntimeTurnRequest(turnId: 'turn-after-close'),
         ),
         throwsStateError,
@@ -170,18 +172,134 @@ void main() {
 
     test('rejects duplicate active turn IDs', () async {
       final fixture = _RuntimeFixture();
-      final handle = fixture.runtime.startTurn(
+      final handle = await fixture.runtime.startTurn(
         const CavernoRuntimeTurnRequest(turnId: 'turn-duplicate'),
       );
 
-      expect(
-        () => fixture.runtime.startTurn(
+      await expectLater(
+        fixture.runtime.startTurn(
           const CavernoRuntimeTurnRequest(turnId: 'turn-duplicate'),
         ),
         throwsStateError,
       );
 
       handle.fail(code: 'test_failure', message: 'failed', exitCode: 2);
+      await fixture.runtime.close();
+    });
+
+    test('publishes run_started only after conversation refresh', () async {
+      final fixture = _RuntimeFixture();
+      final refreshGate = Completer<bool>();
+      fixture.repository.refreshGate = refreshGate;
+      final events = <CavernoRuntimeEvent>[];
+      final subscription = fixture.runtime.events.listen(events.add);
+
+      final start = fixture.runtime.startTurn(
+        const CavernoRuntimeTurnRequest(turnId: 'turn-refresh'),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fixture.ownership.requests, hasLength(1));
+      expect(fixture.repository.refreshes, ['repository-conversation']);
+      expect(events, isEmpty);
+
+      refreshGate.complete(true);
+      final handle = await start;
+
+      expect(events.single, isA<CavernoRuntimeRunStarted>());
+      handle.complete(content: 'done');
+      await fixture.runtime.close();
+      await subscription.cancel();
+    });
+
+    test('emits a retryable failure when ownership conflicts', () async {
+      final fixture = _RuntimeFixture();
+      fixture.ownership.conflictMessage =
+          'conversation:conflict is already owned by terminal process 42.';
+      final events = <CavernoRuntimeEvent>[];
+      final subscription = fixture.runtime.events.listen(events.add);
+
+      await expectLater(
+        fixture.runtime.startTurn(
+          const CavernoRuntimeTurnRequest(turnId: 'turn-conflict'),
+        ),
+        throwsA(isA<CavernoRuntimeTurnStartException>()),
+      );
+
+      expect(events, hasLength(1));
+      final failure = events.single as CavernoRuntimeRunFailed;
+      expect(failure.code, 'execution_lease_conflict');
+      expect(failure.exitCode, 75);
+      expect(fixture.repository.refreshes, isEmpty);
+      expect(fixture.lifecycle.started, isEmpty);
+      await fixture.runtime.close();
+      await subscription.cancel();
+    });
+
+    test(
+      'fails before run_started when the conversation disappeared',
+      () async {
+        final fixture = _RuntimeFixture();
+        fixture.repository.refreshResult = false;
+        final events = <CavernoRuntimeEvent>[];
+        final subscription = fixture.runtime.events.listen(events.add);
+
+        await expectLater(
+          fixture.runtime.startTurn(
+            const CavernoRuntimeTurnRequest(turnId: 'turn-missing'),
+          ),
+          throwsA(isA<CavernoRuntimeTurnStartException>()),
+        );
+
+        final failure = events.single as CavernoRuntimeRunFailed;
+        expect(failure.code, 'conversation_unavailable');
+        expect(failure.exitCode, 65);
+        expect(fixture.lifecycle.started, isEmpty);
+        expect(fixture.ownership.handles.single.released, isTrue);
+        await fixture.runtime.close();
+        await subscription.cancel();
+      },
+    );
+
+    test('retains ownership until terminal persistence drains', () async {
+      final fixture = _RuntimeFixture();
+      final flushGate = Completer<void>();
+      fixture.repository.flushGate = flushGate;
+      final handle = await fixture.runtime.startTurn(
+        const CavernoRuntimeTurnRequest(turnId: 'turn-flush'),
+      );
+
+      handle.complete(content: 'done');
+      await Future<void>.delayed(Duration.zero);
+
+      final ownership = fixture.ownership.handles.single;
+      expect(ownership.released, isFalse);
+
+      flushGate.complete();
+      await fixture.runtime.close();
+
+      expect(ownership.released, isTrue);
+    });
+
+    test('rejects a duplicate turn ID while preparation is pending', () async {
+      final fixture = _RuntimeFixture();
+      final refreshGate = Completer<bool>();
+      fixture.repository.refreshGate = refreshGate;
+      final first = fixture.runtime.startTurn(
+        const CavernoRuntimeTurnRequest(turnId: 'turn-preparing'),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      await expectLater(
+        fixture.runtime.startTurn(
+          const CavernoRuntimeTurnRequest(turnId: 'turn-preparing'),
+        ),
+        throwsStateError,
+      );
+
+      refreshGate.complete(true);
+      final handle = await first;
+      handle.complete(content: 'done');
       await fixture.runtime.close();
     });
   });
@@ -194,6 +312,7 @@ final class _RuntimeFixture {
         surface: CavernoRuntimeSurface.headless,
         settings: const _SettingsPort(),
         repository: repository,
+        ownership: ownership,
         llm: const _LlmPort(),
         tools: const _ToolPort(),
         approvals: approvals,
@@ -205,6 +324,7 @@ final class _RuntimeFixture {
   }
 
   final _RepositoryPort repository = _RepositoryPort();
+  final _OwnershipPort ownership = _OwnershipPort();
   final _ApprovalPort approvals = _ApprovalPort();
   final _LogPort logs = _LogPort();
   final _LifecyclePort lifecycle = _LifecyclePort();
@@ -228,13 +348,57 @@ final class _SettingsPort implements CavernoRuntimeSettingsPort {
 final class _RepositoryPort implements CavernoRuntimeRepositoryPort {
   final List<CavernoRuntimeTerminalEvent> terminals =
       <CavernoRuntimeTerminalEvent>[];
+  final List<String> refreshes = <String>[];
+  Completer<bool>? refreshGate;
+  Completer<void>? flushGate;
+  bool refreshResult = true;
 
   @override
   String? get currentConversationId => 'repository-conversation';
 
   @override
+  Future<bool> refreshConversation(String conversationId) {
+    refreshes.add(conversationId);
+    return refreshGate?.future ?? Future<bool>.value(refreshResult);
+  }
+
+  @override
+  Future<void> flushPendingPersistence() =>
+      flushGate?.future ?? Future<void>.value();
+
+  @override
   void onTurnTerminal(CavernoRuntimeTerminalEvent event) {
     terminals.add(event);
+  }
+}
+
+final class _OwnershipPort implements CavernoRuntimeOwnershipPort {
+  final List<_OwnershipHandle> handles = <_OwnershipHandle>[];
+  final List<CavernoRuntimeOwnershipRequest> requests =
+      <CavernoRuntimeOwnershipRequest>[];
+  String? conflictMessage;
+
+  @override
+  Future<CavernoRuntimeOwnershipHandle> acquire(
+    CavernoRuntimeOwnershipRequest request,
+  ) async {
+    requests.add(request);
+    final message = conflictMessage;
+    if (message != null) {
+      throw CavernoRuntimeOwnershipConflict(message);
+    }
+    final handle = _OwnershipHandle();
+    handles.add(handle);
+    return handle;
+  }
+}
+
+final class _OwnershipHandle implements CavernoRuntimeOwnershipHandle {
+  bool released = false;
+
+  @override
+  void release() {
+    released = true;
   }
 }
 

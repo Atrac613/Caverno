@@ -238,6 +238,22 @@ class SessionMemoryService {
     required List<Message> messages,
     DateTime? now,
     MemoryExtractionDraft? draft,
+  }) {
+    return _repository.runAtomicMutation<MemoryUpdateResult>(
+      () => _updateFromConversation(
+        conversationId: conversationId,
+        messages: messages,
+        now: now,
+        draft: draft,
+      ),
+    );
+  }
+
+  Future<MemoryUpdateResult> _updateFromConversation({
+    required String conversationId,
+    required List<Message> messages,
+    DateTime? now,
+    MemoryExtractionDraft? draft,
   }) async {
     final timestamp = now ?? DateTime.now();
     final normalizedMessages = messages.where((m) => !m.isStreaming).toList();
@@ -391,24 +407,28 @@ class SessionMemoryService {
   }
 
   Future<void> suppressMemory(MemoryEntry entry) async {
-    await _repository.addSuppressionRule(
-      MemorySuppressionRule(
-        id: _uuid.v4(),
-        textPattern: entry.text,
-        createdAt: DateTime.now(),
-      ),
-    );
-    await _repository.deleteMemoryEntry(entry.id);
+    await _repository.runAtomicMutation<void>(() async {
+      await _repository.addSuppressionRule(
+        MemorySuppressionRule(
+          id: _uuid.v4(),
+          textPattern: entry.text,
+          createdAt: DateTime.now(),
+        ),
+      );
+      await _repository.deleteMemoryEntry(entry.id);
+    });
   }
 
   Future<void> keepReviewItem(String id) async {
-    final reviewItem = _repository.loadReviewQueue().firstWhere(
-      (item) => item.id == id,
-    );
-    await _repository.addOrUpdateMemories([
-      reviewItem.toMemoryEntry(updatedAt: DateTime.now()),
-    ]);
-    await _repository.removeReviewQueueItem(id);
+    await _repository.runAtomicMutation<void>(() async {
+      final reviewItem = _repository.loadReviewQueue().firstWhere(
+        (item) => item.id == id,
+      );
+      await _repository.addOrUpdateMemories([
+        reviewItem.toMemoryEntry(updatedAt: DateTime.now()),
+      ]);
+      await _repository.removeReviewQueueItem(id);
+    });
   }
 
   Future<void> deleteReviewItem(String id) {
@@ -416,17 +436,19 @@ class SessionMemoryService {
   }
 
   Future<void> suppressReviewItem(String id) async {
-    final reviewItem = _repository.loadReviewQueue().firstWhere(
-      (item) => item.id == id,
-    );
-    await _repository.addSuppressionRule(
-      MemorySuppressionRule(
-        id: _uuid.v4(),
-        textPattern: reviewItem.text,
-        createdAt: DateTime.now(),
-      ),
-    );
-    await _repository.removeReviewQueueItem(id);
+    await _repository.runAtomicMutation<void>(() async {
+      final reviewItem = _repository.loadReviewQueue().firstWhere(
+        (item) => item.id == id,
+      );
+      await _repository.addSuppressionRule(
+        MemorySuppressionRule(
+          id: _uuid.v4(),
+          textPattern: reviewItem.text,
+          createdAt: DateTime.now(),
+        ),
+      );
+      await _repository.removeReviewQueueItem(id);
+    });
   }
 
   MemorySnapshot loadSnapshot() {

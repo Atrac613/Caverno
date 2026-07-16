@@ -12,7 +12,10 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationWillFinishLaunching(_ notification: Notification) {
-    if Self.activateExistingInstanceIfNeeded() {
+    let arguments = ProcessInfo.processInfo.arguments
+    if !Self.isCommandLineInvocation(arguments: arguments) &&
+      Self.activateExistingInstanceIfNeeded()
+    {
       Darwin.exit(0)
     }
     super.applicationWillFinishLaunching(notification)
@@ -47,6 +50,27 @@ class AppDelegate: FlutterAppDelegate {
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
     return true
+  }
+
+  static func isCommandLineInvocation(arguments: [String]) -> Bool {
+    guard let firstArgument = arguments.dropFirst().first?
+      .trimmingCharacters(in: .whitespacesAndNewlines),
+      !firstArgument.isEmpty,
+      !firstArgument.hasPrefix("-psn_")
+    else {
+      return false
+    }
+
+    let commands: Set<String> = [
+      "chat",
+      "coding",
+      "plan",
+      "conversations",
+      "--help",
+      "-h",
+      "--version",
+    ]
+    return commands.contains(firstArgument) || !firstArgument.hasPrefix("-")
   }
 
   private static func activateExistingInstanceIfNeeded() -> Bool {

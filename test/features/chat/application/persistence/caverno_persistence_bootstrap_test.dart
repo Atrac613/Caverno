@@ -102,6 +102,51 @@ void main() {
       expect(databaseClosed, isTrue);
     },
   );
+
+  test('a failed migration can be retried by the next bootstrap', () async {
+    final conversation = _conversation('conversation-retry');
+    var attempts = 0;
+    var migrationCompleted = false;
+    var closeCount = 0;
+
+    Future<CavernoPersistenceStorage> open() {
+      final database = AppDatabase.memory();
+      return bootstrap.open(
+        openDatabase: () async => database,
+        conversationsMigrated: migrationCompleted,
+        chatMemoryMigrated: true,
+        readLegacyConversations: () async {
+          attempts += 1;
+          if (attempts == 1) {
+            throw StateError('temporary legacy read failure');
+          }
+          return <Conversation>[conversation];
+        },
+        readLegacyChatMemory: () async => const <String, String>{},
+        markConversationsMigrated: () async {
+          migrationCompleted = true;
+        },
+        markChatMemoryMigrated: () async {},
+        closeDatabase: (database) async {
+          closeCount += 1;
+          await database.close();
+        },
+      );
+    }
+
+    await expectLater(open(), throwsA(isA<StateError>()));
+    expect(migrationCompleted, isFalse);
+    expect(closeCount, 1);
+
+    final recovered = await open();
+    expect(
+      recovered.conversationRepository.getById(conversation.id),
+      conversation,
+    );
+    expect(migrationCompleted, isTrue);
+    await recovered.close();
+    expect(closeCount, 2);
+  });
 }
 
 Conversation _conversation(String id) {

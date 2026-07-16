@@ -62,6 +62,9 @@ class ConversationRepository implements ConversationRepositoryApi {
     }
   }
 
+  @override
+  Future<Conversation?> refresh(String id) async => getById(id);
+
   /// Saves a conversation.
   @override
   Future<void> save(Conversation conversation) async {

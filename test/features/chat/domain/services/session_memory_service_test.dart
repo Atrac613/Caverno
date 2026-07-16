@@ -18,6 +18,13 @@ class _InMemoryChatMemoryRepository extends ChatMemoryRepository {
   final List<MemoryReviewItem> reviewQueue = [];
   final List<MemorySuppressionRule> suppressionRules = [];
   int suppressionHitCount = 0;
+  int atomicMutationCount = 0;
+
+  @override
+  Future<T> runAtomicMutation<T>(Future<T> Function() mutation) {
+    atomicMutationCount += 1;
+    return mutation();
+  }
 
   @override
   UserMemoryProfile loadProfile() => profile;
@@ -159,6 +166,7 @@ void main() {
       expect(result.queuedReviewCount, 1);
       expect(repository.memories, hasLength(1));
       expect(repository.reviewQueue, hasLength(1));
+      expect(repository.atomicMutationCount, 1);
       expect(
         repository.memories.single.text,
         'The user prefers concise code review summaries.',

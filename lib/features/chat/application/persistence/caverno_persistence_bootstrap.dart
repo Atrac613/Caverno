@@ -1,6 +1,7 @@
 import '../../data/datasources/app_database.dart';
 import '../../data/repositories/cached_drift_conversation_repository.dart';
 import '../../data/repositories/chat_memory_migration_service.dart';
+import '../../data/repositories/chat_memory_mutation_coordinator.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/conversation_migration_service.dart';
 import '../../data/repositories/drift_chat_memory_store.dart';
@@ -58,6 +59,8 @@ final class CavernoPersistenceBootstrap {
     required MigrationMarkerWriter markConversationsMigrated,
     required MigrationMarkerWriter markChatMemoryMigrated,
     CavernoAppDatabaseCloser closeDatabase = _closeAppDatabase,
+    ChatMemoryMutationCoordinator mutationCoordinator =
+        const DirectChatMemoryMutationCoordinator(),
   }) async {
     final database = await openDatabase();
     try {
@@ -85,7 +88,10 @@ final class CavernoPersistenceBootstrap {
       return CavernoPersistenceStorage(
         database: database,
         conversationRepository: conversationRepository,
-        chatMemoryRepository: ChatMemoryRepository(chatMemoryKeyValueStore),
+        chatMemoryRepository: ChatMemoryRepository(
+          chatMemoryKeyValueStore,
+          mutationCoordinator: mutationCoordinator,
+        ),
         closeDatabase: closeDatabase,
       );
     } catch (_) {

@@ -6,17 +6,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../settings/presentation/providers/settings_notifier.dart';
 import '../domain/entities/routine.dart';
 
-final routineRepositoryProvider = Provider<RoutineRepository>((ref) {
+final routineRepositoryProvider = Provider<RoutineRepositoryApi>((ref) {
   return RoutineRepository(ref.watch(sharedPreferencesProvider));
 });
 
-class RoutineRepository {
+abstract interface class RoutineRepositoryApi {
+  List<Routine> loadAll();
+
+  Future<void> saveAll(List<Routine> routines);
+}
+
+class RoutineRepository implements RoutineRepositoryApi {
   RoutineRepository(this._prefs);
 
   final SharedPreferences _prefs;
 
   static const _storageKey = 'routines';
 
+  @override
   List<Routine> loadAll() {
     final json = _prefs.getString(_storageKey);
     if (json == null) {
@@ -33,6 +40,7 @@ class RoutineRepository {
     }
   }
 
+  @override
   Future<void> saveAll(List<Routine> routines) async {
     await _prefs.setString(
       _storageKey,

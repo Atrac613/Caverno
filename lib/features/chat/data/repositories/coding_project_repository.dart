@@ -6,20 +6,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/coding_project.dart';
 
-final codingProjectRepositoryProvider = Provider<CodingProjectRepository>((
+final codingProjectRepositoryProvider = Provider<CodingProjectRepositoryApi>((
   ref,
 ) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return CodingProjectRepository(prefs);
 });
 
-class CodingProjectRepository {
+abstract interface class CodingProjectRepositoryApi {
+  List<CodingProject> loadAll();
+
+  Future<void> saveAll(List<CodingProject> projects);
+}
+
+class CodingProjectRepository implements CodingProjectRepositoryApi {
   CodingProjectRepository(this._prefs);
 
   static const _storageKey = 'coding_projects';
 
   final SharedPreferences _prefs;
 
+  @override
   List<CodingProject> loadAll() {
     final raw = _prefs.getString(_storageKey);
     if (raw == null || raw.isEmpty) return const [];
@@ -35,6 +42,7 @@ class CodingProjectRepository {
     }
   }
 
+  @override
   Future<void> saveAll(List<CodingProject> projects) {
     final encoded = jsonEncode(
       projects.map((project) => project.toJson()).toList(),

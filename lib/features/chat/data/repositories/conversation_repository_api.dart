@@ -14,6 +14,10 @@ abstract interface class ConversationRepositoryApi {
 
   Conversation? getById(String id);
 
+  /// Reloads one conversation from the authoritative store and updates any
+  /// synchronous cache maintained by the repository.
+  Future<Conversation?> refresh(String id);
+
   Future<void> save(Conversation conversation);
 
   Future<void> delete(String id);

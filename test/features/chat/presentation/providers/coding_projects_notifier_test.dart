@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:caverno/core/services/security_scoped_bookmark_service.dart';
+import 'package:caverno/features/chat/data/repositories/coding_project_repository.dart';
+import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +24,16 @@ class _FakeSecurityScopedBookmarkService extends SecurityScopedBookmarkService {
   ) async {
     return accessResults[bookmark] ??
         const SecurityScopedBookmarkAccessResult.success();
+  }
+}
+
+class _FailingCodingProjectRepository implements CodingProjectRepositoryApi {
+  @override
+  List<CodingProject> loadAll() => const <CodingProject>[];
+
+  @override
+  Future<void> saveAll(List<CodingProject> projects) {
+    throw const FileSystemException('Project persistence failed');
   }
 }
 
@@ -59,30 +73,76 @@ void main() {
     expect(state.projects.single.securityScopedBookmark, 'bookmark-1');
   });
 
-  test('useTransientProject does not persist the terminal project', () {
-    const projectPath = '/tmp/terminal-project';
-    final project = container
-        .read(codingProjectsNotifierProvider.notifier)
-        .useTransientProject(projectPath);
+  test(
+    'ensureTerminalProject persists and reuses the terminal project',
+    () async {
+      const projectPath = '/tmp/terminal-project';
+      final project = await container
+          .read(codingProjectsNotifierProvider.notifier)
+          .ensureTerminalProject(projectPath);
 
-    expect(project.rootPath, projectPath);
-    expect(project.securityScopedBookmark, isNull);
-    expect(
-      container.read(codingProjectsNotifierProvider).selectedProject,
-      same(project),
-    );
+      expect(project.rootPath, projectPath);
+      expect(project.securityScopedBookmark, isNull);
+      expect(
+        container.read(codingProjectsNotifierProvider).selectedProject,
+        same(project),
+      );
 
-    final reloaded = ProviderContainer(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        securityScopedBookmarkServiceProvider.overrideWithValue(
-          bookmarkService,
-        ),
-      ],
-    );
-    addTearDown(reloaded.dispose);
-    expect(reloaded.read(codingProjectsNotifierProvider).projects, isEmpty);
-  });
+      final repeated = await container
+          .read(codingProjectsNotifierProvider.notifier)
+          .ensureTerminalProject(projectPath);
+      expect(repeated.id, project.id);
+      expect(
+        container.read(codingProjectsNotifierProvider).projects,
+        hasLength(1),
+      );
+
+      final reloaded = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          securityScopedBookmarkServiceProvider.overrideWithValue(
+            bookmarkService,
+          ),
+        ],
+      );
+      addTearDown(reloaded.dispose);
+      final reloadedProject = reloaded
+          .read(codingProjectsNotifierProvider)
+          .projects
+          .single;
+      expect(reloadedProject.id, project.id);
+      expect(reloadedProject.rootPath, projectPath);
+      expect(reloadedProject.securityScopedBookmark, isNull);
+    },
+  );
+
+  test(
+    'ensureTerminalProject does not select an unpersisted project',
+    () async {
+      final failingContainer = ProviderContainer(
+        overrides: [
+          codingProjectRepositoryProvider.overrideWithValue(
+            _FailingCodingProjectRepository(),
+          ),
+          securityScopedBookmarkServiceProvider.overrideWithValue(
+            bookmarkService,
+          ),
+        ],
+      );
+      addTearDown(failingContainer.dispose);
+
+      await expectLater(
+        failingContainer
+            .read(codingProjectsNotifierProvider.notifier)
+            .ensureTerminalProject('/tmp/unpersisted-project'),
+        throwsA(isA<FileSystemException>()),
+      );
+
+      final state = failingContainer.read(codingProjectsNotifierProvider);
+      expect(state.projects, isEmpty);
+      expect(state.selectedProject, isNull);
+    },
+  );
 
   test('re-adding a project refreshes its bookmark', () async {
     const projectPath = '/Users/test/Documents/sample_project';
