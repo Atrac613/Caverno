@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_monitor_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
+import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
@@ -32,6 +33,26 @@ const _networkToolNames = [
   'traceroute',
   'path_mtu',
   'mdns_browse',
+];
+
+const _filesystemInspectionToolNames = [
+  'list_directory',
+  'read_file',
+  'inspect_file',
+  'find_files',
+  'search_files',
+];
+
+const _filesystemMutationToolNames = [
+  'write_file',
+  'edit_file',
+  'delete_file',
+  'rollback_last_file_change',
+];
+
+const _filesystemToolNames = [
+  ..._filesystemInspectionToolNames,
+  ..._filesystemMutationToolNames,
 ];
 
 String _openAiFunctionName(Map<String, dynamic> tool) =>
@@ -195,6 +216,193 @@ void main() {
         expect(result.isSuccess, isFalse);
         expect(result.errorMessage, testCase.$3);
       }
+    });
+
+    test('preserves ordered built-in filesystem definitions and placement', () {
+      final service = McpToolService();
+      final definitions = service.getOpenAiToolDefinitions();
+      final names = definitions.map(_openAiFunctionName).toList();
+      final inspectionDefinitions = definitions
+          .where(
+            (tool) => _filesystemInspectionToolNames.contains(
+              _openAiFunctionName(tool),
+            ),
+          )
+          .toList();
+      final mutationDefinitions = definitions
+          .where(
+            (tool) => _filesystemMutationToolNames.contains(
+              _openAiFunctionName(tool),
+            ),
+          )
+          .toList();
+
+      expect(
+        inspectionDefinitions.map(_openAiFunctionName),
+        _filesystemInspectionToolNames,
+      );
+      expect(
+        sha256
+            .convert(utf8.encode(jsonEncode(inspectionDefinitions)))
+            .toString(),
+          'e43cff1a45c1c8ba66c3aaae892dd5ad421a86e77b2c72ac72d98291df5cf15c',
+      );
+      if (FilesystemTools.isDesktopPlatform) {
+        expect(
+          mutationDefinitions.map(_openAiFunctionName),
+          _filesystemMutationToolNames,
+        );
+        expect(
+          sha256
+              .convert(utf8.encode(jsonEncode(mutationDefinitions)))
+              .toString(),
+            '913d9ba8adc55f1d494fcb61b6cce8a7a319f7ba93d0585b9c20f28e2fad2097',
+        );
+      } else {
+        expect(mutationDefinitions, isEmpty);
+      }
+
+      final inspectionStart = names.indexOf(
+        _filesystemInspectionToolNames.first,
+      );
+      expect(
+        names.sublist(
+          inspectionStart,
+          inspectionStart + _filesystemInspectionToolNames.length,
+        ),
+        _filesystemInspectionToolNames,
+      );
+      final dependencyIndex = names.indexOf('resolve_installed_dependency');
+      final lspIndex = names.indexOf('lsp_go_to_definition');
+      expect(dependencyIndex, inspectionStart + 5);
+      expect(lspIndex, dependencyIndex + 1);
+      if (FilesystemTools.isDesktopPlatform) {
+        expect(names[lspIndex + 1], _filesystemMutationToolNames.first);
+      }
+    });
+
+    test(
+      'hides disabled filesystem definitions but keeps direct validation routing',
+      () async {
+        final service = McpToolService(
+          disabledBuiltInTools: _filesystemToolNames.toSet(),
+        );
+
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toSet();
+        expect(
+          functionNames.intersection(_filesystemToolNames.toSet()),
+          isEmpty,
+        );
+
+        const cases = [
+          ('list_directory', <String, dynamic>{}, 'path is required'),
+          ('read_file', <String, dynamic>{}, 'path is required'),
+          ('inspect_file', <String, dynamic>{}, 'path is required'),
+          ('write_file', <String, dynamic>{}, 'path is required'),
+          ('edit_file', <String, dynamic>{}, 'path is required'),
+          ('delete_file', <String, dynamic>{}, 'path is required'),
+          ('find_files', <String, dynamic>{}, 'path and pattern are required'),
+          ('search_files', <String, dynamic>{}, 'path and query are required'),
+          (
+            'rollback_last_file_change',
+            <String, dynamic>{},
+            'No recent file change is available to roll back',
+          ),
+        ];
+
+        for (final testCase in cases) {
+          final result = await service.executeTool(
+            name: testCase.$1,
+            arguments: testCase.$2,
+          );
+          expect(result.toolName, testCase.$1);
+          expect(result.result, isEmpty);
+          expect(result.isSuccess, isFalse);
+          expect(result.errorMessage, testCase.$3);
+        }
+      },
+    );
+
+    test('preserves legacy filesystem payload success envelopes', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'mcp_tool_service_filesystem_envelope_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+      final missingPath = '${tempDir.path}/missing';
+      final service = McpToolService();
+
+      final inspectionCalls = [
+        ('list_directory', <String, dynamic>{'path': missingPath}),
+        ('read_file', <String, dynamic>{'path': missingPath}),
+        ('inspect_file', <String, dynamic>{'path': missingPath}),
+        (
+          'find_files',
+          <String, dynamic>{'path': missingPath, 'pattern': '*.dart'},
+        ),
+        (
+          'search_files',
+          <String, dynamic>{'path': missingPath, 'query': 'needle'},
+        ),
+      ];
+      for (final call in inspectionCalls) {
+        final result = await service.executeTool(
+          name: call.$1,
+          arguments: call.$2,
+        );
+        expect(result.isSuccess, isTrue, reason: call.$1);
+        expect(jsonDecode(result.result), contains('error'));
+      }
+
+      final writeResult = await service.executeTool(
+        name: 'write_file',
+        arguments: {'path': tempDir.path, 'content': 'not writable'},
+      );
+      expect(writeResult.isSuccess, isTrue);
+      expect(jsonDecode(writeResult.result), contains('error'));
+
+      final editable = File('${tempDir.path}/editable.txt')
+        ..writeAsStringSync('current content\n');
+      final editResult = await service.executeTool(
+        name: 'edit_file',
+        arguments: {
+          'path': editable.path,
+          'old_text': 'missing content',
+          'new_text': 'replacement',
+        },
+      );
+      expect(editResult.isSuccess, isTrue);
+      expect(jsonDecode(editResult.result), contains('error'));
+
+        final alreadyAppliedResult = await service.executeTool(
+          name: 'edit_file',
+          arguments: {
+            'path': editable.path,
+            'old_text': 'current',
+            'new_text': 'current content',
+          },
+        );
+      expect(alreadyAppliedResult.isSuccess, isTrue);
+      expect(
+        (jsonDecode(alreadyAppliedResult.result)
+            as Map<String, dynamic>)['already_applied'],
+        isTrue,
+      );
+
+      final deleteResult = await service.executeTool(
+        name: 'delete_file',
+        arguments: {'path': missingPath},
+      );
+      expect(deleteResult.isSuccess, isFalse);
+      expect(deleteResult.errorMessage, 'Failed to delete file');
+      expect(jsonDecode(deleteResult.result), contains('error'));
+      expect(await service.previewLastFileRollbackChange(), isNull);
     });
 
     test('includes LSP go-to-definition tool definition', () {
@@ -1244,6 +1452,94 @@ BuildVersion: 23F79
         expect(result.isSuccess, isTrue);
         expect(result.result, 'remote pong');
         expect(client.calledToolNames, ['ping']);
+      },
+    );
+
+    test(
+      'disabled delete_file still reserves its remote tool collision',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://example.com/mcp',
+          tools: [
+            McpTool(
+              name: 'delete_file',
+              description: 'Remote delete tool',
+              inputSchema: {'type': 'object'},
+            ),
+          ],
+          results: const {'delete_file': 'remote delete result'},
+        );
+        final service = McpToolService(
+          mcpClients: [client],
+          disabledBuiltInTools: const {'delete_file'},
+        );
+
+        await service.connect();
+
+        final remoteTool = service.tools.single;
+        expect(remoteTool.originalName, 'delete_file');
+        expect(remoteTool.name, startsWith('delete_file__'));
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        expect(functionNames, isNot(contains('delete_file')));
+        expect(functionNames, contains(remoteTool.name));
+
+        final result = await service.executeTool(
+          name: remoteTool.name,
+          arguments: const {},
+        );
+        expect(result.isSuccess, isTrue);
+        expect(result.result, 'remote delete result');
+        expect(client.calledToolNames, ['delete_file']);
+      },
+    );
+
+    test(
+      'disabled filesystem names still reserve all remote collisions',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://filesystem.example.com/mcp',
+          tools: _filesystemToolNames
+              .map(
+                (name) => McpTool(
+                  name: name,
+                  description: 'Remote $name tool',
+                  inputSchema: const {'type': 'object'},
+                ),
+              )
+              .toList(),
+          results: {
+            for (final name in _filesystemToolNames) name: 'remote:$name',
+          },
+        );
+        final service = McpToolService(
+          mcpClients: [client],
+          disabledBuiltInTools: _filesystemToolNames.toSet(),
+        );
+
+        await service.connect();
+
+        expect(service.tools, hasLength(_filesystemToolNames.length));
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        for (final remoteTool in service.tools) {
+          expect(_filesystemToolNames, contains(remoteTool.originalName));
+          expect(remoteTool.name, startsWith('${remoteTool.originalName}__'));
+          expect(functionNames, isNot(contains(remoteTool.originalName)));
+          expect(functionNames, contains(remoteTool.name));
+
+          final result = await service.executeTool(
+            name: remoteTool.name,
+            arguments: const {},
+          );
+          expect(result.isSuccess, isTrue);
+          expect(result.result, 'remote:${remoteTool.originalName}');
+        }
+        expect(client.calledToolNames, _filesystemToolNames);
       },
     );
 

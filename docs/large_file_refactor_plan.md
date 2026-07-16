@@ -7,7 +7,7 @@ otherwise.
 
 ## Current Inventory
 
-The live inventory below was refreshed on 2026-07-16 with `wc -l`. Refresh it
+The live inventory below was refreshed on 2026-07-17 with `wc -l`. Refresh it
 again before starting a new refactor branch.
 
 | File | Lines | Primary concern |
@@ -15,8 +15,9 @@ again before starting a new refactor branch.
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
 | `lib/features/chat/presentation/pages/chat_page.dart` | 2738 | Chat screen layout, drawers, modals, input wiring, plan UI |
 | `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2442 | Saved-workflow execution, recovery, evidence, and auto-continuation |
-| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 4096 | Tool registry, MCP execution, remaining built-in adapters |
+| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 3621 | Tool registry, MCP execution, remaining built-in adapters |
 | `lib/features/chat/data/datasources/built_in_network_tool_handler.dart` | 978 | Built-in network definitions, validation, and operation dispatch |
+| `lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart` | 622 | Built-in filesystem definitions, execution, and rollback checkpoints |
 | `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 3270 | Computer Use settings layout and validation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
 | `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
@@ -25,7 +26,7 @@ again before starting a new refactor branch.
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. Current aggregate sizes
 are 23,005 lines for the ChatNotifier library, 10,344 for the ChatPage library,
-4,439 for the McpToolService library, and 33,189 for the ChatNotifier test
+3,910 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
 
 ## Refactor Rules
@@ -86,11 +87,11 @@ Foundation status (2026-07-16):
 - The package passed 13 tests; the focused root integration gate passed 32
   tests; root and package analysis reported no findings.
 
-Next slice:
+Next application-boundary slice:
 
-- Extract the built-in MCP filesystem tool family behind an independently
-  testable application-internal handler, including rollback checkpoint
-  ownership and the existing delete-file part.
+- Extract local command and background-process definitions and routing behind
+  an independently testable application-internal handler. Keep approval and
+  user-interaction ownership in `ChatNotifier`.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -247,14 +248,29 @@ Network handler status (2026-07-16):
   The full repository gate passed 3,432 root tests at 72.16% line coverage;
   the new handler reached 72.22% line coverage without live network access.
 
+Filesystem handler status (2026-07-17):
+
+- `BuiltInFilesystemToolHandler` owns the five inspection definitions, four
+  mutation definitions, validation, argument normalization, execution,
+  mutation snapshots, and rollback checkpoint lifecycle.
+- Characterization preserves the exact definition placement around dependency
+  grounding and LSP, platform gating, disabled direct execution, all nine
+  remote-collision reservations, legacy result-envelope asymmetry, and
+  first-snapshot turn rollback behavior.
+- `mcp_tool_service.dart` fell from 4,096 to 3,621 lines, and its same-library
+  aggregate fell from 4,439 to 3,910 lines. The independent handler is
+  ratcheted at 622 lines.
+- The focused verifier passed 97 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,445 root tests at 72.27% line coverage;
+  the new handler reached 99.20% line coverage using deterministic runners and
+  isolated temporary directories.
+
 Next slice:
 
-- Extract filesystem definitions and routing into
-  `BuiltInFilesystemToolHandler`. Include `list_directory`, `read_file`,
-  `inspect_file`, `write_file`, `edit_file`, `delete_file`,
-  `rollback_last_file_change`, `find_files`, and `search_files` while
-  preserving platform gating, direct execution, collision handling, and
-  checkpoint lifecycle behavior.
+- Extract `local_execute_command` and the background-process tool family into
+  `BuiltInLocalCommandToolHandler`, including the direct `run_tests` approval
+  sentinel. Preserve desktop and capability gating, Git-write rejection,
+  process monitoring, result envelopes, and `ChatNotifier` approval ownership.
 
 Exit criteria:
 

@@ -25,6 +25,7 @@ import '../repositories/skill_repository.dart';
 import 'background_process_tools.dart';
 import 'background_process_monitor_service.dart';
 import 'ble_tools.dart';
+import 'built_in_filesystem_tool_handler.dart';
 import 'built_in_network_tool_handler.dart';
 import 'conversation_search_tool.dart';
 import 'file_rollback_checkpoint_store.dart';
@@ -43,8 +44,6 @@ import 'searxng_client.dart';
 import 'serial_port_tools.dart';
 import 'wifi_tools.dart';
 
-part 'mcp_tool_service_delete_file.dart';
-
 /// MCP tool management service.
 ///
 /// Fetches tools dynamically from an MCP server and executes them.
@@ -62,14 +61,7 @@ class McpToolService {
     'load_skill',
     'create_routine',
     ...BuiltInNetworkToolHandler.toolNames,
-    'list_directory',
-    'read_file',
-    'inspect_file',
-    'write_file',
-    'edit_file',
-    'rollback_last_file_change',
-    'find_files',
-    'search_files',
+    ...BuiltInFilesystemToolHandler.toolNames,
     InstalledDependencyGroundingService.toolName,
     'lsp_go_to_definition',
     'local_execute_command',
@@ -138,10 +130,13 @@ class McpToolService {
     this.backgroundProcessTools,
     this.backgroundProcessMonitorService,
     BuiltInNetworkToolHandler? networkToolHandler,
+    BuiltInFilesystemToolHandler? filesystemToolHandler,
     InstalledDependencyGroundingService? dependencyGroundingService,
     this.semanticConversationRanker,
     this.disabledBuiltInTools = const {},
   }) : networkToolHandler = networkToolHandler ?? BuiltInNetworkToolHandler(),
+       filesystemToolHandler =
+           filesystemToolHandler ?? BuiltInFilesystemToolHandler(),
        dependencyGroundingService =
            dependencyGroundingService ??
            const InstalledDependencyGroundingService();
@@ -163,6 +158,7 @@ class McpToolService {
   final BackgroundProcessTools? backgroundProcessTools;
   final BackgroundProcessMonitorService? backgroundProcessMonitorService;
   final BuiltInNetworkToolHandler networkToolHandler;
+  final BuiltInFilesystemToolHandler filesystemToolHandler;
   final InstalledDependencyGroundingService dependencyGroundingService;
 
   /// LL5: ranks conversation ids by semantic similarity for
@@ -174,8 +170,6 @@ class McpToolService {
 
   List<McpToolEntity> _cachedTools = [];
   final Map<String, _RemoteToolBinding> _remoteToolBindings = {};
-  final FileRollbackCheckpointStore _fileRollbackCheckpointStore =
-      FileRollbackCheckpointStore();
   List<McpServerConnectionInfo> _serverStates = const [];
   McpConnectionStatus _status = McpConnectionStatus.disconnected;
   String? _lastError;
@@ -347,21 +341,18 @@ class McpToolService {
     // Read-only file inspection is safe on every platform, including the
     // iOS/Android sandbox, so the model can analyze attached or referenced
     // files (e.g. large logs) on mobile too.
-    _addIfEnabled(toolDefinitions, _listDirectoryTool);
-    _addIfEnabled(toolDefinitions, _readFileTool);
-    _addIfEnabled(toolDefinitions, _inspectFileTool);
-    _addIfEnabled(toolDefinitions, _findFilesTool);
-    _addIfEnabled(toolDefinitions, _searchFilesTool);
+    for (final tool in filesystemToolHandler.inspectionDefinitions) {
+      _addIfEnabled(toolDefinitions, tool);
+    }
     _addIfEnabled(toolDefinitions, _resolveInstalledDependencyTool);
     _addIfEnabled(toolDefinitions, _lspGoToDefinitionTool);
 
     // Mutating file tools stay desktop-only: writing arbitrary paths on a
     // sandboxed mobile OS is both risky and largely unusable.
     if (FilesystemTools.isDesktopPlatform) {
-      _addIfEnabled(toolDefinitions, _writeFileTool);
-      _addIfEnabled(toolDefinitions, _editFileTool);
-      _addIfEnabled(toolDefinitions, _deleteFileToolDefinition);
-      _addIfEnabled(toolDefinitions, _rollbackLastFileChangeTool);
+      for (final tool in filesystemToolHandler.mutationDefinitions) {
+        _addIfEnabled(toolDefinitions, tool);
+      }
     }
 
     if (LocalShellTools.isDesktopPlatform) {
@@ -653,194 +644,8 @@ class McpToolService {
       );
     }
 
-    if (name == 'list_directory') {
-      final path = (arguments['path'] as String?)?.trim() ?? '';
-      if (path.isEmpty) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'path is required',
-        );
-      }
-      final recursive = arguments['recursive'] as bool? ?? false;
-      final maxEntries = ((arguments['max_entries'] as num?)?.toInt() ?? 200)
-          .clamp(1, 1000);
-      final result = await FilesystemTools.listDirectory(
-        path: path,
-        recursive: recursive,
-        maxEntries: maxEntries,
-      );
-      return McpToolResult(toolName: name, result: result, isSuccess: true);
-    }
-
-    if (name == 'read_file') {
-      final path = (arguments['path'] as String?)?.trim() ?? '';
-      if (path.isEmpty) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'path is required',
-        );
-      }
-      final maxChars = ((arguments['max_chars'] as num?)?.toInt() ?? 120000)
-          .clamp(100, 500000);
-      final offset = ((arguments['offset'] as num?)?.toInt() ?? 1)
-          .clamp(1, 1000000000)
-          .toInt();
-      final rawLimit = (arguments['limit'] as num?)?.toInt();
-      final limit = rawLimit?.clamp(1, 20000).toInt();
-      final result = await FilesystemTools.readFile(
-        path: path,
-        maxChars: maxChars,
-        offset: offset,
-        limit: limit,
-      );
-      return McpToolResult(toolName: name, result: result, isSuccess: true);
-    }
-
-    if (name == 'inspect_file') {
-      final path = (arguments['path'] as String?)?.trim() ?? '';
-      if (path.isEmpty) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'path is required',
-        );
-      }
-      final headLines = ((arguments['head_lines'] as num?)?.toInt() ?? 50)
-          .clamp(1, 100)
-          .toInt();
-      final tailLines = ((arguments['tail_lines'] as num?)?.toInt() ?? 20)
-          .clamp(0, 50)
-          .toInt();
-      final result = await FilesystemTools.inspectFile(
-        path: path,
-        headLines: headLines,
-        tailLines: tailLines,
-      );
-      return McpToolResult(toolName: name, result: result, isSuccess: true);
-    }
-
-    if (name == 'write_file') {
-      final path = (arguments['path'] as String?)?.trim() ?? '';
-      final content = arguments['content'] as String? ?? '';
-      if (path.isEmpty) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'path is required',
-        );
-      }
-      final createParents = arguments['create_parents'] as bool? ?? true;
-      final snapshot = await FilesystemTools.captureTextSnapshot(path);
-      final result = await FilesystemTools.writeFile(
-        path: path,
-        content: content,
-        createParents: createParents,
-      );
-      if (_isFilesystemPayloadSuccess(result)) {
-        _pushFileRollbackEntry(snapshot);
-      }
-      return McpToolResult(toolName: name, result: result, isSuccess: true);
-    }
-
-    if (name == 'edit_file') {
-      final path = (arguments['path'] as String?)?.trim() ?? '';
-      final oldText = arguments['old_text'] as String? ?? '';
-      final newText = arguments['new_text'] as String? ?? '';
-      if (path.isEmpty) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'path is required',
-        );
-      }
-      final replaceAll = arguments['replace_all'] as bool? ?? false;
-      final snapshot = await FilesystemTools.captureTextSnapshot(path);
-      final result = await FilesystemTools.editFile(
-        path: path,
-        oldText: oldText,
-        newText: newText,
-        replaceAll: replaceAll,
-      );
-      if (_isFilesystemPayloadSuccess(result)) {
-        _pushFileRollbackEntry(snapshot);
-      }
-      return McpToolResult(toolName: name, result: result, isSuccess: true);
-    }
-
-    if (name == 'delete_file') {
-      return _executeDeleteFileTool(name, arguments);
-    }
-
-    if (name == 'rollback_last_file_change') {
-      return _fileRollbackCheckpointStore.rollbackLastFileChange(
-        toolName: name,
-      );
-    }
-
-    if (name == 'find_files') {
-      final path = (arguments['path'] as String?)?.trim() ?? '';
-      final pattern = (arguments['pattern'] as String?)?.trim() ?? '';
-      if (path.isEmpty || pattern.isEmpty) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'path and pattern are required',
-        );
-      }
-      final recursive = arguments['recursive'] as bool? ?? true;
-      final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 200)
-          .clamp(1, 1000);
-      final result = await FilesystemTools.findFiles(
-        path: path,
-        pattern: pattern,
-        recursive: recursive,
-        maxResults: maxResults,
-      );
-      return McpToolResult(toolName: name, result: result, isSuccess: true);
-    }
-
-    if (name == 'search_files') {
-      final path = (arguments['path'] as String?)?.trim() ?? '';
-      final query = (arguments['query'] as String?)?.trim() ?? '';
-      if (path.isEmpty || query.isEmpty) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'path and query are required',
-        );
-      }
-      final filePattern = (arguments['file_pattern'] as String?)?.trim();
-      final caseSensitive = arguments['case_sensitive'] as bool? ?? false;
-      final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 200)
-          .clamp(1, 1000);
-      final offset = ((arguments['offset'] as num?)?.toInt() ?? 0)
-          .clamp(0, 1000000)
-          .toInt();
-      final maxLineLength =
-          ((arguments['max_line_length'] as num?)?.toInt() ?? 500)
-              .clamp(40, 1000)
-              .toInt();
-      final maxBytesScanned = (arguments['max_bytes_scanned'] as num?)?.toInt();
-      final result = await FilesystemTools.searchFiles(
-        path: path,
-        query: query,
-        filePattern: filePattern,
-        caseSensitive: caseSensitive,
-        maxResults: maxResults,
-        offset: offset,
-        maxLineLength: maxLineLength,
-        maxBytesScanned: maxBytesScanned,
-      );
-      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    if (filesystemToolHandler.handles(name)) {
+      return filesystemToolHandler.execute(name: name, arguments: arguments);
     }
 
     if (name == InstalledDependencyGroundingService.toolName) {
@@ -1453,33 +1258,23 @@ class McpToolService {
   }
 
   Future<FileRollbackPreview?> previewLastFileRollbackChange() async {
-    return _fileRollbackCheckpointStore.previewLastFileRollbackChange();
+    return filesystemToolHandler.previewLastFileRollbackChange();
   }
 
   void beginFileTurnCheckpoint(String turnId) {
-    _fileRollbackCheckpointStore.beginFileTurnCheckpoint(turnId);
+    filesystemToolHandler.beginFileTurnCheckpoint(turnId);
   }
 
   void endFileTurnCheckpoint() {
-    _fileRollbackCheckpointStore.endFileTurnCheckpoint();
+    filesystemToolHandler.endFileTurnCheckpoint();
   }
 
   Future<FileTurnRollbackPreview?> previewLastFileTurnCheckpoint() async {
-    return _fileRollbackCheckpointStore.previewLastFileTurnCheckpoint();
+    return filesystemToolHandler.previewLastFileTurnCheckpoint();
   }
 
   Future<McpToolResult> rollbackLastFileTurnCheckpoint() async {
-    return _fileRollbackCheckpointStore.rollbackLastFileTurnCheckpoint();
-  }
-
-  bool _isFilesystemPayloadSuccess(String payload) {
-    try {
-      final decoded = jsonDecode(payload);
-      return decoded is! Map<String, dynamic> ||
-          (decoded['error'] == null && decoded['already_applied'] != true);
-    } catch (_) {
-      return true;
-    }
+    return filesystemToolHandler.rollbackLastFileTurnCheckpoint();
   }
 
   Map<String, dynamic>? _tryDecodeMap(String payload) {
@@ -1858,14 +1653,6 @@ class McpToolService {
       },
     },
   ];
-
-  void _pushFileRollbackEntry(TextFileSnapshot snapshot) {
-    if (snapshot.exists && snapshot.error != null) {
-      return;
-    }
-
-    _fileRollbackCheckpointStore.push(snapshot);
-  }
 
   static Map<String, dynamic> get _spawnSubagentTool => {
     'type': 'function',
@@ -2852,268 +2639,6 @@ class McpToolService {
   // ---------------------------------------------------------------------------
   // Built-in coding tools (desktop only)
   // ---------------------------------------------------------------------------
-
-  static Map<String, dynamic> get _listDirectoryTool => {
-    'type': 'function',
-    'function': {
-      'name': 'list_directory',
-      'description':
-          'List files and directories inside a local directory. Useful for '
-          'understanding project structure before reading or editing files.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'path': {
-            'type': 'string',
-            'description':
-                'Absolute or project-relative directory path. Optional when a coding project is selected.',
-          },
-          'recursive': {
-            'type': 'boolean',
-            'description': 'Whether to include nested files and folders.',
-          },
-          'max_entries': {
-            'type': 'integer',
-            'description': 'Maximum number of entries to return.',
-          },
-        },
-      },
-    },
-  };
-
-  static Map<String, dynamic> get _readFileTool => {
-    'type': 'function',
-    'function': {
-      'name': 'read_file',
-      'description':
-          'Read a UTF-8 text file from the local project. Use offset and limit '
-          'to inspect a specific line range in large files. For very large '
-          'files (logs, exports), call inspect_file first, then read only the '
-          'ranges you need — never try to read the whole file at once.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'path': {
-            'type': 'string',
-            'description': 'Absolute or project-relative file path.',
-          },
-          'max_chars': {
-            'type': 'integer',
-            'description': 'Maximum number of characters to return.',
-          },
-          'offset': {
-            'type': 'integer',
-            'description': '1-based start line for range reads.',
-          },
-          'limit': {
-            'type': 'integer',
-            'description': 'Maximum number of lines to return.',
-          },
-        },
-        'required': ['path'],
-      },
-    },
-  };
-
-  static Map<String, dynamic> get _inspectFileTool => {
-    'type': 'function',
-    'function': {
-      'name': 'inspect_file',
-      'description':
-          'Inspect a local text file WITHOUT loading it fully into memory. '
-          'Returns byte size, total line count, head and tail samples, detected '
-          'encoding, and a format hint. Call this FIRST on large or unknown '
-          'files (logs, JSONL/CSV exports, multi-MB text) before searching or '
-          'range-reading them.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'path': {
-            'type': 'string',
-            'description': 'Absolute or project-relative file path.',
-          },
-          'head_lines': {
-            'type': 'integer',
-            'description': 'Number of leading lines to sample (1-100).',
-          },
-          'tail_lines': {
-            'type': 'integer',
-            'description': 'Number of trailing lines to sample (0-50).',
-          },
-        },
-        'required': ['path'],
-      },
-    },
-  };
-
-  static Map<String, dynamic> get _writeFileTool => {
-    'type': 'function',
-    'function': {
-      'name': 'write_file',
-      'description':
-          'Write a full UTF-8 text file in the local project. This can create or overwrite files and requires user approval.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'path': {
-            'type': 'string',
-            'description': 'Absolute or project-relative file path.',
-          },
-          'content': {
-            'type': 'string',
-            'description': 'Complete file content to write.',
-          },
-          'create_parents': {
-            'type': 'boolean',
-            'description': 'Create parent directories when needed.',
-          },
-          'reason': {
-            'type': 'string',
-            'description':
-                'Short human-readable reason shown in the approval dialog.',
-          },
-        },
-        'required': ['path', 'content'],
-      },
-    },
-  };
-
-  static Map<String, dynamic> get _editFileTool => {
-    'type': 'function',
-    'function': {
-      'name': 'edit_file',
-      'description':
-          'Replace text inside a local UTF-8 file. This is useful for targeted edits and requires user approval.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'path': {
-            'type': 'string',
-            'description': 'Absolute or project-relative file path.',
-          },
-          'old_text': {
-            'type': 'string',
-            'description': 'Exact text to replace.',
-          },
-          'new_text': {'type': 'string', 'description': 'Replacement text.'},
-          'replace_all': {
-            'type': 'boolean',
-            'description': 'Replace all matches instead of only the first.',
-          },
-          'reason': {
-            'type': 'string',
-            'description':
-                'Short human-readable reason shown in the approval dialog.',
-          },
-        },
-        'required': ['path', 'old_text', 'new_text'],
-      },
-    },
-  };
-
-  static Map<String, dynamic> get _rollbackLastFileChangeTool => {
-    'type': 'function',
-    'function': {
-      'name': 'rollback_last_file_change',
-      'description':
-          'Revert the most recent successful local file change performed '
-          'through write_file or edit_file. This requires user approval and '
-          'restores the previous UTF-8 contents, or deletes the file if it '
-          'was newly created.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'reason': {
-            'type': 'string',
-            'description':
-                'Short human-readable reason shown in the approval dialog.',
-          },
-        },
-      },
-    },
-  };
-
-  static Map<String, dynamic> get _findFilesTool => {
-    'type': 'function',
-    'function': {
-      'name': 'find_files',
-      'description':
-          'Find files in the local project by wildcard pattern such as "*.dart" or "*test*".',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'path': {
-            'type': 'string',
-            'description':
-                'Absolute or project-relative directory path. Optional when a coding project is selected.',
-          },
-          'pattern': {
-            'type': 'string',
-            'description': 'Wildcard filename or path pattern.',
-          },
-          'recursive': {
-            'type': 'boolean',
-            'description': 'Whether to search subdirectories.',
-          },
-          'max_results': {
-            'type': 'integer',
-            'description': 'Maximum number of matches to return.',
-          },
-        },
-        'required': ['pattern'],
-      },
-    },
-  };
-
-  static Map<String, dynamic> get _searchFilesTool => {
-    'type': 'function',
-    'function': {
-      'name': 'search_files',
-      'description':
-          'Search text across local project files (streamed line by line, so '
-          'large logs are supported) and return matching lines with file paths '
-          'and line numbers.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'path': {
-            'type': 'string',
-            'description':
-                'Absolute or project-relative directory path. Optional when a coding project is selected.',
-          },
-          'query': {'type': 'string', 'description': 'Text to search for.'},
-          'file_pattern': {
-            'type': 'string',
-            'description': 'Optional wildcard filter such as "*.dart".',
-          },
-          'case_sensitive': {
-            'type': 'boolean',
-            'description': 'Whether the search should be case-sensitive.',
-          },
-          'max_results': {
-            'type': 'integer',
-            'description': 'Maximum number of matching lines to return.',
-          },
-          'offset': {
-            'type': 'integer',
-            'description':
-                'Number of matching lines to skip before returning results.',
-          },
-          'max_line_length': {
-            'type': 'integer',
-            'description':
-                'Truncate each matched line to this many characters (40-1000).',
-          },
-          'max_bytes_scanned': {
-            'type': 'integer',
-            'description':
-                'Optional ceiling on total bytes scanned across all files.',
-          },
-        },
-        'required': ['query'],
-      },
-    },
-  };
 
   static Map<String, dynamic> get _resolveInstalledDependencyTool => {
     'type': 'function',
