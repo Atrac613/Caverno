@@ -60,7 +60,7 @@ handoffs can refer to the same unit of work over time.
 | Remote Coding | RC1 | later | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Keep light manual smoke as sufficient until P1 release evidence becomes a release priority. |
 | Caverno CLI | CLI0 | done | Establish a no-window production-path canary and freeze the terminal execution contract. | Keep the passing three-headless-plus-one-macOS comparison gate as the shared CLI baseline. |
 | Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
-| Caverno CLI | CLI2 | current | Ship the interactive terminal MVP on the shared execution runtime. | Obtain a clean three-headless-plus-one-macOS CLI0 parity pass; terminal process, JSON, denial, and SIGINT gates are complete. |
+| Caverno CLI | CLI2 | done | Ship the interactive terminal MVP on the shared execution runtime. | Preserve the passing terminal and three-headless-plus-one-macOS parity gates as the CLI2 baseline; keep persistence, resume, and concurrent ownership in CLI3. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
@@ -905,7 +905,7 @@ Next action:
 
 ### CLI2: Interactive Terminal MVP
 
-Status: `current`
+Status: `done`
 
 Scope:
 - Add a supported `caverno` executable with `chat`, `coding`, and `plan`
@@ -930,14 +930,20 @@ Acceptance criteria:
 Dependencies:
 - CLI1 shared runtime.
 
+Evidence:
+- `docs/cli2_interactive_terminal_mvp_codex_task.md`
+- Terminal process smoke coverage passed for chat, coding, and Plan Mode,
+  including human and JSON output, non-interactive approval denial, and SIGINT
+  cancellation.
+- `build/integration_test_reports/plan_mode_todo_app_cli0_comparison_1784165000/cli0_comparison_summary.json`
+  recorded three consecutive passing headless runs and one passing macOS
+  application-path run with Qwen3.6 27B Vision. All four runs had zero task
+  drift and zero report-quality blockers under the strict comparison gate.
+
 Next action:
-- Obtain a clean three-headless-plus-one-macOS CLI0 parity pass. Terminal
-  process smoke coverage for chat, coding, and Plan Mode, JSON validation,
-  non-interactive denial, and SIGINT behavior is complete. The current parity
-  reruns reached the production runtime but were stopped by stochastic model
-  output: one generated app omitted `help`, another exposed a stack trace for
-  an unknown id, and the macOS model proposed direct execution of a generated
-  binary that the harness correctly refused to auto-approve.
+- Preserve the terminal process and CLI0 parity gates as the CLI2 regression
+  baseline. When CLI work resumes, start CLI3 with read-only `list` and `show`
+  commands before adding cross-frontend resume or mutation.
 
 ### CLI3: Persistence, Resume, And Concurrent Ownership
 

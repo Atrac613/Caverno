@@ -134,20 +134,16 @@ comparison to confirm the terminal host did not change either baseline.
   markup; JSON mode preserved schema version 1, increasing sequence numbers,
   and redaction. Non-interactive approval denial exited 77 without mutation,
   and SIGINT exited 130 with a terminal cancelled event.
-- CLI0 parity evidence: The post-fix comparison under
-  `plan_mode_todo_app_cli0_comparison_1784160867` passed two headless runs with
-  no drift or warnings before the third generated app omitted `help`. The
-  bounded rerun under `plan_mode_todo_app_cli0_comparison_1784162209` passed its
-  first headless run with five successful validations and no warnings, then a
-  generated app exposed an unknown-id stack trace. The macOS app-path run under
-  `cli2_live_verification_macos/plan_mode_todo_app_live_canary_1784163187`
-  reached the production runtime and completed four of five saved tasks; its
-  final model-authored validation attempted to execute a generated binary, so
-  the harness correctly denied automatic approval and blocked the workflow.
+- CLI0 parity evidence: The strict comparison under
+  `plan_mode_todo_app_cli0_comparison_1784165000` passed three consecutive
+  headless runs and one macOS application-path run with Qwen3.6 27B Vision.
+  The headless runs completed in 422,365 ms, 279,514 ms, and 319,890 ms; the
+  macOS run completed in 588,242 ms. All four runs recorded zero task drift and
+  zero report-quality blockers. Existing guards detected and contained
+  intermediate generated-code defects and validation-command deviations
+  without weakening the independent verifier or approval boundary.
 - Coverage or low-coverage notes: Coverage was not collected for this slice.
-- Risks or follow-ups: CLI2 remains `current` until a clean three-headless-plus-
-  one-macOS CLI0 parity pass is recorded. The remaining failures are stochastic
-  model artifact or plan-quality failures rather than terminal runtime
-  regressions; the independent validator and harness safety boundary must stay
-  strict. Packaging, durable resume, and cross-process ownership remain
+- Risks or follow-ups: CLI2 is complete. Keep the independent validator,
+  report-quality checks, and harness approval boundary strict when this parity
+  gate is rerun. Packaging, durable resume, and cross-process ownership remain
   CLI3/CLI4 work.
