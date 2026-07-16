@@ -15,7 +15,8 @@ again before starting a new refactor branch.
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
 | `lib/features/chat/presentation/pages/chat_page.dart` | 2738 | Chat screen layout, drawers, modals, input wiring, plan UI |
 | `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2442 | Saved-workflow execution, recovery, evidence, and auto-continuation |
-| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 5269 | Tool registry, MCP execution, built-in tool adapters |
+| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 4096 | Tool registry, MCP execution, remaining built-in adapters |
+| `lib/features/chat/data/datasources/built_in_network_tool_handler.dart` | 978 | Built-in network definitions, validation, and operation dispatch |
 | `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 3270 | Computer Use settings layout and validation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
 | `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
@@ -24,7 +25,7 @@ again before starting a new refactor branch.
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. Current aggregate sizes
 are 23,005 lines for the ChatNotifier library, 10,344 for the ChatPage library,
-5,612 for the McpToolService library, and 33,189 for the ChatNotifier test
+4,439 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
 
 ## Refactor Rules
@@ -87,8 +88,9 @@ Foundation status (2026-07-16):
 
 Next slice:
 
-- Extract the built-in MCP network tool family behind an independently
-  testable application-internal handler.
+- Extract the built-in MCP filesystem tool family behind an independently
+  testable application-internal handler, including rollback checkpoint
+  ownership and the existing delete-file part.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -227,6 +229,32 @@ Candidate slices:
 2. Extract MCP server connection and trust-state handling.
 3. Extract result normalization and error envelope creation.
 4. Keep public tool names and JSON shapes stable.
+
+Network handler status (2026-07-16):
+
+- `BuiltInNetworkToolHandler` now owns the 21 ordered network definitions,
+  validation, argument normalization, error envelopes, and production
+  delegation to `NetworkTools`.
+- An injected operation runner keeps handler tests deterministic and avoids
+  live socket, process, DNS, or mDNS access.
+- Characterization preserves disabled-definition/direct-execution behavior,
+  reserved-name collision handling, exact schema order, numeric clamps, HTTP
+  arguments, and negative-network-fact success results.
+- `mcp_tool_service.dart` fell from 5,269 to 4,096 lines, and its same-library
+  aggregate fell from 5,612 to 4,439 lines. The independent handler is
+  ratcheted at 978 lines.
+- The focused verifier passed 74 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,432 root tests at 72.16% line coverage;
+  the new handler reached 72.22% line coverage without live network access.
+
+Next slice:
+
+- Extract filesystem definitions and routing into
+  `BuiltInFilesystemToolHandler`. Include `list_directory`, `read_file`,
+  `inspect_file`, `write_file`, `edit_file`, `delete_file`,
+  `rollback_last_file_change`, `find_files`, and `search_files` while
+  preserving platform gating, direct execution, collision handling, and
+  checkpoint lifecycle behavior.
 
 Exit criteria:
 

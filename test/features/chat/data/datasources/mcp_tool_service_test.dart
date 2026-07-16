@@ -7,7 +7,35 @@ import 'package:caverno/features/chat/data/datasources/background_process_tools.
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+const _networkToolNames = [
+  'ping',
+  'ping6',
+  'arp',
+  'ndp',
+  'route_lookup',
+  'interface_info',
+  'whois_lookup',
+  'dns_lookup',
+  'dns_query',
+  'port_check',
+  'ssl_certificate',
+  'http_status',
+  'http_get',
+  'http_head',
+  'http_post',
+  'http_put',
+  'http_patch',
+  'http_delete',
+  'traceroute',
+  'path_mtu',
+  'mdns_browse',
+];
+
+String _openAiFunctionName(Map<String, dynamic> tool) =>
+    (tool['function']! as Map<String, dynamic>)['name']! as String;
 
 class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   _FakeBackgroundProcessTools({
@@ -83,25 +111,26 @@ void main() {
   });
 
   group('McpToolService', () {
-    test('includes the extended built-in network tool definitions', () {
+    test('preserves the ordered built-in network tool definitions', () {
       final service = McpToolService();
 
-      final functionNames = service
+      final definitions = service
           .getOpenAiToolDefinitions()
-          .map(
-            (tool) =>
-                (tool['function']! as Map<String, dynamic>)['name']! as String,
+          .where(
+            (tool) => _networkToolNames.contains(_openAiFunctionName(tool)),
           )
           .toList();
 
-      expect(functionNames, contains('arp'));
-      expect(functionNames, contains('ping6'));
-      expect(functionNames, contains('ndp'));
-      expect(functionNames, contains('route_lookup'));
-      expect(functionNames, contains('interface_info'));
-      expect(functionNames, contains('dns_query'));
-      expect(functionNames, contains('path_mtu'));
-      expect(functionNames, contains('mdns_browse'));
+      expect(definitions.map(_openAiFunctionName), _networkToolNames);
+      expect(
+        sha256.convert(utf8.encode(jsonEncode(definitions))).toString(),
+        'ecb762c734906fd33778e9e825cee4bd1c4990b4025c854823222620dce0ec9f',
+      );
+
+      final functionNames = service
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toList();
       if (Platform.isMacOS || Platform.isLinux || Platform.isWindows) {
         expect(functionNames, contains('os_get_system_info'));
         expect(functionNames, contains('run_tests'));
@@ -109,6 +138,62 @@ void main() {
       }
       if (Platform.isMacOS || Platform.isLinux) {
         expect(functionNames, contains('os_log_read'));
+      }
+    });
+
+    test(
+      'hides disabled network definitions but keeps direct validation routing',
+      () async {
+        final service = McpToolService(
+          disabledBuiltInTools: _networkToolNames.toSet(),
+        );
+
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toSet();
+        expect(functionNames.intersection(_networkToolNames.toSet()), isEmpty);
+
+        final result = await service.executeTool(
+          name: 'ping',
+          arguments: const {},
+        );
+        expect(result.isSuccess, isFalse);
+        expect(result.errorMessage, 'Host is required');
+      },
+    );
+
+    test('preserves required network argument failures', () async {
+      final service = McpToolService();
+      const cases = [
+        ('ping', <String, dynamic>{}, 'Host is required'),
+        ('ping6', <String, dynamic>{}, 'Host is required'),
+        ('route_lookup', <String, dynamic>{}, 'Host is required'),
+        ('whois_lookup', <String, dynamic>{}, 'Domain is required'),
+        ('dns_lookup', <String, dynamic>{}, 'Host is required'),
+        ('dns_query', <String, dynamic>{}, 'Target is required'),
+        ('port_check', <String, dynamic>{}, 'Host and port are required'),
+        ('ssl_certificate', <String, dynamic>{}, 'Host is required'),
+        ('http_status', <String, dynamic>{}, 'URL is required'),
+        ('http_get', <String, dynamic>{}, 'URL is required'),
+        ('http_head', <String, dynamic>{}, 'URL is required'),
+        ('http_post', <String, dynamic>{}, 'URL is required'),
+        ('http_put', <String, dynamic>{}, 'URL is required'),
+        ('http_patch', <String, dynamic>{}, 'URL is required'),
+        ('http_delete', <String, dynamic>{}, 'URL is required'),
+        ('traceroute', <String, dynamic>{}, 'Host is required'),
+        ('path_mtu', <String, dynamic>{}, 'Host is required'),
+      ];
+
+      for (final testCase in cases) {
+        final result = await service.executeTool(
+          name: testCase.$1,
+          arguments: testCase.$2,
+        );
+        expect(result.toolName, testCase.$1);
+        expect(result.result, isEmpty);
+        expect(result.isSuccess, isFalse);
+        expect(result.errorMessage, testCase.$3);
       }
     });
 
@@ -1115,6 +1200,47 @@ BuildVersion: 23F79
           arguments: const {},
         );
 
+        expect(result.isSuccess, isTrue);
+        expect(result.result, 'remote pong');
+        expect(client.calledToolNames, ['ping']);
+      },
+    );
+
+    test(
+      'disabled network names still reserve remote tool collisions',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://example.com/mcp',
+          tools: [
+            McpTool(
+              name: 'ping',
+              description: 'Remote ping tool',
+              inputSchema: {'type': 'object'},
+            ),
+          ],
+          results: const {'ping': 'remote pong'},
+        );
+        final service = McpToolService(
+          mcpClients: [client],
+          disabledBuiltInTools: const {'ping'},
+        );
+
+        await service.connect();
+
+        final remoteTool = service.tools.single;
+        expect(remoteTool.originalName, 'ping');
+        expect(remoteTool.name, startsWith('ping__'));
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        expect(functionNames, isNot(contains('ping')));
+        expect(functionNames, contains(remoteTool.name));
+
+        final result = await service.executeTool(
+          name: remoteTool.name,
+          arguments: const {},
+        );
         expect(result.isSuccess, isTrue);
         expect(result.result, 'remote pong');
         expect(client.calledToolNames, ['ping']);

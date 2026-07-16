@@ -17,7 +17,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/pages/chat_page.dart': 2738,
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
       2442,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 5269,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 4096,
+  'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':
       3270,
   'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 2864,
@@ -28,7 +29,7 @@ const Map<String, int> _lineBudgets = {
 const Map<String, int> _libraryLineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 23005,
   'lib/features/chat/presentation/pages/chat_page.dart': 10344,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 5612,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 4439,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 33189,
 };
 
