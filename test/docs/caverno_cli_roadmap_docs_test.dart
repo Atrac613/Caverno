@@ -18,7 +18,7 @@ void main() {
       expect(roadmap, contains('Use `CLI<number>`'));
       expect(roadmap, contains('| Caverno CLI | CLI2 | done |'));
       expect(roadmap, contains('| Caverno CLI | CLI3 | done |'));
-      expect(roadmap, contains('| Caverno CLI | CLI4 | next |'));
+      expect(roadmap, contains('| Caverno CLI | CLI4 | later |'));
       expect(roadmap, contains('## Caverno CLI Track'));
       expect(
         roadmap,
@@ -81,6 +81,7 @@ void main() {
       expect(terminalContract, contains('caverno plan --project <path>'));
       expect(terminalContract, contains('caverno conversations list'));
       expect(terminalContract, contains('caverno conversations show'));
+      expect(terminalContract, contains('caverno doctor'));
       expect(terminalContract, contains('Configuration Precedence'));
       expect(terminalContract, contains('`schema`: `caverno_cli_event`'));
       expect(terminalContract, contains('`schemaVersion`: `1`'));
@@ -90,6 +91,17 @@ void main() {
       expect(
         terminalContract,
         contains('do not initialize the LLM runtime, MCP clients, tools'),
+      );
+      expect(
+        terminalContract,
+        contains('caverno_cli_doctor_report'),
+      );
+      expect(
+        terminalContract,
+        allOf(
+          contains('Linux and'),
+          contains('Windows remain unsupported'),
+        ),
       );
     });
 

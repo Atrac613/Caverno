@@ -26,11 +26,15 @@ import '../application/caverno_cli_application.dart';
 import '../application/caverno_cli_arguments.dart';
 import '../application/caverno_cli_coding_project_repository.dart';
 import '../application/caverno_cli_contract.dart';
+import '../application/caverno_cli_doctor.dart';
 import '../application/caverno_cli_input.dart';
 import '../application/caverno_cli_persistence.dart';
 import '../application/caverno_cli_routine_repository.dart';
+import '../application/caverno_cli_runtime_configuration.dart';
 import '../application/caverno_cli_session_logging.dart';
+import '../application/caverno_cli_tool_policy.dart';
 import '../application/caverno_conversation_query.dart';
+import 'caverno_cli_doctor_presenter.dart';
 import 'caverno_cli_redactor.dart';
 import 'caverno_terminal_presenter.dart';
 import 'providers/caverno_terminal_runtime_adapter.dart';
@@ -65,7 +69,11 @@ Future<int> runCavernoCliProcess(
   switch (invocation.action) {
     case CavernoCliInvocationAction.help:
       terminal.writeStdout(
-        _usage(invocation.command, invocation.conversationCommand),
+        _usage(
+          invocation.command,
+          invocation.conversationCommand,
+          invocation.utilityCommand,
+        ),
       );
       await terminal.flush();
       return CavernoCliExitCode.success;
@@ -73,6 +81,7 @@ Future<int> runCavernoCliProcess(
       terminal.writeStdout('Caverno ${BuildInfo.version}\n');
       await terminal.flush();
       return CavernoCliExitCode.success;
+    case CavernoCliInvocationAction.doctor:
     case CavernoCliInvocationAction.run:
     case CavernoCliInvocationAction.conversationResume:
     case CavernoCliInvocationAction.conversationList:
@@ -87,6 +96,14 @@ Future<int> runCavernoCliProcess(
   final resolvedDataDirectory = dataDirectory.isEmpty
       ? null
       : Directory(dataDirectory).absolute;
+  if (invocation.action == CavernoCliInvocationAction.doctor) {
+    return _runCavernoCliDoctor(
+      invocation: invocation,
+      environment: resolvedEnvironment,
+      dataDirectory: resolvedDataDirectory,
+      terminal: terminal,
+    );
+  }
   Box<String>? conversationBox;
   Box<String>? memoryBox;
   Box<bool>? migrationBox;
@@ -281,6 +298,7 @@ void _presentEarlyFailure(
 String _usage(
   CavernoCliCommand? command,
   CavernoCliConversationCommand? conversationCommand,
+  CavernoCliUtilityCommand? utilityCommand,
 ) {
   const common = '''
 Input options:
@@ -294,6 +312,18 @@ Configuration options:
   --api-key <value>     Override CAVERNO_LLM_API_KEY
   --data-dir <path>     Override CAVERNO_HOME
 ''';
+  if (utilityCommand == CavernoCliUtilityCommand.doctor) {
+    return '''Usage: caverno doctor [options]
+
+Options:
+  --project <path>     Inspect an optional coding project
+  --json               Emit one caverno_cli_doctor_report JSON Line
+  --base-url <url>     Override CAVERNO_LLM_BASE_URL
+  --model <name>       Override CAVERNO_LLM_MODEL
+  --api-key <value>    Override CAVERNO_LLM_API_KEY
+  --data-dir <path>    Override CAVERNO_HOME
+''';
+  }
   if (conversationCommand != null) {
     return switch (conversationCommand) {
       CavernoCliConversationCommand.list =>
@@ -330,7 +360,103 @@ $common''',
   caverno conversations list [--limit <count>] [--json]
   caverno conversations show <conversation-id> [--json]
   caverno conversations resume <conversation-id> [input options] [prompt]
+  caverno doctor [--project <path>] [--json]
 $common''';
+}
+
+Future<int> _runCavernoCliDoctor({
+  required CavernoCliInvocation invocation,
+  required Map<String, String> environment,
+  required Directory? dataDirectory,
+  required _SystemTerminal terminal,
+}) async {
+  CavernoCliDoctorHttpProbe? endpointProbe;
+  final secrets = <String>[
+    invocation.apiKey ?? '',
+    environment['CAVERNO_LLM_API_KEY'] ?? '',
+  ];
+  try {
+    final preferences = await SharedPreferences.getInstance();
+    final persistedSettings = SettingsRepository(preferences).loadReadOnly();
+    secrets.add(persistedSettings.apiKey);
+    final configuration = resolveCavernoCliRuntimeConfiguration(
+      invocation: invocation,
+      environment: environment,
+      persistedSettings: persistedSettings,
+    );
+    final dataRoot = await resolveCavernoDataRoot(
+      explicitDataDirectory: dataDirectory,
+    );
+    endpointProbe = CavernoCliDoctorHttpProbe();
+    final report = await CavernoCliDoctor(endpointProbe: endpointProbe.call)
+        .run(
+          configuration: configuration,
+          dataRoot: dataRoot,
+          projectPath: invocation.projectPath,
+          disabledToolNames: cavernoCliDisabledToolNames,
+        );
+    CavernoCliDoctorPresenter(
+      outputMode: invocation.outputMode,
+      output: terminal,
+      redactor: CavernoCliRedactor(secrets: secrets),
+    ).present(report);
+    await terminal.flush();
+    return report.exitCode;
+  } on Object {
+    final report = CavernoCliDoctorReport(
+      configuration: const <String, Object?>{'status': 'unavailable'},
+      checks: const <CavernoCliDoctorCheck>[
+        CavernoCliDoctorCheck(
+          id: 'configuration',
+          status: CavernoCliDoctorCheckStatus.skipped,
+          message: 'Configuration could not be inspected safely.',
+          durationMs: 0,
+        ),
+        CavernoCliDoctorCheck(
+          id: 'endpoint',
+          status: CavernoCliDoctorCheckStatus.skipped,
+          message: 'The endpoint probe was skipped during bootstrap failure.',
+          durationMs: 0,
+        ),
+        CavernoCliDoctorCheck(
+          id: 'model',
+          status: CavernoCliDoctorCheckStatus.skipped,
+          message: 'The model check was skipped during bootstrap failure.',
+          durationMs: 0,
+        ),
+        CavernoCliDoctorCheck(
+          id: 'storage',
+          status: CavernoCliDoctorCheckStatus.fail,
+          message: 'Doctor bootstrap could not inspect application storage.',
+          durationMs: 0,
+          remediation:
+              'Verify application support and data-root permissions, then retry.',
+        ),
+        CavernoCliDoctorCheck(
+          id: 'project',
+          status: CavernoCliDoctorCheckStatus.skipped,
+          message: 'The project check was skipped during bootstrap failure.',
+          durationMs: 0,
+        ),
+        CavernoCliDoctorCheck(
+          id: 'tool_runtime',
+          status: CavernoCliDoctorCheckStatus.skipped,
+          message:
+              'The tool runtime check was skipped during bootstrap failure.',
+          durationMs: 0,
+        ),
+      ],
+    );
+    CavernoCliDoctorPresenter(
+      outputMode: invocation.outputMode,
+      output: terminal,
+      redactor: CavernoCliRedactor(secrets: secrets),
+    ).present(report);
+    await terminal.flush();
+    return report.exitCode;
+  } finally {
+    endpointProbe?.close();
+  }
 }
 
 String _firstNonEmpty(List<String?> candidates) {

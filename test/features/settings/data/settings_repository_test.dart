@@ -45,6 +45,25 @@ void main() {
     expect(loaded.enableLlmSessionLogs, isFalse);
   });
 
+  test('supports a read-only load without persisting migrations', () async {
+    final legacySettings = AppSettings.defaults()
+        .copyWith(enableLlmSessionLogs: false)
+        .toJson();
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      settingsKey: jsonEncode(legacySettings),
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final loaded = SettingsRepository(prefs).loadReadOnly();
+
+    expect(loaded.enableLlmSessionLogs, isTrue);
+    await Future<void>.delayed(Duration.zero);
+    final persistedJson =
+        jsonDecode(prefs.getString(settingsKey)!) as Map<String, dynamic>;
+    expect(persistedJson['enableLlmSessionLogs'], isFalse);
+    expect(prefs.getBool(llmSessionLogsDefaultOnMigrationKey), isNull);
+  });
+
   test('marks the migration complete when saving settings', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
 

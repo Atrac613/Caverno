@@ -1,9 +1,9 @@
 # Caverno CLI Terminal Contract
 
-Status: CLI3 completed contract. The terminal frontend, read-only conversation
-queries, stable-ID conversation resume, production persistence, and
-cross-process ownership exist in the macOS application executable, but a
-packaged standalone CLI is not yet released.
+Status: CLI4 doctor foundation. The terminal frontend, read-only conversation
+queries, stable-ID conversation resume, production persistence, cross-process
+ownership, and bounded diagnostics exist in the macOS application executable,
+but a packaged standalone CLI is not yet released.
 
 ## Commands
 
@@ -16,6 +16,7 @@ caverno plan --project <path> [input options]
 caverno conversations list [--limit <count>] [--json]
 caverno conversations show <conversation-id> [--json]
 caverno conversations resume <conversation-id> [input options]
+caverno doctor [--project <path>] [--json]
 ```
 
 The runtime commands accept exactly one input source:
@@ -41,6 +42,13 @@ initializing the chat runtime. It accepts normal endpoint and output options,
 but does not accept `--project` or `--limit`. Missing conversations, projects,
 project directories, or worktrees fail before `run_started`; resume never
 silently substitutes a source project for a missing saved worktree.
+
+`doctor` accepts the normal endpoint, model, API-key, and data-directory
+overrides plus an optional `--project`. It does not accept a prompt. It resolves
+settings without persisting migrations, probes `GET /models` with a two-second
+timeout, checks the selected model, performs a removable storage writability
+probe, and inspects the optional project. It does not initialize Hive or Drift,
+run an LLM turn, connect to MCP, request approval, or execute a tool.
 
 ## Configuration Precedence
 
@@ -84,6 +92,13 @@ basic metadata while omitting attachment data, local image paths, response
 metrics, and internal workflow payloads. Automation must consume these events
 rather than parse formatted terminal prose.
 
+`doctor --json` emits exactly one `caverno_cli_doctor_report` object with
+`schemaVersion: 1`, `type: doctor_report`, an overall status and exit code,
+sanitized configuration, and deterministic ordered checks. Check statuses are
+`pass`, `warning`, `fail`, and `skipped`. Doctor output never includes an API
+key, authorization header, endpoint user information, query, fragment, or raw
+transport and filesystem exception.
+
 ## Exit Codes
 
 | Code | Meaning |
@@ -114,6 +129,17 @@ pending approval into consent.
 
 Computer Use is unavailable from the headless CLI. It remains reserved until a
 dedicated host, fresh arming flow, and observable approval boundary exist.
+`load_skill` and `save_skill` are also unavailable because the terminal runtime
+uses transient skill storage and cannot safely preserve skill mutations.
+
+## Platform Boundary
+
+macOS arm64 is the initial CLI4 release target. The native macOS runner bypasses
+GUI single-instance activation for CLI commands, including `doctor`. Linux and
+Windows remain unsupported for a packaged headless CLI until their native
+runners can execute Dart CLI arguments without constructing or presenting a
+Flutter window. macOS x86_64 or universal artifacts require matching packaged
+process evidence before promotion.
 
 ## Cancellation And Ownership
 

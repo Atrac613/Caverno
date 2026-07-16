@@ -16,6 +16,7 @@ void main() {
         'coding',
         'plan',
         'conversations',
+        'doctor',
         '--help',
         '-h',
         '--version',

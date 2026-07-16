@@ -6,6 +6,7 @@ final class CavernoCliInvocation {
     required this.outputMode,
     this.command,
     this.conversationCommand,
+    this.utilityCommand,
     this.conversationId,
     this.conversationLimit = 20,
     this.prompt,
@@ -21,6 +22,7 @@ final class CavernoCliInvocation {
   final CavernoCliOutputMode outputMode;
   final CavernoCliCommand? command;
   final CavernoCliConversationCommand? conversationCommand;
+  final CavernoCliUtilityCommand? utilityCommand;
   final String? conversationId;
   final int conversationLimit;
   final String? prompt;
@@ -46,6 +48,7 @@ final class CavernoCliInvocation {
           'coding',
           'plan',
           'conversations',
+          'doctor',
           '--help',
           '-h',
           '--version',
@@ -58,7 +61,7 @@ final class CavernoCliInvocation {
       throw const CavernoCliFailure(
         code: 'command_required',
         message:
-            'A command is required. Use chat, coding, plan, or conversations.',
+            'A command is required. Use chat, coding, plan, conversations, or doctor.',
         exitCode: CavernoCliExitCode.usage,
       );
     }
@@ -79,6 +82,9 @@ final class CavernoCliInvocation {
 
     if (arguments.first == 'conversations') {
       return _parseConversationInvocation(arguments);
+    }
+    if (arguments.first == 'doctor') {
+      return _parseDoctorInvocation(arguments);
     }
 
     final command = switch (arguments.first) {
@@ -395,6 +401,71 @@ final class CavernoCliInvocation {
       outputMode: outputMode,
       conversationCommand: conversationCommand,
       conversationId: positional.single,
+      dataDirectory: dataDirectory,
+    );
+  }
+
+  static CavernoCliInvocation _parseDoctorInvocation(List<String> arguments) {
+    var outputMode = CavernoCliOutputMode.human;
+    String? projectPath;
+    String? baseUrl;
+    String? model;
+    String? apiKey;
+    String? dataDirectory;
+    var help = false;
+
+    for (var index = 1; index < arguments.length; index += 1) {
+      final argument = arguments[index];
+      if (argument == '--json') {
+        outputMode = CavernoCliOutputMode.json;
+        continue;
+      }
+      if (argument == '--help' || argument == '-h') {
+        help = true;
+        continue;
+      }
+      if (!argument.startsWith('-')) {
+        throw CavernoCliFailure(
+          code: 'unexpected_doctor_argument',
+          message: 'The doctor command does not accept an argument: $argument',
+          exitCode: CavernoCliExitCode.usage,
+        );
+      }
+
+      final parsed = _parseOption(argument);
+      switch (parsed.name) {
+        case '--project':
+          projectPath = _optionValue(arguments, parsed, index: index);
+        case '--base-url':
+          baseUrl = _optionValue(arguments, parsed, index: index);
+        case '--model':
+          model = _optionValue(arguments, parsed, index: index);
+        case '--api-key':
+          apiKey = _optionValue(arguments, parsed, index: index);
+        case '--data-dir':
+          dataDirectory = _optionValue(arguments, parsed, index: index);
+        default:
+          throw CavernoCliFailure(
+            code: 'unknown_flag',
+            message: 'Unknown flag: ${parsed.name}',
+            exitCode: CavernoCliExitCode.usage,
+          );
+      }
+      if (parsed.inlineValue == null) {
+        index += 1;
+      }
+    }
+
+    return CavernoCliInvocation(
+      action: help
+          ? CavernoCliInvocationAction.help
+          : CavernoCliInvocationAction.doctor,
+      outputMode: outputMode,
+      utilityCommand: CavernoCliUtilityCommand.doctor,
+      projectPath: projectPath,
+      baseUrl: baseUrl,
+      model: model,
+      apiKey: apiKey,
       dataDirectory: dataDirectory,
     );
   }

@@ -2,6 +2,8 @@ enum CavernoCliCommand { chat, coding, plan }
 
 enum CavernoCliConversationCommand { list, show, resume }
 
+enum CavernoCliUtilityCommand { doctor }
+
 enum CavernoCliOutputMode { human, json }
 
 enum CavernoCliInvocationAction {
@@ -9,6 +11,7 @@ enum CavernoCliInvocationAction {
   conversationList,
   conversationShow,
   conversationResume,
+  doctor,
   help,
   version,
 }

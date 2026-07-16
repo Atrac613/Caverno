@@ -14,7 +14,12 @@ class SettingsRepository {
   static const _llmSessionLogsDefaultOnMigrationKey =
       'migration.enable_llm_session_logs_default_on.v1';
 
-  AppSettings load() {
+  AppSettings load() => _load(persistMigrations: true);
+
+  /// Reads effective settings without updating migration markers or payloads.
+  AppSettings loadReadOnly() => _load(persistMigrations: false);
+
+  AppSettings _load({required bool persistMigrations}) {
     final json = _prefs.getString(_settingsKey);
     if (json == null) {
       return AppSettings.defaults();
@@ -24,7 +29,9 @@ class SettingsRepository {
       final settings = AppSettings.fromJson(decoded);
       if (_shouldEnableSessionLogsForDefaultOnMigration(decoded)) {
         final migrated = settings.copyWith(enableLlmSessionLogs: true);
-        _persistMigratedSessionLogDefault(migrated);
+        if (persistMigrations) {
+          _persistMigratedSessionLogDefault(migrated);
+        }
         return migrated;
       }
       return settings;

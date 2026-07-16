@@ -66,6 +66,7 @@ class AppDelegate: FlutterAppDelegate {
       "coding",
       "plan",
       "conversations",
+      "doctor",
       "--help",
       "-h",
       "--version",

@@ -62,7 +62,7 @@ handoffs can refer to the same unit of work over time.
 | Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
 | Caverno CLI | CLI2 | done | Ship the interactive terminal MVP on the shared execution runtime. | Preserve the passing terminal and three-headless-plus-one-macOS parity gates as the CLI2 baseline; keep persistence, resume, and concurrent ownership in CLI3. |
 | Caverno CLI | CLI3 | done | Reuse production persistence and enforce cross-process ownership before conversation resume. | Preserve the persistence, resume, migration-retry, and direct-lock contention gates as the CLI3 baseline. |
-| Caverno CLI | CLI4 | next | Package and release the terminal client with automation-grade diagnostics. | Define the supported platform matrix and artifact format, then add the first `caverno doctor` slice. |
+| Caverno CLI | CLI4 | later | Package and release the terminal client with automation-grade diagnostics. | Resume after F5 package-boundary stabilization, then complete the signed macOS doctor and release gates. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
@@ -1127,13 +1127,13 @@ Evidence:
   3,394 tests with no generated-file drift or analyzer findings.
 
 Next action:
-- Start CLI4 by defining the supported platform matrix and artifact format,
-  then add the first `caverno doctor` slice. Keep terminal routine execution
-  unavailable until its separate per-routine lease contract is defined.
+- Preserve the CLI3 runtime and doctor-foundation regression gates while CLI4
+  packaging is paused. Keep terminal routine execution unavailable until its
+  separate per-routine lease contract is defined.
 
 ### CLI4: Packaging, Automation, And Release Gate
 
-Status: `next`
+Status: `later`
 
 Scope:
 - Package signed or checksummed executables for supported desktop platforms.
@@ -1156,9 +1156,20 @@ Acceptance criteria:
 Dependencies:
 - CLI3 persistence and ownership behavior.
 
+Current evidence:
+- The doctor foundation has argument, configuration, bounded endpoint, model,
+  storage, optional project, tool-policy, redaction, JSON, and exit-code tests.
+  The focused repository gate passed 48 tests with no analyzer findings or
+  generated-file drift.
+- A fresh Debug macOS build is blocked at code signing because the timestamp
+  service is unavailable. No packaged doctor evidence is claimed from the
+  existing older app bundle.
+
 Next action:
-- Define the supported platform matrix and artifact format after CLI3 proves
-  the runtime can operate safely outside the GUI process.
+- Resume after F5 package-boundary stabilization. Restore signing timestamp
+  connectivity, rebuild the macOS app, and run `doctor --json` through the
+  packaged executable with an isolated data root before continuing packaging,
+  shell completion, or platform expansion.
 
 ## macOS Computer Use Track
 

@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../chat/application/runtime/caverno_execution_runtime.dart';
@@ -18,6 +17,7 @@ import '../../application/caverno_cli_arguments.dart';
 import '../../application/caverno_cli_contract.dart';
 import '../../application/caverno_cli_runtime_configuration.dart';
 import '../../application/caverno_cli_runtime_port.dart';
+import '../../application/caverno_cli_tool_policy.dart';
 
 final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
   CavernoTerminalRuntimeAdapter({
@@ -27,10 +27,6 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
 
   final ProviderContainer container;
   final Map<String, String> environment;
-  static const Set<String> _unsupportedTerminalTools = <String>{
-    'load_skill',
-    'save_skill',
-  };
   CavernoExecutionRuntime? _resolvedRuntime;
   ChatNotifier? _resolvedChatNotifier;
 
@@ -111,10 +107,7 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
           baseUrl: runtimeConfiguration.baseUrl,
           model: runtimeConfiguration.model,
           apiKey: runtimeConfiguration.apiKey,
-          disabledBuiltInTools: <String>{
-            ...MacosComputerUseToolPolicy.allToolNames,
-            ..._unsupportedTerminalTools,
-          },
+          disabledBuiltInTools: <String>{...cavernoCliDisabledToolNames},
         );
 
     if (resumedConversation != null) {

@@ -136,6 +136,59 @@ void main() {
       expect(invocation.prompt, isNull);
     });
 
+    test('parses doctor configuration without a runtime prompt', () {
+      final invocation = CavernoCliInvocation.parse(const [
+        'doctor',
+        '--json',
+        '--project=/tmp/project',
+        '--base-url',
+        'http://localhost:1234/v1',
+        '--model=qwen',
+        '--api-key',
+        'secret',
+        '--data-dir=/tmp/caverno',
+      ]);
+
+      expect(invocation.action, CavernoCliInvocationAction.doctor);
+      expect(invocation.utilityCommand, CavernoCliUtilityCommand.doctor);
+      expect(invocation.outputMode, CavernoCliOutputMode.json);
+      expect(invocation.projectPath, '/tmp/project');
+      expect(invocation.baseUrl, 'http://localhost:1234/v1');
+      expect(invocation.model, 'qwen');
+      expect(invocation.apiKey, 'secret');
+      expect(invocation.dataDirectory, '/tmp/caverno');
+      expect(invocation.prompt, isNull);
+    });
+
+    test('parses doctor help without running diagnostics', () {
+      final invocation = CavernoCliInvocation.parse(const ['doctor', '--help']);
+
+      expect(invocation.action, CavernoCliInvocationAction.help);
+      expect(invocation.utilityCommand, CavernoCliUtilityCommand.doctor);
+    });
+
+    test('rejects doctor prompts and runtime-only flags', () {
+      final cases = <(List<String>, String)>[
+        (const ['doctor', 'inspect'], 'unexpected_doctor_argument'),
+        (const ['doctor', '--prompt', 'inspect'], 'unknown_flag'),
+        (const ['doctor', '--limit', '10'], 'unknown_flag'),
+      ];
+
+      for (final (arguments, code) in cases) {
+        expect(
+          () => CavernoCliInvocation.parse(arguments),
+          throwsA(
+            isA<CavernoCliFailure>().having(
+              (error) => error.code,
+              'code',
+              code,
+            ),
+          ),
+          reason: arguments.join(' '),
+        );
+      }
+    });
+
     test('rejects invalid conversation query arguments', () {
       final cases = <(List<String>, String)>[
         (const ['conversations'], 'conversation_command_required'),
@@ -243,6 +296,10 @@ void main() {
       );
       expect(
         CavernoCliInvocation.looksLikeCliInvocation(const ['chat', 'hello']),
+        isTrue,
+      );
+      expect(
+        CavernoCliInvocation.looksLikeCliInvocation(const ['doctor']),
         isTrue,
       );
     });
