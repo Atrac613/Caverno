@@ -15,9 +15,10 @@ again before starting a new refactor branch.
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
 | `lib/features/chat/presentation/pages/chat_page.dart` | 2738 | Chat screen layout, drawers, modals, input wiring, plan UI |
 | `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2442 | Saved-workflow execution, recovery, evidence, and auto-continuation |
-| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 3621 | Tool registry, MCP execution, remaining built-in adapters |
+| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 3076 | Tool registry, MCP execution, remaining built-in adapters |
 | `lib/features/chat/data/datasources/built_in_network_tool_handler.dart` | 978 | Built-in network definitions, validation, and operation dispatch |
 | `lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart` | 622 | Built-in filesystem definitions, execution, and rollback checkpoints |
+| `lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart` | 587 | Built-in local command and background-process tool routing |
 | `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 3270 | Computer Use settings layout and validation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
 | `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
@@ -26,7 +27,7 @@ again before starting a new refactor branch.
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. Current aggregate sizes
 are 23,005 lines for the ChatNotifier library, 10,344 for the ChatPage library,
-3,910 for the McpToolService library, and 33,189 for the ChatNotifier test
+3,365 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
 
 ## Refactor Rules
@@ -89,9 +90,9 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Extract local command and background-process definitions and routing behind
-  an independently testable application-internal handler. Keep approval and
-  user-interaction ownership in `ChatNotifier`.
+- Extract remote MCP server connection and trust-state handling behind an
+  independently testable application-internal boundary. Keep transport client
+  ownership, configuration, and user-interaction policy stable.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -265,12 +266,29 @@ Filesystem handler status (2026-07-17):
   the new handler reached 99.20% line coverage using deterministic runners and
   isolated temporary directories.
 
+Local command handler status (2026-07-17):
+
+- `BuiltInLocalCommandToolHandler` owns the eight ordered local command,
+  background-process, and `run_tests` definitions, validation, argument
+  normalization, direct execution, unavailable-provider results, process-list
+  aggregation, and the exact approval sentinel.
+- Characterization preserves desktop and process-capability gates,
+  disabled-definition direct execution, all eight remote-collision
+  reservations, Git-write rejection, truthy background coercion, mixed job-ID
+  filtering, and the legacy result-envelope asymmetry.
+- `mcp_tool_service.dart` fell from 3,621 to 3,076 lines, and its same-library
+  aggregate fell from 3,910 to 3,365 lines. The independent handler is
+  ratcheted at 587 lines.
+- The focused verifier passed 108 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,468 root tests at 72.35% line coverage;
+  the new handler reached 99.48% line coverage using deterministic providers.
+
 Next slice:
 
-- Extract `local_execute_command` and the background-process tool family into
-  `BuiltInLocalCommandToolHandler`, including the direct `run_tests` approval
-  sentinel. Preserve desktop and capability gating, Git-write rejection,
-  process monitoring, result envelopes, and `ChatNotifier` approval ownership.
+- Extract remote MCP server connection and trust-state handling. Preserve
+  server identity, trusted-HTTP and desktop-stdio behavior, transport client
+  ownership, configuration semantics, remote tool ordering, and public result
+  envelopes.
 
 Exit criteria:
 

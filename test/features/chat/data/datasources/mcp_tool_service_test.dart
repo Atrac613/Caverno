@@ -5,6 +5,7 @@ import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_monitor_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
+import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
@@ -55,6 +56,17 @@ const _filesystemToolNames = [
   ..._filesystemMutationToolNames,
 ];
 
+const _localCommandToolNames = [
+  'local_execute_command',
+  'process_start',
+  'process_status',
+  'process_tail',
+  'process_wait',
+  'process_cancel',
+  'process_list',
+  'run_tests',
+];
+
 String _openAiFunctionName(Map<String, dynamic> tool) =>
     (tool['function']! as Map<String, dynamic>)['name']! as String;
 
@@ -62,10 +74,16 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   _FakeBackgroundProcessTools({
     required this.statusResults,
     this.startResult = '',
+    this.tailResult,
+    this.waitResult,
+    this.cancelResult,
   });
 
   final Map<String, String> statusResults;
   final String startResult;
+  final String? tailResult;
+  final String? waitResult;
+  final String? cancelResult;
   final List<Map<String, dynamic>> startCalls = [];
 
   @override
@@ -94,6 +112,39 @@ class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   @override
   Future<String> status({required String jobId, int? tailChars}) async {
     return statusResults[jobId] ??
+        jsonEncode({
+          'ok': false,
+          'code': 'job_not_found',
+          'job_id': jobId,
+          'error': 'No background process job exists for job_id: $jobId',
+        });
+  }
+
+  @override
+  Future<String> tail({required String jobId, int? maxChars}) async {
+    return tailResult ??
+        jsonEncode({
+          'ok': false,
+          'code': 'job_not_found',
+          'job_id': jobId,
+          'error': 'No background process job exists for job_id: $jobId',
+        });
+  }
+
+  @override
+  Future<String> wait({required String jobId, int? waitMs}) async {
+    return waitResult ??
+        jsonEncode({
+          'ok': false,
+          'code': 'job_not_found',
+          'job_id': jobId,
+          'error': 'No background process job exists for job_id: $jobId',
+        });
+  }
+
+  @override
+  Future<String> cancel({required String jobId}) async {
+    return cancelResult ??
         jsonEncode({
           'ok': false,
           'code': 'job_not_found',
@@ -245,7 +296,7 @@ void main() {
         sha256
             .convert(utf8.encode(jsonEncode(inspectionDefinitions)))
             .toString(),
-          'e43cff1a45c1c8ba66c3aaae892dd5ad421a86e77b2c72ac72d98291df5cf15c',
+        'e43cff1a45c1c8ba66c3aaae892dd5ad421a86e77b2c72ac72d98291df5cf15c',
       );
       if (FilesystemTools.isDesktopPlatform) {
         expect(
@@ -256,7 +307,7 @@ void main() {
           sha256
               .convert(utf8.encode(jsonEncode(mutationDefinitions)))
               .toString(),
-            '913d9ba8adc55f1d494fcb61b6cce8a7a319f7ba93d0585b9c20f28e2fad2097',
+          '913d9ba8adc55f1d494fcb61b6cce8a7a319f7ba93d0585b9c20f28e2fad2097',
         );
       } else {
         expect(mutationDefinitions, isEmpty);
@@ -380,14 +431,14 @@ void main() {
       expect(editResult.isSuccess, isTrue);
       expect(jsonDecode(editResult.result), contains('error'));
 
-        final alreadyAppliedResult = await service.executeTool(
-          name: 'edit_file',
-          arguments: {
-            'path': editable.path,
-            'old_text': 'current',
-            'new_text': 'current content',
-          },
-        );
+      final alreadyAppliedResult = await service.executeTool(
+        name: 'edit_file',
+        arguments: {
+          'path': editable.path,
+          'old_text': 'current',
+          'new_text': 'current content',
+        },
+      );
       expect(alreadyAppliedResult.isSuccess, isTrue);
       expect(
         (jsonDecode(alreadyAppliedResult.result)
@@ -423,6 +474,258 @@ void main() {
       expect(properties, contains('line'));
       expect(properties, contains('column'));
       expect(parameters['required'], ['path', 'line', 'column']);
+    });
+
+    test('preserves ordered local command definitions and placement', () {
+      final service = McpToolService(
+        backgroundProcessTools: _FakeBackgroundProcessTools(
+          statusResults: const {},
+        ),
+      );
+      final definitions = service.getOpenAiToolDefinitions();
+      final names = definitions.map(_openAiFunctionName).toList();
+      final localCommandDefinitions = definitions
+          .where(
+            (tool) =>
+                _localCommandToolNames.contains(_openAiFunctionName(tool)),
+          )
+          .toList();
+
+      if (!LocalShellTools.isDesktopPlatform) {
+        expect(localCommandDefinitions, isEmpty);
+        return;
+      }
+
+      expect(
+        localCommandDefinitions.map(_openAiFunctionName),
+        _localCommandToolNames,
+      );
+      expect(
+        sha256
+            .convert(utf8.encode(jsonEncode(localCommandDefinitions)))
+            .toString(),
+        '51b7845c3a6e82fb09864eb00debfad4c480f80dabd857f09dff9d36a0fb89b1',
+      );
+
+      final localCommandStart = names.indexOf(_localCommandToolNames.first);
+      expect(
+        names.sublist(
+          localCommandStart,
+          localCommandStart + _localCommandToolNames.length,
+        ),
+        _localCommandToolNames,
+      );
+      expect(names[localCommandStart - 1], _filesystemMutationToolNames.last);
+      expect(
+        names[localCommandStart + _localCommandToolNames.length],
+        'os_get_system_info',
+      );
+    });
+
+    test('hides process definitions without background capability', () {
+      final service = McpToolService();
+      final names = service
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .where(_localCommandToolNames.contains)
+          .toList();
+
+      expect(
+        names,
+        LocalShellTools.isDesktopPlatform
+            ? const ['local_execute_command', 'run_tests']
+            : isEmpty,
+      );
+    });
+
+    test(
+      'hides disabled local command definitions but keeps direct routing',
+      () async {
+        final service = McpToolService(
+          disabledBuiltInTools: _localCommandToolNames.toSet(),
+        );
+        final names = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toSet();
+        expect(names.intersection(_localCommandToolNames.toSet()), isEmpty);
+
+        const requiredArgumentCases = [
+          (
+            'local_execute_command',
+            <String, dynamic>{},
+            'command and working_directory are required',
+          ),
+          (
+            'process_start',
+            <String, dynamic>{},
+            'command and working_directory are required',
+          ),
+          ('process_status', <String, dynamic>{}, 'job_id is required'),
+          ('process_tail', <String, dynamic>{}, 'job_id is required'),
+          ('process_wait', <String, dynamic>{}, 'job_id is required'),
+          ('process_cancel', <String, dynamic>{}, 'job_id is required'),
+        ];
+
+        for (final testCase in requiredArgumentCases) {
+          final result = await service.executeTool(
+            name: testCase.$1,
+            arguments: testCase.$2,
+          );
+          expect(result.toolName, testCase.$1);
+          expect(result.result, isEmpty);
+          expect(result.isSuccess, isFalse);
+          expect(result.errorMessage, testCase.$3);
+        }
+
+        final processList = await service.executeTool(
+          name: 'process_list',
+          arguments: const {},
+        );
+        expect(processList.toolName, 'process_list');
+        expect(processList.isSuccess, isFalse);
+        expect(
+          jsonDecode(processList.result),
+          equals({
+            'ok': false,
+            'code': 'background_process_monitor_unavailable',
+            'error': 'Background process monitor is not available',
+          }),
+        );
+
+        final runTests = await service.executeTool(
+          name: 'run_tests',
+          arguments: const {},
+        );
+        expect(runTests.toolName, 'run_tests');
+        expect(runTests.isSuccess, isFalse);
+        expect(
+          runTests.result,
+          '{"error":"run_tests must be executed through the chat command approval flow.","code":"approval_required"}',
+        );
+        expect(
+          runTests.errorMessage,
+          'run_tests must be executed through the chat command approval flow',
+        );
+      },
+    );
+
+    test('preserves local command unavailable result envelopes', () async {
+      final service = McpToolService();
+      final expectedToolsUnavailable = {
+        'ok': false,
+        'code': 'background_process_tools_unavailable',
+        'error': 'Background process tools are not available',
+      };
+
+      for (final background in [true, 1, -1, 'true', '1', 'YES']) {
+        final result = await service.executeTool(
+          name: 'local_execute_command',
+          arguments: {
+            'command': 'sleep 30',
+            'working_directory': '/tmp/project',
+            'background': background,
+          },
+        );
+        expect(result.isSuccess, isFalse, reason: '$background');
+        expect(jsonDecode(result.result), expectedToolsUnavailable);
+        expect(
+          result.errorMessage,
+          'Background process tools are not available',
+        );
+      }
+
+      final processStart = await service.executeTool(
+        name: 'process_start',
+        arguments: const {
+          'command': 'sleep 30',
+          'working_directory': '/tmp/project',
+        },
+      );
+      expect(processStart.result, isEmpty);
+      expect(processStart.isSuccess, isFalse);
+      expect(
+        processStart.errorMessage,
+        'Background process tools are not available',
+      );
+
+      for (final name in const [
+        'process_status',
+        'process_tail',
+        'process_wait',
+        'process_cancel',
+      ]) {
+        final result = await service.executeTool(
+          name: name,
+          arguments: const {'job_id': 'missing'},
+        );
+        expect(result.isSuccess, isFalse, reason: name);
+        expect(jsonDecode(result.result), expectedToolsUnavailable);
+        expect(
+          result.errorMessage,
+          'Background process tools are not available',
+        );
+      }
+    });
+
+    test('preserves legacy local command payload success envelopes', () async {
+      const providerFailure =
+          '{"ok":false,"code":"synthetic_provider_failure"}';
+      final fakeTools = _FakeBackgroundProcessTools(
+        statusResults: const {'job': providerFailure},
+        startResult: providerFailure,
+        tailResult: providerFailure,
+        waitResult: providerFailure,
+        cancelResult: providerFailure,
+      );
+      final service = McpToolService(backgroundProcessTools: fakeTools);
+      final missingDirectory = await Directory.systemTemp.createTemp(
+        'mcp_tool_service_missing_command_directory_',
+      );
+      final missingDirectoryPath = missingDirectory.path;
+      await missingDirectory.delete();
+
+      final foreground = await service.executeTool(
+        name: 'local_execute_command',
+        arguments: {
+          'command': 'echo unreachable',
+          'working_directory': missingDirectoryPath,
+        },
+      );
+      expect(foreground.isSuccess, isTrue);
+      expect(jsonDecode(foreground.result), contains('error'));
+
+      final providerCalls = [
+        (
+          'local_execute_command',
+          <String, dynamic>{
+            'command': 'sleep 30',
+            'working_directory': '/tmp/project',
+            'background': true,
+          },
+        ),
+        (
+          'process_start',
+          <String, dynamic>{
+            'command': 'sleep 30',
+            'working_directory': '/tmp/project',
+          },
+        ),
+        ('process_status', <String, dynamic>{'job_id': 'job'}),
+        ('process_tail', <String, dynamic>{'job_id': 'job'}),
+        ('process_wait', <String, dynamic>{'job_id': 'job'}),
+        ('process_cancel', <String, dynamic>{'job_id': 'job'}),
+      ];
+
+      for (final call in providerCalls) {
+        final result = await service.executeTool(
+          name: call.$1,
+          arguments: call.$2,
+        );
+        expect(result.result, providerFailure, reason: call.$1);
+        expect(result.isSuccess, isTrue, reason: call.$1);
+        expect(result.errorMessage, isNull, reason: call.$1);
+      }
     });
 
     test('describes sequential local command batching', () {
@@ -1540,6 +1843,53 @@ BuildVersion: 23F79
           expect(result.result, 'remote:${remoteTool.originalName}');
         }
         expect(client.calledToolNames, _filesystemToolNames);
+      },
+    );
+
+    test(
+      'disabled local command names still reserve all remote collisions',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://commands.example.com/mcp',
+          tools: _localCommandToolNames
+              .map(
+                (name) => McpTool(
+                  name: name,
+                  description: 'Remote $name tool',
+                  inputSchema: const {'type': 'object'},
+                ),
+              )
+              .toList(),
+          results: {
+            for (final name in _localCommandToolNames) name: 'remote:$name',
+          },
+        );
+        final service = McpToolService(
+          mcpClients: [client],
+          disabledBuiltInTools: _localCommandToolNames.toSet(),
+        );
+
+        await service.connect();
+
+        expect(service.tools, hasLength(_localCommandToolNames.length));
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        for (final remoteTool in service.tools) {
+          expect(_localCommandToolNames, contains(remoteTool.originalName));
+          expect(remoteTool.name, startsWith('${remoteTool.originalName}__'));
+          expect(functionNames, isNot(contains(remoteTool.originalName)));
+          expect(functionNames, contains(remoteTool.name));
+
+          final result = await service.executeTool(
+            name: remoteTool.name,
+            arguments: const {},
+          );
+          expect(result.isSuccess, isTrue);
+          expect(result.result, 'remote:${remoteTool.originalName}');
+        }
+        expect(client.calledToolNames, _localCommandToolNames);
       },
     );
 

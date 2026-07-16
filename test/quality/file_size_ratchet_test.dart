@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// raise a budget to make this test pass; extract code instead, following
 /// docs/large_file_refactor_plan.md.
 ///
-/// Budgets match the exact 2026-07-16 baseline. Primary-file budgets prevent
+/// Budgets match the exact 2026-07-17 baseline. Primary-file budgets prevent
 /// local regrowth, while library budgets include declared `part` files so a
 /// move into shared private state cannot hide aggregate growth.
 const Map<String, int> _lineBudgets = {
@@ -17,10 +17,12 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/pages/chat_page.dart': 2738,
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
       2442,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 3621,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 3076,
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       622,
+  'lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart':
+      587,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':
       3270,
   'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 2864,
@@ -31,7 +33,7 @@ const Map<String, int> _lineBudgets = {
 const Map<String, int> _libraryLineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 23005,
   'lib/features/chat/presentation/pages/chat_page.dart': 10344,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 3910,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 3365,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 33189,
 };
 
