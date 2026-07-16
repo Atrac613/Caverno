@@ -124,11 +124,30 @@ comparison to confirm the terminal host did not change either baseline.
   codes.
 - Tests run: Flutter analysis; 59 focused terminal/runtime/settings tests; 358
   combined `ChatNotifier`, terminal, runtime, roadmap, and file-size-ratchet
-  tests; macOS debug build; and serial `--help`, `--version`, and unknown-command
-  process smoke checks. The repository-wide run reached 3,304 tests with only
-  three stale roadmap/ratchet failures, all of which were corrected and rerun.
+  tests; macOS debug and release builds; and serial `--help`, `--version`, and
+  unknown-command process smoke checks. The repository-wide run reached 3,304
+  tests with only three stale roadmap/ratchet failures, all of which were
+  corrected and rerun. Follow-up hardening passed 325 affected `ChatNotifier`
+  and domain tests.
+- Live terminal evidence: Release-binary chat, coding, and Plan Mode commands
+  completed through the shared runtime. Human output hid reasoning and tool
+  markup; JSON mode preserved schema version 1, increasing sequence numbers,
+  and redaction. Non-interactive approval denial exited 77 without mutation,
+  and SIGINT exited 130 with a terminal cancelled event.
+- CLI0 parity evidence: The post-fix comparison under
+  `plan_mode_todo_app_cli0_comparison_1784160867` passed two headless runs with
+  no drift or warnings before the third generated app omitted `help`. The
+  bounded rerun under `plan_mode_todo_app_cli0_comparison_1784162209` passed its
+  first headless run with five successful validations and no warnings, then a
+  generated app exposed an unknown-id stack trace. The macOS app-path run under
+  `cli2_live_verification_macos/plan_mode_todo_app_live_canary_1784163187`
+  reached the production runtime and completed four of five saved tasks; its
+  final model-authored validation attempted to execute a generated binary, so
+  the harness correctly denied automatic approval and blocked the workflow.
 - Coverage or low-coverage notes: Coverage was not collected for this slice.
-- Risks or follow-ups: CLI2 remains `current` until the live chat, coding, and
-  Plan Mode process smoke checks, JSON sequence validation, SIGINT exit-130
-  check, and CLI0 headless/app-path parity rerun are recorded. Packaging,
-  durable resume, and cross-process ownership remain CLI3/CLI4 work.
+- Risks or follow-ups: CLI2 remains `current` until a clean three-headless-plus-
+  one-macOS CLI0 parity pass is recorded. The remaining failures are stochastic
+  model artifact or plan-quality failures rather than terminal runtime
+  regressions; the independent validator and harness safety boundary must stay
+  strict. Packaging, durable resume, and cross-process ownership remain
+  CLI3/CLI4 work.

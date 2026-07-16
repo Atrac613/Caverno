@@ -47,6 +47,23 @@ void main() {
       expect(decisions.terminations.single.code, 'approval_unavailable');
     });
 
+    test('fails closed when prompts are disabled for a TTY run', () async {
+      final decisions = _RecordingDecisions();
+      final output = _RecordingOutput();
+      final controller = CavernoTerminalInteractionController(
+        input: _LineInput(isTerminal: true, lines: ['yes']),
+        output: output,
+        decisions: decisions,
+        interactive: false,
+      );
+
+      await controller.handle(_approval(capability: 'file_mutation'));
+
+      expect(decisions.approvals, [('approval-1', false)]);
+      expect(decisions.terminations.single.code, 'approval_unavailable');
+      expect(output.stderr.toString(), isNot(contains('Approve once?')));
+    });
+
     test('rejects Computer Use even when a TTY is available', () async {
       final decisions = _RecordingDecisions();
       final controller = CavernoTerminalInteractionController(

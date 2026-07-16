@@ -85,6 +85,7 @@ final class CavernoCliApplication {
       input: input,
       output: output,
       decisions: runtime,
+      interactive: input.isTerminal && !invocation.isJson,
     );
 
     try {

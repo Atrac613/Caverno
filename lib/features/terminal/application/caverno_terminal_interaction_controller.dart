@@ -20,11 +20,13 @@ final class CavernoTerminalInteractionController {
     required this.input,
     required this.output,
     required this.decisions,
-  });
+    bool? interactive,
+  }) : interactive = interactive ?? input.isTerminal;
 
   final CavernoCliInputPort input;
   final CavernoTerminalOutputPort output;
   final CavernoTerminalDecisionPort decisions;
+  final bool interactive;
   final Set<String> _handledRequestIds = <String>{};
 
   Future<void> handle(CavernoRuntimeEvent event) async {
@@ -53,12 +55,12 @@ final class CavernoTerminalInteractionController {
       return;
     }
 
-    if (!input.isTerminal) {
+    if (!interactive) {
       await decisions.resolveApproval(id: request.id, approved: false);
       await decisions.terminate(
         code: 'approval_unavailable',
         message:
-            'Approval is required, but stdin is not an interactive terminal.',
+            'Approval is required, but this run does not allow interactive prompts.',
         exitCode: CavernoCliExitCode.approval,
       );
       return;
@@ -89,12 +91,12 @@ final class CavernoTerminalInteractionController {
       return;
     }
 
-    if (!input.isTerminal) {
+    if (!interactive) {
       await decisions.resolveQuestion(id: request.id);
       await decisions.terminate(
         code: 'question_unavailable',
         message:
-            'A user answer is required, but stdin is not an interactive terminal.',
+            'A user answer is required, but this run does not allow interactive prompts.',
         exitCode: CavernoCliExitCode.blocked,
       );
       return;

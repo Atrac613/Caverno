@@ -86,6 +86,19 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     final terminalSuccessState = ToolTerminalSuccessBatchState();
 
     for (final toolCall in currentToolCalls) {
+      final mutationGeneration =
+          ref
+              .read(conversationsNotifierProvider)
+              .currentConversation
+              ?.mutationGeneration ??
+          0;
+      final shouldSuppressAdditionalReadReplay =
+          _successfulReadResultReplayCache.shouldSuppressAdditionalReplay(
+            toolCall: toolCall,
+            interactionGeneration: interactionGeneration,
+            mutationGeneration: mutationGeneration,
+            resolveProjectPath: _normalizeToolPathForDedup,
+          );
       final toolCallKey = _toolExecutionKey(
         toolCall,
         commandRetryGeneration: nextCommandRetryGeneration,
@@ -96,11 +109,16 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
             executedToolResults: executedToolResults,
           ) !=
           null;
-      if (executedToolCallKeys.contains(toolCallKey) &&
-          !_shouldAllowRepeatedToolExecution(toolCall) &&
-          !shouldBlockTimedOutCommandRetry) {
+      if ((executedToolCallKeys.contains(toolCallKey) &&
+              !_shouldAllowRepeatedToolExecution(toolCall) &&
+              !shouldBlockTimedOutCommandRetry) ||
+          shouldSuppressAdditionalReadReplay) {
         appLog(
-          '[Tool] Duplicate tool call detected, skipping: ${toolCall.name} ${toolCall.arguments}',
+          shouldSuppressAdditionalReadReplay
+              ? '[InspectionReplay] Additional unchanged read_file replay '
+                    'suppressed: ${toolCall.arguments}'
+              : '[Tool] Duplicate tool call detected, skipping: '
+                    '${toolCall.name} ${toolCall.arguments}',
         );
         _logToolLifecycleEvent(
           toolCall: toolCall,
@@ -108,7 +126,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           loopIndex: iteration,
           schedulerMode: ToolExecutionScheduler.executionModeFor(toolCall),
           resultStatus: 'skipped',
-          skipReason: 'duplicate_tool_call',
+          skipReason: shouldSuppressAdditionalReadReplay
+              ? 'repeated_read_replay_exhausted'
+              : 'duplicate_tool_call',
         );
         await _recordToolLoopRepetitionRuntimeFeedback();
         continue;

@@ -6,6 +6,7 @@ part of 'chat_notifier.dart';
 
 extension ChatNotifierExecutionRuntime on ChatNotifier {
   void _startRuntimeTurn({required int generation, required bool hidden}) {
+    _runtimeVisibleAssistantContentByGeneration.remove(generation);
     final previous = _runtimeTurnsByGeneration.remove(generation);
     if (previous != null && !previous.isTerminal) {
       previous.fail(
@@ -27,11 +28,28 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
     return _runtimeTurnsByGeneration[generation];
   }
 
-  void _emitRuntimeAssistantDelta(int generation, String chunk) {
-    if (chunk == '<think>') {
+  void _emitRuntimeAssistantContent(int generation, String content) {
+    final visibleContent = _runtimeVisibleAssistantContent(content);
+    final previous =
+        _runtimeVisibleAssistantContentByGeneration[generation] ?? '';
+    if (visibleContent == previous) {
       return;
     }
-    _runtimeTurnForGeneration(generation)?.emitAssistantDelta(chunk);
+    _runtimeVisibleAssistantContentByGeneration[generation] = visibleContent;
+    if (!visibleContent.startsWith(previous)) {
+      return;
+    }
+    _runtimeTurnForGeneration(
+      generation,
+    )?.emitAssistantDelta(visibleContent.substring(previous.length));
+  }
+
+  String _runtimeVisibleAssistantContent(String content) {
+    final parsed = ContentParser.parse(content);
+    return parsed.segments
+        .where((segment) => segment.type == ContentType.text)
+        .map((segment) => segment.content)
+        .join();
   }
 
   void _emitRuntimeToolLifecycle({
@@ -104,10 +122,11 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
 
   void _completeRuntimeTurn(int generation, {required String content}) {
     final handle = _runtimeTurnsByGeneration.remove(generation);
+    _runtimeVisibleAssistantContentByGeneration.remove(generation);
     if (handle == null) {
       return;
     }
-    handle.complete(content: content);
+    handle.complete(content: _runtimeVisibleAssistantContent(content));
   }
 
   void _failRuntimeTurn(
@@ -117,6 +136,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
     int exitCode = 2,
   }) {
     final handle = _runtimeTurnsByGeneration.remove(generation);
+    _runtimeVisibleAssistantContentByGeneration.remove(generation);
     if (handle == null) {
       return;
     }

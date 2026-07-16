@@ -59,6 +59,8 @@ class FinalAnswerClaimDetector {
   }) {
     if (!looksLikeFileSideEffectRequest(latestUserContent) ||
         hasSuccessfulFileSideEffectResult(toolResults) ||
+        (_looksLikeCommandGeneratedRuntimeStateClaim(candidateResponse) &&
+            hasSuccessfulCommandExecutionResult(toolResults)) ||
         (!_looksLikeCompletedFileSideEffectClaim(candidateResponse) &&
             !looksLikeFutureFileSideEffectAction(candidateResponse))) {
       return null;
@@ -530,6 +532,46 @@ class FinalAnswerClaimDetector {
           [0x4f5c, 0x6210],
           [0x66f4, 0x65b0],
           [0x66f8, 0x304d, 0x8fbc],
+        ]);
+  }
+
+  bool _looksLikeCommandGeneratedRuntimeStateClaim(String content) {
+    final normalized = content.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    final hasRuntimeStateMarker =
+        containsAny(normalized, const [
+          'runtime state',
+          'application state',
+          'app state',
+          'state was saved',
+          'state is saved',
+          'state persisted',
+          'state persistence',
+          'persisted state',
+          'persistence file',
+        ]) ||
+        containsAnyCodeUnitSequence(content, const [
+          [0x72b6, 0x614b],
+          [0x6c38, 0x7d9a, 0x5316],
+        ]);
+    if (!hasRuntimeStateMarker) {
+      return false;
+    }
+    return containsAny(normalized, const [
+          '.json',
+          '.db',
+          '.sqlite',
+          'state file',
+          'data file',
+          'between runs',
+          'across processes',
+          'separate process',
+        ]) ||
+        containsAnyCodeUnitSequence(content, const [
+          [0x30d5, 0x30a1, 0x30a4, 0x30eb],
+          [0x5225, 0x30d7, 0x30ed, 0x30bb, 0x30b9],
         ]);
   }
 

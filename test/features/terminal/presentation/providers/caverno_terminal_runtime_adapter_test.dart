@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/features/chat/presentation/providers/caverno_execution_runtime_provider.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/terminal/presentation/providers/caverno_terminal_runtime_adapter.dart';
@@ -86,9 +89,33 @@ void main() {
     expect(answer, isNotNull);
     expect(answer!.optionId, 'continue');
   });
+
+  test('waits for pending persistence before closing the runtime', () async {
+    final testNotifier = notifier as _TerminalTestChatNotifier;
+    final runtime = container.read(cavernoExecutionRuntimeProvider);
+
+    final closeFuture = adapter.close();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(runtime.isClosed, isFalse);
+    testNotifier.completePendingPersistence();
+    await closeFuture;
+    expect(runtime.isClosed, isTrue);
+  });
 }
 
 final class _TerminalTestChatNotifier extends ChatNotifier {
+  final _pendingPersistence = Completer<void>();
+
   @override
   ChatState build() => ChatState.initial();
+
+  @override
+  Future<void> flushPendingPersistence() => _pendingPersistence.future;
+
+  void completePendingPersistence() {
+    if (!_pendingPersistence.isCompleted) {
+      _pendingPersistence.complete();
+    }
+  }
 }

@@ -8881,7 +8881,7 @@ with open(path, "rb") as file:
               ToolCallInfo(
                 id: 'tool-${index + 2}',
                 name: 'read_file',
-                arguments: const {'path': 'ping_cli.py'},
+                arguments: {'path': 'ping_cli_${index + 2}.py'},
               ),
             ],
             finishReason: 'tool_calls',
@@ -8932,7 +8932,7 @@ with open(path, "rb") as file:
 
         await toolNotifier.sendMessage('Implement the ping CLI tool');
 
-        expect(toolService.executedToolNames, ['read_file']);
+        expect(toolService.executedToolNames, List.filled(10, 'read_file'));
         expect(toolDataSource.toolResultBatches, hasLength(10));
         expect(
           toolNotifier.state.messages.last.content,
@@ -8955,7 +8955,7 @@ with open(path, "rb") as file:
               ToolCallInfo(
                 id: 'tool-${index + 2}',
                 name: 'read_file',
-                arguments: const {'path': 'ping_cli.py'},
+                arguments: {'path': 'ping_cli_${index + 2}.py'},
               ),
             ],
             finishReason: 'tool_calls',
@@ -8966,7 +8966,7 @@ with open(path, "rb") as file:
             ToolCallInfo(
               id: 'tool-13',
               name: 'read_file',
-              arguments: const {'path': 'ping_cli.py'},
+              arguments: const {'path': 'ping_cli_recovery.py'},
             ),
           ],
           finishReason: 'tool_calls',
@@ -9020,7 +9020,7 @@ with open(path, "rb") as file:
 
         await toolNotifier.sendMessage('Finish the current ping CLI task');
 
-        expect(toolService.executedToolNames, ['read_file']);
+        expect(toolService.executedToolNames, List.filled(12, 'read_file'));
         expect(toolDataSource.toolResultBatches, hasLength(13));
         expect(toolDataSource.finalAnswerMessages, isEmpty);
         expect(

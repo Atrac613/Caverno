@@ -8,7 +8,26 @@ class SuccessfulReadResultReplayCache {
 
   final ToolCallExecutionPolicy _executionPolicy;
   final Map<String, String> _resultsByKey = <String, String>{};
+  final Map<String, int> _replayCountsByKey = <String, int>{};
   int? _interactionGeneration;
+
+  bool shouldSuppressAdditionalReplay({
+    required ToolCallInfo toolCall,
+    required int interactionGeneration,
+    required int mutationGeneration,
+    ProjectPathResolver? resolveProjectPath,
+  }) {
+    _resetForInteraction(interactionGeneration);
+    final key = _keyFor(
+      toolCall,
+      mutationGeneration: mutationGeneration,
+      resolveProjectPath: resolveProjectPath,
+    );
+    if (key == null || !_resultsByKey.containsKey(key)) {
+      return false;
+    }
+    return (_replayCountsByKey[key] ?? 0) >= 1;
+  }
 
   String? lookup({
     required ToolCallInfo toolCall,
@@ -22,7 +41,14 @@ class SuccessfulReadResultReplayCache {
       mutationGeneration: mutationGeneration,
       resolveProjectPath: resolveProjectPath,
     );
-    return key == null ? null : _resultsByKey[key];
+    if (key == null) {
+      return null;
+    }
+    final result = _resultsByKey[key];
+    if (result != null) {
+      _replayCountsByKey[key] = (_replayCountsByKey[key] ?? 0) + 1;
+    }
+    return result;
   }
 
   void record({
@@ -44,6 +70,7 @@ class SuccessfulReadResultReplayCache {
     );
     if (key != null) {
       _resultsByKey[key] = result;
+      _replayCountsByKey.putIfAbsent(key, () => 0);
     }
   }
 
@@ -70,5 +97,6 @@ class SuccessfulReadResultReplayCache {
     }
     _interactionGeneration = interactionGeneration;
     _resultsByKey.clear();
+    _replayCountsByKey.clear();
   }
 }

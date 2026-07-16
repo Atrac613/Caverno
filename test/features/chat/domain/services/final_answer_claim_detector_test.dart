@@ -116,6 +116,66 @@ void main() {
       );
     });
 
+    test('accepts runtime state persistence backed by a successful command', () {
+      final unexecuted = detector.buildUnexecutedFileSideEffectToolResult(
+        candidateResponse:
+            'Runtime state was saved to `.todo.json` and reloaded across processes.',
+        toolResults: [
+          _result(
+            'local_execute_command',
+            '{"exit_code":0,"stdout":"Added task 1"}',
+          ),
+        ],
+        latestUserContent: 'Implement a persistent command-line TODO app.',
+      );
+
+      expect(unexecuted, isNull);
+    });
+
+    test(
+      'accepts CJK runtime state persistence backed by a successful command',
+      () {
+        final stateSaved = String.fromCharCodes(const [
+          0x72b6,
+          0x614b,
+          0x3092,
+          0x4fdd,
+          0x5b58,
+        ]);
+        final unexecuted = detector.buildUnexecutedFileSideEffectToolResult(
+          candidateResponse: '$stateSaved (`.todo.json`).',
+          toolResults: [
+            _result(
+              'local_execute_command',
+              '{"exit_code":0,"stdout":"Added task 1"}',
+            ),
+          ],
+          latestUserContent: 'Implement a persistent command-line TODO app.',
+        );
+
+        expect(unexecuted, isNull);
+      },
+    );
+
+    test('does not treat unrelated command success as a report file save', () {
+      final unexecuted = detector.buildUnexecutedFileSideEffectToolResult(
+        candidateResponse: 'Saved the report to report.json.',
+        toolResults: [
+          _result(
+            'local_execute_command',
+            '{"exit_code":0,"stdout":"No issues found"}',
+          ),
+        ],
+        latestUserContent: 'Save the report as a JSON file.',
+      );
+
+      expect(unexecuted, isNotNull);
+      expect(
+        jsonDecode(unexecuted!.result),
+        containsPair('code', 'unexecuted_file_save'),
+      );
+    });
+
     test(
       'does not invent a file save for existing implementation validation',
       () {

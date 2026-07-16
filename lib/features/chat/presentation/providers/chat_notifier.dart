@@ -2564,6 +2564,9 @@ class ChatNotifier extends Notifier<ChatState> {
   Set<String> _lengthTruncatedToolCallIds = const <String>{};
   Future<void> _contentToolExecutionTail = Future<void>.value();
   Future<void> _conversationMessagePersistenceTail = Future<void>.value();
+  Future<void> _cancelledMessagePersistenceTail = Future<void>.value();
+  final Map<int, String> _runtimeVisibleAssistantContentByGeneration =
+      <int, String>{};
   bool _forcePromptCompactionForNextRequest = false;
   bool _isDrainingQueuedMessages = false;
   bool _isSchedulingGoalAutoContinue = false;
@@ -3607,7 +3610,12 @@ class ChatNotifier extends Notifier<ChatState> {
         stage: taskDraft.tasks.isEmpty ? 'tasks' : 'implement',
         taskStatus: 'proposal_ready',
       );
-      _completeRuntimeTurn(interactionGeneration, content: '');
+      final planMarkdown = ConversationPlanDocumentBuilder.build(
+        workflowStage: workflowDraft.workflowStage,
+        workflowSpec: workflowDraft.workflowSpec,
+        tasks: taskDraft.tasks,
+      );
+      _completeRuntimeTurn(interactionGeneration, content: planMarkdown);
     } catch (error) {
       if (!ref.mounted) return;
       state = state.copyWith(
@@ -6916,7 +6924,6 @@ class ChatNotifier extends Notifier<ChatState> {
     String chunk, {
     bool scanForTools = true,
   }) {
-    _emitRuntimeAssistantDelta(generation, chunk);
     if (_isActiveResponseDetachedForGeneration(generation)) {
       final activeMessages = _activeResponseMessagesForGeneration(generation);
       if (activeMessages == null || activeMessages.isEmpty) return;
@@ -6925,6 +6932,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final lastIndex = updatedMessages.length - 1;
       final lastMessage = updatedMessages[lastIndex];
       final newContent = lastMessage.content + chunk;
+      _emitRuntimeAssistantContent(generation, newContent);
       updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
       _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
       return;
@@ -6937,6 +6945,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final lastMessage = updatedMessages[lastIndex];
 
     final newContent = lastMessage.content + chunk;
+    _emitRuntimeAssistantContent(generation, newContent);
     updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
 
     state = state.copyWith(messages: updatedMessages);
@@ -9249,39 +9258,6 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  /// Persists the current conversation messages.
-  Future<void> _saveMessages() async {
-    // Save only messages that are no longer streaming.
-    final messagesToSave = state.messages
-        .where((m) => !m.isStreaming)
-        .where(_shouldKeepVisibleMessage)
-        .toList();
-    String? targetAssistantMessageId;
-    for (var i = messagesToSave.length - 1; i >= 0; i--) {
-      if (messagesToSave[i].role == MessageRole.assistant) {
-        targetAssistantMessageId = messagesToSave[i].id;
-        break;
-      }
-    }
-
-    await _onMessagesChanged(messagesToSave);
-
-    final currentConversationId = conversationId;
-    if (currentConversationId != null && targetAssistantMessageId != null) {
-      final modelHistoryMessages = messagesToSave
-          .map(_sanitizeMessageForModelHistory)
-          .where(_shouldKeepMessageForModelHistory)
-          .toList(growable: false);
-      unawaited(
-        _updateSessionMemory(
-          currentConversationId,
-          modelHistoryMessages,
-          targetAssistantMessageId,
-        ),
-      );
-    }
-  }
-
   Future<void> _updateSessionMemory(
     String currentConversationId,
     List<Message> messagesToSave,
@@ -9461,11 +9437,31 @@ class ChatNotifier extends Notifier<ChatState> {
         isLoading: false,
         participantTurnRuntime: null,
       );
-      unawaited(_saveMessages());
+      final save = _cancelledMessagePersistenceTail.then(
+        (_) => _saveMessages(updateSessionMemory: false),
+      );
+      _cancelledMessagePersistenceTail = save.catchError((
+        Object error,
+        StackTrace stackTrace,
+      ) {
+        appLog(
+          '[ChatNotifier] Cancelled message persistence failed: '
+          '${error.runtimeType}: $error',
+        );
+        appLog('[ChatNotifier] stackTrace: $stackTrace');
+      });
+      unawaited(_cancelledMessagePersistenceTail);
     } else if (state.isLoading) {
       state = state.copyWith(isLoading: false, participantTurnRuntime: null);
     }
     _clearGoalAutoContinueIndicator();
+  }
+
+  /// Waits for message writes that must finish before a headless frontend
+  /// disposes its provider container.
+  Future<void> flushPendingPersistence() async {
+    await _cancelledMessagePersistenceTail;
+    await _conversationMessagePersistenceTail;
   }
 
   void clearMessages() {

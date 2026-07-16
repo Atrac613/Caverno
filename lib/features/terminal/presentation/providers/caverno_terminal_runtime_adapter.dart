@@ -195,7 +195,12 @@ final class CavernoTerminalRuntimeAdapter implements CavernoCliRuntimePort {
   }
 
   @override
-  Future<void> close() => _runtime.close();
+  Future<void> close() async {
+    await container
+        .read(chatNotifierProvider.notifier)
+        .flushPendingPersistence();
+    await _runtime.close();
+  }
 
   String _firstNonEmpty(List<String?> candidates) {
     for (final candidate in candidates) {

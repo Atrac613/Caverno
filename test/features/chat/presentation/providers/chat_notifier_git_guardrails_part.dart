@@ -349,7 +349,7 @@ void registerChatNotifierGitGuardrailTests() {
               ToolCallInfo(
                 id: 'tool-${index + 2}',
                 name: 'read_file',
-                arguments: const {'path': 'pubspec.yaml'},
+                arguments: {'path': 'pubspec-${index + 2}.yaml'},
               ),
             ],
             finishReason: 'tool_calls',
@@ -434,7 +434,7 @@ void registerChatNotifierGitGuardrailTests() {
 
         await toolNotifier.sendMessage('Commit the selected version bump');
 
-        expect(toolService.executedToolNames, ['read_file']);
+        expect(toolService.executedToolNames, List.filled(12, 'read_file'));
         expect(toolDataSource.finalAnswerMessages, isNotEmpty);
         final finalPrompt = toolDataSource.finalAnswerMessages
             .map((message) => message.content)

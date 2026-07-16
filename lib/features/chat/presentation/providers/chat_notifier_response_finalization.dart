@@ -5,6 +5,41 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierResponseFinalization on ChatNotifier {
+  /// Persists the current conversation messages.
+  Future<void> _saveMessages({bool updateSessionMemory = true}) async {
+    final messagesToSave = state.messages
+        .where((message) => !message.isStreaming)
+        .where(_shouldKeepVisibleMessage)
+        .toList();
+    String? targetAssistantMessageId;
+    for (var index = messagesToSave.length - 1; index >= 0; index--) {
+      if (messagesToSave[index].role == MessageRole.assistant) {
+        targetAssistantMessageId = messagesToSave[index].id;
+        break;
+      }
+    }
+
+    await _onMessagesChanged(messagesToSave);
+
+    final currentConversationId = conversationId;
+    if (!updateSessionMemory ||
+        currentConversationId == null ||
+        targetAssistantMessageId == null) {
+      return;
+    }
+    final modelHistoryMessages = messagesToSave
+        .map(_sanitizeMessageForModelHistory)
+        .where(_shouldKeepMessageForModelHistory)
+        .toList(growable: false);
+    unawaited(
+      _updateSessionMemory(
+        currentConversationId,
+        modelHistoryMessages,
+        targetAssistantMessageId,
+      ),
+    );
+  }
+
   Future<void> _finishDetachedActiveResponse(int generation) async {
     if (!_isCurrentInteractionGeneration(generation)) return;
 

@@ -60,7 +60,7 @@ handoffs can refer to the same unit of work over time.
 | Remote Coding | RC1 | later | Harden Remote Coding for product use with reconnect resilience, support diagnostics, and multi-device evidence. | Keep light manual smoke as sufficient until P1 release evidence becomes a release priority. |
 | Caverno CLI | CLI0 | done | Establish a no-window production-path canary and freeze the terminal execution contract. | Keep the passing three-headless-plus-one-macOS comparison gate as the shared CLI baseline. |
 | Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
-| Caverno CLI | CLI2 | current | Ship the interactive terminal MVP on the shared execution runtime. | Complete the three-command process smoke, JSON validation, SIGINT check, and CLI0 parity rerun. |
+| Caverno CLI | CLI2 | current | Ship the interactive terminal MVP on the shared execution runtime. | Obtain a clean three-headless-plus-one-macOS CLI0 parity pass; terminal process, JSON, denial, and SIGINT gates are complete. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
@@ -931,8 +931,13 @@ Dependencies:
 - CLI1 shared runtime.
 
 Next action:
-- Complete terminal process smoke coverage for chat, coding, and Plan Mode,
-  validate JSON and SIGINT behavior, then rerun the CLI0 parity gate.
+- Obtain a clean three-headless-plus-one-macOS CLI0 parity pass. Terminal
+  process smoke coverage for chat, coding, and Plan Mode, JSON validation,
+  non-interactive denial, and SIGINT behavior is complete. The current parity
+  reruns reached the production runtime but were stopped by stochastic model
+  output: one generated app omitted `help`, another exposed a stack trace for
+  an unknown id, and the macOS model proposed direct execution of a generated
+  binary that the harness correctly refused to auto-approve.
 
 ### CLI3: Persistence, Resume, And Concurrent Ownership
 

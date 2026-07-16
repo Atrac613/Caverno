@@ -52,6 +52,51 @@ void main() {
     expect(replay, '{"content":"void main() {}"}');
   });
 
+  test('suppresses a second replay until the file mutation changes', () {
+    final cache = SuccessfulReadResultReplayCache();
+    final firstRead = read('first', 'lib/main.dart');
+    cache.record(
+      toolCall: firstRead,
+      result: 'old',
+      isSuccess: true,
+      interactionGeneration: 4,
+      mutationGeneration: 2,
+    );
+
+    expect(
+      cache.shouldSuppressAdditionalReplay(
+        toolCall: read('second', 'lib/main.dart'),
+        interactionGeneration: 4,
+        mutationGeneration: 2,
+      ),
+      isFalse,
+    );
+    expect(
+      cache.lookup(
+        toolCall: read('second', 'lib/main.dart'),
+        interactionGeneration: 4,
+        mutationGeneration: 2,
+      ),
+      'old',
+    );
+    expect(
+      cache.shouldSuppressAdditionalReplay(
+        toolCall: read('third', 'lib/main.dart'),
+        interactionGeneration: 4,
+        mutationGeneration: 2,
+      ),
+      isTrue,
+    );
+    expect(
+      cache.shouldSuppressAdditionalReplay(
+        toolCall: read('after-mutation', 'lib/main.dart'),
+        interactionGeneration: 4,
+        mutationGeneration: 3,
+      ),
+      isFalse,
+    );
+  });
+
   test('misses after a mutation generation change', () {
     final cache = SuccessfulReadResultReplayCache();
     cache.record(

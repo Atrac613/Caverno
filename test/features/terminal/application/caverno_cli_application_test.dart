@@ -80,6 +80,40 @@ void main() {
     expect(runtime.terminations.single.code, 'approval_unavailable');
   });
 
+  test('JSON mode never opens an approval prompt on a TTY', () async {
+    final runtime = _FakeRuntime((runtime, invocation, prompt) async {
+      runtime.emit(_started(sequence: 1));
+      runtime.emit(
+        CavernoRuntimeApprovalRequired(
+          sequence: 2,
+          timestamp: DateTime.utc(2026),
+          turnId: 'turn-1',
+          request: const CavernoRuntimeApprovalRequest(
+            id: 'approval-1',
+            capability: 'file_mutation',
+            risk: CavernoRuntimeApprovalRisk.high,
+            summary: 'Write a file',
+          ),
+        ),
+      );
+    });
+    final output = _RecordingTerminal();
+    final application = CavernoCliApplication(
+      input: _FakeInput(isTerminal: true),
+      output: output,
+      runtime: runtime,
+    );
+
+    final exitCode = await application.run(
+      CavernoCliInvocation.parse(const ['chat', '--json', 'change it']),
+    );
+
+    expect(exitCode, CavernoCliExitCode.approval);
+    expect(runtime.approvals, [('approval-1', false)]);
+    expect(runtime.terminations.single.code, 'approval_unavailable');
+    expect(output.stderr.toString(), isNot(contains('Approve once?')));
+  });
+
   test('maps cancellation to exit code 130', () async {
     final cancellation = StreamController<void>();
     final runtime = _FakeRuntime((runtime, invocation, prompt) async {
