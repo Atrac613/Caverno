@@ -13,7 +13,8 @@ again before starting a new refactor branch.
 | File | Lines | Primary concern |
 |------|------:|-----------------|
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
-| `lib/features/chat/presentation/pages/chat_page.dart` | 5168 | Chat screen layout, drawers, modals, input wiring, plan UI |
+| `lib/features/chat/presentation/pages/chat_page.dart` | 2738 | Chat screen layout, drawers, modals, input wiring, plan UI |
+| `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2442 | Saved-workflow execution, recovery, evidence, and auto-continuation |
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 5269 | Tool registry, MCP execution, built-in tool adapters |
 | `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 3270 | Computer Use settings layout and validation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
@@ -22,7 +23,7 @@ again before starting a new refactor branch.
 
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. Current aggregate sizes
-are 23,005 lines for the ChatNotifier library, 12,774 for the ChatPage library,
+are 23,005 lines for the ChatNotifier library, 10,344 for the ChatPage library,
 5,612 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
 
@@ -86,9 +87,8 @@ Foundation status (2026-07-16):
 
 Next slice:
 
-- Add characterization coverage for the ChatPage workflow execution and
-  recovery paths, then extract the workflow task run coordinator described in
-  Phase 2 Tranche 2.
+- Extract the built-in MCP network tool family behind an independently
+  testable application-internal handler.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -126,7 +126,7 @@ Tranche 1 status (2026-07-02):
   paths.
 - `ActiveResponseRegistry` moved generation-keyed active-response conversation
   and message tracking out of the notifier.
-- The `chat_notifier.dart` ratchet budget is now 9607 lines and should continue
+- The `chat_notifier.dart` ratchet budget is now 9468 lines and should continue
   shrinking as each follow-up slice lands.
 
 Next follow-up candidates:
@@ -180,22 +180,32 @@ Tranche 1 status (2026-07-02):
 - Measured main-file reduction: `chat_page.dart` went from 8296 lines at tranche
   start to 5217 lines after the tranche, a reduction of 3079 lines.
 
+Tranche 2 status (2026-07-16):
+
+- Product-path characterization covers bounded non-execution recovery,
+  successful auto-continuation, failed-task stopping, and direct plus
+  auto-continued Python runtime dependency recovery.
+- A missing Python runtime recovery guard was fixed before extraction so a
+  successful recovery cannot fall through to assistant-evidence or tool-less
+  processing.
+- `WorkflowTaskRunCoordinator` now owns task execution, saved validation,
+  auto-continuation, recovery, completion promotion, and evidence capture
+  without importing Flutter, localization, or Riverpod directly.
+- Direct coordinator tests cover successful and failed saved validation,
+  bounded continuation, blocked and incomplete stopping, and page-unmount
+  liveness using the production validation inference path.
+- Measured main-file reduction: `chat_page.dart` fell from 5,168 lines to 2,738
+  lines. Its same-library aggregate fell from 12,774 to 10,344 lines, and the
+  independent coordinator is budgeted at 2,442 lines.
+
 Later tranche roadmap:
 
-1. Tranche 2: workflow task run coordinator. Extract `_runWorkflowTask`,
-   `_runWorkflowTaskValidation`, `_continueToNextPendingTaskIfNeeded`, the eight
-   `_maybeRecoverFrom*` heuristics,
-   `_maybePromoteCompletionFromValidationToolResults`, and the
-   `_captureExecutionProgress*` pair into a presentation-layer coordinator class
-   that holds notifier handles plus an `isMounted` callback. Precondition: add
-   characterization tests first because recovery heuristics are currently pinned
-   only indirectly.
-2. Tranche 3: plan review and approval actions. Extract `_editPlanInChat`,
+1. Tranche 3: plan review and approval actions. Extract `_editPlanInChat`,
    `_cancelPlanReview`, `_approveCurrentPlanAndStart`, workflow editor handlers,
    and task-menu handlers.
-3. Tranche 4: slash command handler, pinned by
+2. Tranche 4: slash command handler, pinned by
    `test/features/chat/presentation/pages/chat_page_slash_commands_test.dart`.
-4. Tranche 5: `build()` scaffold decomposition plus right-sidebar layout helpers
+3. Tranche 5: `build()` scaffold decomposition plus right-sidebar layout helpers
    (`_buildRightSidebarPanel` and `_wrapWithRightSidebar`), following the
    existing `chat_page_*_builders.dart` idiom.
 

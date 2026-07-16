@@ -14,7 +14,9 @@ import 'package:flutter_test/flutter_test.dart';
 /// move into shared private state cannot hide aggregate growth.
 const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 9468,
-  'lib/features/chat/presentation/pages/chat_page.dart': 5168,
+  'lib/features/chat/presentation/pages/chat_page.dart': 2738,
+  'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
+      2442,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 5269,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':
       3270,
@@ -25,7 +27,7 @@ const Map<String, int> _lineBudgets = {
 
 const Map<String, int> _libraryLineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 23005,
-  'lib/features/chat/presentation/pages/chat_page.dart': 12774,
+  'lib/features/chat/presentation/pages/chat_page.dart': 10344,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 5612,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 33189,
 };
