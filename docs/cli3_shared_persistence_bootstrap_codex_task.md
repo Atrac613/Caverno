@@ -108,8 +108,17 @@ later read-only-command slice.
 
 ## Handoff Notes
 
-- Summary: Pending implementation.
-- Tests run: Pending implementation.
-- Coverage or low-coverage notes: Pending implementation.
-- Risks or follow-ups: Read-only `list` and `show`, session-log root injection,
-  resume, and execution leases remain follow-up CLI3 slices.
+- Summary: GUI and terminal frontends now share one F4 drift bootstrap. The GUI
+  preserves its logged Hive fallback, while the CLI requires drift and scopes
+  explicit data-directory databases and migration markers to the same root.
+  Terminal shutdown no longer initializes an unused chat runtime after an
+  early validation failure.
+- Tests run: Flutter analysis; three shared-bootstrap tests; three terminal
+  persistence tests with real temporary SQLite and Hive stores; five terminal
+  runtime-adapter tests; macOS debug build; and an isolated no-network process
+  smoke that returned exit code 65 for an invalid URL after creating the
+  expected persistence files.
+- Coverage or low-coverage notes: Coverage was not collected for this slice.
+- Risks or follow-ups: Read-only `list` and `show`, avoiding unrelated Hive
+  boxes for read-only queries, session-log root injection, resume, and
+  execution leases remain follow-up CLI3 slices.

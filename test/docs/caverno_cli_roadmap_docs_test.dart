@@ -17,6 +17,7 @@ void main() {
     test('registers the CLI track and phased milestones', () {
       expect(roadmap, contains('Use `CLI<number>`'));
       expect(roadmap, contains('| Caverno CLI | CLI2 | done |'));
+      expect(roadmap, contains('| Caverno CLI | CLI3 | current |'));
       expect(roadmap, contains('## Caverno CLI Track'));
       expect(
         roadmap,

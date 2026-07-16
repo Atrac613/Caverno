@@ -61,6 +61,7 @@ handoffs can refer to the same unit of work over time.
 | Caverno CLI | CLI0 | done | Establish a no-window production-path canary and freeze the terminal execution contract. | Keep the passing three-headless-plus-one-macOS comparison gate as the shared CLI baseline. |
 | Caverno CLI | CLI1 | done | Extract a shared application execution runtime without changing GUI behavior. | Use the shared typed runtime and CLI1 parity evidence as the terminal frontend boundary. |
 | Caverno CLI | CLI2 | done | Ship the interactive terminal MVP on the shared execution runtime. | Preserve the passing terminal and three-headless-plus-one-macOS parity gates as the CLI2 baseline; keep persistence, resume, and concurrent ownership in CLI3. |
+| Caverno CLI | CLI3 | current | Reuse production persistence before adding conversation resume and concurrent ownership. | Add read-only conversation `list` and `show` commands on the shared drift bootstrap before permitting resume or mutation. |
 | Tools | TOOL0 | next | Add the Tools product surface as an empty workspace without changing LLM tool-calling behavior. | Start with navigation, naming, localization, and a safe empty state; keep manifest runtime and creation flows for TOOL1+. |
 | Foundation | F1 | done | Add a CI-enforced line-count ratchet for oversized files so god-file growth reverses instead of compounding. | Lower budgets in the same PR whenever a refactor slice shrinks a budgeted file. |
 | Foundation | F2 | done | Extract the tool-call loop from `ChatNotifier` behind a handler registry shared with routines and subagents. | Use the extracted dispatcher, policies, and routine batch executor as the baseline for F3, LL6, and LL7. |
@@ -947,7 +948,7 @@ Next action:
 
 ### CLI3: Persistence, Resume, And Concurrent Ownership
 
-Status: `later`
+Status: `current`
 
 Scope:
 - Reuse Caverno settings, drift conversations, memory, coding projects,
@@ -971,9 +972,22 @@ Acceptance criteria:
 Dependencies:
 - CLI2 interactive MVP and F4 drift storage.
 
+Evidence:
+- `docs/cli3_shared_persistence_bootstrap_codex_task.md`
+- `lib/features/chat/application/persistence/caverno_persistence_bootstrap.dart`
+  now owns the shared F4 migration, repository hydration, and database cleanup
+  used by GUI and terminal frontends.
+- `lib/features/terminal/application/caverno_cli_persistence.dart` routes the
+  terminal runtime to the production drift repositories. Explicit data
+  directories keep their SQLite database and migration markers in the same
+  isolated root.
+- Focused persistence and terminal-lifecycle tests passed, and a rebuilt macOS
+  CLI process created the isolated drift store without starting MCP clients or
+  producing a post-close persistence error on an early validation failure.
+
 Next action:
-- Add read-only `list` and `show` commands before permitting cross-frontend
-  resume or mutation.
+- Add read-only conversation `list` and `show` commands on this shared drift
+  bootstrap before permitting cross-frontend resume or mutation.
 
 ### CLI4: Packaging, Automation, And Release Gate
 
