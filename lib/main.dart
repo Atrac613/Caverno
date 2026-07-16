@@ -15,15 +15,10 @@ import 'core/services/window_manager_service.dart';
 import 'core/services/window_settings_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/logger.dart';
+import 'features/chat/application/persistence/caverno_persistence_bootstrap.dart';
 import 'features/chat/data/datasources/app_database.dart';
-import 'features/chat/data/repositories/cached_drift_conversation_repository.dart';
-import 'features/chat/data/repositories/chat_memory_migration_service.dart';
 import 'features/chat/data/repositories/chat_memory_repository.dart';
-import 'features/chat/data/repositories/conversation_migration_service.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
-import 'features/chat/data/repositories/drift_chat_memory_store.dart';
-import 'features/chat/data/repositories/drift_conversation_repository.dart';
-import 'features/chat/data/repositories/key_value_store.dart';
 import 'features/chat/data/repositories/skill_repository.dart';
 import 'features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'features/chat/presentation/pages/chat_page.dart';
@@ -99,10 +94,10 @@ Future<void> main(List<String> arguments) async {
           skillBoxProvider.overrideWithValue(skillBox),
           if (driftStorage != null) ...[
             conversationRepositoryProvider.overrideWithValue(
-              driftStorage.conversation,
+              driftStorage.conversationRepository,
             ),
             chatMemoryRepositoryProvider.overrideWithValue(
-              driftStorage.chatMemory,
+              driftStorage.chatMemoryRepository,
             ),
             appDatabaseProvider.overrideWithValue(driftStorage.database),
           ],
@@ -120,54 +115,27 @@ const _chatMemoryMigratedKey = 'f4_chat_memory_migrated_v1';
 /// return the drift-backed repositories to serve conversations and chat memory.
 /// On any failure returns null so the app keeps using the Hive-backed providers
 /// (the migrations are idempotent and retry next launch).
-Future<
-  ({
-    AppDatabase database,
-    CachedDriftConversationRepository conversation,
-    ChatMemoryRepository chatMemory,
-  })?
->
-_initDriftStorage({
+Future<CavernoPersistenceStorage?> _initDriftStorage({
   required SharedPreferences prefs,
   required Box<String> conversationBox,
   required Box<String> memoryBox,
 }) async {
   try {
-    final database = await openAppDatabase();
-
-    final conversationStore = DriftConversationRepository(database);
-    await const ConversationMigrationService().migrateIfNeeded(
-      alreadyMigrated: prefs.getBool(_conversationsMigratedKey) ?? false,
+    return await const CavernoPersistenceBootstrap().open(
+      openDatabase: openAppDatabase,
+      conversationsMigrated: prefs.getBool(_conversationsMigratedKey) ?? false,
+      chatMemoryMigrated: prefs.getBool(_chatMemoryMigratedKey) ?? false,
       readLegacyConversations: () async =>
           ConversationRepository(conversationBox).getAll(),
-      target: conversationStore,
-      markMigrated: () async {
-        await prefs.setBool(_conversationsMigratedKey, true);
-      },
-    );
-
-    final chatMemoryStore = DriftChatMemoryStore(database);
-    await const ChatMemoryMigrationService().migrateIfNeeded(
-      alreadyMigrated: prefs.getBool(_chatMemoryMigratedKey) ?? false,
-      readLegacyEntries: () async => {
+      readLegacyChatMemory: () async => {
         for (final key in memoryBox.keys) key.toString(): ?memoryBox.get(key),
       },
-      target: chatMemoryStore,
-      markMigrated: () async {
+      markConversationsMigrated: () async {
+        await prefs.setBool(_conversationsMigratedKey, true);
+      },
+      markChatMemoryMigrated: () async {
         await prefs.setBool(_chatMemoryMigratedKey, true);
       },
-    );
-
-    final conversationRepository =
-        await CachedDriftConversationRepository.hydrate(conversationStore);
-    final chatMemoryKv = await CachedDriftKeyValueStore.hydrate(
-      chatMemoryStore,
-    );
-
-    return (
-      database: database,
-      conversation: conversationRepository,
-      chatMemory: ChatMemoryRepository(chatMemoryKv),
     );
   } catch (error, stackTrace) {
     appLog('[F4] drift storage init failed; falling back to Hive: $error');
