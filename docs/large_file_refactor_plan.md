@@ -29,7 +29,8 @@ again before starting a new refactor branch.
 | `lib/features/chat/data/datasources/built_in_serial_tool_handler.dart` | 141 | Built-in serial definitions, direct dispatch, and compatible result handling |
 | `lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart` | 183 | Built-in SSH definitions, post-approval command dispatch, and disconnect handling |
 | `lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart` | 126 | Compatible direct, JSON, command, and structured-error result construction |
-| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 2995 | Computer Use settings coordination, diagnostics, and remaining panels |
+| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 2816 | Computer Use settings coordination, diagnostics, and remaining panels |
+| `lib/features/settings/presentation/widgets/computer_use_action_gate_plan.dart` | 203 | Immutable Computer Use action-gate presentation |
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
 | `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
@@ -101,10 +102,10 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Characterize and extract the Computer Use action gate plan from
-  `computer_use_settings_page.dart` into a stateless widget with explicit
-  derived inputs. Keep runtime-map assembly, live-smoke ownership, permission
-  state, and every helper or platform action in the page coordinator.
+- Characterize the Computer Use IPC runtime summary, introduce a typed
+  immutable view model for its presentation values, and extract the stateless
+  rendering boundary. Keep runtime-map assembly, refresh state, diagnostics
+  ownership, and every helper or platform action in the page coordinator.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -521,10 +522,9 @@ Computer Use handler status (2026-07-17):
 
 Next slice:
 
-- Continue Phase 4 with the Computer Use action gate plan after the permission
-  and trust panel extraction. Preserve all derived runtime-map assembly,
-  live-smoke ownership, permission state, and helper or platform actions in the
-  page coordinator.
+- Continue Phase 4 with the Computer Use IPC runtime summary after the action
+  gate extraction. Preserve runtime-map assembly, refresh state, diagnostics
+  ownership, and helper or platform actions in the page coordinator.
 
 Exit criteria:
 
@@ -560,12 +560,30 @@ Permission and trust panel status (2026-07-17):
   The full repository gate passed 3,595 root tests plus 13 internal-package
   tests at 73.16% line coverage; the panel reached 100.00% coverage.
 
+Action gate plan status (2026-07-17):
+
+- `ComputerUseActionGatePlan` now owns the exact eight-row action plan behind
+  an immutable view model that copies status, next-action, and positive-state
+  decisions without retaining mutable runtime maps.
+- Characterization preserves helper launch and IPC states, permission rows,
+  row order, missing-status and next-action fallbacks, pre-smoke instructions,
+  live-smoke details, unsupported audio, armed unsafe actions, icons, spacing,
+  and copy.
+- The settings page remains the only owner of runtime maps, live-smoke state,
+  permission state, helper and IPC lifecycle, diagnostics, refresh behavior,
+  and platform operations. Direct widget tests perform no platform action.
+- `computer_use_settings_page.dart` fell from 2,995 to 2,816 lines. The
+  independent action-gate widget is ratcheted at 203 lines.
+- The focused verifier passed 55 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,602 root tests plus 13 internal-package
+  tests at 73.50% line coverage; the widget reached 100.00% coverage.
+
 Next slice:
 
-- Characterize and extract the Computer Use action gate plan into one
-  stateless widget with explicit derived inputs. Keep runtime-map assembly,
-  permission state, live-smoke ownership, and all helper or platform actions
-  in the page coordinator.
+- Characterize and extract `_IpcRuntimeSummary` behind a typed immutable view
+  model. Preserve malformed-map fallback behavior and keep runtime-map
+  assembly, diagnostics ownership, refresh state, and all helper or platform
+  actions in the page coordinator.
 
 Exit criteria:
 

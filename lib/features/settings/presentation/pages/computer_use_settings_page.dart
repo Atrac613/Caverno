@@ -11,6 +11,7 @@ import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
+import '../widgets/computer_use_action_gate_plan.dart';
 import '../widgets/computer_use_audit_log_summary.dart';
 import '../widgets/computer_use_permission_trust_panel.dart';
 import 'computer_use_debug_page.dart';
@@ -238,18 +239,20 @@ class _ComputerUseOnboardingCardState
               onRecheck: () => _refresh(force: true),
             ),
             const SizedBox(height: 12),
-            _ComputerUseGatePlan(
-              helperInstalled: helperInstalled,
-              helperRunning: helperRunning,
-              helperIpcReady: helperIpcReady,
-              accessibilityGranted: accessibilityGranted,
-              screenCaptureGranted: screenCaptureGranted,
-              captureGate: captureGate,
-              inputGate: inputGate,
-              audioGate: audioGate,
-              overlaySmoke: overlaySmoke,
-              unsafeActionGate: unsafeActionGate,
-              hasLiveSmokeReport: _lastLiveSmokeReport != null,
+            ComputerUseActionGatePlan(
+              viewModel: ComputerUseActionGatePlanViewModel.fromState(
+                helperInstalled: helperInstalled,
+                helperRunning: helperRunning,
+                helperIpcReady: helperIpcReady,
+                accessibilityGranted: accessibilityGranted,
+                screenCaptureGranted: screenCaptureGranted,
+                captureGate: captureGate,
+                inputGate: inputGate,
+                audioGate: audioGate,
+                overlaySmoke: overlaySmoke,
+                unsafeActionGate: unsafeActionGate,
+                hasLiveSmokeReport: _lastLiveSmokeReport != null,
+              ),
             ),
             const SizedBox(height: 12),
             Text(
@@ -1705,188 +1708,6 @@ class _InfoChip extends StatelessWidget {
     return Chip(
       avatar: Icon(Icons.info_outline, size: 18, color: colorScheme.primary),
       label: Text('$label: $value'),
-    );
-  }
-}
-
-class _ComputerUseGatePlan extends StatelessWidget {
-  const _ComputerUseGatePlan({
-    required this.helperInstalled,
-    required this.helperRunning,
-    required this.helperIpcReady,
-    required this.accessibilityGranted,
-    required this.screenCaptureGranted,
-    required this.captureGate,
-    required this.inputGate,
-    required this.audioGate,
-    required this.overlaySmoke,
-    required this.unsafeActionGate,
-    required this.hasLiveSmokeReport,
-  });
-
-  final bool helperInstalled;
-  final bool helperRunning;
-  final bool helperIpcReady;
-  final bool accessibilityGranted;
-  final bool screenCaptureGranted;
-  final Map<String, dynamic>? captureGate;
-  final Map<String, dynamic>? inputGate;
-  final Map<String, dynamic>? audioGate;
-  final Map<String, dynamic>? overlaySmoke;
-  final Map<String, dynamic>? unsafeActionGate;
-  final bool hasLiveSmokeReport;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-    final captureStatus = _status(captureGate);
-    final inputStatus = _status(inputGate);
-    final audioStatus = _status(audioGate);
-    final overlayStatus = _status(overlaySmoke);
-    final unsafeStatus = _status(unsafeActionGate);
-    final helperReady = helperInstalled && helperRunning && helperIpcReady;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Computer Use action plan', style: textTheme.labelLarge),
-            const SizedBox(height: 8),
-            _GatePlanRow(
-              label: 'Helper boundary',
-              status: helperReady
-                  ? 'ready'
-                  : !helperInstalled || !helperRunning
-                  ? 'needs launch'
-                  : 'needs IPC',
-              ok: helperReady,
-              detail:
-                  'Caverno Computer Use owns Accessibility and Screen & System Audio Recording, and executes approved OS actions.',
-            ),
-            _GatePlanRow(
-              label: 'Accessibility permission',
-              status: accessibilityGranted ? 'granted' : 'blocked',
-              ok: accessibilityGranted,
-              detail: accessibilityGranted
-                  ? 'Input inspection and UI control can be verified.'
-                  : 'Grant Accessibility to Caverno Computer Use.',
-            ),
-            _GatePlanRow(
-              label: 'Screen recording permission',
-              status: screenCaptureGranted ? 'granted' : 'blocked',
-              ok: screenCaptureGranted,
-              detail: screenCaptureGranted
-                  ? 'Display and window capture can be verified.'
-                  : 'Grant Screen & System Audio Recording to Caverno Computer Use.',
-            ),
-            _GatePlanRow(
-              label: 'Capture smoke',
-              status: captureStatus,
-              ok: captureStatus == 'ready',
-              detail: captureGate != null
-                  ? _nextAction(captureGate)
-                  : 'Run live smoke after permissions are granted.',
-            ),
-            _GatePlanRow(
-              label: 'Input smoke',
-              status: inputStatus,
-              ok: inputStatus == 'ready',
-              detail: hasLiveSmokeReport
-                  ? _nextAction(inputGate)
-                  : 'Arm non-destructive input smoke only when ready to test.',
-            ),
-            _GatePlanRow(
-              label: 'System audio smoke',
-              status: audioStatus,
-              ok: audioStatus == 'ready' || audioStatus == 'unsupported',
-              detail: hasLiveSmokeReport
-                  ? _nextAction(audioGate)
-                  : 'System audio is optional and uses Screen & System Audio Recording.',
-            ),
-            _GatePlanRow(
-              label: 'Overlay smoke',
-              status: overlayStatus,
-              ok: overlayStatus == 'ready',
-              detail: hasLiveSmokeReport
-                  ? _nextAction(overlaySmoke)
-                  : 'Run overlay smoke before marking M1 onboarding ready.',
-            ),
-            _GatePlanRow(
-              label: 'Unsafe arms',
-              status: unsafeStatus,
-              ok: unsafeStatus == 'armed',
-              detail: hasLiveSmokeReport
-                  ? _nextAction(unsafeActionGate)
-                  : 'Click and text input remain separately armed.',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _status(Map<String, dynamic>? gate) {
-    final status = gate?['status'];
-    return status is String ? status : 'not run';
-  }
-
-  String _nextAction(Map<String, dynamic>? gate) {
-    final nextAction = gate?['nextAction'];
-    if (nextAction is String && nextAction.isNotEmpty) {
-      return nextAction;
-    }
-    return 'Review the latest live smoke report.';
-  }
-}
-
-class _GatePlanRow extends StatelessWidget {
-  const _GatePlanRow({
-    required this.label,
-    required this.status,
-    required this.ok,
-    required this.detail,
-  });
-
-  final String label;
-  final String status;
-  final bool ok;
-  final String detail;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final color = ok ? colorScheme.primary : colorScheme.outline;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            ok ? Icons.check_circle_outline : Icons.radio_button_unchecked,
-            size: 18,
-            color: color,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$label: $status', style: textTheme.bodyMedium),
-                const SizedBox(height: 2),
-                Text(detail, style: textTheme.bodySmall),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
