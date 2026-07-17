@@ -29,10 +29,11 @@ again before starting a new refactor branch.
 | `lib/features/chat/data/datasources/built_in_serial_tool_handler.dart` | 141 | Built-in serial definitions, direct dispatch, and compatible result handling |
 | `lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart` | 183 | Built-in SSH definitions, post-approval command dispatch, and disconnect handling |
 | `lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart` | 126 | Compatible direct, JSON, command, and structured-error result construction |
-| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 1811 | Computer Use settings coordination, diagnostics, and remaining panels |
+| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 1759 | Computer Use settings coordination, diagnostics, and remaining panels |
 | `lib/features/settings/presentation/widgets/computer_use_action_gate_plan.dart` | 203 | Immutable Computer Use action-gate presentation |
 | `lib/features/settings/presentation/widgets/computer_use_ipc_runtime_summary.dart` | 582 | Immutable Computer Use IPC diagnostics presentation |
 | `lib/features/settings/presentation/widgets/computer_use_live_smoke_summary.dart` | 302 | Immutable Computer Use live-smoke presentation |
+| `lib/features/settings/presentation/widgets/computer_use_persistence_summary.dart` | 124 | Immutable Computer Use helper-persistence presentation |
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/widgets/computer_use_xpc_timing_summary.dart` | 176 | Immutable Computer Use XPC timing presentation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
@@ -105,8 +106,8 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Characterize and extract the Computer Use helper persistence summary behind
-  an immutable typed presentation model. Keep persisted-state ownership,
+- Characterize and extract the Computer Use onboarding verification summary
+  behind an immutable typed presentation model. Keep verification ownership,
   refresh state, helper lifecycle, diagnostics generation, and every platform
   action in the page coordinator.
 
@@ -525,10 +526,10 @@ Computer Use handler status (2026-07-17):
 
 Next slice:
 
-- Continue Phase 4 with the Computer Use helper persistence summary after the
-  XPC timing extraction. Preserve persisted-state ownership, refresh state,
-  diagnostics generation, helper lifecycle, and platform actions in the page
-  coordinator.
+- Continue Phase 4 with the Computer Use onboarding verification summary after
+  the helper persistence extraction. Preserve verification ownership, refresh
+  state, diagnostics generation, helper lifecycle, and platform actions in the
+  page coordinator.
 
 Exit criteria:
 
@@ -637,13 +638,31 @@ XPC timing summary status (2026-07-17):
   The full repository gate passed 3,623 root tests plus 13 internal-package
   tests at 73.52% line coverage; the widget reached 100.00% coverage.
 
+Helper persistence summary status (2026-07-17):
+
+- `ComputerUsePersistenceSummary` now owns helper-persistence normalization and
+  presentation behind an immutable view model that copies the heading, two
+  status rows, and active-work detail without retaining source or nested maps.
+- Characterization preserves timestamp fallback and empty-string handling,
+  exact-true active-work filtering, map insertion order and key
+  stringification, verification presence and success semantics, chip order,
+  icons, wrapping, spacing, and copy.
+- The settings page remains the only owner of persistence lookup precedence
+  and visibility, refresh state, helper lifecycle, diagnostics generation, and
+  platform operations. Direct widget tests perform no platform action.
+- `computer_use_settings_page.dart` fell from 1,811 to 1,759 lines. The
+  independent helper persistence summary is ratcheted at 124 lines.
+- The focused verifier passed 60 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,630 root tests plus 13 internal-package
+  tests at 73.52% line coverage; the widget reached 100.00% coverage.
+
 Next slice:
 
-- Characterize and extract `_PersistenceSummary` behind an immutable typed
-  view model. Preserve active-work filtering and order, verification fallbacks,
-  timestamps, chip order, and copy. Keep persisted-state ownership, refresh
-  state, helper lifecycle, diagnostics generation, and all platform actions in
-  the page coordinator.
+- Characterize and extract `_VerificationSummary` behind an immutable typed
+  view model. Preserve generated-time and summary fallback behavior, step
+  filtering and order, labels, status text, chip semantics, and copy. Keep
+  verification ownership, refresh state, helper lifecycle, diagnostics
+  generation, and all platform actions in the page coordinator.
 
 Exit criteria:
 

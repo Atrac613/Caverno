@@ -15,6 +15,7 @@ import '../widgets/computer_use_action_gate_plan.dart';
 import '../widgets/computer_use_audit_log_summary.dart';
 import '../widgets/computer_use_ipc_runtime_summary.dart';
 import '../widgets/computer_use_live_smoke_summary.dart';
+import '../widgets/computer_use_persistence_summary.dart';
 import '../widgets/computer_use_permission_trust_panel.dart';
 import '../widgets/computer_use_xpc_timing_summary.dart';
 import 'computer_use_debug_page.dart';
@@ -365,7 +366,12 @@ class _ComputerUseOnboardingCardState
                 ],
                 if (helperStatusPersistence != null) ...[
                   const SizedBox(height: 8),
-                  _PersistenceSummary(persistence: helperStatusPersistence),
+                  ComputerUsePersistenceSummary(
+                    viewModel:
+                        ComputerUsePersistenceSummaryViewModel.fromPersistence(
+                          helperStatusPersistence,
+                        ),
+                  ),
                 ],
                 const SizedBox(height: 8),
                 ComputerUseIpcRuntimeSummary(
@@ -1747,64 +1753,6 @@ class _VerificationSummary extends StatelessWidget {
             ],
           ),
         ],
-      ],
-    );
-  }
-}
-
-class _PersistenceSummary extends StatelessWidget {
-  const _PersistenceSummary({required this.persistence});
-
-  final Map<String, dynamic> persistence;
-
-  @override
-  Widget build(BuildContext context) {
-    final updatedAt = persistence['updatedAt'];
-    final activeWork = persistence['activeWork'];
-    final activeWorkLabels = <String>[];
-    if (activeWork is Map) {
-      for (final entry in activeWork.entries) {
-        if (entry.value == true) {
-          activeWorkLabels.add('${entry.key}');
-        }
-      }
-    }
-    final verification = persistence['onboardingVerification'];
-    final hasVerification = verification is Map;
-    final verificationOk = hasVerification && verification['ok'] == true;
-    final hasActiveWork = activeWorkLabels.isNotEmpty;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Helper status saved: ${updatedAt is String ? updatedAt : 'Unknown'}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _StatusChip(
-              label: 'Saved Work',
-              value: !hasActiveWork,
-              trueText: 'Idle',
-              falseText: 'Active',
-            ),
-            _StatusChip(
-              label: 'Saved Verify',
-              value: verificationOk,
-              trueText: 'Passed',
-              falseText: hasVerification ? 'Needs attention' : 'Not saved',
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Saved active work: ${hasActiveWork ? activeWorkLabels.join(', ') : 'none'}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
       ],
     );
   }
