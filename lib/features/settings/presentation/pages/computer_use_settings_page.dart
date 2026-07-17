@@ -16,6 +16,7 @@ import '../widgets/computer_use_audit_log_summary.dart';
 import '../widgets/computer_use_ipc_runtime_summary.dart';
 import '../widgets/computer_use_live_smoke_summary.dart';
 import '../widgets/computer_use_permission_trust_panel.dart';
+import '../widgets/computer_use_xpc_timing_summary.dart';
 import 'computer_use_debug_page.dart';
 
 class ComputerUseSettingsPage extends StatelessWidget {
@@ -375,7 +376,11 @@ class _ComputerUseOnboardingCardState
                 if (xpcTimingSummary['classification'] !=
                     'missing_preferred_attempt') ...[
                   const SizedBox(height: 8),
-                  _XpcTimingSummary(summary: xpcTimingSummary),
+                  ComputerUseXpcTimingSummary(
+                    viewModel: ComputerUseXpcTimingSummaryViewModel.fromSummary(
+                      xpcTimingSummary,
+                    ),
+                  ),
                 ],
                 if (_lastLiveSmokeReport != null) ...[
                   const SizedBox(height: 8),
@@ -1707,22 +1712,6 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  const _InfoChip({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Chip(
-      avatar: Icon(Icons.info_outline, size: 18, color: colorScheme.primary),
-      label: Text('$label: $value'),
-    );
-  }
-}
-
 class _VerificationSummary extends StatelessWidget {
   const _VerificationSummary({required this.verification});
 
@@ -1818,110 +1807,5 @@ class _PersistenceSummary extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-class _XpcTimingSummary extends StatelessWidget {
-  const _XpcTimingSummary({required this.summary});
-
-  final Map<String, dynamic> summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final ready = summary['ready'] == true;
-    final classification = _summaryString('classification') ?? 'unknown';
-    final status = _summaryString('status') ?? 'unknown';
-    final nextAction = _summaryString('nextAction');
-    final recommendedActionId = _summaryString('recommendedActionId');
-    final userNextAction = _summaryString('userNextAction');
-    final engineeringNextAction = _summaryString('engineeringNextAction');
-    final elapsedMs = summary['elapsedMs'];
-    final timeoutMs = summary['timeoutMs'];
-    final currentPreferredFallbackTimeoutMs =
-        summary['currentPreferredFallbackTimeoutMs'];
-    final currentTimeoutHeadroomMs = summary['currentTimeoutHeadroomMs'];
-    final lateElapsedMs = summary['lateResponseElapsedMs'];
-    final warmupElapsedMs = summary['warmupElapsedMs'];
-    final responseBeforeTimeout = summary['responseReceivedBeforeTimeout'];
-    final responseAfterTimeout = summary['responseReceivedAfterTimeout'];
-    final warmupResponseBeforeTimeout =
-        summary['warmupResponseReceivedBeforeTimeout'];
-    final fallbackSucceeded = summary['preferredFallbackSucceeded'];
-    final warmupStatus = _summaryString('warmupStatus');
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'XPC timing: $classification',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _InfoChip(label: 'Timing status', value: status),
-            _InfoChip(label: 'Timing gate', value: ready ? 'ready' : 'review'),
-            if (elapsedMs is int)
-              _InfoChip(label: 'Elapsed', value: '${elapsedMs}ms'),
-            if (timeoutMs is int)
-              _InfoChip(label: 'Timeout budget', value: '${timeoutMs}ms'),
-            if (currentPreferredFallbackTimeoutMs is int)
-              _InfoChip(
-                label: 'Current XPC timeout',
-                value: '${currentPreferredFallbackTimeoutMs}ms',
-              ),
-            if (currentTimeoutHeadroomMs is int)
-              _InfoChip(
-                label: 'Current headroom',
-                value: '${currentTimeoutHeadroomMs}ms',
-              ),
-            if (responseBeforeTimeout is bool)
-              _InfoChip(
-                label: 'Before timeout',
-                value: responseBeforeTimeout ? 'yes' : 'no',
-              ),
-            if (responseAfterTimeout is bool)
-              _InfoChip(
-                label: 'Late response',
-                value: responseAfterTimeout ? 'yes' : 'no',
-              ),
-            if (lateElapsedMs is int)
-              _InfoChip(label: 'Late elapsed', value: '${lateElapsedMs}ms'),
-            if (warmupStatus != null)
-              _InfoChip(label: 'Warmup status', value: warmupStatus),
-            if (warmupElapsedMs is int)
-              _InfoChip(label: 'Warmup elapsed', value: '${warmupElapsedMs}ms'),
-            if (warmupResponseBeforeTimeout is bool)
-              _InfoChip(
-                label: 'Warmup before timeout',
-                value: warmupResponseBeforeTimeout ? 'yes' : 'no',
-              ),
-            if (fallbackSucceeded is bool)
-              _InfoChip(
-                label: 'Fallback',
-                value: fallbackSucceeded ? 'succeeded' : 'not used',
-              ),
-            if (recommendedActionId != null)
-              _InfoChip(label: 'Timing action', value: recommendedActionId),
-            if (userNextAction != null)
-              _InfoChip(label: 'User next action', value: userNextAction),
-            if (engineeringNextAction != null)
-              _InfoChip(
-                label: 'Engineering next action',
-                value: engineeringNextAction,
-              ),
-            if (nextAction != null)
-              _InfoChip(label: 'Timing next action', value: nextAction),
-          ],
-        ),
-      ],
-    );
-  }
-
-  String? _summaryString(String key) {
-    final value = summary[key];
-    return value is String && value.isNotEmpty ? value : null;
   }
 }

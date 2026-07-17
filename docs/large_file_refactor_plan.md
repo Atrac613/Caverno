@@ -29,11 +29,12 @@ again before starting a new refactor branch.
 | `lib/features/chat/data/datasources/built_in_serial_tool_handler.dart` | 141 | Built-in serial definitions, direct dispatch, and compatible result handling |
 | `lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart` | 183 | Built-in SSH definitions, post-approval command dispatch, and disconnect handling |
 | `lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart` | 126 | Compatible direct, JSON, command, and structured-error result construction |
-| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 1927 | Computer Use settings coordination, diagnostics, and remaining panels |
+| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 1811 | Computer Use settings coordination, diagnostics, and remaining panels |
 | `lib/features/settings/presentation/widgets/computer_use_action_gate_plan.dart` | 203 | Immutable Computer Use action-gate presentation |
 | `lib/features/settings/presentation/widgets/computer_use_ipc_runtime_summary.dart` | 582 | Immutable Computer Use IPC diagnostics presentation |
 | `lib/features/settings/presentation/widgets/computer_use_live_smoke_summary.dart` | 302 | Immutable Computer Use live-smoke presentation |
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
+| `lib/features/settings/presentation/widgets/computer_use_xpc_timing_summary.dart` | 176 | Immutable Computer Use XPC timing presentation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
 | `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
 | `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18648 | Broad chat orchestration regression coverage |
@@ -104,9 +105,9 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Characterize and extract the Computer Use XPC timing summary behind an
-  immutable typed presentation model. Keep timing-report ownership, refresh
-  state, helper and XPC lifecycle, diagnostics generation, and every platform
+- Characterize and extract the Computer Use helper persistence summary behind
+  an immutable typed presentation model. Keep persisted-state ownership,
+  refresh state, helper lifecycle, diagnostics generation, and every platform
   action in the page coordinator.
 
 ## Phase 1: ChatNotifier Decomposition
@@ -524,10 +525,10 @@ Computer Use handler status (2026-07-17):
 
 Next slice:
 
-- Continue Phase 4 with the Computer Use XPC timing summary after the
-  live-smoke extraction. Preserve timing-report ownership, refresh state,
-  diagnostics generation, helper and XPC lifecycle, and platform actions in
-  the page coordinator.
+- Continue Phase 4 with the Computer Use helper persistence summary after the
+  XPC timing extraction. Preserve persisted-state ownership, refresh state,
+  diagnostics generation, helper lifecycle, and platform actions in the page
+  coordinator.
 
 Exit criteria:
 
@@ -618,12 +619,31 @@ Live-smoke summary status (2026-07-17):
   The full repository gate passed 3,616 root tests plus 13 internal-package
   tests at 73.51% line coverage; the widget reached 100.00% coverage.
 
+XPC timing summary status (2026-07-17):
+
+- `ComputerUseXpcTimingSummary` now owns ordered XPC timing presentation behind
+  an immutable view model that copies the heading and information rows without
+  retaining the derived timing map.
+- Characterization preserves required status and gate rows, all fifteen
+  conditional rows, scalar type checks, false-boolean labels, fallback status,
+  row order, icons, wrapping, spacing, and copy.
+- The settings page remains the only owner of timing-report construction, the
+  `missing_preferred_attempt` visibility decision, refresh state, helper and
+  XPC lifecycle, diagnostics, and platform operations. Direct widget tests
+  perform no platform action.
+- `computer_use_settings_page.dart` fell from 1,927 to 1,811 lines. The
+  independent XPC timing summary is ratcheted at 176 lines.
+- The focused verifier passed 59 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,623 root tests plus 13 internal-package
+  tests at 73.52% line coverage; the widget reached 100.00% coverage.
+
 Next slice:
 
-- Characterize and extract `_XpcTimingSummary` behind an immutable typed view
-  model. Preserve conditional chip order, scalar type checks, fallback copy,
-  and keep timing-report ownership, refresh state, helper and XPC lifecycle,
-  diagnostics generation, and all platform actions in the page coordinator.
+- Characterize and extract `_PersistenceSummary` behind an immutable typed
+  view model. Preserve active-work filtering and order, verification fallbacks,
+  timestamps, chip order, and copy. Keep persisted-state ownership, refresh
+  state, helper lifecycle, diagnostics generation, and all platform actions in
+  the page coordinator.
 
 Exit criteria:
 
