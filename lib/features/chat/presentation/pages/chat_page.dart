@@ -46,6 +46,7 @@ import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/feedback_submission_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../coordinators/plan_review_action_coordinator.dart';
+import '../coordinators/workflow_editor_action_coordinator.dart';
 import '../coordinators/workflow_task_run_coordinator.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
@@ -76,6 +77,7 @@ import '../widgets/message_input.dart';
 import '../widgets/participant_roster_bar.dart';
 import '../widgets/tool_perimeter_summary.dart';
 import '../widgets/workflow_status_presentation.dart';
+import '../widgets/workflow/workflow_editor_sheet.dart';
 import '../widgets/chat_image_drop_target.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
@@ -1784,14 +1786,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return;
     }
 
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
-    );
-    final result = await showModalBottomSheet<_WorkflowEditorSubmission>(
+    final result = await showModalBottomSheet<WorkflowEditorSubmission>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => _WorkflowEditorSheet(
+      builder: (sheetContext) => WorkflowEditorSheet(
         currentConversation: currentConversation,
         initialWorkflowStage: initialWorkflowStage,
         initialWorkflowSpec: initialWorkflowSpec,
@@ -1802,37 +1801,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return;
     }
 
-    switch (result.action) {
-      case _WorkflowEditorAction.clear:
-        await conversationsNotifier.updateCurrentWorkflow(
-          workflowStage: ConversationWorkflowStage.idle,
-          clearWorkflowSpec: true,
-        );
-        await conversationsNotifier.updateCurrentPlanArtifact(
-          clearPlanArtifact: true,
-        );
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('chat.workflow_cleared'.tr())));
-        }
-      case _WorkflowEditorAction.save:
-        await conversationsNotifier.updateCurrentWorkflow(
-          workflowStage: result.workflowStage,
-          workflowSpec: result.workflowSpec.hasContent
-              ? result.workflowSpec
-              : null,
-          clearWorkflowSpec: !result.workflowSpec.hasContent,
-        );
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('chat.workflow_saved'.tr())));
-        }
-    }
-
-    if (dismissWorkflowProposalOnSave) {
-      ref.read(chatNotifierProvider.notifier).dismissWorkflowProposal();
+    final outcome = await _workflowEditorActionCoordinator.applySubmission(
+      result,
+      dismissWorkflowProposalOnSave: dismissWorkflowProposalOnSave,
+    );
+    if (context.mounted) {
+      final messageKey = switch (outcome) {
+        WorkflowEditorApplyOutcome.saved => 'chat.workflow_saved',
+        WorkflowEditorApplyOutcome.cleared => 'chat.workflow_cleared',
+      };
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(messageKey.tr())));
     }
   }
 
@@ -1841,26 +1821,23 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required Conversation currentConversation,
     required WorkflowProposalDraft proposal,
   }) async {
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
+    await _workflowEditorActionCoordinator.applyWorkflowProposal(
+      currentConversation: currentConversation,
+      proposal: proposal,
     );
-    final chatNotifier = ref.read(chatNotifierProvider.notifier);
-    final nextSpec = proposal.workflowSpec.copyWith(
-      tasks: currentConversation.effectiveWorkflowSpec.tasks,
-    );
-
-    await conversationsNotifier.updateCurrentWorkflow(
-      workflowStage: proposal.workflowStage,
-      workflowSpec: nextSpec.hasContent ? nextSpec : null,
-      clearWorkflowSpec: !nextSpec.hasContent,
-    );
-    chatNotifier.dismissWorkflowProposal();
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('chat.workflow_saved'.tr())));
     }
   }
+
+  WorkflowEditorActionCoordinator get _workflowEditorActionCoordinator =>
+      WorkflowEditorActionCoordinator(
+        conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
+        dismissWorkflowProposal: () =>
+            ref.read(chatNotifierProvider.notifier).dismissWorkflowProposal(),
+      );
 
   Future<void> _applyTaskProposal(
     BuildContext context, {

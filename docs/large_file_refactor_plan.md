@@ -13,9 +13,11 @@ again before starting a new refactor branch.
 | File | Lines | Primary concern |
 |------|------:|-----------------|
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
-| `lib/features/chat/presentation/pages/chat_page.dart` | 2632 | Chat screen layout, drawers, modals, input wiring, plan UI |
+| `lib/features/chat/presentation/pages/chat_page.dart` | 2609 | Chat screen layout, drawers, modals, input wiring, plan UI |
 | `lib/features/chat/presentation/coordinators/plan_review_action_coordinator.dart` | 198 | Plan review edit, cancel, approval, projection, and task selection |
+| `lib/features/chat/presentation/coordinators/workflow_editor_action_coordinator.dart` | 88 | Workflow editor save, clear, and proposal persistence |
 | `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2442 | Saved-workflow execution, recovery, evidence, and auto-continuation |
+| `lib/features/chat/presentation/widgets/workflow/workflow_editor_sheet.dart` | 218 | Legacy workflow metadata editor presentation and normalization |
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1202 | Tool registry, public execution facade, remaining built-in adapters |
 | `lib/features/chat/data/datasources/remote_mcp_connection_manager.dart` | 317 | Remote MCP connection state, trust resolution, and invocation |
 | `lib/features/chat/data/datasources/remote_mcp_tool_name_policy.dart` | 120 | Deterministic remote names, reserved-prefix neutralization, and collision retries |
@@ -44,7 +46,7 @@ again before starting a new refactor branch.
 
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. Current aggregate sizes
-are 23,005 lines for the ChatNotifier library, 10,230 for the ChatPage library,
+are 23,005 lines for the ChatNotifier library, 9,986 for the ChatPage library,
 1,294 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
 
@@ -108,9 +110,9 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Continue ChatPage Tranche 3 with a focused workflow-editor action contract.
-  Keep task-menu handlers as a separate follow-up after the modal and
-  persistence boundary is characterized.
+- Characterize ChatPage task proposal, task editor, and task-menu ownership,
+  then define the smallest coherent Tranche 3 task-action extraction. Keep
+  workflow quick actions outside that slice.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -239,11 +241,30 @@ Tranche 3 plan-review action status (2026-07-17):
   full repository gate passed the complete root suite plus 13 package tests at
   73.27% line coverage; the coordinator reached 88.89% coverage.
 
+Tranche 3 workflow-editor action status (2026-07-17):
+
+- `WorkflowEditorSheet` now owns the legacy workflow metadata modal, explicit
+  initial-value precedence, field normalization, task retention, and typed save
+  or clear submissions.
+- `WorkflowEditorActionCoordinator` owns workflow save, empty-spec clearing,
+  ordered workflow-and-plan clearing, and workflow proposal application while
+  retaining current tasks and dismissing only after persistence.
+- ChatPage retains plan-document blocking, modal launch, mounted-context checks,
+  localization, and notifications. Task proposal, quick action, task editor,
+  and task-menu paths remain unchanged.
+- `chat_page.dart` fell from 2,632 to 2,609 lines, its same-library aggregate
+  fell from 10,230 to 9,986 lines, the coordinator is ratcheted at 88 lines,
+  and the widget is ratcheted at 218 lines.
+- The focused verifier passed 44 root tests plus 13 internal-package tests. The
+  full repository gate passed the complete root suite plus 13 package tests at
+  73.43% line coverage; coordinator and widget coverage reached 100.00% and
+  97.06%, respectively.
+
 Later tranche roadmap:
 
-1. Tranche 3 remaining: extract workflow editor handlers behind one focused
-   modal-and-persistence boundary, then handle task-menu actions as a separate
-   slice.
+1. Tranche 3 remaining: characterize task proposal, task editor, and task-menu
+   ownership, then extract the smallest coherent task-action boundary. Keep
+   workflow quick actions separate.
 2. Tranche 4: slash command handler, pinned by
    `test/features/chat/presentation/pages/chat_page_slash_commands_test.dart`.
 3. Tranche 5: `build()` scaffold decomposition plus right-sidebar layout helpers
@@ -697,10 +718,10 @@ Onboarding verification summary status (2026-07-17):
 
 Next slice:
 
-- The small Computer Use settings diagnostics-summary sequence and ChatPage
-  plan-review action slice are complete. Continue ChatPage Tranche 3 with a
-  focused workflow-editor action contract, leaving task-menu handlers for the
-  following slice.
+- The Computer Use settings summary sequence plus ChatPage plan-review and
+  workflow-editor action slices are complete. Continue ChatPage Tranche 3 by
+  characterizing task proposal, task editor, and task-menu ownership before
+  selecting the next reviewable task-action boundary.
 
 Exit criteria:
 
