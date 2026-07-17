@@ -35,9 +35,11 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/remote_mcp_connection_manager.dart': 317,
   'lib/features/chat/data/datasources/remote_mcp_tool_name_policy.dart': 120,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':
-      2816,
+      2189,
   'lib/features/settings/presentation/widgets/computer_use_action_gate_plan.dart':
       203,
+  'lib/features/settings/presentation/widgets/computer_use_ipc_runtime_summary.dart':
+      582,
   'lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart':
       318,
   'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 2864,

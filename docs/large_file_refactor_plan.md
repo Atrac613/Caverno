@@ -29,8 +29,9 @@ again before starting a new refactor branch.
 | `lib/features/chat/data/datasources/built_in_serial_tool_handler.dart` | 141 | Built-in serial definitions, direct dispatch, and compatible result handling |
 | `lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart` | 183 | Built-in SSH definitions, post-approval command dispatch, and disconnect handling |
 | `lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart` | 126 | Compatible direct, JSON, command, and structured-error result construction |
-| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 2816 | Computer Use settings coordination, diagnostics, and remaining panels |
+| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 2189 | Computer Use settings coordination, diagnostics, and remaining panels |
 | `lib/features/settings/presentation/widgets/computer_use_action_gate_plan.dart` | 203 | Immutable Computer Use action-gate presentation |
+| `lib/features/settings/presentation/widgets/computer_use_ipc_runtime_summary.dart` | 582 | Immutable Computer Use IPC diagnostics presentation |
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
 | `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
@@ -102,10 +103,10 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Characterize the Computer Use IPC runtime summary, introduce a typed
-  immutable view model for its presentation values, and extract the stateless
-  rendering boundary. Keep runtime-map assembly, refresh state, diagnostics
-  ownership, and every helper or platform action in the page coordinator.
+- Characterize and extract the Computer Use live-smoke summary behind an
+  immutable typed presentation model. Keep report-envelope ownership, refresh
+  state, smoke execution, diagnostics generation, and every helper or platform
+  action in the page coordinator.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -522,9 +523,10 @@ Computer Use handler status (2026-07-17):
 
 Next slice:
 
-- Continue Phase 4 with the Computer Use IPC runtime summary after the action
-  gate extraction. Preserve runtime-map assembly, refresh state, diagnostics
-  ownership, and helper or platform actions in the page coordinator.
+- Continue Phase 4 with the Computer Use live-smoke summary after the IPC
+  runtime extraction. Preserve report-envelope ownership, refresh state,
+  diagnostics generation, smoke execution, and helper or platform actions in
+  the page coordinator.
 
 Exit criteria:
 
@@ -578,12 +580,30 @@ Action gate plan status (2026-07-17):
   The full repository gate passed 3,602 root tests plus 13 internal-package
   tests at 73.50% line coverage; the widget reached 100.00% coverage.
 
+IPC runtime summary status (2026-07-17):
+
+- `ComputerUseIpcRuntimeSummary` now owns the complete ordered IPC diagnostics
+  presentation behind an immutable view model that copies heading and chip
+  values without retaining mutable runtime maps or lists.
+- Characterization preserves all 81 optional and required diagnostic rows,
+  their order, missing scalar interpolation, nested-map type checks, list
+  stringification, first-seen deduplication, path shortening, fallback status,
+  icons, wrapping, spacing, and copy.
+- The settings page remains the only owner of runtime-map assembly, refresh
+  state, helper and XPC lifecycle, permissions, smoke state, diagnostics, and
+  platform operations. Direct widget tests perform no platform action.
+- `computer_use_settings_page.dart` fell from 2,816 to 2,189 lines. The
+  independent IPC runtime summary is ratcheted at 582 lines.
+- The focused verifier passed 57 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,609 root tests plus 13 internal-package
+  tests at 73.50% line coverage; the widget reached 100.00% coverage.
+
 Next slice:
 
-- Characterize and extract `_IpcRuntimeSummary` behind a typed immutable view
-  model. Preserve malformed-map fallback behavior and keep runtime-map
-  assembly, diagnostics ownership, refresh state, and all helper or platform
-  actions in the page coordinator.
+- Characterize and extract `_LiveSmokeSummary` behind an immutable typed view
+  model. Preserve report-envelope normalization and malformed nested values,
+  and keep live-smoke ownership, refresh state, report generation, and all
+  helper or platform actions in the page coordinator.
 
 Exit criteria:
 
