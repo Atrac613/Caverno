@@ -45,6 +45,7 @@ import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/feedback_submission_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import '../coordinators/plan_review_action_coordinator.dart';
 import '../coordinators/workflow_task_run_coordinator.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
@@ -1656,19 +1657,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     BuildContext context, {
     required Conversation currentConversation,
   }) async {
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
+    final composerPrefillText = await _planReviewActionCoordinator.prepareEdit(
+      currentConversation: currentConversation,
     );
-    if (!currentConversation.isPlanningSession) {
-      await conversationsNotifier.enterPlanningSession();
-    }
-
-    if (!mounted) {
+    if (composerPrefillText == null) {
       return;
     }
 
     setState(() {
-      _composerPrefillText = _buildPlanEditSeed(currentConversation);
+      _composerPrefillText = composerPrefillText;
       _composerPrefillVersion++;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1683,37 +1680,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     BuildContext context, {
     required Conversation currentConversation,
   }) async {
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
+    final completed = await _planReviewActionCoordinator.cancelReview(
+      currentConversation: currentConversation,
     );
-    final latestConversation =
-        ref.read(conversationsNotifierProvider).currentConversation ??
-        currentConversation;
-    final planArtifact = latestConversation.effectivePlanArtifact;
-
-    if (planArtifact.hasApproved && planArtifact.hasPendingEdits) {
-      final approvedMarkdown = planArtifact.normalizedApprovedMarkdown ?? '';
-      final updatedAt = DateTime.now();
-      final nextArtifact = planArtifact
-          .copyWith(draftMarkdown: approvedMarkdown, updatedAt: updatedAt)
-          .recordRevision(
-            markdown: approvedMarkdown,
-            kind: ConversationPlanRevisionKind.restored,
-            label: 'Cancelled draft changes and restored approved plan',
-            createdAt: updatedAt,
-          );
-      await conversationsNotifier.updateCurrentPlanArtifact(
-        planArtifact: nextArtifact,
-      );
-    } else if (!planArtifact.hasApproved) {
-      await conversationsNotifier.updateCurrentPlanArtifact(
-        clearPlanArtifact: true,
-      );
-    }
-
-    await conversationsNotifier.exitPlanningSession();
-    ref.read(chatNotifierProvider.notifier).dismissPlanProposal();
-    if (!mounted) {
+    if (!completed) {
       return;
     }
     setState(() {
@@ -1728,144 +1698,68 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }) async {
     final languageCode = context.locale.languageCode;
     final messenger = ScaffoldMessenger.of(context);
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
-    );
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
-    final latestConversation =
-        ref.read(conversationsNotifierProvider).currentConversation ??
-        currentConversation;
-    final currentArtifact = latestConversation.effectivePlanArtifact;
-    final draftMarkdown =
-        currentArtifact.normalizedDraftMarkdown ??
-        currentArtifact.normalizedApprovedMarkdown;
-    if (draftMarkdown == null) {
-      return;
-    }
-
-    final validation = ConversationPlanProjectionService.validateDocument(
-      markdown: draftMarkdown,
-      requireTasks: true,
+    final outcome = await _planReviewActionCoordinator.approveCurrentPlan(
+      currentConversation: currentConversation,
     );
-    if (!validation.isValid || validation.projection == null) {
-      if (!context.mounted) {
+    switch (outcome) {
+      case PlanReviewApprovalMissingDocument() || PlanReviewApprovalAborted():
         return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'chat.plan_document_approval_blocked'.tr(
-              namedArgs: {
-                'error':
-                    validation.errorMessage ??
-                    'plan document could not be parsed',
-              },
+      case PlanReviewApprovalBlocked(:final errorMessage):
+        if (!context.mounted) {
+          return;
+        }
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'chat.plan_document_approval_blocked'.tr(
+                namedArgs: {'error': errorMessage},
+              ),
             ),
           ),
-        ),
-      );
-      return;
-    }
-
-    final approvedWorkflowStage = switch (validation.workflowStage) {
-      ConversationWorkflowStage.tasks ||
-      ConversationWorkflowStage.implement ||
-      ConversationWorkflowStage.review => validation.workflowStage!,
-      _ =>
-        validation.previewTasks.isEmpty
-            ? ConversationWorkflowStage.tasks
-            : ConversationWorkflowStage.implement,
-    };
-    final approvedMarkdown =
-        ConversationPlanProjectionService.replaceWorkflowStage(
-          markdown: draftMarkdown,
-          workflowStage: approvedWorkflowStage,
         );
-    final updatedAt = DateTime.now();
-    final nextArtifact = currentArtifact
-        .copyWith(
-          draftMarkdown: approvedMarkdown,
-          approvedMarkdown: approvedMarkdown,
-          updatedAt: updatedAt,
-        )
-        .recordRevision(
-          markdown: approvedMarkdown,
-          kind: ConversationPlanRevisionKind.approved,
-          label: 'Approved plan from timeline review',
-          createdAt: updatedAt,
-        );
-
-    await conversationsNotifier.updateCurrentPlanArtifact(
-      planArtifact: nextArtifact,
-      clearPlanArtifact: !nextArtifact.hasContent,
-    );
-    final refreshed = await conversationsNotifier
-        .refreshCurrentWorkflowProjectionFromApprovedPlan();
-    if (!mounted) {
-      return;
-    }
-    if (!refreshed && validation.workflowSpec != null) {
-      await conversationsNotifier.updateCurrentWorkflow(
-        workflowStage: approvedWorkflowStage,
-        workflowSpec: validation.workflowSpec!,
-      );
-    }
-
-    await conversationsNotifier.exitPlanningSession();
-    chatNotifier.dismissPlanProposal();
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isApprovedPlanExpanded = false;
-      _composerPrefillText = '';
-      _composerPrefillVersion++;
-    });
-
-    messenger.showSnackBar(
-      SnackBar(content: Text('chat.plan_proposal_started'.tr())),
-    );
-    final executionConversation =
-        ref.read(conversationsNotifierProvider).currentConversation ??
-        latestConversation;
-    var nextTask = ConversationPlanExecutionCoordinator.nextTask(
-      executionConversation,
-    );
-    if (nextTask == null && validation.workflowSpec != null) {
-      await conversationsNotifier.updateCurrentWorkflow(
-        workflowStage: approvedWorkflowStage,
-        workflowSpec: validation.workflowSpec!,
-      );
-      if (!mounted) {
         return;
-      }
-      final refreshedExecutionConversation =
-          ref.read(conversationsNotifierProvider).currentConversation ??
-          executionConversation;
-      nextTask = ConversationPlanExecutionCoordinator.nextTask(
-        refreshedExecutionConversation,
-      );
+      case PlanReviewApprovalReady(
+        :final executionConversation,
+        :final nextTask,
+      ):
+        setState(() {
+          _isApprovedPlanExpanded = false;
+          _composerPrefillText = '';
+          _composerPrefillVersion++;
+        });
+        messenger.showSnackBar(
+          SnackBar(content: Text('chat.plan_proposal_started'.tr())),
+        );
+        if (nextTask == null) {
+          await chatNotifier.sendMessage(
+            'chat.plan_proposal_execute_prompt'.tr(),
+            languageCode: languageCode,
+            bypassPlanMode: true,
+          );
+          return;
+        }
+        if (!context.mounted) {
+          return;
+        }
+        await _runWorkflowTask(
+          context,
+          currentConversation: executionConversation,
+          task: nextTask,
+        );
     }
-    if (nextTask == null) {
-      await chatNotifier.sendMessage(
-        'chat.plan_proposal_execute_prompt'.tr(),
-        languageCode: languageCode,
-        bypassPlanMode: true,
-      );
-      return;
-    }
-    if (!context.mounted) {
-      return;
-    }
-
-    await _runWorkflowTask(
-      context,
-      currentConversation: executionConversation,
-      task: nextTask,
-    );
   }
+
+  PlanReviewActionCoordinator get _planReviewActionCoordinator =>
+      PlanReviewActionCoordinator(
+        conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
+        readCurrentConversation: () =>
+            ref.read(conversationsNotifierProvider).currentConversation,
+        dismissPlanProposal: () =>
+            ref.read(chatNotifierProvider.notifier).dismissPlanProposal(),
+        isPageMounted: () => mounted,
+        now: DateTime.now,
+      );
 
   Future<void> _showWorkflowEditor(
     BuildContext context,

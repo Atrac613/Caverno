@@ -13,7 +13,8 @@ again before starting a new refactor branch.
 | File | Lines | Primary concern |
 |------|------:|-----------------|
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
-| `lib/features/chat/presentation/pages/chat_page.dart` | 2738 | Chat screen layout, drawers, modals, input wiring, plan UI |
+| `lib/features/chat/presentation/pages/chat_page.dart` | 2632 | Chat screen layout, drawers, modals, input wiring, plan UI |
+| `lib/features/chat/presentation/coordinators/plan_review_action_coordinator.dart` | 198 | Plan review edit, cancel, approval, projection, and task selection |
 | `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2442 | Saved-workflow execution, recovery, evidence, and auto-continuation |
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1202 | Tool registry, public execution facade, remaining built-in adapters |
 | `lib/features/chat/data/datasources/remote_mcp_connection_manager.dart` | 317 | Remote MCP connection state, trust resolution, and invocation |
@@ -43,7 +44,7 @@ again before starting a new refactor branch.
 
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. Current aggregate sizes
-are 23,005 lines for the ChatNotifier library, 10,344 for the ChatPage library,
+are 23,005 lines for the ChatNotifier library, 10,230 for the ChatPage library,
 1,294 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
 
@@ -107,9 +108,9 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Refresh the live oversized-file inventory and create a focused task contract
-  for the next tranche. Prefer ChatPage plan-review and approval actions when
-  the recheck confirms their ownership and tests remain stable.
+- Continue ChatPage Tranche 3 with a focused workflow-editor action contract.
+  Keep task-menu handlers as a separate follow-up after the modal and
+  persistence boundary is characterized.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -219,11 +220,30 @@ Tranche 2 status (2026-07-16):
   lines. Its same-library aggregate fell from 12,774 to 10,344 lines, and the
   independent coordinator is budgeted at 2,442 lines.
 
+Tranche 3 plan-review action status (2026-07-17):
+
+- Product-path characterization now pins approved-plan editing, pending-edit
+  cancellation, invalid approval rejection, and the existing successful
+  approval-to-execution path.
+- `PlanReviewActionCoordinator` owns planning entry, cancellation artifact
+  restoration or clearing, approval validation and persistence, workflow
+  projection fallback, page-liveness decisions, and next-task selection without
+  importing Flutter, localization, or Riverpod directly.
+- ChatPage retains composer state, post-frame scrolling, localized SnackBars,
+  the generic execution prompt, and the existing workflow task runner behind
+  thin delegates.
+- `chat_page.dart` fell from 2,738 to 2,632 lines, its same-library aggregate
+  fell from 10,344 to 10,230 lines, and the independent coordinator is
+  ratcheted at 198 lines.
+- The focused verifier passed 47 root tests plus 13 internal-package tests. The
+  full repository gate passed the complete root suite plus 13 package tests at
+  73.27% line coverage; the coordinator reached 88.89% coverage.
+
 Later tranche roadmap:
 
-1. Tranche 3: plan review and approval actions. Extract `_editPlanInChat`,
-   `_cancelPlanReview`, `_approveCurrentPlanAndStart`, workflow editor handlers,
-   and task-menu handlers.
+1. Tranche 3 remaining: extract workflow editor handlers behind one focused
+   modal-and-persistence boundary, then handle task-menu actions as a separate
+   slice.
 2. Tranche 4: slash command handler, pinned by
    `test/features/chat/presentation/pages/chat_page_slash_commands_test.dart`.
 3. Tranche 5: `build()` scaffold decomposition plus right-sidebar layout helpers
@@ -677,10 +697,10 @@ Onboarding verification summary status (2026-07-17):
 
 Next slice:
 
-- The small Computer Use settings diagnostics-summary sequence is complete.
-  Refresh the live oversized-file inventory, then create a focused task
-  contract for ChatPage Tranche 3 plan-review and approval actions if the
-  recheck confirms that boundary remains stable.
+- The small Computer Use settings diagnostics-summary sequence and ChatPage
+  plan-review action slice are complete. Continue ChatPage Tranche 3 with a
+  focused workflow-editor action contract, leaving task-menu handlers for the
+  following slice.
 
 Exit criteria:
 

@@ -166,14 +166,6 @@ String _formatTokenCount(int count) {
   return count.toString();
 }
 
-String _buildPlanEditSeed(Conversation currentConversation) {
-  final planArtifact = currentConversation.effectivePlanArtifact;
-  if (planArtifact.hasApproved) {
-    return 'Please revise the saved plan for this thread based on the following adjustment:\n- ';
-  }
-  return 'Please adjust the current draft plan for this thread as follows:\n- ';
-}
-
 extension _ChatPageWorktreeComposerSupport on _ChatPageState {
   Future<String> _startWorktreeSessionFromComposer(
     String prompt,
