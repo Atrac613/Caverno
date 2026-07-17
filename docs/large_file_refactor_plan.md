@@ -29,9 +29,10 @@ again before starting a new refactor branch.
 | `lib/features/chat/data/datasources/built_in_serial_tool_handler.dart` | 141 | Built-in serial definitions, direct dispatch, and compatible result handling |
 | `lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart` | 183 | Built-in SSH definitions, post-approval command dispatch, and disconnect handling |
 | `lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart` | 126 | Compatible direct, JSON, command, and structured-error result construction |
-| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 2189 | Computer Use settings coordination, diagnostics, and remaining panels |
+| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 1927 | Computer Use settings coordination, diagnostics, and remaining panels |
 | `lib/features/settings/presentation/widgets/computer_use_action_gate_plan.dart` | 203 | Immutable Computer Use action-gate presentation |
 | `lib/features/settings/presentation/widgets/computer_use_ipc_runtime_summary.dart` | 582 | Immutable Computer Use IPC diagnostics presentation |
+| `lib/features/settings/presentation/widgets/computer_use_live_smoke_summary.dart` | 302 | Immutable Computer Use live-smoke presentation |
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
 | `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
@@ -103,9 +104,9 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Characterize and extract the Computer Use live-smoke summary behind an
-  immutable typed presentation model. Keep report-envelope ownership, refresh
-  state, smoke execution, diagnostics generation, and every helper or platform
+- Characterize and extract the Computer Use XPC timing summary behind an
+  immutable typed presentation model. Keep timing-report ownership, refresh
+  state, helper and XPC lifecycle, diagnostics generation, and every platform
   action in the page coordinator.
 
 ## Phase 1: ChatNotifier Decomposition
@@ -523,9 +524,9 @@ Computer Use handler status (2026-07-17):
 
 Next slice:
 
-- Continue Phase 4 with the Computer Use live-smoke summary after the IPC
-  runtime extraction. Preserve report-envelope ownership, refresh state,
-  diagnostics generation, smoke execution, and helper or platform actions in
+- Continue Phase 4 with the Computer Use XPC timing summary after the
+  live-smoke extraction. Preserve timing-report ownership, refresh state,
+  diagnostics generation, helper and XPC lifecycle, and platform actions in
   the page coordinator.
 
 Exit criteria:
@@ -598,12 +599,31 @@ IPC runtime summary status (2026-07-17):
   The full repository gate passed 3,609 root tests plus 13 internal-package
   tests at 73.50% line coverage; the widget reached 100.00% coverage.
 
+Live-smoke summary status (2026-07-17):
+
+- `ComputerUseLiveSmokeSummary` now owns live-smoke envelope normalization and
+  ordered presentation behind an immutable view model that copies headings,
+  status rows, and detail lines without retaining mutable maps or lists.
+- Characterization preserves nested report and outer path precedence, the two
+  required and ten optional status rows, unsupported-audio success semantics,
+  blocker category and detail ordering, malformed nested values, capture
+  failure fallbacks, and helper-path shortening.
+- The settings page remains the only owner of the report envelope, refresh
+  state, smoke execution, diagnostics generation, helper and XPC lifecycle,
+  permissions, and platform operations. Direct widget tests perform no native
+  Computer Use action.
+- `computer_use_settings_page.dart` fell from 2,189 to 1,927 lines. The
+  independent live-smoke summary is ratcheted at 302 lines.
+- The focused verifier passed 58 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,616 root tests plus 13 internal-package
+  tests at 73.51% line coverage; the widget reached 100.00% coverage.
+
 Next slice:
 
-- Characterize and extract `_LiveSmokeSummary` behind an immutable typed view
-  model. Preserve report-envelope normalization and malformed nested values,
-  and keep live-smoke ownership, refresh state, report generation, and all
-  helper or platform actions in the page coordinator.
+- Characterize and extract `_XpcTimingSummary` behind an immutable typed view
+  model. Preserve conditional chip order, scalar type checks, fallback copy,
+  and keep timing-report ownership, refresh state, helper and XPC lifecycle,
+  diagnostics generation, and all platform actions in the page coordinator.
 
 Exit criteria:
 
