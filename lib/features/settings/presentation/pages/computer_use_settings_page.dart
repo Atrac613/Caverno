@@ -17,6 +17,7 @@ import '../widgets/computer_use_ipc_runtime_summary.dart';
 import '../widgets/computer_use_live_smoke_summary.dart';
 import '../widgets/computer_use_persistence_summary.dart';
 import '../widgets/computer_use_permission_trust_panel.dart';
+import '../widgets/computer_use_verification_summary.dart';
 import '../widgets/computer_use_xpc_timing_summary.dart';
 import 'computer_use_debug_page.dart';
 
@@ -362,7 +363,12 @@ class _ComputerUseOnboardingCardState
                 ),
                 if (onboardingVerification != null) ...[
                   const SizedBox(height: 8),
-                  _VerificationSummary(verification: onboardingVerification),
+                  ComputerUseVerificationSummary(
+                    viewModel:
+                        ComputerUseVerificationSummaryViewModel.fromVerification(
+                          onboardingVerification,
+                        ),
+                  ),
                 ],
                 if (helperStatusPersistence != null) ...[
                   const SizedBox(height: 8),
@@ -1714,46 +1720,6 @@ class _StatusChip extends StatelessWidget {
         color: color,
       ),
       label: Text('$label: ${value ? trueText : falseText}'),
-    );
-  }
-}
-
-class _VerificationSummary extends StatelessWidget {
-  const _VerificationSummary({required this.verification});
-
-  final Map<String, dynamic> verification;
-
-  @override
-  Widget build(BuildContext context) {
-    final generatedAt = verification['generatedAt'];
-    final steps = verification['steps'];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          generatedAt is String
-              ? 'Last Verify: ${verification['summary'] ?? generatedAt}'
-              : 'Last Verify: ${verification['summary'] ?? 'Unknown'}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        if (steps is List) ...[
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final step in steps)
-                if (step is Map)
-                  _StatusChip(
-                    label: '${step['label'] ?? step['id'] ?? 'Step'}',
-                    value: step['ok'] == true,
-                    trueText: 'Done',
-                    falseText: '${step['status'] ?? 'Failed'}',
-                  ),
-            ],
-          ),
-        ],
-      ],
     );
   }
 }

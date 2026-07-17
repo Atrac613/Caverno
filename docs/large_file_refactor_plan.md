@@ -29,12 +29,13 @@ again before starting a new refactor branch.
 | `lib/features/chat/data/datasources/built_in_serial_tool_handler.dart` | 141 | Built-in serial definitions, direct dispatch, and compatible result handling |
 | `lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart` | 183 | Built-in SSH definitions, post-approval command dispatch, and disconnect handling |
 | `lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart` | 126 | Compatible direct, JSON, command, and structured-error result construction |
-| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 1759 | Computer Use settings coordination, diagnostics, and remaining panels |
+| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 1725 | Computer Use settings coordination, diagnostics, and remaining panels |
 | `lib/features/settings/presentation/widgets/computer_use_action_gate_plan.dart` | 203 | Immutable Computer Use action-gate presentation |
 | `lib/features/settings/presentation/widgets/computer_use_ipc_runtime_summary.dart` | 582 | Immutable Computer Use IPC diagnostics presentation |
 | `lib/features/settings/presentation/widgets/computer_use_live_smoke_summary.dart` | 302 | Immutable Computer Use live-smoke presentation |
 | `lib/features/settings/presentation/widgets/computer_use_persistence_summary.dart` | 124 | Immutable Computer Use helper-persistence presentation |
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
+| `lib/features/settings/presentation/widgets/computer_use_verification_summary.dart` | 107 | Immutable Computer Use onboarding-verification presentation |
 | `lib/features/settings/presentation/widgets/computer_use_xpc_timing_summary.dart` | 176 | Immutable Computer Use XPC timing presentation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
 | `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
@@ -106,10 +107,9 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Characterize and extract the Computer Use onboarding verification summary
-  behind an immutable typed presentation model. Keep verification ownership,
-  refresh state, helper lifecycle, diagnostics generation, and every platform
-  action in the page coordinator.
+- Refresh the live oversized-file inventory and create a focused task contract
+  for the next tranche. Prefer ChatPage plan-review and approval actions when
+  the recheck confirms their ownership and tests remain stable.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -526,10 +526,9 @@ Computer Use handler status (2026-07-17):
 
 Next slice:
 
-- Continue Phase 4 with the Computer Use onboarding verification summary after
-  the helper persistence extraction. Preserve verification ownership, refresh
-  state, diagnostics generation, helper lifecycle, and platform actions in the
-  page coordinator.
+- Refresh the live oversized-file inventory before selecting another
+  application boundary. Prefer the explicit ChatPage Tranche 3 plan-review and
+  approval action boundary when the recheck confirms its ownership and tests.
 
 Exit criteria:
 
@@ -656,13 +655,32 @@ Helper persistence summary status (2026-07-17):
   The full repository gate passed 3,630 root tests plus 13 internal-package
   tests at 73.52% line coverage; the widget reached 100.00% coverage.
 
+Onboarding verification summary status (2026-07-17):
+
+- `ComputerUseVerificationSummary` now owns onboarding-verification
+  normalization and presentation behind an immutable view model that copies
+  the heading, step-section presence, and ordered status rows without retaining
+  source maps, the nested list, or step maps.
+- Characterization preserves summary and generated-time precedence, direct
+  interpolation of non-null values, the distinction between missing and empty
+  step lists, map-only filtering, list order, labels, status fallbacks,
+  exact-true success, icons, wrapping, spacing, and copy.
+- The settings page remains the only owner of verification lookup precedence
+  and visibility, refresh state, permission recovery, helper lifecycle,
+  diagnostics generation, and platform operations. Direct widget tests perform
+  no platform action.
+- `computer_use_settings_page.dart` fell from 1,759 to 1,725 lines. The
+  independent onboarding verification summary is ratcheted at 107 lines.
+- The focused verifier passed 62 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,638 root tests plus 13 internal-package
+  tests at 73.53% line coverage; the widget reached 100.00% coverage.
+
 Next slice:
 
-- Characterize and extract `_VerificationSummary` behind an immutable typed
-  view model. Preserve generated-time and summary fallback behavior, step
-  filtering and order, labels, status text, chip semantics, and copy. Keep
-  verification ownership, refresh state, helper lifecycle, diagnostics
-  generation, and all platform actions in the page coordinator.
+- The small Computer Use settings diagnostics-summary sequence is complete.
+  Refresh the live oversized-file inventory, then create a focused task
+  contract for ChatPage Tranche 3 plan-review and approval actions if the
+  recheck confirms that boundary remains stable.
 
 Exit criteria:
 
