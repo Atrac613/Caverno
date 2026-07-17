@@ -47,6 +47,7 @@ import '../../domain/services/feedback_submission_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../coordinators/plan_review_action_coordinator.dart';
 import '../coordinators/workflow_editor_action_coordinator.dart';
+import '../coordinators/workflow_task_action_coordinator.dart';
 import '../coordinators/workflow_task_run_coordinator.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
@@ -78,6 +79,7 @@ import '../widgets/participant_roster_bar.dart';
 import '../widgets/tool_perimeter_summary.dart';
 import '../widgets/workflow_status_presentation.dart';
 import '../widgets/workflow/workflow_editor_sheet.dart';
+import '../widgets/workflow/workflow_task_editor_sheet.dart';
 import '../widgets/chat_image_drop_target.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
@@ -1844,12 +1846,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required Conversation currentConversation,
     required WorkflowTaskProposalDraft proposal,
   }) async {
-    await _replaceWorkflowTasks(
+    await _workflowTaskActionCoordinator.applyTaskProposal(
       currentConversation: currentConversation,
-      tasks: proposal.tasks,
-      workflowStage: ConversationWorkflowStage.tasks,
+      proposal: proposal,
     );
-    ref.read(chatNotifierProvider.notifier).dismissTaskProposal();
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,
@@ -1884,77 +1884,44 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     BuildContext context, {
     required Conversation currentConversation,
     required ConversationWorkflowTask task,
-    required _WorkflowTaskMenuAction action,
+    required WorkflowTaskMenuAction action,
   }) async {
-    switch (action) {
-      case _WorkflowTaskMenuAction.markPending:
-        await _setWorkflowTaskStatus(
-          currentConversation: currentConversation,
-          task: task,
-          status: ConversationWorkflowTaskStatus.pending,
-          summary: 'Moved back to pending from the task menu.',
-        );
-      case _WorkflowTaskMenuAction.markInProgress:
-        await _setWorkflowTaskStatus(
-          currentConversation: currentConversation,
-          task: task,
-          status: ConversationWorkflowTaskStatus.inProgress,
-          summary: 'Marked in progress from the task menu.',
-        );
-      case _WorkflowTaskMenuAction.markCompleted:
-        await _setWorkflowTaskStatus(
-          currentConversation: currentConversation,
-          task: task,
-          status: ConversationWorkflowTaskStatus.completed,
-          summary: 'Marked complete from the task menu.',
-          eventType: ConversationExecutionTaskEventType.completed,
-        );
-      case _WorkflowTaskMenuAction.markBlocked:
-        await _setWorkflowTaskStatus(
-          currentConversation: currentConversation,
-          task: task,
-          status: ConversationWorkflowTaskStatus.blocked,
-          summary: 'Marked blocked from the task menu.',
-          blockedReason: 'This task is blocked and needs follow-up.',
-          eventType: ConversationExecutionTaskEventType.blocked,
-        );
-      case _WorkflowTaskMenuAction.markUnblocked:
-        await _markWorkflowTaskUnblocked(
-          context,
-          currentConversation: currentConversation,
-          task: task,
-        );
-      case _WorkflowTaskMenuAction.editBlockedReason:
+    final outcome = await _workflowTaskActionCoordinator.handleMenuAction(
+      currentConversation: currentConversation,
+      task: task,
+      action: action,
+    );
+    if (!context.mounted) {
+      return;
+    }
+    switch (outcome) {
+      case WorkflowTaskMenuOutcome.none:
+        return;
+      case WorkflowTaskMenuOutcome.unblocked:
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('chat.workflow_task_unblocked'.tr())),
+          );
+        }
+      case WorkflowTaskMenuOutcome.editBlockedReason:
         await _editWorkflowTaskBlockedReason(
           context,
           currentConversation: currentConversation,
           task: task,
         );
-      case _WorkflowTaskMenuAction.replanFromBlocker:
+      case WorkflowTaskMenuOutcome.replanFromBlocker:
         await _replanFromBlockedTask(
           context,
           currentConversation: currentConversation,
           task: task,
         );
-      case _WorkflowTaskMenuAction.edit:
-        if (currentConversation.shouldPreferPlanDocument) {
-          return;
-        }
+      case WorkflowTaskMenuOutcome.edit:
         await _showWorkflowTaskEditor(
           context,
           currentConversation: currentConversation,
           task: task,
         );
-      case _WorkflowTaskMenuAction.delete:
-        if (currentConversation.shouldPreferPlanDocument) {
-          return;
-        }
-        await _replaceWorkflowTasks(
-          currentConversation: currentConversation,
-          tasks: currentConversation.effectiveWorkflowSpec.tasks
-              .where((item) => item.id != task.id)
-              .toList(growable: false),
-        );
+      case WorkflowTaskMenuOutcome.deleted:
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('chat.workflow_task_deleted'.tr())),
@@ -1979,11 +1946,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return;
     }
 
-    final result = await showModalBottomSheet<_WorkflowTaskEditorSubmission>(
+    final result = await showModalBottomSheet<WorkflowTaskEditorSubmission>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => _WorkflowTaskEditorSheet(
+      builder: (sheetContext) => WorkflowTaskEditorSheet(
         task: task,
         statusLabelBuilder: _workflowTaskStatusLabel,
       ),
@@ -1992,68 +1959,23 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return;
     }
 
-    switch (result.action) {
-      case _WorkflowTaskEditorAction.delete:
-        if (task == null) {
-          return;
-        }
-        await _replaceWorkflowTasks(
-          currentConversation: currentConversation,
-          tasks: currentConversation.effectiveWorkflowSpec.tasks
-              .where((item) => item.id != task.id)
-              .toList(growable: false),
-        );
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('chat.workflow_task_deleted'.tr())),
-          );
-        }
-      case _WorkflowTaskEditorAction.save:
-        final existingTasks = currentConversation.effectiveWorkflowSpec.tasks;
-        final nextTask = result.task.id.isEmpty
-            ? result.task.copyWith(id: _uuid.v4())
-            : result.task;
-        final taskIndex = existingTasks.indexWhere(
-          (item) => item.id == nextTask.id,
-        );
-        final nextTasks = [...existingTasks];
-        if (taskIndex >= 0) {
-          nextTasks[taskIndex] = nextTask;
-        } else {
-          nextTasks.add(nextTask);
-        }
-        await _replaceWorkflowTasks(
-          currentConversation: currentConversation,
-          tasks: nextTasks,
-        );
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('chat.workflow_task_saved'.tr())),
-          );
-        }
+    final outcome = await _workflowTaskActionCoordinator.applyEditorSubmission(
+      currentConversation: currentConversation,
+      submission: result,
+    );
+    if (!context.mounted || outcome == WorkflowTaskApplyOutcome.ignored) {
+      return;
     }
-  }
-
-  Future<void> _replaceWorkflowTasks({
-    required Conversation currentConversation,
-    required List<ConversationWorkflowTask> tasks,
-    ConversationWorkflowStage? workflowStage,
-  }) async {
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
-    );
-    final latestConversation =
-        ref.read(conversationsNotifierProvider).currentConversation ??
-        currentConversation;
-    final nextSpec = latestConversation.effectiveWorkflowSpec.copyWith(
-      tasks: tasks,
-    );
-
-    await conversationsNotifier.updateCurrentWorkflow(
-      workflowStage: workflowStage,
-      workflowSpec: nextSpec.hasContent ? nextSpec : null,
-      clearWorkflowSpec: !nextSpec.hasContent,
-    );
+    final messageKey = switch (outcome) {
+      WorkflowTaskApplyOutcome.saved => 'chat.workflow_task_saved',
+      WorkflowTaskApplyOutcome.deleted => 'chat.workflow_task_deleted',
+      WorkflowTaskApplyOutcome.ignored => throw StateError(
+        'Ignored task editor outcomes do not produce notifications.',
+      ),
+    };
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(messageKey.tr())));
   }
 
   Future<void> _setWorkflowTaskStatus({
@@ -2069,53 +1991,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     String? lastValidationSummary,
     ConversationExecutionTaskEventType? eventType,
   }) async {
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
-    );
-
-    if (currentConversation.shouldPreferPlanDocument) {
-      await conversationsNotifier.updateCurrentExecutionTaskProgress(
-        taskId: task.id,
-        status: status,
-        allowStatusRegression: true,
-        lastRunAt: lastRunAt,
-        lastValidationAt: lastValidationAt,
-        validationStatus: validationStatus,
-        summary: summary,
-        blockedReason: status == ConversationWorkflowTaskStatus.blocked
-            ? blockedReason
-            : '',
-        lastValidationCommand: lastValidationCommand,
-        lastValidationSummary: lastValidationSummary,
-        eventType: eventType,
-        eventSummary: summary,
-      );
-      if (status == ConversationWorkflowTaskStatus.completed) {
-        await conversationsNotifier.updateCurrentWorkflow(
-          workflowStage: ConversationWorkflowStage.review,
-          preserveWorkflowProjection: true,
-        );
-      } else if (status == ConversationWorkflowTaskStatus.inProgress ||
-          status == ConversationWorkflowTaskStatus.blocked) {
-        await conversationsNotifier.updateCurrentWorkflow(
-          workflowStage: ConversationWorkflowStage.implement,
-          preserveWorkflowProjection: true,
-        );
-      }
-      return;
-    }
-
-    final tasks = currentConversation.effectiveWorkflowSpec.tasks
-        .map(
-          (item) => item.id == task.id ? item.copyWith(status: status) : item,
-        )
-        .toList(growable: false);
-    await _replaceWorkflowTasks(
+    await _workflowTaskActionCoordinator.setTaskStatus(
       currentConversation: currentConversation,
-      tasks: tasks,
-      workflowStage: status == ConversationWorkflowTaskStatus.completed
-          ? ConversationWorkflowStage.review
-          : ConversationWorkflowStage.implement,
+      task: task,
+      status: status,
+      summary: summary,
+      lastRunAt: lastRunAt,
+      lastValidationAt: lastValidationAt,
+      validationStatus: validationStatus,
+      blockedReason: blockedReason,
+      lastValidationCommand: lastValidationCommand,
+      lastValidationSummary: lastValidationSummary,
+      eventType: eventType,
     );
   }
 
@@ -2124,7 +2011,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required Conversation currentConversation,
     required ConversationWorkflowTask task,
   }) async {
-    await _setWorkflowTaskStatus(
+    await _workflowTaskActionCoordinator.setTaskStatus(
       currentConversation: currentConversation,
       task: task,
       status: ConversationWorkflowTaskStatus.pending,
@@ -2139,6 +2026,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       SnackBar(content: Text('chat.workflow_task_unblocked'.tr())),
     );
   }
+
+  WorkflowTaskActionCoordinator get _workflowTaskActionCoordinator =>
+      WorkflowTaskActionCoordinator(
+        conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
+        readCurrentConversation: () =>
+            ref.read(conversationsNotifierProvider).currentConversation,
+        createTaskId: _uuid.v4,
+        dismissTaskProposal: () =>
+            ref.read(chatNotifierProvider.notifier).dismissTaskProposal(),
+      );
 
   Future<void> _editWorkflowTaskBlockedReason(
     BuildContext context, {

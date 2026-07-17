@@ -565,7 +565,6 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
     );
   }
 
-
   Widget _buildWorkflowProposalCard(
     BuildContext context, {
     required Conversation currentConversation,
@@ -932,7 +931,7 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
                   ],
                 ),
               ),
-              PopupMenuButton<_WorkflowTaskMenuAction>(
+              PopupMenuButton<WorkflowTaskMenuAction>(
                 enabled: canEditTask || canRunTask,
                 onSelected: (action) => _handleWorkflowTaskMenuAction(
                   context,
@@ -943,34 +942,34 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
                 itemBuilder: (context) => [
                   if (task.status != ConversationWorkflowTaskStatus.pending)
                     PopupMenuItem(
-                      value: _WorkflowTaskMenuAction.markPending,
+                      value: WorkflowTaskMenuAction.markPending,
                       child: Text('chat.workflow_task_mark_pending'.tr()),
                     ),
                   if (task.status != ConversationWorkflowTaskStatus.inProgress)
                     PopupMenuItem(
-                      value: _WorkflowTaskMenuAction.markInProgress,
+                      value: WorkflowTaskMenuAction.markInProgress,
                       child: Text('chat.workflow_task_mark_in_progress'.tr()),
                     ),
                   if (task.status != ConversationWorkflowTaskStatus.completed)
                     PopupMenuItem(
-                      value: _WorkflowTaskMenuAction.markCompleted,
+                      value: WorkflowTaskMenuAction.markCompleted,
                       child: Text('chat.workflow_task_mark_completed'.tr()),
                     ),
                   if (task.status != ConversationWorkflowTaskStatus.blocked)
                     PopupMenuItem(
-                      value: _WorkflowTaskMenuAction.markBlocked,
+                      value: WorkflowTaskMenuAction.markBlocked,
                       child: Text('chat.workflow_task_mark_blocked'.tr()),
                     ),
                   if (currentConversation.shouldPreferPlanDocument &&
                       task.status == ConversationWorkflowTaskStatus.blocked)
                     PopupMenuItem(
-                      value: _WorkflowTaskMenuAction.markUnblocked,
+                      value: WorkflowTaskMenuAction.markUnblocked,
                       child: Text('chat.workflow_task_mark_unblocked'.tr()),
                     ),
                   if (currentConversation.shouldPreferPlanDocument &&
                       task.status == ConversationWorkflowTaskStatus.blocked)
                     PopupMenuItem(
-                      value: _WorkflowTaskMenuAction.editBlockedReason,
+                      value: WorkflowTaskMenuAction.editBlockedReason,
                       child: Text(
                         'chat.workflow_task_edit_blocked_reason'.tr(),
                       ),
@@ -978,19 +977,19 @@ extension _ChatPageWorkflowBuilders on _ChatPageState {
                   if (currentConversation.shouldPreferPlanDocument &&
                       task.status == ConversationWorkflowTaskStatus.blocked)
                     PopupMenuItem(
-                      value: _WorkflowTaskMenuAction.replanFromBlocker,
+                      value: WorkflowTaskMenuAction.replanFromBlocker,
                       child: Text(
                         'chat.workflow_task_replan_from_blocker'.tr(),
                       ),
                     ),
                   if (canEditTask)
                     PopupMenuItem(
-                      value: _WorkflowTaskMenuAction.edit,
+                      value: WorkflowTaskMenuAction.edit,
                       child: Text('chat.workflow_task_edit'.tr()),
                     ),
                   if (canEditTask)
                     PopupMenuItem(
-                      value: _WorkflowTaskMenuAction.delete,
+                      value: WorkflowTaskMenuAction.delete,
                       child: Text('chat.workflow_task_delete'.tr()),
                     ),
                 ],
