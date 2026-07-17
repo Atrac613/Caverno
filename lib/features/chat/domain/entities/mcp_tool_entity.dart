@@ -45,6 +45,9 @@ abstract class McpToolResult with _$McpToolResult {
     required String toolName,
     required String result,
     required bool isSuccess,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    @Default(false)
+    bool isExternalMcpResult,
     String? errorMessage,
   }) = _McpToolResult;
 

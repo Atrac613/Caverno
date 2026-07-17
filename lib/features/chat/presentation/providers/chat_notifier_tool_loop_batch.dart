@@ -315,10 +315,8 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         toolCall,
         commandRetryGeneration: nextCommandRetryGeneration,
       );
-      // Failure tracking ignores model narration (`reason`) so a retried denied
-      // command counts as one repeating action. Success dedup keeps narration
-      // for inspections but strips it for file mutations, preventing reworded
-      // reasons from repeating a side effect.
+      // Failure identity ignores narration; mutations also strip it so a
+      // reworded reason cannot repeat the same side effect.
       final toolFailureKey = _toolFailureKey(
         toolCall,
         commandRetryGeneration: nextCommandRetryGeneration,
@@ -352,7 +350,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
           result: toolResult,
         ),
         interactionGeneration: interactionGeneration,
-        recordConversationTaint: true,
+        taintSourceResult: result,
         recordBackgroundProcessStart: true,
         recordModelEditApplyTelemetry: true,
       );
@@ -556,7 +554,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
   Future<ToolResultInfo?> _persistToolResultForPrompt(
     ToolResultInfo toolResult, {
     required int interactionGeneration,
-    bool recordConversationTaint = false,
+    McpToolResult? taintSourceResult,
     bool recordBackgroundProcessStart = false,
     bool recordModelEditApplyTelemetry = false,
   }) async {
@@ -569,8 +567,11 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
       return null;
     }
-    if (recordConversationTaint) {
-      _conversationTaintState.recordToolResult(promptToolResult.name);
+    if (taintSourceResult != null) {
+      ToolResultTaintRecorder.record(
+        _conversationTaintState,
+        taintSourceResult,
+      );
       _recordTurnCommandLedgerEntry(
         promptToolResult,
         interactionGeneration: interactionGeneration,
@@ -585,8 +586,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     return promptToolResult;
   }
 
-  // Tool-call execution-policy delegates and process-start bookkeeping,
-  // relocated from chat_notifier.dart (F1 ratchet), no behavior change.
+  // Tool execution-policy delegates and process-start bookkeeping.
   bool _isCommandExecutionTool(String toolName) {
     return _toolCallExecutionPolicy.isCommandExecutionTool(toolName);
   }

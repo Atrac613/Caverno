@@ -1261,8 +1261,9 @@ void main() {
     final serviceSource = File(
       'lib/core/services/macos_computer_use_service.dart',
     ).readAsStringSync();
-    final toolServiceSource = File(
-      'lib/features/chat/data/datasources/mcp_tool_service.dart',
+    final computerUseHandlerSource = File(
+      'lib/features/chat/data/datasources/'
+      'built_in_computer_use_tool_handler.dart',
     ).readAsStringSync();
 
     expect(helperSource, contains('resolveAccessibilityElementTarget'));
@@ -1273,8 +1274,8 @@ void main() {
     expect(helperSource, contains('"fallbackUsed"'));
     expect(helperSource, contains('"element_target_not_found"'));
     expect(serviceSource, contains('_normalizeElementTargetArguments'));
-    expect(toolServiceSource, contains("'element_id'"));
-    expect(toolServiceSource, contains("'elementId'"));
+    expect(computerUseHandlerSource, contains("'element_id'"));
+    expect(computerUseHandlerSource, contains("'elementId'"));
     expect(architectureDoc, contains('## M43 Element-Targeted Actions'));
     expect(architectureDoc, contains('elementTargeting.fallbackUsed'));
   });
@@ -1298,8 +1299,9 @@ void main() {
       'lib/features/chat/presentation/widgets/approval/'
       'computer_use_action_approval_sheet.dart',
     ).readAsStringSync();
-    final toolServiceSource = File(
-      'lib/features/chat/data/datasources/mcp_tool_service.dart',
+    final computerUseHandlerSource = File(
+      'lib/features/chat/data/datasources/'
+      'built_in_computer_use_tool_handler.dart',
     ).readAsStringSync();
     final promptSource = File(
       'lib/features/chat/domain/services/system_prompt_builder.dart',
@@ -1316,8 +1318,8 @@ void main() {
     expect(approvalSheetSource, contains('Target review'));
     expect(approvalSheetSource, contains('Exact text'));
     expect(approvalSheetSource, contains('Latest observation context'));
-    expect(toolServiceSource, contains("'appName'"));
-    expect(toolServiceSource, contains("'windowTitle'"));
+    expect(computerUseHandlerSource, contains("'appName'"));
+    expect(computerUseHandlerSource, contains("'windowTitle'"));
     expect(promptSource, contains('target appName, windowTitle, role, label'));
   });
 
@@ -1340,8 +1342,9 @@ void main() {
       'lib/features/chat/presentation/widgets/approval/'
       'computer_use_action_approval_sheet.dart',
     ).readAsStringSync();
-    final toolServiceSource = File(
-      'lib/features/chat/data/datasources/mcp_tool_service.dart',
+    final computerUseHandlerSource = File(
+      'lib/features/chat/data/datasources/'
+      'built_in_computer_use_tool_handler.dart',
     ).readAsStringSync();
     final promptSource = File(
       'lib/features/chat/domain/services/system_prompt_builder.dart',
@@ -1355,10 +1358,10 @@ void main() {
     expect(chatNotifierSource, contains('action_policy_blocked'));
     expect(chatNotifierSource, contains('approvalBlockers'));
     expect(approvalSheetSource, contains('Destructive action'));
-    expect(toolServiceSource, contains("'secure_field'"));
-    expect(toolServiceSource, contains("'credential'"));
-    expect(toolServiceSource, contains("'payment'"));
-    expect(toolServiceSource, contains("'destructive'"));
+    expect(computerUseHandlerSource, contains("'secure_field'"));
+    expect(computerUseHandlerSource, contains("'credential'"));
+    expect(computerUseHandlerSource, contains("'payment'"));
+    expect(computerUseHandlerSource, contains("'destructive'"));
     expect(promptSource, contains('do not ask Caverno to execute'));
     expect(architectureDoc, contains('## M45 Safety Policy Hardening'));
   });

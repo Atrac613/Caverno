@@ -17,14 +17,27 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/pages/chat_page.dart': 2738,
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
       2442,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 3076,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1202,
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       622,
   'lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart':
-      587,
+      581,
+  'lib/features/chat/data/datasources/built_in_ble_tool_handler.dart': 360,
+  'lib/features/chat/data/datasources/built_in_browser_tool_handler.dart': 395,
+  'lib/features/chat/data/datasources/built_in_computer_use_tool_handler.dart':
+      714,
+  'lib/features/chat/data/datasources/built_in_wifi_tool_handler.dart': 65,
+  'lib/features/chat/data/datasources/built_in_lan_scan_tool_handler.dart': 77,
+  'lib/features/chat/data/datasources/built_in_serial_tool_handler.dart': 141,
+  'lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart': 183,
+  'lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart': 126,
+  'lib/features/chat/data/datasources/remote_mcp_connection_manager.dart': 317,
+  'lib/features/chat/data/datasources/remote_mcp_tool_name_policy.dart': 120,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':
-      3270,
+      2995,
+  'lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart':
+      318,
   'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 2864,
   'lib/features/chat/data/datasources/network_tools.dart': 2578,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 18648,
@@ -33,7 +46,7 @@ const Map<String, int> _lineBudgets = {
 const Map<String, int> _libraryLineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 23005,
   'lib/features/chat/presentation/pages/chat_page.dart': 10344,
-  'lib/features/chat/data/datasources/mcp_tool_service.dart': 3365,
+  'lib/features/chat/data/datasources/mcp_tool_service.dart': 1294,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 33189,
 };
 

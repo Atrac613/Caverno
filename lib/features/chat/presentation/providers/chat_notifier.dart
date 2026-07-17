@@ -123,6 +123,7 @@ import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_failure_classifier.dart';
 import '../../domain/services/tool_loop_recovery_policy.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../domain/services/tool_result_taint_recorder.dart';
 import '../../domain/services/tool_terminal_response_policy.dart';
 import '../../domain/services/tool_terminal_success_policy.dart';
 import '../../domain/services/turn_diff_service.dart';
@@ -302,8 +303,6 @@ class ChatNotifier extends Notifier<ChatState> {
   final CavernoRuntimeFailureClassifier _runtimeFailureClassifier =
       const CavernoRuntimeFailureClassifier();
 
-  /// SEC2: accumulates the trust levels of evidence entering the current turn so
-  /// the approval auto-reviewer is told when untrusted content is in context.
   final ConversationTaintState _conversationTaintState =
       ConversationTaintState();
   String? conversationId;
@@ -5432,7 +5431,6 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  /// Executes tool calls, supporting a repeated tool-call loop.
   /// Executes bounded tool calls and resends results for model compatibility.
   Future<void> _executeToolCalls(
     List<ToolCallInfo> toolCalls, {
@@ -7830,6 +7828,8 @@ class ChatNotifier extends Notifier<ChatState> {
     return _planningToolPolicy.enforce(
       toolCall,
       isPlanningSession: currentConversation?.isPlanningSession ?? false,
+      isExternalMcpTool:
+          _mcpToolService?.isExternalMcpToolName(toolCall.name) ?? false,
       resolveArguments: _resolveProjectScopedArguments,
     );
   }

@@ -164,6 +164,38 @@ void main() {
         expect(result!.toolName, toolName);
       }
     });
+
+    test('blocks capability-unknown external MCP tools in planning', () {
+      final result = policy.enforce(
+        _toolCall('router_health_snapshot'),
+        isPlanningSession: true,
+        isExternalMcpTool: true,
+        resolveArguments: _identityResolver,
+      );
+
+      expect(result, isNotNull);
+      expect(result!.isSuccess, isFalse);
+      expect(result.isExternalMcpResult, isFalse);
+      expect(
+        _payload(result),
+        containsPair('reason', 'planning_mode_requires_read_only_tools'),
+      );
+      expect(
+        _payload(result)['detail'],
+        contains('external MCP tools without a verified read-only capability'),
+      );
+    });
+
+    test('does not block external MCP tools outside planning', () {
+      final result = policy.enforce(
+        _toolCall('router_health_snapshot'),
+        isPlanningSession: false,
+        isExternalMcpTool: true,
+        resolveArguments: _identityResolver,
+      );
+
+      expect(result, isNull);
+    });
   });
 }
 

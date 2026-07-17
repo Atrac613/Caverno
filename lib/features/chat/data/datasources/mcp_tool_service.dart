@@ -1,12 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:bluetooth_low_energy/bluetooth_low_energy.dart'
-    show GATTCharacteristicWriteType;
 
 import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/browser_session_service.dart';
-import '../../../../core/services/browser_tool_policy.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/lan_scan_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
@@ -24,10 +19,16 @@ import '../repositories/conversation_repository_api.dart';
 import '../repositories/skill_repository.dart';
 import 'background_process_tools.dart';
 import 'background_process_monitor_service.dart';
-import 'ble_tools.dart';
+import 'built_in_ble_tool_handler.dart';
+import 'built_in_browser_tool_handler.dart';
+import 'built_in_computer_use_tool_handler.dart';
 import 'built_in_filesystem_tool_handler.dart';
+import 'built_in_lan_scan_tool_handler.dart';
 import 'built_in_local_command_tool_handler.dart';
 import 'built_in_network_tool_handler.dart';
+import 'built_in_serial_tool_handler.dart';
+import 'built_in_ssh_tool_handler.dart';
+import 'built_in_wifi_tool_handler.dart';
 import 'conversation_search_tool.dart';
 import 'file_rollback_checkpoint_store.dart';
 import 'filesystem_tools.dart';
@@ -35,31 +36,27 @@ import 'git_execute_command_tool.dart';
 import 'git_finish_worktree_session_tool.dart';
 import 'git_tools.dart';
 import 'installed_dependency_grounding_service.dart';
-import 'lan_scan_tools.dart';
 import 'local_shell_tools.dart';
 import 'mcp_client.dart';
-import 'mcp_stdio_client.dart';
+import 'mcp_tool_result_normalizer.dart';
 import 'os_log_tools.dart';
 import 'python_script_tools.dart';
+import 'remote_mcp_connection_manager.dart';
 import 'searxng_client.dart';
-import 'serial_port_tools.dart';
-import 'wifi_tools.dart';
 
 /// MCP tool management service.
 ///
 /// Fetches tools dynamically from an MCP server and executes them.
 /// Falls back to SearXNG when the MCP server is unavailable.
-part 'mcp_tool_service_connection.dart';
 part 'mcp_tool_service_builtin_tool_definitions.dart';
 
 class McpToolService {
-  static const _maxToolNameLength = 64;
   static const Set<String> _reservedToolNames = {
     'get_current_datetime',
     ConversationSearchTool.toolName,
     'recall_memory',
-    'ask_user_question',
-    'load_skill',
+    ...{'ask_user_question', 'spawn_subagent', 'get_subagent_result'},
+    ...{'load_skill', 'save_skill'},
     'create_routine',
     ...BuiltInNetworkToolHandler.toolNames,
     ...BuiltInFilesystemToolHandler.toolNames,
@@ -70,42 +67,17 @@ class McpToolService {
     GitExecuteCommandTool.toolName,
     GitFinishWorktreeSessionTool.toolName,
     ...OsLogTools.allToolNames,
-    'ssh_connect',
-    'ssh_execute_command',
-    'ssh_disconnect',
-    ...BleTools.allToolNames,
-    ...WifiTools.allToolNames,
-    ...LanScanTools.allToolNames,
-    ...SerialPortTools.allToolNames,
-    'computer_get_permissions',
-    'computer_request_permissions',
-    'computer_open_system_settings',
-    'computer_vision_observe',
-    'computer_accessibility_snapshot',
-    'computer_list_displays',
-    'computer_list_windows',
-    'computer_focus_window',
-    'computer_screenshot',
-    'computer_screenshot_window',
-    'computer_move_mouse',
-    'computer_click',
-    'computer_drag',
-    'computer_scroll',
-    'computer_type_text',
-    'computer_switch_space',
-    'computer_press_key',
-    'computer_start_system_audio_recording',
-    'computer_stop_system_audio_recording',
-    ...BrowserToolPolicy.allTools,
+    ...BuiltInSshToolHandler.toolNames,
+    ...BuiltInBleToolHandler.toolNames,
+    ...BuiltInWifiToolHandler.toolNames,
+    ...BuiltInLanScanToolHandler.toolNames,
+    ...BuiltInSerialToolHandler.toolNames,
+    ...BuiltInComputerUseToolHandler.toolNames,
+    ...BuiltInBrowserToolHandler.toolNames,
     ToolDefinitionSearchService.toolName,
   };
 
-  static final RegExp _serverKeyInvalidChars = RegExp(r'[^a-zA-Z0-9_]+');
-  static final RegExp _serverKeyConsecutiveUnderscores = RegExp(r'_+');
-  static final RegExp _serverKeyEdgeUnderscores = RegExp(r'^_|_$');
   static final RegExp _whitespaceRun = RegExp(r'\s+');
-  static final RegExp _hexSeparatorChars = RegExp(r'[\s:-]');
-
   McpToolService({
     this.mcpClients = const [],
     this.searxngClient,
@@ -126,6 +98,14 @@ class McpToolService {
     BuiltInNetworkToolHandler? networkToolHandler,
     BuiltInFilesystemToolHandler? filesystemToolHandler,
     BuiltInLocalCommandToolHandler? localCommandToolHandler,
+    BuiltInSshToolHandler? sshToolHandler,
+    BuiltInBleToolHandler? bleToolHandler,
+    BuiltInWifiToolHandler? wifiToolHandler,
+    BuiltInLanScanToolHandler? lanScanToolHandler,
+    BuiltInSerialToolHandler? serialToolHandler,
+    BuiltInComputerUseToolHandler? computerUseToolHandler,
+    BuiltInBrowserToolHandler? browserToolHandler,
+    RemoteMcpConnectionManager? remoteMcpConnectionManager,
     InstalledDependencyGroundingService? dependencyGroundingService,
     this.semanticConversationRanker,
     this.disabledBuiltInTools = const {},
@@ -137,6 +117,33 @@ class McpToolService {
            BuiltInLocalCommandToolHandler(
              backgroundProcessTools: backgroundProcessTools,
              backgroundProcessMonitorService: backgroundProcessMonitorService,
+           ),
+       sshToolHandler =
+           sshToolHandler ?? BuiltInSshToolHandler(sshService: sshService),
+       bleToolHandler =
+           bleToolHandler ?? BuiltInBleToolHandler(bleService: bleService),
+       wifiToolHandler =
+           wifiToolHandler ?? BuiltInWifiToolHandler(wifiService: wifiService),
+       lanScanToolHandler =
+           lanScanToolHandler ??
+           BuiltInLanScanToolHandler(lanScanService: lanScanService),
+       serialToolHandler =
+           serialToolHandler ??
+           BuiltInSerialToolHandler(serialPortService: serialPortService),
+       computerUseToolHandler =
+           computerUseToolHandler ??
+           BuiltInComputerUseToolHandler(
+             computerUseService: computerUseService,
+           ),
+       browserToolHandler =
+           browserToolHandler ??
+           BuiltInBrowserToolHandler(browserService: browserService),
+       _remoteMcpConnectionManager =
+           remoteMcpConnectionManager ??
+           RemoteMcpConnectionManager(
+             configuredClients: mcpClients,
+             reservedToolNames: _reservedToolNames,
+             reservedToolNamePrefixes: const {'browser_', 'computer_'},
            ),
        dependencyGroundingService =
            dependencyGroundingService ??
@@ -161,6 +168,14 @@ class McpToolService {
   final BuiltInNetworkToolHandler networkToolHandler;
   final BuiltInFilesystemToolHandler filesystemToolHandler;
   final BuiltInLocalCommandToolHandler localCommandToolHandler;
+  final BuiltInSshToolHandler sshToolHandler;
+  final BuiltInBleToolHandler bleToolHandler;
+  final BuiltInWifiToolHandler wifiToolHandler;
+  final BuiltInLanScanToolHandler lanScanToolHandler;
+  final BuiltInSerialToolHandler serialToolHandler;
+  final BuiltInComputerUseToolHandler computerUseToolHandler;
+  final BuiltInBrowserToolHandler browserToolHandler;
+  final RemoteMcpConnectionManager _remoteMcpConnectionManager;
   final InstalledDependencyGroundingService dependencyGroundingService;
 
   /// LL5: ranks conversation ids by semantic similarity for
@@ -170,24 +185,13 @@ class McpToolService {
 
   final Set<String> disabledBuiltInTools;
 
-  List<McpToolEntity> _cachedTools = [];
-  final Map<String, _RemoteToolBinding> _remoteToolBindings = {};
-  List<McpServerConnectionInfo> _serverStates = const [];
-  McpConnectionStatus _status = McpConnectionStatus.disconnected;
-  String? _lastError;
-
-  /// Current connection status.
-  McpConnectionStatus get status => _status;
-
-  /// Cached tool definitions.
-  List<McpToolEntity> get tools => _cachedTools;
-
-  /// Current connection status for each configured MCP server.
+  McpConnectionStatus get status => _remoteMcpConnectionManager.status;
+  List<McpToolEntity> get tools => _remoteMcpConnectionManager.tools;
   List<McpServerConnectionInfo> get serverStates =>
-      List.unmodifiable(_serverStates);
-
-  /// Most recent error message.
-  String? get lastError => _lastError;
+      _remoteMcpConnectionManager.serverStates;
+  String? get lastError => _remoteMcpConnectionManager.lastError;
+  bool isExternalMcpToolName(String name) =>
+      _remoteMcpConnectionManager.isExternalToolName(name);
 
   bool get _hasEnabledSkills =>
       skillRepository?.getAll().any((skill) => skill.isUsable) ?? false;
@@ -201,96 +205,11 @@ class McpToolService {
     List<String>? overrideUrls,
     String? overrideUrl,
   }) async {
-    final clients = overrideServers != null
-        ? _resolveClientsFromServers(overrideServers)
-        : overrideUrls != null || overrideUrl != null
-        ? _resolveClients(
-            targetUrls: overrideUrls ?? [overrideUrl!],
-            useOverrides: true,
-          )
-        : mcpClients;
-
-    if (clients.isEmpty) {
-      appLog(
-        '[McpToolService] No MCP clients configured, running without remote MCP',
-      );
-      _status = McpConnectionStatus.disconnected;
-      _lastError = null;
-      _cachedTools = [];
-      _remoteToolBindings.clear();
-      _serverStates = const [];
-      return;
-    }
-
-    _status = McpConnectionStatus.connecting;
-    _lastError = null;
-    _serverStates = clients
-        .map(
-          (client) => McpServerConnectionInfo(
-            identifier: client.identifier,
-            status: McpConnectionStatus.connecting,
-          ),
-        )
-        .toList(growable: false);
-
-    try {
-      final results = await Future.wait(clients.map(_connectClient));
-      _serverStates = results
-          .map(
-            (result) => McpServerConnectionInfo(
-              identifier: result.identifier,
-              status: result.status,
-              toolCount: result.tools.length,
-              lastError: result.error,
-            ),
-          )
-          .toList(growable: false);
-      _rebuildRemoteToolCache(results);
-
-      final successfulResults = results.where((result) => result.isSuccess);
-      final failedResults = results
-          .where((result) => !result.isSuccess)
-          .toList();
-
-      if (successfulResults.isNotEmpty) {
-        _status = McpConnectionStatus.connected;
-        _lastError = failedResults.isEmpty
-            ? null
-            : failedResults
-                  .map((result) => '${result.identifier}: ${result.error}')
-                  .join(' | ');
-        appLog(
-          '[McpToolService] Connected to ${successfulResults.length} MCP server(s): fetched ${_cachedTools.length} tools',
-        );
-        for (final tool in _cachedTools) {
-          appLog('[McpToolService]   - ${tool.name}: ${tool.description}');
-        }
-        return;
-      }
-
-      _status = McpConnectionStatus.error;
-      _lastError = failedResults
-          .map((result) => '${result.identifier}: ${result.error}')
-          .join(' | ');
-      _cachedTools = [];
-      _remoteToolBindings.clear();
-    } catch (e, stackTrace) {
-      appLog('[McpToolService] Connection failed: ${e.runtimeType}: $e');
-      appLog('[McpToolService] stackTrace: $stackTrace');
-      _status = McpConnectionStatus.error;
-      _lastError = e.toString();
-      _cachedTools = [];
-      _remoteToolBindings.clear();
-      _serverStates = clients
-          .map(
-            (client) => McpServerConnectionInfo(
-              identifier: client.identifier,
-              status: McpConnectionStatus.error,
-              lastError: e.toString(),
-            ),
-          )
-          .toList(growable: false);
-    }
+    await _remoteMcpConnectionManager.connect(
+      overrideServers: overrideServers,
+      overrideUrls: overrideUrls,
+      overrideUrl: overrideUrl,
+    );
   }
 
   /// Refreshes the tool list.
@@ -386,58 +305,57 @@ class McpToolService {
       );
     }
 
-    // SSH remote server tools (always available — the session is managed
-    // per-chat via ssh_connect / ssh_disconnect).
-    if (sshService != null) {
-      _addIfEnabled(toolDefinitions, _sshConnectTool);
-      _addIfEnabled(toolDefinitions, _sshExecuteCommandTool);
-      _addIfEnabled(toolDefinitions, _sshDisconnectTool);
+    // SSH remote server tools (the session is managed per chat).
+    if (sshToolHandler.isAvailable) {
+      for (final tool in sshToolHandler.definitions) {
+        _addIfEnabled(toolDefinitions, tool);
+      }
     }
 
     // BLE tools (available on all platforms; unsupported operations return
     // errors at runtime).
-    if (bleService != null) {
-      for (final tool in BleTools.allTools) {
+    if (bleToolHandler.isAvailable) {
+      for (final tool in bleToolHandler.definitions) {
         _addIfEnabled(toolDefinitions, tool);
       }
     }
 
     // WiFi tools (scan + connection info).
-    if (wifiService != null) {
-      for (final tool in WifiTools.allTools) {
+    if (wifiToolHandler.isAvailable) {
+      for (final tool in wifiToolHandler.definitions) {
         _addIfEnabled(toolDefinitions, tool);
       }
     }
 
     // LAN scan tools (subnet discovery + port scanning).
-    if (lanScanService != null) {
-      for (final tool in LanScanTools.allTools) {
+    if (lanScanToolHandler.isAvailable) {
+      for (final tool in lanScanToolHandler.definitions) {
         _addIfEnabled(toolDefinitions, tool);
       }
     }
 
     // Serial port tools (desktop only — macOS/Windows/Linux).
-    if (serialPortService != null && SerialPortService.isSupported) {
-      for (final tool in SerialPortTools.allTools) {
+    if (serialToolHandler.canExposeDefinitions) {
+      for (final tool in serialToolHandler.definitions) {
         _addIfEnabled(toolDefinitions, tool);
       }
     }
 
-    if (computerUseService?.isAvailable ?? false) {
-      for (final tool in _computerUseTools) {
+    if (computerUseToolHandler.isAvailable) {
+      for (final tool in computerUseToolHandler.definitions) {
         _addIfEnabled(toolDefinitions, tool);
       }
     }
 
-    if (browserService?.isAvailable ?? false) {
-      for (final tool in _browserTools) {
+    if (browserToolHandler.isAvailable) {
+      for (final tool in browserToolHandler.definitions) {
         _addIfEnabled(toolDefinitions, tool);
       }
     }
 
     // Use MCP tools when connected.
-    if (_status == McpConnectionStatus.connected && _cachedTools.isNotEmpty) {
-      toolDefinitions.addAll(_cachedTools.map((t) => t.toOpenAiTool()));
+    if (status == McpConnectionStatus.connected && tools.isNotEmpty) {
+      toolDefinitions.addAll(tools.map((tool) => tool.toOpenAiTool()));
     } else if (searxngClient != null) {
       // Fallback to the fixed SearXNG tool definition.
       _addIfEnabled(toolDefinitions, _mcpToolWebSearchToolFallback);
@@ -456,35 +374,6 @@ class McpToolService {
     if (!disabledBuiltInTools.contains(name)) {
       list.add(tool);
     }
-  }
-
-  String? _commandResultFailureMessage(String result, String toolLabel) {
-    try {
-      final decoded = jsonDecode(result);
-      if (decoded is! Map<String, dynamic>) return null;
-
-      final error = decoded['error'];
-      if (error is String && error.trim().isNotEmpty) {
-        return error.trim();
-      }
-
-      final exitCode = decoded['exit_code'];
-      if (exitCode is num && exitCode.toInt() != 0) {
-        final stderr = decoded['stderr'];
-        final stdout = decoded['stdout'];
-        final detail = stderr is String && stderr.trim().isNotEmpty
-            ? stderr.trim()
-            : stdout is String && stdout.trim().isNotEmpty
-            ? stdout.trim()
-            : null;
-        return detail == null
-            ? '$toolLabel exited with code ${exitCode.toInt()}'
-            : '$toolLabel exited with code ${exitCode.toInt()}: $detail';
-      }
-    } catch (_) {
-      return null;
-    }
-    return null;
   }
 
   /// Executes a tool.
@@ -578,50 +467,12 @@ class McpToolService {
       );
     }
 
-    if (name.startsWith('computer_')) {
-      final service = computerUseService;
-      if (service == null || !service.isAvailable) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'macOS computer use tools are unavailable',
-        );
-      }
-      final result = await _executeComputerUseTool(service, name, arguments);
-      final decoded = _tryDecodeMap(result);
-      final success = decoded == null || decoded['ok'] != false;
-      return McpToolResult(
-        toolName: name,
-        result: result,
-        isSuccess: success,
-        errorMessage: success
-            ? null
-            : (decoded['error'] as String? ?? 'Computer use tool failed'),
-      );
+    if (computerUseToolHandler.handles(name)) {
+      return computerUseToolHandler.execute(name: name, arguments: arguments);
     }
 
-    if (name.startsWith('browser_')) {
-      final service = browserService;
-      if (service == null || !service.isAvailable) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'Built-in browser tools are unavailable',
-        );
-      }
-      final result = await _executeBrowserTool(service, name, arguments);
-      final decoded = _tryDecodeMap(result);
-      final success = decoded == null || decoded['ok'] != false;
-      return McpToolResult(
-        toolName: name,
-        result: result,
-        isSuccess: success,
-        errorMessage: success
-            ? null
-            : (decoded['error'] as String? ?? 'Browser tool failed'),
-      );
+    if (browserToolHandler.handles(name)) {
+      return browserToolHandler.execute(name: name, arguments: arguments);
     }
 
     if (filesystemToolHandler.handles(name)) {
@@ -630,29 +481,22 @@ class McpToolService {
 
     if (name == InstalledDependencyGroundingService.toolName) {
       final result = await dependencyGroundingService.resolve(arguments);
-      final decoded = _tryDecodeMap(result);
-      final success = decoded == null || decoded['ok'] != false;
-      return McpToolResult(
+      return McpToolResultNormalizer.fromOkPayload(
         toolName: name,
         result: result,
-        isSuccess: success,
-        errorMessage: success
-            ? null
-            : (decoded['error'] as String? ??
-                  'Installed dependency grounding failed'),
+        fallbackErrorMessage: 'Installed dependency grounding failed',
       );
     }
 
     if (name == 'lsp_go_to_definition') {
-      return McpToolResult(
+      return McpToolResultNormalizer.structuredFailure(
         toolName: name,
-        result: jsonEncode({
+        payload: {
           'ok': false,
           'code': 'chat_handler_required',
           'error':
               'lsp_go_to_definition must be executed through the chat LSP session handler.',
-        }),
-        isSuccess: false,
+        },
         errorMessage:
             'lsp_go_to_definition must be executed through the chat LSP session handler',
       );
@@ -758,21 +602,20 @@ class McpToolService {
           workingDirectory: workingDirectory,
           reason: (arguments['reason'] as String?)?.trim(),
         );
-        final failureMessage = _commandResultFailureMessage(
-          result,
-          'Git command',
+        final normalizedResult = McpToolResultNormalizer.fromCommandPayload(
+          toolName: name,
+          result: result,
+          toolLabel: 'Git command',
         );
-        if (failureMessage != null) {
-          appLog('[McpToolService] Git command failed: $failureMessage');
-          return McpToolResult(
-            toolName: name,
-            result: result,
-            isSuccess: false,
-            errorMessage: failureMessage,
+        if (!normalizedResult.isSuccess) {
+          appLog(
+            '[McpToolService] Git command failed: '
+            '${normalizedResult.errorMessage}',
           );
+          return normalizedResult;
         }
         appLog('[McpToolService] Git command executed successfully');
-        return McpToolResult(toolName: name, result: result, isSuccess: true);
+        return normalizedResult;
       } catch (e) {
         appLog('[McpToolService] Git command error: $e');
         return McpToolResult(
@@ -788,139 +631,39 @@ class McpToolService {
       return GitFinishWorktreeSessionTool.execute(arguments);
     }
 
-    // SSH remote server tools.
-    //
-    // Contract: `ssh_connect` and the per-command confirmation for
-    // `ssh_execute_command` are handled upstream in ChatNotifier, which has
-    // access to the UI for user dialogs. By the time we reach this branch
-    // for `ssh_execute_command`, the user has already approved the specific
-    // command. `ssh_connect` should never reach this dispatch — the
-    // notifier short-circuits it — so we return an error if it does.
-    if (name == 'ssh_connect') {
-      return McpToolResult(
-        toolName: name,
-        result: '',
-        isSuccess: false,
-        errorMessage:
-            'ssh_connect must be handled by ChatNotifier (internal error)',
-      );
-    }
-
-    if (name == 'ssh_execute_command') {
-      if (sshService == null) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'SSH service is unavailable',
-        );
-      }
-      if (!sshService!.isConnected) {
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: 'No active SSH session — call ssh_connect first',
-        );
-      }
-      try {
-        final command = (arguments['command'] as String?)?.trim() ?? '';
-        if (command.isEmpty) {
-          return McpToolResult(
-            toolName: name,
-            result: '',
-            isSuccess: false,
-            errorMessage: 'command is required',
-          );
-        }
-        final result = await sshService!.execute(command);
-        appLog('[McpToolService] SSH command executed successfully');
-        return McpToolResult(
-          toolName: name,
-          result: result.formatted(),
-          isSuccess: true,
-        );
-      } catch (e) {
-        appLog('[McpToolService] SSH execution error: $e');
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: e.toString(),
-        );
-      }
-    }
-
-    if (name == 'ssh_disconnect') {
-      if (sshService == null) {
-        return McpToolResult(
-          toolName: name,
-          result: 'No active SSH session',
-          isSuccess: true,
-        );
-      }
-      final wasConnected = sshService!.isConnected;
-      try {
-        await sshService!.disconnect();
-        return McpToolResult(
-          toolName: name,
-          result: wasConnected ? 'Disconnected' : 'No active SSH session',
-          isSuccess: true,
-        );
-      } catch (e) {
-        appLog('[McpToolService] SSH disconnect error: $e');
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: e.toString(),
-        );
-      }
+    // SSH connection and command approvals remain upstream in ChatNotifier.
+    if (sshToolHandler.handles(name)) {
+      return sshToolHandler.execute(name: name, arguments: arguments);
     }
 
     // Built-in BLE tools.
-    if (BleTools.allToolNames.contains(name) && bleService != null) {
-      return _executeBleToolCall(name, arguments);
+    if (bleToolHandler.isAvailable && bleToolHandler.handles(name)) {
+      return bleToolHandler.execute(name: name, arguments: arguments);
     }
 
     // Built-in WiFi tools.
-    if (WifiTools.allToolNames.contains(name) && wifiService != null) {
-      return _executeWifiToolCall(name, arguments);
+    if (wifiToolHandler.isAvailable && wifiToolHandler.handles(name)) {
+      return wifiToolHandler.execute(name: name, arguments: arguments);
     }
 
     // Built-in LAN scan tools.
-    if (LanScanTools.allToolNames.contains(name) && lanScanService != null) {
-      return _executeLanScanToolCall(name, arguments);
+    if (lanScanToolHandler.isAvailable && lanScanToolHandler.handles(name)) {
+      return lanScanToolHandler.execute(name: name, arguments: arguments);
     }
 
     // Built-in serial port tools (serial_open is handled in ChatNotifier for
     // user approval; the rest are dispatched here).
-    if (SerialPortTools.allToolNames.contains(name) &&
-        serialPortService != null) {
-      return _executeSerialPortToolCall(name, arguments);
+    if (serialToolHandler.isAvailable && serialToolHandler.handles(name)) {
+      return serialToolHandler.execute(name: name, arguments: arguments);
     }
 
     // 1. Execute through the matching MCP server when connected.
-    final remoteBinding = _remoteToolBindings[name];
-    if (_status == McpConnectionStatus.connected && remoteBinding != null) {
-      try {
-        final result = await remoteBinding.client.callTool(
-          name: remoteBinding.remoteToolName,
-          arguments: arguments,
-        );
-        appLog(
-          '[McpToolService] MCP execution succeeded: ${result.length} chars',
-        );
-        return McpToolResult(toolName: name, result: result, isSuccess: true);
-      } catch (e) {
-        appLog('[McpToolService] MCP tool execution error: $e');
-        return McpToolResult(
-          toolName: name,
-          result: '',
-          isSuccess: false,
-          errorMessage: e.toString(),
-        );
-      }
+    final remoteResult = await _remoteMcpConnectionManager.tryExecute(
+      name: name,
+      arguments: arguments,
+    );
+    if (remoteResult != null) {
+      return remoteResult;
     }
 
     // 2. SearXNG fallback for `web_search` only.
@@ -980,383 +723,6 @@ class McpToolService {
   Future<McpToolResult> rollbackLastFileTurnCheckpoint() async {
     return filesystemToolHandler.rollbackLastFileTurnCheckpoint();
   }
-
-  Map<String, dynamic>? _tryDecodeMap(String payload) {
-    try {
-      final decoded = jsonDecode(payload);
-      return decoded is Map<String, dynamic> ? decoded : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<String> _executeComputerUseTool(
-    MacosComputerUseService service,
-    String name,
-    Map<String, dynamic> arguments,
-  ) {
-    return switch (name) {
-      'computer_get_permissions' => service.getPermissions(),
-      'computer_request_permissions' => service.requestPermissions(
-        accessibility: arguments['accessibility'] as bool? ?? true,
-        screenCapture:
-            arguments['screen_capture'] as bool? ??
-            arguments['screenCapture'] as bool? ??
-            true,
-      ),
-      'computer_open_system_settings' => service.openSystemSettings(
-        section: arguments['section'] as String? ?? 'privacy',
-      ),
-      'computer_vision_observe' => service.visionObserve(arguments),
-      'computer_accessibility_snapshot' => service.accessibilitySnapshot(
-        arguments,
-      ),
-      'computer_list_displays' => service.listDisplays(arguments),
-      'computer_list_windows' => service.listWindows(arguments),
-      'computer_focus_window' => service.focusWindow(arguments),
-      'computer_screenshot' => service.screenshot(arguments),
-      'computer_screenshot_window' => service.screenshotWindow(arguments),
-      'computer_move_mouse' => service.moveMouse(arguments),
-      'computer_click' => service.click(arguments),
-      'computer_drag' => service.drag(arguments),
-      'computer_scroll' => service.scroll(arguments),
-      'computer_type_text' => service.typeText(arguments),
-      'computer_switch_space' => service.switchSpace(arguments),
-      'computer_press_key' => service.pressKey(arguments),
-      'computer_start_system_audio_recording' =>
-        service.startSystemAudioRecording(arguments),
-      'computer_stop_system_audio_recording' =>
-        service.stopSystemAudioRecording(),
-      _ => Future.value(
-        jsonEncode({
-          'ok': false,
-          'code': 'tool_not_available',
-          'error': 'No matching computer use tool is available: $name',
-        }),
-      ),
-    };
-  }
-
-  Future<String> _executeBrowserTool(
-    BrowserSessionService service,
-    String name,
-    Map<String, dynamic> arguments,
-  ) {
-    int? readRef() {
-      final ref = arguments['ref'];
-      if (ref is int) return ref;
-      if (ref is num) return ref.toInt();
-      if (ref is String) return int.tryParse(ref);
-      return null;
-    }
-
-    String? readSelector() {
-      final selector = (arguments['selector'] as String?)?.trim();
-      return (selector == null || selector.isEmpty) ? null : selector;
-    }
-
-    return switch (name) {
-      'browser_open' => service.openUrl((arguments['url'] as String?) ?? ''),
-      'browser_snapshot' => service.snapshot(
-        maxElements: (arguments['max_elements'] as num?)?.toInt(),
-      ),
-      'browser_get_content' => service.getContent(
-        format: (arguments['format'] as String?) ?? 'text',
-        maxChars: (arguments['max_chars'] as num?)?.toInt(),
-      ),
-      'browser_screenshot' => service.screenshot(),
-      'browser_wait' => service.waitFor(
-        selector: readSelector(),
-        timeoutMs: (arguments['timeout_ms'] as num?)?.toInt(),
-      ),
-      'browser_navigate_history' => service.navigateHistory(
-        (arguments['direction'] as String?) ?? 'reload',
-      ),
-      'browser_close' => Future.value(service.closePanel()),
-      'browser_fill' => service.fillField(
-        ref: readRef(),
-        selector: readSelector(),
-        value: (arguments['value'] as String?) ?? '',
-      ),
-      'browser_click' => service.clickElement(
-        ref: readRef(),
-        selector: readSelector(),
-      ),
-      'browser_submit' => service.submitForm(selector: readSelector()),
-      'browser_eval' => service.evaluateJs(
-        (arguments['script'] as String?) ?? '',
-      ),
-      'browser_save_data' => service.saveData(
-        filename: (arguments['filename'] as String?) ?? 'browser_data',
-        data: (arguments['data'] as String?) ?? '',
-        format: (arguments['format'] as String?) ?? 'json',
-        destination: arguments['destination'] as String?,
-      ),
-      _ => Future.value(
-        jsonEncode({
-          'ok': false,
-          'code': 'tool_not_available',
-          'error': 'No matching browser tool is available: $name',
-        }),
-      ),
-    };
-  }
-
-  /// OpenAI tool schemas for the built-in agent-controlled browser.
-  static List<Map<String, dynamic>> get _browserTools => [
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_open',
-        'description':
-            'Open a URL in the built-in browser pane. On wide layouts it opens to the right of the workspace; on narrow layouts it opens above the chat input. Use this first, then browser_snapshot to inspect the page. Returns the final URL and title.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'url': {
-              'type': 'string',
-              'description':
-                  'The URL to navigate to. https:// is assumed if no scheme is given.',
-            },
-            'reason': {
-              'type': 'string',
-              'description': 'Short note on why you are opening this page.',
-            },
-          },
-          'required': ['url'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_snapshot',
-        'description':
-            'List the visible interactive elements (links, buttons, inputs, selects) of the current page, each with a stable "ref" index plus tag, label, name and type. Pass a ref to browser_fill / browser_click. Re-run after navigation.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'max_elements': {
-              'type': 'integer',
-              'description':
-                  'Maximum number of elements to return (default 80).',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_get_content',
-        'description':
-            'Read the current page for parsing/scraping. format "text" returns rendered innerText; "html" returns full HTML. Large content is truncated.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'format': {
-              'type': 'string',
-              'enum': ['text', 'html'],
-              'description':
-                  'text (default) for readable text, html for raw markup.',
-            },
-            'max_chars': {
-              'type': 'integer',
-              'description': 'Maximum characters to return (default 100000).',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_screenshot',
-        'description':
-            'Capture a PNG screenshot of the current page. Returns base64 image data.',
-        'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_wait',
-        'description':
-            'Wait for the page to finish loading, or until a CSS selector appears. Use after a click that triggers navigation or async content.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'selector': {
-              'type': 'string',
-              'description':
-                  'Optional CSS selector to wait for. Omit to just wait for load.',
-            },
-            'timeout_ms': {
-              'type': 'integer',
-              'description':
-                  'Maximum time to wait in milliseconds (default 8000).',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_navigate_history',
-        'description':
-            'Navigate the browser history: back, forward, or reload.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'direction': {
-              'type': 'string',
-              'enum': ['back', 'forward', 'reload'],
-              'description': 'Which history navigation to perform.',
-            },
-          },
-          'required': ['direction'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_close',
-        'description': 'Close the built-in browser pane.',
-        'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_fill',
-        'description':
-            'Type a value into a form field, identified by "ref" (from browser_snapshot) or a CSS "selector". Requires user approval. Password values are redacted in the approval prompt.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'ref': {
-              'type': 'integer',
-              'description': 'Element ref from browser_snapshot.',
-            },
-            'selector': {
-              'type': 'string',
-              'description': 'CSS selector (alternative to ref).',
-            },
-            'value': {'type': 'string', 'description': 'The text to enter.'},
-            'reason': {
-              'type': 'string',
-              'description': 'Why this field is being filled.',
-            },
-          },
-          'required': ['value'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_click',
-        'description':
-            'Click an element identified by "ref" (from browser_snapshot) or a CSS "selector". May navigate or change page state. Requires user approval. Use only refs from the latest browser_snapshot; if you need to submit a form after filling a field, prefer browser_submit instead of guessing a submit button ref.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'ref': {
-              'type': 'integer',
-              'description': 'Element ref from browser_snapshot.',
-            },
-            'selector': {
-              'type': 'string',
-              'description': 'CSS selector (alternative to ref).',
-            },
-            'reason': {
-              'type': 'string',
-              'description': 'Why this element is being clicked.',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_submit',
-        'description':
-            'Submit a form. Optionally provide a CSS "selector" for a field/button inside the target form; otherwise the first form is submitted. Requires user approval. Prefer this after browser_fill for searches and forms instead of guessing a submit button ref.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'selector': {
-              'type': 'string',
-              'description': 'Optional CSS selector inside the target form.',
-            },
-            'reason': {
-              'type': 'string',
-              'description': 'Why the form is being submitted.',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_eval',
-        'description':
-            'Run JavaScript in the current page and return its result (the body should "return" a JSON-serializable value). Use for advanced scraping when snapshot/content are insufficient. Requires user approval.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'script': {
-              'type': 'string',
-              'description':
-                  'JavaScript body; use "return <value>" to return data.',
-            },
-            'reason': {
-              'type': 'string',
-              'description': 'Why this script needs to run.',
-            },
-          },
-          'required': ['script'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'browser_save_data',
-        'description':
-            'Save extracted data to a file. Defaults to Caverno application storage; set destination to downloads or documents only when the user explicitly requested that location. Requires user approval.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'filename': {
-              'type': 'string',
-              'description': 'File name, e.g. "usage.json".',
-            },
-            'data': {
-              'type': 'string',
-              'description': 'The file content (typically a JSON string).',
-            },
-            'format': {
-              'type': 'string',
-              'description': 'File extension to enforce (default "json").',
-            },
-            'destination': {
-              'type': 'string',
-              'enum': ['app', 'downloads', 'documents'],
-              'description':
-                  'Optional save location. Use "app" by default. Use "downloads" or "documents" only when the user explicitly asks for that folder.',
-            },
-            'reason': {'type': 'string', 'description': 'What is being saved.'},
-          },
-          'required': ['filename', 'data'],
-        },
-      },
-    },
-  ];
 
   static Map<String, dynamic> get _spawnSubagentTool => {
     'type': 'function',
@@ -1574,611 +940,6 @@ class McpToolService {
     },
   };
 
-  static List<Map<String, dynamic>> get _computerUseTools => [
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_get_permissions',
-        'description':
-            'Check macOS Accessibility, Screen Recording, and system audio recording availability for computer-use tools.',
-        'parameters': {'type': 'object', 'properties': {}, 'required': []},
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_request_permissions',
-        'description':
-            'Ask macOS to open prompts for Accessibility and/or Screen Recording permissions required by computer-use tools.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'accessibility': {
-              'type': 'boolean',
-              'description': 'Request Accessibility permission.',
-            },
-            'screen_capture': {
-              'type': 'boolean',
-              'description': 'Request Screen Recording permission.',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_open_system_settings',
-        'description':
-            'Open the relevant macOS Privacy & Security pane for granting Accessibility or Screen Recording permissions. The user must still grant access manually.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'section': {
-              'type': 'string',
-              'enum': ['accessibility', 'screen_recording', 'privacy'],
-              'description':
-                  'System Settings section to open. Use screen_recording for Screen & System Audio Recording.',
-            },
-          },
-          'required': ['section'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_vision_observe',
-        'description':
-            'Observe the macOS desktop for a vision LLM loop. Returns permission status, display inventory, optional visible-window metadata, one display or window screenshot as image content, coordinate guidance, and the approved next computer-use tool surface. This tool is read-only.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'target': {
-              'type': 'string',
-              'enum': ['display', 'window', 'front_window'],
-              'description':
-                  'Observation target. Use window with window_id for a known window, front_window for the first visible non-Caverno window, or display for the full display.',
-            },
-            'window_id': {
-              'type': 'integer',
-              'description':
-                  'Window ID from computer_list_windows. Required when target is window.',
-            },
-            'display_id': {
-              'type': 'integer',
-              'description':
-                  'Optional CGDirectDisplayID from computer_list_displays. Used when target is display.',
-            },
-            'max_width': {
-              'type': 'integer',
-              'description':
-                  'Optional maximum PNG width to reduce tokens. Defaults to 900.',
-            },
-            'include_windows': {
-              'type': 'boolean',
-              'description':
-                  'Include visible-window metadata. Defaults to true.',
-            },
-            'space_scope': {
-              'type': 'string',
-              'enum': ['active_space', 'all_spaces'],
-              'description':
-                  'macOS Spaces scope for window metadata. Use all_spaces when the target app may be on another desktop; input still requires observing the active Space first.',
-            },
-            'include_displays': {
-              'type': 'boolean',
-              'description':
-                  'Include display inventory metadata. Defaults to true.',
-            },
-            'include_accessibility': {
-              'type': 'boolean',
-              'description':
-                  'Include accessibility-derived candidate element metadata for window observations. Defaults to true.',
-            },
-            'max_candidate_elements': {
-              'type': 'integer',
-              'description':
-                  'Maximum candidate elements to expose in elementGrounding. Defaults to 12.',
-            },
-            'max_accessibility_elements': {
-              'type': 'integer',
-              'description':
-                  'Maximum accessibility elements to read before selecting candidates. Defaults to 50.',
-            },
-            'max_accessibility_depth': {
-              'type': 'integer',
-              'description':
-                  'Maximum accessibility tree depth to read for candidate selection. Defaults to 4.',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_accessibility_snapshot',
-        'description':
-            'Read a bounded macOS Accessibility snapshot for the front window or a selected window. Returns roles, safe labels, frames, enabled/focused state, child counts, and redaction metadata without taking any desktop action.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'target': {
-              'type': 'string',
-              'enum': ['front_window', 'window'],
-              'description':
-                  'Snapshot target. Use front_window for the first visible non-Caverno window or window with window_id for a known window.',
-            },
-            'window_id': {
-              'type': 'integer',
-              'description':
-                  'Window ID from computer_list_windows. Required when target is window.',
-            },
-            'max_depth': {
-              'type': 'integer',
-              'description':
-                  'Maximum accessibility tree depth to traverse. Defaults to 4 and is capped by the helper.',
-            },
-            'max_elements': {
-              'type': 'integer',
-              'description':
-                  'Maximum number of elements to return. Defaults to 80 and is capped by the helper.',
-            },
-            'label_max_characters': {
-              'type': 'integer',
-              'description':
-                  'Maximum safe label length per element before truncation. Defaults to 120.',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_list_displays',
-        'description':
-            'List macOS displays with display IDs, indexes, names, point bounds, pixel sizes, and main-display status. Use this before selecting a non-main display for screenshots or desktop actions.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'display_id': {
-              'type': 'integer',
-              'description':
-                  'Optional CGDirectDisplayID to validate a selected display.',
-            },
-            'display_index': {
-              'type': 'integer',
-              'description':
-                  'Optional zero-based display index to validate a selected display.',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_screenshot',
-        'description':
-            'Capture a macOS display screenshot for visual inspection. Use returned screenshot pixel coordinates for computer input tools.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'display_id': {
-              'type': 'integer',
-              'description':
-                  'Optional CGDirectDisplayID from computer_list_displays. Defaults to the main display.',
-            },
-            'max_width': {
-              'type': 'integer',
-              'description': 'Optional maximum PNG width to reduce tokens.',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_list_windows',
-        'description':
-            'List macOS application windows with window IDs, app names, titles, bounds, and macOS Spaces visibility status. Prefer this before focusing or capturing a specific app window.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'include_current_app': {
-              'type': 'boolean',
-              'description':
-                  'Include Caverno windows in the result. Defaults to false.',
-            },
-            'max_windows': {
-              'type': 'integer',
-              'description': 'Maximum number of windows to return.',
-            },
-            'space_scope': {
-              'type': 'string',
-              'enum': ['active_space', 'all_spaces'],
-              'description':
-                  'Use active_space for the current macOS Space, or all_spaces for best-effort discovery across Spaces.',
-            },
-            'include_hidden': {
-              'type': 'boolean',
-              'description':
-                  'Include hidden, minimized, or non-active-Space windows when supported by macOS. Defaults to true for all_spaces.',
-            },
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_focus_window',
-        'description':
-            'Bring a specific macOS window to the foreground by window_id. Optionally focus an element_id from the latest elementGrounding candidates. Requires Accessibility permission.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'window_id': {
-              'type': 'integer',
-              'description':
-                  'Window ID from computer_list_windows or computer_screenshot_window.',
-            },
-            ..._computerElementTargetProperties,
-            ..._computerActionTargetMetadataProperties,
-            'reason': {'type': 'string'},
-          },
-          'required': ['window_id'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_screenshot_window',
-        'description':
-            'Capture a specific macOS window screenshot. Use returned window pixel coordinates and window_id for follow-up computer input tools.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'window_id': {
-              'type': 'integer',
-              'description': 'Window ID from computer_list_windows.',
-            },
-            'max_width': {
-              'type': 'integer',
-              'description': 'Optional maximum PNG width to reduce tokens.',
-            },
-          },
-          'required': ['window_id'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_move_mouse',
-        'description':
-            'Move the macOS pointer to screenshot pixel coordinates.',
-        'parameters': _computerPointParameters(required: ['x', 'y']),
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_click',
-        'description':
-            'Click an element_id from the latest elementGrounding candidates, or fall back to screenshot pixel coordinates. Requires explicit user approval in Caverno before execution.',
-        'parameters': {
-          ..._computerPointParameters(),
-          'properties': {
-            ..._computerPointProperties,
-            ..._computerElementTargetProperties,
-            'button': {
-              'type': 'string',
-              'enum': ['left', 'right', 'middle'],
-              'description': 'Mouse button. Defaults to left.',
-            },
-            'click_count': {
-              'type': 'integer',
-              'description': 'Number of clicks, from 1 to 3.',
-            },
-            'reason': {
-              'type': 'string',
-              'description': 'Why this click is needed.',
-            },
-            ..._computerActionTargetMetadataProperties,
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_drag',
-        'description':
-            'Drag from one screenshot pixel coordinate to another. Requires explicit user approval in Caverno before execution.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            ..._computerDisplayProperties,
-            'from_x': {'type': 'number'},
-            'from_y': {'type': 'number'},
-            'to_x': {'type': 'number'},
-            'to_y': {'type': 'number'},
-            'duration_ms': {
-              'type': 'integer',
-              'description': 'Drag duration in milliseconds.',
-            },
-            ..._computerActionTargetMetadataProperties,
-            'reason': {'type': 'string'},
-          },
-          'required': ['from_x', 'from_y', 'to_x', 'to_y'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_scroll',
-        'description':
-            'Scroll the active macOS target, optionally after moving to screenshot pixel coordinates.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            ..._computerPointProperties,
-            'delta_x': {'type': 'integer'},
-            'delta_y': {
-              'type': 'integer',
-              'description': 'Positive scrolls up, negative scrolls down.',
-            },
-            ..._computerActionTargetMetadataProperties,
-            'reason': {'type': 'string'},
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_type_text',
-        'description':
-            'Type text into an element_id from the latest elementGrounding candidates, or into the currently focused macOS UI element when no element target is provided. Requires explicit user approval in Caverno before execution.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'text': {'type': 'string'},
-            ..._computerWindowElementTargetProperties,
-            ..._computerActionTargetMetadataProperties,
-            'reason': {'type': 'string'},
-          },
-          'required': ['text'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_press_key',
-        'description':
-            'Press a keyboard key, optionally with modifiers such as command, shift, option, or control. Use computer_switch_space for macOS Spaces switching.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'key': {'type': 'string'},
-            'modifiers': {
-              'type': 'array',
-              'items': {'type': 'string'},
-            },
-            ..._computerActionTargetMetadataProperties,
-            'reason': {'type': 'string'},
-          },
-          'required': ['key'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_switch_space',
-        'description':
-            'Switch to an adjacent macOS Space with Control-Left or Control-Right. Requires explicit user approval and must be followed by computer_vision_observe before pointer or keyboard input.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'direction': {
-              'type': 'string',
-              'enum': ['next', 'previous'],
-              'description':
-                  'Use next for Control-Right, or previous for Control-Left.',
-            },
-            'reason': {
-              'type': 'string',
-              'description': 'Why switching Spaces is needed.',
-            },
-          },
-          'required': ['direction'],
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_start_system_audio_recording',
-        'description':
-            'Start recording macOS system audio to a CAF file via ScreenCaptureKit. Requires explicit user approval in Caverno before execution.',
-        'parameters': {
-          'type': 'object',
-          'properties': {
-            'output_path': {
-              'type': 'string',
-              'description': 'Optional absolute CAF output path.',
-            },
-            'exclude_current_process_audio': {
-              'type': 'boolean',
-              'description':
-                  'Exclude Caverno audio from the recording. Defaults to true.',
-            },
-            'reason': {'type': 'string'},
-          },
-        },
-      },
-    },
-    {
-      'type': 'function',
-      'function': {
-        'name': 'computer_stop_system_audio_recording',
-        'description':
-            'Stop the active macOS system audio recording and return the output file path.',
-        'parameters': {'type': 'object', 'properties': {}, 'required': []},
-      },
-    },
-  ];
-
-  static Map<String, dynamic> _computerPointParameters({
-    List<String> required = const [],
-  }) {
-    return {
-      'type': 'object',
-      'properties': _computerPointProperties,
-      if (required.isNotEmpty) 'required': required,
-    };
-  }
-
-  static Map<String, dynamic> get _computerPointProperties => {
-    ..._computerDisplayProperties,
-    'x': {
-      'type': 'number',
-      'description': 'X coordinate in screenshot pixels from the top-left.',
-    },
-    'y': {
-      'type': 'number',
-      'description': 'Y coordinate in screenshot pixels from the top-left.',
-    },
-  };
-
-  static Map<String, dynamic> get _computerDisplayProperties => {
-    'window_id': {
-      'type': 'integer',
-      'description':
-          'Optional window ID from computer_list_windows or computer_screenshot_window. When set, x/y are interpreted as window screenshot pixels.',
-    },
-    'display_id': {
-      'type': 'integer',
-      'description':
-          'Optional display ID from computer_list_displays, computer_vision_observe, or computer_screenshot.',
-    },
-    'source_width': {
-      'type': 'number',
-      'description': 'Width of the screenshot used to choose coordinates.',
-    },
-    'source_height': {
-      'type': 'number',
-      'description': 'Height of the screenshot used to choose coordinates.',
-    },
-    'coordinate_space': {
-      'type': 'string',
-      'description':
-          'Coordinate space from computer_vision_observe, such as window_pixels or display_pixels.',
-    },
-    'vision_observation_id': {
-      'type': 'string',
-      'description':
-          'Observation ID from the latest computer_vision_observe result used to choose this action.',
-    },
-  };
-
-  static Map<String, dynamic> get _computerElementTargetProperties => {
-    'element_id': {
-      'type': 'string',
-      'description':
-          'Optional execution target elementId from the latest computer_vision_observe elementGrounding candidateElements.',
-    },
-    'max_accessibility_elements': {
-      'type': 'integer',
-      'description':
-          'Maximum accessibility elements to scan while resolving element_id. Defaults to 80.',
-    },
-    'max_accessibility_depth': {
-      'type': 'integer',
-      'description':
-          'Maximum accessibility tree depth to scan while resolving element_id. Defaults to 4.',
-    },
-  };
-
-  static Map<String, dynamic> get _computerWindowElementTargetProperties => {
-    'window_id': {
-      'type': 'integer',
-      'description':
-          'Window ID from the latest computer_vision_observe or computer_list_windows result. Required when element_id is provided.',
-    },
-    ..._computerElementTargetProperties,
-  };
-
-  static Map<String, dynamic> get _computerActionTargetMetadataProperties => {
-    'target': {
-      'type': 'object',
-      'description':
-          'Optional visible UI target metadata used only for Caverno approval. Mark public posting, sending, submitting, or publishing controls with risk=public_action. Mark secure fields, credential prompts, payment flows, and destructive controls with their matching risk.',
-      'properties': {
-        'label': {
-          'type': 'string',
-          'description': 'Visible label or accessible name of the target.',
-        },
-        'role': {
-          'type': 'string',
-          'description': 'Visible or accessibility role of the target.',
-        },
-        'appName': {
-          'type': 'string',
-          'description':
-              'Visible application name from the latest observation or window list.',
-        },
-        'appBundleId': {
-          'type': 'string',
-          'description':
-              'Application bundle identifier when available from the latest observation or window list.',
-        },
-        'windowTitle': {
-          'type': 'string',
-          'description':
-              'Window title from the latest observation or window list.',
-        },
-        'windowId': {
-          'type': 'integer',
-          'description':
-              'Window ID from the latest observation or window list.',
-        },
-        'elementId': {
-          'type': 'string',
-          'description':
-              'Optional elementId from the latest computer_vision_observe elementGrounding candidates.',
-        },
-        'action': {
-          'type': 'string',
-          'description': 'Intended action, such as click, submit, or publish.',
-        },
-        'risk': {
-          'type': 'string',
-          'enum': [
-            'input',
-            'public_action',
-            'secure_field',
-            'credential',
-            'payment',
-            'destructive',
-            'sensitive',
-            'unknown',
-          ],
-          'description':
-              'Use public_action for controls that post, send, submit, publish, or otherwise change external state. Use secure_field, credential, payment, or destructive for targets that should be blocked or manually handled.',
-        },
-      },
-    },
-  };
-
   String _buildCurrentDatetimeResult() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -2273,74 +1034,6 @@ class McpToolService {
   };
 
   // ---------------------------------------------------------------------------
-  // Built-in tool: ssh_connect / ssh_execute_command / ssh_disconnect
-  // ---------------------------------------------------------------------------
-
-  static Map<String, dynamic> get _sshConnectTool => {
-    'type': 'function',
-    'function': {
-      'name': 'ssh_connect',
-      'description':
-          "Open an interactive SSH session to a remote host. The user will "
-          "see a dialog to confirm or edit the connection details and enter "
-          "the password (pre-filled if previously saved for this host). "
-          "Keeps the session alive for subsequent ssh_execute_command calls "
-          "until ssh_disconnect is called. Use this when the user asks to "
-          "connect to a server via SSH.",
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'host': {
-            'type': 'string',
-            'description':
-                "Hostname or IP of the SSH server, e.g. '192.168.1.10' or "
-                "'example.com'.",
-          },
-          'port': {
-            'type': 'integer',
-            'description': 'SSH port. Defaults to 22 when omitted.',
-          },
-          'username': {
-            'type': 'string',
-            'description':
-                'SSH username. Optional — if omitted, the confirmation '
-                'dialog will ask the user to enter it.',
-          },
-        },
-        'required': ['host'],
-      },
-    },
-  };
-
-  static Map<String, dynamic> get _sshExecuteCommandTool => {
-    'type': 'function',
-    'function': {
-      'name': 'ssh_execute_command',
-      'description':
-          "Execute a shell command on the currently active SSH session. "
-          "Requires ssh_connect to have succeeded first. Each command is "
-          "shown to the user in a confirmation dialog and must be approved "
-          "before it runs. Returns stdout, stderr, and the exit code.",
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'command': {
-            'type': 'string',
-            'description': 'Exact shell command to run on the remote server.',
-          },
-          'reason': {
-            'type': 'string',
-            'description':
-                'Short human-readable reason shown to the user in the '
-                'confirmation dialog.',
-          },
-        },
-        'required': ['command'],
-      },
-    },
-  };
-
-  // ---------------------------------------------------------------------------
   // Built-in coding tools (desktop only)
   // ---------------------------------------------------------------------------
 
@@ -2418,544 +1111,6 @@ class McpToolService {
       },
     },
   };
-
-  static Map<String, dynamic> get _sshDisconnectTool => {
-    'type': 'function',
-    'function': {
-      'name': 'ssh_disconnect',
-      'description':
-          'Close the currently active SSH session. Safe to call even if '
-          'nothing is connected.',
-      'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
-    },
-  };
-
-  // ---------------------------------------------------------------------------
-  // BLE tool execution
-  // ---------------------------------------------------------------------------
-
-  Future<McpToolResult> _executeBleToolCall(
-    String name,
-    Map<String, dynamic> arguments,
-  ) async {
-    final ble = bleService!;
-
-    try {
-      switch (name) {
-        case 'ble_start_scan':
-          final timeout = ((arguments['timeout'] as num?)?.toInt() ?? 10).clamp(
-            1,
-            60,
-          );
-          final serviceUuids = (arguments['service_uuids'] as List?)
-              ?.cast<String>();
-          await ble.startScan(
-            timeout: Duration(seconds: timeout),
-            serviceUuids: serviceUuids,
-          );
-          return McpToolResult(
-            toolName: name,
-            result:
-                'Scan started (${timeout}s timeout). '
-                'Use ble_get_scan_results to see discovered devices.',
-            isSuccess: true,
-          );
-
-        case 'ble_stop_scan':
-          await ble.stopScan();
-          return McpToolResult(
-            toolName: name,
-            result:
-                'Scan stopped. ${ble.getScanResults().length} devices found.',
-            isSuccess: true,
-          );
-
-        case 'ble_get_scan_results':
-          final sortBy = arguments['sort_by'] as String?;
-          final results = ble.getScanResults(sortBy: sortBy);
-          if (results.isEmpty) {
-            return McpToolResult(
-              toolName: name,
-              result: 'No devices found. Try ble_start_scan first.',
-              isSuccess: true,
-            );
-          }
-          final buf = StringBuffer();
-          buf.writeln('Found ${results.length} device(s):');
-          for (final d in results) {
-            buf.writeln(
-              '- device_id: ${d.peripheral.uuid}  '
-              'name: ${d.name ?? "(unknown)"}  '
-              'rssi: ${d.rssi} dBm  '
-              'services: ${d.serviceUuids.isEmpty ? "none" : d.serviceUuids.join(", ")}',
-            );
-          }
-          return McpToolResult(
-            toolName: name,
-            result: buf.toString(),
-            isSuccess: true,
-          );
-
-        case 'ble_connect':
-          // Handled by ChatNotifier for user confirmation.
-          return McpToolResult(
-            toolName: name,
-            result: '',
-            isSuccess: false,
-            errorMessage:
-                'ble_connect must be handled by ChatNotifier (internal error)',
-          );
-
-        case 'ble_disconnect':
-          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
-          if (deviceId.isEmpty) {
-            return _missingParam(name, 'device_id');
-          }
-          await ble.disconnect(deviceId);
-          return McpToolResult(
-            toolName: name,
-            result: 'Disconnected from $deviceId',
-            isSuccess: true,
-          );
-
-        case 'ble_discover_services':
-          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
-          if (deviceId.isEmpty) {
-            return _missingParam(name, 'device_id');
-          }
-          final services = await ble.discoverServices(deviceId);
-          final result = jsonEncode(services);
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        case 'ble_read_characteristic':
-          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
-          final serviceUuid =
-              (arguments['service_uuid'] as String?)?.trim() ?? '';
-          final charUuid =
-              (arguments['characteristic_uuid'] as String?)?.trim() ?? '';
-          final encoding = (arguments['encoding'] as String?) ?? 'hex';
-          if (deviceId.isEmpty || serviceUuid.isEmpty || charUuid.isEmpty) {
-            return _missingParam(
-              name,
-              'device_id, service_uuid, characteristic_uuid',
-            );
-          }
-          final value = await ble.readCharacteristic(
-            deviceId,
-            serviceUuid,
-            charUuid,
-          );
-          final encoded = BleService.encodeValue(value, encoding);
-
-          // Include notification buffer info if subscribed.
-          final buffer = ble.getNotificationBuffer(
-            deviceId,
-            serviceUuid,
-            charUuid,
-          );
-          final buf = StringBuffer();
-          buf.writeln('value ($encoding): $encoded');
-          if (buffer.isNotEmpty) {
-            buf.writeln('notification_buffer (${buffer.length} entries):');
-            for (final entry in buffer) {
-              buf.writeln(
-                '  ${entry.timestamp.toIso8601String()}: '
-                '${BleService.encodeValue(entry.value, encoding)}',
-              );
-            }
-          }
-          return McpToolResult(
-            toolName: name,
-            result: buf.toString(),
-            isSuccess: true,
-          );
-
-        case 'ble_write_characteristic':
-          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
-          final serviceUuid =
-              (arguments['service_uuid'] as String?)?.trim() ?? '';
-          final charUuid =
-              (arguments['characteristic_uuid'] as String?)?.trim() ?? '';
-          final rawValue = (arguments['value'] as String?)?.trim() ?? '';
-          final encoding = (arguments['encoding'] as String?) ?? 'hex';
-          final writeTypeStr =
-              (arguments['write_type'] as String?) ?? 'withResponse';
-          if (deviceId.isEmpty ||
-              serviceUuid.isEmpty ||
-              charUuid.isEmpty ||
-              rawValue.isEmpty) {
-            return _missingParam(
-              name,
-              'device_id, service_uuid, characteristic_uuid, value',
-            );
-          }
-          final writeType = writeTypeStr == 'withoutResponse'
-              ? GATTCharacteristicWriteType.withoutResponse
-              : GATTCharacteristicWriteType.withResponse;
-          final valueBytes = _decodeValueForWrite(rawValue, encoding);
-          await ble.writeCharacteristic(
-            deviceId,
-            serviceUuid,
-            charUuid,
-            valueBytes,
-            type: writeType,
-          );
-          return McpToolResult(
-            toolName: name,
-            result: 'Written ${valueBytes.length} bytes to $charUuid',
-            isSuccess: true,
-          );
-
-        case 'ble_subscribe_characteristic':
-          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
-          final serviceUuid =
-              (arguments['service_uuid'] as String?)?.trim() ?? '';
-          final charUuid =
-              (arguments['characteristic_uuid'] as String?)?.trim() ?? '';
-          if (deviceId.isEmpty || serviceUuid.isEmpty || charUuid.isEmpty) {
-            return _missingParam(
-              name,
-              'device_id, service_uuid, characteristic_uuid',
-            );
-          }
-          await ble.subscribeCharacteristic(deviceId, serviceUuid, charUuid);
-          return McpToolResult(
-            toolName: name,
-            result:
-                'Subscribed to notifications on $charUuid. '
-                'Use ble_read_characteristic to get latest values.',
-            isSuccess: true,
-          );
-
-        case 'ble_unsubscribe_characteristic':
-          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
-          final serviceUuid =
-              (arguments['service_uuid'] as String?)?.trim() ?? '';
-          final charUuid =
-              (arguments['characteristic_uuid'] as String?)?.trim() ?? '';
-          if (deviceId.isEmpty || serviceUuid.isEmpty || charUuid.isEmpty) {
-            return _missingParam(
-              name,
-              'device_id, service_uuid, characteristic_uuid',
-            );
-          }
-          await ble.unsubscribeCharacteristic(deviceId, serviceUuid, charUuid);
-          return McpToolResult(
-            toolName: name,
-            result: 'Unsubscribed from $charUuid',
-            isSuccess: true,
-          );
-
-        case 'ble_get_connection_state':
-          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
-          if (deviceId.isEmpty) {
-            return _missingParam(name, 'device_id');
-          }
-          final state = ble.getConnectionState(deviceId);
-          return McpToolResult(
-            toolName: name,
-            result: 'Device $deviceId: $state',
-            isSuccess: true,
-          );
-
-        case 'ble_start_advertising':
-          final localName = arguments['local_name'] as String?;
-          final serviceUuids = (arguments['service_uuids'] as List?)
-              ?.cast<String>();
-          await ble.startAdvertising(
-            localName: localName,
-            serviceUuids: serviceUuids,
-          );
-          return McpToolResult(
-            toolName: name,
-            result: 'Advertising started',
-            isSuccess: true,
-          );
-
-        case 'ble_stop_advertising':
-          await ble.stopAdvertising();
-          return McpToolResult(
-            toolName: name,
-            result: 'Advertising stopped',
-            isSuccess: true,
-          );
-
-        case 'ble_add_service':
-          final serviceUuid =
-              (arguments['service_uuid'] as String?)?.trim() ?? '';
-          final chars =
-              (arguments['characteristics'] as List?)
-                  ?.cast<Map<String, dynamic>>() ??
-              [];
-          if (serviceUuid.isEmpty || chars.isEmpty) {
-            return _missingParam(name, 'service_uuid, characteristics');
-          }
-          await ble.addService(
-            serviceUuid: serviceUuid,
-            characteristics: chars,
-          );
-          return McpToolResult(
-            toolName: name,
-            result:
-                'Service $serviceUuid added with ${chars.length} characteristic(s)',
-            isSuccess: true,
-          );
-
-        case 'ble_update_characteristic':
-          final serviceUuid =
-              (arguments['service_uuid'] as String?)?.trim() ?? '';
-          final charUuid =
-              (arguments['characteristic_uuid'] as String?)?.trim() ?? '';
-          final rawValue = (arguments['value'] as String?)?.trim() ?? '';
-          final encoding = (arguments['encoding'] as String?) ?? 'hex';
-          if (serviceUuid.isEmpty || charUuid.isEmpty || rawValue.isEmpty) {
-            return _missingParam(
-              name,
-              'service_uuid, characteristic_uuid, value',
-            );
-          }
-          final bytes = _decodeValueForWrite(rawValue, encoding);
-          await ble.updateCharacteristic(serviceUuid, charUuid, bytes);
-          return McpToolResult(
-            toolName: name,
-            result: 'Characteristic $charUuid updated and subscribers notified',
-            isSuccess: true,
-          );
-
-        case 'ble_get_peripheral_state':
-          final state = ble.getPeripheralState();
-          return McpToolResult(
-            toolName: name,
-            result: jsonEncode(state),
-            isSuccess: true,
-          );
-
-        default:
-          return McpToolResult(
-            toolName: name,
-            result: '',
-            isSuccess: false,
-            errorMessage: 'Unknown BLE tool: $name',
-          );
-      }
-    } catch (e) {
-      appLog('[McpToolService] BLE tool error ($name): $e');
-      return McpToolResult(
-        toolName: name,
-        result: '',
-        isSuccess: false,
-        errorMessage: e.toString(),
-      );
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // WiFi tool execution
-  // ---------------------------------------------------------------------------
-
-  Future<McpToolResult> _executeWifiToolCall(
-    String name,
-    Map<String, dynamic> arguments,
-  ) async {
-    final wifi = wifiService!;
-    try {
-      switch (name) {
-        case 'wifi_scan':
-          final result = await wifi.startScan();
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        case 'wifi_get_scan_results':
-          final sortBy = arguments['sort_by'] as String?;
-          final result = wifi.getScanResults(sortBy: sortBy);
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        case 'wifi_get_connection_info':
-          final result = await wifi.getConnectionInfo();
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        default:
-          return McpToolResult(
-            toolName: name,
-            result: '',
-            isSuccess: false,
-            errorMessage: 'Unknown WiFi tool: $name',
-          );
-      }
-    } catch (e) {
-      appLog('[McpToolService] WiFi tool error ($name): $e');
-      return McpToolResult(
-        toolName: name,
-        result: '',
-        isSuccess: false,
-        errorMessage: e.toString(),
-      );
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // LAN scan tool execution
-  // ---------------------------------------------------------------------------
-
-  Future<McpToolResult> _executeLanScanToolCall(
-    String name,
-    Map<String, dynamic> arguments,
-  ) async {
-    final lanScan = lanScanService!;
-    try {
-      switch (name) {
-        case 'lan_scan':
-          final subnet = (arguments['subnet'] as String?)?.trim();
-          final ipVersion = (arguments['ip_version'] as String?)?.trim();
-          final timeout = (arguments['timeout'] as num?)?.toInt() ?? 1000;
-          final ports = (arguments['ports'] as List?)
-              ?.map((e) => (e as num).toInt())
-              .toList();
-          final result = await lanScan.startScan(
-            subnet: subnet,
-            ipVersion: ipVersion,
-            timeoutMs: timeout,
-            ports: ports,
-          );
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        case 'lan_get_scan_results':
-          final sortBy = arguments['sort_by'] as String?;
-          final result = lanScan.getScanResults(sortBy: sortBy);
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        default:
-          return McpToolResult(
-            toolName: name,
-            result: '',
-            isSuccess: false,
-            errorMessage: 'Unknown LAN scan tool: $name',
-          );
-      }
-    } catch (e) {
-      appLog('[McpToolService] LAN scan tool error ($name): $e');
-      return McpToolResult(
-        toolName: name,
-        result: '',
-        isSuccess: false,
-        errorMessage: e.toString(),
-      );
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Serial port tool execution
-  //
-  // serial_open is handled in ChatNotifier (it requires user approval), so it
-  // is intentionally not executed here.
-  // ---------------------------------------------------------------------------
-
-  Future<McpToolResult> _executeSerialPortToolCall(
-    String name,
-    Map<String, dynamic> arguments,
-  ) async {
-    final serial = serialPortService!;
-    try {
-      switch (name) {
-        case 'serial_list_ports':
-          final result = serial.listPorts();
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        case 'serial_read':
-          final port = (arguments['port'] as String?)?.trim() ?? '';
-          final encoding = (arguments['encoding'] as String?) ?? 'utf8';
-          final maxBytes = (arguments['max_bytes'] as num?)?.toInt();
-          final clear = (arguments['clear'] as bool?) ?? true;
-          final frameDelimiter = arguments['frame_delimiter'] as String?;
-          final frameLength = (arguments['frame_length'] as num?)?.toInt();
-          final maxFrames = (arguments['max_frames'] as num?)?.toInt() ?? 200;
-          final includeStats = (arguments['include_stats'] as bool?) ?? false;
-          final result = serial.read(
-            port,
-            encoding: encoding,
-            maxBytes: maxBytes,
-            clear: clear,
-            frameDelimiterHex: frameDelimiter,
-            frameLength: frameLength,
-            maxFrames: maxFrames,
-            includeStats: includeStats,
-          );
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        case 'serial_decode':
-          final dataHex = arguments['data'] as String?;
-          final port = (arguments['port'] as String?)?.trim();
-          final format = arguments['format'] as String? ?? '';
-          final fields = (arguments['fields'] as List?)
-              ?.map((e) => e.toString())
-              .toList();
-          final consume = (arguments['consume'] as bool?) ?? false;
-          final result = serial.decode(
-            dataHex: dataHex,
-            port: port,
-            format: format,
-            fields: fields,
-            consume: consume,
-          );
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        case 'serial_write':
-          final port = (arguments['port'] as String?)?.trim() ?? '';
-          final data = arguments['data'] as String? ?? '';
-          final encoding = (arguments['encoding'] as String?) ?? 'utf8';
-          final result = await serial.write(port, data, encoding: encoding);
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        case 'serial_close':
-          final port = (arguments['port'] as String?)?.trim() ?? '';
-          final result = await serial.close(port);
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-
-        default:
-          return McpToolResult(
-            toolName: name,
-            result: '',
-            isSuccess: false,
-            errorMessage:
-                'Serial tool $name must be invoked with user '
-                'approval and cannot be executed directly.',
-          );
-      }
-    } catch (e) {
-      appLog('[McpToolService] Serial tool error ($name): $e');
-      return McpToolResult(
-        toolName: name,
-        result: '',
-        isSuccess: false,
-        errorMessage: e.toString(),
-      );
-    }
-  }
-
-  static McpToolResult _missingParam(String toolName, String params) {
-    return McpToolResult(
-      toolName: toolName,
-      result: '',
-      isSuccess: false,
-      errorMessage: '$params required',
-    );
-  }
-
-  static Uint8List _decodeValueForWrite(String value, String encoding) {
-    return switch (encoding) {
-      'utf8' => Uint8List.fromList(utf8.encode(value)),
-      'base64' => base64Decode(value),
-      _ => _hexDecodeValue(value),
-    };
-  }
-
-  static Uint8List _hexDecodeValue(String hex) {
-    final clean = hex.replaceAll(_hexSeparatorChars, '');
-    final bytes = <int>[];
-    for (var i = 0; i + 1 < clean.length; i += 2) {
-      bytes.add(int.parse(clean.substring(i, i + 2), radix: 16));
-    }
-    return Uint8List.fromList(bytes);
-  }
 
   String _recallMemory(Map<String, dynamic> arguments) {
     final query = (arguments['query'] as String?)?.trim() ?? '';
@@ -3037,35 +1192,6 @@ class McpToolService {
     }
     return grams;
   }
-}
-
-class _RemoteToolBinding {
-  const _RemoteToolBinding({
-    required this.client,
-    required this.remoteToolName,
-  });
-
-  final McpClientBase client;
-  final String remoteToolName;
-}
-
-class _McpConnectionResult {
-  const _McpConnectionResult({
-    required this.identifier,
-    required this.client,
-    this.tools = const [],
-    this.error,
-  });
-
-  final String identifier;
-  final McpClientBase client;
-  final List<McpTool> tools;
-  final String? error;
-
-  bool get isSuccess => error == null;
-
-  McpConnectionStatus get status =>
-      isSuccess ? McpConnectionStatus.connected : McpConnectionStatus.error;
 }
 
 class _ScoredMemoryMatch {

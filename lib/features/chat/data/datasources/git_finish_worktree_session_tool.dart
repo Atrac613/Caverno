@@ -1,8 +1,7 @@
-import 'dart:convert';
-
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import 'git_tools.dart';
+import 'mcp_tool_result_normalizer.dart';
 
 class GitFinishWorktreeSessionTool {
   const GitFinishWorktreeSessionTool._();
@@ -84,59 +83,27 @@ class GitFinishWorktreeSessionTool {
         removeWorktree: removeWorktree,
         mergeMessage: mergeMessage,
       );
-      final failureMessage = _commandResultFailureMessage(result);
-      if (failureMessage != null) {
+      final normalizedResult = McpToolResultNormalizer.fromCommandPayload(
+        toolName: toolName,
+        result: result,
+        toolLabel: 'Finish worktree session',
+      );
+      if (!normalizedResult.isSuccess) {
         appLog(
-          '[McpToolService] Finish worktree session failed: $failureMessage',
+          '[McpToolService] Finish worktree session failed: '
+          '${normalizedResult.errorMessage}',
         );
-        return McpToolResult(
-          toolName: toolName,
-          result: result,
-          isSuccess: false,
-          errorMessage: failureMessage,
-        );
+        return normalizedResult;
       }
       appLog('[McpToolService] Worktree session finished successfully');
-      return McpToolResult(toolName: toolName, result: result, isSuccess: true);
+      return normalizedResult;
     } catch (error) {
       appLog('[McpToolService] Finish worktree session error: $error');
-      return McpToolResult(
+      return McpToolResultNormalizer.failure(
         toolName: toolName,
-        result: '',
-        isSuccess: false,
         errorMessage: error.toString(),
       );
     }
-  }
-
-  static String? _commandResultFailureMessage(String result) {
-    try {
-      final decoded = jsonDecode(result);
-      if (decoded is! Map<String, dynamic>) return null;
-
-      final error = decoded['error'];
-      if (error is String && error.trim().isNotEmpty) {
-        return error.trim();
-      }
-
-      final exitCode = decoded['exit_code'];
-      if (exitCode is num && exitCode.toInt() != 0) {
-        final stderr = decoded['stderr'];
-        final stdout = decoded['stdout'];
-        final detail = stderr is String && stderr.trim().isNotEmpty
-            ? stderr.trim()
-            : stdout is String && stdout.trim().isNotEmpty
-            ? stdout.trim()
-            : null;
-        return detail == null
-            ? 'Finish worktree session exited with code ${exitCode.toInt()}'
-            : 'Finish worktree session exited with code '
-                  '${exitCode.toInt()}: $detail';
-      }
-    } catch (_) {
-      return null;
-    }
-    return null;
   }
 
   static bool _asBool(Object? value) {

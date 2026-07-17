@@ -15,11 +15,22 @@ again before starting a new refactor branch.
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
 | `lib/features/chat/presentation/pages/chat_page.dart` | 2738 | Chat screen layout, drawers, modals, input wiring, plan UI |
 | `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2442 | Saved-workflow execution, recovery, evidence, and auto-continuation |
-| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 3076 | Tool registry, MCP execution, remaining built-in adapters |
+| `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1202 | Tool registry, public execution facade, remaining built-in adapters |
+| `lib/features/chat/data/datasources/remote_mcp_connection_manager.dart` | 317 | Remote MCP connection state, trust resolution, and invocation |
+| `lib/features/chat/data/datasources/remote_mcp_tool_name_policy.dart` | 120 | Deterministic remote names, reserved-prefix neutralization, and collision retries |
 | `lib/features/chat/data/datasources/built_in_network_tool_handler.dart` | 978 | Built-in network definitions, validation, and operation dispatch |
 | `lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart` | 622 | Built-in filesystem definitions, execution, and rollback checkpoints |
-| `lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart` | 587 | Built-in local command and background-process tool routing |
-| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 3270 | Computer Use settings layout and validation |
+| `lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart` | 581 | Built-in local command and background-process tool routing |
+| `lib/features/chat/data/datasources/built_in_ble_tool_handler.dart` | 360 | Built-in BLE definitions, normalization, execution, and result formatting |
+| `lib/features/chat/data/datasources/built_in_browser_tool_handler.dart` | 395 | Built-in browser definitions, argument normalization, and approved service dispatch |
+| `lib/features/chat/data/datasources/built_in_computer_use_tool_handler.dart` | 714 | Built-in Computer Use definitions, argument normalization, and post-approval service dispatch |
+| `lib/features/chat/data/datasources/built_in_wifi_tool_handler.dart` | 65 | Built-in WiFi definitions, availability, dispatch, and result normalization |
+| `lib/features/chat/data/datasources/built_in_lan_scan_tool_handler.dart` | 77 | Built-in LAN definitions, argument normalization, dispatch, and result handling |
+| `lib/features/chat/data/datasources/built_in_serial_tool_handler.dart` | 141 | Built-in serial definitions, direct dispatch, and compatible result handling |
+| `lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart` | 183 | Built-in SSH definitions, post-approval command dispatch, and disconnect handling |
+| `lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart` | 126 | Compatible direct, JSON, command, and structured-error result construction |
+| `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 2995 | Computer Use settings coordination, diagnostics, and remaining panels |
+| `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
 | `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
 | `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18648 | Broad chat orchestration regression coverage |
@@ -27,7 +38,7 @@ again before starting a new refactor branch.
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. Current aggregate sizes
 are 23,005 lines for the ChatNotifier library, 10,344 for the ChatPage library,
-3,365 for the McpToolService library, and 33,189 for the ChatNotifier test
+1,294 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
 
 ## Refactor Rules
@@ -90,9 +101,10 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Extract remote MCP server connection and trust-state handling behind an
-  independently testable application-internal boundary. Keep transport client
-  ownership, configuration, and user-interaction policy stable.
+- Characterize and extract the Computer Use action gate plan from
+  `computer_use_settings_page.dart` into a stateless widget with explicit
+  derived inputs. Keep runtime-map assembly, live-smoke ownership, permission
+  state, and every helper or platform action in the page coordinator.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -283,12 +295,236 @@ Local command handler status (2026-07-17):
   The full repository gate passed 3,468 root tests at 72.35% line coverage;
   the new handler reached 99.48% line coverage using deterministic providers.
 
+Remote MCP connection manager status (2026-07-17):
+
+- `RemoteMcpConnectionManager` owns connection state, override and trust
+  resolution, remote tool caching, exposed-name aliases, client bindings, and
+  invocation routing behind injected transport factories.
+- Characterization preserves source precedence, pending trust-review access,
+  blocked and invalid filtering, desktop stdio gating, partial and total
+  failure states, configured order, 64-character aliases, original-name
+  forwarding, and virtual `McpToolService.refresh()` dispatch.
+- `McpToolService` remains the public facade, retains SearXNG fallback and
+  provider-owned transport lifetimes, and fell from 3,076 to 2,945 lines. Its
+  same-library aggregate fell from 3,365 to 3,037 lines; the independent manager
+  is ratcheted at 397 lines.
+- The focused verifier passed 125 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,487 root tests plus 13 internal-package
+  tests at 72.11% line coverage; the new manager reached 90.40% coverage using
+  deterministic fake clients.
+
+Remote MCP reserved-name collision status (2026-07-17):
+
+- `spawn_subagent`, `get_subagent_result`, and `save_skill` now remain
+  unconditionally reserved, so same-named remote tools receive aliases instead
+  of being intercepted by Caverno's exact built-in dispatch.
+- Regression coverage preserves available, disabled, and unavailable built-in
+  cases, unique OpenAI definitions, original remote names, and unchanged
+  argument forwarding. `McpToolService` remains at 2,945 lines and its
+  same-library aggregate remains at 3,037 lines.
+- The focused verifier passed 90 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,489 root tests plus 13 internal-package tests at
+  72.12% line coverage; an independent review reported no findings.
+- Similar-pattern review found a separate prefix-dispatch bug: namespaced remote
+  `browser_*` and `computer_*` aliases retain prefixes consumed by built-in
+  dispatch and remain unreachable.
+
+Remote MCP prefix-collision routing status (2026-07-17):
+
+- Remote names matching `browser_` or `computer_`, including mixed-case and
+  arbitrary names, now receive deterministic neutral `mcp__` aliases before
+  they reach built-in prefix dispatch or policy classifiers.
+- `RemoteMcpToolNamePolicy` owns exact reservations, case-insensitive prefix
+  reservations, server-key generation, 64-character truncation, and ordered
+  collision retries. Original names, schemas, source metadata, clients, and
+  arguments remain unchanged in bindings and invocation.
+- `McpToolService` fell from 2,945 to 2,929 lines, its same-library aggregate
+  fell from 3,037 to 3,021 lines, and `RemoteMcpConnectionManager` fell from
+  397 to 319 lines. The new policy is ratcheted at 120 lines.
+- The focused verifier passed 104 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,494 root tests plus 13 internal-package
+  tests at 72.13% line coverage. The policy reached 100.00% coverage and an
+  independent static review reported no findings.
+- Similar-pattern inspection found that generic remote MCP results are not
+  consistently marked as MCP-derived in taint recording and generic MCP tools
+  retain an existing Plan Mode/read-only capability-policy gap.
+
+Remote MCP provenance and planning-policy status (2026-07-17):
+
+- Successful and failed remote calls now carry transient external-MCP
+  provenance that is excluded from serialized `McpToolResult` JSON.
+- Main and participant tool paths record taint from the actual execution result,
+  so remote-controlled success and error content is untrusted while local
+  pre-dispatch denials remain local.
+- Exact live binding lookup lets Plan Mode reject capability-unknown external
+  MCP tools before invocation. Ordinary and Routine trusted-MCP execution remain
+  unchanged.
+- `McpToolService` fell from 2,929 to 2,924 lines and its same-library aggregate
+  fell from 3,021 to 3,016 lines. `RemoteMcpConnectionManager` remains at 319
+  lines and `ChatNotifier` remains at 9,468 lines.
+- The focused verifier passed 109 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,500 root tests plus 13 internal-package tests at
+  72.15% line coverage; the new taint recorder reached 100.00% coverage.
+
+MCP tool result normalization status (2026-07-17):
+
+- `McpToolResultNormalizer` now owns compatible direct success and failure
+  results, ordered structured failure encoding, the existing `ok` payload
+  interpretation, and command failure classification.
+- `McpToolService`, local command envelopes, worktree session finishing, and
+  remote invocation use the boundary. Legacy payload-success asymmetry, exact
+  result bytes, error messages, and external provenance remain unchanged.
+- `McpToolService` fell from 2,924 to 2,869 lines and its same-library aggregate
+  fell from 3,016 to 2,961 lines. The local command handler fell from 587 to 581
+  lines, the remote manager from 319 to 317 lines, and the normalizer is
+  ratcheted at 126 lines.
+- The focused verifier passed 115 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,506 root tests plus 13 internal-package tests at
+  72.18% line coverage; the normalizer reached 100.00% coverage.
+
+BLE handler status (2026-07-17):
+
+- `BuiltInBleToolHandler` now owns the 16 ordered BLE definitions, availability,
+  argument normalization, execution, output formatting, byte decoding, and
+  compatible success and failure envelopes while reusing `BleTools` schemas.
+- Characterization preserves definition placement after SSH and before WiFi,
+  unavailable and disabled behavior, unconditional remote-name reservation,
+  scan clamps, exact text and JSON results, all central and peripheral calls,
+  value encodings, notification formatting, and service exception conversion.
+- ChatNotifier remains the only approved `ble_connect` path; direct execution
+  retains the existing internal-error result, and tests use a deterministic
+  service subclass without initializing Bluetooth platform managers.
+- `McpToolService` fell from 2,869 to 2,522 lines and its same-library aggregate
+  fell from 2,961 to 2,614 lines. The independent handler is ratcheted at 360
+  lines.
+- The focused verifier passed 99 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,521 root tests plus 13 internal-package tests at
+  72.98% line coverage; the handler reached 99.41% coverage and `BleTools`
+  reached 99.29% without real hardware access.
+
+WiFi handler status (2026-07-17):
+
+- `BuiltInWifiToolHandler` now owns the three ordered WiFi definitions,
+  availability, exact argument forwarding, execution, and compatible success
+  and failure envelopes while reusing `WifiTools` schemas.
+- Characterization preserves definition placement after BLE and before LAN,
+  unavailable and disabled behavior, unconditional remote-name reservation,
+  optional `sort_by` forwarding, and the legacy behavior that JSON error
+  payloads remain successful tool envelopes.
+- `McpToolService` fell from 2,522 to 2,483 lines and its same-library aggregate
+  fell from 2,614 to 2,575 lines. The independent handler is ratcheted at 65
+  lines.
+- The focused verifier passed 97 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,529 root tests plus 13 internal-package tests at
+  72.71% line coverage; the handler reached 95.45% coverage and `WifiTools`
+  reached 94.44% without platform permissions or real hardware access.
+
+LAN scan handler status (2026-07-17):
+
+- `BuiltInLanScanToolHandler` now owns the two ordered LAN definitions,
+  availability, argument normalization, execution, and compatible success and
+  failure envelopes while reusing `LanScanTools` schemas.
+- Characterization preserves placement after WiFi and before serial,
+  unavailable and disabled behavior, unconditional remote-name reservation,
+  subnet and address-family trimming, numeric timeout and port conversion,
+  port ordering, cached-result sorting, and exact payload bytes.
+- `McpToolService` fell from 2,483 to 2,438 lines and its same-library aggregate
+  fell from 2,575 to 2,530 lines. The independent handler is ratcheted at 77
+  lines.
+- The focused verifier passed 103 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,539 root tests plus 13 internal-package
+  tests at 72.84% line coverage; the handler reached 96.43% coverage and
+  `LanScanTools` reached 95.45% without interfaces, probes, ARP/NDP, or mDNS.
+
+Serial handler status (2026-07-17):
+
+- `BuiltInSerialToolHandler` now owns the six ordered serial definitions,
+  platform-aware exposure, direct argument normalization, five direct service
+  calls, compatible result envelopes, and the direct `serial_open` denial
+  while reusing `SerialPortTools` schemas.
+- Characterization preserves placement after LAN and before Computer Use,
+  unsupported-platform exposure, unavailable and disabled behavior,
+  unconditional remote-name reservation, trimming and numeric conversions,
+  defaults, delimiter and field forwarding, exact payload bytes, and legacy
+  JSON-error success envelopes.
+- ChatNotifier remains the only approved `serial_open` path. Tests use a
+  deterministic `SerialPortService` subclass and never enumerate or operate
+  real serial hardware.
+- `McpToolService` fell from 2,438 to 2,353 lines and its same-library aggregate
+  fell from 2,530 to 2,445 lines. The independent handler is ratcheted at 141
+  lines.
+- The focused verifier passed 124 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,551 root tests plus 13 internal-package
+  tests at 72.90% line coverage; the handler reached 98.18% coverage and
+  `SerialPortTools` reached 98.44% without native inventory or hardware access.
+
+SSH handler status (2026-07-17):
+
+- `BuiltInSshToolHandler` now owns the three ordered SSH definitions,
+  availability, direct connect denial, approved command trimming and
+  execution, disconnect execution, and compatible result envelopes.
+- Characterization preserves placement after Git and before BLE, unavailable
+  and disabled behavior, unconditional remote-name reservation, exact
+  inactive-session guidance, command output formatting, idempotent disconnect,
+  and service exception conversion.
+- ChatNotifier remains the only connection path and the owner of per-command
+  approval and result caching. Tests use a deterministic `SshService` subclass
+  and never open sockets, authenticate, or read credentials.
+- `McpToolService` fell from 2,353 to 2,191 lines and its same-library aggregate
+  fell from 2,445 to 2,283 lines. The independent handler is ratcheted at 183
+  lines.
+- The focused verifier passed 118 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,563 root tests plus 13 internal-package
+  tests at 72.95% line coverage; the handler reached 98.33% coverage without
+  network access.
+
+Browser handler status (2026-07-17):
+
+- `BuiltInBrowserToolHandler` now owns all 12 ordered browser definitions,
+  availability, complete prefix routing, argument normalization, service
+  dispatch, and compatible JSON result normalization.
+- Characterization preserves global placement after Computer Use, disabled
+  direct routing, exact and prefix collision reservation, selector trimming,
+  numeric and string ref conversion, defaults, exact result bytes, unknown
+  prefix errors, and service exception propagation.
+- ChatNotifier still owns sensitive fill, click, submit, JavaScript, and save
+  approval, reviewer redaction, pending UI state, and save-target previews.
+  Tests use a deterministic service subclass and do not mount a webview,
+  access the network, evaluate JavaScript, or write browser save files.
+- `McpToolService` fell from 2,191 to 1,861 lines and its same-library aggregate
+  fell from 2,283 to 1,953 lines. The handler is ratcheted at 395 lines.
+- The focused verifier passed 143 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,578 root tests plus 13 internal-package
+  tests at 73.47% line coverage; the handler reached 100.00% coverage.
+
+Computer Use handler status (2026-07-17):
+
+- `BuiltInComputerUseToolHandler` now owns all 19 ordered Computer Use
+  definitions, availability, complete prefix routing, argument compatibility,
+  post-approval native service dispatch, and compatible JSON result
+  normalization.
+- Characterization preserves placement after serial and before browser,
+  disabled direct routing, exact and prefix collision reservation, permission
+  defaults and the legacy `screenCapture` alias, System Settings defaults,
+  argument-free audio stop, exact result bytes, unknown-prefix results, and
+  service exception propagation.
+- ChatNotifier and `ChatToolDispatcher` still own policy classification,
+  planning restrictions, target safety, action-time confirmation, approval
+  caching, smoke arming, audit, result redaction, emergency stop, and
+  post-action observation. Tests use a deterministic service subclass and
+  perform no real desktop actions.
+- `McpToolService` fell from 1,861 to 1,202 lines and its same-library aggregate
+  fell from 1,953 to 1,294 lines. The handler is ratcheted at 714 lines.
+- The focused verifier passed 154 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,589 root tests plus 13 internal-package
+  tests at 73.15% line coverage; the handler reached 100.00% coverage.
+
 Next slice:
 
-- Extract remote MCP server connection and trust-state handling. Preserve
-  server identity, trusted-HTTP and desktop-stdio behavior, transport client
-  ownership, configuration semantics, remote tool ordering, and public result
-  envelopes.
+- Continue Phase 4 with the Computer Use action gate plan after the permission
+  and trust panel extraction. Preserve all derived runtime-map assembly,
+  live-smoke ownership, permission state, and helper or platform actions in the
+  page coordinator.
 
 Exit criteria:
 
@@ -306,6 +542,30 @@ Candidate slices:
 1. Extract Computer Use permission and trust panels.
 2. Extract diagnostics sections with pure view models.
 3. Extract repeated form fields and validation display helpers.
+
+Permission and trust panel status (2026-07-17):
+
+- `ComputerUsePermissionTrustPanel` now owns the ordered permission flow and
+  recovery guidance behind derived grant flags, a loading flag, a typed
+  recovery summary, and three explicit callbacks.
+- Characterization preserves row-specific Accessibility and Screen Recording
+  actions, independent rechecks, loading disablement, completed-row display,
+  conditional recovery details, exact copy, and presentation order.
+- The settings page remains the only owner of permission requests, System
+  Settings navigation, helper lifecycle, audit, diagnostics, app lifecycle,
+  and refresh state. Direct widget tests perform no platform action.
+- `computer_use_settings_page.dart` fell from 3,270 to 2,995 lines. The
+  independent panel is ratcheted at 318 lines.
+- The focused verifier passed 53 root tests plus 13 internal-package tests.
+  The full repository gate passed 3,595 root tests plus 13 internal-package
+  tests at 73.16% line coverage; the panel reached 100.00% coverage.
+
+Next slice:
+
+- Characterize and extract the Computer Use action gate plan into one
+  stateless widget with explicit derived inputs. Keep runtime-map assembly,
+  permission state, live-smoke ownership, and all helper or platform actions
+  in the page coordinator.
 
 Exit criteria:
 

@@ -1,14 +1,33 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/ble_service.dart';
+import 'package:caverno/core/services/browser_session_service.dart';
+import 'package:caverno/core/services/browser_tool_policy.dart';
+import 'package:caverno/core/services/lan_scan_service.dart';
 import 'package:caverno/core/services/macos_computer_use_service.dart';
+import 'package:caverno/core/services/macos_computer_use_tool_policy.dart';
+import 'package:caverno/core/services/serial_port_service.dart';
+import 'package:caverno/core/services/ssh_service.dart';
+import 'package:caverno/core/services/wifi_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_monitor_service.dart';
 import 'package:caverno/features/chat/data/datasources/background_process_tools.dart';
+import 'package:caverno/features/chat/data/datasources/built_in_ble_tool_handler.dart';
+import 'package:caverno/features/chat/data/datasources/built_in_browser_tool_handler.dart';
+import 'package:caverno/features/chat/data/datasources/built_in_computer_use_tool_handler.dart';
+import 'package:caverno/features/chat/data/datasources/built_in_lan_scan_tool_handler.dart';
+import 'package:caverno/features/chat/data/datasources/built_in_serial_tool_handler.dart';
+import 'package:caverno/features/chat/data/datasources/built_in_ssh_tool_handler.dart';
+import 'package:caverno/features/chat/data/datasources/built_in_wifi_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
+import 'package:caverno/features/chat/data/datasources/searxng_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/data/repositories/skill_repository.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -67,8 +86,38 @@ const _localCommandToolNames = [
   'run_tests',
 ];
 
+const _sshToolNames = ['ssh_connect', 'ssh_execute_command', 'ssh_disconnect'];
+
+const _bleToolNames = BuiltInBleToolHandler.toolNames;
+const _wifiToolNames = BuiltInWifiToolHandler.toolNames;
+const _lanScanToolNames = BuiltInLanScanToolHandler.toolNames;
+const _serialToolNames = BuiltInSerialToolHandler.toolNames;
+const _computerUseToolNames = BuiltInComputerUseToolHandler.toolNames;
+const _browserToolNames = BuiltInBrowserToolHandler.toolNames;
+
+const _interceptedRemoteCollisionNames = [
+  'spawn_subagent',
+  'get_subagent_result',
+  'save_skill',
+];
+
+const _prefixCollisionRemoteNames = [
+  'browser_open',
+  'browser_export_state',
+  'computer_click',
+  'computer_custom_action',
+  'Browser_Mixed_Case',
+  'COMPUTER_Mixed_Case',
+];
+
 String _openAiFunctionName(Map<String, dynamic> tool) =>
     (tool['function']! as Map<String, dynamic>)['name']! as String;
+
+List<dynamic> _definitionRequired(Map<String, dynamic> tool) {
+  final function = tool['function']! as Map<String, dynamic>;
+  final parameters = function['parameters']! as Map<String, dynamic>;
+  return parameters['required'] as List<dynamic>? ?? const <dynamic>[];
+}
 
 class _FakeBackgroundProcessTools extends BackgroundProcessTools {
   _FakeBackgroundProcessTools({
@@ -267,6 +316,712 @@ void main() {
         expect(result.isSuccess, isFalse);
         expect(result.errorMessage, testCase.$3);
       }
+    });
+
+    test('preserves ordered SSH definitions and service placement', () {
+      final unavailableNames = McpToolService()
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(unavailableNames.intersection(_sshToolNames.toSet()), isEmpty);
+
+      final service = McpToolService(
+        sshService: _FakeMcpSshService(),
+        bleService: BleService(),
+      );
+      final definitions = service.getOpenAiToolDefinitions();
+      final names = definitions.map(_openAiFunctionName).toList();
+      final sshDefinitions = definitions
+          .where((tool) => _sshToolNames.contains(_openAiFunctionName(tool)))
+          .toList();
+
+      expect(sshDefinitions.map(_openAiFunctionName), _sshToolNames);
+      final sshStart = names.indexOf(_sshToolNames.first);
+      final sshEnd = names.indexOf(_sshToolNames.last);
+      expect(sshStart, names.indexOf('git_finish_worktree_session') + 1);
+      expect(names.indexOf(_bleToolNames.first), sshEnd + 1);
+    });
+
+    test('preserves SSH direct denial and disabled routing', () async {
+      final ssh = _FakeMcpSshService();
+      final service = McpToolService(
+        sshService: ssh,
+        disabledBuiltInTools: _sshToolNames.toSet(),
+      );
+      final names = service
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(names.intersection(_sshToolNames.toSet()), isEmpty);
+
+      final connect = await service.executeTool(
+        name: 'ssh_connect',
+        arguments: const {'host': 'example.com'},
+      );
+      final disconnect = await service.executeTool(
+        name: 'ssh_disconnect',
+        arguments: const {},
+      );
+
+      expect(connect.isSuccess, isFalse);
+      expect(
+        connect.errorMessage,
+        'ssh_connect must be handled by ChatNotifier (internal error)',
+      );
+      expect(disconnect.isSuccess, isTrue);
+      expect(disconnect.result, 'No active SSH session');
+      expect(ssh.disconnectCalls, 1);
+    });
+
+    test('preserves approved SSH command execution and validation', () async {
+      final ssh = _FakeMcpSshService(
+        connected: true,
+        executionResult: SshExecutionResult(
+          stdout: 'out\n',
+          stderr: 'warn\n',
+          exitCode: 7,
+        ),
+      );
+      final service = McpToolService(sshService: ssh);
+
+      final executed = await service.executeTool(
+        name: 'ssh_execute_command',
+        arguments: const {'command': '  printf output  ', 'reason': 'verify'},
+      );
+      final empty = await service.executeTool(
+        name: 'ssh_execute_command',
+        arguments: const {'command': '   '},
+      );
+
+      expect(executed.isSuccess, isTrue);
+      expect(
+        executed.result,
+        'exit_code: 7\n--- stdout ---\nout\n\n--- stderr ---\nwarn\n\n',
+      );
+      expect(ssh.executedCommands, ['printf output']);
+      expect(empty.isSuccess, isFalse);
+      expect(empty.errorMessage, 'command is required');
+      expect(ssh.executedCommands, hasLength(1));
+    });
+
+    test('preserves unavailable and inactive SSH results', () async {
+      final unavailable = McpToolService();
+      final inactiveSsh = _FakeMcpSshService();
+      final inactive = McpToolService(sshService: inactiveSsh);
+
+      final unavailableExecute = await unavailable.executeTool(
+        name: 'ssh_execute_command',
+        arguments: const {'command': 'pwd'},
+      );
+      final unavailableDisconnect = await unavailable.executeTool(
+        name: 'ssh_disconnect',
+        arguments: const {},
+      );
+      final inactiveExecute = await inactive.executeTool(
+        name: 'ssh_execute_command',
+        arguments: const {'command': 'pwd'},
+      );
+
+      expect(unavailableExecute.isSuccess, isFalse);
+      expect(unavailableExecute.errorMessage, 'SSH service is unavailable');
+      expect(unavailableDisconnect.isSuccess, isTrue);
+      expect(unavailableDisconnect.result, 'No active SSH session');
+      expect(inactiveExecute.isSuccess, isFalse);
+      expect(
+        inactiveExecute.errorMessage,
+        'No active SSH session — call ssh_connect first',
+      );
+      expect(inactiveSsh.executedCommands, isEmpty);
+    });
+
+    test(
+      'uses an injected SSH handler and retains the public service',
+      () async {
+        final publicSsh = _FakeMcpSshService();
+        final handlerSsh = _FakeMcpSshService(
+          connected: true,
+          executionResult: SshExecutionResult(
+            stdout: 'handler',
+            stderr: '',
+            exitCode: 0,
+          ),
+        );
+        final service = McpToolService(
+          sshService: publicSsh,
+          sshToolHandler: BuiltInSshToolHandler(sshService: handlerSsh),
+        );
+
+        final result = await service.executeTool(
+          name: 'ssh_execute_command',
+          arguments: const {'command': 'whoami'},
+        );
+
+        expect(identical(service.sshService, publicSsh), isTrue);
+        expect(result.isSuccess, isTrue);
+        expect(result.result, 'exit_code: 0\n--- stdout ---\nhandler\n');
+        expect(handlerSsh.executedCommands, ['whoami']);
+        expect(publicSsh.executedCommands, isEmpty);
+      },
+    );
+
+    test('preserves ordered BLE definitions and service placement', () {
+      final unavailableNames = McpToolService()
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(unavailableNames.intersection(_bleToolNames.toSet()), isEmpty);
+
+      final service = McpToolService(
+        sshService: SshService(),
+        bleService: BleService(),
+        wifiService: WifiService(),
+      );
+      final definitions = service.getOpenAiToolDefinitions();
+      final names = definitions.map(_openAiFunctionName).toList();
+      final bleDefinitions = definitions
+          .where((tool) => _bleToolNames.contains(_openAiFunctionName(tool)))
+          .toList();
+
+      expect(bleDefinitions.map(_openAiFunctionName), _bleToolNames);
+      final bleStart = names.indexOf(_bleToolNames.first);
+      final bleEnd = names.indexOf(_bleToolNames.last);
+      expect(bleStart, names.indexOf('ssh_disconnect') + 1);
+      expect(names.indexOf('wifi_scan'), bleEnd + 1);
+    });
+
+    test('hides disabled BLE definitions but keeps direct routing', () async {
+      final service = McpToolService(
+        bleService: BleService(),
+        disabledBuiltInTools: _bleToolNames.toSet(),
+      );
+      final names = service
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(names.intersection(_bleToolNames.toSet()), isEmpty);
+
+      final result = await service.executeTool(
+        name: 'ble_connect',
+        arguments: const {'device_id': 'device'},
+      );
+      expect(result.isSuccess, isFalse);
+      expect(
+        result.errorMessage,
+        'ble_connect must be handled by ChatNotifier (internal error)',
+      );
+    });
+
+    test('preserves ordered WiFi definitions and service placement', () {
+      final unavailableNames = McpToolService()
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(unavailableNames.intersection(_wifiToolNames.toSet()), isEmpty);
+
+      final service = McpToolService(
+        bleService: BleService(),
+        wifiService: _FakeMcpWifiService(),
+        lanScanService: LanScanService(),
+      );
+      final definitions = service.getOpenAiToolDefinitions();
+      final names = definitions.map(_openAiFunctionName).toList();
+      final wifiDefinitions = definitions
+          .where((tool) => _wifiToolNames.contains(_openAiFunctionName(tool)))
+          .toList();
+
+      expect(wifiDefinitions.map(_openAiFunctionName), _wifiToolNames);
+      final wifiStart = names.indexOf(_wifiToolNames.first);
+      final wifiEnd = names.indexOf(_wifiToolNames.last);
+      expect(wifiStart, names.indexOf(_bleToolNames.last) + 1);
+      expect(names.indexOf('lan_scan'), wifiEnd + 1);
+    });
+
+    test('hides disabled WiFi definitions but keeps direct routing', () async {
+      final wifi = _FakeMcpWifiService(cachedResult: 'cached:ssid');
+      final service = McpToolService(
+        wifiService: wifi,
+        disabledBuiltInTools: _wifiToolNames.toSet(),
+      );
+      final names = service
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(names.intersection(_wifiToolNames.toSet()), isEmpty);
+
+      final result = await service.executeTool(
+        name: 'wifi_get_scan_results',
+        arguments: const {'sort_by': 'ssid'},
+      );
+      expect(result.isSuccess, isTrue);
+      expect(result.result, 'cached:ssid');
+      expect(wifi.scanResultSorts, ['ssid']);
+    });
+
+    test('preserves ordered LAN scan definitions and service placement', () {
+      final unavailableNames = McpToolService()
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(unavailableNames.intersection(_lanScanToolNames.toSet()), isEmpty);
+
+      final service = McpToolService(
+        wifiService: _FakeMcpWifiService(),
+        lanScanService: _FakeMcpLanScanService(),
+        serialPortService: SerialPortService(),
+      );
+      final definitions = service.getOpenAiToolDefinitions();
+      final names = definitions.map(_openAiFunctionName).toList();
+      final lanDefinitions = definitions
+          .where(
+            (tool) => _lanScanToolNames.contains(_openAiFunctionName(tool)),
+          )
+          .toList();
+
+      expect(lanDefinitions.map(_openAiFunctionName), _lanScanToolNames);
+      final lanStart = names.indexOf(_lanScanToolNames.first);
+      final lanEnd = names.indexOf(_lanScanToolNames.last);
+      expect(lanStart, names.indexOf(_wifiToolNames.last) + 1);
+      if (SerialPortService.isSupported) {
+        expect(names.indexOf('serial_list_ports'), lanEnd + 1);
+      }
+    });
+
+    test('preserves LAN scan argument conversion and result bytes', () async {
+      final lanScan = _FakeMcpLanScanService(scanResult: '{"hosts_found":1}\n');
+      final service = McpToolService(lanScanService: lanScan);
+
+      final result = await service.executeTool(
+        name: 'lan_scan',
+        arguments: const {
+          'subnet': ' 192.0.2.0/30 ',
+          'ip_version': ' ipv4 ',
+          'timeout': 250.9,
+          'ports': [443.8, 22],
+        },
+      );
+
+      expect(result.toolName, 'lan_scan');
+      expect(result.result, '{"hosts_found":1}\n');
+      expect(result.isSuccess, isTrue);
+      expect(result.errorMessage, isNull);
+      expect(lanScan.scanCalls, [
+        {
+          'subnet': '192.0.2.0/30',
+          'ip_version': 'ipv4',
+          'timeout_ms': 250,
+          'ports': [443, 22],
+        },
+      ]);
+    });
+
+    test('hides disabled LAN definitions but keeps direct routing', () async {
+      final lanScan = _FakeMcpLanScanService(cachedResult: 'cached:hostname');
+      final service = McpToolService(
+        lanScanService: lanScan,
+        disabledBuiltInTools: _lanScanToolNames.toSet(),
+      );
+      final names = service
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(names.intersection(_lanScanToolNames.toSet()), isEmpty);
+
+      final result = await service.executeTool(
+        name: 'lan_get_scan_results',
+        arguments: const {'sort_by': 'hostname'},
+      );
+      expect(result.isSuccess, isTrue);
+      expect(result.result, 'cached:hostname');
+      expect(lanScan.scanResultSorts, ['hostname']);
+    });
+
+    test('preserves ordered serial definitions and service placement', () {
+      final unavailableNames = McpToolService()
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(unavailableNames.intersection(_serialToolNames.toSet()), isEmpty);
+
+      final service = McpToolService(
+        lanScanService: _FakeMcpLanScanService(),
+        serialPortService: _FakeMcpSerialPortService(),
+        computerUseService: _FakeMacosComputerUseService(),
+      );
+      final definitions = service.getOpenAiToolDefinitions();
+      final names = definitions.map(_openAiFunctionName).toList();
+      final serialDefinitions = definitions
+          .where((tool) => _serialToolNames.contains(_openAiFunctionName(tool)))
+          .toList();
+
+      if (SerialPortService.isSupported) {
+        expect(serialDefinitions.map(_openAiFunctionName), _serialToolNames);
+        final serialStart = names.indexOf(_serialToolNames.first);
+        final serialEnd = names.indexOf(_serialToolNames.last);
+        expect(serialStart, names.indexOf(_lanScanToolNames.last) + 1);
+        expect(names.indexOf('computer_get_permissions'), serialEnd + 1);
+      } else {
+        expect(serialDefinitions, isEmpty);
+      }
+    });
+
+    test('preserves serial direct denial and disabled routing', () async {
+      final serial = _FakeMcpSerialPortService(listResult: 'serial:list');
+      final service = McpToolService(
+        serialPortService: serial,
+        disabledBuiltInTools: _serialToolNames.toSet(),
+      );
+      final names = service
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(names.intersection(_serialToolNames.toSet()), isEmpty);
+
+      final listResult = await service.executeTool(
+        name: 'serial_list_ports',
+        arguments: const {},
+      );
+      final openResult = await service.executeTool(
+        name: 'serial_open',
+        arguments: const {'port': '/dev/cu.example'},
+      );
+
+      expect(listResult.result, 'serial:list');
+      expect(listResult.isSuccess, isTrue);
+      expect(serial.listCalls, 1);
+      expect(openResult.isSuccess, isFalse);
+      expect(
+        openResult.errorMessage,
+        'Serial tool serial_open must be invoked with user approval and '
+        'cannot be executed directly.',
+      );
+    });
+
+    test(
+      'hides unsupported serial definitions but keeps direct routing',
+      () async {
+        final serial = _FakeMcpSerialPortService(
+          listResult: 'serial:unsupported',
+        );
+        final service = McpToolService(
+          serialPortService: serial,
+          serialToolHandler: BuiltInSerialToolHandler(
+            serialPortService: serial,
+            platformSupport: () => false,
+          ),
+        );
+        final names = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toSet();
+
+        final result = await service.executeTool(
+          name: 'serial_list_ports',
+          arguments: const {},
+        );
+
+        expect(names.intersection(_serialToolNames.toSet()), isEmpty);
+        expect(result.result, 'serial:unsupported');
+        expect(result.isSuccess, isTrue);
+        expect(serial.listCalls, 1);
+      },
+    );
+
+    test(
+      'preserves serial direct argument conversion and result bytes',
+      () async {
+        final serial = _FakeMcpSerialPortService(
+          readResult: 'serial:read\n',
+          decodeResult: 'serial:decode',
+          writeResult: 'serial:write',
+          closeResult: 'serial:close',
+        );
+        final service = McpToolService(serialPortService: serial);
+
+        final read = await service.executeTool(
+          name: 'serial_read',
+          arguments: const {
+            'port': ' /dev/cu.read ',
+            'encoding': 'hexdump',
+            'max_bytes': 10.9,
+            'clear': false,
+            'frame_delimiter': '0d0a',
+            'frame_length': 8.7,
+            'max_frames': 4.8,
+            'include_stats': true,
+          },
+        );
+        final decode = await service.executeTool(
+          name: 'serial_decode',
+          arguments: const {
+            'data': '01 02',
+            'port': ' /dev/cu.decode ',
+            'format': '<2B',
+            'fields': ['first', 2],
+            'consume': true,
+          },
+        );
+        final write = await service.executeTool(
+          name: 'serial_write',
+          arguments: const {
+            'port': ' /dev/cu.write ',
+            'data': '41',
+            'encoding': 'hex',
+          },
+        );
+        final close = await service.executeTool(
+          name: 'serial_close',
+          arguments: const {'port': ' /dev/cu.close '},
+        );
+
+        expect(read.result, 'serial:read\n');
+        expect(decode.result, 'serial:decode');
+        expect(write.result, 'serial:write');
+        expect(close.result, 'serial:close');
+        expect(
+          [read, decode, write, close].every((result) => result.isSuccess),
+          isTrue,
+        );
+        expect(serial.readCalls, [
+          {
+            'port': '/dev/cu.read',
+            'encoding': 'hexdump',
+            'max_bytes': 10,
+            'clear': false,
+            'frame_delimiter_hex': '0d0a',
+            'frame_length': 8,
+            'max_frames': 4,
+            'include_stats': true,
+          },
+        ]);
+        expect(serial.decodeCalls, [
+          {
+            'data_hex': '01 02',
+            'port': '/dev/cu.decode',
+            'format': '<2B',
+            'fields': ['first', '2'],
+            'consume': true,
+          },
+        ]);
+        expect(serial.writeCalls, [
+          {'port': '/dev/cu.write', 'data': '41', 'encoding': 'hex'},
+        ]);
+        expect(serial.closeCalls, ['/dev/cu.close']);
+      },
+    );
+
+    test('preserves ordered browser definitions and service placement', () {
+      final unavailableNames = McpToolService()
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(unavailableNames.intersection(_browserToolNames.toSet()), isEmpty);
+
+      final service = McpToolService(
+        computerUseService: _FakeMacosComputerUseService(),
+        browserService: _FakeMcpBrowserSessionService(),
+      );
+      final definitions = service.getOpenAiToolDefinitions();
+      final names = definitions.map(_openAiFunctionName).toList();
+      final browserDefinitions = definitions
+          .where(
+            (tool) => _browserToolNames.contains(_openAiFunctionName(tool)),
+          )
+          .toList();
+
+      expect(BrowserToolPolicy.allTools, _browserToolNames.toSet());
+      expect(browserDefinitions.map(_openAiFunctionName), _browserToolNames);
+      final browserStart = names.indexOf(_browserToolNames.first);
+      final browserEnd = names.indexOf(_browserToolNames.last);
+      expect(
+        browserStart,
+        names.indexOf('computer_stop_system_audio_recording') + 1,
+      );
+      expect(names.indexOf('tool_search'), 0);
+      expect(browserEnd, names.length - 1);
+
+      expect(_definitionRequired(browserDefinitions[0]), ['url']);
+      expect(_definitionRequired(browserDefinitions[7]), ['value']);
+      expect(_definitionRequired(browserDefinitions[10]), ['script']);
+      expect(_definitionRequired(browserDefinitions[11]), ['filename', 'data']);
+    });
+
+    test(
+      'hides disabled browser definitions but keeps direct routing',
+      () async {
+        final browser = _FakeMcpBrowserSessionService();
+        final service = McpToolService(
+          browserService: browser,
+          disabledBuiltInTools: _browserToolNames.toSet(),
+        );
+        final names = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toSet();
+        expect(names.intersection(_browserToolNames.toSet()), isEmpty);
+
+        final result = await service.executeTool(
+          name: 'browser_get_content',
+          arguments: const {},
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(result.result, '{"ok":true,"tool":"browser_get_content"}');
+        expect(browser.calls.map((call) => call.name), ['browser_get_content']);
+        expect(browser.calls.single.arguments, {
+          'format': 'text',
+          'max_chars': null,
+        });
+      },
+    );
+
+    test(
+      'uses an injected browser handler independently of the service',
+      () async {
+        final browser = _FakeMcpBrowserSessionService();
+        final handler = BuiltInBrowserToolHandler(browserService: browser);
+        final service = McpToolService(browserToolHandler: handler);
+
+        final result = await service.executeTool(
+          name: 'browser_snapshot',
+          arguments: const {'max_elements': 9},
+        );
+
+        expect(service.browserService, isNull);
+        expect(service.browserToolHandler, same(handler));
+        expect(result.isSuccess, isTrue);
+        expect(browser.calls.single.name, 'browser_snapshot');
+        expect(browser.calls.single.arguments, {'max_elements': 9});
+        expect(
+          service.getOpenAiToolDefinitions().map(_openAiFunctionName),
+          contains('browser_snapshot'),
+        );
+      },
+    );
+
+    test('preserves every browser argument conversion and default', () async {
+      final browser = _FakeMcpBrowserSessionService();
+      final service = McpToolService(browserService: browser);
+
+      final results = <McpToolResult>[
+        await service.executeTool(
+          name: 'browser_open',
+          arguments: const {'url': 'https://example.com', 'reason': 'inspect'},
+        ),
+        await service.executeTool(
+          name: 'browser_snapshot',
+          arguments: const {'max_elements': 12.9},
+        ),
+        await service.executeTool(
+          name: 'browser_get_content',
+          arguments: const {'format': 'html', 'max_chars': 45.8},
+        ),
+        await service.executeTool(
+          name: 'browser_screenshot',
+          arguments: const {},
+        ),
+        await service.executeTool(
+          name: 'browser_wait',
+          arguments: const {'selector': '  #ready  ', 'timeout_ms': 250.7},
+        ),
+        await service.executeTool(
+          name: 'browser_navigate_history',
+          arguments: const {},
+        ),
+        await service.executeTool(name: 'browser_close', arguments: const {}),
+        await service.executeTool(
+          name: 'browser_fill',
+          arguments: const {
+            'ref': '12',
+            'selector': '   ',
+            'value': 'secret',
+            'reason': 'fill',
+          },
+        ),
+        await service.executeTool(
+          name: 'browser_click',
+          arguments: const {'ref': 4.9, 'selector': '  button.submit  '},
+        ),
+        await service.executeTool(
+          name: 'browser_submit',
+          arguments: const {'selector': '  form.search  '},
+        ),
+        await service.executeTool(
+          name: 'browser_eval',
+          arguments: const {'script': 'return document.title'},
+        ),
+        await service.executeTool(
+          name: 'browser_save_data',
+          arguments: const {},
+        ),
+      ];
+
+      expect(results.every((result) => result.isSuccess), isTrue);
+      expect(
+        results.map((result) => result.result),
+        _browserToolNames.map((name) => jsonEncode({'ok': true, 'tool': name})),
+      );
+      expect(browser.calls.map((call) => call.name), _browserToolNames);
+      expect(browser.calls.map((call) => call.arguments), [
+        <String, dynamic>{'url': 'https://example.com'},
+        <String, dynamic>{'max_elements': 12},
+        <String, dynamic>{'format': 'html', 'max_chars': 45},
+        <String, dynamic>{},
+        <String, dynamic>{'selector': '#ready', 'timeout_ms': 250},
+        <String, dynamic>{'direction': 'reload'},
+        <String, dynamic>{},
+        <String, dynamic>{'ref': 12, 'selector': null, 'value': 'secret'},
+        <String, dynamic>{'ref': 4, 'selector': 'button.submit'},
+        <String, dynamic>{'selector': 'form.search'},
+        <String, dynamic>{'script': 'return document.title'},
+        <String, dynamic>{
+          'filename': 'browser_data',
+          'data': '',
+          'format': 'json',
+          'destination': null,
+        },
+      ]);
+    });
+
+    test('preserves browser failure and unknown-prefix results', () async {
+      const failedPayload = '{"ok":false,"error":"page failed"}';
+      final browser = _FakeMcpBrowserSessionService(
+        results: const {'browser_open': failedPayload},
+      );
+      final available = McpToolService(browserService: browser);
+      final unavailable = McpToolService();
+
+      final failed = await available.executeTool(
+        name: 'browser_open',
+        arguments: const {'url': 'https://example.com'},
+      );
+      final unknown = await available.executeTool(
+        name: 'browser_export_state',
+        arguments: const {},
+      );
+      final unavailableUnknown = await unavailable.executeTool(
+        name: 'browser_export_state',
+        arguments: const {},
+      );
+
+      expect(failed.result, failedPayload);
+      expect(failed.isSuccess, isFalse);
+      expect(failed.errorMessage, 'page failed');
+      expect(unknown.isSuccess, isFalse);
+      expect(jsonDecode(unknown.result), {
+        'ok': false,
+        'code': 'tool_not_available',
+        'error': 'No matching browser tool is available: browser_export_state',
+      });
+      expect(
+        unknown.errorMessage,
+        'No matching browser tool is available: browser_export_state',
+      );
+      expect(unavailableUnknown.result, isEmpty);
+      expect(unavailableUnknown.isSuccess, isFalse);
+      expect(
+        unavailableUnknown.errorMessage,
+        'Built-in browser tools are unavailable',
+      );
     });
 
     test('preserves ordered built-in filesystem definitions and placement', () {
@@ -1401,6 +2156,240 @@ packages:
       expect(decoded['exit_code'], 2);
     });
 
+    test('preserves ordered Computer Use definitions and placement', () {
+      final unavailableNames = McpToolService()
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(
+        unavailableNames.intersection(_computerUseToolNames.toSet()),
+        isEmpty,
+      );
+
+      final service = McpToolService(
+        serialPortService: _FakeMcpSerialPortService(),
+        computerUseService: _RecordingMacosComputerUseService(),
+        browserService: _FakeMcpBrowserSessionService(),
+      );
+      final definitions = service.getOpenAiToolDefinitions();
+      final names = definitions.map(_openAiFunctionName).toList();
+      final computerDefinitions = definitions
+          .where(
+            (tool) => _computerUseToolNames.contains(_openAiFunctionName(tool)),
+          )
+          .toList();
+
+      expect(
+        MacosComputerUseToolPolicy.allToolNames,
+        _computerUseToolNames.toSet(),
+      );
+      expect(
+        computerDefinitions.map(_openAiFunctionName),
+        _computerUseToolNames,
+      );
+      final computerStart = names.indexOf(_computerUseToolNames.first);
+      final computerEnd = names.indexOf(_computerUseToolNames.last);
+      expect(computerStart, names.indexOf(_serialToolNames.last) + 1);
+      expect(names.indexOf(_browserToolNames.first), computerEnd + 1);
+      expect(_definitionRequired(computerDefinitions[0]), isEmpty);
+      expect(_definitionRequired(computerDefinitions[2]), ['section']);
+      expect(_definitionRequired(computerDefinitions[11]), isEmpty);
+      expect(_definitionRequired(computerDefinitions[14]), ['text']);
+      expect(_definitionRequired(computerDefinitions[15]), ['key']);
+      expect(_definitionRequired(computerDefinitions[16]), ['direction']);
+
+      final schemaDigest = sha256.convert(
+        utf8.encode(jsonEncode(computerDefinitions)),
+      );
+      expect(
+        schemaDigest.toString(),
+        'fb9b07ab383c7bb19676ef799b0173500eff7012d98d804a1cbaeeda0548d99e',
+      );
+    });
+
+    test(
+      'hides disabled Computer Use definitions but keeps direct routing',
+      () async {
+        final computerUse = _RecordingMacosComputerUseService();
+        final service = McpToolService(
+          computerUseService: computerUse,
+          disabledBuiltInTools: _computerUseToolNames.toSet(),
+        );
+        final names = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toSet();
+        expect(names.intersection(_computerUseToolNames.toSet()), isEmpty);
+
+        final result = await service.executeTool(
+          name: 'computer_get_permissions',
+          arguments: const {},
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(result.result, '{"ok":true,"tool":"computer_get_permissions"}');
+        expect(computerUse.calls.single.name, 'computer_get_permissions');
+        expect(computerUse.calls.single.arguments, isEmpty);
+      },
+    );
+
+    test(
+      'uses an injected Computer Use handler independently of the service',
+      () async {
+        final computerUse = _RecordingMacosComputerUseService();
+        final handler = BuiltInComputerUseToolHandler(
+          computerUseService: computerUse,
+        );
+        final service = McpToolService(computerUseToolHandler: handler);
+
+        final result = await service.executeTool(
+          name: 'computer_list_windows',
+          arguments: const {'space_scope': 'all'},
+        );
+
+        expect(service.computerUseService, isNull);
+        expect(service.computerUseToolHandler, same(handler));
+        expect(result.isSuccess, isTrue);
+        expect(computerUse.calls.single.name, 'computer_list_windows');
+        expect(computerUse.calls.single.arguments, {'space_scope': 'all'});
+        expect(
+          service.getOpenAiToolDefinitions().map(_openAiFunctionName),
+          contains('computer_list_windows'),
+        );
+      },
+    );
+
+    test('preserves every Computer Use service dispatch', () async {
+      final computerUse = _RecordingMacosComputerUseService();
+      final service = McpToolService(computerUseService: computerUse);
+      final results = <McpToolResult>[];
+
+      for (final name in _computerUseToolNames) {
+        final arguments = switch (name) {
+          'computer_request_permissions' => <String, dynamic>{
+            'accessibility': false,
+            'screen_capture': false,
+            'screenCapture': true,
+          },
+          'computer_open_system_settings' => <String, dynamic>{},
+          _ => <String, dynamic>{'marker': name},
+        };
+        results.add(
+          await service.executeTool(name: name, arguments: arguments),
+        );
+      }
+
+      expect(results.every((result) => result.isSuccess), isTrue);
+      expect(computerUse.calls.map((call) => call.name), _computerUseToolNames);
+      expect(computerUse.calls[0].arguments, isEmpty);
+      expect(computerUse.calls[1].arguments, {
+        'accessibility': false,
+        'screen_capture': false,
+      });
+      expect(computerUse.calls[2].arguments, {'section': 'privacy'});
+      for (
+        var index = 3;
+        index < _computerUseToolNames.length - 1;
+        index += 1
+      ) {
+        expect(computerUse.calls[index].arguments, {
+          'marker': _computerUseToolNames[index],
+        });
+      }
+      expect(computerUse.calls.last.arguments, isEmpty);
+    });
+
+    test(
+      'preserves Computer Use permission defaults and legacy alias',
+      () async {
+        final computerUse = _RecordingMacosComputerUseService();
+        final service = McpToolService(computerUseService: computerUse);
+
+        await service.executeTool(
+          name: 'computer_request_permissions',
+          arguments: const {},
+        );
+        await service.executeTool(
+          name: 'computer_request_permissions',
+          arguments: const {'screenCapture': false},
+        );
+        await service.executeTool(
+          name: 'computer_request_permissions',
+          arguments: const {'screen_capture': false, 'screenCapture': true},
+        );
+
+        expect(computerUse.calls.map((call) => call.arguments), [
+          <String, dynamic>{'accessibility': true, 'screen_capture': true},
+          <String, dynamic>{'accessibility': true, 'screen_capture': false},
+          <String, dynamic>{'accessibility': true, 'screen_capture': false},
+        ]);
+      },
+    );
+
+    test('preserves Computer Use failures and unknown-prefix routing', () async {
+      const failedPayload = '{"ok":false,"error":"desktop failed"}';
+      final computerUse = _RecordingMacosComputerUseService(
+        results: const {
+          'computer_click': failedPayload,
+          'computer_screenshot': '{"ok":false}',
+        },
+        errors: {'computer_drag': StateError('drag failed')},
+      );
+      final available = McpToolService(computerUseService: computerUse);
+      final unavailable = McpToolService();
+
+      final failed = await available.executeTool(
+        name: 'computer_click',
+        arguments: const {},
+      );
+      final fallback = await available.executeTool(
+        name: 'computer_screenshot',
+        arguments: const {},
+      );
+      final unknown = await available.executeTool(
+        name: 'computer_custom_action',
+        arguments: const {},
+      );
+      final unavailableUnknown = await unavailable.executeTool(
+        name: 'computer_custom_action',
+        arguments: const {},
+      );
+
+      expect(failed.result, failedPayload);
+      expect(failed.isSuccess, isFalse);
+      expect(failed.errorMessage, 'desktop failed');
+      expect(fallback.isSuccess, isFalse);
+      expect(fallback.errorMessage, 'Computer use tool failed');
+      expect(unknown.isSuccess, isFalse);
+      expect(jsonDecode(unknown.result), {
+        'ok': false,
+        'code': 'tool_not_available',
+        'error':
+            'No matching computer use tool is available: computer_custom_action',
+      });
+      expect(
+        unavailableUnknown.errorMessage,
+        'macOS computer use tools are unavailable',
+      );
+      await expectLater(
+        available.executeTool(name: 'computer_drag', arguments: const {}),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'drag failed',
+          ),
+        ),
+      );
+      await expectLater(
+        available.executeTool(
+          name: 'computer_request_permissions',
+          arguments: const {'accessibility': 1},
+        ),
+        throwsA(isA<TypeError>()),
+      );
+    });
+
     test('includes macOS computer-use tool definitions when available', () {
       final service = McpToolService(
         computerUseService: _FakeMacosComputerUseService(),
@@ -1669,6 +2658,337 @@ BuildVersion: 23F79
     });
 
     test(
+      'reports connecting state before remote discovery completes',
+      () async {
+        final toolsCompleter = Completer<List<McpTool>>();
+        final client = _FakeMcpClient(
+          baseUrl: 'https://pending.example/mcp',
+          tools: const [],
+          listToolsHandler: () => toolsCompleter.future,
+        );
+        final service = McpToolService(mcpClients: [client]);
+
+        final connectFuture = service.connect();
+
+        expect(service.status, McpConnectionStatus.connecting);
+        expect(service.lastError, isNull);
+        expect(service.tools, isEmpty);
+        expect(service.serverStates, hasLength(1));
+        expect(service.serverStates.single.identifier, client.identifier);
+        expect(
+          service.serverStates.single.status,
+          McpConnectionStatus.connecting,
+        );
+
+        toolsCompleter.complete([
+          McpTool(
+            name: 'remote_pending',
+            description: 'Pending remote tool',
+            inputSchema: const {'type': 'object'},
+          ),
+        ]);
+        await connectFuture;
+
+        expect(service.status, McpConnectionStatus.connected);
+        expect(service.tools.single.name, 'remote_pending');
+        expect(
+          service.serverStates.single.status,
+          McpConnectionStatus.connected,
+        );
+      },
+    );
+
+    test('keeps successful remote tools when another server fails', () async {
+      final successfulClient = _FakeMcpClient(
+        baseUrl: 'https://healthy.example/mcp',
+        tools: [
+          McpTool(
+            name: 'remote_healthy',
+            description: 'Healthy remote tool',
+            inputSchema: const {'type': 'object'},
+          ),
+        ],
+      );
+      final failedClient = _FakeMcpClient(
+        baseUrl: 'https://failed.example/mcp',
+        tools: const [],
+        listToolsError: StateError('list failed'),
+      );
+      final service = McpToolService(
+        mcpClients: [successfulClient, failedClient],
+      );
+
+      await service.connect();
+
+      expect(service.status, McpConnectionStatus.connected);
+      expect(service.tools.map((tool) => tool.name), ['remote_healthy']);
+      expect(
+        service.lastError,
+        '${failedClient.identifier}: Bad state: list failed',
+      );
+      expect(service.serverStates, hasLength(2));
+      expect(service.serverStates.map((state) => state.identifier), [
+        successfulClient.identifier,
+        failedClient.identifier,
+      ]);
+      expect(service.serverStates.map((state) => state.status), [
+        McpConnectionStatus.connected,
+        McpConnectionStatus.error,
+      ]);
+      expect(service.serverStates.map((state) => state.toolCount), [1, 0]);
+      expect(
+        () => service.serverStates.add(
+          const McpServerConnectionInfo(
+            identifier: 'extra',
+            status: McpConnectionStatus.connected,
+          ),
+        ),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('clears stale remote bindings when every server fails', () async {
+      final successfulClient = _FakeMcpClient(
+        baseUrl: 'https://initial.example/mcp',
+        tools: [
+          McpTool(
+            name: 'remote_initial',
+            description: 'Initial remote tool',
+            inputSchema: const {'type': 'object'},
+          ),
+        ],
+      );
+      final clients = <McpClientBase>[successfulClient];
+      final service = McpToolService(mcpClients: clients);
+      await service.connect();
+      final staleToolName = service.tools.single.name;
+
+      clients[0] = _FakeMcpClient(
+        baseUrl: 'https://failed.example/mcp',
+        tools: const [],
+        listToolsError: StateError('offline'),
+      );
+      await service.connect();
+
+      expect(service.status, McpConnectionStatus.error);
+      expect(service.tools, isEmpty);
+      expect(
+        service.lastError,
+        'https://failed.example/mcp: Bad state: offline',
+      );
+      expect(service.serverStates.single.toolCount, 0);
+      expect(service.serverStates.single.status, McpConnectionStatus.error);
+      final staleResult = await service.executeTool(
+        name: staleToolName,
+        arguments: const {},
+      );
+      expect(staleResult.isSuccess, isFalse);
+      expect(
+        staleResult.errorMessage,
+        'No matching tool available: $staleToolName',
+      );
+    });
+
+    test('refresh reconnects the configured MCP clients', () async {
+      final client = _FakeMcpClient(
+        baseUrl: 'https://refresh.example/mcp',
+        tools: [
+          McpTool(
+            name: 'remote_refresh',
+            description: 'Refresh remote tool',
+            inputSchema: const {'type': 'object'},
+          ),
+        ],
+      );
+      final service = McpToolService(mcpClients: [client]);
+
+      await service.connect();
+      await service.refresh();
+
+      expect(client.listToolsCallCount, 2);
+      expect(service.status, McpConnectionStatus.connected);
+      expect(service.tools.single.name, 'remote_refresh');
+    });
+
+    test('refresh preserves the overridable connect contract', () async {
+      final service = _RefreshRecordingMcpToolService();
+
+      await service.refresh();
+
+      expect(service.connectCallCount, 1);
+    });
+
+    test('empty override URL list wins and clears configured state', () async {
+      final client = _FakeMcpClient(
+        baseUrl: 'https://configured.example/mcp',
+        tools: [
+          McpTool(
+            name: 'remote_configured',
+            description: 'Configured remote tool',
+            inputSchema: const {'type': 'object'},
+          ),
+        ],
+      );
+      final service = McpToolService(mcpClients: [client]);
+      await service.connect();
+
+      await service.connect(
+        overrideUrls: const [],
+        overrideUrl: 'https://must-not-connect.example/mcp',
+      );
+
+      expect(client.listToolsCallCount, 1);
+      expect(service.status, McpConnectionStatus.disconnected);
+      expect(service.lastError, isNull);
+      expect(service.tools, isEmpty);
+      expect(service.serverStates, isEmpty);
+    });
+
+    test('blocked server override clears configured remote state', () async {
+      final client = _FakeMcpClient(
+        baseUrl: 'https://configured.example/mcp',
+        tools: [
+          McpTool(
+            name: 'remote_configured',
+            description: 'Configured remote tool',
+            inputSchema: const {'type': 'object'},
+          ),
+        ],
+      );
+      final service = McpToolService(mcpClients: [client]);
+      await service.connect();
+
+      await service.connect(
+        overrideServers: const [
+          McpServerConfig(
+            url: 'https://blocked.example/mcp',
+            trustState: McpServerTrustState.blocked,
+          ),
+        ],
+      );
+
+      expect(client.listToolsCallCount, 1);
+      expect(service.status, McpConnectionStatus.disconnected);
+      expect(service.lastError, isNull);
+      expect(service.tools, isEmpty);
+      expect(service.serverStates, isEmpty);
+    });
+
+    test('uses SearXNG only when no connected remote tools exist', () async {
+      final clients = <McpClientBase>[
+        _FakeMcpClient(baseUrl: 'https://empty.example/mcp', tools: const []),
+      ];
+      final service = McpToolService(
+        mcpClients: clients,
+        searxngClient: SearxngClient(baseUrl: 'https://search.example'),
+      );
+
+      await service.connect();
+
+      expect(service.status, McpConnectionStatus.connected);
+      expect(service.tools, isEmpty);
+      expect(
+        service.getOpenAiToolDefinitions().map(_openAiFunctionName),
+        contains('web_search'),
+      );
+
+      clients[0] = _FakeMcpClient(
+        baseUrl: 'https://tools.example/mcp',
+        tools: [
+          McpTool(
+            name: 'remote_catalog',
+            description: 'Remote catalog tool',
+            inputSchema: const {'type': 'object'},
+          ),
+        ],
+      );
+      await service.connect();
+
+      final names = service
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toList();
+      expect(names, contains('remote_catalog'));
+      expect(names, isNot(contains('web_search')));
+    });
+
+    test('namespaces duplicate remote tools in client order', () async {
+      final firstClient = _FakeMcpClient(
+        baseUrl: 'https://duplicate.example/mcp',
+        tools: [
+          McpTool(
+            name: 'remote_duplicate',
+            description: 'First duplicate',
+            inputSchema: const {'type': 'object'},
+          ),
+        ],
+      );
+      final secondClient = _FakeMcpClient(
+        baseUrl: 'https://duplicate.example/mcp',
+        tools: [
+          McpTool(
+            name: 'remote_duplicate',
+            description: 'Second duplicate',
+            inputSchema: const {'type': 'object'},
+          ),
+        ],
+      );
+      final service = McpToolService(mcpClients: [firstClient, secondClient]);
+
+      await service.connect();
+
+      expect(service.tools, hasLength(2));
+      expect(service.tools.map((tool) => tool.description), [
+        'First duplicate',
+        'Second duplicate',
+      ]);
+      expect(service.tools.map((tool) => tool.originalName), [
+        'remote_duplicate',
+        'remote_duplicate',
+      ]);
+      expect(service.tools.map((tool) => tool.sourceUrl), [
+        firstClient.identifier,
+        secondClient.identifier,
+      ]);
+      expect(service.tools.first.name, startsWith('remote_duplicate__'));
+      expect(service.tools.last.name, endsWith('_2'));
+      expect(service.tools.map((tool) => tool.name).toSet(), hasLength(2));
+      expect(service.tools.every((tool) => tool.name.length <= 64), isTrue);
+    });
+
+    test('wraps remote invocation errors after forwarding arguments', () async {
+      final client = _FakeMcpClient(
+        baseUrl: 'https://call.example/mcp',
+        tools: [
+          McpTool(
+            name: 'remote_call',
+            description: 'Remote call tool',
+            inputSchema: const {'type': 'object'},
+          ),
+        ],
+        callToolError: StateError('call failed'),
+      );
+      final service = McpToolService(mcpClients: [client]);
+      await service.connect();
+
+      final result = await service.executeTool(
+        name: service.tools.single.name,
+        arguments: const {'query': 'value', 'limit': 3},
+      );
+
+      expect(service.isExternalMcpToolName(service.tools.single.name), isTrue);
+      expect(service.isExternalMcpToolName('missing'), isFalse);
+      expect(result.isSuccess, isFalse);
+      expect(result.isExternalMcpResult, isTrue);
+      expect(result.result, isEmpty);
+      expect(result.errorMessage, 'Bad state: call failed');
+      expect(client.calledToolNames, ['remote_call']);
+      expect(client.calledArguments, [
+        {'query': 'value', 'limit': 3},
+      ]);
+    });
+
+    test(
       'namespaces remote tools that collide with built-in tools and routes calls',
       () async {
         final client = _FakeMcpClient(
@@ -1718,6 +3038,169 @@ BuildVersion: 23F79
     );
 
     test(
+      'namespaces remote tools intercepted before service fallback dispatch',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://intercepted.example.com/mcp',
+          tools: _interceptedRemoteCollisionNames
+              .map(
+                (name) => McpTool(
+                  name: name,
+                  description: 'Remote $name tool',
+                  inputSchema: const {'type': 'object'},
+                ),
+              )
+              .toList(),
+          results: {
+            for (final name in _interceptedRemoteCollisionNames)
+              name: 'remote:$name',
+          },
+        );
+        final service = McpToolService(
+          mcpClients: [client],
+          skillRepository: SkillRepository.inMemory(),
+        );
+
+        await service.connect();
+
+        expect(
+          service.tools,
+          hasLength(_interceptedRemoteCollisionNames.length),
+        );
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        expect(functionNames.toSet(), hasLength(functionNames.length));
+        for (final remoteTool in service.tools) {
+          expect(
+            _interceptedRemoteCollisionNames,
+            contains(remoteTool.originalName),
+          );
+          expect(remoteTool.name, startsWith('${remoteTool.originalName}__'));
+          expect(
+            functionNames.where((name) => name == remoteTool.originalName),
+            hasLength(1),
+          );
+          expect(functionNames, contains(remoteTool.name));
+
+          final result = await service.executeTool(
+            name: remoteTool.name,
+            arguments: {'source': remoteTool.originalName},
+          );
+          expect(result.isSuccess, isTrue);
+          expect(result.result, 'remote:${remoteTool.originalName}');
+        }
+        expect(client.calledToolNames, _interceptedRemoteCollisionNames);
+        expect(client.calledArguments, [
+          for (final name in _interceptedRemoteCollisionNames) {'source': name},
+        ]);
+      },
+    );
+
+    test(
+      'disabled or unavailable intercepted names still reserve collisions',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://disabled-intercepted.example.com/mcp',
+          tools: _interceptedRemoteCollisionNames
+              .map(
+                (name) => McpTool(
+                  name: name,
+                  description: 'Remote $name tool',
+                  inputSchema: const {'type': 'object'},
+                ),
+              )
+              .toList(),
+          results: {
+            for (final name in _interceptedRemoteCollisionNames)
+              name: 'remote:$name',
+          },
+        );
+        final service = McpToolService(
+          mcpClients: [client],
+          disabledBuiltInTools: const {'spawn_subagent', 'get_subagent_result'},
+        );
+
+        await service.connect();
+
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        for (final name in _interceptedRemoteCollisionNames) {
+          expect(functionNames, isNot(contains(name)));
+        }
+        for (final remoteTool in service.tools) {
+          expect(remoteTool.name, startsWith('${remoteTool.originalName}__'));
+          expect(functionNames, contains(remoteTool.name));
+
+          final result = await service.executeTool(
+            name: remoteTool.name,
+            arguments: {'disabled_source': remoteTool.originalName},
+          );
+          expect(result.isSuccess, isTrue);
+          expect(result.result, 'remote:${remoteTool.originalName}');
+        }
+        expect(client.calledToolNames, _interceptedRemoteCollisionNames);
+      },
+    );
+
+    test(
+      'routes reserved-prefix remote tools through neutral MCP aliases',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://prefixes.example.com/mcp',
+          tools: _prefixCollisionRemoteNames
+              .map(
+                (name) => McpTool(
+                  name: name,
+                  description: 'Remote $name tool',
+                  inputSchema: const {'type': 'object'},
+                ),
+              )
+              .toList(),
+          results: {
+            for (final name in _prefixCollisionRemoteNames)
+              name: 'remote:$name',
+          },
+        );
+        final service = McpToolService(mcpClients: [client]);
+
+        await service.connect();
+
+        expect(
+          service.tools.map((tool) => tool.originalName),
+          _prefixCollisionRemoteNames,
+        );
+        final definitions = service.getOpenAiToolDefinitions();
+        for (final remoteTool in service.tools) {
+          final normalizedAlias = remoteTool.name.toLowerCase();
+          expect(remoteTool.name, startsWith('mcp__'));
+          expect(normalizedAlias, isNot(startsWith('browser_')));
+          expect(normalizedAlias, isNot(startsWith('computer_')));
+          expect(remoteTool.name.length, lessThanOrEqualTo(64));
+
+          final definition = definitions.singleWhere(
+            (tool) => _openAiFunctionName(tool) == remoteTool.name,
+          );
+          expect(definition[McpToolEntity.openAiExternalToolKey], isTrue);
+
+          final result = await service.executeTool(
+            name: remoteTool.name,
+            arguments: {'source': remoteTool.originalName},
+          );
+          expect(result.isSuccess, isTrue);
+          expect(result.result, 'remote:${remoteTool.originalName}');
+        }
+        expect(client.calledToolNames, _prefixCollisionRemoteNames);
+        expect(client.calledArguments, [
+          for (final name in _prefixCollisionRemoteNames) {'source': name},
+        ]);
+      },
+    );
+
+    test(
       'disabled network names still reserve remote tool collisions',
       () async {
         final client = _FakeMcpClient(
@@ -1755,6 +3238,211 @@ BuildVersion: 23F79
         expect(result.isSuccess, isTrue);
         expect(result.result, 'remote pong');
         expect(client.calledToolNames, ['ping']);
+      },
+    );
+
+    test(
+      'unavailable SSH names still reserve remote tool collisions',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://ssh-collision.example.com/mcp',
+          tools: [
+            McpTool(
+              name: 'ssh_execute_command',
+              description: 'Remote SSH command tool',
+              inputSchema: {'type': 'object'},
+            ),
+          ],
+          results: const {'ssh_execute_command': 'remote ssh command'},
+        );
+        final service = McpToolService(mcpClients: [client]);
+
+        await service.connect();
+
+        final remoteTool = service.tools.single;
+        expect(remoteTool.originalName, 'ssh_execute_command');
+        expect(remoteTool.name, startsWith('ssh_execute_command__'));
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        expect(functionNames, isNot(contains('ssh_execute_command')));
+        expect(functionNames, contains(remoteTool.name));
+
+        final result = await service.executeTool(
+          name: remoteTool.name,
+          arguments: const {'source': 'remote'},
+        );
+        expect(result.isSuccess, isTrue);
+        expect(result.result, 'remote ssh command');
+        expect(client.calledToolNames, ['ssh_execute_command']);
+        expect(client.calledArguments, [
+          {'source': 'remote'},
+        ]);
+      },
+    );
+
+    test(
+      'unavailable BLE names still reserve remote tool collisions',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://ble-collision.example.com/mcp',
+          tools: [
+            McpTool(
+              name: 'ble_start_scan',
+              description: 'Remote BLE scan tool',
+              inputSchema: {'type': 'object'},
+            ),
+          ],
+          results: const {'ble_start_scan': 'remote scan'},
+        );
+        final service = McpToolService(mcpClients: [client]);
+
+        await service.connect();
+
+        final remoteTool = service.tools.single;
+        expect(remoteTool.originalName, 'ble_start_scan');
+        expect(remoteTool.name, startsWith('ble_start_scan__'));
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        expect(functionNames, isNot(contains('ble_start_scan')));
+        expect(functionNames, contains(remoteTool.name));
+
+        final result = await service.executeTool(
+          name: remoteTool.name,
+          arguments: const {'source': 'remote'},
+        );
+        expect(result.isSuccess, isTrue);
+        expect(result.result, 'remote scan');
+        expect(client.calledToolNames, ['ble_start_scan']);
+        expect(client.calledArguments, [
+          {'source': 'remote'},
+        ]);
+      },
+    );
+
+    test(
+      'unavailable WiFi names still reserve remote tool collisions',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://wifi-collision.example.com/mcp',
+          tools: [
+            McpTool(
+              name: 'wifi_scan',
+              description: 'Remote WiFi scan tool',
+              inputSchema: {'type': 'object'},
+            ),
+          ],
+          results: const {'wifi_scan': 'remote wifi scan'},
+        );
+        final service = McpToolService(mcpClients: [client]);
+
+        await service.connect();
+
+        final remoteTool = service.tools.single;
+        expect(remoteTool.originalName, 'wifi_scan');
+        expect(remoteTool.name, startsWith('wifi_scan__'));
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        expect(functionNames, isNot(contains('wifi_scan')));
+        expect(functionNames, contains(remoteTool.name));
+
+        final result = await service.executeTool(
+          name: remoteTool.name,
+          arguments: const {'source': 'remote'},
+        );
+        expect(result.isSuccess, isTrue);
+        expect(result.result, 'remote wifi scan');
+        expect(client.calledToolNames, ['wifi_scan']);
+        expect(client.calledArguments, [
+          {'source': 'remote'},
+        ]);
+      },
+    );
+
+    test(
+      'unavailable LAN scan names still reserve remote tool collisions',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://lan-collision.example.com/mcp',
+          tools: [
+            McpTool(
+              name: 'lan_scan',
+              description: 'Remote LAN scan tool',
+              inputSchema: {'type': 'object'},
+            ),
+          ],
+          results: const {'lan_scan': 'remote lan scan'},
+        );
+        final service = McpToolService(mcpClients: [client]);
+
+        await service.connect();
+
+        final remoteTool = service.tools.single;
+        expect(remoteTool.originalName, 'lan_scan');
+        expect(remoteTool.name, startsWith('lan_scan__'));
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        expect(functionNames, isNot(contains('lan_scan')));
+        expect(functionNames, contains(remoteTool.name));
+
+        final result = await service.executeTool(
+          name: remoteTool.name,
+          arguments: const {'source': 'remote'},
+        );
+        expect(result.isSuccess, isTrue);
+        expect(result.result, 'remote lan scan');
+        expect(client.calledToolNames, ['lan_scan']);
+        expect(client.calledArguments, [
+          {'source': 'remote'},
+        ]);
+      },
+    );
+
+    test(
+      'unavailable serial names still reserve remote tool collisions',
+      () async {
+        final client = _FakeMcpClient(
+          baseUrl: 'https://serial-collision.example.com/mcp',
+          tools: [
+            McpTool(
+              name: 'serial_read',
+              description: 'Remote serial read tool',
+              inputSchema: {'type': 'object'},
+            ),
+          ],
+          results: const {'serial_read': 'remote serial read'},
+        );
+        final service = McpToolService(mcpClients: [client]);
+
+        await service.connect();
+
+        final remoteTool = service.tools.single;
+        expect(remoteTool.originalName, 'serial_read');
+        expect(remoteTool.name, startsWith('serial_read__'));
+        final functionNames = service
+            .getOpenAiToolDefinitions()
+            .map(_openAiFunctionName)
+            .toList();
+        expect(functionNames, isNot(contains('serial_read')));
+        expect(functionNames, contains(remoteTool.name));
+
+        final result = await service.executeTool(
+          name: remoteTool.name,
+          arguments: const {'source': 'remote'},
+        );
+        expect(result.isSuccess, isTrue);
+        expect(result.result, 'remote serial read');
+        expect(client.calledToolNames, ['serial_read']);
+        expect(client.calledArguments, [
+          {'source': 'remote'},
+        ]);
       },
     );
 
@@ -2044,6 +3732,229 @@ BuildVersion: 23F79
   });
 }
 
+final class _FakeMcpBrowserSessionService extends BrowserSessionService {
+  _FakeMcpBrowserSessionService({this.results = const {}});
+
+  final Map<String, String> results;
+  final List<({String name, Map<String, dynamic> arguments})> calls = [];
+
+  @override
+  bool get isAvailable => true;
+
+  String _record(String name, Map<String, dynamic> arguments) {
+    calls.add((name: name, arguments: Map<String, dynamic>.from(arguments)));
+    return results[name] ?? jsonEncode({'ok': true, 'tool': name});
+  }
+
+  @override
+  Future<String> openUrl(String url) async {
+    return _record('browser_open', {'url': url});
+  }
+
+  @override
+  Future<String> snapshot({int? maxElements}) async {
+    return _record('browser_snapshot', {'max_elements': maxElements});
+  }
+
+  @override
+  Future<String> getContent({String format = 'text', int? maxChars}) async {
+    return _record('browser_get_content', {
+      'format': format,
+      'max_chars': maxChars,
+    });
+  }
+
+  @override
+  Future<String> screenshot() async {
+    return _record('browser_screenshot', {});
+  }
+
+  @override
+  Future<String> waitFor({String? selector, int? timeoutMs}) async {
+    return _record('browser_wait', {
+      'selector': selector,
+      'timeout_ms': timeoutMs,
+    });
+  }
+
+  @override
+  Future<String> navigateHistory(String direction) async {
+    return _record('browser_navigate_history', {'direction': direction});
+  }
+
+  @override
+  String closePanel() {
+    return _record('browser_close', {});
+  }
+
+  @override
+  Future<String> fillField({
+    int? ref,
+    String? selector,
+    required String value,
+  }) async {
+    return _record('browser_fill', {
+      'ref': ref,
+      'selector': selector,
+      'value': value,
+    });
+  }
+
+  @override
+  Future<String> clickElement({int? ref, String? selector}) async {
+    return _record('browser_click', {'ref': ref, 'selector': selector});
+  }
+
+  @override
+  Future<String> submitForm({String? selector}) async {
+    return _record('browser_submit', {'selector': selector});
+  }
+
+  @override
+  Future<String> evaluateJs(String script) async {
+    return _record('browser_eval', {'script': script});
+  }
+
+  @override
+  Future<String> saveData({
+    required String filename,
+    required String data,
+    String format = 'json',
+    String? destination,
+  }) async {
+    return _record('browser_save_data', {
+      'filename': filename,
+      'data': data,
+      'format': format,
+      'destination': destination,
+    });
+  }
+}
+
+final class _RecordingMacosComputerUseService extends MacosComputerUseService {
+  _RecordingMacosComputerUseService({
+    this.results = const {},
+    this.errors = const {},
+  });
+
+  final Map<String, String> results;
+  final Map<String, Object> errors;
+  final List<({String name, Map<String, dynamic> arguments})> calls = [];
+
+  @override
+  bool get isAvailable => true;
+
+  String _record(String name, Map<String, dynamic> arguments) {
+    calls.add((name: name, arguments: Map<String, dynamic>.from(arguments)));
+    final error = errors[name];
+    if (error != null) throw error;
+    return results[name] ?? jsonEncode({'ok': true, 'tool': name});
+  }
+
+  @override
+  Future<String> getPermissions() async {
+    return _record('computer_get_permissions', {});
+  }
+
+  @override
+  Future<String> requestPermissions({
+    bool accessibility = true,
+    bool screenCapture = true,
+  }) async {
+    return _record('computer_request_permissions', {
+      'accessibility': accessibility,
+      'screen_capture': screenCapture,
+    });
+  }
+
+  @override
+  Future<String> openSystemSettings({required String section}) async {
+    return _record('computer_open_system_settings', {'section': section});
+  }
+
+  @override
+  Future<String> visionObserve(Map<String, dynamic> arguments) async {
+    return _record('computer_vision_observe', arguments);
+  }
+
+  @override
+  Future<String> accessibilitySnapshot(Map<String, dynamic> arguments) async {
+    return _record('computer_accessibility_snapshot', arguments);
+  }
+
+  @override
+  Future<String> listDisplays(Map<String, dynamic> arguments) async {
+    return _record('computer_list_displays', arguments);
+  }
+
+  @override
+  Future<String> listWindows(Map<String, dynamic> arguments) async {
+    return _record('computer_list_windows', arguments);
+  }
+
+  @override
+  Future<String> focusWindow(Map<String, dynamic> arguments) async {
+    return _record('computer_focus_window', arguments);
+  }
+
+  @override
+  Future<String> screenshot(Map<String, dynamic> arguments) async {
+    return _record('computer_screenshot', arguments);
+  }
+
+  @override
+  Future<String> screenshotWindow(Map<String, dynamic> arguments) async {
+    return _record('computer_screenshot_window', arguments);
+  }
+
+  @override
+  Future<String> moveMouse(Map<String, dynamic> arguments) async {
+    return _record('computer_move_mouse', arguments);
+  }
+
+  @override
+  Future<String> click(Map<String, dynamic> arguments) async {
+    return _record('computer_click', arguments);
+  }
+
+  @override
+  Future<String> drag(Map<String, dynamic> arguments) async {
+    return _record('computer_drag', arguments);
+  }
+
+  @override
+  Future<String> scroll(Map<String, dynamic> arguments) async {
+    return _record('computer_scroll', arguments);
+  }
+
+  @override
+  Future<String> typeText(Map<String, dynamic> arguments) async {
+    return _record('computer_type_text', arguments);
+  }
+
+  @override
+  Future<String> switchSpace(Map<String, dynamic> arguments) async {
+    return _record('computer_switch_space', arguments);
+  }
+
+  @override
+  Future<String> pressKey(Map<String, dynamic> arguments) async {
+    return _record('computer_press_key', arguments);
+  }
+
+  @override
+  Future<String> startSystemAudioRecording(
+    Map<String, dynamic> arguments,
+  ) async {
+    return _record('computer_start_system_audio_recording', arguments);
+  }
+
+  @override
+  Future<String> stopSystemAudioRecording() async {
+    return _record('computer_stop_system_audio_recording', {});
+  }
+}
+
 class _FakeMacosComputerUseService extends MacosComputerUseService {
   final List<String> calledMethods = [];
 
@@ -2131,19 +4042,200 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   }
 }
 
+final class _FakeMcpSshService extends SshService {
+  _FakeMcpSshService({
+    this.connected = false,
+    SshExecutionResult? executionResult,
+  }) : executionResult =
+           executionResult ??
+           SshExecutionResult(stdout: '', stderr: '', exitCode: 0);
+
+  bool connected;
+  final SshExecutionResult executionResult;
+  final List<String> executedCommands = [];
+  int disconnectCalls = 0;
+
+  @override
+  bool get isConnected => connected;
+
+  @override
+  Future<SshExecutionResult> execute(
+    String command, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    executedCommands.add(command);
+    return executionResult;
+  }
+
+  @override
+  Future<void> disconnect() async {
+    disconnectCalls += 1;
+    connected = false;
+  }
+}
+
+final class _FakeMcpWifiService extends WifiService {
+  _FakeMcpWifiService({this.cachedResult = 'cached result'});
+
+  final String cachedResult;
+  final List<String?> scanResultSorts = [];
+
+  @override
+  String getScanResults({String? sortBy}) {
+    scanResultSorts.add(sortBy);
+    return cachedResult;
+  }
+}
+
+final class _FakeMcpLanScanService extends LanScanService {
+  _FakeMcpLanScanService({
+    this.scanResult = 'scan result',
+    this.cachedResult = 'cached result',
+  });
+
+  final String scanResult;
+  final String cachedResult;
+  final List<Map<String, dynamic>> scanCalls = [];
+  final List<String?> scanResultSorts = [];
+
+  @override
+  Future<String> startScan({
+    String? subnet,
+    String? ipVersion,
+    int timeoutMs = 1000,
+    List<int>? ports,
+  }) async {
+    scanCalls.add({
+      'subnet': subnet,
+      'ip_version': ipVersion,
+      'timeout_ms': timeoutMs,
+      'ports': ports,
+    });
+    return scanResult;
+  }
+
+  @override
+  String getScanResults({String? sortBy}) {
+    scanResultSorts.add(sortBy);
+    return cachedResult;
+  }
+}
+
+final class _FakeMcpSerialPortService extends SerialPortService {
+  _FakeMcpSerialPortService({
+    this.listResult = 'list result',
+    this.readResult = 'read result',
+    this.decodeResult = 'decode result',
+    this.writeResult = 'write result',
+    this.closeResult = 'close result',
+  });
+
+  final String listResult;
+  final String readResult;
+  final String decodeResult;
+  final String writeResult;
+  final String closeResult;
+  int listCalls = 0;
+  final List<Map<String, dynamic>> readCalls = [];
+  final List<Map<String, dynamic>> decodeCalls = [];
+  final List<Map<String, dynamic>> writeCalls = [];
+  final List<String> closeCalls = [];
+
+  @override
+  String listPorts() {
+    listCalls += 1;
+    return listResult;
+  }
+
+  @override
+  String read(
+    String portName, {
+    String encoding = 'utf8',
+    int? maxBytes,
+    bool clear = true,
+    String? frameDelimiterHex,
+    int? frameLength,
+    int maxFrames = 200,
+    bool includeStats = false,
+  }) {
+    readCalls.add({
+      'port': portName,
+      'encoding': encoding,
+      'max_bytes': maxBytes,
+      'clear': clear,
+      'frame_delimiter_hex': frameDelimiterHex,
+      'frame_length': frameLength,
+      'max_frames': maxFrames,
+      'include_stats': includeStats,
+    });
+    return readResult;
+  }
+
+  @override
+  String decode({
+    String? dataHex,
+    String? port,
+    required String format,
+    List<String>? fields,
+    bool consume = false,
+  }) {
+    decodeCalls.add({
+      'data_hex': dataHex,
+      'port': port,
+      'format': format,
+      'fields': fields,
+      'consume': consume,
+    });
+    return decodeResult;
+  }
+
+  @override
+  Future<String> write(
+    String portName,
+    String data, {
+    String encoding = 'utf8',
+  }) async {
+    writeCalls.add({'port': portName, 'data': data, 'encoding': encoding});
+    return writeResult;
+  }
+
+  @override
+  Future<String> close(String portName) async {
+    closeCalls.add(portName);
+    return closeResult;
+  }
+}
+
 class _FakeMcpClient extends McpClient {
   _FakeMcpClient({
     required super.baseUrl,
     required this.tools,
     Map<String, String>? results,
+    this.listToolsHandler,
+    this.listToolsError,
+    this.callToolError,
   }) : results = results ?? const {};
 
   final List<McpTool> tools;
   final Map<String, String> results;
+  final Future<List<McpTool>> Function()? listToolsHandler;
+  final Object? listToolsError;
+  final Object? callToolError;
   final List<String> calledToolNames = [];
+  final List<Map<String, dynamic>> calledArguments = [];
+  int listToolsCallCount = 0;
 
   @override
-  Future<List<McpTool>> listTools() async => tools;
+  Future<List<McpTool>> listTools() async {
+    listToolsCallCount += 1;
+    if (listToolsHandler != null) {
+      return listToolsHandler!();
+    }
+    if (listToolsError != null) {
+      throw listToolsError!;
+    }
+    return tools;
+  }
 
   @override
   Future<String> callTool({
@@ -2151,7 +4243,24 @@ class _FakeMcpClient extends McpClient {
     required Map<String, dynamic> arguments,
   }) async {
     calledToolNames.add(name);
+    calledArguments.add(Map<String, dynamic>.from(arguments));
+    if (callToolError != null) {
+      throw callToolError!;
+    }
     return results[name] ?? '';
+  }
+}
+
+class _RefreshRecordingMcpToolService extends McpToolService {
+  int connectCallCount = 0;
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {
+    connectCallCount += 1;
   }
 }
 

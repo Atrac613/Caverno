@@ -757,6 +757,58 @@ void main() {
     expect(service.unregisterXpcLaunchAgentCallCount, 1);
   });
 
+  testWidgets('permission flow routes row actions and recheck independently', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(
+      accessibilityGranted: false,
+      screenCaptureGranted: false,
+    );
+    await _pumpPage(tester, service);
+
+    await _tapByKey(
+      tester,
+      'computer-use-permission-flow-accessibility',
+      wait: const Duration(milliseconds: 700),
+    );
+    expect(service.permissionOverlays, ['accessibility']);
+
+    await _tapByKey(
+      tester,
+      'computer-use-permission-flow-screen-recording',
+      wait: const Duration(milliseconds: 700),
+    );
+    expect(service.permissionOverlays, ['accessibility', 'screenRecording']);
+
+    final permissionsBeforeRecheck = service.getPermissionsCallCount;
+    await tester.tap(find.widgetWithText(TextButton, 'Recheck').first);
+    await tester.pumpAndSettle();
+
+    expect(service.getPermissionsCallCount, permissionsBeforeRecheck + 1);
+  });
+
+  testWidgets('permission flow hides open actions for completed rows', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    expect(
+      find.byKey(const ValueKey('computer-use-permission-flow-accessibility')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(
+        const ValueKey('computer-use-permission-flow-screen-recording'),
+      ),
+      findsNothing,
+    );
+    expect(find.text('Granted to Caverno Computer Use.'), findsNWidgets(2));
+    expect(find.text('Done'), findsNWidgets(2));
+    expect(find.text('Recovery guidance'), findsOneWidget);
+    expect(find.text('Permission owners'), findsOneWidget);
+  });
+
   testWidgets('opens targeted permission panes for missing permissions', (
     tester,
   ) async {

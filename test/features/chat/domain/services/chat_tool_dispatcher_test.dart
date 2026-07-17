@@ -131,6 +131,21 @@ void main() {
         expect(events, ['fallback']);
       },
     );
+
+    test('routes neutral remote MCP aliases only through fallback', () async {
+      final events = <String>[];
+      final dispatcher = _buildDispatcher(events: events);
+
+      for (final name in const [
+        'mcp__browser_open__server_hash',
+        'mcp__computer_click__server_hash',
+      ]) {
+        final result = await dispatcher.dispatch(_toolCall(name));
+        expect(result.toolName, 'fallback');
+      }
+
+      expect(events, ['fallback', 'fallback']);
+    });
   });
 }
 

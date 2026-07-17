@@ -375,7 +375,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
         name: toolCall.name,
         arguments: toolCall.arguments,
       );
-      _conversationTaintState.recordToolResult(toolCall.name);
+      ToolResultTaintRecorder.record(_conversationTaintState, result);
       return result;
     } finally {
       _clearParticipantToolActivity(

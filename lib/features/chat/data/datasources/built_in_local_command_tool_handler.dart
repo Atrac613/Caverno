@@ -4,6 +4,7 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import 'background_process_monitor_service.dart';
 import 'background_process_tools.dart';
 import 'local_shell_tools.dart';
+import 'mcp_tool_result_normalizer.dart';
 
 typedef BuiltInLocalCommandRunner =
     Future<String> Function({
@@ -93,10 +94,13 @@ class BuiltInLocalCommandToolHandler {
         if (_asBool(arguments['background'])) {
           final tools = _backgroundProcessTools;
           if (tools == null || !tools.isSupported) {
-            return McpToolResult(
+            return McpToolResultNormalizer.structuredFailure(
               toolName: name,
-              result: _backgroundProcessUnavailableResult(),
-              isSuccess: false,
+              payload: const {
+                'ok': false,
+                'code': 'background_process_tools_unavailable',
+                'error': 'Background process tools are not available',
+              },
               errorMessage: 'Background process tools are not available',
             );
           }
@@ -105,13 +109,16 @@ class BuiltInLocalCommandToolHandler {
             workingDirectory: workingDirectory,
             label: (arguments['label'] as String?)?.trim(),
           );
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
+          return McpToolResultNormalizer.success(
+            toolName: name,
+            result: result,
+          );
         }
         final result = await _foregroundCommandRunner(
           command: command,
           workingDirectory: workingDirectory,
         );
-        return McpToolResult(toolName: name, result: result, isSuccess: true);
+        return McpToolResultNormalizer.success(toolName: name, result: result);
       case 'process_start':
         final command = LocalShellTools.normalizeCommand(
           (arguments['command'] as String?)?.trim() ?? '',
@@ -134,10 +141,8 @@ class BuiltInLocalCommandToolHandler {
         }
         final tools = _backgroundProcessTools;
         if (tools == null || !tools.isSupported) {
-          return McpToolResult(
+          return McpToolResultNormalizer.failure(
             toolName: name,
-            result: '',
-            isSuccess: false,
             errorMessage: 'Background process tools are not available',
           );
         }
@@ -146,7 +151,7 @@ class BuiltInLocalCommandToolHandler {
           workingDirectory: workingDirectory,
           label: (arguments['label'] as String?)?.trim(),
         );
-        return McpToolResult(toolName: name, result: result, isSuccess: true);
+        return McpToolResultNormalizer.success(toolName: name, result: result);
       case 'process_status':
         final jobId = (arguments['job_id'] as String?)?.trim() ?? '';
         if (jobId.isEmpty) {
@@ -187,14 +192,13 @@ class BuiltInLocalCommandToolHandler {
       case 'process_list':
         return _executeProcessList(name, arguments);
       case 'run_tests':
-        return McpToolResult(
+        return McpToolResultNormalizer.structuredFailure(
           toolName: name,
-          result: jsonEncode({
+          payload: const {
             'error':
                 'run_tests must be executed through the chat command approval flow.',
             'code': 'approval_required',
-          }),
-          isSuccess: false,
+          },
           errorMessage:
               'run_tests must be executed through the chat command approval flow',
         );
@@ -209,14 +213,13 @@ class BuiltInLocalCommandToolHandler {
   ) async {
     final monitor = _backgroundProcessMonitorService;
     if (monitor == null) {
-      return McpToolResult(
+      return McpToolResultNormalizer.structuredFailure(
         toolName: name,
-        result: jsonEncode({
+        payload: const {
           'ok': false,
           'code': 'background_process_monitor_unavailable',
           'error': 'Background process monitor is not available',
-        }),
-        isSuccess: false,
+        },
         errorMessage: 'Background process monitor is not available',
       );
     }
@@ -232,14 +235,13 @@ class BuiltInLocalCommandToolHandler {
           .where((jobId) => jobId.isNotEmpty)
           .toList(growable: false);
     } else {
-      return McpToolResult(
+      return McpToolResultNormalizer.structuredFailure(
         toolName: name,
-        result: jsonEncode({
+        payload: const {
           'ok': false,
           'code': 'invalid_job_ids',
           'error': 'job_ids must be an array of strings',
-        }),
-        isSuccess: false,
+        },
         errorMessage: 'job_ids must be an array of strings',
       );
     }
@@ -264,7 +266,7 @@ class BuiltInLocalCommandToolHandler {
       includeFinished: includeFinished,
       limit: requestedLimit,
     );
-    return McpToolResult(
+    return McpToolResultNormalizer.success(
       toolName: name,
       result: jsonEncode({
         'ok': true,
@@ -278,45 +280,37 @@ class BuiltInLocalCommandToolHandler {
             .where((snapshot) => !snapshot.isRunning)
             .length,
       }),
-      isSuccess: true,
     );
   }
 
   McpToolResult _validationFailure(String name, String message) {
-    return McpToolResult(
+    return McpToolResultNormalizer.failure(
       toolName: name,
-      result: '',
-      isSuccess: false,
       errorMessage: message,
     );
   }
 
   McpToolResult _gitWriteFailure(String name, String result) {
-    return McpToolResult(
+    return McpToolResultNormalizer.failure(
       toolName: name,
       result: result,
-      isSuccess: false,
       errorMessage: 'Use git_execute_command for git write commands',
     );
   }
 
   McpToolResult _nullableProviderResult(String name, String? result) {
-    return McpToolResult(
+    if (result != null) {
+      return McpToolResultNormalizer.success(toolName: name, result: result);
+    }
+    return McpToolResultNormalizer.structuredFailure(
       toolName: name,
-      result: result ?? _backgroundProcessUnavailableResult(),
-      isSuccess: result != null,
-      errorMessage: result == null
-          ? 'Background process tools are not available'
-          : null,
+      payload: const {
+        'ok': false,
+        'code': 'background_process_tools_unavailable',
+        'error': 'Background process tools are not available',
+      },
+      errorMessage: 'Background process tools are not available',
     );
-  }
-
-  String _backgroundProcessUnavailableResult() {
-    return jsonEncode({
-      'ok': false,
-      'code': 'background_process_tools_unavailable',
-      'error': 'Background process tools are not available',
-    });
   }
 
   bool _asBool(Object? value) {

@@ -19,10 +19,19 @@ class PlanningToolPolicy {
   McpToolResult? enforce(
     ToolCallInfo toolCall, {
     required bool isPlanningSession,
+    bool isExternalMcpTool = false,
     required PlanningToolArgumentResolver resolveArguments,
   }) {
     if (!isPlanningSession) {
       return null;
+    }
+
+    if (isExternalMcpTool) {
+      return _buildDeniedResult(
+        toolCall,
+        detail:
+            'Planning mode cannot execute external MCP tools without a verified read-only capability.',
+      );
     }
 
     if (MacosComputerUseToolPolicy.isComputerUseTool(toolCall.name)) {
