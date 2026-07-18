@@ -40,12 +40,13 @@ import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
-import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
-import '../../domain/services/feedback_submission_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import '../coordinators/feedback_slash_command_coordinator.dart';
+import '../coordinators/goal_slash_command_coordinator.dart';
 import '../coordinators/plan_review_action_coordinator.dart';
+import '../coordinators/slash_command_action_coordinator.dart';
 import '../coordinators/workflow_editor_action_coordinator.dart';
 import '../coordinators/workflow_task_action_coordinator.dart';
 import '../coordinators/workflow_task_run_coordinator.dart';
@@ -59,6 +60,7 @@ import '../providers/feedback_submission_provider.dart';
 import '../providers/worktree_agent_task_launcher.dart';
 import '../providers/worktree_agent_task_orchestrator.dart';
 import '../slash_commands/slash_command.dart';
+import '../slash_commands/slash_command_catalog.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/approval/ble_connect_approval_sheet.dart';
@@ -76,6 +78,8 @@ import '../widgets/worktree_agent_task_banner.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
 import '../widgets/participant_roster_bar.dart';
+import '../widgets/chat_page_scaffold.dart';
+import '../widgets/chat_right_sidebar.dart';
 import '../widgets/tool_perimeter_summary.dart';
 import '../widgets/workflow_status_presentation.dart';
 import '../widgets/workflow/workflow_editor_sheet.dart';
@@ -84,6 +88,7 @@ import '../widgets/chat_image_drop_target.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../widgets/session_log_details_section.dart';
+import '../widgets/slash_command_help_sheet.dart';
 import '../widgets/token_usage_indicator.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
 import '../widgets/plan/plan_document_editor_sheet.dart';
@@ -136,18 +141,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _autoFollowBottom = true;
   late bool _showDashboard;
   FileWorkspaceViewerRequest? _fileWorkspaceViewerRequest;
-  _RightSidebarTab _rightSidebarTab = _RightSidebarTab.companion;
+  ChatRightSidebarTab _rightSidebarTab = ChatRightSidebarTab.companion;
   int _droppedImageAttachmentId = 0;
   String? _switchingCompanionBranchName;
   MessageInputImageAttachment? _droppedImageAttachment;
-  static const double _companionSidebarBreakpoint = 1180;
-  static const double _companionSidebarWidth = 344;
-  static const double _persistentDrawerBreakpoint = 900;
-  static const double _persistentDrawerWidth = 320;
   static const double _browserPanelBreakpoint = 1280;
   static const double _browserPanelWidth = 480;
-  static const double _fileWorkspacePanelMinWidth = 420;
-  static const double _fileWorkspacePanelMaxWidth = 720;
   static const double _compactBrowserPanelHeightFraction = 0.55;
   static const double _compactBrowserChatReserveHeight = 220;
 
@@ -171,13 +170,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _openFileWorkspaceViewer(FileWorkspaceViewerRequest request) {
     if (!mounted) {
       _fileWorkspaceViewerRequest = request;
-      _rightSidebarTab = _RightSidebarTab.files;
+      _rightSidebarTab = ChatRightSidebarTab.files;
       _isCompanionSidebarVisible = true;
       return;
     }
     final availableWidth = MediaQuery.maybeOf(context)?.size.width;
     if (availableWidth != null &&
-        availableWidth < _companionSidebarBreakpoint) {
+        availableWidth < chatCompanionSidebarBreakpoint) {
       unawaited(
         showFileWorkspaceViewerPanel(context: context, request: request),
       );
@@ -185,7 +184,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     setState(() {
       _fileWorkspaceViewerRequest = request;
-      _rightSidebarTab = _RightSidebarTab.files;
+      _rightSidebarTab = ChatRightSidebarTab.files;
       _isCompanionSidebarVisible = true;
     });
   }
@@ -193,12 +192,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _closeFileWorkspaceViewer() {
     if (!mounted) {
       _fileWorkspaceViewerRequest = null;
-      _rightSidebarTab = _RightSidebarTab.companion;
+      _rightSidebarTab = ChatRightSidebarTab.companion;
       return;
     }
     setState(() {
       _fileWorkspaceViewerRequest = null;
-      _rightSidebarTab = _RightSidebarTab.companion;
+      _rightSidebarTab = ChatRightSidebarTab.companion;
     });
   }
 
@@ -297,112 +296,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _scrollController.jumpTo(target);
   }
 
-  Widget _buildRightSidebarPanel(
-    BuildContext context, {
-    required FileWorkspaceViewerRequest? request,
-    required double availableWidth,
-    required Conversation currentConversation,
-    required ChatState chatState,
-    required CodingProject? activeProject,
-  }) {
-    final theme = Theme.of(context);
-    final hasFileWorkspaceViewer = request != null;
-    final panelWidth = hasFileWorkspaceViewer && availableWidth.isFinite
-        ? (availableWidth * 0.42)
-              .clamp(_fileWorkspacePanelMinWidth, _fileWorkspacePanelMaxWidth)
-              .toDouble()
-        : _companionSidebarWidth;
-    final companionPanel = _buildCompanionPanel(
-      context,
-      currentConversation: currentConversation,
-      chatState: chatState,
-      activeProject: activeProject,
-      showLeadingBorder: false,
-    );
-
-    if (!hasFileWorkspaceViewer) {
-      return SizedBox(width: panelWidth, child: companionPanel);
-    }
-
-    final selectedTab = _rightSidebarTab;
-
-    return SizedBox(
-      width: panelWidth,
-      child: DecoratedBox(
-        decoration: BoxDecoration(color: theme.colorScheme.surface),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-              child: SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<_RightSidebarTab>(
-                  key: const ValueKey('right-sidebar-tabs'),
-                  showSelectedIcon: false,
-                  selected: {selectedTab},
-                  segments: const [
-                    ButtonSegment(
-                      value: _RightSidebarTab.companion,
-                      icon: Icon(Icons.view_sidebar_outlined, size: 18),
-                      label: Text('Companion'),
-                    ),
-                    ButtonSegment(
-                      value: _RightSidebarTab.files,
-                      icon: Icon(Icons.description_outlined, size: 18),
-                      label: Text('Files'),
-                    ),
-                  ],
-                  onSelectionChanged: (selection) {
-                    setState(() {
-                      _rightSidebarTab = selection.single;
-                    });
-                  },
-                ),
-              ),
-            ),
-            Divider(height: 1, thickness: 1, color: theme.dividerColor),
-            Expanded(
-              child: IndexedStack(
-                index: selectedTab == _RightSidebarTab.companion ? 0 : 1,
-                children: [
-                  companionPanel,
-                  request.buildViewer(onClose: _closeFileWorkspaceViewer),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _wrapWithRightSidebar(
-    BuildContext context,
-    Widget chatContent, {
-    required FileWorkspaceViewerRequest? request,
-    required double availableWidth,
-    required Conversation currentConversation,
-    required ChatState chatState,
-    required CodingProject? activeProject,
-  }) {
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(child: chatContent),
-        VerticalDivider(width: 1, thickness: 1, color: theme.dividerColor),
-        _buildRightSidebarPanel(
-          context,
-          request: request,
-          availableWidth: availableWidth,
-          currentConversation: currentConversation,
-          chatState: chatState,
-          activeProject: activeProject,
-        ),
-      ],
-    );
-  }
-
   Future<void> _switchWorkspaceMode(WorkspaceMode workspaceMode) async {
     _leaveDashboard();
     final conversationsNotifier = ref.read(
@@ -486,74 +379,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     BuildContext context,
     List<SlashCommandPromptTemplate> customPromptTemplates,
   ) {
-    return [
-      SlashCommandDefinition(
-        name: 'help',
-        action: SlashCommandAction.help,
-        description: 'chat.slash_help_desc'.tr(),
-        enabledWhileLoading: true,
-      ),
-      SlashCommandDefinition(
-        name: 'new',
-        action: SlashCommandAction.newConversation,
-        description: 'chat.slash_new_desc'.tr(),
-      ),
-      SlashCommandDefinition(
-        name: 'clear',
-        action: SlashCommandAction.clear,
-        description: 'chat.slash_clear_desc'.tr(),
-      ),
-      SlashCommandDefinition(
-        name: 'general',
-        action: SlashCommandAction.general,
-        description: 'chat.slash_general_desc'.tr(),
-      ),
-      SlashCommandDefinition(
-        name: 'coding',
-        action: SlashCommandAction.coding,
-        description: 'chat.slash_coding_desc'.tr(),
-        aliases: const ['code'],
-      ),
-      SlashCommandDefinition(
-        name: 'plan',
-        action: SlashCommandAction.plan,
-        description: 'chat.slash_plan_desc'.tr(),
-      ),
-      SlashCommandDefinition(
-        name: 'goal',
-        action: SlashCommandAction.goal,
-        description: 'chat.slash_goal_desc'.tr(),
-        argumentHint: '[objective] | pause | resume | clear | auto on|off',
-        argumentRequirement: SlashCommandArgumentRequirement.optional,
-      ),
-      SlashCommandDefinition(
-        name: 'cancel',
-        action: SlashCommandAction.cancel,
-        description: 'chat.slash_cancel_desc'.tr(),
-        enabledWhileLoading: true,
-      ),
-      SlashCommandDefinition(
-        name: 'feedback',
-        action: SlashCommandAction.feedback,
-        description: 'chat.slash_feedback_desc'.tr(),
-        argumentHint: '<feedback>',
-        argumentRequirement: SlashCommandArgumentRequirement.required,
-      ),
-      SlashCommandDefinition(
-        name: 'agent',
-        action: SlashCommandAction.worktreeAgent,
-        description: 'chat.slash_agent_desc'.tr(),
-        aliases: const ['worktree', 'worktree-agent'],
-        argumentHint: '<task> [--run] [--verify <command>]',
-        argumentRequirement: SlashCommandArgumentRequirement.required,
-      ),
-      for (final template in builtInSlashCommandPromptTemplates)
-        template.toDefinition(
-          descriptionOverride: 'chat.slash_${template.id}_desc'.tr(),
-        ),
-      for (final template in customPromptTemplates) template.toDefinition(),
-    ];
+    return buildSlashCommandCatalog(
+      text: _resolveSlashCommandText,
+      customPromptTemplates: customPromptTemplates,
+    );
   }
+
+  String _resolveSlashCommandText(
+    String key, {
+    Map<String, String>? namedArgs,
+  }) => key.tr(namedArgs: namedArgs);
 
   Future<void> _selectAssistantModeFromComposer(
     AssistantMode mode, {
@@ -588,229 +423,74 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     required Conversation? currentConversation,
     required ConversationsState conversationsState,
     required List<SlashCommandPromptTemplate> customPromptTemplates,
-  }) async {
-    if (isLoading && !invocation.definition.enabledWhileLoading) {
-      return SlashCommandExecutionResult.keepInput(
-        feedbackMessage: 'chat.slash_blocked_while_loading'.tr(),
-      );
-    }
-
+  }) {
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
-
-    switch (invocation.definition.action) {
-      case SlashCommandAction.help:
-        await _showSlashCommandHelp(
-          context,
-          _buildSlashCommands(context, customPromptTemplates),
-        );
-        return SlashCommandExecutionResult.handled;
-      case SlashCommandAction.newConversation:
-        if (isCodingWorkspace && activeProject != null) {
-          _leaveDashboard();
-          conversationsNotifier.startDraftConversation(
-            workspaceMode: WorkspaceMode.coding,
-            projectId: activeProject.id,
-          );
-        } else {
-          _leaveDashboard();
-          conversationsNotifier.createNewConversation(
-            workspaceMode: conversationsState.activeWorkspaceMode,
-            projectId: activeProject?.id,
-          );
-        }
-        return SlashCommandExecutionResult(
-          feedbackMessage: isCodingWorkspace
-              ? 'chat.slash_new_thread_started'.tr()
-              : 'chat.slash_new_conversation_started'.tr(),
-        );
-      case SlashCommandAction.clear:
-        chatNotifier.clearMessages();
-        await conversationsNotifier.updateCurrentConversation(
-          const <Message>[],
-        );
-        return SlashCommandExecutionResult(
-          feedbackMessage: 'chat.slash_cleared'.tr(),
-        );
-      case SlashCommandAction.general:
-        await _selectAssistantModeFromComposer(
-          AssistantMode.general,
-          isCodingWorkspace: isCodingWorkspace,
-          currentConversation: currentConversation,
-        );
-        return SlashCommandExecutionResult(
-          feedbackMessage: 'chat.slash_mode_changed'.tr(
-            namedArgs: {'mode': 'settings.assistant_general'.tr()},
-          ),
-        );
-      case SlashCommandAction.coding:
-        await _selectAssistantModeFromComposer(
-          AssistantMode.coding,
-          isCodingWorkspace: isCodingWorkspace,
-          currentConversation: currentConversation,
-        );
-        return SlashCommandExecutionResult(
-          feedbackMessage: 'chat.slash_mode_changed'.tr(
-            namedArgs: {'mode': 'settings.assistant_coding'.tr()},
-          ),
-        );
-      case SlashCommandAction.plan:
-        if (!isCodingWorkspace || currentConversation == null) {
-          return SlashCommandExecutionResult.keepInput(
-            feedbackMessage: 'chat.slash_plan_unavailable'.tr(),
-          );
-        }
-        await conversationsNotifier.enterPlanningSession();
-        return SlashCommandExecutionResult(
-          feedbackMessage: 'chat.slash_plan_started'.tr(),
-        );
-      case SlashCommandAction.goal:
-        var goalConversation = currentConversation;
-        final shouldStartGoalPrompt = goalConversation == null;
-        if (goalConversation == null && isCodingWorkspace) {
-          goalConversation = conversationsNotifier.ensureCurrentConversation(
-            workspaceMode: WorkspaceMode.coding,
-            projectId: activeProject?.id ?? conversationsState.activeProjectId,
-          );
-        }
-        if (!isCodingWorkspace || goalConversation == null) {
-          return SlashCommandExecutionResult.keepInput(
-            feedbackMessage: 'chat.slash_goal_unavailable'.tr(),
-          );
-        }
-        return _handleGoalSlashCommand(
-          context,
-          goalConversation,
-          invocation.args,
-          sendObjectiveAsInitialPrompt: shouldStartGoalPrompt,
-        );
-      case SlashCommandAction.cancel:
-        if (!isLoading) {
-          return SlashCommandExecutionResult(
-            feedbackMessage: 'chat.slash_cancel_idle'.tr(),
-          );
-        }
-        chatNotifier.cancelStreaming();
-        return SlashCommandExecutionResult(
-          feedbackMessage: 'chat.slash_cancelled'.tr(),
-        );
-      case SlashCommandAction.feedback:
-        return _submitFeedbackCommand(currentConversation, invocation.args);
-      case SlashCommandAction.worktreeAgent:
-        if (!isCodingWorkspace || activeProject == null) {
-          return SlashCommandExecutionResult.keepInput(
-            feedbackMessage: 'chat.slash_agent_unavailable'.tr(),
-          );
-        }
-        final agentArgs = _parseWorktreeAgentCommandArgs(invocation.args);
-        if (agentArgs.prompt.isEmpty) {
-          return SlashCommandExecutionResult.keepInput(
-            feedbackMessage: 'chat.slash_agent_prompt_required'.tr(),
-          );
-        }
-        if (agentArgs.hasVerificationMarker &&
-            agentArgs.verificationCommand.isEmpty) {
-          return SlashCommandExecutionResult.keepInput(
-            feedbackMessage: 'chat.slash_agent_verify_required'.tr(),
-          );
-        }
-        try {
-          final result = await ref
-              .read(worktreeAgentTaskLauncherProvider)
-              .enqueue(
-                WorktreeAgentTaskLaunchRequest(
-                  title: _worktreeAgentTaskTitle(agentArgs.prompt),
-                  prompt: agentArgs.prompt,
-                  codingProjectId: activeProject.id,
-                  projectRootPath: activeProject.normalizedRootPath,
-                  verificationCommand: agentArgs.verificationCommand,
-                ),
-              );
-          if (agentArgs.runAfterQueue) {
-            unawaited(
-              ref
-                  .read(worktreeAgentTaskRunControllerProvider.notifier)
-                  .startAndExecuteReady(
-                    WorktreeAgentTaskRunRequest(
-                      fallbackProjectRootPath: activeProject.normalizedRootPath,
+    final coordinator = SlashCommandActionCoordinator(
+      conversationsNotifier: conversationsNotifier,
+      clearMessages: chatNotifier.clearMessages,
+      cancelStreaming: chatNotifier.cancelStreaming,
+      dismissPlanProposal: chatNotifier.dismissPlanProposal,
+      updateAssistantMode: ref
+          .read(settingsNotifierProvider.notifier)
+          .updateAssistantMode,
+      leaveDashboard: _leaveDashboard,
+      showHelp: (commands) => _showSlashCommandHelp(context, commands),
+      handleGoal:
+          (conversation, args, {required sendObjectiveAsInitialPrompt}) =>
+              GoalSlashCommandCoordinator(
+                conversationsNotifier: conversationsNotifier,
+                showGoalEditor: (conversation) =>
+                    _showGoalEditor(context, conversation),
+                sendInitialPrompt: (objective) {
+                  unawaited(
+                    chatNotifier.sendMessage(
+                      objective,
+                      languageCode: context.mounted
+                          ? context.locale.languageCode
+                          : 'en',
                     ),
-                  ),
-            );
-            return SlashCommandExecutionResult(
-              feedbackMessage: 'chat.slash_agent_queued_and_started'.tr(
-                namedArgs: {'branch': result.task.branchName},
+                  );
+                },
+                text: _resolveSlashCommandText,
+              ).handle(
+                currentConversation: conversation,
+                args: args,
+                sendObjectiveAsInitialPrompt: sendObjectiveAsInitialPrompt,
               ),
-            );
-          }
-          return SlashCommandExecutionResult(
-            feedbackMessage: 'chat.slash_agent_queued'.tr(
-              namedArgs: {'branch': result.task.branchName},
+      submitFeedback: (conversation, feedbackText) =>
+          FeedbackSlashCommandCoordinator(
+            sessionLogStore: ref.read(llmSessionLogStoreProvider),
+            feedbackSubmissionClient: ref.read(
+              feedbackSubmissionServiceProvider,
             ),
-          );
-        } catch (error) {
-          return SlashCommandExecutionResult.keepInput(
-            feedbackMessage: 'chat.slash_agent_failed'.tr(
-              namedArgs: {'error': '$error'},
-            ),
-          );
-        }
-      case SlashCommandAction.review:
-      case SlashCommandAction.fix:
-      case SlashCommandAction.explain:
-      case SlashCommandAction.test:
-      case SlashCommandAction.promptTemplate:
-        final template = _findPromptTemplateForInvocation(
-          invocation,
-          customPromptTemplates,
-        );
-        if (template == null) {
-          return SlashCommandExecutionResult.keepInput(
-            feedbackMessage: 'message.slash_command_failed'.tr(),
-          );
-        }
-        return SlashCommandExecutionResult.sendPrompt(
-          template.expand(
-            args: invocation.args,
-            commandName: invocation.commandName,
+            text: _resolveSlashCommandText,
+          ).handle(
+            settings: ref.read(settingsNotifierProvider),
+            currentConversation: conversation,
+            feedbackText: feedbackText,
           ),
-        );
-    }
-  }
-
-  String _worktreeAgentTaskTitle(String prompt) {
-    final firstLine = prompt
-        .split(RegExp(r'\r?\n'))
-        .map((line) => line.trim())
-        .firstWhere((line) => line.isNotEmpty, orElse: () => 'Worktree agent');
-    const maxTitleLength = 80;
-    if (firstLine.length <= maxTitleLength) {
-      return firstLine;
-    }
-    return '${firstLine.substring(0, maxTitleLength - 3).trimRight()}...';
-  }
-
-  SlashCommandPromptTemplate? _findPromptTemplateForInvocation(
-    SlashCommandInvocation invocation,
-    List<SlashCommandPromptTemplate> customPromptTemplates,
-  ) {
-    final templateId =
-        invocation.definition.promptTemplateId ??
-        switch (invocation.definition.action) {
-          SlashCommandAction.review => 'review',
-          SlashCommandAction.fix => 'fix',
-          SlashCommandAction.explain => 'explain',
-          SlashCommandAction.test => 'test',
-          _ => null,
-        };
-    if (templateId == null) {
-      return null;
-    }
-    return findSlashCommandPromptTemplate(templateId, [
-      ...builtInSlashCommandPromptTemplates,
-      ...customPromptTemplates,
-    ]);
+      enqueueWorktreeAgent: ref.read(worktreeAgentTaskLauncherProvider).enqueue,
+      startReadyWorktreeAgents: (request) async {
+        await ref
+            .read(worktreeAgentTaskRunControllerProvider.notifier)
+            .startAndExecuteReady(request);
+      },
+      text: _resolveSlashCommandText,
+    );
+    return coordinator.handle(
+      invocation,
+      commandContext: SlashCommandActionContext(
+        isLoading: isLoading,
+        isCodingWorkspace: isCodingWorkspace,
+        activeProject: activeProject,
+        currentConversation: currentConversation,
+        conversationsState: conversationsState,
+        customPromptTemplates: customPromptTemplates,
+      ),
+    );
   }
 
   Future<void> _showSlashCommandHelp(
@@ -820,35 +500,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return SafeArea(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-            shrinkWrap: true,
-            itemCount: commands.length + 1,
-            separatorBuilder: (context, index) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    'chat.slash_commands_title'.tr(),
-                    style: theme.textTheme.titleLarge,
-                  ),
-                );
-              }
-              final command = commands[index - 1];
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.terminal),
-                title: Text(command.usage),
-                subtitle: Text(command.description),
-              );
-            },
-          ),
-        );
-      },
+      builder: (context) => SlashCommandHelpSheet(
+        title: 'chat.slash_commands_title'.tr(),
+        commands: commands,
+      ),
     );
   }
 
@@ -1186,7 +841,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         currentConversation == null &&
         chatState.messages.isEmpty;
     final isWideForCompanion =
-        MediaQuery.sizeOf(context).width >= _companionSidebarBreakpoint;
+        MediaQuery.sizeOf(context).width >= chatCompanionSidebarBreakpoint;
     _maybePresentPlanReviewSheet(
       context,
       currentConversation: currentConversation,
@@ -1196,7 +851,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final usePersistentDrawer =
         !isMobileRemoteCoding &&
-        MediaQuery.sizeOf(context).width >= _persistentDrawerBreakpoint;
+        MediaQuery.sizeOf(context).width >= chatPagePersistentDrawerBreakpoint;
     void handleComposerSend(
       String message,
       String? imageBase64,
@@ -1337,26 +992,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           final showRoutineCompanionSidebar =
               canShowCompanionPanel &&
               _isCompanionSidebarVisible &&
-              MediaQuery.sizeOf(context).width >= _companionSidebarBreakpoint;
+              MediaQuery.sizeOf(context).width >=
+                  chatCompanionSidebarBreakpoint;
           if (!showRoutineCompanionSidebar) return detailView;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: detailView),
-              VerticalDivider(
-                width: 1,
-                thickness: 1,
-                color: Theme.of(context).dividerColor,
+          return ChatRightSidebarLayout(
+            content: detailView,
+            sidebar: SizedBox(
+              width: chatCompanionSidebarWidth,
+              child: _buildRoutineCompanionPanel(
+                context,
+                routine: routine,
+                showLeadingBorder: false,
               ),
-              SizedBox(
-                width: _companionSidebarWidth,
-                child: _buildRoutineCompanionPanel(
-                  context,
-                  routine: routine,
-                  showLeadingBorder: false,
-                ),
-              ),
-            ],
+            ),
           );
         },
       );
@@ -1381,7 +1029,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       currentConversation != null &&
                       _isCompanionSidebarVisible &&
                       MediaQuery.sizeOf(context).width >=
-                          _companionSidebarBreakpoint;
+                          chatCompanionSidebarBreakpoint;
                   final sidebarConversation = showCompanionSidebar
                       ? currentConversation
                       : null;
@@ -1525,14 +1173,28 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     ],
                   );
                   final coreBody = showCompanionSidebar
-                      ? _wrapWithRightSidebar(
-                          context,
-                          chatContent,
-                          request: _fileWorkspaceViewerRequest,
-                          availableWidth: constraints.maxWidth,
-                          currentConversation: sidebarConversation!,
-                          chatState: chatState,
-                          activeProject: activeProject,
+                      ? ChatRightSidebarLayout(
+                          content: chatContent,
+                          sidebar: ChatRightSidebarPanel(
+                            availableWidth: constraints.maxWidth,
+                            companionPanel: _buildCompanionPanel(
+                              context,
+                              currentConversation: sidebarConversation!,
+                              chatState: chatState,
+                              activeProject: activeProject,
+                              showLeadingBorder: false,
+                            ),
+                            fileViewer: _fileWorkspaceViewerRequest
+                                ?.buildViewer(
+                                  onClose: _closeFileWorkspaceViewer,
+                                ),
+                            selectedTab: _rightSidebarTab,
+                            onSelected: (selection) {
+                              setState(() {
+                                _rightSidebarTab = selection;
+                              });
+                            },
+                          ),
                         )
                       : chatContent;
                   return _wrapWithBrowserPane(
@@ -1546,106 +1208,71 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             );
     }
 
-    Widget buildScaffoldBody() {
-      final workspaceBody = buildWorkspaceBody();
-      if (!usePersistentDrawer) {
-        return workspaceBody;
-      }
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: _persistentDrawerWidth,
-            child: _buildConversationDrawer(
+    final workspaceBody = buildWorkspaceBody();
+    final scaffold = usePersistentDrawer
+        ? ChatPageScaffold.persistent(
+            workspaceBody: workspaceBody,
+            taskBanner: const SubagentTaskBanner(),
+            drawer: _buildConversationDrawer(
               closeOnAction: false,
-              width: _persistentDrawerWidth,
+              width: chatPagePersistentDrawerWidth,
             ),
-          ),
-          VerticalDivider(
-            width: 1,
-            thickness: 1,
-            color: Theme.of(context).dividerColor,
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                _buildPersistentWorkspaceHeader(
-                  context,
-                  isRoutinesWorkspace: isRoutinesWorkspace,
-                  isCodingWorkspace: isCodingWorkspace,
-                  isMobileRemoteCoding: isMobileRemoteCoding,
-                  activeProject: activeProject,
-                  currentTitle: currentTitle,
-                  settings: settings,
-                  canCompose: canCompose,
-                  canShowCompanionPanel: canShowCompanionPanel,
-                  isWideForCompanion: isWideForCompanion,
-                  currentConversation: currentConversation,
-                  selectedRoutine: selectedRoutine,
-                  conversationsState: conversationsState,
-                  conversationsNotifier: conversationsNotifier,
-                  chatState: chatState,
-                  routineTitle: selectedRoutine?.trimmedName,
-                ),
-                Expanded(child: workspaceBody),
-              ],
+            header: _buildPersistentWorkspaceHeader(
+              context,
+              isRoutinesWorkspace: isRoutinesWorkspace,
+              isCodingWorkspace: isCodingWorkspace,
+              isMobileRemoteCoding: isMobileRemoteCoding,
+              activeProject: activeProject,
+              currentTitle: currentTitle,
+              settings: settings,
+              canCompose: canCompose,
+              canShowCompanionPanel: canShowCompanionPanel,
+              isWideForCompanion: isWideForCompanion,
+              currentConversation: currentConversation,
+              selectedRoutine: selectedRoutine,
+              conversationsState: conversationsState,
+              conversationsNotifier: conversationsNotifier,
+              chatState: chatState,
+              routineTitle: selectedRoutine?.trimmedName,
             ),
-          ),
-        ],
-      );
-    }
-
-    final scaffold = Scaffold(
-      appBar: usePersistentDrawer
-          ? null
-          : AppBar(
-              title: _buildWorkspaceHeaderTitle(
-                context,
-                isRoutinesWorkspace: isRoutinesWorkspace,
-                isCodingWorkspace: isCodingWorkspace,
-                activeProject: activeProject,
-                currentTitle: currentTitle,
-                settings: settings,
-                prominent: false,
-                routineTitle: selectedRoutine?.trimmedName,
-              ),
-              actions: _buildWorkspaceHeaderActions(
-                context,
-                activeProject: activeProject,
-                settings: settings,
-                canShowCompanionPanel: canShowCompanionPanel,
-                isWideForCompanion: isWideForCompanion,
-                currentConversation: currentConversation,
-                selectedRoutine: selectedRoutine,
-                chatState: chatState,
-                compact: false,
-              ),
+          )
+        : ChatPageScaffold.compact(
+            workspaceBody: workspaceBody,
+            taskBanner: const SubagentTaskBanner(),
+            title: _buildWorkspaceHeaderTitle(
+              context,
+              isRoutinesWorkspace: isRoutinesWorkspace,
+              isCodingWorkspace: isCodingWorkspace,
+              activeProject: activeProject,
+              currentTitle: currentTitle,
+              settings: settings,
+              prominent: false,
+              routineTitle: selectedRoutine?.trimmedName,
             ),
-      drawer: usePersistentDrawer
-          ? null
-          : _buildConversationDrawer(
+            actions: _buildWorkspaceHeaderActions(
+              context,
+              activeProject: activeProject,
+              settings: settings,
+              canShowCompanionPanel: canShowCompanionPanel,
+              isWideForCompanion: isWideForCompanion,
+              currentConversation: currentConversation,
+              selectedRoutine: selectedRoutine,
+              chatState: chatState,
+              compact: false,
+            ),
+            drawer: _buildConversationDrawer(
               closeOnAction: true,
               useRemoteCodingDrawer: isMobileRemoteCoding,
             ),
-      // The persistent drawer exposes a create button in its routines list, but
-      // the temporary drawer closes after switching workspaces and leaves the
-      // read-only home dashboard without one. Surface a create FAB so mobile can
-      // still add routines from the home view.
-      floatingActionButton:
-          isRoutinesWorkspace && !usePersistentDrawer && selectedRoutine == null
-          ? FloatingActionButton(
-              onPressed: () => _createRoutineFromHome(context),
-              tooltip: 'routines.create_cta'.tr(),
-              child: const Icon(Icons.add),
-            )
-          : null,
-      body: Column(
-        children: [
-          const SubagentTaskBanner(),
-          Expanded(child: buildScaffoldBody()),
-        ],
-      ),
-    );
+            // The compact routines home has no persistent create affordance.
+            floatingActionButton: isRoutinesWorkspace && selectedRoutine == null
+                ? FloatingActionButton(
+                    onPressed: () => _createRoutineFromHome(context),
+                    tooltip: 'routines.create_cta'.tr(),
+                    child: const Icon(Icons.add),
+                  )
+                : null,
+          );
     return _wrapWithMobileKeyboardDismiss(scaffold);
   }
 

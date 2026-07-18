@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dart_ping/dart_ping.dart';
 import 'package:multicast_dns/multicast_dns.dart';
+
+import 'network_address_utils.dart';
+import 'network_http_tools.dart';
+import 'network_neighbor_tools.dart';
+import 'network_socket_tools.dart';
 
 typedef NetworkProcessRunner =
     Future<ProcessResult> Function(String executable, List<String> arguments);
@@ -36,6 +40,10 @@ typedef NetworkMdnsBrowseRunner =
 ///
 /// All methods run locally without external API dependencies.
 class NetworkTools {
+  static final NetworkHttpTools _httpTools = NetworkHttpTools();
+  static final NetworkNeighborTools _neighborTools = NetworkNeighborTools();
+  static final NetworkSocketTools _socketTools = NetworkSocketTools();
+
   static const Set<String> _supportedArpVersions = {'all', 'ipv4', 'ipv6'};
   static const Set<String> _supportedRouteVersions = {'auto', 'ipv4', 'ipv6'};
   static const Set<String> _supportedDnsRecordTypes = {
@@ -212,7 +220,7 @@ class NetworkTools {
         break;
       case 'PTR':
         final literal = InternetAddress.tryParse(
-          _normalizeIpForComparison(target),
+          normalizeNetworkIpForComparison(target),
         );
         if (literal == null) {
           return jsonEncode({
@@ -372,213 +380,68 @@ class NetworkTools {
   // ARP / NDP Cache Inspection
   // ---------------------------------------------------------------------------
 
-  /// Reads the local ARP/NDP neighbor cache and returns recently observed
-  /// IP-to-MAC mappings from the current machine.
   static Future<String> arp({
     String? host,
     String ipVersion = 'all',
     NetworkProcessRunner? processRunner,
-  }) async {
-    final normalizedVersion = ipVersion.trim().toLowerCase();
-    if (!_supportedArpVersions.contains(normalizedVersion)) {
-      return jsonEncode({
-        'error': true,
-        'message':
-            'ip_version must be one of: ${_supportedArpVersions.join(', ')}',
-      });
-    }
-
-    if (!Platform.isMacOS && !Platform.isLinux) {
-      return jsonEncode({
-        'error': true,
-        'message':
-            'ARP inspection is only supported on macOS and Linux. '
-            'This platform does not expose a compatible local neighbor table.',
-      });
-    }
-
-    final requestedHost = host?.trim();
-    final requestedVersion = normalizedVersion;
-    final entries = <_NeighborCacheEntry>[];
-
-    if (requestedVersion != 'ipv6') {
-      entries.addAll(
-        Platform.isMacOS
-            ? await _readMacOsArpTable(processRunner: processRunner)
-            : await _readLinuxNeighborTable(
-                ipv6: false,
-                processRunner: processRunner,
-              ),
-      );
-    }
-
-    if (requestedVersion != 'ipv4') {
-      entries.addAll(
-        Platform.isMacOS
-            ? await _readMacOsNdpTable(processRunner: processRunner)
-            : await _readLinuxNeighborTable(
-                ipv6: true,
-                processRunner: processRunner,
-              ),
-      );
-    }
-
-    final matchedEntries = requestedHost == null || requestedHost.isEmpty
-        ? entries
-        : entries.where(
-            (entry) => _matchesNeighborFilter(entry, requestedHost),
-          );
-    final filteredEntries = matchedEntries.toList(growable: false)
-      ..sort((a, b) => _compareIpAddresses(a.ip, b.ip));
-
-    return jsonEncode({
-      'host': requestedHost,
-      'ip_version': requestedVersion,
-      'entries_found': filteredEntries.length,
-      'entries': filteredEntries.map((entry) => entry.toJson()).toList(),
-    });
+  }) {
+    return _neighborTools.arp(
+      host: host,
+      ipVersion: ipVersion,
+      processRunner: processRunner,
+    );
   }
 
-  /// Reads only IPv6 NDP neighbor cache entries from the local machine.
   static Future<String> ndp({
     String? host,
     NetworkProcessRunner? processRunner,
   }) {
-    return arp(host: host, ipVersion: 'ipv6', processRunner: processRunner);
+    return _neighborTools.ndp(host: host, processRunner: processRunner);
   }
 
   // ---------------------------------------------------------------------------
   // Port Check
   // ---------------------------------------------------------------------------
 
-  /// Tests whether a TCP [port] is open on [host].
   static Future<String> portCheck({
     required String host,
     required int port,
     int timeoutSeconds = 5,
-  }) async {
-    final stopwatch = Stopwatch()..start();
-    try {
-      final socket = await Socket.connect(
-        host,
-        port,
-        timeout: Duration(seconds: timeoutSeconds),
-      );
-      stopwatch.stop();
-      socket.destroy();
-      return jsonEncode({
-        'host': host,
-        'port': port,
-        'open': true,
-        'response_time_ms': stopwatch.elapsedMilliseconds,
-      });
-    } on SocketException catch (e) {
-      stopwatch.stop();
-      return jsonEncode({
-        'host': host,
-        'port': port,
-        'open': false,
-        'error': e.message,
-      });
-    }
+  }) {
+    return _socketTools.portCheck(
+      host: host,
+      port: port,
+      timeoutSeconds: timeoutSeconds,
+    );
   }
 
   // ---------------------------------------------------------------------------
   // SSL Certificate
   // ---------------------------------------------------------------------------
 
-  /// Retrieves TLS/SSL certificate information for [host].
   static Future<String> sslCertificate({
     required String host,
     int port = 443,
     int timeoutSeconds = 10,
-  }) async {
-    final socket = await SecureSocket.connect(
-      host,
-      port,
-      timeout: Duration(seconds: timeoutSeconds),
-      onBadCertificate: (_) => true, // Accept to still inspect the cert.
+  }) {
+    return _socketTools.sslCertificate(
+      host: host,
+      port: port,
+      timeoutSeconds: timeoutSeconds,
     );
-
-    final cert = socket.peerCertificate;
-    socket.destroy();
-
-    if (cert == null) {
-      return jsonEncode({'host': host, 'error': 'No certificate returned'});
-    }
-
-    return jsonEncode({
-      'host': host,
-      'port': port,
-      'subject': cert.subject,
-      'issuer': cert.issuer,
-      'valid_from': cert.startValidity.toIso8601String(),
-      'valid_until': cert.endValidity.toIso8601String(),
-      'is_valid_now':
-          DateTime.now().isAfter(cert.startValidity) &&
-          DateTime.now().isBefore(cert.endValidity),
-      'sha1_fingerprint': cert.sha1,
-    });
   }
 
   // ---------------------------------------------------------------------------
-  // HTTP Status
+  // HTTP Status And Methods
   // ---------------------------------------------------------------------------
 
-  /// Checks URL reachability and returns status code, headers, and timing.
   static Future<String> httpStatus({
     required String url,
     int timeoutSeconds = 10,
-  }) async {
-    final uri = Uri.parse(url);
-    final client = HttpClient()
-      ..connectionTimeout = Duration(seconds: timeoutSeconds);
-
-    try {
-      final stopwatch = Stopwatch()..start();
-      final request = await client.getUrl(uri);
-      final response = await request.close().timeout(
-        Duration(seconds: timeoutSeconds),
-      );
-      stopwatch.stop();
-
-      // Read a small portion of the body to confirm it's reachable.
-      await response.drain<void>();
-
-      final headers = <String, String>{};
-      response.headers.forEach((name, values) {
-        headers[name] = values.join(', ');
-      });
-
-      return jsonEncode({
-        'url': url,
-        'status_code': response.statusCode,
-        'reason_phrase': response.reasonPhrase,
-        'response_time_ms': stopwatch.elapsedMilliseconds,
-        'headers': headers,
-        'redirects': response.redirects
-            .map(
-              (r) => {
-                'status': r.statusCode,
-                'location': r.location.toString(),
-              },
-            )
-            .toList(),
-      });
-    } finally {
-      client.close();
-    }
+  }) {
+    return _httpTools.httpStatus(url: url, timeoutSeconds: timeoutSeconds);
   }
 
-  // ---------------------------------------------------------------------------
-  // HTTP Methods (GET / HEAD / DELETE / POST / PUT / PATCH)
-  // ---------------------------------------------------------------------------
-
-  /// Maximum response body characters returned to the LLM.
-  static const int _kHttpBodyMaxChars = 4000;
-
-  /// Performs an HTTP GET request and returns the decoded body alongside
-  /// status, headers, and timing information as a JSON-encoded string.
   static Future<String> httpGet({
     required String url,
     Map<String, String>? headers,
@@ -586,20 +449,15 @@ class NetworkTools {
     bool followRedirects = true,
     int maxRedirects = 5,
   }) {
-    return _httpRequest(
-      method: 'GET',
+    return _httpTools.httpGet(
       url: url,
       headers: headers,
       timeoutSeconds: timeoutSeconds,
       followRedirects: followRedirects,
       maxRedirects: maxRedirects,
-      includeBody: true,
     );
   }
 
-  /// Performs an HTTP HEAD request. The response body is drained and not
-  /// returned, mirroring the behaviour of [httpStatus] but exposing the
-  /// HEAD verb explicitly.
   static Future<String> httpHead({
     required String url,
     Map<String, String>? headers,
@@ -607,19 +465,15 @@ class NetworkTools {
     bool followRedirects = true,
     int maxRedirects = 5,
   }) {
-    return _httpRequest(
-      method: 'HEAD',
+    return _httpTools.httpHead(
       url: url,
       headers: headers,
       timeoutSeconds: timeoutSeconds,
       followRedirects: followRedirects,
       maxRedirects: maxRedirects,
-      includeBody: false,
     );
   }
 
-  /// Performs an HTTP DELETE request. A request body is permitted by the
-  /// HTTP spec and forwarded if [body] is non-null.
   static Future<String> httpDelete({
     required String url,
     Map<String, String>? headers,
@@ -629,8 +483,7 @@ class NetworkTools {
     bool followRedirects = true,
     int maxRedirects = 5,
   }) {
-    return _httpRequest(
-      method: 'DELETE',
+    return _httpTools.httpDelete(
       url: url,
       headers: headers,
       body: body,
@@ -638,11 +491,9 @@ class NetworkTools {
       timeoutSeconds: timeoutSeconds,
       followRedirects: followRedirects,
       maxRedirects: maxRedirects,
-      includeBody: true,
     );
   }
 
-  /// Performs an HTTP POST request with [body] as the raw payload.
   static Future<String> httpPost({
     required String url,
     Map<String, String>? headers,
@@ -652,8 +503,7 @@ class NetworkTools {
     bool followRedirects = true,
     int maxRedirects = 5,
   }) {
-    return _httpRequest(
-      method: 'POST',
+    return _httpTools.httpPost(
       url: url,
       headers: headers,
       body: body,
@@ -661,11 +511,9 @@ class NetworkTools {
       timeoutSeconds: timeoutSeconds,
       followRedirects: followRedirects,
       maxRedirects: maxRedirects,
-      includeBody: true,
     );
   }
 
-  /// Performs an HTTP PUT request with [body] as the raw payload.
   static Future<String> httpPut({
     required String url,
     Map<String, String>? headers,
@@ -675,8 +523,7 @@ class NetworkTools {
     bool followRedirects = true,
     int maxRedirects = 5,
   }) {
-    return _httpRequest(
-      method: 'PUT',
+    return _httpTools.httpPut(
       url: url,
       headers: headers,
       body: body,
@@ -684,11 +531,9 @@ class NetworkTools {
       timeoutSeconds: timeoutSeconds,
       followRedirects: followRedirects,
       maxRedirects: maxRedirects,
-      includeBody: true,
     );
   }
 
-  /// Performs an HTTP PATCH request with [body] as the raw payload.
   static Future<String> httpPatch({
     required String url,
     Map<String, String>? headers,
@@ -698,8 +543,7 @@ class NetworkTools {
     bool followRedirects = true,
     int maxRedirects = 5,
   }) {
-    return _httpRequest(
-      method: 'PATCH',
+    return _httpTools.httpPatch(
       url: url,
       headers: headers,
       body: body,
@@ -707,123 +551,7 @@ class NetworkTools {
       timeoutSeconds: timeoutSeconds,
       followRedirects: followRedirects,
       maxRedirects: maxRedirects,
-      includeBody: true,
     );
-  }
-
-  /// Shared implementation for all method-specific HTTP wrappers.
-  ///
-  /// Returns a JSON-encoded payload describing status, headers, redirect
-  /// chain, timing, and (when [includeBody] is true) the response body.
-  /// Bodies are decoded as UTF-8 when possible and otherwise base64-encoded;
-  /// in either case the returned string is truncated to
-  /// [_kHttpBodyMaxChars] characters with a `body_truncated` flag set.
-  static Future<String> _httpRequest({
-    required String method,
-    required String url,
-    Map<String, String>? headers,
-    String? body,
-    String? contentType,
-    int timeoutSeconds = 10,
-    bool followRedirects = true,
-    int maxRedirects = 5,
-    required bool includeBody,
-  }) async {
-    final uri = Uri.parse(url);
-    final client = HttpClient()
-      ..connectionTimeout = Duration(seconds: timeoutSeconds);
-
-    try {
-      final stopwatch = Stopwatch()..start();
-      final request = await client.openUrl(method, uri);
-      request.followRedirects = followRedirects;
-      request.maxRedirects = maxRedirects;
-
-      // Track which header names were explicitly provided so the
-      // content_type convenience parameter does not clobber them.
-      final providedHeaderNames = <String>{};
-      if (headers != null) {
-        headers.forEach((name, value) {
-          providedHeaderNames.add(name.toLowerCase());
-          request.headers.set(name, value);
-        });
-      }
-
-      final hasBody = body != null && body.isNotEmpty;
-      if (hasBody) {
-        if (!providedHeaderNames.contains('content-type')) {
-          request.headers.contentType = ContentType.parse(
-            contentType ?? 'application/json',
-          );
-        }
-        final encodedBody = utf8.encode(body);
-        request.contentLength = encodedBody.length;
-        request.add(encodedBody);
-      }
-
-      final response = await request.close().timeout(
-        Duration(seconds: timeoutSeconds),
-      );
-      stopwatch.stop();
-
-      final responseHeaders = <String, String>{};
-      response.headers.forEach((name, values) {
-        responseHeaders[name] = values.join(', ');
-      });
-
-      final payload = <String, dynamic>{
-        'url': url,
-        'method': method,
-        'status_code': response.statusCode,
-        'reason_phrase': response.reasonPhrase,
-        'response_time_ms': stopwatch.elapsedMilliseconds,
-        'headers': responseHeaders,
-        'redirects': response.redirects
-            .map(
-              (r) => {
-                'status': r.statusCode,
-                'location': r.location.toString(),
-              },
-            )
-            .toList(),
-        'content_type': response.headers.contentType?.toString(),
-      };
-
-      if (!includeBody) {
-        await response.drain<void>();
-        return jsonEncode(payload);
-      }
-
-      // Collect the raw bytes so we can fall back to base64 for
-      // non-textual responses without losing the data entirely.
-      final builder = BytesBuilder(copy: false);
-      await for (final chunk in response) {
-        builder.add(chunk);
-      }
-      final bytes = builder.takeBytes();
-      payload['body_bytes'] = bytes.length;
-
-      String bodyText;
-      String encoding;
-      try {
-        bodyText = utf8.decode(bytes);
-        encoding = 'utf-8';
-      } on FormatException {
-        bodyText = base64Encode(bytes);
-        encoding = 'base64';
-      }
-
-      final truncated = bodyText.length > _kHttpBodyMaxChars;
-      payload['body'] = truncated
-          ? bodyText.substring(0, _kHttpBodyMaxChars)
-          : bodyText;
-      payload['body_truncated'] = truncated;
-      payload['body_encoding'] = encoding;
-
-      return jsonEncode(payload);
-    } finally {
-      client.close();
-    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1040,7 +768,9 @@ class NetworkTools {
     String host, {
     NetworkAddressLookup? addressLookup,
   }) async {
-    final literal = InternetAddress.tryParse(_normalizeIpForComparison(host));
+    final literal = InternetAddress.tryParse(
+      normalizeNetworkIpForComparison(host),
+    );
     if (literal != null) {
       if (literal.type != InternetAddressType.IPv6) {
         throw SocketException('Host is not an IPv6 address');
@@ -1060,243 +790,8 @@ class NetworkTools {
     );
   }
 
-  /// Performs a WHOIS lookup for [domain] via raw TCP socket.
-  static Future<String> whoisLookup({required String domain}) async {
-    final normalizedDomain = domain.trim().toLowerCase();
-
-    final tld = _extractTld(normalizedDomain);
-    final whoisServer = _whoisServerForTld(tld);
-
-    final result = await _queryWhoisServer(
-      server: whoisServer,
-      query: normalizedDomain,
-    );
-
-    // Some registries (e.g., .com) include a "Registrar WHOIS Server" line
-    // pointing to a more detailed server. Follow the referral if found.
-    final referralMatch = RegExp(
-      r'Registrar WHOIS Server:\s*(\S+)',
-      caseSensitive: false,
-    ).firstMatch(result);
-
-    if (referralMatch != null) {
-      final referralServer = referralMatch.group(1)!;
-      if (referralServer != whoisServer) {
-        try {
-          final detailed = await _queryWhoisServer(
-            server: referralServer,
-            query: normalizedDomain,
-          );
-          if (detailed.trim().isNotEmpty) {
-            return _truncate(detailed, 4000);
-          }
-        } catch (_) {
-          // Fall through to initial result on referral failure.
-        }
-      }
-    }
-
-    return _truncate(result, 4000);
-  }
-
-  static String _extractTld(String domain) {
-    final parts = domain.split('.');
-    if (parts.length < 2) return domain;
-    return parts.last;
-  }
-
-  static String _whoisServerForTld(String tld) {
-    const servers = {
-      'com': 'whois.verisign-grs.com',
-      'net': 'whois.verisign-grs.com',
-      'org': 'whois.pir.org',
-      'io': 'whois.nic.io',
-      'dev': 'whois.nic.google',
-      'app': 'whois.nic.google',
-      'jp': 'whois.jprs.jp',
-      'uk': 'whois.nic.uk',
-      'de': 'whois.denic.de',
-      'fr': 'whois.nic.fr',
-      'au': 'whois.auda.org.au',
-      'ca': 'whois.cira.ca',
-      'info': 'whois.afilias.net',
-      'me': 'whois.nic.me',
-      'co': 'whois.nic.co',
-      'xyz': 'whois.nic.xyz',
-    };
-    return servers[tld] ?? 'whois.iana.org';
-  }
-
-  static Future<String> _queryWhoisServer({
-    required String server,
-    required String query,
-  }) async {
-    final socket = await Socket.connect(
-      server,
-      43,
-      timeout: const Duration(seconds: 10),
-    );
-
-    socket.write('$query\r\n');
-    await socket.flush();
-
-    final response = StringBuffer();
-    await for (final data in socket.timeout(const Duration(seconds: 10))) {
-      response.write(String.fromCharCodes(data));
-    }
-    socket.destroy();
-
-    return response.toString();
-  }
-
-  static String _truncate(String text, int maxLength) {
-    if (text.length <= maxLength) return text;
-    return '${text.substring(0, maxLength)}\n... (truncated)';
-  }
-
-  static Future<List<_NeighborCacheEntry>> _readMacOsArpTable({
-    NetworkProcessRunner? processRunner,
-  }) async {
-    final result = await _runProcess('arp', [
-      '-a',
-    ], processRunner: processRunner);
-    if (result.exitCode != 0) {
-      return const [];
-    }
-
-    final entries = <_NeighborCacheEntry>[];
-    final lines = (result.stdout as String).split('\n');
-    final regex = RegExp(
-      r'^(\S+)\s+\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-fA-F:]+|\(incomplete\))(?:\s+on\s+(\S+))?',
-    );
-
-    for (final line in lines) {
-      final match = regex.firstMatch(line.trim());
-      if (match == null) {
-        continue;
-      }
-
-      final hostname = match.group(1);
-      final ip = match.group(2)!;
-      final mac = match.group(3);
-      if (mac == null || mac == '(incomplete)' || mac == 'ff:ff:ff:ff:ff:ff') {
-        continue;
-      }
-
-      entries.add(
-        _NeighborCacheEntry(
-          ip: ip,
-          ipVersion: 'ipv4',
-          mac: mac.toLowerCase(),
-          hostname: hostname == null || hostname == '?' ? null : hostname,
-          interfaceName: match.group(4),
-          source: 'arp',
-        ),
-      );
-    }
-
-    return entries;
-  }
-
-  static Future<List<_NeighborCacheEntry>> _readMacOsNdpTable({
-    NetworkProcessRunner? processRunner,
-  }) async {
-    final result = await _runProcess('ndp', [
-      '-an',
-    ], processRunner: processRunner);
-    if (result.exitCode != 0) {
-      return const [];
-    }
-
-    final entries = <_NeighborCacheEntry>[];
-    final lines = (result.stdout as String).split('\n');
-
-    for (final line in lines) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty || trimmed.startsWith('Neighbor ')) {
-        continue;
-      }
-
-      final parts = trimmed.split(RegExp(r'\s+'));
-      if (parts.length < 3) {
-        continue;
-      }
-
-      final ip = parts[0];
-      final mac = parts[1];
-      final interfaceName = parts[2];
-      if (mac == '(incomplete)' || mac == 'ff:ff:ff:ff:ff:ff') {
-        continue;
-      }
-
-      entries.add(
-        _NeighborCacheEntry(
-          ip: ip,
-          ipVersion: 'ipv6',
-          mac: mac.toLowerCase(),
-          interfaceName: interfaceName,
-          state: parts.length >= 5 ? parts.last : null,
-          source: 'ndp',
-        ),
-      );
-    }
-
-    return entries;
-  }
-
-  static Future<List<_NeighborCacheEntry>> _readLinuxNeighborTable({
-    required bool ipv6,
-    NetworkProcessRunner? processRunner,
-  }) async {
-    final arguments = ipv6
-        ? const ['-6', 'neighbor', 'show']
-        : const ['neighbor', 'show'];
-    final result = await _runProcess(
-      'ip',
-      arguments,
-      processRunner: processRunner,
-    );
-    if (result.exitCode != 0) {
-      return const [];
-    }
-
-    final entries = <_NeighborCacheEntry>[];
-    final lines = (result.stdout as String).split('\n');
-    final regex = RegExp(
-      r'^([0-9a-fA-F:.%]+)\s+dev\s+(\S+)(?:\s+lladdr\s+([0-9a-fA-F:]+))?(?:\s+router)?(?:\s+(\S+))?$',
-    );
-
-    for (final line in lines) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty ||
-          trimmed.contains('FAILED') ||
-          trimmed.contains('INCOMPLETE')) {
-        continue;
-      }
-
-      final match = regex.firstMatch(trimmed);
-      if (match == null) {
-        continue;
-      }
-
-      final mac = match.group(3);
-      if (mac == null || mac == 'ff:ff:ff:ff:ff:ff') {
-        continue;
-      }
-
-      entries.add(
-        _NeighborCacheEntry(
-          ip: match.group(1)!,
-          ipVersion: ipv6 ? 'ipv6' : 'ipv4',
-          mac: mac.toLowerCase(),
-          interfaceName: match.group(2),
-          state: match.group(4),
-          source: ipv6 ? 'ndp' : 'arp',
-        ),
-      );
-    }
-
-    return entries;
+  static Future<String> whoisLookup({required String domain}) {
+    return _socketTools.whoisLookup(domain: domain);
   }
 
   static Future<ProcessResult> _runProcess(
@@ -1310,63 +805,14 @@ class NetworkTools {
         : Process.run(executable, arguments);
   }
 
-  static bool _matchesNeighborFilter(
-    _NeighborCacheEntry entry,
-    String requestedHost,
-  ) {
-    final normalizedFilter = requestedHost.trim().toLowerCase();
-    if (normalizedFilter.isEmpty) {
-      return true;
-    }
-
-    final filterIp = _normalizeIpForComparison(normalizedFilter);
-    if (_normalizeIpForComparison(entry.ip) == filterIp) {
-      return true;
-    }
-
-    final hostname = entry.hostname?.toLowerCase();
-    return hostname != null && hostname.contains(normalizedFilter);
-  }
-
-  static int _compareIpAddresses(String a, String b) {
-    final aAddress = InternetAddress.tryParse(_normalizeIpForComparison(a));
-    final bAddress = InternetAddress.tryParse(_normalizeIpForComparison(b));
-
-    if (aAddress == null || bAddress == null) {
-      return a.compareTo(b);
-    }
-
-    if (aAddress.type != bAddress.type) {
-      return aAddress.type == InternetAddressType.IPv4 ? -1 : 1;
-    }
-
-    final aBytes = aAddress.rawAddress;
-    final bBytes = bAddress.rawAddress;
-    final maxLength = aBytes.length < bBytes.length
-        ? aBytes.length
-        : bBytes.length;
-
-    for (var index = 0; index < maxLength; index += 1) {
-      final diff = aBytes[index] - bBytes[index];
-      if (diff != 0) {
-        return diff;
-      }
-    }
-
-    return a.compareTo(b);
-  }
-
-  static String _normalizeIpForComparison(String value) {
-    final separatorIndex = value.indexOf('%');
-    return separatorIndex >= 0 ? value.substring(0, separatorIndex) : value;
-  }
-
   static Future<List<_ResolvedRouteTarget>> _resolveRouteTargets(
     String host, {
     required String requestedVersion,
     NetworkAddressLookup? addressLookup,
   }) async {
-    final literal = InternetAddress.tryParse(_normalizeIpForComparison(host));
+    final literal = InternetAddress.tryParse(
+      normalizeNetworkIpForComparison(host),
+    );
     if (literal != null) {
       final literalVersion = literal.type == InternetAddressType.IPv4
           ? 'ipv4'
@@ -2067,7 +1513,7 @@ class NetworkTools {
                 port: service.port,
                 priority: service.priority,
                 weight: service.weight,
-                addresses: addresses.toList()..sort(_compareIpAddresses),
+                addresses: addresses.toList()..sort(compareNetworkIpAddresses),
               ),
             );
           }
@@ -2193,7 +1639,9 @@ class NetworkTools {
   }
 
   static String _addressScope(String address) {
-    final parsed = InternetAddress.tryParse(_normalizeIpForComparison(address));
+    final parsed = InternetAddress.tryParse(
+      normalizeNetworkIpForComparison(address),
+    );
     if (parsed == null) {
       return 'unknown';
     }
@@ -2236,36 +1684,6 @@ class NetworkTools {
     }
     return null;
   }
-}
-
-class _NeighborCacheEntry {
-  const _NeighborCacheEntry({
-    required this.ip,
-    required this.ipVersion,
-    required this.source,
-    this.mac,
-    this.hostname,
-    this.interfaceName,
-    this.state,
-  });
-
-  final String ip;
-  final String ipVersion;
-  final String source;
-  final String? mac;
-  final String? hostname;
-  final String? interfaceName;
-  final String? state;
-
-  Map<String, dynamic> toJson() => {
-    'ip': ip,
-    'ip_version': ipVersion,
-    'source': source,
-    if (mac != null) 'mac': mac,
-    if (hostname != null) 'hostname': hostname,
-    if (interfaceName != null) 'interface': interfaceName,
-    if (state != null) 'state': state,
-  };
 }
 
 const Set<String> _linuxSpecialRouteTypes = {
@@ -2395,7 +1813,7 @@ class _InterfaceInfoEntryBuilder {
 
   _InterfaceInfoEntry build() {
     final sortedAddresses = addresses.toList(growable: false)
-      ..sort((a, b) => NetworkTools._compareIpAddresses(a.address, b.address));
+      ..sort((a, b) => compareNetworkIpAddresses(a.address, b.address));
     return _InterfaceInfoEntry(
       name: name,
       mac: mac,
@@ -2565,7 +1983,7 @@ class _MdnsServiceTarget {
         addresses.add(address);
       }
     }
-    addresses.sort(NetworkTools._compareIpAddresses);
+    addresses.sort(compareNetworkIpAddresses);
   }
 
   Map<String, dynamic> toJson() => {

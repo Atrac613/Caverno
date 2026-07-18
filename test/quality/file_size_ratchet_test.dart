@@ -14,7 +14,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// move into shared private state cannot hide aggregate growth.
 const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 9468,
-  'lib/features/chat/presentation/pages/chat_page.dart': 2506,
+  'lib/features/chat/presentation/pages/chat_page.dart': 2133,
+  'lib/features/chat/presentation/coordinators/feedback_slash_command_coordinator.dart':
+      95,
+  'lib/features/chat/presentation/coordinators/goal_slash_command_coordinator.dart':
+      243,
+  'lib/features/chat/presentation/coordinators/slash_command_action_coordinator.dart':
+      364,
   'lib/features/chat/presentation/coordinators/plan_review_action_coordinator.dart':
       198,
   'lib/features/chat/presentation/coordinators/workflow_editor_action_coordinator.dart':
@@ -27,6 +33,11 @@ const Map<String, int> _lineBudgets = {
       218,
   'lib/features/chat/presentation/widgets/workflow/workflow_task_editor_sheet.dart':
       209,
+  'lib/features/chat/presentation/widgets/slash_command_help_sheet.dart': 42,
+  'lib/features/chat/presentation/widgets/chat_page_scaffold.dart': 87,
+  'lib/features/chat/presentation/widgets/chat_right_sidebar.dart': 114,
+  'lib/features/chat/presentation/slash_commands/slash_command_catalog.dart':
+      100,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1202,
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
@@ -60,14 +71,24 @@ const Map<String, int> _lineBudgets = {
       176,
   'lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart':
       318,
-  'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 2864,
-  'lib/features/chat/data/datasources/network_tools.dart': 2578,
+  'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 2275,
+  'lib/features/settings/presentation/widgets/computer_use_debug_image_preview.dart':
+      153,
+  'lib/features/settings/presentation/widgets/computer_use_debug_onboarding_card.dart':
+      94,
+  'lib/features/settings/presentation/widgets/computer_use_debug_status_primitives.dart':
+      424,
+  'lib/features/chat/data/datasources/network_tools.dart': 1996,
+  'lib/features/chat/data/datasources/network_address_utils.dart': 34,
+  'lib/features/chat/data/datasources/network_http_tools.dart': 287,
+  'lib/features/chat/data/datasources/network_neighbor_tools.dart': 266,
+  'lib/features/chat/data/datasources/network_socket_tools.dart': 204,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 18648,
 };
 
 const Map<String, int> _libraryLineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 23005,
-  'lib/features/chat/presentation/pages/chat_page.dart': 9654,
+  'lib/features/chat/presentation/pages/chat_page.dart': 8945,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1294,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 33189,
 };

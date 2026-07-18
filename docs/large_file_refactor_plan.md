@@ -13,7 +13,14 @@ again before starting a new refactor branch.
 | File | Lines | Primary concern |
 |------|------:|-----------------|
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
-| `lib/features/chat/presentation/pages/chat_page.dart` | 2506 | Chat screen layout, drawers, modals, input wiring, plan UI |
+| `lib/features/chat/presentation/pages/chat_page.dart` | 2133 | Chat provider composition, workspace state, navigation, modals, input wiring, and plan UI |
+| `lib/features/chat/presentation/coordinators/slash_command_action_coordinator.dart` | 364 | Slash command loading policy, action dispatch, mode changes, conversation actions, and worktree queueing |
+| `lib/features/chat/presentation/coordinators/goal_slash_command_coordinator.dart` | 243 | Goal slash lifecycle, status summaries, budgets, and auto-continuation state |
+| `lib/features/chat/presentation/coordinators/feedback_slash_command_coordinator.dart` | 95 | Feedback slash preconditions, session-log resolution, submission, and failures |
+| `lib/features/chat/presentation/slash_commands/slash_command_catalog.dart` | 100 | Built-in/custom command catalog and prompt-template resolution |
+| `lib/features/chat/presentation/widgets/slash_command_help_sheet.dart` | 42 | Slash command help presentation |
+| `lib/features/chat/presentation/widgets/chat_page_scaffold.dart` | 87 | Compact and persistent ChatPage scaffold composition |
+| `lib/features/chat/presentation/widgets/chat_right_sidebar.dart` | 114 | Controlled right-sidebar tabs, widths, and split-pane layout |
 | `lib/features/chat/presentation/coordinators/plan_review_action_coordinator.dart` | 198 | Plan review edit, cancel, approval, projection, and task selection |
 | `lib/features/chat/presentation/coordinators/workflow_editor_action_coordinator.dart` | 88 | Workflow editor save, clear, and proposal persistence |
 | `lib/features/chat/presentation/coordinators/workflow_task_action_coordinator.dart` | 258 | Workflow task proposal, editor, menu routing, and status persistence |
@@ -42,13 +49,20 @@ again before starting a new refactor branch.
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/widgets/computer_use_verification_summary.dart` | 107 | Immutable Computer Use onboarding-verification presentation |
 | `lib/features/settings/presentation/widgets/computer_use_xpc_timing_summary.dart` | 176 | Immutable Computer Use XPC timing presentation |
-| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2864 | Debug UI, diagnostics rendering, action controls |
-| `lib/features/chat/data/datasources/network_tools.dart` | 2578 | Network discovery, scanning, and command handling |
+| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2275 | Debug coordination, remaining cards, diagnostics, and action controls |
+| `lib/features/settings/presentation/widgets/computer_use_debug_image_preview.dart` | 153 | Screenshot decoding, zoom presentation, and source-coordinate selection |
+| `lib/features/settings/presentation/widgets/computer_use_debug_onboarding_card.dart` | 94 | Typed onboarding progress, steps, and XPC readiness presentation |
+| `lib/features/settings/presentation/widgets/computer_use_debug_status_primitives.dart` | 424 | Debug headings, helper boundary, status rows, arming, and coordinate presentation |
+| `lib/features/chat/data/datasources/network_tools.dart` | 1996 | Remaining DNS, routes, interfaces, path MTU, mDNS, ping, and traceroute handling |
+| `lib/features/chat/data/datasources/network_address_utils.dart` | 34 | Pure IP normalization and deterministic address ordering |
+| `lib/features/chat/data/datasources/network_http_tools.dart` | 287 | HTTP status and method execution behind an injectable client factory |
+| `lib/features/chat/data/datasources/network_neighbor_tools.dart` | 266 | ARP and NDP execution, parsing, filtering, and ordering behind an injectable process runner |
+| `lib/features/chat/data/datasources/network_socket_tools.dart` | 204 | Port, TLS certificate, and WHOIS execution behind injectable connectors |
 | `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18648 | Broad chat orchestration regression coverage |
 
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. Current aggregate sizes
-are 23,005 lines for the ChatNotifier library, 9,654 for the ChatPage library,
+are 23,005 lines for the ChatNotifier library, 8,945 for the ChatPage library,
 1,294 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
 
@@ -112,8 +126,8 @@ Foundation status (2026-07-16):
 
 Next application-boundary slice:
 
-- Characterize the ChatPage slash command handler against the existing
-  product-path test, then define the smallest coherent Tranche 4 boundary.
+- Characterize the ChatPage `build()` scaffold and right-sidebar layout, then
+  define the smallest coherent Tranche 5 boundary without changing layout.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -279,13 +293,49 @@ Tranche 3 task-action status (2026-07-17):
   full repository gate passed 3,680 root tests plus 13 package tests at 73.98%
   line coverage; coordinator and widget coverage each reached 100.00%.
 
-Later tranche roadmap:
+Tranche 4 slash-command status (2026-07-17):
 
-1. Tranche 4: slash command handler, pinned by
-   `test/features/chat/presentation/pages/chat_page_slash_commands_test.dart`.
-2. Tranche 5: `build()` scaffold decomposition plus right-sidebar layout helpers
-   (`_buildRightSidebarPanel` and `_wrapWithRightSidebar`), following the
-   existing `chat_page_*_builders.dart` idiom.
+- `SlashCommandActionCoordinator` owns loading policy and every top-level slash
+  action, including mode changes, conversation actions, planning, delegation,
+  worktree queueing, and prompt expansion.
+- `GoalSlashCommandCoordinator` and `FeedbackSlashCommandCoordinator` own their
+  complete persistence and failure contracts without Riverpod reads or page
+  state. The catalog and help body are independently importable and tested.
+- ChatPage retains provider composition, modal launch, localization, the shared
+  goal editor, language selection, dashboard state, and the normal composer
+  worktree launcher behind thin callbacks.
+- `chat_page.dart` fell from 2,506 to 2,271 lines and its same-library aggregate
+  fell from 9,654 to 9,085 lines. All five extracted boundaries have exact
+  line-count ratchets.
+- The focused verifier passed 128 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,745 root tests plus 13 package tests at 74.11%
+  line coverage. Extracted-boundary coverage ranges from 93.33% to 100.00%.
+
+Tranche 5 build-scaffold status (2026-07-17):
+
+- `ChatRightSidebarPanel` owns the controlled Companion and Files tabs, exact
+  width calculation, surface and divider presentation, and mounted indexed
+  bodies. `ChatRightSidebarLayout` owns the shared conversation and routine
+  split-pane contract.
+- `ChatPageScaffold` owns compact AppBar, temporary drawer, optional FAB, task
+  banner, and persistent drawer/header composition using already-built child
+  widgets. It imports no Riverpod, localization, or ChatPage-private types.
+- ChatPage retains responsive visibility decisions, provider composition,
+  localization, tab state, companion and viewer construction, browser-pane
+  wrapping, navigation, and mobile keyboard dismissal.
+- `chat_page.dart` fell from 2,271 to 2,133 lines and its same-library aggregate
+  fell from 9,085 to 8,945 lines. The two independent widgets are ratcheted at
+  87 and 114 lines.
+- The focused verifier passed 58 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,754 root tests plus 13 package tests at 74.11%
+  line coverage; both extracted widgets reached 100.00% coverage.
+
+Phase 2 follow-up:
+
+- The planned ChatPage sequence through Tranche 5 is complete and the phase
+  exit criteria below are met. Refresh the oversized-file inventory before
+  selecting another application boundary. Treat any later message-list or
+  composer extraction as a new lifecycle-characterization task.
 
 Exit criteria:
 
@@ -732,11 +782,97 @@ Onboarding verification summary status (2026-07-17):
   The full repository gate passed 3,638 root tests plus 13 internal-package
   tests at 73.53% line coverage; the widget reached 100.00% coverage.
 
+Debug image preview status (2026-07-17):
+
+- `ComputerUseDebugImagePreview` now owns base64 decoding, image presentation,
+  zoom-controller lifecycle, active styling, and viewport-to-source coordinate
+  conversion behind immutable snapshot and point values.
+- The debug page retains native screenshot-result parsing, target selection,
+  coordinate text controllers, diagnostics, service calls, and command
+  dispatch. Direct widget tests perform no native Computer Use actions.
+- `computer_use_debug_page.dart` fell from 2,864 to 2,721 lines. The independent
+  preview boundary is ratcheted at 153 lines.
+- The focused verifier passed 69 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,760 root tests plus 13 package tests at 74.11%
+  line coverage; the preview reached 100.00% coverage.
+
+Debug status primitives status (2026-07-17):
+
+- Nine Computer Use-specific widgets now own section titles, helper-boundary
+  details, onboarding progress and rows, informational notes, tri-state
+  permission and status rows, arming switches, and coordinate-target labels.
+- The debug page retains card composition, providers, service calls, state,
+  result mapping, permission operations, helper lifecycle, screenshots, input,
+  audio, and diagnostics. Direct widget tests perform no native actions.
+- `computer_use_debug_page.dart` fell from 2,721 to 2,322 lines. The independent
+  status-primitives boundary is ratcheted at 424 lines.
+- The focused verifier passed 71 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,767 root tests plus 13 package tests at 74.12%
+  line coverage; the new boundary reached 100.00% coverage.
+
+Debug onboarding card status (2026-07-17):
+
+- `ComputerUseDebugOnboardingCard` owns checklist progress, ordered typed step
+  presentation, first-incomplete guidance, and XPC ready or blocker notes. Its
+  view model copies step and blocker iterables into unmodifiable snapshots.
+- The debug page retains checklist-state calculation, diagnostic map output,
+  XPC protocol translation, providers, services, and native operations. Direct
+  widget tests perform no native actions.
+- `computer_use_debug_page.dart` fell from 2,322 to 2,275 lines. The independent
+  onboarding boundary is ratcheted at 94 lines.
+- The focused verifier passed 69 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,771 root tests plus 13 package tests at 74.13%
+  line coverage; the onboarding boundary reached 100.00% coverage.
+
+Network HTTP tools status (2026-07-18):
+
+- `NetworkHttpTools` now owns HTTP status plus GET, HEAD, DELETE, POST, PUT, and
+  PATCH execution behind an injectable `HttpClient` factory.
+- Exact request controls, headers, content-type precedence, redirects, response
+  envelopes, UTF-8 and base64 body handling, truncation, and cleanup are pinned
+  by in-memory transport tests that open no socket.
+- `NetworkTools` retains unchanged static delegates. The extracted boundary is
+  ratcheted at 287 lines and reached 98.88% line coverage.
+
+Network socket tools status (2026-07-18):
+
+- `NetworkSocketTools` now owns TCP port checks, TLS certificate inspection,
+  and WHOIS execution behind injected plain and secure socket connectors and a
+  deterministic clock.
+- Tests pin success and failure payloads, certificate metadata and validity,
+  registry selection, query normalization, referral fallback, timeouts,
+  cleanup, and truncation without opening real sockets.
+- `network_tools.dart` fell from 2,578 to 2,269 lines across both network
+  slices. The socket boundary is ratcheted at 204 lines and reached 93.65% line
+  coverage. The full gate passed 3,787 root tests plus 13 package tests at
+  74.30% line coverage.
+
+Network neighbor tools status (2026-07-18):
+
+- `NetworkNeighborTools` now owns macOS and Linux ARP and NDP command
+  selection, execution, parsing, filtering, and ordering behind injected
+  platform and process-runner boundaries.
+- Shared pure IP normalization and numeric ordering moved to
+  `network_address_utils.dart` so route, interface, mDNS, and neighbor results
+  keep one comparison contract.
+- Direct tests pin macOS and Linux parsing, invalid and unsupported inputs,
+  command failures, filtering, ordering, and the IPv6-only compatibility
+  wrapper without executing a real process.
+- `network_tools.dart` fell from 2,269 to 1,996 lines. The neighbor and address
+  boundaries are ratcheted at 266 and 34 lines and reached 98.10% and 88.89%
+  line coverage. The final root gate passed analysis and 3,794 tests at 73.99%
+  line coverage; the internal-package gate remains green at 13 tests.
+
 Next slice:
 
-- The Computer Use settings summary sequence and ChatPage Tranche 3 are
-  complete. Continue with the ChatPage Tranche 4 slash command handler after
-  characterizing its existing product-path contract.
+- The planned network sequence is complete: HTTP, raw socket, and neighbor
+  cache responsibilities are independent, and `network_tools.dart` is below
+  2,000 lines. Do not widen this stack into route, interface, or mDNS changes.
+- The refreshed inventory leaves `computer_use_debug_page.dart` as the next
+  unowned UI boundary. Start a new branch after this stack lands and
+  characterize one remaining diagnostics or action-control card before moving
+  it. Keep active ChatNotifier, ChatPage, workflow-runner, and message-input
+  worktree ownership out of that branch.
 
 Exit criteria:
 

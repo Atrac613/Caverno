@@ -11,6 +11,9 @@ import '../../../../core/services/macos_computer_use_setup.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
 import '../widgets/computer_use_audit_log_summary.dart';
+import '../widgets/computer_use_debug_image_preview.dart';
+import '../widgets/computer_use_debug_onboarding_card.dart';
+import '../widgets/computer_use_debug_status_primitives.dart';
 import '../../../../core/theme/app_tokens.dart';
 
 class ComputerUseDebugPage extends ConsumerStatefulWidget {
@@ -48,8 +51,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   List<Map<String, dynamic>> _windows = const [];
   int? _selectedWindowId;
   _CoordinateTarget? _coordinateTarget;
-  _ImageSnapshot? _displayScreenshot;
-  _ImageSnapshot? _windowScreenshot;
+  ComputerUseDebugImageSnapshot? _displayScreenshot;
+  ComputerUseDebugImageSnapshot? _windowScreenshot;
 
   @override
   void initState() {
@@ -95,7 +98,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           const SizedBox(height: 12),
           _buildPermissionsCard(service.permissionBackendInfo),
           const SizedBox(height: 12),
-          _buildOnboardingChecklistCard(),
+          ComputerUseDebugOnboardingCard(viewModel: _onboardingViewModel()),
           const SizedBox(height: 12),
           _buildDisplayScreenshotCard(),
           const SizedBox(height: 12),
@@ -140,7 +143,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     return const Card(
       child: Padding(
         padding: EdgeInsets.all(16),
-        child: _OnboardingNote(
+        child: ComputerUseDebugOnboardingNote(
           icon: Icons.front_hand_outlined,
           title: 'User-Operated Runtime Boundary',
           body:
@@ -158,32 +161,34 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionTitle(
+            ComputerUseDebugSectionTitle(
               icon: Icons.verified_user_outlined,
               title: 'Permissions',
               subtitle:
                   'Launch the helper, then grant Accessibility and Screen & System Audio Recording to Caverno Computer Use.',
             ),
             const SizedBox(height: 12),
-            _HelperBoundaryPanel(backend: setupChecklist.backend),
+            ComputerUseDebugHelperBoundaryPanel(
+              backend: setupChecklist.backend,
+            ),
             const SizedBox(height: 12),
             _buildPermissionChecklist(backend),
             const SizedBox(height: 12),
-            _StatusRow(
+            ComputerUseDebugStatusRow(
               label: 'Helper Installed',
               value: _permissionValue('helperInstalled'),
               trueLabel: 'Installed',
               falseLabel: 'Missing',
               unknownLabel: 'Unknown',
             ),
-            _StatusRow(
+            ComputerUseDebugStatusRow(
               label: 'Helper Running',
               value: _permissionValue('helperRunning'),
               trueLabel: 'Running',
               falseLabel: 'Stopped',
               unknownLabel: 'Unknown',
             ),
-            _StatusRow(
+            ComputerUseDebugStatusRow(
               label: 'Helper Reachable',
               value: _permissionValue('helperReachable'),
               trueLabel: 'Reachable',
@@ -192,7 +197,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             ),
             if (_helperStatus?['helperPathMismatch'] == true) ...[
               const SizedBox(height: 8),
-              _OnboardingNote(
+              ComputerUseDebugOnboardingNote(
                 icon: Icons.route_outlined,
                 title: 'Helper Path Mismatch',
                 body: [
@@ -207,7 +212,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             ],
             if (_existingHelperProbeSummary() != null) ...[
               const SizedBox(height: 8),
-              _OnboardingNote(
+              ComputerUseDebugOnboardingNote(
                 icon: Icons.fact_check_outlined,
                 title: 'Existing Helper Probe',
                 body: _existingHelperProbeSummary()!,
@@ -215,7 +220,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             ],
             if (_manualTccHandoffSummary() != null) ...[
               const SizedBox(height: 8),
-              _OnboardingNote(
+              ComputerUseDebugOnboardingNote(
                 icon: Icons.privacy_tip_outlined,
                 title: 'Manual TCC Handoff',
                 body: _manualTccHandoffSummary()!,
@@ -223,49 +228,49 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             ],
             if (_overlayCanarySummary() != null) ...[
               const SizedBox(height: 8),
-              _OnboardingNote(
+              ComputerUseDebugOnboardingNote(
                 icon: Icons.picture_in_picture_alt_outlined,
                 title: 'Overlay Canary',
                 body: _overlayCanarySummary()!,
               ),
             ],
             const SizedBox(height: 8),
-            _OnboardingNote(
+            ComputerUseDebugOnboardingNote(
               icon: Icons.fact_check_outlined,
               title: 'MVP Sign-Off Path',
               body: _mvpSignoffSummary(),
             ),
             const SizedBox(height: 8),
-            _OnboardingNote(
+            ComputerUseDebugOnboardingNote(
               icon: Icons.checklist_outlined,
               title: 'MVP Evidence Preflight',
               body: _mvpEvidencePreflightSummary(),
             ),
             const SizedBox(height: 8),
-            _OnboardingNote(
+            ComputerUseDebugOnboardingNote(
               icon: Icons.rule_folder_outlined,
               title: 'MVP Missing Evidence Checklist',
               body: _mvpMissingEvidenceChecklistSummary(),
             ),
             const SizedBox(height: 8),
-            _OnboardingNote(
+            ComputerUseDebugOnboardingNote(
               icon: Icons.terminal_outlined,
               title: 'User-Operated MVP Commands',
               body: _mvpUserOperatedCommandSummary(),
             ),
             const SizedBox(height: 8),
-            _OnboardingNote(
+            ComputerUseDebugOnboardingNote(
               icon: Icons.folder_open_outlined,
               title: 'MVP Artifact Paths',
               body: _mvpArtifactPathSummary(),
             ),
             const SizedBox(height: 8),
-            _OnboardingNote(
+            ComputerUseDebugOnboardingNote(
               icon: Icons.rate_review_outlined,
               title: 'MVP PR Review Summary',
               body: _mvpPrReviewSummary(),
             ),
-            _PermissionRow(
+            ComputerUseDebugPermissionRow(
               label: 'Accessibility',
               value: _permissionValue('accessibilityGranted'),
               openSettingsTooltip: 'Open Accessibility Settings',
@@ -274,7 +279,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 action: 'Open Accessibility Settings',
               ),
             ),
-            _PermissionRow(
+            ComputerUseDebugPermissionRow(
               label: 'Screen & System Audio Recording',
               value: _permissionValue('screenCaptureGranted'),
               openSettingsTooltip: 'Open Screen Recording Settings',
@@ -283,7 +288,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 action: 'Open Screen Recording Settings',
               ),
             ),
-            _PermissionRow(
+            ComputerUseDebugPermissionRow(
               label: 'System Audio Supported',
               value: _permissionValue('systemAudioRecordingSupported'),
             ),
@@ -390,7 +395,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionTitle(
+            ComputerUseDebugSectionTitle(
               icon: Icons.desktop_mac_outlined,
               title: 'Display Screenshot',
               subtitle: 'Capture the main display and preview the PNG payload.',
@@ -422,7 +427,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             ),
             if (_displayScreenshot != null) ...[
               const SizedBox(height: 12),
-              _ImagePreview(
+              ComputerUseDebugImagePreview(
                 key: const ValueKey('computer-use-display-preview'),
                 snapshot: _displayScreenshot!,
                 active: _coordinateTarget == _CoordinateTarget.display,
@@ -431,65 +436,6 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 ),
                 onPointSelected: (point) =>
                     _selectImagePoint(_CoordinateTarget.display, point),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOnboardingChecklistCard() {
-    final steps = _onboardingSmokeChecklist();
-    final completed = steps.where((step) => step['complete'] == true).length;
-    final total = steps.length;
-    final nextStep = steps.cast<Map<String, dynamic>?>().firstWhere(
-      (step) => step?['complete'] != true,
-      orElse: () => null,
-    );
-    final runtime = _helperIpcProtocol();
-    final blockers = _stringList(runtime['xpcProductionBlockers']);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SectionTitle(
-              icon: Icons.fact_check_outlined,
-              title: 'Computer Use Onboarding',
-              subtitle: nextStep == null
-                  ? 'All onboarding checks are complete.'
-                  : 'Next: ${nextStep['label']}',
-            ),
-            const SizedBox(height: 12),
-            _OnboardingProgressRow(completed: completed, total: total),
-            const SizedBox(height: 12),
-            for (final step in steps)
-              _OnboardingStepRow(
-                label: '${step['label']}',
-                complete: step['complete'] == true,
-              ),
-            if (blockers.isEmpty) ...[
-              const SizedBox(height: 12),
-              _OnboardingNote(
-                icon: Icons.verified_outlined,
-                title: 'XPC Production Ready',
-                body: '${runtime['xpcProductionNextAction']}',
-              ),
-            ] else ...[
-              const SizedBox(height: 12),
-              _OnboardingNote(
-                icon: Icons.route_outlined,
-                title: 'XPC Production Blocker',
-                body: blockers.join(', '),
-              ),
-              const SizedBox(height: 8),
-              _OnboardingNote(
-                icon: Icons.next_plan_outlined,
-                title: 'XPC Next Action',
-                body: '${runtime['xpcProductionNextAction']}',
               ),
             ],
           ],
@@ -507,7 +453,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionTitle(
+            ComputerUseDebugSectionTitle(
               icon: Icons.web_asset_outlined,
               title: 'Window Targeting',
               subtitle:
@@ -616,7 +562,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             ],
             if (_windowScreenshot != null) ...[
               const SizedBox(height: 12),
-              _ImagePreview(
+              ComputerUseDebugImagePreview(
                 key: const ValueKey('computer-use-window-preview'),
                 snapshot: _windowScreenshot!,
                 active: _coordinateTarget == _CoordinateTarget.window,
@@ -642,14 +588,14 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionTitle(
+            ComputerUseDebugSectionTitle(
               icon: Icons.ads_click_outlined,
               title: 'Input Smoke Checks',
               subtitle:
                   'Run explicit input events against the selected window or display coordinates.',
             ),
             const SizedBox(height: 12),
-            _ArmSwitch(
+            ComputerUseDebugArmSwitch(
               title: 'Input Events Armed',
               subtitle:
                   'Required before moving the pointer, clicking, or typing text.',
@@ -659,7 +605,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   : (value) => setState(() => _inputActionsArmed = value),
             ),
             const SizedBox(height: 12),
-            _CoordinateTargetRow(label: _coordinateTargetLabel),
+            ComputerUseDebugCoordinateTargetRow(label: _coordinateTargetLabel),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -733,14 +679,14 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionTitle(
+            ComputerUseDebugSectionTitle(
               icon: Icons.graphic_eq_outlined,
               title: 'System Audio',
               subtitle:
                   'Start and stop a ScreenCaptureKit system audio recording.',
             ),
             const SizedBox(height: 12),
-            _ArmSwitch(
+            ComputerUseDebugArmSwitch(
               title: 'System Audio Armed',
               subtitle: 'Required before starting a system audio recording.',
               value: _audioRecordingArmed,
@@ -808,14 +754,14 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _SectionTitle(
+            const ComputerUseDebugSectionTitle(
               icon: Icons.summarize_outlined,
               title: 'Diagnostics',
               subtitle:
                   'Copy or export a redacted smoke-test snapshot for debugging.',
             ),
             const SizedBox(height: 12),
-            const _OnboardingNote(
+            const ComputerUseDebugOnboardingNote(
               icon: Icons.privacy_tip_outlined,
               title: 'Manual Smoke Boundary',
               body:
@@ -871,7 +817,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionTitle(
+            ComputerUseDebugSectionTitle(
               icon: Icons.data_object_outlined,
               title: 'Last Native Result',
               subtitle: _lastAction,
@@ -1082,7 +1028,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     _disarmInputActions();
   }
 
-  void _selectImagePoint(_CoordinateTarget target, _ImagePoint point) {
+  void _selectImagePoint(
+    _CoordinateTarget target,
+    ComputerUseDebugImagePoint point,
+  ) {
     setState(() {
       _coordinateTarget = target;
       _xController.text = point.x.round().toString();
@@ -1583,6 +1532,20 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     ];
   }
 
+  ComputerUseDebugOnboardingViewModel _onboardingViewModel() {
+    final ipc = MacosComputerUseIpc.current;
+    return ComputerUseDebugOnboardingViewModel(
+      steps: _onboardingSmokeChecklist().map(
+        (step) => ComputerUseDebugOnboardingStep(
+          label: '${step['label']}',
+          complete: step['complete'] == true,
+        ),
+      ),
+      xpcProductionBlockers: ipc.xpcProductionBlockers,
+      xpcProductionNextAction: ipc.xpcProductionNextAction,
+    );
+  }
+
   Map<String, dynamic>? _onboardingVerification() {
     final value =
         _helperStatus?['onboardingVerification'] ??
@@ -2031,7 +1994,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     };
   }
 
-  Map<String, dynamic>? _imageSummary(_ImageSnapshot? snapshot) {
+  Map<String, dynamic>? _imageSummary(ComputerUseDebugImageSnapshot? snapshot) {
     if (snapshot == null) {
       return null;
     }
@@ -2213,7 +2176,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     return value;
   }
 
-  _ImageSnapshot? _imageSnapshot(
+  ComputerUseDebugImageSnapshot? _imageSnapshot(
     Map<String, dynamic> result,
     String fallbackTitle,
   ) {
@@ -2221,7 +2184,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     if (imageBase64 is! String || imageBase64.isEmpty) {
       return null;
     }
-    return _ImageSnapshot(
+    return ComputerUseDebugImageSnapshot(
       title: fallbackTitle,
       base64: imageBase64,
       width: _intValue(result['width']) ?? 0,
@@ -2302,560 +2265,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 2),
-              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _HelperBoundaryPanel extends StatelessWidget {
-  const _HelperBoundaryPanel({required this.backend});
-
-  final MacosComputerUseBackendInfo backend;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: colorScheme.surfaceContainerHighest,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.account_tree_outlined, color: colorScheme.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Computer Use App Boundary',
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        backend.usesSeparateHelper
-                            ? 'Privileged desktop control runs in the helper app, which also owns capture TCC.'
-                            : 'Smoke checks still use the in-process compatibility backend.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _BoundaryValueRow(
-              label: 'Current executor',
-              value: '${backend.displayName} (${backend.executionMode})',
-            ),
-            _BoundaryValueRow(
-              label: 'Accessibility owner',
-              value: backend.permissionOwnerName,
-            ),
-            const _BoundaryValueRow(
-              label: 'Screen/audio owner',
-              value: 'Caverno Computer Use',
-            ),
-            _BoundaryValueRow(
-              label: 'Target helper',
-              value:
-                  '${backend.targetHelperName} (${backend.targetHelperBundleIdentifier})',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BoundaryValueRow extends StatelessWidget {
-  const _BoundaryValueRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 136,
-            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ),
-          Expanded(
-            child: SelectableText(
-              value,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OnboardingProgressRow extends StatelessWidget {
-  const _OnboardingProgressRow({required this.completed, required this.total});
-
-  final int completed;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = total == 0 ? 0.0 : completed / total;
-    return Row(
-      children: [
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(value: progress, minHeight: 8),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          '$completed of $total complete',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-    );
-  }
-}
-
-class _OnboardingStepRow extends StatelessWidget {
-  const _OnboardingStepRow({required this.label, required this.complete});
-
-  final String label;
-  final bool complete;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final color = complete ? colorScheme.primary : colorScheme.outline;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(
-            complete
-                ? Icons.check_circle_outline
-                : Icons.radio_button_unchecked,
-            color: color,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(child: Text(label)),
-          Text(
-            complete ? 'Done' : 'Pending',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: color,
-              fontWeight: complete ? FontWeight.w600 : FontWeight.normal,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OnboardingNote extends StatelessWidget {
-  const _OnboardingNote({
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: colorScheme.primary, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 2),
-                  Text(body, style: Theme.of(context).textTheme.bodySmall),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PermissionRow extends StatelessWidget {
-  const _PermissionRow({
-    required this.label,
-    required this.value,
-    this.openSettingsTooltip,
-    this.onOpenSettings,
-  });
-
-  final String label;
-  final bool? value;
-  final String? openSettingsTooltip;
-  final VoidCallback? onOpenSettings;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final icon = switch (value) {
-      true => Icons.check_circle_outline,
-      false => Icons.error_outline,
-      null => Icons.help_outline,
-    };
-    final color = switch (value) {
-      true => colorScheme.primary,
-      false => colorScheme.error,
-      null => Theme.of(context).disabledColor,
-    };
-    final labelText = switch (value) {
-      true => 'Granted',
-      false => 'Missing',
-      null => 'Unknown',
-    };
-    final showSettingsButton = value != true && onOpenSettings != null;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 8),
-          Expanded(child: Text(label)),
-          Text(labelText, style: TextStyle(color: color)),
-          if (showSettingsButton) ...[
-            const SizedBox(width: 4),
-            IconButton.filledTonal(
-              tooltip: openSettingsTooltip ?? 'Open System Settings',
-              onPressed: onOpenSettings,
-              icon: const Icon(Icons.settings_outlined),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({
-    required this.label,
-    required this.value,
-    required this.trueLabel,
-    required this.falseLabel,
-    required this.unknownLabel,
-  });
-
-  final String label;
-  final bool? value;
-  final String trueLabel;
-  final String falseLabel;
-  final String unknownLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final icon = switch (value) {
-      true => Icons.check_circle_outline,
-      false => Icons.error_outline,
-      null => Icons.help_outline,
-    };
-    final color = switch (value) {
-      true => colorScheme.primary,
-      false => colorScheme.error,
-      null => Theme.of(context).disabledColor,
-    };
-    final labelText = switch (value) {
-      true => trueLabel,
-      false => falseLabel,
-      null => unknownLabel,
-    };
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 8),
-          Expanded(child: Text(label)),
-          Text(labelText, style: TextStyle(color: color)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ArmSwitch extends StatelessWidget {
-  const _ArmSwitch({
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: value
-          ? colorScheme.errorContainer
-          : colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(8),
-      clipBehavior: Clip.antiAlias,
-      child: SwitchListTile(
-        value: value,
-        onChanged: onChanged,
-        title: Text(title),
-        subtitle: Text(subtitle),
-        secondary: Icon(
-          value ? Icons.lock_open_outlined : Icons.lock_outline,
-          color: value ? colorScheme.error : null,
-        ),
-      ),
-    );
-  }
-}
-
-class _CoordinateTargetRow extends StatelessWidget {
-  const _CoordinateTargetRow({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            Icon(
-              Icons.my_location_outlined,
-              color: Theme.of(context).colorScheme.primary,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: Text(label)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ImagePreview extends StatefulWidget {
-  const _ImagePreview({
-    super.key,
-    required this.snapshot,
-    required this.active,
-    required this.tapAreaKey,
-    required this.onPointSelected,
-  });
-
-  final _ImageSnapshot snapshot;
-  final bool active;
-  final Key tapAreaKey;
-  final ValueChanged<_ImagePoint>? onPointSelected;
-
-  @override
-  State<_ImagePreview> createState() => _ImagePreviewState();
-}
-
-class _ImagePreviewState extends State<_ImagePreview> {
-  final _transformationController = TransformationController();
-
-  @override
-  void dispose() {
-    _transformationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bytes = _decodeBytes();
-    if (bytes == null) {
-      return const Text('Failed to decode image payload.');
-    }
-    final aspectRatio = widget.snapshot.width > 0 && widget.snapshot.height > 0
-        ? widget.snapshot.width / widget.snapshot.height
-        : 16 / 9;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${widget.snapshot.title} (${widget.snapshot.width}x${widget.snapshot.height}, ${widget.snapshot.mimeType})',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: widget.active
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).dividerColor,
-                width: 2,
-              ),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 420),
-              child: AspectRatio(
-                aspectRatio: aspectRatio,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return GestureDetector(
-                      key: widget.tapAreaKey,
-                      behavior: HitTestBehavior.opaque,
-                      onTapDown: widget.onPointSelected == null
-                          ? null
-                          : (details) => _handleTap(
-                              details.localPosition,
-                              constraints.biggest,
-                            ),
-                      child: InteractiveViewer(
-                        transformationController: _transformationController,
-                        minScale: 0.5,
-                        maxScale: 4,
-                        child: Image.memory(
-                          bytes,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                          errorBuilder: (context, error, stackTrace) => Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text('Failed to decode image: $error'),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _handleTap(Offset viewportPosition, Size viewportSize) {
-    if (viewportSize.width <= 0 ||
-        viewportSize.height <= 0 ||
-        widget.snapshot.width <= 0 ||
-        widget.snapshot.height <= 0) {
-      return;
-    }
-
-    final scenePosition = _transformationController.toScene(viewportPosition);
-    final x = scenePosition.dx.clamp(0, viewportSize.width).toDouble();
-    final y = scenePosition.dy.clamp(0, viewportSize.height).toDouble();
-    widget.onPointSelected?.call(
-      _ImagePoint(
-        x / viewportSize.width * widget.snapshot.width,
-        y / viewportSize.height * widget.snapshot.height,
-      ),
-    );
-  }
-
-  Uint8List? _decodeBytes() {
-    try {
-      return base64Decode(widget.snapshot.base64);
-    } catch (_) {
-      return null;
-    }
-  }
-}
-
-class _ImageSnapshot {
-  const _ImageSnapshot({
-    required this.title,
-    required this.base64,
-    required this.width,
-    required this.height,
-    required this.mimeType,
-  });
-
-  final String title;
-  final String base64;
-  final int width;
-  final int height;
-  final String mimeType;
-}
-
 class _Coordinates {
   const _Coordinates(this.x, this.y);
-
-  final double x;
-  final double y;
-}
-
-class _ImagePoint {
-  const _ImagePoint(this.x, this.y);
 
   final double x;
   final double y;
