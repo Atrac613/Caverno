@@ -49,8 +49,9 @@ again before starting a new refactor branch.
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/widgets/computer_use_verification_summary.dart` | 107 | Immutable Computer Use onboarding-verification presentation |
 | `lib/features/settings/presentation/widgets/computer_use_xpc_timing_summary.dart` | 176 | Immutable Computer Use XPC timing presentation |
-| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2145 | Debug coordination and remaining display capture, window, and input action controls |
+| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2114 | Debug coordination and remaining window and input action controls |
 | `lib/features/settings/presentation/widgets/computer_use_debug_audio_card.dart` | 99 | Immutable System Audio state and action presentation |
+| `lib/features/settings/presentation/widgets/computer_use_debug_display_screenshot_card.dart` | 81 | Immutable display capture and preview presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_diagnostics_cards.dart` | 149 | Immutable diagnostics actions, copied audit presentation, export feedback, and native result display |
 | `lib/features/settings/presentation/widgets/computer_use_debug_image_preview.dart` | 153 | Screenshot decoding, zoom presentation, and source-coordinate selection |
 | `lib/features/settings/presentation/widgets/computer_use_debug_onboarding_card.dart` | 94 | Typed onboarding progress, steps, and XPC readiness presentation |
@@ -898,15 +899,31 @@ Debug audio card status (2026-07-18):
   gate passed analysis, 3,803 root tests, and 13 package tests at 74.00% line
   coverage.
 
+Debug display screenshot card status (2026-07-18):
+
+- `ComputerUseDebugDisplayScreenshotCard` now owns the max-width field,
+  capture action, and optional display preview behind an immutable view model,
+  the page-owned text controller, and explicit callbacks.
+- The debug page retains max-width normalization, service execution, result
+  decoding, snapshot and coordinate-target state, and selected-point mutation.
+  Direct widget tests execute no native desktop action.
+- Direct and product-path tests pin busy-only capture eligibility, copy, icons,
+  preview keys and active state, callback dispatch, all invalid-width fallback
+  cases, display selection, and source dimensions passed to input actions.
+- `computer_use_debug_page.dart` fell from 2,145 to 2,114 lines. The new
+  boundary is ratcheted at 81 lines and reached 100.00% line coverage. The full
+  gate passed analysis, 3,811 root tests, and 13 package tests at 74.37% line
+  coverage.
+
 Next slice:
 
-- The planned network sequence and debug diagnostics, result, and audio-card
-  slices are complete. Do not widen either stack into unrelated route,
-  interface, mDNS, or native action changes.
-- The next smallest unowned debug-page boundary is the display screenshot card.
-  Start a new branch after this slice lands and characterize max-width input,
-  busy and armed eligibility, preview state, and coordinate selection before
-  moving presentation.
+- The planned network sequence and debug diagnostics, result, audio, and
+  display-screenshot slices are complete. Do not widen either stack into
+  unrelated route, interface, mDNS, or native action changes.
+- The next smallest unowned debug-page boundary is the input card. Start a new
+  branch after this slice lands and characterize controller ownership plus the
+  busy, armed, and coordinate-target eligibility matrix before moving
+  presentation.
   Keep active ChatNotifier, ChatPage, workflow-runner, and message-input
   worktree ownership out of that branch.
 

@@ -826,6 +826,25 @@ void main() {
     expect(service.lastMoveArguments!.containsKey('window_id'), isFalse);
   });
 
+  testWidgets('normalizes display screenshot max-width arguments', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    final field = find.widgetWithText(TextField, 'Max image width');
+    for (final value in const ['640', '', 'invalid', '0', '-1']) {
+      await _scrollUntilVisible(tester, field);
+      await tester.enterText(field, value);
+      await _tapButton(tester, 'Capture Display');
+    }
+
+    expect(
+      service.screenshotArguments.map((arguments) => arguments['max_width']),
+      [640, 1200, 1200, 1200, 1200],
+    );
+  });
+
   testWidgets('uses selected window preview taps for click arguments', (
     tester,
   ) async {
@@ -1157,6 +1176,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   int stopHelperWorkCallCount = 0;
   int getPermissionsCallCount = 0;
   int screenshotCallCount = 0;
+  final List<Map<String, dynamic>> screenshotArguments = [];
   int listWindowsCallCount = 0;
   int startAudioCallCount = 0;
   int stopAudioCallCount = 0;
@@ -1337,6 +1357,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> screenshot(Map<String, dynamic> arguments) async {
     screenshotCallCount += 1;
+    screenshotArguments.add(Map<String, dynamic>.from(arguments));
     return _imageResult(title: 'Display');
   }
 

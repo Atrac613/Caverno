@@ -12,6 +12,7 @@ import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
 import '../widgets/computer_use_debug_audio_card.dart';
 import '../widgets/computer_use_debug_diagnostics_cards.dart';
+import '../widgets/computer_use_debug_display_screenshot_card.dart';
 import '../widgets/computer_use_debug_image_preview.dart';
 import '../widgets/computer_use_debug_onboarding_card.dart';
 import '../widgets/computer_use_debug_status_primitives.dart';
@@ -100,7 +101,17 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           const SizedBox(height: 12),
           ComputerUseDebugOnboardingCard(viewModel: _onboardingViewModel()),
           const SizedBox(height: 12),
-          _buildDisplayScreenshotCard(),
+          ComputerUseDebugDisplayScreenshotCard(
+            viewModel: ComputerUseDebugDisplayScreenshotViewModel(
+              isBusy: _isBusy,
+              snapshot: _displayScreenshot,
+              isPreviewActive: _coordinateTarget == _CoordinateTarget.display,
+            ),
+            maxWidthController: _maxWidthController,
+            onCapture: _captureDisplayScreenshot,
+            onPointSelected: (point) =>
+                _selectImagePoint(_CoordinateTarget.display, point),
+          ),
           const SizedBox(height: 12),
           _buildWindowCard(),
           const SizedBox(height: 12),
@@ -415,62 +426,6 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 ),
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDisplayScreenshotCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ComputerUseDebugSectionTitle(
-              icon: Icons.desktop_mac_outlined,
-              title: 'Display Screenshot',
-              subtitle: 'Capture the main display and preview the PNG payload.',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _maxWidthController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Max image width',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _actionButton(
-              icon: Icons.camera_alt_outlined,
-              label: 'Capture Display',
-              onPressed: () => _run(
-                'Capture display screenshot',
-                (service) => service.screenshot({'max_width': _maxWidth()}),
-                onResult: (result) {
-                  final snapshot = _imageSnapshot(result, 'Display screenshot');
-                  if (snapshot != null) {
-                    _displayScreenshot = snapshot;
-                    _coordinateTarget = _CoordinateTarget.display;
-                  }
-                },
-              ),
-            ),
-            if (_displayScreenshot != null) ...[
-              const SizedBox(height: 12),
-              ComputerUseDebugImagePreview(
-                key: const ValueKey('computer-use-display-preview'),
-                snapshot: _displayScreenshot!,
-                active: _coordinateTarget == _CoordinateTarget.display,
-                tapAreaKey: const ValueKey(
-                  'computer-use-display-preview-tap-area',
-                ),
-                onPointSelected: (point) =>
-                    _selectImagePoint(_CoordinateTarget.display, point),
-              ),
-            ],
           ],
         ),
       ),
@@ -877,6 +832,20 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       },
     );
     _disarmInputActions();
+  }
+
+  Future<void> _captureDisplayScreenshot() {
+    return _run(
+      'Capture display screenshot',
+      (service) => service.screenshot({'max_width': _maxWidth()}),
+      onResult: (result) {
+        final snapshot = _imageSnapshot(result, 'Display screenshot');
+        if (snapshot != null) {
+          _displayScreenshot = snapshot;
+          _coordinateTarget = _CoordinateTarget.display;
+        }
+      },
+    );
   }
 
   Future<void> _clickPoint() async {
