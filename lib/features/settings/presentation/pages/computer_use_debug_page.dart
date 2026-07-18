@@ -14,6 +14,7 @@ import '../widgets/computer_use_debug_audio_card.dart';
 import '../widgets/computer_use_debug_diagnostics_cards.dart';
 import '../widgets/computer_use_debug_display_screenshot_card.dart';
 import '../widgets/computer_use_debug_image_preview.dart';
+import '../widgets/computer_use_debug_input_card.dart';
 import '../widgets/computer_use_debug_onboarding_card.dart';
 import '../widgets/computer_use_debug_status_primitives.dart';
 
@@ -115,7 +116,22 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           const SizedBox(height: 12),
           _buildWindowCard(),
           const SizedBox(height: 12),
-          _buildInputCard(),
+          ComputerUseDebugInputCard(
+            viewModel: ComputerUseDebugInputViewModel(
+              isBusy: _isBusy,
+              isArmed: _inputActionsArmed,
+              hasCoordinateTarget: _hasCoordinateTarget,
+              coordinateTargetLabel: _coordinateTargetLabel,
+            ),
+            xController: _xController,
+            yController: _yController,
+            textController: _textController,
+            onArmedChanged: (value) =>
+                setState(() => _inputActionsArmed = value),
+            onMovePointer: _movePointer,
+            onClickPoint: _clickPoint,
+            onTypeText: _typeText,
+          ),
           const SizedBox(height: 12),
           ComputerUseDebugAudioCard(
             viewModel: ComputerUseDebugAudioViewModel(
@@ -561,99 +577,6 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                     _selectImagePoint(_CoordinateTarget.window, point),
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputCard() {
-    final hasTarget = _hasCoordinateTarget;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ComputerUseDebugSectionTitle(
-              icon: Icons.ads_click_outlined,
-              title: 'Input Smoke Checks',
-              subtitle:
-                  'Run explicit input events against the selected window or display coordinates.',
-            ),
-            const SizedBox(height: 12),
-            ComputerUseDebugArmSwitch(
-              title: 'Input Events Armed',
-              subtitle:
-                  'Required before moving the pointer, clicking, or typing text.',
-              value: _inputActionsArmed,
-              onChanged: _isBusy
-                  ? null
-                  : (value) => setState(() => _inputActionsArmed = value),
-            ),
-            const SizedBox(height: 12),
-            ComputerUseDebugCoordinateTargetRow(label: _coordinateTargetLabel),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _xController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'X',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _yController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Y',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _textController,
-              decoration: const InputDecoration(
-                labelText: 'Text to type',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _actionButton(
-                  icon: Icons.mouse_outlined,
-                  label: 'Move Pointer',
-                  onPressed: hasTarget && _inputActionsArmed
-                      ? _movePointer
-                      : null,
-                ),
-                _actionButton(
-                  icon: Icons.touch_app_outlined,
-                  label: 'Click Point',
-                  onPressed: hasTarget && _inputActionsArmed
-                      ? _clickPoint
-                      : null,
-                ),
-                _actionButton(
-                  icon: Icons.keyboard_alt_outlined,
-                  label: 'Type Text',
-                  onPressed: _inputActionsArmed ? _typeText : null,
-                ),
-              ],
-            ),
           ],
         ),
       ),

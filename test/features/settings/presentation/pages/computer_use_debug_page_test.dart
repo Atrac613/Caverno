@@ -845,6 +845,63 @@ void main() {
     );
   });
 
+  testWidgets('rejects blank text without disarming input actions', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    final field = find.widgetWithText(TextField, 'Text to type');
+    await _scrollUntilVisible(tester, field);
+    await tester.enterText(field, '   ');
+    await _tapSwitch(tester, 'Input Events Armed');
+    await _tapButton(tester, 'Type Text');
+
+    expect(service.lastTypeTextArguments, isNull);
+    expect(find.text('Enter text before running Type Text.'), findsOneWidget);
+    final switchTile = tester.widget<SwitchListTile>(
+      find.ancestor(
+        of: find.text('Input Events Armed'),
+        matching: find.byType(SwitchListTile),
+      ),
+    );
+    expect(switchTile.value, isTrue);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Type Text'))
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('forwards original text and disarms after an attempted action', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    final field = find.widgetWithText(TextField, 'Text to type');
+    await _scrollUntilVisible(tester, field);
+    await tester.enterText(field, '  Caverno  ');
+    await _tapSwitch(tester, 'Input Events Armed');
+    await _tapButton(tester, 'Type Text');
+
+    expect(service.lastTypeTextArguments, {'text': '  Caverno  '});
+    final switchTile = tester.widget<SwitchListTile>(
+      find.ancestor(
+        of: find.text('Input Events Armed'),
+        matching: find.byType(SwitchListTile),
+      ),
+    );
+    expect(switchTile.value, isFalse);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Type Text'))
+          .onPressed,
+      isNull,
+    );
+  });
+
   testWidgets('uses selected window preview taps for click arguments', (
     tester,
   ) async {
@@ -1183,6 +1240,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   final List<String> openedSettingsSections = [];
   Map<String, dynamic>? lastMoveArguments;
   Map<String, dynamic>? lastClickArguments;
+  Map<String, dynamic>? lastTypeTextArguments;
   Map<String, dynamic>? lastWindowScreenshotArguments;
 
   @override
@@ -1406,6 +1464,12 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> click(Map<String, dynamic> arguments) async {
     lastClickArguments = Map<String, dynamic>.from(arguments);
+    return _json({'ok': true});
+  }
+
+  @override
+  Future<String> typeText(Map<String, dynamic> arguments) async {
+    lastTypeTextArguments = Map<String, dynamic>.from(arguments);
     return _json({'ok': true});
   }
 
