@@ -930,6 +930,66 @@ void main() {
     expect(service.lastClickArguments, containsPair('click_count', 1));
   });
 
+  testWidgets('lists, focuses, and switches selected windows safely', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapButton(tester, 'List Windows');
+    expect(service.lastListWindowsArguments, {
+      'include_current_app': true,
+      'max_windows': 80,
+    });
+    expect(find.text('Terminal - Shell (#42)'), findsOneWidget);
+    expect(
+      find.text('Bounds: x=10, y=20, width=800, height=600'),
+      findsOneWidget,
+    );
+
+    await _tapButton(tester, 'Focus Selected');
+    expect(service.lastFocusWindowArguments, {
+      'window_id': 42,
+      'reason': 'Debug smoke test',
+    });
+    await _tapButton(tester, 'Capture Selected');
+    expect(
+      find.byKey(const ValueKey('computer-use-window-preview')),
+      findsOneWidget,
+    );
+
+    final dropdownFinder = find.byType(DropdownButtonFormField<int>);
+    await _scrollUntilVisible(tester, dropdownFinder);
+    final dropdown = tester.widget<DropdownButtonFormField<int>>(
+      dropdownFinder,
+    );
+    dropdown.onChanged!(43);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('computer-use-window-preview')),
+      findsNothing,
+    );
+    await _scrollUntilVisible(tester, find.text('Active source: none'));
+    expect(find.text('Active source: none'), findsOneWidget);
+
+    await _tapButton(tester, 'Focus Selected');
+    expect(service.lastFocusWindowArguments?['window_id'], 43);
+    await _tapButton(tester, 'Capture Selected');
+    expect(service.lastWindowScreenshotArguments?['window_id'], 43);
+    expect(find.textContaining('Safari - Docs (1x1'), findsOneWidget);
+
+    final selectedBrowserDropdown = tester.widget<DropdownButtonFormField<int>>(
+      find.byType(DropdownButtonFormField<int>),
+    );
+    selectedBrowserDropdown.onChanged!(43);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('computer-use-window-preview')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('runs smoke sequence without unsafe armed actions', (
     tester,
   ) async {
@@ -1241,6 +1301,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   Map<String, dynamic>? lastMoveArguments;
   Map<String, dynamic>? lastClickArguments;
   Map<String, dynamic>? lastTypeTextArguments;
+  Map<String, dynamic>? lastListWindowsArguments;
+  Map<String, dynamic>? lastFocusWindowArguments;
   Map<String, dynamic>? lastWindowScreenshotArguments;
 
   @override
@@ -1422,6 +1484,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> listWindows(Map<String, dynamic> arguments) async {
     listWindowsCallCount += 1;
+    lastListWindowsArguments = Map<String, dynamic>.from(arguments);
     return _json({
       'windows': [
         {
@@ -1434,23 +1497,42 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
           'alpha': 1,
           'isOnScreen': true,
         },
+        {
+          'windowId': 43,
+          'ownerPid': 101,
+          'appName': 'Safari',
+          'title': 'Docs',
+          'bounds': {'x': 30, 'y': 40, 'width': 900, 'height': 700},
+          'layer': 0,
+          'alpha': 1,
+          'isOnScreen': true,
+        },
       ],
-      'count': 1,
+      'count': 2,
       'coordinateSpace': 'window_pixels',
       'inputOrigin': 'top_left',
     });
   }
 
   @override
+  Future<String> focusWindow(Map<String, dynamic> arguments) async {
+    lastFocusWindowArguments = Map<String, dynamic>.from(arguments);
+    return _json({'ok': true});
+  }
+
+  @override
   Future<String> screenshotWindow(Map<String, dynamic> arguments) async {
     lastWindowScreenshotArguments = Map<String, dynamic>.from(arguments);
+    final isBrowser = arguments['window_id'] == 43;
     return _imageResult(
-      title: 'Shell',
+      title: isBrowser ? 'Docs' : 'Shell',
       extra: {
-        'windowId': 42,
-        'ownerPid': 100,
-        'appName': 'Terminal',
-        'windowBounds': {'x': 10, 'y': 20, 'width': 800, 'height': 600},
+        'windowId': isBrowser ? 43 : 42,
+        'ownerPid': isBrowser ? 101 : 100,
+        'appName': isBrowser ? 'Safari' : 'Terminal',
+        'windowBounds': isBrowser
+            ? {'x': 30, 'y': 40, 'width': 900, 'height': 700}
+            : {'x': 10, 'y': 20, 'width': 800, 'height': 600},
       },
     );
   }

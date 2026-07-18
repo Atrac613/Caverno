@@ -49,10 +49,11 @@ again before starting a new refactor branch.
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/widgets/computer_use_verification_summary.dart` | 107 | Immutable Computer Use onboarding-verification presentation |
 | `lib/features/settings/presentation/widgets/computer_use_xpc_timing_summary.dart` | 176 | Immutable Computer Use XPC timing presentation |
-| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2037 | Debug coordination and remaining window-targeting action controls |
+| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 1991 | Permission, runtime, diagnostics, and smoke coordination |
 | `lib/features/settings/presentation/widgets/computer_use_debug_audio_card.dart` | 99 | Immutable System Audio state and action presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_display_screenshot_card.dart` | 81 | Immutable display capture and preview presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_input_card.dart` | 133 | Immutable input arming, target, field, and action presentation |
+| `lib/features/settings/presentation/widgets/computer_use_debug_window_targeting_card.dart` | 163 | Immutable window actions, selection, bounds, and preview presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_diagnostics_cards.dart` | 149 | Immutable diagnostics actions, copied audit presentation, export feedback, and native result display |
 | `lib/features/settings/presentation/widgets/computer_use_debug_image_preview.dart` | 153 | Screenshot decoding, zoom presentation, and source-coordinate selection |
 | `lib/features/settings/presentation/widgets/computer_use_debug_onboarding_card.dart` | 94 | Typed onboarding progress, steps, and XPC readiness presentation |
@@ -933,15 +934,33 @@ Debug input card status (2026-07-18):
   full gate passed analysis, 3,818 root tests, and 13 package tests at 74.39%
   line coverage.
 
+Debug window-targeting card status (2026-07-18):
+
+- `ComputerUseDebugWindowTargetingCard` now owns ordered window actions,
+  selection, formatted bounds, and optional preview presentation behind
+  immutable display items, a defensive view model, and explicit callbacks.
+- The debug page retains raw response maps, compatible ID parsing, formatted
+  item construction, selection and preview cleanup, service execution, result
+  decoding, and coordinate state. Direct widget tests execute no native
+  desktop action.
+- Direct and product-path tests pin immutable snapshots, empty, selected, and
+  busy eligibility, action order, dropdown behavior, list, focus, and capture
+  arguments, preview activation and cleanup, repeated selection, and window
+  source dimensions passed to input actions.
+- `computer_use_debug_page.dart` fell from 2,037 to 1,991 lines. The new
+  boundary is ratcheted at 163 lines and reached 100.00% line coverage. The
+  full gate passed analysis, 3,824 root tests, and 13 package tests at 74.41%
+  line coverage.
+
 Next slice:
 
-- The planned network sequence and debug diagnostics, result, audio, display,
-  and input slices are complete. Do not widen either stack into unrelated
-  route, interface, mDNS, or native action changes.
-- The remaining unowned debug action boundary is the window-targeting card.
-  Start a new branch after this slice lands and characterize defensive window
-  snapshots, selected-ID transitions, action eligibility, preview state, and
-  coordinate-target cleanup before moving presentation.
+- The planned network sequence and all peer debug action-card slices are
+  complete. Do not widen either stack into unrelated route, interface, mDNS,
+  or native action changes.
+- The next narrow debug-page boundary is the permission checklist
+  presentation. Start a new branch after this slice lands and characterize
+  ready, warning, and unknown title, subtitle, icon, and color behavior while
+  keeping setup evaluation and permission actions page-owned.
   Keep active ChatNotifier, ChatPage, workflow-runner, and message-input
   worktree ownership out of that branch.
 

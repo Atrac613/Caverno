@@ -17,6 +17,7 @@ import '../widgets/computer_use_debug_image_preview.dart';
 import '../widgets/computer_use_debug_input_card.dart';
 import '../widgets/computer_use_debug_onboarding_card.dart';
 import '../widgets/computer_use_debug_status_primitives.dart';
+import '../widgets/computer_use_debug_window_targeting_card.dart';
 
 class ComputerUseDebugPage extends ConsumerStatefulWidget {
   const ComputerUseDebugPage({super.key});
@@ -114,7 +115,21 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 _selectImagePoint(_CoordinateTarget.display, point),
           ),
           const SizedBox(height: 12),
-          _buildWindowCard(),
+          ComputerUseDebugWindowTargetingCard(
+            viewModel: ComputerUseDebugWindowViewModel(
+              isBusy: _isBusy,
+              windows: _windowItems,
+              selectedWindowId: _selectedWindowId,
+              snapshot: _windowScreenshot,
+              isPreviewActive: _coordinateTarget == _CoordinateTarget.window,
+            ),
+            onListWindows: _listWindows,
+            onFocusSelected: _focusSelectedWindow,
+            onCaptureSelected: _captureSelectedWindow,
+            onSelectedWindowChanged: _selectWindow,
+            onPointSelected: (point) =>
+                _selectImagePoint(_CoordinateTarget.window, point),
+          ),
           const SizedBox(height: 12),
           ComputerUseDebugInputCard(
             viewModel: ComputerUseDebugInputViewModel(
@@ -448,141 +463,6 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     );
   }
 
-  Widget _buildWindowCard() {
-    final selectedWindow = _selectedWindow();
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ComputerUseDebugSectionTitle(
-              icon: Icons.web_asset_outlined,
-              title: 'Window Targeting',
-              subtitle:
-                  'List visible windows, focus one, and capture a window-relative screenshot.',
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _actionButton(
-                  icon: Icons.list_alt_outlined,
-                  label: 'List Windows',
-                  onPressed: () => _run(
-                    'List windows',
-                    (service) => service.listWindows({
-                      'include_current_app': true,
-                      'max_windows': 80,
-                    }),
-                    onResult: _storeWindows,
-                  ),
-                ),
-                _actionButton(
-                  icon: Icons.filter_center_focus_outlined,
-                  label: 'Focus Selected',
-                  onPressed: _selectedWindowId == null
-                      ? null
-                      : () => _run(
-                          'Focus selected window',
-                          (service) => service.focusWindow({
-                            'window_id': _selectedWindowId,
-                            'reason': 'Debug smoke test',
-                          }),
-                        ),
-                ),
-                _actionButton(
-                  icon: Icons.crop_free_outlined,
-                  label: 'Capture Selected',
-                  onPressed: _selectedWindowId == null
-                      ? null
-                      : () => _run(
-                          'Capture selected window',
-                          (service) => service.screenshotWindow({
-                            'window_id': _selectedWindowId,
-                            'max_width': _maxWidth(),
-                          }),
-                          onResult: (result) {
-                            final snapshot = _imageSnapshot(
-                              result,
-                              _windowTitle(result),
-                            );
-                            if (snapshot != null) {
-                              _windowScreenshot = snapshot;
-                              _coordinateTarget = _CoordinateTarget.window;
-                            }
-                          },
-                        ),
-                ),
-              ],
-            ),
-            if (_windows.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                key: ValueKey(_selectedWindowId),
-                initialValue: _selectedWindowId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Selected window',
-                  border: OutlineInputBorder(),
-                ),
-                items: _windows
-                    .map((window) {
-                      final id = _windowId(window);
-                      if (id == null) {
-                        return null;
-                      }
-                      return DropdownMenuItem<int>(
-                        value: id,
-                        child: Text(
-                          _windowLabel(window),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    })
-                    .whereType<DropdownMenuItem<int>>()
-                    .toList(),
-                onChanged: _isBusy
-                    ? null
-                    : (value) => setState(() {
-                        if (_selectedWindowId != value) {
-                          _selectedWindowId = value;
-                          _windowScreenshot = null;
-                          if (_coordinateTarget == _CoordinateTarget.window) {
-                            _coordinateTarget = null;
-                          }
-                        }
-                      }),
-              ),
-            ],
-            if (selectedWindow != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _windowBoundsLabel(selectedWindow),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-            if (_windowScreenshot != null) ...[
-              const SizedBox(height: 12),
-              ComputerUseDebugImagePreview(
-                key: const ValueKey('computer-use-window-preview'),
-                snapshot: _windowScreenshot!,
-                active: _coordinateTarget == _CoordinateTarget.window,
-                tapAreaKey: const ValueKey(
-                  'computer-use-window-preview-tap-area',
-                ),
-                onPointSelected: (point) =>
-                    _selectImagePoint(_CoordinateTarget.window, point),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _actionButton({
     Key? key,
     required IconData icon,
@@ -769,6 +649,63 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         }
       },
     );
+  }
+
+  Future<void> _listWindows() {
+    return _run(
+      'List windows',
+      (service) =>
+          service.listWindows({'include_current_app': true, 'max_windows': 80}),
+      onResult: _storeWindows,
+    );
+  }
+
+  Future<void> _focusSelectedWindow() {
+    final selectedWindowId = _selectedWindowId;
+    if (selectedWindowId == null) {
+      return Future<void>.value();
+    }
+    return _run(
+      'Focus selected window',
+      (service) => service.focusWindow({
+        'window_id': selectedWindowId,
+        'reason': 'Debug smoke test',
+      }),
+    );
+  }
+
+  Future<void> _captureSelectedWindow() {
+    final selectedWindowId = _selectedWindowId;
+    if (selectedWindowId == null) {
+      return Future<void>.value();
+    }
+    return _run(
+      'Capture selected window',
+      (service) => service.screenshotWindow({
+        'window_id': selectedWindowId,
+        'max_width': _maxWidth(),
+      }),
+      onResult: (result) {
+        final snapshot = _imageSnapshot(result, _windowTitle(result));
+        if (snapshot != null) {
+          _windowScreenshot = snapshot;
+          _coordinateTarget = _CoordinateTarget.window;
+        }
+      },
+    );
+  }
+
+  void _selectWindow(int? value) {
+    if (_selectedWindowId == value) {
+      return;
+    }
+    setState(() {
+      _selectedWindowId = value;
+      _windowScreenshot = null;
+      if (_coordinateTarget == _CoordinateTarget.window) {
+        _coordinateTarget = null;
+      }
+    });
   }
 
   Future<void> _clickPoint() async {
@@ -1966,6 +1903,23 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       }
     }
     return null;
+  }
+
+  List<ComputerUseDebugWindowItem> get _windowItems {
+    return _windows
+        .map((window) {
+          final id = _windowId(window);
+          if (id == null) {
+            return null;
+          }
+          return ComputerUseDebugWindowItem(
+            id: id,
+            label: _windowLabel(window),
+            boundsLabel: _windowBoundsLabel(window),
+          );
+        })
+        .whereType<ComputerUseDebugWindowItem>()
+        .toList(growable: false);
   }
 
   int? _windowId(Map<String, dynamic> window) {
