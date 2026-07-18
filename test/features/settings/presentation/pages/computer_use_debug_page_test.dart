@@ -4,6 +4,7 @@ import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/core/services/macos_computer_use_tool_policy.dart';
 import 'package:caverno/features/settings/presentation/pages/computer_use_debug_page.dart';
+import 'package:caverno/features/settings/presentation/widgets/computer_use_debug_permission_checklist.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -713,6 +714,13 @@ void main() {
     expect(
       find.text('Action required: Screen & System Audio Recording'),
       findsOneWidget,
+    );
+    final checklist = tester.widget<ComputerUseDebugPermissionChecklist>(
+      find.byType(ComputerUseDebugPermissionChecklist),
+    );
+    expect(
+      checklist.viewModel.status,
+      ComputerUseDebugPermissionChecklistStatus.warning,
     );
 
     await _tapSwitch(tester, 'System Audio Armed');

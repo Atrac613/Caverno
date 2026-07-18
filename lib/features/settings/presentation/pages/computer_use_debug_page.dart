@@ -16,6 +16,7 @@ import '../widgets/computer_use_debug_display_screenshot_card.dart';
 import '../widgets/computer_use_debug_image_preview.dart';
 import '../widgets/computer_use_debug_input_card.dart';
 import '../widgets/computer_use_debug_onboarding_card.dart';
+import '../widgets/computer_use_debug_permission_checklist.dart';
 import '../widgets/computer_use_debug_status_primitives.dart';
 import '../widgets/computer_use_debug_window_targeting_card.dart';
 
@@ -247,7 +248,16 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               backend: setupChecklist.backend,
             ),
             const SizedBox(height: 12),
-            _buildPermissionChecklist(backend),
+            ComputerUseDebugPermissionChecklist(
+              viewModel: ComputerUseDebugPermissionChecklistViewModel(
+                title: setupChecklist.title,
+                subtitle: setupChecklist.subtitle,
+                status: ComputerUseDebugPermissionChecklistStatus.fromReadiness(
+                  isReady: setupChecklist.isReady,
+                  hasSnapshot: setupChecklist.hasSnapshot,
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
             ComputerUseDebugStatusRow(
               label: 'Helper Installed',
@@ -474,57 +484,6 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       onPressed: _isBusy ? null : onPressed,
       icon: Icon(icon),
       label: Text(label),
-    );
-  }
-
-  Widget _buildPermissionChecklist(MacosComputerUseBackendInfo backend) {
-    final setupChecklist = _setupChecklist(backend);
-    final hasSnapshot = setupChecklist.hasSnapshot;
-    final ready = setupChecklist.isReady;
-    final colorScheme = Theme.of(context).colorScheme;
-    final icon = ready
-        ? Icons.task_alt_outlined
-        : hasSnapshot
-        ? Icons.warning_amber_outlined
-        : Icons.info_outline;
-    final color = ready
-        ? colorScheme.primary
-        : hasSnapshot
-        ? colorScheme.error
-        : colorScheme.secondary;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: color.withValues(alpha: 0.12),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    setupChecklist.title,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    setupChecklist.subtitle,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
