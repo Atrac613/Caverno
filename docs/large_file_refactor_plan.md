@@ -49,7 +49,8 @@ again before starting a new refactor branch.
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/widgets/computer_use_verification_summary.dart` | 107 | Immutable Computer Use onboarding-verification presentation |
 | `lib/features/settings/presentation/widgets/computer_use_xpc_timing_summary.dart` | 176 | Immutable Computer Use XPC timing presentation |
-| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2275 | Debug coordination, remaining cards, diagnostics, and action controls |
+| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2198 | Debug coordination, remaining capture, window, input, and audio action controls |
+| `lib/features/settings/presentation/widgets/computer_use_debug_diagnostics_cards.dart` | 149 | Immutable diagnostics actions, copied audit presentation, export feedback, and native result display |
 | `lib/features/settings/presentation/widgets/computer_use_debug_image_preview.dart` | 153 | Screenshot decoding, zoom presentation, and source-coordinate selection |
 | `lib/features/settings/presentation/widgets/computer_use_debug_onboarding_card.dart` | 94 | Typed onboarding progress, steps, and XPC readiness presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_status_primitives.dart` | 424 | Debug headings, helper boundary, status rows, arming, and coordinate presentation |
@@ -863,15 +864,32 @@ Network neighbor tools status (2026-07-18):
   line coverage. The final root gate passed analysis and 3,794 tests at 73.99%
   line coverage; the internal-package gate remains green at 13 tests.
 
+Debug diagnostics cards status (2026-07-18):
+
+- `ComputerUseDebugDiagnosticsCard` now owns manual-smoke safety copy, ordered
+  diagnostic actions, a defensively copied redacted audit snapshot, and the
+  optional export-path row. `ComputerUseDebugResultCard` owns the last action
+  and selectable monospace native result.
+- The debug page retains the busy flag, audit-log access, callbacks, diagnostic
+  serialization, clipboard and export operations, smoke execution, state, and
+  every native Computer Use action.
+- Direct tests pin source-copy isolation, immutable snapshots, action order and
+  busy gating, callback dispatch, the five-entry audit limit, export-path
+  visibility, exact copy, selection, and result typography.
+- `computer_use_debug_page.dart` fell from 2,275 to 2,198 lines. The new
+  boundary is ratcheted at 149 lines and reached 100.00% line coverage. The
+  full gate passed analysis, 3,798 root tests, and 13 package tests at 74.00%
+  line coverage.
+
 Next slice:
 
-- The planned network sequence is complete: HTTP, raw socket, and neighbor
-  cache responsibilities are independent, and `network_tools.dart` is below
-  2,000 lines. Do not widen this stack into route, interface, or mDNS changes.
-- The refreshed inventory leaves `computer_use_debug_page.dart` as the next
-  unowned UI boundary. Start a new branch after this stack lands and
-  characterize one remaining diagnostics or action-control card before moving
-  it. Keep active ChatNotifier, ChatPage, workflow-runner, and message-input
+- The planned network sequence and debug diagnostics/result slice are complete.
+  Do not widen either stack into unrelated route, interface, mDNS, or native
+  action changes.
+- The next unowned debug-page boundary is the audio action card. Start a new
+  branch after this slice lands and characterize recording, arming, busy-state,
+  unsupported-backend, and stop-result behavior before moving presentation.
+  Keep active ChatNotifier, ChatPage, workflow-runner, and message-input
   worktree ownership out of that branch.
 
 Exit criteria:

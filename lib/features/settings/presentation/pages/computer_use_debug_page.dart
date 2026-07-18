@@ -10,11 +10,10 @@ import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
-import '../widgets/computer_use_audit_log_summary.dart';
+import '../widgets/computer_use_debug_diagnostics_cards.dart';
 import '../widgets/computer_use_debug_image_preview.dart';
 import '../widgets/computer_use_debug_onboarding_card.dart';
 import '../widgets/computer_use_debug_status_primitives.dart';
-import '../../../../core/theme/app_tokens.dart';
 
 class ComputerUseDebugPage extends ConsumerStatefulWidget {
   const ComputerUseDebugPage({super.key});
@@ -108,9 +107,21 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           const SizedBox(height: 12),
           _buildAudioCard(),
           const SizedBox(height: 12),
-          _buildDiagnosticsCard(),
+          ComputerUseDebugDiagnosticsCard(
+            viewModel: ComputerUseDebugDiagnosticsViewModel(
+              isBusy: _isBusy,
+              auditEntries: MacosComputerUseAuditLog.instance.redactedEntries,
+              lastExportPath: _lastDiagnosticExportPath,
+            ),
+            onRunSmokeSequence: _runManualSmokeSequence,
+            onCopyDiagnostics: _copyDiagnostics,
+            onExportDiagnostics: _exportDiagnostics,
+          ),
           const SizedBox(height: 12),
-          _buildResultCard(),
+          ComputerUseDebugResultCard(
+            lastAction: _lastAction,
+            lastResult: _lastResult,
+          ),
         ],
       ),
     );
@@ -740,94 +751,6 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                         ),
                 ),
               ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDiagnosticsCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const ComputerUseDebugSectionTitle(
-              icon: Icons.summarize_outlined,
-              title: 'Diagnostics',
-              subtitle:
-                  'Copy or export a redacted smoke-test snapshot for debugging.',
-            ),
-            const SizedBox(height: 12),
-            const ComputerUseDebugOnboardingNote(
-              icon: Icons.privacy_tip_outlined,
-              title: 'Manual Smoke Boundary',
-              body:
-                  'Run Smoke Sequence uses the permissions already granted to Caverno Computer Use. TCC grants and desktop actions stay user-operated; input and audio checks run only after explicit arming.',
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _actionButton(
-                  key: const ValueKey('computer-use-run-smoke-sequence'),
-                  icon: Icons.playlist_play_outlined,
-                  label: 'Run Smoke Sequence',
-                  onPressed: _runManualSmokeSequence,
-                ),
-                _actionButton(
-                  key: const ValueKey('computer-use-copy-diagnostics'),
-                  icon: Icons.copy_outlined,
-                  label: 'Copy Diagnostics',
-                  onPressed: _copyDiagnostics,
-                ),
-                _actionButton(
-                  key: const ValueKey('computer-use-export-diagnostics'),
-                  icon: Icons.file_download_outlined,
-                  label: 'Export Diagnostics',
-                  onPressed: _exportDiagnostics,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ComputerUseAuditLogSummary(
-              entries: MacosComputerUseAuditLog.instance.redactedEntries,
-              maxEntries: 5,
-            ),
-            if (_lastDiagnosticExportPath != null) ...[
-              const SizedBox(height: 8),
-              SelectableText(
-                'Last export: $_lastDiagnosticExportPath',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResultCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ComputerUseDebugSectionTitle(
-              icon: Icons.data_object_outlined,
-              title: 'Last Native Result',
-              subtitle: _lastAction,
-            ),
-            const SizedBox(height: 12),
-            SelectableText(
-              _lastResult,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontFamily: kMonoFontFamily),
             ),
           ],
         ),
