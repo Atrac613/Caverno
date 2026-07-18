@@ -7,8 +7,10 @@ otherwise.
 
 ## Current Inventory
 
-The live inventory below was refreshed on 2026-07-17 with `wc -l`. Refresh it
-again before starting a new refactor branch.
+The live tracked-boundary inventory below was refreshed on 2026-07-18 with
+`wc -l`. The complete non-generated 1,000-line production scan, test scan,
+coverage ranking, same-library aggregates, and active-worktree ownership audit
+are recorded in `docs/large_file_boundary_inventory_2026_07_18.md`.
 
 | File | Lines | Primary concern |
 |------|------:|-----------------|
@@ -72,6 +74,15 @@ files share private state and compile as one library. Current aggregate sizes
 are 23,005 lines for the ChatNotifier library, 8,945 for the ChatPage library,
 1,294 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
+
+The 2026-07-18 re-inventory selects `network_tools.dart` as the next fresh
+characterization target. It is 1,996 physical lines at 41.60% line coverage,
+has no active-worktree overlap, and retains a coherent route, interface, and
+path-MTU cluster after HTTP, neighbor, and socket delegation. ChatNotifier,
+ChatPage, and MessageInput remain deferred because conservative worktree
+ownership overlaps are still present. The recently reduced Computer Use pages
+remain paused because their coverage is above 94% and their remaining code is
+orchestration-heavy.
 
 ## Refactor Rules
 
@@ -992,11 +1003,15 @@ Next slice:
 - The planned network sequence and all peer debug action-card slices are
   complete. Do not widen either stack into unrelated route, interface, mDNS,
   or native action changes.
-- The planned permission action group is complete. After this slice lands,
-  refresh the live large-file inventory, same-library aggregates, test-library
-  aggregate, and active-worktree ownership map before selecting another
-  application boundary. Do not infer the next target from stale 2026-07-17
-  measurements.
+- The planned permission action group is complete, and the 2026-07-18 full
+  inventory refresh is recorded in
+  `docs/large_file_boundary_inventory_2026_07_18.md`.
+- Start a fresh task document for the `NetworkTools` route, interface, and
+  path-MTU cluster. Characterize supported platforms, injected process and
+  address lookup behavior, fallbacks, models, and exact JSON before moving
+  code. Keep HTTP, neighbor, socket, DNS, mDNS, ping, and traceroute behavior
+  outside that first slice unless the characterization proves a required
+  shared dependency.
 
 Exit criteria:
 

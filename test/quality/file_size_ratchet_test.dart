@@ -9,9 +9,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// raise a budget to make this test pass; extract code instead, following
 /// docs/large_file_refactor_plan.md.
 ///
-/// Budgets match the exact 2026-07-17 baseline. Primary-file budgets prevent
-/// local regrowth, while library budgets include declared `part` files so a
-/// move into shared private state cannot hide aggregate growth.
+/// Budgets match the latest tracked boundaries from the 2026-07-18 inventory.
+/// Primary-file budgets prevent local regrowth, while library budgets include
+/// declared `part` files so a move into shared private state cannot hide
+/// aggregate growth.
 const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 9468,
   'lib/features/chat/presentation/pages/chat_page.dart': 2133,
