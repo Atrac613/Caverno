@@ -49,7 +49,7 @@ again before starting a new refactor branch.
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/widgets/computer_use_verification_summary.dart` | 107 | Immutable Computer Use onboarding-verification presentation |
 | `lib/features/settings/presentation/widgets/computer_use_xpc_timing_summary.dart` | 176 | Immutable Computer Use XPC timing presentation |
-| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 1950 | Permission, runtime, diagnostics, and smoke coordination |
+| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 1910 | Permission, runtime, diagnostics, and smoke coordination |
 | `lib/features/settings/presentation/widgets/computer_use_debug_audio_card.dart` | 99 | Immutable System Audio state and action presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_display_screenshot_card.dart` | 81 | Immutable display capture and preview presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_input_card.dart` | 133 | Immutable input arming, target, field, and action presentation |
@@ -57,6 +57,7 @@ again before starting a new refactor branch.
 | `lib/features/settings/presentation/widgets/computer_use_debug_diagnostics_cards.dart` | 149 | Immutable diagnostics actions, copied audit presentation, export feedback, and native result display |
 | `lib/features/settings/presentation/widgets/computer_use_debug_image_preview.dart` | 153 | Screenshot decoding, zoom presentation, and source-coordinate selection |
 | `lib/features/settings/presentation/widgets/computer_use_debug_onboarding_card.dart` | 94 | Typed onboarding progress, steps, and XPC readiness presentation |
+| `lib/features/settings/presentation/widgets/computer_use_debug_permission_actions.dart` | 119 | Immutable ordered helper and permission action presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_permission_checklist.dart` | 94 | Typed ready, warning, and unknown permission-guidance presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_status_primitives.dart` | 424 | Debug headings, helper boundary, status rows, arming, and coordinate presentation |
 | `lib/features/chat/data/datasources/network_tools.dart` | 1996 | Remaining DNS, routes, interfaces, path MTU, mDNS, ping, and traceroute handling |
@@ -969,17 +970,33 @@ Debug permission-checklist status (2026-07-18):
   gate passed analysis, 3,829 root tests, and 13 package tests at 74.42% line
   coverage.
 
+Debug permission-actions status (2026-07-18):
+
+- `ComputerUseDebugPermissionActions` now owns the exact nine-action order,
+  labels, icons, keys, tonal-button presentation, wrapping, and busy-state
+  eligibility behind an immutable view model and explicit callbacks.
+- The debug page retains helper launch and restart sequences, ping and stop
+  result storage, permission refresh and split requests, System Settings
+  navigation, service execution, and all state mutation. Direct widget tests
+  execute no native desktop action.
+- Direct and product-path tests pin all labels, icons, keys, order, spacing,
+  idle callback dispatch, busy disablement, helper lifecycle calls, targeted
+  settings sections, and split permission request arguments.
+- `computer_use_debug_page.dart` fell from 1,950 to 1,910 lines. The new
+  boundary is ratcheted at 119 lines and reached 100.00% line coverage. The
+  full gate passed analysis, 3,833 root tests, and 13 package tests at 74.43%
+  line coverage.
+
 Next slice:
 
 - The planned network sequence and all peer debug action-card slices are
   complete. Do not widen either stack into unrelated route, interface, mDNS,
   or native action changes.
-- The next narrow debug-page boundary is the ordered group of nine helper and
-  permission action buttons. Start a new branch after this slice lands and
-  characterize copy, icons, keys, action order, and busy eligibility while
-  keeping service execution, permission state, and helper state page-owned.
-  Keep active ChatNotifier, ChatPage, workflow-runner, and message-input
-  worktree ownership out of that branch.
+- The planned permission action group is complete. After this slice lands,
+  refresh the live large-file inventory, same-library aggregates, test-library
+  aggregate, and active-worktree ownership map before selecting another
+  application boundary. Do not infer the next target from stale 2026-07-17
+  measurements.
 
 Exit criteria:
 

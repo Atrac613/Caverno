@@ -815,6 +815,21 @@ void main() {
     ]);
   });
 
+  testWidgets('requests Accessibility and Screen Recording independently', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapButton(tester, 'Request Accessibility');
+    await _tapButton(tester, 'Request Screen Recording');
+
+    expect(service.permissionRequests, [
+      {'accessibility': true, 'screenCapture': false},
+      {'accessibility': false, 'screenCapture': true},
+    ]);
+  });
+
   testWidgets('uses display preview taps for move pointer arguments', (
     tester,
   ) async {
@@ -1300,6 +1315,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   int pingHelperCallCount = 0;
   int stopHelperWorkCallCount = 0;
   int getPermissionsCallCount = 0;
+  final List<Map<String, bool>> permissionRequests = [];
   int screenshotCallCount = 0;
   final List<Map<String, dynamic>> screenshotArguments = [];
   int listWindowsCallCount = 0;
@@ -1382,6 +1398,26 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'screenCaptureGranted': false,
       'systemAudioRecordingSupported': true,
       'helperStatusPersistence': _persistence,
+    });
+  }
+
+  @override
+  Future<String> requestPermissions({
+    bool accessibility = true,
+    bool screenCapture = true,
+  }) async {
+    permissionRequests.add({
+      'accessibility': accessibility,
+      'screenCapture': screenCapture,
+    });
+    return _json({
+      'current': {
+        'backend': 'helper',
+        'helperReachable': true,
+        'accessibilityGranted': accessibility,
+        'screenCaptureGranted': screenCapture,
+        'systemAudioRecordingSupported': true,
+      },
     });
   }
 

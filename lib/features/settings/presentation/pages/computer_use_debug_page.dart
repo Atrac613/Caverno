@@ -16,6 +16,7 @@ import '../widgets/computer_use_debug_display_screenshot_card.dart';
 import '../widgets/computer_use_debug_image_preview.dart';
 import '../widgets/computer_use_debug_input_card.dart';
 import '../widgets/computer_use_debug_onboarding_card.dart';
+import '../widgets/computer_use_debug_permission_actions.dart';
 import '../widgets/computer_use_debug_permission_checklist.dart';
 import '../widgets/computer_use_debug_status_primitives.dart';
 import '../widgets/computer_use_debug_window_targeting_card.dart';
@@ -378,112 +379,23 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               value: _permissionValue('systemAudioRecordingSupported'),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _actionButton(
-                  key: const ValueKey('computer-use-launch-helper'),
-                  icon: Icons.rocket_launch_outlined,
-                  label: 'Launch Helper',
-                  onPressed: _launchHelper,
-                ),
-                _actionButton(
-                  key: const ValueKey('computer-use-restart-helper'),
-                  icon: Icons.restart_alt,
-                  label: 'Restart Helper',
-                  onPressed: _restartHelper,
-                ),
-                _actionButton(
-                  key: const ValueKey('computer-use-ping-helper'),
-                  icon: Icons.sensors_outlined,
-                  label: 'Ping Helper',
-                  onPressed: () => _run(
-                    'Ping helper',
-                    (service) => service.pingHelper(),
-                    onResult: _storeHelperStatus,
-                  ),
-                ),
-                _actionButton(
-                  icon: Icons.refresh,
-                  label: 'Refresh',
-                  onPressed: _refreshPermissions,
-                ),
-                _actionButton(
-                  icon: Icons.accessibility_new_outlined,
-                  label: 'Request Accessibility',
-                  onPressed: () => _run(
-                    'Request Accessibility',
-                    (service) => service.requestPermissions(
-                      accessibility: true,
-                      screenCapture: false,
-                    ),
-                    onResult: _storePermissions,
-                  ),
-                ),
-                _actionButton(
-                  key: const ValueKey(
-                    'computer-use-open-accessibility-settings',
-                  ),
-                  icon: Icons.settings_outlined,
-                  label: 'Open Accessibility Settings',
-                  onPressed: () => _openSystemSettings(
-                    section: 'accessibility',
-                    action: 'Open Accessibility Settings',
-                  ),
-                ),
-                _actionButton(
-                  icon: Icons.screenshot_monitor_outlined,
-                  label: 'Request Screen Recording',
-                  onPressed: () => _run(
-                    'Request Screen Recording',
-                    (service) => service.requestPermissions(
-                      accessibility: false,
-                      screenCapture: true,
-                    ),
-                    onResult: _storePermissions,
-                  ),
-                ),
-                _actionButton(
-                  key: const ValueKey('computer-use-stop-helper-work'),
-                  icon: Icons.stop_circle_outlined,
-                  label: 'Stop Helper Work',
-                  onPressed: () => _run(
-                    'Stop helper work',
-                    (service) => service.stopHelperWork(),
-                    onResult: _storeHelperStatus,
-                  ),
-                ),
-                _actionButton(
-                  key: const ValueKey(
-                    'computer-use-open-screen-recording-settings',
-                  ),
-                  icon: Icons.settings_applications_outlined,
-                  label: 'Open Screen Recording Settings',
-                  onPressed: () => _openSystemSettings(
-                    section: 'screen_recording',
-                    action: 'Open Screen Recording Settings',
-                  ),
-                ),
-              ],
+            ComputerUseDebugPermissionActions(
+              viewModel: ComputerUseDebugPermissionActionsViewModel(
+                isBusy: _isBusy,
+              ),
+              onLaunchHelper: _launchHelper,
+              onRestartHelper: _restartHelper,
+              onPingHelper: _pingHelper,
+              onRefresh: _refreshPermissions,
+              onRequestAccessibility: _requestAccessibility,
+              onOpenAccessibilitySettings: _openAccessibilitySettings,
+              onRequestScreenRecording: _requestScreenRecording,
+              onStopHelperWork: _stopHelperWork,
+              onOpenScreenRecordingSettings: _openScreenRecordingSettings,
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _actionButton({
-    Key? key,
-    required IconData icon,
-    required String label,
-    required VoidCallback? onPressed,
-  }) {
-    return FilledButton.tonalIcon(
-      key: key,
-      onPressed: _isBusy ? null : onPressed,
-      icon: Icon(icon),
-      label: Text(label),
     );
   }
 
@@ -494,6 +406,54 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     return _run(
       action,
       (service) => service.openSystemSettings(section: section),
+    );
+  }
+
+  Future<void> _pingHelper() {
+    return _run(
+      'Ping helper',
+      (service) => service.pingHelper(),
+      onResult: _storeHelperStatus,
+    );
+  }
+
+  Future<void> _requestAccessibility() {
+    return _run(
+      'Request Accessibility',
+      (service) =>
+          service.requestPermissions(accessibility: true, screenCapture: false),
+      onResult: _storePermissions,
+    );
+  }
+
+  Future<void> _openAccessibilitySettings() {
+    return _openSystemSettings(
+      section: 'accessibility',
+      action: 'Open Accessibility Settings',
+    );
+  }
+
+  Future<void> _requestScreenRecording() {
+    return _run(
+      'Request Screen Recording',
+      (service) =>
+          service.requestPermissions(accessibility: false, screenCapture: true),
+      onResult: _storePermissions,
+    );
+  }
+
+  Future<void> _stopHelperWork() {
+    return _run(
+      'Stop helper work',
+      (service) => service.stopHelperWork(),
+      onResult: _storeHelperStatus,
+    );
+  }
+
+  Future<void> _openScreenRecordingSettings() {
+    return _openSystemSettings(
+      section: 'screen_recording',
+      action: 'Open Screen Recording Settings',
     );
   }
 

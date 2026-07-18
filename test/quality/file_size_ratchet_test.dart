@@ -71,7 +71,7 @@ const Map<String, int> _lineBudgets = {
       176,
   'lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart':
       318,
-  'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 1950,
+  'lib/features/settings/presentation/pages/computer_use_debug_page.dart': 1910,
   'lib/features/settings/presentation/widgets/computer_use_debug_audio_card.dart':
       99,
   'lib/features/settings/presentation/widgets/computer_use_debug_display_screenshot_card.dart':
@@ -86,6 +86,8 @@ const Map<String, int> _lineBudgets = {
       153,
   'lib/features/settings/presentation/widgets/computer_use_debug_onboarding_card.dart':
       94,
+  'lib/features/settings/presentation/widgets/computer_use_debug_permission_actions.dart':
+      119,
   'lib/features/settings/presentation/widgets/computer_use_debug_permission_checklist.dart':
       94,
   'lib/features/settings/presentation/widgets/computer_use_debug_status_primitives.dart':
