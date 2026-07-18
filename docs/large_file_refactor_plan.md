@@ -23,13 +23,19 @@ are recorded in `docs/large_file_boundary_inventory_2026_07_18.md`.
 | `lib/features/chat/presentation/widgets/slash_command_help_sheet.dart` | 42 | Slash command help presentation |
 | `lib/features/chat/presentation/widgets/chat_page_scaffold.dart` | 87 | Compact and persistent ChatPage scaffold composition |
 | `lib/features/chat/presentation/widgets/chat_right_sidebar.dart` | 114 | Controlled right-sidebar tabs, widths, and split-pane layout |
+| `lib/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart` | 1559 | File workspace state, file loading, path containment, and compatible diff-row rendering |
+| `lib/features/chat/presentation/widgets/file_workspace_diff_parser.dart` | 97 | Pure unified-diff row classification and line-number tracking |
 | `lib/features/chat/presentation/coordinators/plan_review_action_coordinator.dart` | 198 | Plan review edit, cancel, approval, projection, and task selection |
 | `lib/features/chat/presentation/coordinators/workflow_editor_action_coordinator.dart` | 88 | Workflow editor save, clear, and proposal persistence |
 | `lib/features/chat/presentation/coordinators/workflow_task_action_coordinator.dart` | 258 | Workflow task proposal, editor, menu routing, and status persistence |
-| `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2442 | Saved-workflow execution, recovery, evidence, and auto-continuation |
+| `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2392 | Saved-workflow execution, recovery routing, evidence, side effects, and recursion |
+| `lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart` | 56 | Pure auto-continuation selection and terminal-status classification |
+| `lib/features/chat/domain/services/workflow_tool_result_failure_detector.dart` | 54 | Pure structured, command-output, and raw-text tool failure classification |
 | `lib/features/chat/presentation/widgets/workflow/workflow_editor_sheet.dart` | 218 | Legacy workflow metadata editor presentation and normalization |
 | `lib/features/chat/presentation/widgets/workflow/workflow_task_editor_sheet.dart` | 209 | Legacy workflow task editor presentation and normalization |
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1202 | Tool registry, public execution facade, remaining built-in adapters |
+| `lib/features/chat/data/datasources/filesystem_tools.dart` | 1282 | Path resolution, file inspection and mutation, snapshots, and compatible diff delegates |
+| `lib/features/chat/data/datasources/filesystem_diff_builder.dart` | 213 | Pure unified-diff construction, hunk rendering, fallback copy, and preview truncation |
 | `lib/features/chat/data/datasources/remote_mcp_connection_manager.dart` | 317 | Remote MCP connection state, trust resolution, and invocation |
 | `lib/features/chat/data/datasources/remote_mcp_tool_name_policy.dart` | 120 | Deterministic remote names, reserved-prefix neutralization, and collision retries |
 | `lib/features/chat/data/datasources/built_in_network_tool_handler.dart` | 978 | Built-in network definitions, validation, and operation dispatch |
@@ -43,6 +49,8 @@ are recorded in `docs/large_file_boundary_inventory_2026_07_18.md`.
 | `lib/features/chat/data/datasources/built_in_serial_tool_handler.dart` | 141 | Built-in serial definitions, direct dispatch, and compatible result handling |
 | `lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart` | 183 | Built-in SSH definitions, post-approval command dispatch, and disconnect handling |
 | `lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart` | 126 | Compatible direct, JSON, command, and structured-error result construction |
+| `lib/features/settings/data/model_remote_datasource.dart` | 1710 | Provider discovery, response parsing, lifecycle HTTP actions, catalog merging, and compatible metadata delegates |
+| `lib/features/settings/data/model_metadata_parser.dart` | 120 | Pure model ID normalization and context-window metadata parsing |
 | `lib/features/settings/presentation/pages/computer_use_settings_page.dart` | 1725 | Computer Use settings coordination, diagnostics, and remaining panels |
 | `lib/features/settings/presentation/widgets/computer_use_action_gate_plan.dart` | 203 | Immutable Computer Use action-gate presentation |
 | `lib/features/settings/presentation/widgets/computer_use_ipc_runtime_summary.dart` | 582 | Immutable Computer Use IPC diagnostics presentation |
@@ -62,11 +70,17 @@ are recorded in `docs/large_file_boundary_inventory_2026_07_18.md`.
 | `lib/features/settings/presentation/widgets/computer_use_debug_permission_actions.dart` | 119 | Immutable ordered helper and permission action presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_permission_checklist.dart` | 94 | Typed ready, warning, and unknown permission-guidance presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_status_primitives.dart` | 424 | Debug headings, helper boundary, status rows, arming, and coordinate presentation |
-| `lib/features/chat/data/datasources/network_tools.dart` | 1996 | Remaining DNS, routes, interfaces, path MTU, mDNS, ping, and traceroute handling |
+| `lib/features/routines/presentation/pages/routine_detail_view.dart` | 948 | Routine provider coordination, mutations, summary, and plan presentation |
+| `lib/features/routines/presentation/widgets/routine_run_history_section.dart` | 525 | Immutable run cards, metadata, transcript, and error presentation |
+| `lib/core/services/lan_scan_service.dart` | 843 | LAN scan planning, probes, link-layer discovery, and result caching |
+| `lib/core/services/lan_ip_network.dart` | 199 | Pure IPv4 and IPv6 CIDR value object and address ordering |
+| `lib/features/chat/data/datasources/network_tools.dart` | 968 | Remaining DNS, mDNS, ping, and traceroute handling plus compatible network delegates |
 | `lib/features/chat/data/datasources/network_address_utils.dart` | 34 | Pure IP normalization and deterministic address ordering |
 | `lib/features/chat/data/datasources/network_http_tools.dart` | 287 | HTTP status and method execution behind an injectable client factory |
 | `lib/features/chat/data/datasources/network_neighbor_tools.dart` | 266 | ARP and NDP execution, parsing, filtering, and ordering behind an injectable process runner |
+| `lib/features/chat/data/datasources/network_route_tools.dart` | 1128 | Route, interface, and path-MTU diagnostics behind injectable platform IO |
 | `lib/features/chat/data/datasources/network_socket_tools.dart` | 204 | Port, TLS certificate, and WHOIS execution behind injectable connectors |
+| `lib/features/chat/data/datasources/network_tool_dependencies.dart` | 10 | Shared process-runner and address-lookup dependency contracts |
 | `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18648 | Broad chat orchestration regression coverage |
 
 The primary files understate the effective library size because Dart `part`
@@ -75,14 +89,31 @@ are 23,005 lines for the ChatNotifier library, 8,945 for the ChatPage library,
 1,294 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
 
-The 2026-07-18 re-inventory selects `network_tools.dart` as the next fresh
-characterization target. It is 1,996 physical lines at 41.60% line coverage,
-has no active-worktree overlap, and retains a coherent route, interface, and
-path-MTU cluster after HTTP, neighbor, and socket delegation. ChatNotifier,
-ChatPage, and MessageInput remain deferred because conservative worktree
-ownership overlaps are still present. The recently reduced Computer Use pages
-remain paused because their coverage is above 94% and their remaining code is
-orchestration-heavy.
+The 2026-07-18 re-inventory selected the `network_tools.dart` route, interface,
+and path-MTU cluster, followed by the routine run-history, LAN IP network,
+filesystem diff, model metadata, file workspace diff-row, workflow tool
+failure, and workflow lifecycle boundaries. All eight slices are now complete.
+The network facade fell
+from 1,996 to 968 physical lines; the independently testable route service is
+1,128 lines at 93.88%
+coverage, and combined executable coverage for those two files is 65.10%. The
+routine detail page fell from 1,407 to 948 lines, while its independent 525-line
+run-history widget reached 96.17% coverage. The LAN scan service fell from
+1,038 to 843 lines, while its pure 199-line CIDR value object reached 97.87%
+coverage. The filesystem service fell from 1,476 to 1,282 lines, while its pure
+213-line diff builder reached 99.06% coverage. The model datasource fell from
+1,813 to 1,710 lines, while its pure 120-line metadata parser reached 97.14%
+coverage. The file workspace viewer fell from 1,634 to 1,559 lines, while its
+pure 97-line diff-row parser reached 96.97% coverage. ChatNotifier, ChatPage,
+and MessageInput remain deferred because conservative worktree ownership
+overlaps were present in the inventory. The workflow run coordinator fell from
+2,442 to 2,392 lines across two slices. Its pure 54-line failure detector
+reached 95.65% coverage, and its pure 56-line lifecycle policy reached 100.00%
+coverage. The remaining coordinator recovery state machine stays paused until
+a separate route-and-evidence contract freezes recovery ordering, liveness,
+retry limits, and progress-evidence semantics. The recently reduced Computer
+Use pages remain paused because their coverage is above 94% and their remaining
+code is orchestration-heavy.
 
 ## Refactor Rules
 
@@ -881,6 +912,29 @@ Network neighbor tools status (2026-07-18):
   line coverage. The final root gate passed analysis and 3,794 tests at 73.99%
   line coverage; the internal-package gate remains green at 13 tests.
 
+Network route tools status (2026-07-18):
+
+- `NetworkRouteTools` now owns route lookup, interface inspection, and path-MTU
+  measurement behind injected platform, process-runner, and address-lookup
+  boundaries.
+- Direct tests pin macOS and Linux command selection and parsing, unsupported
+  platform errors, address-family validation and lookup recovery, interface
+  filtering, Linux tracepath alternatives, and both interface-MTU fallbacks
+  without executing real route or interface commands.
+- `NetworkTools` retains unchanged static signatures and re-exports the shared
+  process-runner and address-lookup typedefs for source compatibility. DNS,
+  mDNS, ping, and traceroute behavior remains in the facade.
+- `network_tools.dart` fell from 1,996 to 968 lines. The route service and
+  dependency contracts are ratcheted at 1,128 and 10 lines. The service reached
+  93.88% coverage (414/441), while combined coverage for the facade and route
+  service reached 65.10% (485/745).
+- The focused verifier passed 91 root tests plus 13 internal-package tests. The
+  full repository gate passed analysis, 3,849 root tests, and 13 package tests
+  at 74.67% line coverage (53,110/71,124).
+- The preserved macOS `ifconfig` parser does not capture a scoped IPv6 address
+  when its zone identifier contains non-hexadecimal letters. Treat any fix as
+  a separate behavior-change task with explicit compatibility tests.
+
 Debug diagnostics cards status (2026-07-18):
 
 - `ComputerUseDebugDiagnosticsCard` now owns manual-smoke safety copy, ordered
@@ -1000,18 +1054,29 @@ Debug permission-actions status (2026-07-18):
 
 Next slice:
 
-- The planned network sequence and all peer debug action-card slices are
-  complete. Do not widen either stack into unrelated route, interface, mDNS,
-  or native action changes.
+- The planned network route, routine run-history, LAN IP network, filesystem
+  diff, model metadata, file workspace diff-row, and peer debug action-card
+  slices are complete. The workflow tool failure detector and lifecycle policy
+  are also complete. Do not widen those stacks into unrelated DNS, mDNS, ping,
+  traceroute, routine
+  mutation, scheduling, probe, file I/O, path
+  containment, edit validation, provider HTTP, model lifecycle, or native
+  action changes.
 - The planned permission action group is complete, and the 2026-07-18 full
   inventory refresh is recorded in
   `docs/large_file_boundary_inventory_2026_07_18.md`.
-- Start a fresh task document for the `NetworkTools` route, interface, and
-  path-MTU cluster. Characterize supported platforms, injected process and
-  address lookup behavior, fallbacks, models, and exact JSON before moving
-  code. Keep HTTP, neighbor, socket, DNS, mDNS, ping, and traceroute behavior
-  outside that first slice unless the characterization proves a required
-  shared dependency.
+- Refresh the production-boundary and active-worktree ranking before opening a
+  new extraction task. Keep `routine_detail_view.dart` and
+  `lan_scan_service.dart` paused now that both are below 1,000 lines; their
+  remaining concerns are more tightly coupled to page-owned provider state or
+  platform IO. Re-rank `filesystem_tools.dart` and
+  `model_remote_datasource.dart` before another extraction even though both
+  remain above 1,000 lines. Re-rank `file_workspace_viewer_sheet.dart` before
+  separating file loading, path containment, or layout concerns. Keep
+  `workflow_task_run_coordinator.dart` paused until recovery ordering, liveness,
+  retry limits, and progress-evidence semantics have a separate route-and-
+  evidence contract. Terminal states, continuation depth, and compatible
+  next-task selection are now frozen by the extracted lifecycle policy.
 
 Exit criteria:
 

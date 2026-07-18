@@ -56,6 +56,51 @@ void main() {
     expect(find.byTooltip('Revert last turn changes'), findsNothing);
   });
 
+  testWidgets('TurnDiffSheet preserves line numbers across multiple hunks', (
+    tester,
+  ) async {
+    final diff = TurnDiff(
+      id: 'line-numbers',
+      assistantMessageId: 'assistant',
+      userPromptPreview: 'Update two blocks',
+      timestamp: DateTime(2026),
+      files: const [
+        TurnDiffFile(
+          filePath: 'lib/parser.dart',
+          linesAdded: 2,
+          linesRemoved: 2,
+          unifiedPatch: '''
+diff --git a/lib/parser.dart b/lib/parser.dart
+--- a/lib/parser.dart
++++ b/lib/parser.dart
+@@ -10,3 +20,3 @@ first block
+ unchanged
+-old
++new
+ tail
+@@ -30,2 +40,2 @@ second block
+ before
+-removed
++added''',
+        ),
+      ],
+      filesChanged: 1,
+      linesAdded: 2,
+      linesRemoved: 2,
+      changedFilePaths: const ['lib/parser.dart'],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: TurnDiffSheet(diff: diff)),
+      ),
+    );
+
+    for (final lineNumber in const [10, 20, 11, 21, 12, 22, 30, 40, 31, 41]) {
+      expect(find.text('$lineNumber'), findsOneWidget);
+    }
+  });
+
   testWidgets('TurnDiffSheet calls revert callback from header action', (
     tester,
   ) async {

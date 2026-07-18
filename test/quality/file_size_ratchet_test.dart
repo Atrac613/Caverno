@@ -29,7 +29,11 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/coordinators/workflow_task_action_coordinator.dart':
       258,
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
-      2442,
+      2392,
+  'lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart':
+      56,
+  'lib/features/chat/domain/services/workflow_tool_result_failure_detector.dart':
+      54,
   'lib/features/chat/presentation/widgets/workflow/workflow_editor_sheet.dart':
       218,
   'lib/features/chat/presentation/widgets/workflow/workflow_task_editor_sheet.dart':
@@ -37,9 +41,14 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/widgets/slash_command_help_sheet.dart': 42,
   'lib/features/chat/presentation/widgets/chat_page_scaffold.dart': 87,
   'lib/features/chat/presentation/widgets/chat_right_sidebar.dart': 114,
+  'lib/features/chat/presentation/widgets/file_workspace_viewer_sheet.dart':
+      1559,
+  'lib/features/chat/presentation/widgets/file_workspace_diff_parser.dart': 97,
   'lib/features/chat/presentation/slash_commands/slash_command_catalog.dart':
       100,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1202,
+  'lib/features/chat/data/datasources/filesystem_tools.dart': 1282,
+  'lib/features/chat/data/datasources/filesystem_diff_builder.dart': 213,
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       622,
@@ -58,6 +67,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/remote_mcp_tool_name_policy.dart': 120,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':
       1725,
+  'lib/features/settings/data/model_remote_datasource.dart': 1710,
+  'lib/features/settings/data/model_metadata_parser.dart': 120,
   'lib/features/settings/presentation/widgets/computer_use_action_gate_plan.dart':
       203,
   'lib/features/settings/presentation/widgets/computer_use_ipc_runtime_summary.dart':
@@ -93,11 +104,18 @@ const Map<String, int> _lineBudgets = {
       94,
   'lib/features/settings/presentation/widgets/computer_use_debug_status_primitives.dart':
       424,
-  'lib/features/chat/data/datasources/network_tools.dart': 1996,
+  'lib/features/routines/presentation/pages/routine_detail_view.dart': 948,
+  'lib/features/routines/presentation/widgets/routine_run_history_section.dart':
+      525,
+  'lib/core/services/lan_scan_service.dart': 843,
+  'lib/core/services/lan_ip_network.dart': 199,
+  'lib/features/chat/data/datasources/network_tools.dart': 968,
   'lib/features/chat/data/datasources/network_address_utils.dart': 34,
   'lib/features/chat/data/datasources/network_http_tools.dart': 287,
   'lib/features/chat/data/datasources/network_neighbor_tools.dart': 266,
+  'lib/features/chat/data/datasources/network_route_tools.dart': 1128,
   'lib/features/chat/data/datasources/network_socket_tools.dart': 204,
+  'lib/features/chat/data/datasources/network_tool_dependencies.dart': 10,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 18648,
 };
 

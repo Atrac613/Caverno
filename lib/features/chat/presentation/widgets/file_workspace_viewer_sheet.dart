@@ -9,6 +9,7 @@ import '../../data/datasources/filesystem_tools.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/services/file_reference_extractor.dart';
 import '../../../../core/theme/app_tokens.dart';
+import 'file_workspace_diff_parser.dart';
 
 const int _maxFilePreviewBytes = 220000;
 
@@ -977,7 +978,7 @@ class _DiffPreviewPane extends StatelessWidget {
       );
     }
 
-    final rows = _DiffRow.parse(file.unifiedPatch);
+    final rows = FileWorkspaceDiffParser.parse(file.unifiedPatch);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1162,13 +1163,13 @@ class _CodeLine extends StatelessWidget {
 class _DiffCodeLine extends StatelessWidget {
   const _DiffCodeLine({required this.row});
 
-  final _DiffRow row;
+  final FileWorkspaceDiffRow row;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = _colorsFor(row.kind, theme);
-    if (row.kind == _DiffRowKind.header) {
+    if (row.kind == FileWorkspaceDiffRowKind.header) {
       return DecoratedBox(
         decoration: BoxDecoration(color: colors.background),
         child: Padding(
@@ -1213,24 +1214,24 @@ class _DiffCodeLine extends StatelessWidget {
     );
   }
 
-  _DiffLineColors _colorsFor(_DiffRowKind kind, ThemeData theme) {
+  _DiffLineColors _colorsFor(FileWorkspaceDiffRowKind kind, ThemeData theme) {
     switch (kind) {
-      case _DiffRowKind.addition:
+      case FileWorkspaceDiffRowKind.addition:
         return _DiffLineColors(
           background: Colors.green.withValues(alpha: 0.10),
           foreground: Colors.green.shade800,
         );
-      case _DiffRowKind.removal:
+      case FileWorkspaceDiffRowKind.removal:
         return _DiffLineColors(
           background: theme.colorScheme.error.withValues(alpha: 0.10),
           foreground: theme.colorScheme.error,
         );
-      case _DiffRowKind.header:
+      case FileWorkspaceDiffRowKind.header:
         return _DiffLineColors(
           background: theme.colorScheme.surfaceContainerHighest,
           foreground: theme.colorScheme.onSurfaceVariant,
         );
-      case _DiffRowKind.context:
+      case FileWorkspaceDiffRowKind.context:
         return _DiffLineColors(
           background: null,
           foreground: theme.colorScheme.onSurface,
@@ -1536,82 +1537,6 @@ class _DetailRowData {
   final String label;
   final String value;
   final bool copyable;
-}
-
-enum _DiffRowKind { header, context, addition, removal }
-
-class _DiffRow {
-  const _DiffRow({
-    required this.kind,
-    required this.text,
-    this.oldLine,
-    this.newLine,
-  });
-
-  final _DiffRowKind kind;
-  final String text;
-  final int? oldLine;
-  final int? newLine;
-
-  static final RegExp _hunkPattern = RegExp(
-    r'^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@',
-  );
-
-  static List<_DiffRow> parse(String patch) {
-    final rows = <_DiffRow>[];
-    var oldLine = 0;
-    var newLine = 0;
-    for (final line in patch.split('\n')) {
-      final hunkMatch = _hunkPattern.firstMatch(line);
-      if (hunkMatch != null) {
-        oldLine = int.tryParse(hunkMatch.group(1) ?? '') ?? oldLine;
-        newLine = int.tryParse(hunkMatch.group(2) ?? '') ?? newLine;
-        rows.add(_DiffRow(kind: _DiffRowKind.header, text: line));
-        continue;
-      }
-
-      final isFileHeader =
-          line.startsWith('diff --git') ||
-          line.startsWith('index ') ||
-          line.startsWith('---') ||
-          line.startsWith('+++');
-      if (isFileHeader) {
-        rows.add(_DiffRow(kind: _DiffRowKind.header, text: line));
-        continue;
-      }
-
-      if (line.startsWith('+')) {
-        rows.add(
-          _DiffRow(kind: _DiffRowKind.addition, text: line, newLine: newLine),
-        );
-        newLine++;
-        continue;
-      }
-      if (line.startsWith('-')) {
-        rows.add(
-          _DiffRow(kind: _DiffRowKind.removal, text: line, oldLine: oldLine),
-        );
-        oldLine++;
-        continue;
-      }
-
-      rows.add(
-        _DiffRow(
-          kind: _DiffRowKind.context,
-          text: line,
-          oldLine: oldLine > 0 ? oldLine : null,
-          newLine: newLine > 0 ? newLine : null,
-        ),
-      );
-      if (oldLine > 0) {
-        oldLine++;
-      }
-      if (newLine > 0) {
-        newLine++;
-      }
-    }
-    return rows;
-  }
 }
 
 class _DiffLineColors {

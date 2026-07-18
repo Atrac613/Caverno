@@ -1,15 +1,15 @@
-import 'dart:convert';
 import 'dart:io';
 
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
-import '../../domain/services/coding_command_output_guardrail_service.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
+import '../../domain/services/workflow_task_run_lifecycle_policy.dart';
+import '../../domain/services/workflow_tool_result_failure_detector.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/conversations_notifier.dart';
 
@@ -318,30 +318,20 @@ final class WorkflowTaskRunCoordinator {
     required String languageCode,
     int depth = 0,
   }) async {
-    if (depth >= 8) {
-      return;
-    }
-
     final currentConversation = _readCurrentConversation();
     if (currentConversation == null) {
       return;
     }
-
-    final latestCompletedTask = currentConversation.projectedExecutionTasks
-        .where((task) => task.id == completedTask.id)
-        .firstOrNull;
-    if (latestCompletedTask == null ||
-        latestCompletedTask.status !=
-            ConversationWorkflowTaskStatus.completed) {
-      return;
-    }
-
-    final nextTask = ConversationPlanExecutionCoordinator.nextTask(
-      currentConversation,
+    final selection = WorkflowTaskRunLifecyclePolicy.selectAutoContinuation(
+      conversation: currentConversation,
+      completedTaskId: completedTask.id,
+      continuationDepth: depth,
     );
-    if (nextTask == null || nextTask.id == latestCompletedTask.id) {
+    if (selection == null) {
       return;
     }
+    final latestCompletedTask = selection.completedTask;
+    final nextTask = selection.nextTask;
 
     final previousAssistantMessageId = _latestAssistantMessageId(
       currentConversation,
@@ -584,7 +574,8 @@ final class WorkflowTaskRunCoordinator {
     if (!_isPageMounted()) {
       return false;
     }
-    if (toolResults.isEmpty || _toolResultsContainFailure(toolResults)) {
+    if (toolResults.isEmpty ||
+        WorkflowToolResultFailureDetector.containsFailure(toolResults)) {
       return false;
     }
 
@@ -640,7 +631,8 @@ final class WorkflowTaskRunCoordinator {
     if (!_isPageMounted()) {
       return false;
     }
-    if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
+    if (toolResults.isEmpty ||
+        !WorkflowToolResultFailureDetector.containsFailure(toolResults)) {
       return false;
     }
 
@@ -836,7 +828,8 @@ final class WorkflowTaskRunCoordinator {
     if (!_isPageMounted()) {
       return false;
     }
-    if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
+    if (toolResults.isEmpty ||
+        !WorkflowToolResultFailureDetector.containsFailure(toolResults)) {
       return false;
     }
 
@@ -938,7 +931,8 @@ final class WorkflowTaskRunCoordinator {
     if (!_isPageMounted()) {
       return false;
     }
-    if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
+    if (toolResults.isEmpty ||
+        !WorkflowToolResultFailureDetector.containsFailure(toolResults)) {
       return false;
     }
 
@@ -1042,7 +1036,8 @@ final class WorkflowTaskRunCoordinator {
     if (!_isPageMounted()) {
       return false;
     }
-    if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
+    if (toolResults.isEmpty ||
+        !WorkflowToolResultFailureDetector.containsFailure(toolResults)) {
       return false;
     }
 
@@ -1135,7 +1130,8 @@ final class WorkflowTaskRunCoordinator {
     if (!_isPageMounted()) {
       return false;
     }
-    if (toolResults.isEmpty || _toolResultsContainFailure(toolResults)) {
+    if (toolResults.isEmpty ||
+        WorkflowToolResultFailureDetector.containsFailure(toolResults)) {
       return false;
     }
 
@@ -1706,7 +1702,8 @@ final class WorkflowTaskRunCoordinator {
     if (!_isPageMounted()) {
       return false;
     }
-    if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
+    if (toolResults.isEmpty ||
+        !WorkflowToolResultFailureDetector.containsFailure(toolResults)) {
       return false;
     }
 
@@ -2107,7 +2104,7 @@ final class WorkflowTaskRunCoordinator {
       );
       return true;
     }
-    if (!_toolResultsContainFailure(toolResults) &&
+    if (!WorkflowToolResultFailureDetector.containsFailure(toolResults) &&
         await _maybeFinalizeScaffoldFromWorkspaceTargets(task: task)) {
       return true;
     }
@@ -2232,7 +2229,7 @@ final class WorkflowTaskRunCoordinator {
           task: task,
           existingTargetPaths: existingWorkspaceTargets,
         ) &&
-        (!_toolResultsContainFailure(toolResults) ||
+        (!WorkflowToolResultFailureDetector.containsFailure(toolResults) ||
             onlyUnavailableToolFailures)) {
       final summary =
           assistantInference.status == ConversationWorkflowTaskStatus.completed
@@ -2283,7 +2280,7 @@ final class WorkflowTaskRunCoordinator {
       );
       return true;
     }
-    if (!_toolResultsContainFailure(toolResults) &&
+    if (!WorkflowToolResultFailureDetector.containsFailure(toolResults) &&
         completionAssessment.shouldMarkCompleted) {
       final summary = completionAssessment.completedFromSuccessfulValidation
           ? 'Marked complete from saved target file changes and a successful validation result.'
@@ -2312,7 +2309,7 @@ final class WorkflowTaskRunCoordinator {
     }
     final shouldLockCompletedTaskBeforeNextToolWork =
         assistantInference.status == ConversationWorkflowTaskStatus.completed &&
-        !_toolResultsContainFailure(toolResults) &&
+        !WorkflowToolResultFailureDetector.containsFailure(toolResults) &&
         completionAssessment.touchedTargetFiles.isNotEmpty &&
         completionAssessment.unrelatedTouchedPaths.isNotEmpty;
     if (shouldLockCompletedTaskBeforeNextToolWork) {
@@ -2324,7 +2321,7 @@ final class WorkflowTaskRunCoordinator {
       );
       return true;
     }
-    if (_toolResultsContainFailure(toolResults)) {
+    if (WorkflowToolResultFailureDetector.containsFailure(toolResults)) {
       return false;
     }
     return false;
@@ -2359,52 +2356,6 @@ final class WorkflowTaskRunCoordinator {
     );
   }
 
-  bool _toolResultsContainFailure(List<ToolResultInfo> toolResults) {
-    for (final toolResult in toolResults) {
-      final normalized = toolResult.result.trim().toLowerCase();
-      if (normalized.isEmpty) {
-        continue;
-      }
-      Object? decoded;
-      if (normalized.startsWith('{')) {
-        try {
-          decoded = jsonDecode(toolResult.result);
-        } catch (_) {
-          decoded = null;
-        }
-      }
-      if (decoded is Map<String, dynamic>) {
-        final exitCode = decoded['exit_code'];
-        if (exitCode is num && exitCode != 0) {
-          return true;
-        }
-        if (decoded['success'] == false || decoded['isSuccess'] == false) {
-          return true;
-        }
-        final errorText = decoded['error']?.toString().trim() ?? '';
-        final errorMessage = decoded['errorMessage']?.toString().trim() ?? '';
-        if (errorText.isNotEmpty || errorMessage.isNotEmpty) {
-          return true;
-        }
-        if (CodingCommandOutputGuardrailService.commandResultReportsOutputIssue(
-          toolResult.result,
-        )) {
-          return true;
-        }
-      }
-      if (normalized.startsWith('error:') ||
-          normalized.contains('failed to') ||
-          normalized.contains('no matching tool available') ||
-          normalized.contains('"error":') ||
-          normalized.contains('"issuccess":false') ||
-          normalized.contains('"success":false') ||
-          normalized.contains('"errormessage"')) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   Message? _latestAssistantMessage(Conversation conversation) {
     for (final message in conversation.messages.reversed) {
       if (message.role == MessageRole.assistant &&
@@ -2436,7 +2387,6 @@ final class WorkflowTaskRunCoordinator {
     final latestTask = currentConversation?.projectedExecutionTasks
         .where((task) => task.id == taskId)
         .firstOrNull;
-    return latestTask?.status == ConversationWorkflowTaskStatus.completed ||
-        latestTask?.status == ConversationWorkflowTaskStatus.blocked;
+    return WorkflowTaskRunLifecyclePolicy.isTerminalStatus(latestTask?.status);
   }
 }

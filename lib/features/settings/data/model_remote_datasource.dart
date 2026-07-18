@@ -7,6 +7,7 @@ import '../../../core/constants/api_constants.dart';
 import '../../../core/utils/logger.dart';
 import '../domain/entities/local_model_lifecycle.dart';
 import '../domain/entities/model_catalog_entry.dart';
+import 'model_metadata_parser.dart';
 
 class ModelCatalogHttpException implements Exception {
   const ModelCatalogHttpException(this.statusCode);
@@ -24,31 +25,6 @@ class ModelRemoteDataSource {
           : baseUrl!.trim(),
       _apiKey = apiKey ?? ApiConstants.defaultApiKey,
       _client = client ?? http.Client();
-
-  static const _contextWindowKeys = <String>{
-    'context_length',
-    'contextLength',
-    'context_window',
-    'contextWindow',
-    'max_context_length',
-    'maxContextLength',
-    'max_model_len',
-    'maxModelLen',
-    'num_ctx',
-    'numCtx',
-    'n_ctx',
-    'nCtx',
-  };
-
-  static const _metadataContainerKeys = <String>{
-    'metadata',
-    'capabilities',
-    'config',
-    'details',
-    'info',
-    'model_info',
-    'parameters',
-  };
 
   static const _nativeMetadataTimeout = Duration(seconds: 2);
 
@@ -75,7 +51,7 @@ class ModelRemoteDataSource {
   Future<List<ModelCatalogEntry>> listModelCatalog({
     String? selectedModelId,
   }) async {
-    final selectedModel = _normalizeModelId(selectedModelId);
+    final selectedModel = ModelMetadataParser.normalizeModelId(selectedModelId);
     Object? primaryError;
     var catalog = const <ModelCatalogEntry>[];
     final isNvidiaNimCloud = ApiConstants.isNvidiaNimCloudBaseUrl(_baseUrl);
@@ -170,7 +146,7 @@ class ModelRemoteDataSource {
       final entry = ModelCatalogEntry(
         id: id,
         ownedBy: _readString(item, 'owned_by') ?? _readString(item, 'ownedBy'),
-        contextWindowTokens: _readContextWindowTokens(item),
+        contextWindowTokens: ModelMetadataParser.readContextWindowTokens(item),
       );
       final existing = entriesById[id];
       if (existing == null ||
@@ -199,7 +175,7 @@ class ModelRemoteDataSource {
       return const [];
     }
 
-    final selectedModel = _normalizeModelId(selectedModelId);
+    final selectedModel = ModelMetadataParser.normalizeModelId(selectedModelId);
     final entriesById = <String, ModelCatalogEntry>{};
     for (final item in models) {
       if (item is! Map<String, dynamic>) {
@@ -211,17 +187,21 @@ class ModelRemoteDataSource {
       }
 
       final ownedBy = _readString(item, 'publisher');
-      final modelKey = _normalizeModelId(_readString(item, 'key'));
-      final loadedInstances = item['loaded_instances'];
-      final selectedLoadedContext = _readSelectedLmStudioLoadedContext(
-        loadedInstances,
-        selectedModel,
+      final modelKey = ModelMetadataParser.normalizeModelId(
+        _readString(item, 'key'),
       );
+      final loadedInstances = item['loaded_instances'];
+      final selectedLoadedContext =
+          ModelMetadataParser.readSelectedLmStudioLoadedContext(
+            loadedInstances,
+            selectedModel,
+          );
       final loadedContext =
           selectedLoadedContext ??
-          _readFirstLmStudioLoadedContext(loadedInstances);
+          ModelMetadataParser.readFirstLmStudioLoadedContext(loadedInstances);
       final modelContext =
-          loadedContext ?? _parsePositiveInt(item['max_context_length']);
+          loadedContext ??
+          ModelMetadataParser.parsePositiveInt(item['max_context_length']);
 
       if (modelKey != null) {
         _putPreferredEntry(
@@ -239,7 +219,7 @@ class ModelRemoteDataSource {
           if (loadedInstance is! Map<String, dynamic>) {
             continue;
           }
-          final instanceId = _normalizeModelId(
+          final instanceId = ModelMetadataParser.normalizeModelId(
             _readString(loadedInstance, 'id'),
           );
           if (instanceId == null) {
@@ -251,7 +231,8 @@ class ModelRemoteDataSource {
               id: instanceId,
               ownedBy: ownedBy,
               contextWindowTokens:
-                  _readContextWindowTokens(loadedInstance) ?? modelContext,
+                  ModelMetadataParser.readContextWindowTokens(loadedInstance) ??
+                  modelContext,
             ),
           );
         }
@@ -264,10 +245,10 @@ class ModelRemoteDataSource {
   static int? parseLlamaCppPropsContextWindowTokens(Map<String, dynamic> json) {
     final defaultSettings = json['default_generation_settings'];
     if (defaultSettings is Map<String, dynamic>) {
-      return _readContextWindowTokens(defaultSettings) ??
-          _readContextWindowTokens(json);
+      return ModelMetadataParser.readContextWindowTokens(defaultSettings) ??
+          ModelMetadataParser.readContextWindowTokens(json);
     }
-    return _readContextWindowTokens(json);
+    return ModelMetadataParser.readContextWindowTokens(json);
   }
 
   static int? parseLlamaCppSlotsContextWindowTokens(Object? json) {
@@ -280,7 +261,7 @@ class ModelRemoteDataSource {
       if (item is! Map<String, dynamic>) {
         continue;
       }
-      final context = _readContextWindowTokens(item);
+      final context = ModelMetadataParser.readContextWindowTokens(item);
       if (context != null) {
         contexts.add(context);
       }
@@ -310,7 +291,7 @@ class ModelRemoteDataSource {
       if (item is! Map<String, dynamic>) {
         continue;
       }
-      final id = _normalizeModelId(_readString(item, 'id'));
+      final id = ModelMetadataParser.normalizeModelId(_readString(item, 'id'));
       if (id == null) {
         continue;
       }
@@ -321,7 +302,7 @@ class ModelRemoteDataSource {
         statusValue: status.value,
         path: _readString(item, 'path'),
         ownedBy: _readString(item, 'owned_by') ?? _readString(item, 'ownedBy'),
-        contextWindowTokens: _readContextWindowTokens(item),
+        contextWindowTokens: ModelMetadataParser.readContextWindowTokens(item),
         failed: status.failed,
         exitCode: status.exitCode,
         commandArguments: status.commandArguments,
@@ -362,7 +343,7 @@ class ModelRemoteDataSource {
       if (item is! Map<String, dynamic>) {
         continue;
       }
-      final id = _normalizeModelId(_readString(item, 'id'));
+      final id = ModelMetadataParser.normalizeModelId(_readString(item, 'id'));
       if (id == null) {
         continue;
       }
@@ -375,7 +356,7 @@ class ModelRemoteDataSource {
         state: status.state,
         statusValue: status.value,
         ownedBy: _readString(item, 'owned_by') ?? _readString(item, 'ownedBy'),
-        contextWindowTokens: _readContextWindowTokens(item),
+        contextWindowTokens: ModelMetadataParser.readContextWindowTokens(item),
         failed: status.failed,
         exitCode: status.exitCode,
         commandArguments: status.commandArguments,
@@ -420,7 +401,9 @@ class ModelRemoteDataSource {
         continue;
       }
 
-      final modelKey = _normalizeModelId(_readString(item, 'key'));
+      final modelKey = ModelMetadataParser.normalizeModelId(
+        _readString(item, 'key'),
+      );
       if (modelKey == null) {
         continue;
       }
@@ -433,15 +416,18 @@ class ModelRemoteDataSource {
             continue;
           }
           final instanceId =
-              _normalizeModelId(_readString(loadedInstance, 'id')) ?? modelKey;
+              ModelMetadataParser.normalizeModelId(
+                _readString(loadedInstance, 'id'),
+              ) ??
+              modelKey;
           modelsById[instanceId] = LocalManagedModel(
             id: instanceId,
             state: LocalModelLifecycleState.loaded,
             statusValue: 'loaded',
             ownedBy: _readString(item, 'publisher'),
             contextWindowTokens:
-                _readContextWindowTokens(loadedInstance) ??
-                _readContextWindowTokens(item),
+                ModelMetadataParser.readContextWindowTokens(loadedInstance) ??
+                ModelMetadataParser.readContextWindowTokens(item),
             metadataHints: _lmStudioMetadataHints(item),
           );
           addedLoadedInstance = true;
@@ -454,7 +440,9 @@ class ModelRemoteDataSource {
           state: LocalModelLifecycleState.unloaded,
           statusValue: 'unloaded',
           ownedBy: _readString(item, 'publisher'),
-          contextWindowTokens: _readContextWindowTokens(item),
+          contextWindowTokens: ModelMetadataParser.readContextWindowTokens(
+            item,
+          ),
           metadataHints: _lmStudioMetadataHints(item),
         );
       }
@@ -495,7 +483,7 @@ class ModelRemoteDataSource {
       if (item is! Map<String, dynamic>) {
         continue;
       }
-      final id = _normalizeModelId(
+      final id = ModelMetadataParser.normalizeModelId(
         _readString(item, 'model') ?? _readString(item, 'name'),
       );
       if (id == null) {
@@ -1023,7 +1011,7 @@ class ModelRemoteDataSource {
     required String actionLabel,
     required String modelIdField,
   }) async {
-    final normalizedModelId = _normalizeModelId(modelId);
+    final normalizedModelId = ModelMetadataParser.normalizeModelId(modelId);
     if (normalizedModelId == null) {
       final result = LocalModelLifecycleActionResult.failure(
         message: 'A model id is required to $actionLabel a managed model.',
@@ -1150,7 +1138,7 @@ class ModelRemoteDataSource {
     required String actionLabel,
     required Map<String, Object> Function(String modelId) bodyForModel,
   }) async {
-    final normalizedModelId = _normalizeModelId(modelId);
+    final normalizedModelId = ModelMetadataParser.normalizeModelId(modelId);
     if (normalizedModelId == null) {
       final result = LocalModelLifecycleActionResult.failure(
         message: 'A model id is required to $actionLabel an Ollama model.',
@@ -1340,97 +1328,6 @@ class ModelRemoteDataSource {
     return value.endsWith('/') ? value.substring(0, value.length - 1) : value;
   }
 
-  static String? _normalizeModelId(String? value) {
-    final normalized = value?.trim();
-    if (normalized == null || normalized.isEmpty) {
-      return null;
-    }
-    return normalized;
-  }
-
-  static int? _readContextWindowTokens(Map<String, dynamic> json) {
-    for (final source in _metadataSources(json)) {
-      for (final key in _contextWindowKeys) {
-        final tokens = _parsePositiveInt(source[key]);
-        if (tokens != null) {
-          return tokens;
-        }
-      }
-    }
-    return null;
-  }
-
-  static int? _readSelectedLmStudioLoadedContext(
-    Object? loadedInstances,
-    String? selectedModelId,
-  ) {
-    if (loadedInstances is! List || selectedModelId == null) {
-      return null;
-    }
-
-    for (final loadedInstance in loadedInstances) {
-      if (loadedInstance is! Map<String, dynamic>) {
-        continue;
-      }
-      if (_readString(loadedInstance, 'id')?.trim() != selectedModelId) {
-        continue;
-      }
-      final context = _readContextWindowTokens(loadedInstance);
-      if (context != null) {
-        return context;
-      }
-    }
-    return null;
-  }
-
-  static int? _readFirstLmStudioLoadedContext(Object? loadedInstances) {
-    if (loadedInstances is! List) {
-      return null;
-    }
-
-    for (final loadedInstance in loadedInstances) {
-      if (loadedInstance is! Map<String, dynamic>) {
-        continue;
-      }
-      final context = _readContextWindowTokens(loadedInstance);
-      if (context != null) {
-        return context;
-      }
-    }
-    return null;
-  }
-
-  static Iterable<Map<String, dynamic>> _metadataSources(
-    Map<String, dynamic> json,
-  ) sync* {
-    yield json;
-    for (final key in _metadataContainerKeys) {
-      final value = json[key];
-      if (value is Map<String, dynamic>) {
-        yield value;
-      }
-    }
-  }
-
-  static int? _parsePositiveInt(Object? value) {
-    if (value is int) {
-      return value > 0 ? value : null;
-    }
-    if (value is num && value.isFinite) {
-      final rounded = value.round();
-      return rounded > 0 ? rounded : null;
-    }
-    if (value is String) {
-      final normalized = value.trim();
-      if (!RegExp(r'^\d+$').hasMatch(normalized)) {
-        return null;
-      }
-      final parsed = int.tryParse(normalized);
-      return parsed != null && parsed > 0 ? parsed : null;
-    }
-    return null;
-  }
-
   static _LifecycleStatus _readLifecycleStatus(Object? rawStatus) {
     if (rawStatus is String) {
       return _LifecycleStatus(value: rawStatus.trim());
@@ -1444,7 +1341,7 @@ class ModelRemoteDataSource {
     return _LifecycleStatus(
       value: value == null || value.isEmpty ? 'unknown' : value,
       failed: rawStatus['failed'] == true,
-      exitCode: _parsePositiveInt(rawStatus['exit_code']),
+      exitCode: ModelMetadataParser.parsePositiveInt(rawStatus['exit_code']),
       commandArguments: args is List
           ? [
               for (final arg in args)
@@ -1504,7 +1401,7 @@ class ModelRemoteDataSource {
       if (item is! Map<String, dynamic>) {
         continue;
       }
-      final id = _normalizeModelId(
+      final id = ModelMetadataParser.normalizeModelId(
         _readString(item, 'model') ?? _readString(item, 'name'),
       );
       if (id != null) {
@@ -1530,7 +1427,7 @@ class ModelRemoteDataSource {
       if (item is! Map<String, dynamic>) {
         continue;
       }
-      final id = _normalizeModelId(
+      final id = ModelMetadataParser.normalizeModelId(
         _readString(item, 'model') ?? _readString(item, 'name'),
       );
       if (id != null) {
@@ -1577,7 +1474,7 @@ class ModelRemoteDataSource {
   }
 
   static int? _readOllamaContextWindowTokens(Map<String, dynamic> json) {
-    final direct = _readContextWindowTokens(json);
+    final direct = ModelMetadataParser.readContextWindowTokens(json);
     if (direct != null) {
       return direct;
     }
@@ -1587,7 +1484,7 @@ class ModelRemoteDataSource {
       for (final entry in modelInfo.entries) {
         final key = entry.key.toLowerCase();
         if (key == 'context_length' || key.endsWith('.context_length')) {
-          final context = _parsePositiveInt(entry.value);
+          final context = ModelMetadataParser.parsePositiveInt(entry.value);
           if (context != null) {
             return context;
           }
@@ -1602,7 +1499,7 @@ class ModelRemoteDataSource {
         multiLine: true,
       ).firstMatch(parameters);
       if (match != null) {
-        return _parsePositiveInt(match.group(2));
+        return ModelMetadataParser.parsePositiveInt(match.group(2));
       }
     }
     return null;
