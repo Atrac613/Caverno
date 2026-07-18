@@ -10,6 +10,7 @@ import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
+import '../widgets/computer_use_debug_audio_card.dart';
 import '../widgets/computer_use_debug_diagnostics_cards.dart';
 import '../widgets/computer_use_debug_image_preview.dart';
 import '../widgets/computer_use_debug_onboarding_card.dart';
@@ -105,7 +106,28 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           const SizedBox(height: 12),
           _buildInputCard(),
           const SizedBox(height: 12),
-          _buildAudioCard(),
+          ComputerUseDebugAudioCard(
+            viewModel: ComputerUseDebugAudioViewModel(
+              isBusy: _isBusy,
+              isRecording: _audioRecording,
+              isArmed: _audioRecordingArmed,
+            ),
+            onArmedChanged: (value) =>
+                setState(() => _audioRecordingArmed = value),
+            onStartRecording: _startAudioRecording,
+            onStopRecording: () => _run(
+              'Stop system audio recording',
+              (service) => service.stopSystemAudioRecording(),
+              onResult: (result) {
+                if (result['ok'] == true) {
+                  _audioSmokeCompleted = true;
+                  _audioRecording = false;
+                } else if (result['code'] == 'not_recording') {
+                  _audioRecording = false;
+                }
+              },
+            ),
+          ),
           const SizedBox(height: 12),
           ComputerUseDebugDiagnosticsCard(
             viewModel: ComputerUseDebugDiagnosticsViewModel(
@@ -674,81 +696,6 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   icon: Icons.keyboard_alt_outlined,
                   label: 'Type Text',
                   onPressed: _inputActionsArmed ? _typeText : null,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAudioCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ComputerUseDebugSectionTitle(
-              icon: Icons.graphic_eq_outlined,
-              title: 'System Audio',
-              subtitle:
-                  'Start and stop a ScreenCaptureKit system audio recording.',
-            ),
-            const SizedBox(height: 12),
-            ComputerUseDebugArmSwitch(
-              title: 'System Audio Armed',
-              subtitle: 'Required before starting a system audio recording.',
-              value: _audioRecordingArmed,
-              onChanged: _isBusy || _audioRecording
-                  ? null
-                  : (value) => setState(() => _audioRecordingArmed = value),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(
-                  _audioRecording
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                  color: _audioRecording
-                      ? Theme.of(context).colorScheme.error
-                      : Theme.of(context).disabledColor,
-                ),
-                const SizedBox(width: 8),
-                Text(_audioRecording ? 'Recording active' : 'Not recording'),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _actionButton(
-                  icon: Icons.fiber_manual_record_outlined,
-                  label: 'Start Recording',
-                  onPressed: _audioRecording || !_audioRecordingArmed
-                      ? null
-                      : _startAudioRecording,
-                ),
-                _actionButton(
-                  icon: Icons.stop_circle_outlined,
-                  label: 'Stop Recording',
-                  onPressed: !_audioRecording
-                      ? null
-                      : () => _run(
-                          'Stop system audio recording',
-                          (service) => service.stopSystemAudioRecording(),
-                          onResult: (result) {
-                            if (result['ok'] == true) {
-                              _audioSmokeCompleted = true;
-                              _audioRecording = false;
-                            } else if (result['code'] == 'not_recording') {
-                              _audioRecording = false;
-                            }
-                          },
-                        ),
                 ),
               ],
             ),

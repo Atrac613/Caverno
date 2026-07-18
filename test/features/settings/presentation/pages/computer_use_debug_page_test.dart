@@ -615,7 +615,9 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text('Grant Screen & System Audio Recording to Caverno Computer Use'),
+      find.text(
+        'Grant Screen & System Audio Recording to Caverno Computer Use',
+      ),
       findsOneWidget,
     );
     expect(find.text('XPC Production Ready'), findsOneWidget);
@@ -723,6 +725,34 @@ void main() {
 
     expect(find.text('Not recording'), findsOneWidget);
     expect(service.stopAudioCallCount, 1);
+  });
+
+  testWidgets('failed audio start disarms without entering recording state', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(startAudioSucceeds: false);
+    await _pumpPage(tester, service);
+
+    await _tapSwitch(tester, 'System Audio Armed');
+    await _tapButton(tester, 'Start Recording');
+
+    expect(service.startAudioCallCount, 1);
+    expect(find.text('Not recording'), findsOneWidget);
+    final switchTile = tester.widget<SwitchListTile>(
+      find.ancestor(
+        of: find.text('System Audio Armed'),
+        matching: find.byType(SwitchListTile),
+      ),
+    );
+    expect(switchTile.value, isFalse);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Start Recording'),
+          )
+          .onPressed,
+      isNull,
+    );
   });
 
   testWidgets('pings and stops helper work from the permission panel', (

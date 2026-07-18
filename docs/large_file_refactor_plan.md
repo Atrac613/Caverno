@@ -49,7 +49,8 @@ again before starting a new refactor branch.
 | `lib/features/settings/presentation/widgets/computer_use_permission_trust_panel.dart` | 318 | Computer Use permission flow and recovery guidance presentation |
 | `lib/features/settings/presentation/widgets/computer_use_verification_summary.dart` | 107 | Immutable Computer Use onboarding-verification presentation |
 | `lib/features/settings/presentation/widgets/computer_use_xpc_timing_summary.dart` | 176 | Immutable Computer Use XPC timing presentation |
-| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2198 | Debug coordination, remaining capture, window, input, and audio action controls |
+| `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 2145 | Debug coordination and remaining display capture, window, and input action controls |
+| `lib/features/settings/presentation/widgets/computer_use_debug_audio_card.dart` | 99 | Immutable System Audio state and action presentation |
 | `lib/features/settings/presentation/widgets/computer_use_debug_diagnostics_cards.dart` | 149 | Immutable diagnostics actions, copied audit presentation, export feedback, and native result display |
 | `lib/features/settings/presentation/widgets/computer_use_debug_image_preview.dart` | 153 | Screenshot decoding, zoom presentation, and source-coordinate selection |
 | `lib/features/settings/presentation/widgets/computer_use_debug_onboarding_card.dart` | 94 | Typed onboarding progress, steps, and XPC readiness presentation |
@@ -881,14 +882,31 @@ Debug diagnostics cards status (2026-07-18):
   full gate passed analysis, 3,798 root tests, and 13 package tests at 74.00%
   line coverage.
 
+Debug audio card status (2026-07-18):
+
+- `ComputerUseDebugAudioCard` now owns the System Audio arming switch,
+  recording status, and ordered start and stop actions behind an immutable
+  view model and explicit callbacks.
+- The debug page retains recording service calls, arming reset, result
+  handling, smoke completion, and diagnostic state. Direct widget tests execute
+  no native desktop action.
+- Direct and product-path tests pin eligibility, copy, icons, colors, callback
+  dispatch, failed-start disarming, successful start and stop service calls,
+  and recording state.
+- `computer_use_debug_page.dart` fell from 2,198 to 2,145 lines. The new
+  boundary is ratcheted at 99 lines and reached 100.00% line coverage. The full
+  gate passed analysis, 3,803 root tests, and 13 package tests at 74.00% line
+  coverage.
+
 Next slice:
 
-- The planned network sequence and debug diagnostics/result slice are complete.
-  Do not widen either stack into unrelated route, interface, mDNS, or native
-  action changes.
-- The next unowned debug-page boundary is the audio action card. Start a new
-  branch after this slice lands and characterize recording, arming, busy-state,
-  unsupported-backend, and stop-result behavior before moving presentation.
+- The planned network sequence and debug diagnostics, result, and audio-card
+  slices are complete. Do not widen either stack into unrelated route,
+  interface, mDNS, or native action changes.
+- The next smallest unowned debug-page boundary is the display screenshot card.
+  Start a new branch after this slice lands and characterize max-width input,
+  busy and armed eligibility, preview state, and coordinate selection before
+  moving presentation.
   Keep active ChatNotifier, ChatPage, workflow-runner, and message-input
   worktree ownership out of that branch.
 
