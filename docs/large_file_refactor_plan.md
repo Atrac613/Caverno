@@ -93,7 +93,7 @@ The 2026-07-18 re-inventory selected the `network_tools.dart` route, interface,
 and path-MTU cluster, followed by the routine run-history, LAN IP network,
 filesystem diff, model metadata, file workspace diff-row, workflow tool
 failure, and workflow lifecycle boundaries. All eight slices are now complete.
-The network facade fell
+They were squash-integrated into `main` as `f80132bf`. The network facade fell
 from 1,996 to 968 physical lines; the independently testable route service is
 1,128 lines at 93.88%
 coverage, and combined executable coverage for those two files is 65.10%. The
@@ -113,7 +113,9 @@ coverage. The remaining coordinator recovery state machine stays paused until
 a separate route-and-evidence contract freezes recovery ordering, liveness,
 retry limits, and progress-evidence semantics. The recently reduced Computer
 Use pages remain paused because their coverage is above 94% and their remaining
-code is orchestration-heavy.
+code is orchestration-heavy. The integrated `main` gate passed analysis, 3,905
+root tests, and 13 internal-package tests at 74.98% line coverage
+(53,368/71,175).
 
 ## Refactor Rules
 
@@ -173,10 +175,11 @@ Foundation status (2026-07-16):
 - The package passed 13 tests; the focused root integration gate passed 32
   tests; root and package analysis reported no findings.
 
-Next application-boundary slice:
+Foundation follow-up:
 
-- Characterize the ChatPage `build()` scaffold and right-sidebar layout, then
-  define the smallest coherent Tranche 5 boundary without changing layout.
+- The previously planned ChatPage build-scaffold and right-sidebar boundary is
+  complete under Phase 2 Tranche 5. Do not create another package until a
+  stable second consumer and an acyclic dependency direction are demonstrated.
 
 ## Phase 1: ChatNotifier Decomposition
 
@@ -217,13 +220,16 @@ Tranche 1 status (2026-07-02):
 - The `chat_notifier.dart` ratchet budget is now 9468 lines and should continue
   shrinking as each follow-up slice lands.
 
-Next follow-up candidates:
+Deferred follow-up candidates:
 
-- Tool-loop request preparation and result-prompt construction.
-- Conversation persistence and title update helpers.
-- Assistant-response memory extraction orchestration.
-- Workflow approval and recovery coordination after the parser boundaries have
-  settled.
+- Conversation persistence and title update helpers, plus assistant-response
+  memory extraction orchestration, remain valid characterization candidates.
+- Tool-loop request preparation, result-prompt construction, and workflow
+  coordination now span several extracted services and active worktrees.
+  Re-characterize their current ownership before treating the older candidate
+  wording as an implementation task.
+- `chat_notifier.dart` remains deferred while its active worktree overlaps are
+  unresolved.
 
 Exit criteria:
 
@@ -680,11 +686,12 @@ Computer Use handler status (2026-07-17):
   The full repository gate passed 3,589 root tests plus 13 internal-package
   tests at 73.15% line coverage; the handler reached 100.00% coverage.
 
-Next slice:
+Phase 3 follow-up:
 
-- Refresh the live oversized-file inventory before selecting another
-  application boundary. Prefer the explicit ChatPage Tranche 3 plan-review and
-  approval action boundary when the recheck confirms its ownership and tests.
+- The previously named ChatPage Tranche 3 plan-review boundary is complete.
+  The MCP decomposition sequence is also complete; the remaining 1,202-line
+  facade stays deferred while an older notifier-refactor worktree overlaps it.
+  Re-rank it only after that ownership signal is resolved.
 
 Exit criteria:
 
@@ -1058,25 +1065,32 @@ Next slice:
   diff, model metadata, file workspace diff-row, and peer debug action-card
   slices are complete. The workflow tool failure detector and lifecycle policy
   are also complete. Do not widen those stacks into unrelated DNS, mDNS, ping,
-  traceroute, routine
-  mutation, scheduling, probe, file I/O, path
-  containment, edit validation, provider HTTP, model lifecycle, or native
-  action changes.
+  traceroute, routine mutation, scheduling, probe, file I/O, path containment,
+  edit validation, provider HTTP, model lifecycle, or native action changes.
+  The complete stack is integrated into `main` as `f80132bf`.
 - The planned permission action group is complete, and the 2026-07-18 full
   inventory refresh is recorded in
   `docs/large_file_boundary_inventory_2026_07_18.md`.
-- Refresh the production-boundary and active-worktree ranking before opening a
-  new extraction task. Keep `routine_detail_view.dart` and
+- The integrated-main production and ownership ranking is refreshed in
+  `docs/large_file_boundary_inventory_2026_07_18.md`. The next task is a
+  contract-only characterization of recovery routing and progress evidence in
+  `workflow_task_run_coordinator.dart`; do not move its state machine yet.
+- If that contract is not ready, characterize a response-normalization or
+  streaming boundary in the clear-ownership, 1,244-line
+  `chat_remote_datasource.dart`. Keep this fallback separate from workflow
+  recovery work.
+- Keep `routine_detail_view.dart` and
   `lan_scan_service.dart` paused now that both are below 1,000 lines; their
   remaining concerns are more tightly coupled to page-owned provider state or
   platform IO. Re-rank `filesystem_tools.dart` and
   `model_remote_datasource.dart` before another extraction even though both
   remain above 1,000 lines. Re-rank `file_workspace_viewer_sheet.dart` before
   separating file loading, path containment, or layout concerns. Keep
-  `workflow_task_run_coordinator.dart` paused until recovery ordering, liveness,
-  retry limits, and progress-evidence semantics have a separate route-and-
-  evidence contract. Terminal states, continuation depth, and compatible
-  next-task selection are now frozen by the extracted lifecycle policy.
+  `workflow_task_run_coordinator.dart` implementation paused until recovery
+  ordering, liveness, retry limits, and progress-evidence semantics have the
+  separate route-and-evidence contract. Terminal states, continuation depth,
+  and compatible next-task selection are already frozen by the extracted
+  lifecycle policy.
 
 Exit criteria:
 

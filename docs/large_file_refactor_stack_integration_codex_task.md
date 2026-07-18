@@ -89,8 +89,14 @@ tool/codex_verify.sh --coverage --no-codegen
 
 ## Handoff Notes
 
-- Summary: pending.
-- Tests run: pending.
-- Coverage or low-coverage notes: pending integrated-main measurements.
-- Risks or follow-ups: do not select the next extraction until the refreshed
-  ownership and coverage ranking is committed.
+- Summary: complete. The 31-commit feature stack was applied without conflicts
+  and integrated into `main` as the single squash commit `f80132bf`. The staged
+  scope contained the audited 37 files plus this integration contract.
+- Tests run: `tool/codex_verify.sh --coverage --no-codegen` passed integrated
+  main analysis, 13 internal-package tests, and 3,905 root tests.
+- Coverage or low-coverage notes: integrated-main line coverage reached 74.98%
+  (53,368/71,175). The refreshed candidate ranking uses the same LCOV artifact.
+- Risks or follow-ups: define the workflow coordinator's route-and-evidence
+  contract before another recovery extraction. Treat
+  `chat_remote_datasource.dart` as the first implementation fallback if that
+  contract is not ready; do not mix the two boundaries.

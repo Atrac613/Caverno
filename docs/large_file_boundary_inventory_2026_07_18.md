@@ -11,7 +11,8 @@ workspace diff parser slice on
 failure detector slice on
 `feature/workflow-tool-failure-detector-extraction` and the workflow task
 lifecycle policy slice on
-`feature/workflow-task-run-lifecycle-policy-extraction`.
+`feature/workflow-task-run-lifecycle-policy-extraction`. The completed
+31-commit stack was squash-integrated into `main` as `f80132bf`.
 
 ## Scope And Method
 
@@ -27,8 +28,8 @@ boundary is selected.
 - Test scan: standalone test files with at least 1,800 physical lines, with the
   ChatNotifier test aggregate measured separately.
 - Coverage source: the successful full
-  `tool/codex_verify.sh --coverage --no-codegen` run for the workflow task
-  lifecycle policy slice. Coverage percentages use executable lines from
+  `tool/codex_verify.sh --coverage --no-codegen` run on integrated `main` at
+  `f80132bf`. Coverage percentages use executable lines from
   `coverage/lcov.info`, not physical-line counts.
 - Ownership source: every existing worktree from
   `git worktree list --porcelain`, conservatively compared with local `main`.
@@ -36,7 +37,7 @@ boundary is selected.
   conflict signal that must be resolved before editing that boundary.
 
 The full gate passed analysis, 3,905 root tests, and 13 internal-package tests
-at 74.98% line coverage (53,367/71,175).
+at 74.98% line coverage (53,368/71,175).
 
 ## Same-Library Aggregates
 
@@ -115,11 +116,12 @@ proves the ownership conflict that blocked the sequence is resolved.
 
 Conservative overlaps remain on these large boundaries:
 
-- `chat_notifier.dart`: ten worktree branches, including discovery, notifier
-  refactor, goal/tool-loop recovery, live-convergence, Plan Mode stability, and
-  roadmap worktrees. One LL23 worktree is dirty.
-- `chat_page.dart`: four worktree branches: notifier refactor, LL13 registry,
-  investigation playbook, and LL19 recording.
+- `chat_notifier.dart`: eleven worktrees, including discovery, notifier
+  refactor, goal/tool-loop recovery, live-convergence, Plan Mode stability,
+  roadmap, and one detached worktree. The LL23 worktree also has an unrelated
+  dirty notifier-test file.
+- `chat_page.dart`: five worktrees: notifier refactor, LL13 registry,
+  investigation playbook, LL19 recording, and one detached worktree.
 - `message_input.dart`, `conversations_notifier.dart`,
   `workflow_task_proposal_quality_service.dart`, `local_shell_tools.dart`,
   `git_tools.dart`, `mcp_tool_service.dart`, `remote_coding_page.dart`, and
@@ -148,15 +150,16 @@ No active worktree overlap was found for `network_tools.dart`,
 
 | Rank | Boundary | Lines | Coverage | Ownership | Decision |
 |---:|---|---:|---:|---|---|
-| 1 | `network_tools.dart` | 1,996 | 41.60% | clear | Route, interface, and path-MTU extraction complete; re-rank remaining concerns. |
-| 2 | `routine_detail_view.dart` | 948 | 37.72% | clear | Run-history extraction complete; pause below 1,000 lines. |
-| 3 | `lan_scan_service.dart` | 843 | 51.83% | clear | IP network extraction complete; pause below 1,000 lines. |
-| 4 | `filesystem_tools.dart` | 1,282 | 78.98% | clear | Diff extraction complete; re-rank before another filesystem slice. |
-| 5 | `workflow_task_run_coordinator.dart` | 2,392 | 59.95% | clear | Lifecycle policy extraction complete; pause remaining recovery routing pending a route-and-evidence contract. |
-| 6 | `model_remote_datasource.dart` | 1,710 | 79.36% | clear | Metadata parser extraction complete; re-rank before provider or lifecycle work. |
-| 7 | `file_workspace_viewer_sheet.dart` | 1,559 | 82.90% | clear | Diff-row parser extraction complete; re-rank before IO or layout work. |
-| 8 | `computer_use_debug_page.dart` | 1,910 | 94.36% | clear | Pause after the completed extraction sequence; remaining code is orchestration-heavy. |
-| 9 | `computer_use_settings_page.dart` | 1,725 | 95.22% | clear | Pause after Phase 4 summary extractions; coverage and separation are already strong. |
+| 1 | `workflow_task_run_coordinator.dart` | 2,392 | 59.95% | clear | Define the route-and-evidence contract next; keep implementation paused. |
+| 2 | `chat_remote_datasource.dart` | 1,244 | 56.26% | clear | First implementation fallback; characterize streaming or response normalization. |
+| 3 | `installed_dependency_grounding_service.dart` | 1,337 | 67.57% | clear | Characterize ecosystem-specific resolution behind its stable JSON contract. |
+| 4 | `conversation_drawer.dart` | 1,329 | 74.91% | clear | Characterize a presentational section only after widget lifecycle coverage. |
+| 5 | `filesystem_tools.dart` | 1,282 | 78.98% | clear | Diff extraction complete; re-rank remaining IO and path concerns. |
+| 6 | `model_remote_datasource.dart` | 1,710 | 79.36% | clear | Metadata extraction complete; re-rank provider and lifecycle concerns. |
+| 7 | `file_workspace_viewer_sheet.dart` | 1,559 | 82.90% | clear | Diff-row extraction complete; re-rank IO, containment, and layout concerns. |
+| 8 | `live_llm_diagnostic_service.dart` | 1,711 | 85.86% | clear | Pause while coverage is high and remaining logic is orchestration-heavy. |
+| 9 | `computer_use_debug_page.dart` | 1,910 | 94.36% | clear | Pause after the completed extraction sequence. |
+| 10 | `computer_use_settings_page.dart` | 1,725 | 95.22% | clear | Pause after Phase 4 summary extractions. |
 
 `network_tools.dart` was selected because it combined a clear ownership state,
 a still-large physical boundary, the lowest coverage among the top unowned
@@ -187,6 +190,16 @@ pending precedence, same-ID rejection, and exact terminal statuses. State
 writes, liveness, prompts, result processing, retry behavior, and recursion
 remain coordinator-owned. The remaining recovery routes stay deferred until a
 separate route-and-evidence contract exists.
+
+The post-integration refresh ranks that contract as the next task because the
+coordinator remains the largest clear-ownership boundary below 60% coverage,
+while the contract can be completed without moving side effects. The first
+implementation fallback is `chat_remote_datasource.dart`: it has the lowest
+coverage among clear standalone candidates and exposes separable streaming and
+response-normalization concerns. Ecosystem-specific installed-dependency
+resolution is the next fallback. The remaining clear candidates either have
+already completed a pure extraction or retain higher-coverage orchestration,
+IO, lifecycle, containment, or layout responsibilities.
 
 The route extraction was gated by a task document that froze supported
 platforms, process commands, address-family behavior, fallback precedence,
@@ -380,6 +393,20 @@ The workflow task lifecycle policy boundary is complete on
 - Keep the remaining recovery state machine paused until recovery ordering,
   liveness, retry limits, and progress-evidence semantics have a separate
   route-and-evidence contract.
+
+## Stack Integration Outcome
+
+The eight completed extraction slices are integrated into `main` as
+`f80132bf`.
+
+- `main` was the direct ancestor of the 31-commit stack, and the squash applied
+  without conflicts.
+- The staged integration contained the audited 37 slice files plus the
+  integration task contract; no unrelated worktree changes were included.
+- The integrated full gate passed analysis, 3,905 root tests, and 13
+  internal-package tests at 74.98% line coverage (53,368/71,175).
+- Source branches and unrelated worktrees remain intact. The next task is the
+  workflow route-and-evidence contract, not another implementation extraction.
 
 ## Reproduction Commands
 
