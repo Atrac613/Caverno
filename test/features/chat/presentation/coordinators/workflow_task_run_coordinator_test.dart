@@ -297,6 +297,29 @@ ToolResultInfo _syntheticUnexecutedCommandResult() {
   );
 }
 
+ToolResultInfo _editMismatchResult({required String id, required String path}) {
+  return ToolResultInfo(
+    id: id,
+    name: 'edit_file',
+    arguments: {'path': path},
+    result: jsonEncode({
+      'ok': false,
+      'code': 'edit_mismatch',
+      'error': 'old_text was not found in the target file',
+      'path': path,
+    }),
+  );
+}
+
+ToolResultInfo _readFileResult({required String id, required String path}) {
+  return ToolResultInfo(
+    id: id,
+    name: 'read_file',
+    arguments: {'path': path},
+    result: 'mode=old\n',
+  );
+}
+
 _CoordinatorHarness _createWorkflowHarness({
   required List<ConversationWorkflowTask> tasks,
   required Iterable<_ScriptedChatTurn> visibleTurns,
@@ -735,6 +758,140 @@ void main() {
         contains('The saved task stalled without any concrete tool call'),
       );
       expect(harness.chatNotifier.hasPendingTurns, isFalse);
+    },
+  );
+
+  test('assistant completion evidence preempts tool-less recovery', () async {
+    const task = ConversationWorkflowTask(
+      id: 'implement-configuration',
+      title: 'Implement configuration',
+    );
+    final harness = _createWorkflowHarness(
+      tasks: const [task],
+      visibleTurns: const [
+        _ScriptedChatTurn(
+          hiddenAssistantResponse:
+              'The saved task "Implement configuration" is completed.',
+        ),
+      ],
+      hiddenTurns: const [_ScriptedChatTurn()],
+    );
+    addTearDown(harness.container.dispose);
+
+    await harness.coordinator.runTask(
+      currentConversation: harness.conversation,
+      task: harness.task,
+      languageCode: 'en',
+      promptText: _executionPromptText,
+    );
+
+    expect(
+      harness.conversation.projectedExecutionTasks.single.status,
+      ConversationWorkflowTaskStatus.completed,
+    );
+    expect(harness.conversationsNotifier.assistantEvidenceTaskIds, [task.id]);
+    expect(harness.chatNotifier.hiddenPrompts, isEmpty);
+    expect(harness.chatNotifier.remainingHiddenTurnCount, 1);
+  });
+
+  test('edit mismatch recovery retries once without target metadata', () async {
+    const path = 'lib/config.txt';
+    const task = ConversationWorkflowTask(
+      id: 'update-configuration',
+      title: 'Update configuration',
+    );
+    final initialMismatch = _editMismatchResult(id: 'initial-edit', path: path);
+    final currentFileRead = _readFileResult(id: 'read-current', path: path);
+    final harness = _createWorkflowHarness(
+      tasks: const [task],
+      visibleTurns: [
+        _ScriptedChatTurn(toolResults: [initialMismatch]),
+      ],
+      hiddenTurns: [
+        _ScriptedChatTurn(toolResults: [currentFileRead]),
+        _ScriptedChatTurn(
+          toolResults: [_editMismatchResult(id: 'retry-edit', path: path)],
+        ),
+        const _ScriptedChatTurn(),
+      ],
+    );
+    addTearDown(harness.container.dispose);
+
+    await harness.coordinator.runTask(
+      currentConversation: harness.conversation,
+      task: harness.task,
+      languageCode: 'en',
+      promptText: _executionPromptText,
+    );
+
+    expect(harness.chatNotifier.hiddenPrompts, hasLength(2));
+    expect(
+      harness.chatNotifier.hiddenPrompts.first,
+      contains('The saved task hit a recoverable tool failure.'),
+    );
+    expect(
+      harness.chatNotifier.hiddenPrompts.last,
+      contains('You already read the mismatched saved target file.'),
+    );
+    expect(harness.chatNotifier.remainingHiddenTurnCount, 1);
+    expect(
+      harness.conversation.projectedExecutionTasks.single.status,
+      ConversationWorkflowTaskStatus.inProgress,
+    );
+  });
+
+  test(
+    'page unmount during hidden recovery prevents progress mutation',
+    () async {
+      const task = ConversationWorkflowTask(
+        id: 'recover-after-stall',
+        title: 'Recover after a stalled turn',
+      );
+      final recoveryStarted = Completer<void>();
+      final recoveryGate = Completer<void>();
+      var pageMounted = true;
+      final harness = _createWorkflowHarness(
+        tasks: const [task],
+        visibleTurns: const [_ScriptedChatTurn()],
+        hiddenTurns: [
+          _ScriptedChatTurn(
+            toolResults: [
+              _commandResult(
+                id: 'late-recovery-result',
+                command: 'dart analyze',
+                exitCode: 0,
+              ),
+            ],
+            started: recoveryStarted,
+            gate: recoveryGate.future,
+          ),
+        ],
+        isPageMounted: () => pageMounted,
+      );
+      addTearDown(harness.container.dispose);
+
+      final runFuture = harness.coordinator.runTask(
+        currentConversation: harness.conversation,
+        task: harness.task,
+        languageCode: 'en',
+        promptText: _executionPromptText,
+      );
+      await recoveryStarted.future;
+      pageMounted = false;
+      recoveryGate.complete();
+      await runFuture;
+
+      expect(harness.chatNotifier.hiddenPrompts, hasLength(1));
+      expect(
+        harness.chatNotifier.hiddenPrompts.single,
+        contains('stalled without any concrete tool call'),
+      );
+      expect(harness.conversationsNotifier.progressWrites, hasLength(1));
+      expect(harness.conversationsNotifier.assistantEvidenceTaskIds, isEmpty);
+      expect(
+        harness.conversation.projectedExecutionTasks.single.status,
+        ConversationWorkflowTaskStatus.inProgress,
+      );
     },
   );
 

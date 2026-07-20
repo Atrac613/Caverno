@@ -15,7 +15,12 @@ import 'package:flutter_test/flutter_test.dart';
 /// aggregate growth.
 const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 9468,
-  'lib/features/chat/presentation/pages/chat_page.dart': 2133,
+  'lib/features/chat/presentation/pages/chat_page.dart': 2045,
+  'lib/features/chat/presentation/widgets/message_input.dart': 2332,
+  'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':
+      131,
+  'lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart':
+      127,
   'lib/features/chat/presentation/coordinators/feedback_slash_command_coordinator.dart':
       95,
   'lib/features/chat/presentation/coordinators/goal_slash_command_coordinator.dart':
@@ -29,9 +34,10 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/coordinators/workflow_task_action_coordinator.dart':
       258,
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
-      2392,
+      2380,
   'lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart':
       56,
+  'lib/features/chat/domain/services/workflow_task_turn_route_policy.dart': 43,
   'lib/features/chat/domain/services/workflow_tool_result_failure_detector.dart':
       54,
   'lib/features/chat/presentation/widgets/workflow/workflow_editor_sheet.dart':
@@ -49,6 +55,9 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1202,
   'lib/features/chat/data/datasources/filesystem_tools.dart': 1282,
   'lib/features/chat/data/datasources/filesystem_diff_builder.dart': 213,
+  'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1164,
+  'lib/features/chat/data/datasources/chat_completion_response_normalizer.dart':
+      183,
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       622,
@@ -121,7 +130,7 @@ const Map<String, int> _lineBudgets = {
 
 const Map<String, int> _libraryLineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 23005,
-  'lib/features/chat/presentation/pages/chat_page.dart': 8945,
+  'lib/features/chat/presentation/pages/chat_page.dart': 8857,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1294,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 33189,
 };

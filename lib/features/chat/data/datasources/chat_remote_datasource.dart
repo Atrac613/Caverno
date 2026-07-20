@@ -12,6 +12,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import '../../domain/services/chat_request_prefix_stability_service.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
+import 'chat_completion_response_normalizer.dart';
 import 'chat_datasource.dart';
 
 export '../../domain/entities/tool_call_info.dart'
@@ -83,19 +84,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
 
   final OpenAIClient _client;
   final String? _reasoningEffort;
-  static final RegExp _rawParseFailurePattern = RegExp(
-    r'Failed to parse input at pos \d+:\s*(.+)$',
-    dotAll: true,
-  );
-  static final RegExp _thoughtChannelStartPattern = RegExp(
-    r'<\|channel\|?>\s*thought\b',
-    caseSensitive: false,
-  );
-  static final RegExp _analysisChannelStartPattern = RegExp(
-    r'<\|channel\|?>\s*analysis\b',
-    caseSensitive: false,
-  );
-  static final RegExp _channelEndPattern = RegExp(r'<channel\|>');
+  static const _responseNormalizer = ChatCompletionResponseNormalizer();
   static const bool _logToolSchemas = bool.fromEnvironment(
     'CAVERNO_LLM_LOG_TOOL_SCHEMAS',
   );
@@ -227,6 +216,23 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       );
     }
     appLog('[LLM] === End Tool Schemas ===');
+  }
+
+  void _logNativeToolCalls(List<ToolCall>? toolCalls) {
+    if (toolCalls == null || toolCalls.isEmpty) {
+      return;
+    }
+    appLog('[LLM] === Tool Calls ===');
+    for (final toolCall in toolCalls) {
+      appLog('[LLM]   id: ${toolCall.id}');
+      appLog('[LLM]   name: ${toolCall.function.name}');
+      appLog('[LLM]   arguments: ${toolCall.function.arguments}');
+    }
+    appLog('[LLM] === End Tool Calls ===');
+  }
+
+  void _logNativeToolArgumentError(Object error) {
+    appLog('[LLM]   Failed to parse arguments: $error');
   }
 
   String _formatToolLogSummary(List<Map<String, dynamic>> tools) {
@@ -398,7 +404,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       );
       appLog('[LLM] ========================================');
     } catch (e, stackTrace) {
-      final recoveredText = _tryRecoverRawAssistantTextFromError(e);
+      final recoveredText = _responseNormalizer.recoverRawAssistantText(e);
       if (recoveredText != null) {
         appLog('[LLM] Recovered raw text response after stream parse failure');
         yield recoveredText;
@@ -527,7 +533,11 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
         appLog('[LLM] ==========================================');
 
         // Resolve the completer after the stream ends normally.
-        final toolCalls = _parseToolCalls(accumulator.toolCalls);
+        _logNativeToolCalls(accumulator.toolCalls);
+        final toolCalls = _responseNormalizer.parseNativeToolCalls(
+          accumulator.toolCalls,
+          onArgumentError: _logNativeToolArgumentError,
+        );
         final finishReason = accumulator.finishReason?.value ?? 'stop';
         lastFinishReason = finishReason;
         completer.complete(
@@ -539,19 +549,18 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
           ),
         );
       } catch (e, stackTrace) {
-        final recoveredText = _tryRecoverRawAssistantTextFromError(e);
-        if (recoveredText != null) {
+        final recovered = _responseNormalizer.recoverFromParseFailure(e);
+        if (recovered != null) {
           appLog(
             '[LLM] Recovered raw text response after tool stream parse failure',
           );
-          yield recoveredText;
-          final embeddedToolCalls = _parseEmbeddedToolCalls(recoveredText);
-          lastFinishReason = embeddedToolCalls == null ? 'stop' : 'tool_calls';
+          yield recovered.content;
+          lastFinishReason = recovered.finishReason;
           completer.complete(
             ChatCompletionResult(
-              content: recoveredText,
-              toolCalls: embeddedToolCalls,
-              finishReason: embeddedToolCalls == null ? 'stop' : 'tool_calls',
+              content: recovered.content,
+              toolCalls: recovered.toolCalls,
+              finishReason: recovered.finishReason,
               usage: lastUsage,
             ),
           );
@@ -629,46 +638,40 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       appLog('[LLM] content: ${message.content ?? "(null)"}');
       appLog('[LLM] toolCalls count: ${message.toolCalls?.length ?? 0}');
 
-      // Prepend reasoning content as <think> block if present
       final reasoning = message.reasoningContent ?? message.reasoning;
-      var responseContent = message.content ?? '';
       if (reasoning != null && reasoning.isNotEmpty) {
         appLog(
           '[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}',
         );
-        responseContent = '<think>$reasoning</think>$responseContent';
       }
-
-      // Prefer native calls, but recover complete textual calls when this was
-      // explicitly a tool-aware request and the provider returned only text.
-      final nativeToolCalls = _parseToolCalls(message.toolCalls);
-      final embeddedToolCalls = nativeToolCalls == null
-          ? _parseAdvertisedEmbeddedToolCalls(responseContent, tools)
-          : null;
-      final toolCalls = nativeToolCalls ?? embeddedToolCalls;
-      final finishReason = embeddedToolCalls == null
-          ? choice.finishReason?.value ?? 'stop'
-          : 'tool_calls';
-      lastFinishReason = finishReason;
+      _logNativeToolCalls(message.toolCalls);
+      final normalized = _responseNormalizer.normalize(
+        content: message.content,
+        reasoning: reasoning,
+        nativeToolCalls: message.toolCalls,
+        finishReason: choice.finishReason?.value,
+        advertisedTools: tools,
+        onNativeArgumentError: _logNativeToolArgumentError,
+      );
+      lastFinishReason = normalized.finishReason;
 
       appLog('[LLM] ==========================================');
 
       return ChatCompletionResult(
-        content: responseContent,
-        toolCalls: toolCalls,
-        finishReason: finishReason,
+        content: normalized.content,
+        toolCalls: normalized.toolCalls,
+        finishReason: normalized.finishReason,
         usage: lastUsage = _extractUsage(response.usage),
       );
     } catch (e, stackTrace) {
-      final recoveredText = _tryRecoverRawAssistantTextFromError(e);
-      if (recoveredText != null) {
+      final recovered = _responseNormalizer.recoverFromParseFailure(e);
+      if (recovered != null) {
         appLog('[LLM] Recovered raw text response after create parse failure');
-        final embeddedToolCalls = _parseEmbeddedToolCalls(recoveredText);
-        lastFinishReason = embeddedToolCalls == null ? 'stop' : 'tool_calls';
+        lastFinishReason = recovered.finishReason;
         return ChatCompletionResult(
-          content: recoveredText,
-          toolCalls: embeddedToolCalls,
-          finishReason: embeddedToolCalls == null ? 'stop' : 'tool_calls',
+          content: recovered.content,
+          toolCalls: recovered.toolCalls,
+          finishReason: recovered.finishReason,
           usage: lastUsage,
         );
       }
@@ -799,7 +802,7 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       );
       appLog('[LLM] ============================================');
     } catch (e, stackTrace) {
-      final recoveredText = _tryRecoverRawAssistantTextFromError(e);
+      final recoveredText = _responseNormalizer.recoverRawAssistantText(e);
       if (recoveredText != null) {
         appLog(
           '[LLM] Recovered raw text response after tool-result stream parse failure',
@@ -943,46 +946,42 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       appLog('[LLM] content: ${message.content ?? "(null)"}');
       appLog('[LLM] toolCalls count: ${message.toolCalls?.length ?? 0}');
 
-      // Prepend reasoning content as <think> block if present
       final reasoning = message.reasoningContent ?? message.reasoning;
-      var responseContent = message.content ?? '';
       if (reasoning != null && reasoning.isNotEmpty) {
         appLog(
           '[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}',
         );
-        responseContent = '<think>$reasoning</think>$responseContent';
       }
-
-      final nativeToolCalls = _parseToolCalls(message.toolCalls);
-      final embeddedToolCalls = nativeToolCalls == null
-          ? _parseAdvertisedEmbeddedToolCalls(responseContent, tools)
-          : null;
-      final toolCallsResult = nativeToolCalls ?? embeddedToolCalls;
-      final finishReason = embeddedToolCalls == null
-          ? choice.finishReason?.value ?? 'stop'
-          : 'tool_calls';
-      lastFinishReason = finishReason;
+      _logNativeToolCalls(message.toolCalls);
+      final normalized = _responseNormalizer.normalize(
+        content: message.content,
+        reasoning: reasoning,
+        nativeToolCalls: message.toolCalls,
+        finishReason: choice.finishReason?.value,
+        advertisedTools: tools,
+        onNativeArgumentError: _logNativeToolArgumentError,
+      );
+      lastFinishReason = normalized.finishReason;
 
       appLog('[LLM] ==========================================');
 
       return ChatCompletionResult(
-        content: responseContent,
-        toolCalls: toolCallsResult,
-        finishReason: finishReason,
+        content: normalized.content,
+        toolCalls: normalized.toolCalls,
+        finishReason: normalized.finishReason,
         usage: lastUsage = _extractUsage(response.usage),
       );
     } catch (e, stackTrace) {
-      final recoveredText = _tryRecoverRawAssistantTextFromError(e);
-      if (recoveredText != null) {
+      final recovered = _responseNormalizer.recoverFromParseFailure(e);
+      if (recovered != null) {
         appLog(
           '[LLM] Recovered raw text response after tool-result parse failure',
         );
-        final embeddedToolCalls = _parseEmbeddedToolCalls(recoveredText);
-        lastFinishReason = embeddedToolCalls == null ? 'stop' : 'tool_calls';
+        lastFinishReason = recovered.finishReason;
         return ChatCompletionResult(
-          content: recoveredText,
-          toolCalls: embeddedToolCalls,
-          finishReason: embeddedToolCalls == null ? 'stop' : 'tool_calls',
+          content: recovered.content,
+          toolCalls: recovered.toolCalls,
+          finishReason: recovered.finishReason,
           usage: lastUsage,
         );
       }
@@ -992,31 +991,6 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       appLog('[LLM] stackTrace: $stackTrace');
       rethrow;
     }
-  }
-
-  /// Parse tool calls from an assistant message into [ToolCallInfo] records.
-  List<ToolCallInfo>? _parseToolCalls(List<ToolCall>? toolCalls) {
-    if (toolCalls == null || toolCalls.isEmpty) return null;
-    appLog('[LLM] === Tool Calls ===');
-    final result = toolCalls.map((tc) {
-      appLog('[LLM]   id: ${tc.id}');
-      appLog('[LLM]   name: ${tc.function.name}');
-      appLog('[LLM]   arguments: ${tc.function.arguments}');
-      Map<String, dynamic> args = {};
-      try {
-        final argsStr = tc.function.arguments;
-        if (argsStr.isNotEmpty) {
-          args = ContentParser.sanitizeToolArguments(
-            Map<String, dynamic>.from(dart_convert.jsonDecode(argsStr) as Map),
-          );
-        }
-      } catch (e) {
-        appLog('[LLM]   Failed to parse arguments: $e');
-      }
-      return ToolCallInfo(id: tc.id, name: tc.function.name, arguments: args);
-    }).toList();
-    appLog('[LLM] === End Tool Calls ===');
-    return result;
   }
 
   /// Extract token usage from a completion response.
@@ -1066,22 +1040,12 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
 
   @visibleForTesting
   String? tryRecoverRawAssistantTextFromError(Object error) {
-    return _tryRecoverRawAssistantTextFromError(error);
+    return _responseNormalizer.recoverRawAssistantText(error);
   }
 
   @visibleForTesting
   List<ToolCallInfo>? parseEmbeddedToolCallsForTest(String content) {
-    return _parseEmbeddedToolCalls(content);
-  }
-
-  String? _tryRecoverRawAssistantTextFromError(Object error) {
-    final rawMessage = error.toString();
-    final match = _rawParseFailurePattern.firstMatch(rawMessage);
-    if (match == null) return null;
-
-    final candidate = match.group(1)?.trim();
-    if (candidate == null || candidate.isEmpty) return null;
-    return _normalizeRecoveredAssistantText(candidate);
+    return _responseNormalizer.parseEmbeddedToolCalls(content);
   }
 
   @visibleForTesting
@@ -1196,49 +1160,5 @@ class ChatRemoteDataSource implements ChatDataSource, FinishReasonAware {
       return null;
     }
     return null;
-  }
-
-  String _normalizeRecoveredAssistantText(String text) {
-    return text
-        .replaceAll(_thoughtChannelStartPattern, '<think>')
-        .replaceAll(_analysisChannelStartPattern, '<think>')
-        .replaceAll(_channelEndPattern, '</think>')
-        .trim();
-  }
-
-  List<ToolCallInfo>? _parseEmbeddedToolCalls(String content) {
-    final toolCalls = ContentParser.extractCompletedToolCalls(content);
-    if (toolCalls.isEmpty) return null;
-
-    return toolCalls
-        .map(
-          (toolCall) => ToolCallInfo(
-            id: toolCall.occurrenceId ?? 'raw_${toolCall.name}',
-            name: toolCall.name,
-            arguments: toolCall.arguments,
-          ),
-        )
-        .toList(growable: false);
-  }
-
-  List<ToolCallInfo>? _parseAdvertisedEmbeddedToolCalls(
-    String content,
-    List<Map<String, dynamic>>? tools,
-  ) {
-    if (tools == null || tools.isEmpty) {
-      return null;
-    }
-    final advertisedNames = tools
-        .map((tool) => tool['function'])
-        .whereType<Map<String, dynamic>>()
-        .map((function) => function['name'])
-        .whereType<String>()
-        .toSet();
-    final calls = _parseEmbeddedToolCalls(content);
-    if (calls == null ||
-        calls.any((call) => !advertisedNames.contains(call.name))) {
-      return null;
-    }
-    return calls;
   }
 }

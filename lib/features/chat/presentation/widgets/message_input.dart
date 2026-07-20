@@ -21,6 +21,7 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../slash_commands/slash_command.dart';
+import 'message_input_slash_suggestion_state.dart';
 import 'voice_mode_overlay.dart';
 
 class MessageInputImageAttachment {
@@ -128,9 +129,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   bool _isRecording = false;
   bool _hasText = false;
   int? _handledDroppedImageAttachmentId;
-  List<SlashCommandDefinition> _slashSuggestions = const [];
-  int _selectedSlashSuggestionIndex = 0;
-  String? _dismissedSlashSuggestionsForText;
+  MessageInputSlashSuggestionState _slashSuggestionState =
+      MessageInputSlashSuggestionState.empty;
   MessageInputWorktreeMode _worktreeMode = MessageInputWorktreeMode.local;
 
   // Shell-like input history. `_historyIndex == -1` means not browsing;
@@ -263,18 +263,17 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   /// rightmost composer button can swap between send and voice mode.
   void _handleTextChanged() {
     final hasText = _controller.text.trim().isNotEmpty;
-    final nextSuggestions = _buildSlashSuggestions();
-    final nextSelectedIndex = _clampSlashSuggestionIndex(
-      _selectedSlashSuggestionIndex,
-      nextSuggestions,
+    final nextSlashSuggestionState = _slashSuggestionState.refresh(
+      text: _controller.text,
+      commandsEnabled: _slashCommandsEnabled,
+      hasAttachment: _hasAttachment,
+      commands: widget.slashCommands,
     );
     if (hasText != _hasText ||
-        !_sameSlashSuggestions(_slashSuggestions, nextSuggestions) ||
-        nextSelectedIndex != _selectedSlashSuggestionIndex) {
+        !identical(nextSlashSuggestionState, _slashSuggestionState)) {
       setState(() {
         _hasText = hasText;
-        _slashSuggestions = nextSuggestions;
-        _selectedSlashSuggestionIndex = nextSelectedIndex;
+        _slashSuggestionState = nextSlashSuggestionState;
       });
     }
   }
@@ -298,52 +297,16 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         _worktreeMode == MessageInputWorktreeMode.newWorktree;
   }
 
-  List<SlashCommandDefinition> _buildSlashSuggestions() {
-    final text = _controller.text;
-    if (!_slashCommandsEnabled ||
-        _hasAttachment ||
-        text == _dismissedSlashSuggestionsForText) {
-      return const <SlashCommandDefinition>[];
-    }
-    return filterSlashCommandSuggestions(text, widget.slashCommands);
-  }
-
-  bool _sameSlashSuggestions(
-    List<SlashCommandDefinition> previous,
-    List<SlashCommandDefinition> next,
-  ) {
-    if (previous.length != next.length) return false;
-    for (var index = 0; index < previous.length; index += 1) {
-      if (!identical(previous[index], next[index])) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  int _clampSlashSuggestionIndex(
-    int index,
-    List<SlashCommandDefinition> suggestions,
-  ) {
-    if (suggestions.isEmpty) return 0;
-    if (index < 0) return 0;
-    if (index >= suggestions.length) return suggestions.length - 1;
-    return index;
-  }
-
   void _refreshSlashSuggestions() {
-    final nextSuggestions = _buildSlashSuggestions();
-    final nextSelectedIndex = _clampSlashSuggestionIndex(
-      _selectedSlashSuggestionIndex,
-      nextSuggestions,
+    final nextSlashSuggestionState = _slashSuggestionState.refresh(
+      text: _controller.text,
+      commandsEnabled: _slashCommandsEnabled,
+      hasAttachment: _hasAttachment,
+      commands: widget.slashCommands,
     );
-    if (_sameSlashSuggestions(_slashSuggestions, nextSuggestions) &&
-        nextSelectedIndex == _selectedSlashSuggestionIndex) {
-      return;
-    }
+    if (identical(nextSlashSuggestionState, _slashSuggestionState)) return;
     setState(() {
-      _slashSuggestions = nextSuggestions;
-      _selectedSlashSuggestionIndex = nextSelectedIndex;
+      _slashSuggestionState = nextSlashSuggestionState;
     });
   }
 
@@ -352,36 +315,33 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       return KeyEventResult.ignored;
     }
 
-    final hasSuggestions = _slashSuggestions.isNotEmpty;
+    final hasSuggestions = _slashSuggestionState.hasSuggestions;
     final key = event.logicalKey;
 
     if (hasSuggestions && key == LogicalKeyboardKey.arrowDown) {
       setState(() {
-        _selectedSlashSuggestionIndex =
-            (_selectedSlashSuggestionIndex + 1) % _slashSuggestions.length;
+        _slashSuggestionState = _slashSuggestionState.selectNext();
       });
       return KeyEventResult.handled;
     }
 
     if (hasSuggestions && key == LogicalKeyboardKey.arrowUp) {
       setState(() {
-        _selectedSlashSuggestionIndex =
-            (_selectedSlashSuggestionIndex - 1 + _slashSuggestions.length) %
-            _slashSuggestions.length;
+        _slashSuggestionState = _slashSuggestionState.selectPrevious();
       });
       return KeyEventResult.handled;
     }
 
     if (hasSuggestions && key == LogicalKeyboardKey.tab) {
-      _applySlashSuggestion(_slashSuggestions[_selectedSlashSuggestionIndex]);
+      _applySlashSuggestion(_slashSuggestionState.selectedSuggestion);
       return KeyEventResult.handled;
     }
 
     if (hasSuggestions && key == LogicalKeyboardKey.escape) {
       setState(() {
-        _dismissedSlashSuggestionsForText = _controller.text;
-        _slashSuggestions = const <SlashCommandDefinition>[];
-        _selectedSlashSuggestionIndex = 0;
+        _slashSuggestionState = _slashSuggestionState.dismiss(
+          text: _controller.text,
+        );
       });
       return KeyEventResult.handled;
     }
@@ -402,9 +362,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final text = '/${command.name} ';
     _setComposerText(text);
     setState(() {
-      _dismissedSlashSuggestionsForText = text;
-      _slashSuggestions = const <SlashCommandDefinition>[];
-      _selectedSlashSuggestionIndex = 0;
+      _slashSuggestionState = _slashSuggestionState.applyCompletedText(text);
     });
   }
 
@@ -424,8 +382,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     var definition = findSlashCommand(parsed.commandName, widget.slashCommands);
     if (definition == null &&
         allowSelectedSuggestion &&
-        _slashSuggestions.isNotEmpty) {
-      final selected = _slashSuggestions[_selectedSlashSuggestionIndex];
+        _slashSuggestionState.hasSuggestions) {
+      final selected = _slashSuggestionState.selectedSuggestion;
       if (selected.requiresArguments && parsed.args.isEmpty) {
         _applySlashSuggestion(selected);
         _showMissingSlashArgumentsFeedback(selected);
@@ -526,12 +484,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   void _dismissSlashSuggestions() {
-    if (_slashSuggestions.isEmpty && _selectedSlashSuggestionIndex == 0) {
-      return;
-    }
+    final nextSlashSuggestionState = _slashSuggestionState.dismiss();
+    if (identical(nextSlashSuggestionState, _slashSuggestionState)) return;
     setState(() {
-      _slashSuggestions = const <SlashCommandDefinition>[];
-      _selectedSlashSuggestionIndex = 0;
+      _slashSuggestionState = nextSlashSuggestionState;
     });
   }
 
@@ -1375,7 +1331,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   }
 
   Widget _buildSlashCommandSuggestions(BuildContext context, ThemeData theme) {
-    final suggestions = _slashSuggestions;
+    final suggestions = _slashSuggestionState.suggestions;
     if (suggestions.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -1402,7 +1358,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         itemCount: suggestions.length,
         itemBuilder: (context, index) {
           final command = suggestions[index];
-          final selected = index == _selectedSlashSuggestionIndex;
+          final selected = index == _slashSuggestionState.selectedIndex;
           return Material(
             color: selected
                 ? theme.colorScheme.primaryContainer
@@ -1411,7 +1367,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
               key: ValueKey('slash-command-suggestion-${command.name}'),
               onTap: () {
                 setState(() {
-                  _selectedSlashSuggestionIndex = index;
+                  _slashSuggestionState = _slashSuggestionState.selectIndex(
+                    index,
+                  );
                 });
                 _submitSlashCommandFromComposer(allowSelectedSuggestion: true);
               },
@@ -1816,7 +1774,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   ),
                 ),
               ),
-            if (_slashSuggestions.isNotEmpty)
+            if (_slashSuggestionState.hasSuggestions)
               _buildSlashCommandSuggestions(context, theme),
             // Composer container: full-width TextField on top,
             // action row on the bottom — both inside one rounded surface.

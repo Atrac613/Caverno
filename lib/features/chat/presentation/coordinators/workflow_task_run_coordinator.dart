@@ -9,6 +9,7 @@ import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
 import '../../domain/services/workflow_task_run_lifecycle_policy.dart';
+import '../../domain/services/workflow_task_turn_route_policy.dart';
 import '../../domain/services/workflow_tool_result_failure_detector.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/conversations_notifier.dart';
@@ -396,85 +397,25 @@ final class WorkflowTaskRunCoordinator {
             toolResults: toolResults,
           )
         : false;
-    final recoveredFromValidation =
-        !toolResultApplied &&
-        await _maybeRecoverFromValidationFirstExecution(
-          task: task,
-          languageCode: languageCode,
-          toolResults: toolResults,
-        );
-    final recoveredFromFailure =
-        !toolResultApplied &&
-        !recoveredFromValidation &&
-        await _maybeRecoverFromToolFailureSignals(
-          task: task,
-          languageCode: languageCode,
-          toolResults: toolResults,
-        );
-    final recoveredFromMissingTarget =
-        !toolResultApplied &&
-        !recoveredFromValidation &&
-        !recoveredFromFailure &&
-        await _maybeRecoverFromMissingTargetValidationFailure(
-          task: task,
-          languageCode: languageCode,
-          toolResults: toolResults,
-        );
-    final recoveredFromPythonRuntimeDependency =
-        !toolResultApplied &&
-        !recoveredFromValidation &&
-        !recoveredFromFailure &&
-        !recoveredFromMissingTarget &&
-        await _maybeRecoverFromMissingPythonRuntimeDependency(
-          task: task,
-          languageCode: languageCode,
-          toolResults: toolResults,
-        );
-    final recoveredFromPythonTestDependency =
-        !toolResultApplied &&
-        !recoveredFromValidation &&
-        !recoveredFromFailure &&
-        !recoveredFromMissingTarget &&
-        !recoveredFromPythonRuntimeDependency &&
-        await _maybeRecoverFromMissingPythonTestDependency(
-          task: task,
-          languageCode: languageCode,
-          toolResults: toolResults,
-        );
-    final recoveredFromPythonImport =
-        !toolResultApplied &&
-        !recoveredFromValidation &&
-        !recoveredFromFailure &&
-        !recoveredFromMissingTarget &&
-        !recoveredFromPythonRuntimeDependency &&
-        !recoveredFromPythonTestDependency &&
-        await _maybeRecoverFromPythonSrcLayoutValidationFailure(
-          task: task,
-          languageCode: languageCode,
-          toolResults: toolResults,
-        );
-    final recoveredFromDrift =
-        !toolResultApplied &&
-        !recoveredFromValidation &&
-        !recoveredFromFailure &&
-        !recoveredFromMissingTarget &&
-        !recoveredFromPythonRuntimeDependency &&
-        !recoveredFromPythonTestDependency &&
-        !recoveredFromPythonImport &&
-        await _maybeRecoverFromTaskDrift(
-          task: task,
-          languageCode: languageCode,
-          toolResults: toolResults,
-        );
+    var recoveryApplied = false;
+    for (final route in WorkflowTaskTurnRoutePolicy.recoveryRoutes(
+      toolResultApplied: toolResultApplied,
+    )) {
+      recoveryApplied = await _attemptTaskTurnRecovery(
+        route: route,
+        task: task,
+        languageCode: languageCode,
+        toolResults: toolResults,
+      );
+      if (recoveryApplied) {
+        break;
+      }
+    }
     final assistantEvidenceApplied =
-        !completionPromoted &&
-            !recoveredFromValidation &&
-            !recoveredFromFailure &&
-            !recoveredFromMissingTarget &&
-            !recoveredFromPythonRuntimeDependency &&
-            !recoveredFromPythonTestDependency &&
-            !recoveredFromPythonImport &&
-            !recoveredFromDrift
+        WorkflowTaskTurnRoutePolicy.shouldCaptureAssistantEvidence(
+          completionPromoted: completionPromoted,
+          recoveryApplied: recoveryApplied,
+        )
         ? await _captureExecutionProgressFromLatestAssistantEvidence(
             task: task,
             previousAssistantMessageId: previousAssistantMessageId,
@@ -484,14 +425,10 @@ final class WorkflowTaskRunCoordinator {
                 _chatNotifier.takeLatestHiddenAssistantResponse(),
           )
         : false;
-    if (!toolResultApplied &&
-        !recoveredFromValidation &&
-        !recoveredFromFailure &&
-        !recoveredFromMissingTarget &&
-        !recoveredFromPythonRuntimeDependency &&
-        !recoveredFromPythonTestDependency &&
-        !recoveredFromPythonImport &&
-        !recoveredFromDrift) {
+    if (WorkflowTaskTurnRoutePolicy.shouldAttemptToolLessRecovery(
+      toolResultApplied: toolResultApplied,
+      recoveryApplied: recoveryApplied,
+    )) {
       await _maybeRecoverFromToolLessExecution(
         task: task,
         languageCode: languageCode,
@@ -502,6 +439,57 @@ final class WorkflowTaskRunCoordinator {
             _chatNotifier.takeLatestHiddenAssistantResponse(),
       );
     }
+  }
+
+  Future<bool> _attemptTaskTurnRecovery({
+    required WorkflowTaskTurnRecoveryRoute route,
+    required ConversationWorkflowTask task,
+    required String languageCode,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    return switch (route) {
+      WorkflowTaskTurnRecoveryRoute.validationFirstExecution =>
+        _maybeRecoverFromValidationFirstExecution(
+          task: task,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        ),
+      WorkflowTaskTurnRecoveryRoute.toolFailureSignals =>
+        _maybeRecoverFromToolFailureSignals(
+          task: task,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        ),
+      WorkflowTaskTurnRecoveryRoute.missingTargetValidation =>
+        _maybeRecoverFromMissingTargetValidationFailure(
+          task: task,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        ),
+      WorkflowTaskTurnRecoveryRoute.missingPythonRuntimeDependency =>
+        _maybeRecoverFromMissingPythonRuntimeDependency(
+          task: task,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        ),
+      WorkflowTaskTurnRecoveryRoute.missingPythonTestDependency =>
+        _maybeRecoverFromMissingPythonTestDependency(
+          task: task,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        ),
+      WorkflowTaskTurnRecoveryRoute.pythonSourceLayoutValidation =>
+        _maybeRecoverFromPythonSrcLayoutValidationFailure(
+          task: task,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        ),
+      WorkflowTaskTurnRecoveryRoute.taskDrift => _maybeRecoverFromTaskDrift(
+        task: task,
+        languageCode: languageCode,
+        toolResults: toolResults,
+      ),
+    };
   }
 
   String? _activeProjectRootPath() => _readActiveProjectRoot();
@@ -708,12 +696,28 @@ final class WorkflowTaskRunCoordinator {
     );
 
     final recoveryToolResults = _chatNotifier.takeLatestToolResults();
-    final toolResultApplied =
-        await _captureExecutionProgressFromLatestToolResults(
-          task: latestTask,
-          previousAssistantMessageId: previousAssistantMessageId,
-          toolResults: recoveryToolResults,
-        );
+    final onlyReadMismatchedFiles =
+        editMismatchPaths.isNotEmpty &&
+        recoveryToolResults.isNotEmpty &&
+        recoveryToolResults.every((toolResult) {
+          if (toolResult.name != 'read_file') {
+            return false;
+          }
+          final path =
+              toolResult.arguments['path']?.toString().trim().replaceAll(
+                '\\',
+                '/',
+              ) ??
+              '';
+          return editMismatchPaths.any((candidate) => candidate == path);
+        });
+    final toolResultApplied = onlyReadMismatchedFiles
+        ? false
+        : await _captureExecutionProgressFromLatestToolResults(
+            task: latestTask,
+            previousAssistantMessageId: previousAssistantMessageId,
+            toolResults: recoveryToolResults,
+          );
     final completionPromoted = toolResultApplied
         ? await _maybePromoteCompletionFromValidationToolResults(
             task: latestTask,
@@ -747,21 +751,6 @@ final class WorkflowTaskRunCoordinator {
           languageCode: languageCode,
           toolResults: recoveryToolResults,
         );
-    final onlyReadMismatchedFiles =
-        editMismatchPaths.isNotEmpty &&
-        recoveryToolResults.isNotEmpty &&
-        recoveryToolResults.every((toolResult) {
-          if (toolResult.name != 'read_file') {
-            return false;
-          }
-          final path =
-              toolResult.arguments['path']?.toString().trim().replaceAll(
-                '\\',
-                '/',
-              ) ??
-              '';
-          return editMismatchPaths.any((candidate) => candidate == path);
-        });
     if (!toolResultApplied &&
         !completionPromoted &&
         !recoveredFromMissingTarget &&
@@ -873,7 +862,6 @@ final class WorkflowTaskRunCoordinator {
       ),
       languageCode: languageCode,
     );
-
     final recoveryToolResults = _chatNotifier.takeLatestToolResults();
     final toolResultApplied =
         await _captureExecutionProgressFromLatestToolResults(

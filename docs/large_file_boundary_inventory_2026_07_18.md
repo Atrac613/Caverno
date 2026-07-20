@@ -12,7 +12,15 @@ failure detector slice on
 `feature/workflow-tool-failure-detector-extraction` and the workflow task
 lifecycle policy slice on
 `feature/workflow-task-run-lifecycle-policy-extraction`. The completed
-31-commit stack was squash-integrated into `main` as `f80132bf`.
+31-commit stack was squash-integrated into `main` as `f80132bf`. A subsequent
+route-and-evidence contract completed on
+`feature/workflow-recovery-route-evidence-contract` on 2026-07-19, followed by
+the typed route-policy slice on `feature/workflow-task-turn-route-policy` and
+the ChatPage state-transition contract on
+`feature/chat-page-state-transition-contract`. The subsequent workspace
+navigation extraction completed on
+`feature/chat-page-workspace-navigation-coordinator`, followed by the response
+normalizer extraction on `feature/chat-response-normalizer`.
 
 ## Scope And Method
 
@@ -31,20 +39,27 @@ boundary is selected.
   `tool/codex_verify.sh --coverage --no-codegen` run on integrated `main` at
   `f80132bf`. Coverage percentages use executable lines from
   `coverage/lcov.info`, not physical-line counts.
-- Ownership source: every existing worktree from
+- Historical ownership source: every existing worktree from
   `git worktree list --porcelain`, conservatively compared with local `main`.
-  A listed overlap does not prove that a worktree is still active, but it is a
-  conflict signal that must be resolved before editing that boundary.
+  The 2026-07-19 user override treats every listed auxiliary worktree as
+  inactive, so overlap is advisory and no longer blocks editing or ranking.
 
 The full gate passed analysis, 3,905 root tests, and 13 internal-package tests
 at 74.98% line coverage (53,368/71,175).
+
+The ranked coordinator, MessageInput, and ChatNotifier rows are refreshed below
+from the successful 2026-07-19 route-policy branch gate. The ChatPage row uses
+the later navigation extraction gate. The ChatRemoteDataSource and response
+normalizer rows use the latest extraction gate, which passed 3,944 root tests
+and 13 internal-package tests at 75.19% line coverage (53,557/71,231). All other
+coverage values remain the integrated `main` snapshot described above.
 
 ## Same-Library Aggregates
 
 | Root library | Primary lines | Declared parts | Aggregate lines |
 |---|---:|---:|---:|
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9,468 | 43 | 23,005 |
-| `lib/features/chat/presentation/pages/chat_page.dart` | 2,133 | 12 | 8,945 |
+| `lib/features/chat/presentation/pages/chat_page.dart` | 2,045 | 12 | 8,857 |
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1,202 | 1 | 1,294 |
 | `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18,648 | 22 | 33,189 |
 
@@ -58,7 +73,7 @@ new `part` file would not reduce these totals.
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9,468 |
 | `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2,442 |
 | `lib/features/chat/presentation/widgets/message_input.dart` | 2,374 |
-| `lib/features/chat/presentation/pages/chat_page.dart` | 2,133 |
+| `lib/features/chat/presentation/pages/chat_page.dart` | 2,045 |
 | `lib/features/chat/data/datasources/network_tools.dart` | 1,996 |
 | `lib/features/settings/presentation/pages/computer_use_debug_page.dart` | 1,910 |
 | `lib/features/settings/data/model_remote_datasource.dart` | 1,813 |
@@ -78,7 +93,7 @@ new `part` file would not reduce these totals.
 | `lib/features/chat/data/datasources/installed_dependency_grounding_service.dart` | 1,337 |
 | `lib/features/chat/data/datasources/git_tools.dart` | 1,337 |
 | `lib/features/chat/presentation/widgets/conversation_drawer.dart` | 1,329 |
-| `lib/features/chat/data/datasources/chat_remote_datasource.dart` | 1,244 |
+| `lib/features/chat/data/datasources/chat_remote_datasource.dart` | 1,164 |
 | `lib/core/services/macos_computer_use_service.dart` | 1,238 |
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1,202 |
 | `lib/features/settings/presentation/pages/general_settings_page.dart` | 1,189 |
@@ -104,11 +119,16 @@ new `part` file would not reduce these totals.
 | `test/features/chat/domain/services/conversation_plan_execution_guardrails_test.dart` | 1,877 |
 
 The ChatNotifier test root remains the largest test concern, but its 33,189-line
-aggregate and production counterpart both have multiple conservative ownership
-conflicts. Do not split only the test root while production ownership remains
-unsettled.
+aggregate must still be reduced with its production concern and aggregate
+ratchet. Do not split only the test root even though worktree overlap is no
+longer a selection blocker.
 
-## Active-Worktree Ownership Audit
+## Historical Worktree Audit And Override
+
+On 2026-07-19, the user confirmed that the auxiliary worktrees listed below are
+inactive and directed that they must not block refactor selection. The paths
+remain useful historical context, but the ranking now treats their overlap as
+non-blocking. No worktree or branch is deleted by this decision.
 
 The Computer Use debug page and its product test have no remaining overlapping
 active worktree after the checklist and action-group branches landed. This
@@ -150,16 +170,33 @@ No active worktree overlap was found for `network_tools.dart`,
 
 | Rank | Boundary | Lines | Coverage | Ownership | Decision |
 |---:|---|---:|---:|---|---|
-| 1 | `workflow_task_run_coordinator.dart` | 2,392 | 59.95% | clear | Define the route-and-evidence contract next; keep implementation paused. |
-| 2 | `chat_remote_datasource.dart` | 1,244 | 56.26% | clear | First implementation fallback; characterize streaming or response normalization. |
-| 3 | `installed_dependency_grounding_service.dart` | 1,337 | 67.57% | clear | Characterize ecosystem-specific resolution behind its stable JSON contract. |
-| 4 | `conversation_drawer.dart` | 1,329 | 74.91% | clear | Characterize a presentational section only after widget lifecycle coverage. |
-| 5 | `filesystem_tools.dart` | 1,282 | 78.98% | clear | Diff extraction complete; re-rank remaining IO and path concerns. |
-| 6 | `model_remote_datasource.dart` | 1,710 | 79.36% | clear | Metadata extraction complete; re-rank provider and lifecycle concerns. |
-| 7 | `file_workspace_viewer_sheet.dart` | 1,559 | 82.90% | clear | Diff-row extraction complete; re-rank IO, containment, and layout concerns. |
-| 8 | `live_llm_diagnostic_service.dart` | 1,711 | 85.86% | clear | Pause while coverage is high and remaining logic is orchestration-heavy. |
-| 9 | `computer_use_debug_page.dart` | 1,910 | 94.36% | clear | Pause after the completed extraction sequence. |
-| 10 | `computer_use_settings_page.dart` | 1,725 | 95.22% | clear | Pause after Phase 4 summary extractions. |
+| 1 | `message_input.dart` | 2,332 | 65.62% | non-blocking | Slash suggestion state extraction complete; re-characterize one remaining composer action before another move. |
+| 2 | `chat_page.dart` | 2,045 | 54.26% | non-blocking | Workspace navigation extraction complete; re-characterize one remaining page-owned boundary before another move. |
+| 3 | `chat_remote_datasource.dart` | 1,164 | 52.81% | clear | Response normalizer complete; re-characterize one request-building or streaming transformation before another move. |
+| 4 | `installed_dependency_grounding_service.dart` | 1,337 | 67.57% | clear | Characterize ecosystem-specific resolution behind its stable JSON contract. |
+| 5 | `workflow_task_run_coordinator.dart` | 2,380 | 62.17% | clear | Typed route policy complete; re-rank remaining side-effect clusters before another move. |
+| 6 | `chat_notifier.dart` | 9,468 | 83.15% | non-blocking | Eligible, but select one pure concern and preserve the 23,005-line aggregate ratchet. |
+| 7 | `conversation_drawer.dart` | 1,329 | 74.91% | clear | Characterize a presentational section only after widget lifecycle coverage. |
+| 8 | `filesystem_tools.dart` | 1,282 | 78.98% | clear | Diff extraction complete; re-rank remaining IO and path concerns. |
+| 9 | `model_remote_datasource.dart` | 1,710 | 79.36% | clear | Metadata extraction complete; re-rank provider and lifecycle concerns. |
+| 10 | `file_workspace_viewer_sheet.dart` | 1,559 | 82.90% | clear | Diff-row extraction complete; re-rank IO, containment, and layout concerns. |
+| 11 | `live_llm_diagnostic_service.dart` | 1,711 | 85.86% | clear | Pause while coverage is high and remaining logic is orchestration-heavy. |
+| 12 | `computer_use_debug_page.dart` | 1,910 | 94.36% | clear | Pause because remaining code is high-coverage orchestration. |
+| 13 | `computer_use_settings_page.dart` | 1,725 | 95.22% | clear | Pause because remaining code is high-coverage orchestration. |
+
+Ignoring inactive worktrees changes eligibility, not extraction safety. The
+typed workflow selector, ChatPage state contract, and workspace-navigation move
+are complete. The extracted 127-line coordinator reached 100.00% coverage and
+must remain limited to workspace, project, conversation, and assistant-mode
+routing. The 183-line ChatRemoteDataSource response normalizer also reached
+100.00% and must remain independent from transport and streaming state. The
+131-line MessageInput slash suggestion state helper now owns suggestion
+refresh, selected-index clamping, wrapping, and dismissal. Re-characterize one
+remaining MessageInput composer action before another move. ChatNotifier is
+eligible but ranks lower because its root coverage is already 83.15% and any
+move must preserve the much larger same-library aggregate. The Computer Use
+pages remain paused solely because their 94% to 95% coverage and remaining
+orchestration make another extraction lower leverage.
 
 `network_tools.dart` was selected because it combined a clear ownership state,
 a still-large physical boundary, the lowest coverage among the top unowned
@@ -188,8 +225,8 @@ The next refresh admitted the coordinator's pure lifecycle rules after a
 contract froze the depth boundary, refreshed-task requirement, active-before-
 pending precedence, same-ID rejection, and exact terminal statuses. State
 writes, liveness, prompts, result processing, retry behavior, and recursion
-remain coordinator-owned. The remaining recovery routes stay deferred until a
-separate route-and-evidence contract exists.
+remained coordinator-owned. At that point, the recovery routes stayed deferred
+pending the separate route-and-evidence contract recorded below.
 
 The post-integration refresh ranks that contract as the next task because the
 coordinator remains the largest clear-ownership boundary below 60% coverage,
@@ -223,6 +260,12 @@ short-circuiting, and the existing 12 coordinator call sites.
 The workflow lifecycle contract froze continuation depths 0 through 7, the
 depth-8 stop, refreshed completed-task validation, compatible task precedence,
 same-ID rejection, and completed-or-blocked terminal classification.
+
+The workflow recovery contract then froze assistant-evidence precedence over
+tool-less recovery, one read-context and one edit retry after an edit mismatch,
+post-hidden-send liveness, the existing continuation ceiling, and blocked or
+incomplete stopping. It also confirmed and fixed matching recovery reads being
+treated as completion evidence when target metadata was absent.
 
 ## Network Slice Outcome
 
@@ -390,9 +433,146 @@ The workflow task lifecycle policy boundary is complete on
   60.58% (458/756).
 - The full gate passed analysis, 3,905 root tests, and 13 internal-package tests
   at 74.98% line coverage (53,367/71,175).
-- Keep the remaining recovery state machine paused until recovery ordering,
-  liveness, retry limits, and progress-evidence semantics have a separate
-  route-and-evidence contract.
+- This slice left the remaining recovery state machine paused pending the
+  separate route-and-evidence contract recorded below.
+
+## Workflow Recovery Route And Evidence Contract Outcome
+
+The workflow recovery route and evidence contract is complete on
+`feature/workflow-recovery-route-evidence-contract`.
+
+- Direct coordinator tests freeze assistant evidence before tool-less recovery,
+  one bounded edit-mismatch retry, and no progress mutation after page unmount
+  during a hidden recovery send.
+- Characterization found that a matching recovery `read_file` could mark a
+  task without target metadata complete before the edit retry. The coordinator
+  now treats that read as context evidence and preserves the bounded retry.
+- Existing validation, eight-continuation, blocked-task, incomplete-task, and
+  visible-send liveness coverage remains green.
+- The coordinator stays within its 2,392-line ratchet and reached 61.69%
+  coverage (459/744).
+- The focused verifier passed analysis, 94 root tests, and 13 internal-package
+  tests. The final full gate passed analysis, 3,908 root tests, and 13
+  internal-package tests at 75.00% line coverage (53,384/71,175).
+- This contract required the follow-up implementation task to define a pure
+  typed route selector while prompts, evidence capture, liveness, progress
+  writes, retries, and recursion remained coordinator-owned.
+
+## Workflow Task Turn Route Policy Slice Outcome
+
+The workflow task turn route policy is complete on
+`feature/workflow-task-turn-route-policy`.
+
+- `workflow_task_turn_route_policy.dart` is a 43-line pure domain service that
+  owns the exact seven-route recovery order and the assistant-evidence and
+  tool-less recovery gates.
+- `workflow_task_run_coordinator.dart` iterates the typed routes and retains the
+  exhaustive dispatcher, all recovery implementations, prompts, evidence
+  capture, liveness checks, progress writes, retry bodies, and recursion.
+- Direct tests freeze the route order and complete boolean gate truth tables.
+  Product-path tests continue to execute every specialized recovery route.
+- The policy reached 100.00% coverage (3/3). The coordinator shrank from 2,392
+  to 2,380 physical lines and reached 62.17% coverage (470/756).
+- The focused verifier passed analysis, 110 root tests, and 13 internal-package
+  tests. The full gate passed analysis, 3,913 root tests, and 13
+  internal-package tests at 75.01% line coverage (53,400/71,190).
+- The following contract-only ChatPage characterization is complete.
+
+## ChatPage State Transition Contract Outcome
+
+The ChatPage state transition contract is complete on
+`feature/chat-page-state-transition-contract`.
+
+- Product-path widget tests freeze dashboard exits, workspace and conversation
+  selection, coding-project synchronization, assistant-mode changes, and Files
+  tab retention when the wide companion sidebar is hidden and reopened.
+- The contract exercises only public drawer and header controls and adds no
+  test-only production seam.
+- Characterization found no production defect, so `chat_page.dart` remains
+  2,133 physical lines with no production change.
+- `chat_page.dart` coverage increased from 49.51% (402/812) to 55.91%
+  (454/812). Full repository coverage reached 75.18% (53,522/71,190).
+- The focused verifier passed analysis, 7 root tests, and 13 internal-package
+  tests. The full gate passed analysis, 3,915 root tests, and 13
+  internal-package tests.
+- This contract enabled the subsequent workspace, project, conversation, and
+  assistant-mode routing extraction. Dashboard visibility, sidebar visibility,
+  Files-tab state, workflow, approval, and composer behavior remained
+  page-owned and out of scope for that move.
+
+## ChatPage Workspace Navigation Coordinator Outcome
+
+The workspace navigation extraction is complete on
+`feature/chat-page-workspace-navigation-coordinator`.
+
+- `ChatPageWorkspaceNavigationCoordinator` owns workspace activation,
+  coding-project selection, drawer conversation selection, dashboard exit, and
+  assistant-mode synchronization through injected notifier and state callbacks.
+- ChatPage retains Riverpod composition, dashboard visibility, sidebar and
+  Files-tab state, workflow, approval, composer, localization, and modal state.
+- `chat_page.dart` fell from 2,133 to 2,045 physical lines and its same-library
+  aggregate fell from 8,945 to 8,857 lines. The coordinator is 127 lines.
+- Direct tests freeze Chat, Coding, and Routines activation, first-open deferral,
+  project fallback, missing conversations, normalized project selection, and
+  non-General mode preservation. Existing product-path state tests remain green.
+- The focused verifier passed analysis, 92 root tests, and 13 internal-package
+  tests. The full gate passed analysis, 3,927 root tests, and 13 package tests at
+  75.19% line coverage (53,527/71,192).
+- The coordinator reached 100.00% coverage (40/40), `chat_page.dart` reached
+  54.26% (420/774), and their combined executable coverage is 56.51%
+  (460/814).
+- This ranking selected the response-normalization contract completed below;
+  the navigation coordinator remained narrow.
+
+## Chat Completion Response Normalizer Outcome
+
+The response-normalization extraction is complete on
+`feature/chat-response-normalizer`.
+
+- `ChatCompletionResponseNormalizer` owns reasoning composition, native call
+  conversion and malformed-argument fallback, advertised embedded-call
+  promotion, finish-reason selection, and raw parse-failure recovery.
+- `ChatRemoteDataSource` retains request construction, HTTP and streaming
+  transport, reasoning retries, stream accumulation, usage telemetry,
+  tool-result and image formatting, exception propagation, and diagnostic logs.
+- `chat_remote_datasource.dart` fell from 1,244 to 1,164 physical lines. The
+  independent normalizer is 183 lines, and both files have non-increasing
+  ratchets.
+- Direct tests freeze plain and reasoning responses, native precedence,
+  sanitized and malformed arguments, advertised-name filtering, incomplete
+  embedded calls, channel-marker recovery, and raw-call promotion. Existing
+  datasource product paths remain green.
+- The focused verifier passed analysis, 109 root tests, and 13 internal-package
+  tests. The full gate passed analysis, 3,944 root tests, and 13 package tests at
+  75.19% line coverage (53,557/71,231).
+- The normalizer reached 100.00% coverage (60/60), the datasource reached
+  52.81% (263/498), and their combined executable coverage is 57.89%
+  (323/558).
+- The next ranked candidate is one MessageInput composer state or action
+  contract. Re-characterize streaming before any later datasource extraction.
+
+## MessageInput Slash Suggestion State Outcome
+
+The slash suggestion state extraction is complete on
+`feature/message-input-slash-suggestion-state`.
+
+- `MessageInputSlashSuggestionState` owns suggestion refresh, selected-index
+  clamping, next and previous wrapping, tapped index selection, dismiss state,
+  and completed-command suppression.
+- `MessageInput` retains text controller mutation, key-event routing,
+  localized feedback, slash command execution, attachment handling, input
+  history, worktree session sending, voice recording, and coding-goal controls.
+- `message_input.dart` fell from 2,374 to 2,332 physical lines. The independent
+  state helper is 131 lines, and both files have ratchets.
+- Direct tests freeze enabled and attachment-guarded suggestion refresh,
+  clamping, wrapping, dismiss suppression, completed-command suppression, and
+  same-instance no-op refreshes. Existing MessageInput product-path widget tests
+  remain green.
+- The focused verifier passed analysis, 31 root tests, and 13 internal-package
+  tests.
+- Re-characterize one remaining MessageInput composer action before another
+  extraction. Do not widen this helper into execution, history, attachments, or
+  goal controls.
 
 ## Stack Integration Outcome
 
@@ -405,8 +585,10 @@ The eight completed extraction slices are integrated into `main` as
   integration task contract; no unrelated worktree changes were included.
 - The integrated full gate passed analysis, 3,905 root tests, and 13
   internal-package tests at 74.98% line coverage (53,368/71,175).
-- Source branches and unrelated worktrees remain intact. The next task is the
-  workflow route-and-evidence contract, not another implementation extraction.
+- Source branches and unrelated worktrees remain intact. The follow-up workflow
+  route-and-evidence contract, typed route policy, and ChatPage state
+  characterization, workspace-navigation extraction, and response-normalizer
+  extraction are complete.
 
 ## Reproduction Commands
 

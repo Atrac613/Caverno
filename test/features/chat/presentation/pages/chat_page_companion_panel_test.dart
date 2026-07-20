@@ -441,6 +441,19 @@ diff --git a/test/parser_test.dart b/test/parser_test.dart
 
     expect(find.text('Progress'), findsNothing);
     expect(find.text('Uncommitted changes'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Toggle companion panel'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('right-sidebar-tabs')), findsNothing);
+    expect(find.text('Uncommitted changes'), findsNothing);
+
+    await tester.tap(find.byTooltip('Toggle companion panel'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('right-sidebar-tabs')), findsOneWidget);
+    expect(find.text('Progress'), findsNothing);
+    expect(find.text('Uncommitted changes'), findsOneWidget);
   });
 
   testWidgets(

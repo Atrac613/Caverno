@@ -43,6 +43,7 @@ import '../../domain/services/conversation_execution_recovery_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import '../coordinators/chat_page_workspace_navigation_coordinator.dart';
 import '../coordinators/feedback_slash_command_coordinator.dart';
 import '../coordinators/goal_slash_command_coordinator.dart';
 import '../coordinators/plan_review_action_coordinator.dart';
@@ -296,84 +297,34 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _scrollController.jumpTo(target);
   }
 
-  Future<void> _switchWorkspaceMode(WorkspaceMode workspaceMode) async {
-    _leaveDashboard();
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
-    );
-    final projectsState = ref.read(codingProjectsNotifierProvider);
-    final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
-    final currentAssistantMode = ref
-        .read(settingsNotifierProvider)
-        .assistantMode;
-
-    if (workspaceMode == WorkspaceMode.chat) {
-      conversationsNotifier.activateWorkspace(
-        workspaceMode: WorkspaceMode.chat,
-        createIfMissing: true,
-        createFreshOnFirstOpen: true,
+  ChatPageWorkspaceNavigationCoordinator get _workspaceNavigationCoordinator =>
+      ChatPageWorkspaceNavigationCoordinator(
+        conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
+        codingProjectsNotifier: ref.read(
+          codingProjectsNotifierProvider.notifier,
+        ),
+        readConversationsState: () => ref.read(conversationsNotifierProvider),
+        readCodingProjectsState: () => ref.read(codingProjectsNotifierProvider),
+        readAssistantMode: () =>
+            ref.read(settingsNotifierProvider).assistantMode,
+        updateAssistantMode: ref
+            .read(settingsNotifierProvider.notifier)
+            .updateAssistantMode,
+        leaveDashboard: _leaveDashboard,
+        clearRoutineSelection: () =>
+            ref.read(routinesNotifierProvider.notifier).selectRoutine(null),
       );
-      await settingsNotifier.updateAssistantMode(AssistantMode.general);
-      return;
-    }
 
-    if (workspaceMode == WorkspaceMode.routines) {
-      conversationsNotifier.activateWorkspace(
-        workspaceMode: WorkspaceMode.routines,
-        createIfMissing: false,
-      );
-      // Always land on the routines home view when entering the workspace.
-      ref.read(routinesNotifierProvider.notifier).selectRoutine(null);
-      return;
-    }
-
-    final projectId =
-        ref.read(conversationsNotifierProvider).activeProjectId ??
-        projectsState.selectedProjectId;
-    if (projectId != null) {
-      await _activateCodingProject(projectId, createFreshOnFirstOpen: true);
-      return;
-    }
-
-    conversationsNotifier.activateWorkspace(
-      workspaceMode: WorkspaceMode.coding,
-      projectId: null,
-      createIfMissing: false,
-    );
-    await settingsNotifier.updateAssistantMode(
-      currentAssistantMode == AssistantMode.general
-          ? AssistantMode.coding
-          : currentAssistantMode,
-    );
-  }
+  Future<void> _switchWorkspaceMode(WorkspaceMode workspaceMode) =>
+      _workspaceNavigationCoordinator.switchWorkspaceMode(workspaceMode);
 
   Future<void> _activateCodingProject(
     String projectId, {
     bool createFreshOnFirstOpen = false,
-  }) async {
-    _leaveDashboard();
-    ref.read(codingProjectsNotifierProvider.notifier).selectProject(projectId);
-    ref
-        .read(conversationsNotifierProvider.notifier)
-        .activateWorkspace(
-          workspaceMode: WorkspaceMode.coding,
-          projectId: projectId,
-          createIfMissing: createFreshOnFirstOpen,
-          createFreshOnFirstOpen: createFreshOnFirstOpen,
-          deferFreshConversationCreation: createFreshOnFirstOpen,
-        );
-
-    final currentAssistantMode = ref
-        .read(settingsNotifierProvider)
-        .assistantMode;
-    await ref
-        .read(settingsNotifierProvider.notifier)
-        .updateAssistantMode(
-          currentAssistantMode == AssistantMode.general
-              ? AssistantMode.coding
-              : currentAssistantMode,
-        );
-  }
+  }) => _workspaceNavigationCoordinator.activateCodingProject(
+    projectId,
+    createFreshOnFirstOpen: createFreshOnFirstOpen,
+  );
 
   List<SlashCommandDefinition> _buildSlashCommands(
     BuildContext context,
@@ -519,47 +470,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     await _activateCodingProject(project.id, createFreshOnFirstOpen: true);
   }
 
-  Future<void> _selectDrawerConversation(String conversationId) async {
-    _leaveDashboard();
-    final conversationsState = ref.read(conversationsNotifierProvider);
-    final conversation = conversationsState.conversations
-        .where((item) => item.id == conversationId)
-        .firstOrNull;
-    if (conversation == null) {
-      return;
-    }
-
-    final normalizedProjectId = conversation.normalizedProjectId;
-    if (conversation.workspaceMode == WorkspaceMode.coding &&
-        normalizedProjectId != null) {
-      ref
-          .read(codingProjectsNotifierProvider.notifier)
-          .selectProject(normalizedProjectId);
-    }
-
-    ref
-        .read(conversationsNotifierProvider.notifier)
-        .selectConversation(conversationId);
-
-    final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
-    final currentAssistantMode = ref
-        .read(settingsNotifierProvider)
-        .assistantMode;
-    switch (conversation.workspaceMode) {
-      case WorkspaceMode.chat:
-        await settingsNotifier.updateAssistantMode(AssistantMode.general);
-        break;
-      case WorkspaceMode.coding:
-        await settingsNotifier.updateAssistantMode(
-          currentAssistantMode == AssistantMode.general
-              ? AssistantMode.coding
-              : currentAssistantMode,
-        );
-        break;
-      case WorkspaceMode.routines:
-        break;
-    }
-  }
+  Future<void> _selectDrawerConversation(String conversationId) =>
+      _workspaceNavigationCoordinator.selectConversation(conversationId);
 
   void _createDrawerChatConversation() {
     _leaveDashboard();

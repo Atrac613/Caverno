@@ -10,12 +10,15 @@ otherwise.
 The live tracked-boundary inventory below was refreshed on 2026-07-18 with
 `wc -l`. The complete non-generated 1,000-line production scan, test scan,
 coverage ranking, same-library aggregates, and active-worktree ownership audit
-are recorded in `docs/large_file_boundary_inventory_2026_07_18.md`.
+are recorded in `docs/large_file_boundary_inventory_2026_07_18.md`. On
+2026-07-19, the user confirmed that the listed auxiliary worktrees are inactive
+and must not block refactor selection; the audit remains historical context.
 
 | File | Lines | Primary concern |
 |------|------:|-----------------|
 | `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
-| `lib/features/chat/presentation/pages/chat_page.dart` | 2133 | Chat provider composition, workspace state, navigation, modals, input wiring, and plan UI |
+| `lib/features/chat/presentation/pages/chat_page.dart` | 2045 | Chat provider composition, dashboard and sidebar state, modals, input wiring, and plan UI |
+| `lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart` | 127 | Workspace, project, conversation, and assistant-mode routing |
 | `lib/features/chat/presentation/coordinators/slash_command_action_coordinator.dart` | 364 | Slash command loading policy, action dispatch, mode changes, conversation actions, and worktree queueing |
 | `lib/features/chat/presentation/coordinators/goal_slash_command_coordinator.dart` | 243 | Goal slash lifecycle, status summaries, budgets, and auto-continuation state |
 | `lib/features/chat/presentation/coordinators/feedback_slash_command_coordinator.dart` | 95 | Feedback slash preconditions, session-log resolution, submission, and failures |
@@ -28,12 +31,15 @@ are recorded in `docs/large_file_boundary_inventory_2026_07_18.md`.
 | `lib/features/chat/presentation/coordinators/plan_review_action_coordinator.dart` | 198 | Plan review edit, cancel, approval, projection, and task selection |
 | `lib/features/chat/presentation/coordinators/workflow_editor_action_coordinator.dart` | 88 | Workflow editor save, clear, and proposal persistence |
 | `lib/features/chat/presentation/coordinators/workflow_task_action_coordinator.dart` | 258 | Workflow task proposal, editor, menu routing, and status persistence |
-| `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2392 | Saved-workflow execution, recovery routing, evidence, side effects, and recursion |
+| `lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart` | 2380 | Saved-workflow execution, typed recovery dispatch, evidence, side effects, and recursion |
 | `lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart` | 56 | Pure auto-continuation selection and terminal-status classification |
+| `lib/features/chat/domain/services/workflow_task_turn_route_policy.dart` | 43 | Pure typed recovery order and post-recovery gates |
 | `lib/features/chat/domain/services/workflow_tool_result_failure_detector.dart` | 54 | Pure structured, command-output, and raw-text tool failure classification |
 | `lib/features/chat/presentation/widgets/workflow/workflow_editor_sheet.dart` | 218 | Legacy workflow metadata editor presentation and normalization |
 | `lib/features/chat/presentation/widgets/workflow/workflow_task_editor_sheet.dart` | 209 | Legacy workflow task editor presentation and normalization |
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1202 | Tool registry, public execution facade, remaining built-in adapters |
+| `lib/features/chat/data/datasources/chat_remote_datasource.dart` | 1164 | OpenAI-compatible request transport, streaming, retries, telemetry, and tool-result follow-ups |
+| `lib/features/chat/data/datasources/chat_completion_response_normalizer.dart` | 183 | Pure reasoning, tool-call, finish-reason, and raw parse-failure normalization |
 | `lib/features/chat/data/datasources/filesystem_tools.dart` | 1282 | Path resolution, file inspection and mutation, snapshots, and compatible diff delegates |
 | `lib/features/chat/data/datasources/filesystem_diff_builder.dart` | 213 | Pure unified-diff construction, hunk rendering, fallback copy, and preview truncation |
 | `lib/features/chat/data/datasources/remote_mcp_connection_manager.dart` | 317 | Remote MCP connection state, trust resolution, and invocation |
@@ -85,7 +91,7 @@ are recorded in `docs/large_file_boundary_inventory_2026_07_18.md`.
 
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. Current aggregate sizes
-are 23,005 lines for the ChatNotifier library, 8,945 for the ChatPage library,
+are 23,005 lines for the ChatNotifier library, 8,857 for the ChatPage library,
 1,294 for the McpToolService library, and 33,189 for the ChatNotifier test
 library. Ratchets must cover both the primary file and its aggregate library.
 
@@ -105,17 +111,28 @@ coverage. The filesystem service fell from 1,476 to 1,282 lines, while its pure
 1,813 to 1,710 lines, while its pure 120-line metadata parser reached 97.14%
 coverage. The file workspace viewer fell from 1,634 to 1,559 lines, while its
 pure 97-line diff-row parser reached 96.97% coverage. ChatNotifier, ChatPage,
-and MessageInput remain deferred because conservative worktree ownership
-overlaps were present in the inventory. The workflow run coordinator fell from
-2,442 to 2,392 lines across two slices. Its pure 54-line failure detector
-reached 95.65% coverage, and its pure 56-line lifecycle policy reached 100.00%
-coverage. The remaining coordinator recovery state machine stays paused until
-a separate route-and-evidence contract freezes recovery ordering, liveness,
-retry limits, and progress-evidence semantics. The recently reduced Computer
-Use pages remain paused because their coverage is above 94% and their remaining
-code is orchestration-heavy. The integrated `main` gate passed analysis, 3,905
-root tests, and 13 internal-package tests at 74.98% line coverage
-(53,368/71,175).
+and MessageInput are no longer deferred by worktree ownership. Their current
+root-file coverage is 83.15%, 54.26%, and 65.62% respectively. The ChatPage
+state contract and workspace-navigation extraction are now complete; its
+127-line coordinator reached 100.00% coverage. The ChatRemoteDataSource response
+normalizer is also complete: its 183-line pure boundary reached 100.00%, while
+the datasource fell from 1,244 to 1,164 lines. A narrow MessageInput contract is
+next. ChatNotifier still requires a narrowly scoped concern despite its size.
+The workflow run coordinator fell from 2,442 to 2,392 lines across two slices.
+Its pure 54-line failure detector reached 95.65% coverage, and its pure 56-line
+lifecycle policy reached 100.00% coverage. A separate route-and-evidence
+contract now freezes assistant-evidence precedence, bounded edit-mismatch
+recovery, hidden-send liveness, continuation limits, and terminal stopping. It
+also fixed matching edit-recovery reads being misclassified as task completion
+when target metadata was absent. The coordinator remains at its 2,392-line
+contract baseline. The follow-up typed route-policy slice extracted the exact
+seven-route order and post-recovery gates into a 43-line pure service at
+100.00% coverage (3/3). The coordinator shrank to 2,380 lines and reached
+62.17% coverage (470/756) while retaining every side effect. The final slice
+gate passed analysis, 3,913 root tests, and 13 internal-package tests at 75.01%
+line coverage (53,400/71,190). The recently reduced Computer Use pages remain
+paused because their coverage is above 94% and their remaining code is
+orchestration-heavy, not because of worktree ownership.
 
 ## Refactor Rules
 
@@ -385,6 +402,23 @@ Tranche 5 build-scaffold status (2026-07-17):
   full repository gate passed 3,754 root tests plus 13 package tests at 74.11%
   line coverage; both extracted widgets reached 100.00% coverage.
 
+Workspace-navigation follow-up status (2026-07-19):
+
+- `ChatPageWorkspaceNavigationCoordinator` owns Chat, Coding, and Routines
+  workspace activation, coding-project selection, drawer conversation routing,
+  and assistant-mode synchronization behind the completed product-path state
+  contract.
+- ChatPage retains Riverpod composition, dashboard visibility, sidebar and
+  Files-tab state, workflow, approval, composer, localization, and modal state.
+- `chat_page.dart` fell from 2,133 to 2,045 lines and its same-library aggregate
+  fell from 8,945 to 8,857 lines. The independent coordinator is ratcheted at
+  127 lines.
+- The focused verifier passed 92 root tests plus 13 internal-package tests. The
+  full repository gate passed 3,927 root tests plus 13 package tests at 75.19%
+  line coverage (53,527/71,192). The coordinator reached 100.00% coverage
+  (40/40); the page reached 54.26% (420/774), and their combined coverage is
+  56.51% (460/814).
+
 Phase 2 follow-up:
 
 - The planned ChatPage sequence through Tranche 5 is complete and the phase
@@ -394,7 +428,8 @@ Phase 2 follow-up:
 
 Exit criteria:
 
-- The page keeps navigation and top-level state ownership.
+- The page keeps provider composition and top-level UI state ownership; the
+  coordinator owns only workspace navigation transitions.
 - Extracted widgets have widget tests where they encode logic or state display.
 - Layout remains visually unchanged.
 
@@ -1059,6 +1094,36 @@ Debug permission-actions status (2026-07-18):
   full gate passed analysis, 3,833 root tests, and 13 package tests at 74.43%
   line coverage.
 
+Chat response-normalization status (2026-07-19):
+
+- `ChatCompletionResponseNormalizer` owns reasoning composition, native call
+  conversion, advertised embedded-call promotion, finish-reason selection, and
+  raw parse-failure recovery without HTTP, mutable state, or UI dependencies.
+- `ChatRemoteDataSource` retains request construction, HTTP and streaming
+  transport, reasoning retries, stream accumulation, usage telemetry,
+  tool-result formatting, images, and diagnostic logging.
+- `chat_remote_datasource.dart` fell from 1,244 to 1,164 lines. The independent
+  normalizer is ratcheted at 183 lines.
+- The focused verifier passed 109 root tests plus 13 internal-package tests. The
+  full gate passed analysis, 3,944 root tests, and 13 package tests at 75.19%
+  line coverage (53,557/71,231). The normalizer reached 100.00% coverage
+  (60/60), the datasource reached 52.81% (263/498), and their combined coverage
+  is 57.89% (323/558).
+
+MessageInput slash suggestion state status (2026-07-20):
+
+- `MessageInputSlashSuggestionState` owns slash-command suggestion refresh,
+  selected-index clamping, next and previous wrapping, tapped index selection,
+  dismiss state, and completed-command suppression without widget, controller,
+  localization, or command-handler dependencies.
+- `MessageInput` retains text controller mutation, key-event routing,
+  localized feedback, command execution, attachment handling, input history,
+  worktree session sending, voice recording, and coding-goal controls.
+- `message_input.dart` fell from 2,374 to 2,332 lines. The independent state
+  helper is ratcheted at 131 lines.
+- The focused verifier passed analysis, 31 root tests, and 13
+  internal-package tests.
+
 Next slice:
 
 - The planned network route, routine run-history, LAN IP network, filesystem
@@ -1072,13 +1137,27 @@ Next slice:
   inventory refresh is recorded in
   `docs/large_file_boundary_inventory_2026_07_18.md`.
 - The integrated-main production and ownership ranking is refreshed in
-  `docs/large_file_boundary_inventory_2026_07_18.md`. The next task is a
-  contract-only characterization of recovery routing and progress evidence in
-  `workflow_task_run_coordinator.dart`; do not move its state machine yet.
-- If that contract is not ready, characterize a response-normalization or
-  streaming boundary in the clear-ownership, 1,244-line
-  `chat_remote_datasource.dart`. Keep this fallback separate from workflow
-  recovery work.
+  `docs/large_file_boundary_inventory_2026_07_18.md`. The recovery route and
+  evidence contract and pure typed route-policy extraction are complete. The
+  policy selects only from already-derived evidence and owns no prompt,
+  progress mutation, page state, retry body, or recursion.
+- Auxiliary worktree overlap is no longer a selection blocker. The ChatPage
+  state contract and workspace-navigation extraction are complete. The move
+  reduced `chat_page.dart` from 2,133 to 2,045 lines and its same-library
+  aggregate from 8,945 to 8,857 lines. The coordinator reached 100.00% coverage
+  (40/40), and the full gate passed analysis, 3,927 root tests, and 13 package
+  tests at 75.19% line coverage (53,527/71,192).
+- The ChatRemoteDataSource response-normalization extraction is complete. Keep
+  its remaining request-building and streaming transformations separate from
+  ChatPage, tool-loop, and workflow recovery changes.
+- MessageInput remains the next newly unblocked candidate at 2,332 lines and
+  65.62% coverage. Slash suggestion state is complete; re-characterize one
+  remaining composer action contract before moving more code.
+  ChatNotifier is also eligible, but its 83.15% root-file coverage and 23,005-
+  line same-library aggregate require a smaller named concern and aggregate
+  ratchet before any move. Do not split only the notifier test root.
+- Do not widen `ChatPageWorkspaceNavigationCoordinator` into dashboard,
+  sidebar, Files-tab, workflow, approval, composer, or persistence state.
 - Keep `routine_detail_view.dart` and
   `lan_scan_service.dart` paused now that both are below 1,000 lines; their
   remaining concerns are more tightly coupled to page-owned provider state or
@@ -1086,11 +1165,13 @@ Next slice:
   `model_remote_datasource.dart` before another extraction even though both
   remain above 1,000 lines. Re-rank `file_workspace_viewer_sheet.dart` before
   separating file loading, path containment, or layout concerns. Keep
-  `workflow_task_run_coordinator.dart` implementation paused until recovery
-  ordering, liveness, retry limits, and progress-evidence semantics have the
-  separate route-and-evidence contract. Terminal states, continuation depth,
-  and compatible next-task selection are already frozen by the extracted
-  lifecycle policy.
+  `workflow_task_run_coordinator.dart` side-effect ownership unchanged. The
+  completed contract and route policy now freeze recovery ordering, liveness,
+  retry limits, progress-evidence semantics, terminal states, continuation
+  depth, and compatible next-task selection.
+- Keep the Computer Use debug and settings pages paused at 94.36% and 95.22%
+  coverage. Their remaining orchestration-heavy code, rather than worktree
+  ownership, makes another extraction lower leverage.
 
 Exit criteria:
 
