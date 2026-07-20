@@ -170,6 +170,11 @@ void main() {
           isTrue,
           reason: '${package.name} is missing pubspec.yaml.',
         );
+        expect(
+          File('${package.path}/README.md').existsSync(),
+          isTrue,
+          reason: '${package.name} is missing README.md.',
+        );
         final pubspec = _parsePubspec(pubspecFile);
         expect(pubspec.name, package.name);
         expect(
