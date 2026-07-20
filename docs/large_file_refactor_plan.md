@@ -162,17 +162,19 @@ Caverno Flutter application
 
 No internal package may import `package:caverno` or another internal package's
 private `lib/src/` implementation. Each package must obey the profile
-registered in `tool/internal_package_catalog.json`. The current
-`caverno_execution_runtime` and `caverno_content_protocol` packages use the
-`pure_dart` profile and therefore cannot import Flutter, Riverpod, persistence
-plugins, platform plugins, or operating-system libraries.
+registered in `tool/internal_package_catalog.json`. The current execution
+runtime, content protocol, and tool contracts packages use the `pure_dart`
+profile and therefore cannot import Flutter, Riverpod, persistence plugins,
+platform plugins, or operating-system libraries.
 
 `caverno_execution_runtime` contains the shared runtime event, ports, execution
 engine, and failure classifier used by GUI and terminal frontends.
 `caverno_content_protocol` contains the shared LLM content parser and public
 parser result types used by chat, routines, and settings. File-backed ownership
 leases, persistence, Riverpod adapters, frontend composition, and product
-workflow policy remain in the application.
+workflow policy remain in the application. `caverno_tool_contracts` contains
+shared approval modes, approval decisions, and capability classification while
+approval orchestration and policy enforcement remain in the application.
 
 Follow-up package candidates require a stable second consumer and an acyclic
 dependency graph. `ChatNotifier`, `ChatPage`, `McpToolService`, and settings or
@@ -190,7 +192,9 @@ Foundation status (2026-07-20):
 - `packages/caverno_execution_runtime` owns the shared execution event, ports,
   engine, and failure classifier. `packages/caverno_content_protocol` owns the
   shared LLM content parser and its public parsing contract.
-- Both packages are pure Dart, expose one public library each, and share the
+  `packages/caverno_tool_contracts` owns shared approval and capability
+  contracts.
+- All three packages are pure Dart, expose one public library each, and share the
   root Pub workspace resolution without Flutter, Riverpod, storage, platform,
   or root Caverno dependencies.
 - `tool/internal_package_catalog.json` records package ownership, purpose,
@@ -201,18 +205,20 @@ Foundation status (2026-07-20):
 - `tool/codex_verify.sh` resolves the workspace once, routes package analysis,
   tests, and code generation by package metadata, and merges package coverage
   with root coverage.
-- The boundary gate passed 8 tests, content protocol passed 30 tests, execution
-  runtime passed 13 tests, and the focused root integration gate passed 107
-  tests. The full coverage gate completed with clean analysis and 74.88% merged
-  line coverage.
+- The boundary gate passed 9 tests, content protocol passed 30 tests, execution
+  runtime passed 13 tests, and tool contracts passed 24 tests. The latest
+  focused root compatibility gate passed 421 tests. The full root suite passed
+  3,906 tests with clean analysis and 74.94% merged line coverage.
 
 Foundation follow-up:
 
 - The previously planned ChatPage build-scaffold and right-sidebar boundary is
   complete under Phase 2 Tranche 5.
-- Re-measure `caverno_tool_contracts` next. Extraction remains gated on moving
-  approval and capability contracts out of application settings, demonstrating
-  an acyclic dependency graph, and preserving approval and audit semantics.
+- The tool-contracts extraction is complete. Re-measure LLM contracts before
+  approving another code package; they remain a candidate rather than a planned
+  extraction.
+- Continue component distribution work with the static registry and bundled
+  core-pack format instead of treating package count as the goal.
 
 ## Phase 1: ChatNotifier Decomposition
 

@@ -107,6 +107,33 @@ tool/codex_verify.sh --coverage
 ## Handoff Notes
 
 - Summary:
+  - Added `caverno_tool_contracts` as a dependency-free `pure_dart` workspace
+    package and registered its ownership, consumers, profile, and public library
+    in the internal package catalog.
+  - Moved `ToolApprovalMode`, approval gate decisions, and capability
+    classification behind one public package library.
+  - Migrated security, chat, settings, tests, and live canaries away from the
+    former root source paths.
+  - Regenerated the root models and confirmed that no generated serializer
+    changed, preserving the existing persisted enum map.
+  - Added a boundary regression that rejects legacy imports and settings-owned
+    `ToolApprovalMode` declarations.
 - Tests run:
+  - `caverno_tool_contracts` passed all 24 direct tests.
+  - The focused compatibility suite passed all 421 root tests.
+  - The file-size ratchet passed all 78 tests without raising any ceiling.
+  - `tool/codex_verify.sh --coverage` completed successfully with clean root and
+    package analysis, clean generated-output verification, 67 total package
+    tests, and 3,906 root tests.
 - Coverage or low-coverage notes:
+  - Merged coverage is 55,743 of 74,383 lines (74.94%).
+  - `caverno_tool_contracts` covers 399 of 404 lines (98.76%).
 - Risks or follow-ups:
+  - Approval UI, auto-review orchestration, taint policy, audit logging, routine
+    policy, and platform-specific tool policies intentionally remain in the
+    application.
+  - The next component-packaging delivery should implement the static registry
+    and bundled core-pack format. It must consume these contracts without
+    granting permissions or loading executable code from manifests.
+  - `caverno_llm_contracts` remains a possible later package, subject to a fresh
+    dependency and second-consumer audit.

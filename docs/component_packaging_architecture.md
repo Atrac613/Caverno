@@ -499,9 +499,26 @@ dependencies are removed.
 - The full repository verification gate completed successfully. Its merged
   LCOV report covers 55,547 of 74,181 lines (74.88%), including both internal
   packages.
-- `caverno_tool_contracts` is the next candidate to re-measure. It is not
-  approved for extraction until approval and capability contracts are separated
-  from application settings and the resulting dependency graph is acyclic.
+- The next package candidate was re-measured rather than pre-approved, producing
+  the `caverno_tool_contracts` extraction described below.
+
+## Completed Package: `caverno_tool_contracts`
+
+The second extraction moves shared approval and capability contracts out of
+application settings and chat implementation paths. It owns the approval mode,
+approval gate decisions, capability classes, risk tiers, command effects, and
+the pure classifier. Approval UI, auto-review orchestration, audit logging,
+taint policy, routines, and platform policy remain application-owned.
+
+Verified result (2026-07-20):
+
+- the package is a dependency-free `pure_dart` workspace member;
+- security, chat, settings, tests, and live canaries use its public library;
+- persisted approval mode names and generated JSON enum maps are unchanged;
+- all 24 direct package tests and 421 focused root compatibility tests passed;
+- the full root suite passed all 3,906 tests; and
+- merged line coverage is 74.94% (55,743 of 74,383 lines), including 98.76%
+  coverage for the new package.
 
 ## Delivery Sequence
 
@@ -511,9 +528,10 @@ dependencies are removed.
 3. **Completed:** Generalize architecture tests, verification routing, optional
    package code generation, and merged coverage.
 4. **Completed:** Extract `caverno_content_protocol` without behavior changes.
-5. **Next:** Re-measure package dependencies and select the next candidate.
-6. Add the static component registry and bundled core-pack format with TOOL1,
-   not as part of the parser pilot.
+5. **Completed:** Re-measure package dependencies and extract the approved
+   `caverno_tool_contracts` boundary.
+6. **Next:** Add the static component registry and bundled core-pack format
+   with TOOL1.
 7. Consider curated catalogs, bundles, and signed distribution only after the
    local manifest runtime and security gates are proven.
 
