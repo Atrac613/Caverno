@@ -14,6 +14,7 @@ RUN_COVERAGE=false
 COVERAGE_THRESHOLD=60
 TEST_TARGETS=()
 PACKAGE_DIRS=()
+PACKAGE_COVERAGE_DIR=""
 
 usage() {
   cat <<'EOF'
@@ -113,6 +114,47 @@ run_in_directory_step() {
   )
 }
 
+package_uses_flutter() {
+  local package_dir="$1"
+  grep -Eq '^  flutter:[[:space:]]*$' "$package_dir/pubspec.yaml"
+}
+
+package_uses_codegen() {
+  local package_dir="$1"
+  grep -Eq '^  build_runner:' "$package_dir/pubspec.yaml"
+}
+
+package_command() {
+  local package_dir="$1"
+  if package_uses_flutter "$package_dir"; then
+    PACKAGE_CMD=("${FLUTTER_CMD[@]}")
+  else
+    PACKAGE_CMD=("${DART_CMD[@]}")
+  fi
+}
+
+merge_package_coverage() {
+  local lcov_file="coverage/lcov.info"
+  if [[ -z "$PACKAGE_COVERAGE_DIR" ]] || [[ ! -d "$PACKAGE_COVERAGE_DIR" ]]; then
+    return
+  fi
+
+  local package_lcov_files=()
+  while IFS= read -r package_lcov; do
+    package_lcov_files+=("$package_lcov")
+  done < <(find "$PACKAGE_COVERAGE_DIR" -maxdepth 1 -name '*.info' -print | sort)
+
+  if [[ ${#package_lcov_files[@]} -eq 0 ]]; then
+    return
+  fi
+
+  mkdir -p "$(dirname "$lcov_file")"
+  touch "$lcov_file"
+  for package_lcov in "${package_lcov_files[@]}"; do
+    cat "$package_lcov" >> "$lcov_file"
+  done
+}
+
 summarize_coverage() {
   local lcov_file="coverage/lcov.info"
   if [[ ! -f "$lcov_file" ]]; then
@@ -201,17 +243,19 @@ while IFS= read -r package_pubspec; do
 done < <(find packages -mindepth 2 -maxdepth 2 -name pubspec.yaml -print 2>/dev/null | sort)
 
 run_step "Install dependencies" "${FLUTTER_CMD[@]}" pub get
-
-for package_dir in "${PACKAGE_DIRS[@]}"; do
-  run_in_directory_step \
-    "Install package dependencies: $package_dir" \
-    "$package_dir" \
-    "${DART_CMD[@]}" pub get
-done
+run_step "List workspace packages" "${DART_CMD[@]}" pub workspace list
 
 if $RUN_CODEGEN; then
   run_step "Regenerate Freezed and JSON files" \
     "${DART_CMD[@]}" run build_runner build --delete-conflicting-outputs
+  for package_dir in "${PACKAGE_DIRS[@]}"; do
+    if package_uses_codegen "$package_dir"; then
+      run_in_directory_step \
+        "Regenerate package code: $package_dir" \
+        "$package_dir" \
+        "${DART_CMD[@]}" run build_runner build --delete-conflicting-outputs
+    fi
+  done
   run_step "Verify generated files are committed" \
     git diff --exit-code -- ':(glob)**/*.freezed.dart' ':(glob)**/*.g.dart'
 fi
@@ -219,19 +263,44 @@ fi
 if $RUN_ANALYZE; then
   run_step "Analyze project" "${FLUTTER_CMD[@]}" analyze
   for package_dir in "${PACKAGE_DIRS[@]}"; do
+    package_command "$package_dir"
     run_in_directory_step \
       "Analyze package: $package_dir" \
       "$package_dir" \
-      "${DART_CMD[@]}" analyze
+      "${PACKAGE_CMD[@]}" analyze
   done
 fi
 
 if $RUN_TESTS; then
+  if $RUN_COVERAGE; then
+    PACKAGE_COVERAGE_DIR="$(mktemp -d)"
+    trap 'rm -rf "$PACKAGE_COVERAGE_DIR"' EXIT
+  fi
+
   for package_dir in "${PACKAGE_DIRS[@]}"; do
-    run_in_directory_step \
-      "Test package: $package_dir" \
-      "$package_dir" \
-      "${DART_CMD[@]}" test
+    package_command "$package_dir"
+    if $RUN_COVERAGE; then
+      package_name="$(basename "$package_dir")"
+      if package_uses_flutter "$package_dir"; then
+        run_in_directory_step \
+          "Test package with coverage: $package_dir" \
+          "$package_dir" \
+          "${PACKAGE_CMD[@]}" test \
+          --coverage \
+          --coverage-path="$PACKAGE_COVERAGE_DIR/$package_name.info"
+      else
+        run_in_directory_step \
+          "Test package with coverage: $package_dir" \
+          "$package_dir" \
+          "${PACKAGE_CMD[@]}" test \
+          --coverage-path="$PACKAGE_COVERAGE_DIR/$package_name.info"
+      fi
+    else
+      run_in_directory_step \
+        "Test package: $package_dir" \
+        "$package_dir" \
+        "${PACKAGE_CMD[@]}" test
+    fi
   done
 
   if [[ ${#TEST_TARGETS[@]} -gt 0 ]]; then
@@ -245,6 +314,10 @@ if $RUN_TESTS; then
     run_step "Run tests with coverage" "${FLUTTER_CMD[@]}" test --coverage
   else
     run_step "Run tests" "${FLUTTER_CMD[@]}" test
+  fi
+
+  if $RUN_COVERAGE; then
+    merge_package_coverage
   fi
 fi
 

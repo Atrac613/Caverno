@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "packages": [
+    {
+      "name": "caverno_execution_runtime",
+      "path": "packages/caverno_execution_runtime",
+      "profile": "pure_dart",
+      "codegen": "none",
+      "publicLibraries": [
+        "lib/caverno_execution_runtime.dart"
+      ]
+    }
+  ]
+}
