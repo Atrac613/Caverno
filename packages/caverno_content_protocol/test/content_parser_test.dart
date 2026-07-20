@@ -1,5 +1,5 @@
-import 'package:caverno/core/utils/content_parser.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+import 'package:test/test.dart';
 
 void main() {
   test('extractCompletedToolCalls parses tool_use payloads', () {

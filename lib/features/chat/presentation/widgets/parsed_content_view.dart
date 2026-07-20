@@ -1,11 +1,11 @@
 import 'dart:convert';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/markdown_render_sanitizer.dart';
 import '../../domain/services/file_reference_extractor.dart';
 import 'code_block_builder.dart';

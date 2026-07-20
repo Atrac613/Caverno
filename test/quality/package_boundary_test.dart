@@ -139,6 +139,26 @@ void main() {
               '${package.codegen}.',
         );
         expect(
+          package.owner.trim(),
+          isNotEmpty,
+          reason: '${package.name} must declare an owner.',
+        );
+        expect(
+          package.purpose.trim(),
+          isNotEmpty,
+          reason: '${package.name} must declare its purpose.',
+        );
+        expect(
+          package.consumers,
+          isNotEmpty,
+          reason: '${package.name} must declare its current consumers.',
+        );
+        expect(
+          package.consumers.toSet().length,
+          package.consumers.length,
+          reason: '${package.name} contains duplicate consumers.',
+        );
+        expect(
           package.path,
           'packages/${package.name}',
           reason: 'Internal package paths must follow packages/<name>.',
@@ -415,6 +435,33 @@ void main() {
             'package:caverno_execution_runtime.',
       );
     });
+
+    test('removes legacy content parser imports from the root application', () {
+      final roots = <Directory>[
+        Directory('lib'),
+        Directory('test'),
+        Directory('integration_test'),
+        Directory('tool'),
+      ];
+      final legacyImport = RegExp(r'core/utils/content_parser\.dart');
+      final offenders = <String>[];
+
+      for (final root in roots.where((directory) => directory.existsSync())) {
+        for (final file in _dartFilesUnder(root)) {
+          if (legacyImport.hasMatch(file.readAsStringSync())) {
+            offenders.add(file.path);
+          }
+        }
+      }
+
+      expect(
+        offenders,
+        isEmpty,
+        reason:
+            'Content parser consumers must import '
+            'package:caverno_content_protocol.',
+      );
+    });
   });
 }
 
@@ -598,6 +645,9 @@ class _InternalPackage {
     required this.path,
     required this.profile,
     required this.codegen,
+    required this.owner,
+    required this.purpose,
+    required this.consumers,
     required this.publicLibraries,
   });
 
@@ -607,6 +657,9 @@ class _InternalPackage {
       path: _normalizePath(json['path'] as String),
       profile: json['profile'] as String,
       codegen: json['codegen'] as String,
+      owner: json['owner'] as String,
+      purpose: json['purpose'] as String,
+      consumers: (json['consumers'] as List<dynamic>).cast<String>(),
       publicLibraries: (json['publicLibraries'] as List<dynamic>)
           .cast<String>()
           .map(_normalizePath)
@@ -618,5 +671,8 @@ class _InternalPackage {
   final String path;
   final String profile;
   final String codegen;
+  final String owner;
+  final String purpose;
+  final List<String> consumers;
   final List<String> publicLibraries;
 }

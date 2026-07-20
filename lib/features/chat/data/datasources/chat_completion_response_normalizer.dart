@@ -1,8 +1,8 @@
 import 'dart:convert';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:openai_dart/openai_dart.dart';
 
-import '../../../../core/utils/content_parser.dart';
 import '../../domain/entities/tool_call_info.dart';
 
 final class NormalizedChatCompletionResponse {

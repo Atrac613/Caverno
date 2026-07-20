@@ -1,8 +1,9 @@
 import 'dart:convert';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../../../../core/services/apple_foundation_models_platform_client.dart';
-import '../../../../core/utils/content_parser.dart';
 import '../../../chat/data/datasources/chat_datasource.dart';
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';

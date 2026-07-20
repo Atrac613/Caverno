@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,7 +8,6 @@ import '../../../../core/services/voice_recorder.dart';
 import '../../../../core/services/voicevox_audio_player.dart';
 import '../../../../core/services/voicevox_service.dart';
 import '../../../../core/services/whisper_service.dart';
-import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/domain/services/app_language_resolver.dart';

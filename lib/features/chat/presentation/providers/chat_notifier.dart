@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -20,9 +22,7 @@ import '../../../../core/services/tool_approval_audit_log.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
-import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
-import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
 import '../../domain/services/conversation_goal_suggestion_service.dart';

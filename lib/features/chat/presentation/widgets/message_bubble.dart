@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind, PointerUpEvent;
 import 'package:flutter/material.dart';
@@ -8,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/services/tts_service.dart';
-import '../../../../core/utils/content_parser.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../../settings/presentation/pages/chat_settings_page.dart';

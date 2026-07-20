@@ -1,4 +1,5 @@
-import '../../../../core/utils/content_parser.dart';
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import '../entities/routine.dart';
 
 class RoutineScheduleService {

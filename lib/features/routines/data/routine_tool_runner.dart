@@ -1,4 +1,5 @@
-import '../../../core/utils/content_parser.dart';
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
+
 import '../../chat/data/datasources/chat_datasource.dart';
 import '../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../chat/domain/entities/mcp_tool_entity.dart';

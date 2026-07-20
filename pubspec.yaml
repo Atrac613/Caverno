@@ -22,6 +22,7 @@ environment:
   sdk: ^3.10.8
 
 workspace:
+  - packages/caverno_content_protocol
   - packages/caverno_execution_runtime
 
 # Dependencies specify other packages that your package needs in order to work.
@@ -35,6 +36,9 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+
+  # Shared parsing contract for streamed LLM content and tool-call markup
+  caverno_content_protocol: ^0.1.0
 
   # Shared runtime contract for GUI, headless, and terminal frontends
   caverno_execution_runtime: ^0.1.0

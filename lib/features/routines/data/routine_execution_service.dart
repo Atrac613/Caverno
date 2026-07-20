@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -10,7 +11,6 @@ import '../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../core/types/assistant_mode.dart';
 import '../../../core/types/workspace_mode.dart';
-import '../../../core/utils/content_parser.dart';
 import '../../chat/data/datasources/chat_datasource.dart';
 import '../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../chat/data/datasources/llm_session_log_store.dart';

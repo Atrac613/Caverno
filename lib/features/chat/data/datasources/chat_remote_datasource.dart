@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert' as dart_convert;
 
+import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 
 import '../../../../core/constants/api_constants.dart';
-import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';

@@ -2,10 +2,33 @@
   "schemaVersion": 1,
   "packages": [
     {
+      "name": "caverno_content_protocol",
+      "path": "packages/caverno_content_protocol",
+      "profile": "pure_dart",
+      "codegen": "none",
+      "owner": "Caverno core",
+      "purpose": "Parse LLM response content and tool-call markup.",
+      "consumers": [
+        "chat",
+        "routines",
+        "settings"
+      ],
+      "publicLibraries": [
+        "lib/caverno_content_protocol.dart"
+      ]
+    },
+    {
       "name": "caverno_execution_runtime",
       "path": "packages/caverno_execution_runtime",
       "profile": "pure_dart",
       "codegen": "none",
+      "owner": "Caverno core",
+      "purpose": "Share execution behavior across Caverno frontends.",
+      "consumers": [
+        "chat",
+        "integration_test",
+        "terminal"
+      ],
       "publicLibraries": [
         "lib/caverno_execution_runtime.dart"
       ]
