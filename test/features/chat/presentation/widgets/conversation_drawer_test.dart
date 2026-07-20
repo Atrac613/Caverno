@@ -404,6 +404,88 @@ void main() {
     },
   );
 
+  testWidgets('project actions open the directory and remove the project', (
+    tester,
+  ) async {
+    final project = _project(id: 'project-1', name: 'caverno');
+    String? openedPath;
+    final container = await _pumpDrawerApp(
+      tester,
+      conversationsState: ConversationsState(
+        conversations: [
+          _conversation(
+            id: 'thread-1',
+            title: 'Project thread',
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+          ),
+        ],
+        currentConversationId: 'thread-1',
+        activeWorkspaceMode: WorkspaceMode.coding,
+        activeProjectId: project.id,
+      ),
+      projectsState: CodingProjectsState(
+        projects: [project],
+        selectedProjectId: project.id,
+      ),
+      onOpenCodingProjectDirectory: (path) async => openedPath = path,
+    );
+
+    final projectMenu = find.byKey(
+      const ValueKey('drawer-project-project-1-menu'),
+    );
+    final newThreadButton = find.byKey(
+      const ValueKey('drawer-project-project-1-new-thread-button'),
+    );
+    final projectTile = find.byKey(const ValueKey('drawer-project-project-1'));
+    expect(projectMenu, findsNothing);
+    expect(newThreadButton, findsNothing);
+    expect(find.byIcon(Icons.delete_outline), findsNothing);
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(gesture.removePointer);
+    await gesture.addPointer();
+    await gesture.moveTo(tester.getCenter(projectTile));
+    await tester.pumpAndSettle();
+
+    expect(projectMenu, findsOneWidget);
+    expect(newThreadButton, findsOneWidget);
+
+    await tester.tap(projectMenu);
+    await tester.pumpAndSettle();
+    expect(find.text('Open in Finder'), findsOneWidget);
+    expect(find.text('Remove Project'), findsOneWidget);
+
+    await tester.tap(find.text('Open in Finder'));
+    await tester.pumpAndSettle();
+    expect(openedPath, project.rootPath);
+
+    await gesture.moveTo(const Offset(1, 1));
+    await tester.pumpAndSettle();
+    expect(projectMenu, findsNothing);
+    expect(newThreadButton, findsNothing);
+
+    await gesture.moveTo(tester.getCenter(projectTile));
+    await tester.pumpAndSettle();
+    await tester.tap(projectMenu);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove Project'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Remove "caverno" and all of its coding threads?'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    expect(container.read(codingProjectsNotifierProvider).projects, isEmpty);
+    expect(
+      container.read(conversationsNotifierProvider).conversations,
+      isEmpty,
+    );
+  });
+
   testWidgets('coding drawer swaps thread date for delete action on hover', (
     tester,
   ) async {
@@ -630,6 +712,7 @@ Future<ProviderContainer> _pumpDrawerApp(
   String? chatConversationId,
   bool isDashboardSelected = false,
   bool settleAfterOpening = true,
+  Future<void> Function(String rootPath)? onOpenCodingProjectDirectory,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(900, 1400);
@@ -744,6 +827,7 @@ Future<ProviderContainer> _pumpDrawerApp(
                           projectId: projectId,
                         );
                   },
+                  onOpenCodingProjectDirectory: onOpenCodingProjectDirectory,
                   isDashboardSelected: isDashboardSelected,
                 ),
                 body: Builder(

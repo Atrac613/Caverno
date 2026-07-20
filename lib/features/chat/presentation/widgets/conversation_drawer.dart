@@ -40,6 +40,7 @@ class ConversationDrawer extends ConsumerStatefulWidget {
     required this.onOpenDashboard,
     required this.onCreateChatConversation,
     required this.onCreateCodingThread,
+    this.onOpenCodingProjectDirectory,
     this.isDashboardSelected = false,
     this.codingWorkspaceDrawerBuilder,
     this.closeOnAction = true,
@@ -54,6 +55,7 @@ class ConversationDrawer extends ConsumerStatefulWidget {
   final VoidCallback onOpenDashboard;
   final VoidCallback onCreateChatConversation;
   final ValueChanged<String> onCreateCodingThread;
+  final Future<void> Function(String rootPath)? onOpenCodingProjectDirectory;
   final bool isDashboardSelected;
   final CodingWorkspaceDrawerBuilder? codingWorkspaceDrawerBuilder;
   final bool closeOnAction;
@@ -177,6 +179,8 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                                     projectsNotifier,
                                     project,
                                   ),
+                              onOpenProject: (project) =>
+                                  _openProjectInFinder(context, project),
                               onToggleProjectExpanded: (projectId) {
                                 setState(() {
                                   if (!_expandedProjectIds.add(projectId)) {
@@ -404,6 +408,34 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
     await widget.onCodingProjectSelected(fallbackProjectId);
   }
 
+  Future<void> _openProjectInFinder(
+    BuildContext context,
+    CodingProject project,
+  ) async {
+    try {
+      final customOpener = widget.onOpenCodingProjectDirectory;
+      if (customOpener != null) {
+        await customOpener(project.rootPath);
+      } else {
+        final result = await Process.run('/usr/bin/open', [project.rootPath]);
+        if (result.exitCode != 0) {
+          throw ProcessException(
+            '/usr/bin/open',
+            [project.rootPath],
+            result.stderr.toString(),
+            result.exitCode,
+          );
+        }
+      }
+    } catch (error) {
+      debugPrint('Failed to open coding project in Finder: $error');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('drawer.open_in_finder_failed'.tr())),
+      );
+    }
+  }
+
   void _loadCollapsedProjectIds() {
     try {
       final prefs = ref.read(sharedPreferencesProvider);
@@ -613,6 +645,7 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.onDeleteConversation,
     required this.onDeleteAllThreads,
     required this.onDeleteProject,
+    required this.onOpenProject,
     required this.onToggleProjectExpanded,
     required this.onToggleProjectCollapsed,
   });
@@ -630,6 +663,7 @@ class _CodingProjectsSection extends StatelessWidget {
   final ValueChanged<Conversation> onDeleteConversation;
   final VoidCallback onDeleteAllThreads;
   final ValueChanged<CodingProject> onDeleteProject;
+  final ValueChanged<CodingProject> onOpenProject;
   final ValueChanged<String> onToggleProjectExpanded;
   final ValueChanged<String> onToggleProjectCollapsed;
 
@@ -683,6 +717,7 @@ class _CodingProjectsSection extends StatelessWidget {
                       onProjectSelected: () => onProjectSelected(project.id),
                       onCreateThread: () => onCreateThread(project.id),
                       onDeleteProject: () => onDeleteProject(project),
+                      onOpenProject: () => onOpenProject(project),
                       onConversationSelected: onConversationSelected,
                       onDeleteConversation: onDeleteConversation,
                       onToggleExpanded: () =>
@@ -721,6 +756,7 @@ class _ProjectThreadGroup extends StatelessWidget {
     required this.onProjectSelected,
     required this.onCreateThread,
     required this.onDeleteProject,
+    required this.onOpenProject,
     required this.onConversationSelected,
     required this.onDeleteConversation,
     required this.onToggleExpanded,
@@ -738,6 +774,7 @@ class _ProjectThreadGroup extends StatelessWidget {
   final VoidCallback onProjectSelected;
   final VoidCallback onCreateThread;
   final VoidCallback onDeleteProject;
+  final VoidCallback onOpenProject;
   final Future<void> Function(String conversationId) onConversationSelected;
   final ValueChanged<Conversation> onDeleteConversation;
   final VoidCallback onToggleExpanded;
@@ -762,6 +799,7 @@ class _ProjectThreadGroup extends StatelessWidget {
           onTap: onProjectSelected,
           onCreateThread: onCreateThread,
           onDelete: onDeleteProject,
+          onOpenProject: onOpenProject,
           onToggleCollapsed: onToggleCollapsed,
         ),
         for (final thread in visibleThreads)
@@ -1002,7 +1040,7 @@ class _HeaderIconButton extends StatelessWidget {
   }
 }
 
-class _ProjectTile extends StatelessWidget {
+class _ProjectTile extends StatefulWidget {
   const _ProjectTile({
     required this.project,
     required this.isSelected,
@@ -1010,6 +1048,7 @@ class _ProjectTile extends StatelessWidget {
     required this.onTap,
     required this.onCreateThread,
     required this.onDelete,
+    required this.onOpenProject,
     required this.onToggleCollapsed,
   });
 
@@ -1019,72 +1058,132 @@ class _ProjectTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onCreateThread;
   final VoidCallback onDelete;
+  final VoidCallback onOpenProject;
   final VoidCallback onToggleCollapsed;
+
+  @override
+  State<_ProjectTile> createState() => _ProjectTileState();
+}
+
+class _ProjectTileState extends State<_ProjectTile> {
+  bool _isHovering = false;
+  bool _isMenuOpen = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      key: ValueKey('drawer-project-${project.id}'),
-      dense: true,
-      visualDensity: VisualDensity.compact,
-      contentPadding: const EdgeInsetsDirectional.only(start: 16, end: 6),
-      selected: isSelected,
-      selectedTileColor: theme.hoverColor,
-      leading: IconButton(
-        key: ValueKey('drawer-project-${project.id}-toggle'),
-        icon: Icon(
-          isCollapsed ? Icons.chevron_right : Icons.expand_more,
-          size: 20,
-        ),
-        tooltip: isCollapsed
-            ? 'drawer.expand_project'.tr()
-            : 'drawer.collapse_project'.tr(),
+    final project = widget.project;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      child: ListTile(
+        key: ValueKey('drawer-project-${project.id}'),
+        dense: true,
         visualDensity: VisualDensity.compact,
-        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-        onPressed: onToggleCollapsed,
-      ),
-      minLeadingWidth: 36,
-      title: Row(
-        children: [
-          Icon(
-            Icons.folder_outlined,
+        contentPadding: const EdgeInsetsDirectional.only(start: 16, end: 6),
+        selected: widget.isSelected,
+        selectedTileColor: theme.hoverColor,
+        leading: IconButton(
+          key: ValueKey('drawer-project-${project.id}-toggle'),
+          icon: Icon(
+            widget.isCollapsed ? Icons.chevron_right : Icons.expand_more,
             size: 20,
-            color: isSelected ? theme.colorScheme.primary : null,
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              project.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          tooltip: widget.isCollapsed
+              ? 'drawer.expand_project'.tr()
+              : 'drawer.collapse_project'.tr(),
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+          onPressed: widget.onToggleCollapsed,
+        ),
+        minLeadingWidth: 36,
+        title: Row(
+          children: [
+            Icon(
+              Icons.folder_outlined,
+              size: 20,
+              color: widget.isSelected ? theme.colorScheme.primary : null,
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                project.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        trailing: _isHovering || _isMenuOpen
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    key: ValueKey(
+                      'drawer-project-${project.id}-new-thread-button',
+                    ),
+                    icon: const Icon(Icons.add, size: 18),
+                    tooltip: 'drawer.new_thread'.tr(),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 36,
+                      height: 36,
+                    ),
+                    onPressed: widget.onCreateThread,
+                  ),
+                  PopupMenuButton<_ProjectMenuAction>(
+                    key: ValueKey('drawer-project-${project.id}-menu'),
+                    icon: const Icon(Icons.more_vert, size: 18),
+                    tooltip: 'drawer.project_actions_tooltip'.tr(),
+                    onOpened: () => setState(() => _isMenuOpen = true),
+                    onCanceled: () => setState(() => _isMenuOpen = false),
+                    onSelected: (action) {
+                      setState(() => _isMenuOpen = false);
+                      switch (action) {
+                        case _ProjectMenuAction.openInFinder:
+                          widget.onOpenProject();
+                          return;
+                        case _ProjectMenuAction.delete:
+                          widget.onDelete();
+                          return;
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: _ProjectMenuAction.openInFinder,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.folder_open_outlined),
+                          title: Text('drawer.open_in_finder'.tr()),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: _ProjectMenuAction.delete,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            Icons.delete_outline,
+                            color: theme.colorScheme.error,
+                          ),
+                          title: Text(
+                            'drawer.project_delete_action'.tr(),
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : null,
+        onTap: widget.onTap,
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.add, size: 18),
-            tooltip: 'drawer.new_thread'.tr(),
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-            onPressed: onCreateThread,
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            tooltip: 'drawer.delete_tooltip'.tr(),
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-            onPressed: onDelete,
-          ),
-        ],
-      ),
-      onTap: onTap,
     );
   }
 }
+
+enum _ProjectMenuAction { openInFinder, delete }
 
 class _ProjectThreadTile extends StatefulWidget {
   const _ProjectThreadTile({
