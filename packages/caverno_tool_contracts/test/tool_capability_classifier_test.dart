@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/core/security/tool_capability_classifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:test/test.dart';
 
 void main() {
   const classifier = ToolCapabilityClassifier();

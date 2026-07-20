@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/security/data_source_classifier.dart';
-import 'package:caverno/core/security/tool_capability_classifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:caverno/core/security/tool_perimeter_context.dart';
 
 void main() {
@@ -22,7 +22,10 @@ void main() {
 
     test('flags a network read as low-risk-to-run but untrusted output', () {
       final context = classifier.classify('http_get');
-      expect(context.capability.capabilityClass, ToolCapabilityClass.networkFetch);
+      expect(
+        context.capability.capabilityClass,
+        ToolCapabilityClass.networkFetch,
+      );
       expect(context.resultSource, DataSourceClass.remoteWeb);
       expect(context.resultTrust, TrustLevel.untrusted);
       expect(context.producesUntrustedContent, isTrue);

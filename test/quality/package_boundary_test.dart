@@ -462,6 +462,44 @@ void main() {
             'package:caverno_content_protocol.',
       );
     });
+
+    test(
+      'removes legacy tool contract ownership from the root application',
+      () {
+        final roots = <Directory>[
+          Directory('lib'),
+          Directory('test'),
+          Directory('integration_test'),
+          Directory('tool'),
+        ];
+        final legacyImport = RegExp(
+          r'(?:core/security/tool_capability_classifier|'
+          r'features/chat/domain/services/tool_approval_gate)\.dart',
+        );
+        final offenders = <String>[];
+
+        for (final root in roots.where((directory) => directory.existsSync())) {
+          for (final file in _dartFilesUnder(root)) {
+            final source = file.readAsStringSync();
+            if (legacyImport.hasMatch(source)) {
+              offenders.add('${file.path} imports a legacy tool contract.');
+            }
+            if (file.path.endsWith('app_settings.dart') &&
+                RegExp(r'enum\s+ToolApprovalMode\b').hasMatch(source)) {
+              offenders.add('${file.path} owns ToolApprovalMode.');
+            }
+          }
+        }
+
+        expect(
+          offenders,
+          isEmpty,
+          reason:
+              'Tool contract consumers must import '
+              'package:caverno_tool_contracts.',
+        );
+      },
+    );
   });
 }
 

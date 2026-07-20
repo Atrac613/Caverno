@@ -1,6 +1,7 @@
 // ignore_for_file: invalid_annotation_target
 
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
@@ -19,15 +20,6 @@ enum McpServerTrustState { pending, trusted, blocked }
 enum LocalCommandPermissionAction { allow, deny, ask }
 
 enum LocalCommandPermissionMatch { exact, prefix }
-
-/// Approval policy levels shared by the coding agent
-/// ([AppSettings.codingApprovalMode]) and chat-mode built-in browser
-/// automation ([AppSettings.chatApprovalMode]).
-///
-/// - [defaultPermissions]: prompt the user before each high-risk action.
-/// - [autoReview]: let the configured LLM endpoint allow/deny each action.
-/// - [fullAccess]: run high-risk actions without an approval prompt.
-enum ToolApprovalMode { defaultPermissions, autoReview, fullAccess }
 
 enum CodingVerificationTriggerPolicy { onCompletionClaim, onRequestOnly, off }
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/security/tool_capability_classifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../../../../core/security/tool_perimeter_context.dart';
 
 /// SEC1 (Local Agent Data Perimeter) slice 6: a compact one-line badge that

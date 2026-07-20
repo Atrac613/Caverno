@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import '../../../../core/constants/system_prompt_constants.dart';
-import '../../../../core/security/tool_capability_classifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_command_output_guardrail_service.dart';
 import 'context_surgery_observation_service.dart';

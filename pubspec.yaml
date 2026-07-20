@@ -24,6 +24,7 @@ environment:
 workspace:
   - packages/caverno_content_protocol
   - packages/caverno_execution_runtime
+  - packages/caverno_tool_contracts
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -42,6 +43,9 @@ dependencies:
 
   # Shared runtime contract for GUI, headless, and terminal frontends
   caverno_execution_runtime: ^0.1.0
+
+  # Shared approval and capability contracts for tool execution
+  caverno_tool_contracts: ^0.1.0
 
   cupertino_icons: ^1.0.9
 

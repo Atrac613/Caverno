@@ -32,6 +32,23 @@
       "publicLibraries": [
         "lib/caverno_execution_runtime.dart"
       ]
+    },
+    {
+      "name": "caverno_tool_contracts",
+      "path": "packages/caverno_tool_contracts",
+      "profile": "pure_dart",
+      "codegen": "none",
+      "owner": "Caverno security",
+      "purpose": "Share tool approval and capability contracts across Caverno surfaces.",
+      "consumers": [
+        "chat",
+        "security",
+        "settings",
+        "tooling"
+      ],
+      "publicLibraries": [
+        "lib/caverno_tool_contracts.dart"
+      ]
     }
   ]
 }

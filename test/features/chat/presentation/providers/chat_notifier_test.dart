@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -3363,8 +3364,7 @@ void main() {
       final chatNotifier = threadContainer.read(chatNotifierProvider.notifier);
       await chatNotifier.sendMessage('Open the Wikipedia article');
 
-      // The reviewer is consulted and, on "allow", the action runs without a
-      // manual approval prompt.
+      // Reviewer approval runs the action without a manual prompt.
       expect(chatNotifier.state.pendingBrowserAction, isNull);
       expect(dataSource.autoReviewRequestMessages, hasLength(1));
       expect(

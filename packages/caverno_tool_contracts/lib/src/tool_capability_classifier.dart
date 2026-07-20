@@ -3,7 +3,7 @@
 /// context to tool calls, approval surfaces, and taint policy (SEC2).
 ///
 /// This is pure classification. It changes no approval or execution behavior on
-/// its own, so promoting it cannot weaken any existing default policy
+/// its own, so extracting it cannot weaken any existing default policy
 /// (SEC1 acceptance criterion: "existing approval flows continue to work with no
 /// weaker default policy").
 library;

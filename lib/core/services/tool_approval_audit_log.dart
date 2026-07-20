@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../security/tool_capability_classifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import '../utils/logger.dart';
 
 /// Retention bounds for the approval audit trail. Because entries are

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';

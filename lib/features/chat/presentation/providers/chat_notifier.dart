@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:caverno_content_protocol/caverno_content_protocol.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -78,9 +79,7 @@ import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
-import '../../domain/services/tool_approval_gate.dart';
 import '../../../../core/security/conversation_taint_state.dart';
-import '../../../../core/security/tool_capability_classifier.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';

@@ -1,6 +1,5 @@
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-
-import '../../../settings/domain/entities/app_settings.dart';
 
 part 'conversation_participant.freezed.dart';
 part 'conversation_participant.g.dart';

@@ -1,5 +1,5 @@
 import 'data_source_classifier.dart';
-import 'tool_capability_classifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 /// SEC1 (Local Agent Data Perimeter), slice 3: one descriptor that unifies a
 /// tool call's capability ([ToolCapabilityClassifier]) and the provenance/trust

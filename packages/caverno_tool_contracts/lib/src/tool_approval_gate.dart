@@ -18,7 +18,7 @@ enum ToolApprovalGateOutcome {
   needsManualApproval,
 }
 
-/// Result of [ChatNotifier]'s shared approval gate. Use the const [fullAccess]
+/// Result of the shared approval gate. Use the const [fullAccess]
 /// / [autoReviewAllowed] / [needsManualApproval] singletons, or
 /// [ToolApprovalGateDecision.denied] to carry the reviewer's rationale.
 class ToolApprovalGateDecision {

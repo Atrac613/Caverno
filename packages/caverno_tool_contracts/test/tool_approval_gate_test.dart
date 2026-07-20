@@ -1,6 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
-
-import 'package:caverno/features/chat/domain/services/tool_approval_gate.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('ToolApprovalGateDecision.fromAutoReviewDenial', () {
@@ -15,7 +14,10 @@ void main() {
       expect(decision.needsManual, isTrue);
       expect(decision.isDenied, isFalse);
       expect(decision.escalatedFromAutoReviewDenial, isTrue);
-      expect(decision.autoReviewEscalationRationale, 'high-risk shell execution');
+      expect(
+        decision.autoReviewEscalationRationale,
+        'high-risk shell execution',
+      );
     });
 
     test('hard-denies when untrusted content is in context', () {
@@ -57,7 +59,10 @@ void main() {
       expect(ToolApprovalGateDecision.fullAccess.runsDirectly, isTrue);
       expect(ToolApprovalGateDecision.fullAccess.bypassedApproval, isTrue);
       expect(ToolApprovalGateDecision.autoReviewAllowed.runsDirectly, isTrue);
-      expect(ToolApprovalGateDecision.autoReviewAllowed.bypassedApproval, isFalse);
+      expect(
+        ToolApprovalGateDecision.autoReviewAllowed.bypassedApproval,
+        isFalse,
+      );
     });
   });
 }

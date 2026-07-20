@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/security/data_source_classifier.dart';
 import 'package:caverno/core/security/taint_policy.dart';
-import 'package:caverno/core/security/tool_capability_classifier.dart';
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 
 void main() {
   const policy = TaintPolicy();
@@ -26,10 +26,7 @@ void main() {
     });
 
     test('allows read-only actions even under untrusted influence', () {
-      expect(
-        assess('read_file', {TrustLevel.untrusted}),
-        TaintDecision.allow,
-      );
+      expect(assess('read_file', {TrustLevel.untrusted}), TaintDecision.allow);
       expect(
         assess('list_directory', {TrustLevel.untrusted}),
         TaintDecision.allow,
@@ -65,10 +62,7 @@ void main() {
 
     test('honors untrusted influence mixed with trusted evidence', () {
       expect(
-        assess('write_file', {
-          TrustLevel.userTrusted,
-          TrustLevel.untrusted,
-        }),
+        assess('write_file', {TrustLevel.userTrusted, TrustLevel.untrusted}),
         TaintDecision.requireApproval,
       );
     });
