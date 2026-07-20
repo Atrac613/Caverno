@@ -160,12 +160,19 @@ Caverno Flutter application
   -> external Dart packages
 ```
 
-Internal packages must never import `package:caverno`, Flutter, Riverpod,
-storage plugins, or platform plugins. The first package is
-`caverno_execution_runtime`, containing the shared runtime event, ports,
-execution engine, and failure classifier used by GUI and terminal frontends.
-File-backed ownership leases, persistence, Riverpod adapters, and frontend
-composition remain in the application.
+No internal package may import `package:caverno` or another internal package's
+private `lib/src/` implementation. Each package must obey the profile
+registered in `tool/internal_package_catalog.json`. The current
+`caverno_execution_runtime` and `caverno_content_protocol` packages use the
+`pure_dart` profile and therefore cannot import Flutter, Riverpod, persistence
+plugins, platform plugins, or operating-system libraries.
+
+`caverno_execution_runtime` contains the shared runtime event, ports, execution
+engine, and failure classifier used by GUI and terminal frontends.
+`caverno_content_protocol` contains the shared LLM content parser and public
+parser result types used by chat, routines, and settings. File-backed ownership
+leases, persistence, Riverpod adapters, frontend composition, and product
+workflow policy remain in the application.
 
 Follow-up package candidates require a stable second consumer and an acyclic
 dependency graph. `ChatNotifier`, `ChatPage`, `McpToolService`, and settings or
@@ -178,25 +185,34 @@ Exit criteria:
 - The root application depends on packages in one direction only.
 - Runtime event schemas and frontend behavior remain unchanged.
 
-Foundation status (2026-07-16):
+Foundation status (2026-07-20):
 
-- `packages/caverno_execution_runtime` now owns the shared event, ports,
-  execution engine, and failure classifier behind one public library.
-- The package has no Flutter, Riverpod, storage, platform, or root Caverno
-  dependency. IO ownership and application composition remain in the root app.
-- `test/quality/package_boundary_test.dart` rejects legacy imports, platform
-  dependencies, root-package imports, and relative paths that escape the
-  package.
-- `tool/codex_verify.sh` discovers internal packages and runs dependency
-  resolution, analysis, and tests for each package before root focused tests.
-- The package passed 13 tests; the focused root integration gate passed 32
-  tests; root and package analysis reported no findings.
+- `packages/caverno_execution_runtime` owns the shared execution event, ports,
+  engine, and failure classifier. `packages/caverno_content_protocol` owns the
+  shared LLM content parser and its public parsing contract.
+- Both packages are pure Dart, expose one public library each, and share the
+  root Pub workspace resolution without Flutter, Riverpod, storage, platform,
+  or root Caverno dependencies.
+- `tool/internal_package_catalog.json` records package ownership, purpose,
+  consumers, profile, code generation, and public libraries.
+- `test/quality/package_boundary_test.dart` compares discovery, workspace, and
+  catalog state; rejects dependency cycles, private imports, reverse root
+  dependencies, profile violations, and relative paths that escape `lib`.
+- `tool/codex_verify.sh` resolves the workspace once, routes package analysis,
+  tests, and code generation by package metadata, and merges package coverage
+  with root coverage.
+- The boundary gate passed 8 tests, content protocol passed 30 tests, execution
+  runtime passed 13 tests, and the focused root integration gate passed 107
+  tests. The full coverage gate completed with clean analysis and 74.88% merged
+  line coverage.
 
 Foundation follow-up:
 
 - The previously planned ChatPage build-scaffold and right-sidebar boundary is
-  complete under Phase 2 Tranche 5. Do not create another package until a
-  stable second consumer and an acyclic dependency direction are demonstrated.
+  complete under Phase 2 Tranche 5.
+- Re-measure `caverno_tool_contracts` next. Extraction remains gated on moving
+  approval and capability contracts out of application settings, demonstrating
+  an acyclic dependency graph, and preserving approval and audit semantics.
 
 ## Phase 1: ChatNotifier Decomposition
 

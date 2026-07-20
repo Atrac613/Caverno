@@ -150,9 +150,11 @@ creating a larger package around both features.
 
 ## Package Profiles
 
-Every internal package must declare one profile in the repository package
-policy. The policy should become the source of truth for architecture tests and
-verification routing instead of hard-coding rules for individual packages.
+Every internal package declares one profile in
+`tool/internal_package_catalog.json`. The catalog is the source of truth for
+package ownership, purpose, consumers, public libraries, verification routing,
+and optional code generation instead of hard-coding rules for individual
+packages.
 
 ### `pure_dart`
 
@@ -220,11 +222,11 @@ All profiles require:
 - no relative import that escapes the package's `lib/` directory;
 - no direct import of another package's private `src/` implementation;
 - no dependency cycle;
-- a documented owner, purpose, profile, and consumers in the package policy;
+- a documented owner, purpose, profile, and consumers in the package catalog;
 - repository verification before root application tests.
 
-The initial Pub workspace must list members explicitly while the repository SDK
-constraint remains below the version that supports workspace package globs.
+The Pub workspace lists members explicitly while the repository SDK constraint
+remains below the version that supports workspace package globs.
 
 ## Registry And Core Pack
 
@@ -258,10 +260,12 @@ and compatibility validation. This keeps validation behavior representative of
 future locally installed or curated content and prevents built-ins from relying
 on undocumented exceptions.
 
-The first implementation supports only the core pack. Possible future sources
-are project-local, user-local, and curated remote catalogs. Source priority,
-identifier conflicts, and trust transitions must be explicit before any source
-is enabled. A lower-trust source must never shadow a core identifier silently.
+The first registry implementation will support only the core pack. The package
+foundation does not add a component registry or installable-component runtime.
+Possible future sources are project-local, user-local, and curated remote
+catalogs. Source priority, identifier conflicts, and trust transitions must be
+explicit before any source is enabled. A lower-trust source must never shadow a
+core identifier silently.
 
 ## Component Manifest Contract
 
@@ -432,10 +436,11 @@ A candidate stays app-local when it owns navigation, global Riverpod assembly,
 multiple persistence implementations, platform orchestration, or bidirectional
 feature dependencies. Ports and contracts should be extracted first.
 
-## Pilot: `caverno_content_protocol`
+## Completed Pilot: `caverno_content_protocol`
 
-The first new package will extract the existing LLM content parsing contract
-from `lib/core/utils/content_parser.dart`.
+The first package pilot moved the existing LLM content parsing contract from
+`lib/core/utils/content_parser.dart` into
+`packages/caverno_content_protocol`.
 
 ### Why This Pilot
 
@@ -483,13 +488,30 @@ dependency graph rather than pre-approved. Likely candidates are tool contracts,
 LLM contracts, and workflow-core policies, in that order, after their root
 dependencies are removed.
 
+### Pilot Result (2026-07-20)
+
+- `caverno_content_protocol` is an explicit Pub workspace member and all 12
+  direct production consumers use its public library.
+- The package passed clean analysis and all 30 parser contract tests without a
+  compatibility re-export from the former root path.
+- The generic package boundary gate passed all 8 tests, and the focused root
+  consumer gate passed all 107 tests.
+- The full repository verification gate completed successfully. Its merged
+  LCOV report covers 55,547 of 74,181 lines (74.88%), including both internal
+  packages.
+- `caverno_tool_contracts` is the next candidate to re-measure. It is not
+  approved for extraction until approval and capability contracts are separated
+  from application settings and the resulting dependency graph is acyclic.
+
 ## Delivery Sequence
 
-1. Land this architecture contract.
-2. Establish the explicit Pub workspace and machine-readable package profiles.
-3. Generalize architecture tests and verification routing for all profiles.
-4. Extract `caverno_content_protocol` without behavior changes.
-5. Re-measure package dependencies and select the next candidate.
+1. **Completed:** Land the architecture contract.
+2. **Completed:** Establish the explicit Pub workspace and machine-readable
+   package catalog.
+3. **Completed:** Generalize architecture tests, verification routing, optional
+   package code generation, and merged coverage.
+4. **Completed:** Extract `caverno_content_protocol` without behavior changes.
+5. **Next:** Re-measure package dependencies and select the next candidate.
 6. Add the static component registry and bundled core-pack format with TOOL1,
    not as part of the parser pilot.
 7. Consider curated catalogs, bundles, and signed distribution only after the

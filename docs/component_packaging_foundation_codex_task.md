@@ -125,6 +125,37 @@ tool/codex_verify.sh --coverage
 ## Handoff Notes
 
 - Summary:
+  - Added an explicit Pub workspace and a machine-readable internal-package
+    catalog with ownership, purpose, consumer, profile, code-generation, and
+    public-library metadata.
+  - Generalized the package boundary gate to compare the catalog, workspace,
+    and discovered packages; validate dependency direction and cycles; and
+    enforce profile-specific import policy.
+  - Updated repository verification to resolve the workspace once, route
+    package analysis and tests by profile, retain package-local code-generation
+    support, and merge package coverage into the repository LCOV report.
+  - Extracted `ContentParser` and its 30 direct contract tests into
+    `caverno_content_protocol`, then migrated all 12 direct production
+    consumers to the package's public library.
 - Tests run:
+  - The generic package boundary gate passed all 8 tests.
+  - Both packages reported clean analysis; `caverno_content_protocol` passed 30
+    tests and `caverno_execution_runtime` passed 13 tests.
+  - The focused parser-consumer integration gate passed 107 root tests.
+  - `tool/codex_verify.sh --coverage` completed successfully, including clean
+    generated-output verification, both package suites, and the full root test
+    suite.
 - Coverage or low-coverage notes:
+  - The merged report covers 55,547 of 74,181 lines (74.88%). Root application
+    coverage is 54,441 of 72,859 lines (74.72%), content protocol coverage is
+    700 of 802 lines (87.28%), and execution runtime coverage is 406 of 520
+    lines (78.08%).
 - Risks or follow-ups:
+  - Although the declared SDK constraint remains `^3.10.8`, the current lockfile
+    resolves dependencies that require Dart 3.12 and Flutter 3.44. The pinned
+    FVM toolchain satisfies those effective requirements.
+  - `caverno_tool_contracts` remains the next likely candidate, but it must not
+    move until approval and capability contracts are separated from application
+    settings and the dependency graph is re-measured.
+  - The compile-time package catalog is intentionally separate from the future
+    runtime component registry and bundled core-pack format.
