@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 
 import 'filesystem_diff_builder.dart';
+import 'filesystem_path_resolver.dart';
 
 class TextFileSnapshot {
   const TextFileSnapshot({
@@ -72,71 +73,20 @@ class FilesystemTools {
 
   static const int _maxEntries = 300;
   static const int _maxSearchResults = 200;
-  static final RegExp _windowsDriveLetterPath = RegExp(r'^[A-Za-z]:[\\/]');
-  static const Set<String> _blockedReadPaths = {
-    '/dev/null',
-    '/dev/random',
-    '/dev/stdin',
-    '/dev/stdout',
-    '/dev/stderr',
-    '/dev/urandom',
-    '/dev/zero',
-  };
-
   static bool get isDesktopPlatform =>
       Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
-  static String? resolvePath(String? rawPath, {String? defaultRoot}) {
-    final trimmed = rawPath?.trim() ?? '';
-    final normalizedDefaultRoot = defaultRoot?.trim();
+  /// Delegates to [FilesystemPathResolver.resolve]; retained because callers
+  /// outside this file resolve paths through the tool surface.
+  static String? resolvePath(String? rawPath, {String? defaultRoot}) =>
+      FilesystemPathResolver.resolve(rawPath, defaultRoot: defaultRoot);
 
-    if (trimmed.isEmpty) {
-      if (normalizedDefaultRoot == null || normalizedDefaultRoot.isEmpty) {
-        return null;
-      }
-      return Directory(normalizedDefaultRoot).absolute.path;
+  static bool _bytesEqual(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
     }
-
-    final expandedPath = _expandHomeRelativePath(trimmed);
-    if (expandedPath == null) {
-      return null;
-    }
-
-    if (_isAbsolutePath(expandedPath)) {
-      return File(expandedPath).absolute.path;
-    }
-
-    if (normalizedDefaultRoot == null || normalizedDefaultRoot.isEmpty) {
-      return null;
-    }
-
-    return File.fromUri(
-      Directory(normalizedDefaultRoot).uri.resolve(expandedPath),
-    ).absolute.path;
-  }
-
-  static String? _expandHomeRelativePath(String path) {
-    if (Platform.isWindows || (path != '~' && !path.startsWith('~/'))) {
-      return path;
-    }
-
-    final home = Platform.environment['HOME']?.trim();
-    if (home == null || home.isEmpty) {
-      return null;
-    }
-
-    if (path == '~') {
-      return Directory(home).absolute.path;
-    }
-
-    return File.fromUri(
-      Directory(home).uri.resolve(path.substring(2)),
-    ).absolute.path;
-  }
-
-  static bool _isBlockedReadPath(String path) {
-    if (Platform.isWindows) return false;
-    return _blockedReadPaths.contains(path);
+    return true;
   }
 
   static Future<String> listDirectory({
@@ -212,7 +162,7 @@ class FilesystemTools {
     }
 
     final absolutePath = file.absolute.path;
-    if (_isBlockedReadPath(absolutePath)) {
+    if (FilesystemPathResolver.isBlockedReadPath(absolutePath)) {
       return jsonEncode({
         'error': 'Special device files are not supported by read_file.',
         'path': absolutePath,
@@ -319,7 +269,7 @@ class FilesystemTools {
       return jsonEncode({'error': 'File does not exist: $path'});
     }
     final absolutePath = file.absolute.path;
-    if (_isBlockedReadPath(absolutePath)) {
+    if (FilesystemPathResolver.isBlockedReadPath(absolutePath)) {
       return jsonEncode({
         'error': 'Special device files are not supported by inspect_file.',
         'path': absolutePath,
@@ -624,14 +574,31 @@ class FilesystemTools {
     final file = File(path);
     final existedBefore = file.existsSync();
     try {
+      final newBytes = utf8.encode(content);
+      // Whether the write changed anything is not derivable from the response
+      // otherwise: a byte-identical write reports the same bytes_written as a
+      // real edit, which is what lets an edit/re-read loop repeat forever
+      // while nothing moves. Compare lengths first so the content read only
+      // happens when a no-op is actually possible.
+      var changed = true;
+      if (existedBefore) {
+        try {
+          changed =
+              await file.length() != newBytes.length ||
+              !_bytesEqual(await file.readAsBytes(), newBytes);
+        } on FileSystemException {
+          changed = true;
+        }
+      }
       if (createParents) {
         await file.parent.create(recursive: true);
       }
       await file.writeAsString(content);
       return jsonEncode({
         'path': file.absolute.path,
-        'bytes_written': utf8.encode(content).length,
+        'bytes_written': newBytes.length,
         'created': !existedBefore,
+        'changed': changed,
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(
@@ -1204,12 +1171,6 @@ class FilesystemTools {
       offsets.add(index);
       start = index + target.length;
     }
-  }
-
-  static bool _isAbsolutePath(String path) {
-    return path.startsWith('/') ||
-        path.startsWith(r'\\') ||
-        _windowsDriveLetterPath.hasMatch(path);
   }
 
   static String _relativePath(String candidatePath, String basePath) {

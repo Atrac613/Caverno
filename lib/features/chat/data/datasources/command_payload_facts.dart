@@ -60,6 +60,16 @@ class CommandPayloadFacts {
     );
   }
 
+  /// Reads a file-mutation payload's `changed` flag as an outcome.
+  ///
+  /// Returns null when the tool did not report it — an older payload, a failed
+  /// write, or a mutation whose effect could not be determined. Absent means
+  /// unknown, never "unchanged".
+  static ToolOutcome? mutationOutcome(String payload) {
+    final changed = tryDecodeMap(payload)?['changed'];
+    return changed is bool ? ToolOutcome(fileChanged: changed) : null;
+  }
+
   static Map<String, dynamic>? tryDecodeMap(String payload) {
     try {
       final decoded = jsonDecode(payload);

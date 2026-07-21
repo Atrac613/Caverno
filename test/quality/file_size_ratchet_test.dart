@@ -53,14 +53,14 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/slash_commands/slash_command_catalog.dart':
       100,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1202,
-  'lib/features/chat/data/datasources/filesystem_tools.dart': 1282,
+  'lib/features/chat/data/datasources/filesystem_tools.dart': 1243,
   'lib/features/chat/data/datasources/filesystem_diff_builder.dart': 213,
   'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1164,
   'lib/features/chat/data/datasources/chat_completion_response_normalizer.dart':
       183,
   'lib/features/chat/data/datasources/built_in_network_tool_handler.dart': 978,
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
-      622,
+      343,
   'lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart':
       341,
   'lib/features/chat/data/datasources/built_in_ble_tool_handler.dart': 360,

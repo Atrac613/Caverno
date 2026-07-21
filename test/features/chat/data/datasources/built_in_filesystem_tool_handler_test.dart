@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:caverno/features/chat/data/datasources/built_in_filesystem_tool_handler.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 typedef _OperationCall = ({String name, Map<String, dynamic> arguments});
@@ -30,6 +31,36 @@ void main() {
         expect(handler.handles(name), isTrue, reason: name);
       }
       expect(handler.handles('resolve_installed_dependency'), isFalse);
+    });
+
+    test('carries whether a mutation actually changed the file', () async {
+      // The whole point of the fact: a byte-identical write succeeds and looks
+      // exactly like a real one, so without this a no-op edit reads as
+      // progress and the edit/re-read loop has nothing to stop it.
+      Future<McpToolResult> run(String payload) {
+        final handler = BuiltInFilesystemToolHandler(
+          operationRunner: ({required name, required arguments}) async =>
+              payload,
+          snapshotReader: (path) async =>
+              TextFileSnapshot(path: path, exists: false),
+        );
+        return handler.execute(
+          name: 'write_file',
+          arguments: const {'path': '/tmp/x.txt', 'content': 'hello'},
+        );
+      }
+
+      final changed = await run('{"path":"/tmp/x.txt","changed":true}');
+      final unchanged = await run('{"path":"/tmp/x.txt","changed":false}');
+      final silent = await run('{"path":"/tmp/x.txt"}');
+      final failed = await run('{"error":"permission denied"}');
+
+      expect(changed.outcome?.fileChanged, isTrue);
+      expect(unchanged.outcome?.fileChanged, isFalse);
+      expect(unchanged.outcome?.isNoOpMutation, isTrue);
+      // Absent means unknown, never "unchanged".
+      expect(silent.outcome, isNull);
+      expect(failed.outcome, isNull);
     });
 
     test(

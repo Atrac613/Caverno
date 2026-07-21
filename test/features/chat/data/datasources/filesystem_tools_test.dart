@@ -112,6 +112,63 @@ void main() {
     expect(directory.existsSync(), isTrue);
   });
 
+  test('writeFile reports whether the content actually changed', () async {
+    // A byte-identical rewrite is otherwise indistinguishable from a real one:
+    // same bytes_written, same success. Without this fact the model can loop on
+    // edit -> re-read -> edit while the file never moves.
+    final targetPath = '${tempDir.path}${Platform.pathSeparator}write.txt';
+
+    final created =
+        jsonDecode(
+              await FilesystemTools.writeFile(
+                path: targetPath,
+                content: 'hello world',
+              ),
+            )
+            as Map<String, dynamic>;
+    final rewritten =
+        jsonDecode(
+              await FilesystemTools.writeFile(
+                path: targetPath,
+                content: 'hello world',
+              ),
+            )
+            as Map<String, dynamic>;
+    final edited =
+        jsonDecode(
+              await FilesystemTools.writeFile(
+                path: targetPath,
+                content: 'hello there',
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(created['created'], isTrue);
+    expect(created['changed'], isTrue);
+    expect(rewritten['created'], isFalse);
+    expect(rewritten['changed'], isFalse);
+    expect(edited['changed'], isTrue);
+    expect(rewritten['bytes_written'], created['bytes_written']);
+  });
+
+  test('writeFile detects a same-length content change', () async {
+    // The length comparison is only a shortcut; equal lengths must still be
+    // compared byte for byte or a same-size edit reads as a no-op.
+    final targetPath = '${tempDir.path}${Platform.pathSeparator}samesize.txt';
+    await FilesystemTools.writeFile(path: targetPath, content: 'aaaa');
+
+    final result =
+        jsonDecode(
+              await FilesystemTools.writeFile(
+                path: targetPath,
+                content: 'bbbb',
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(result['changed'], isTrue);
+  });
+
   test('editFile reports no_change when new_text equals old_text', () async {
     final targetPath = '${tempDir.path}${Platform.pathSeparator}noop.txt';
     await FilesystemTools.writeFile(path: targetPath, content: 'hello world');

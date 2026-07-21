@@ -19,7 +19,7 @@
 /// outcome never carries a field nothing populates. See LL34 in
 /// `docs/local_llm_agent_roadmap.md`.
 class ToolOutcome {
-  const ToolOutcome({this.exitCode});
+  const ToolOutcome({this.exitCode, this.fileChanged});
 
   /// Process exit status for tools that run a command.
   ///
@@ -30,11 +30,22 @@ class ToolOutcome {
   /// into one.
   final int? exitCode;
 
+  /// Whether a write actually altered the file's content.
+  ///
+  /// A byte-identical write succeeds and reports the same byte count as a real
+  /// one, so without this a no-op edit is indistinguishable from progress —
+  /// the condition that lets an edit, re-read, edit loop run forever. Null
+  /// when the tool does not mutate files, or could not determine it.
+  final bool? fileChanged;
+
+  /// Whether a mutation ran and left the file exactly as it was.
+  bool get isNoOpMutation => fileChanged == false;
+
   /// Whether this outcome carries any fact at all.
   ///
   /// An outcome with nothing populated is equivalent to no outcome, and
   /// consumers should fall back to their existing text handling.
-  bool get isEmpty => exitCode == null;
+  bool get isEmpty => exitCode == null && fileChanged == null;
 
   bool get isNotEmpty => !isEmpty;
 
@@ -49,6 +60,7 @@ class ToolOutcome {
 
   Map<String, dynamic> toJson() => {
     if (exitCode != null) 'exit_code': exitCode,
+    if (fileChanged != null) 'changed': fileChanged,
   };
 
   static ToolOutcome? fromJson(Map<String, dynamic>? json) {
@@ -56,8 +68,10 @@ class ToolOutcome {
       return null;
     }
     final rawExitCode = json['exit_code'];
+    final rawChanged = json['changed'];
     final outcome = ToolOutcome(
       exitCode: rawExitCode is num ? rawExitCode.toInt() : null,
+      fileChanged: rawChanged is bool ? rawChanged : null,
     );
     return outcome.isEmpty ? null : outcome;
   }
@@ -65,11 +79,14 @@ class ToolOutcome {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ToolOutcome && other.exitCode == exitCode;
+      other is ToolOutcome &&
+          other.exitCode == exitCode &&
+          other.fileChanged == fileChanged;
 
   @override
-  int get hashCode => exitCode.hashCode;
+  int get hashCode => Object.hash(exitCode, fileChanged);
 
   @override
-  String toString() => 'ToolOutcome(exitCode: $exitCode)';
+  String toString() =>
+      'ToolOutcome(exitCode: $exitCode, fileChanged: $fileChanged)';
 }
