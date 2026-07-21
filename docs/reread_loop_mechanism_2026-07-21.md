@@ -70,7 +70,55 @@ the re-read that then shows up in the triage as redundant**. The loop is not
 purely a model failure; the tool asks for it, the model complies, the anchor
 misses again, and the cycle repeats.
 
-## Proposed next target (not yet built)
+## Instrument failure: occurrence counts in this document are not trustworthy
+
+Following up on the proposed target below produced a methodological finding
+that partially undermines this document's own numbers. Recorded here rather
+than quietly fixed, because the counts were already acted on.
+
+**Contamination 1 — substring matching against inlined file content.** The
+`old_text` not-found error inlines `current_content` for files ≤4096 bytes, so
+the *file being edited* becomes part of the log text. In session `73fa0bf3`, 84
+occurrences of `not found` break down as 20 real tool errors and **64 lines of
+the app's own source** (a TODO CLI that prints `Todo item ... not found`).
+Every count in this document derived from the loose string `not found` is
+inflated by an unknown amount.
+
+**Contamination 2 — errors with no corresponding tool call.** Re-running with
+the exact error string `old_text was not found` gives 982 total occurrences,
+but only 99 carry either hint variant, and several of the worst sessions have
+**zero** `[Tool: edit_file]` renders while showing dozens of errors
+(`0461c455`: 10 reads, 0 edits, 55 errors; `d65fa545`: 0 reads, 0 edits, 36).
+An error cannot occur without an edit, so the text is reaching the log by some
+path other than a rendered tool result — most plausibly conversation history
+replayed into each record. That was not accounted for, and it means **no
+per-occurrence figure here is defensible.**
+
+What survives:
+
+| Claim | Status |
+|-------|--------|
+| 46 read-heavy sessions; 23 with edits; 19 with a real not-found | Session-level presence, re-verified with the exact error string — **holds** |
+| 23 of 46 read-heavy sessions involve no mutation at all | Presence-based — **holds** |
+| Session `119292cb` shows read/edit alternation with failing anchors | Single traced session — **holds as n=1** |
+| "29 not-found occurrences" in `119292cb` | **Withdrawn** (contamination 1) |
+| 73% / 27% split between the two hint branches | **Unverified** — the hint strings are distinctive enough to avoid contamination 1, but the 99 occurrences may still be replay-inflated |
+
+The pattern that prompted this check — a model re-issuing an edit it had already
+applied successfully (visible in `73fa0bf3`, rows 7-8: the identical
+`TodoList._();` → `TodoList();` edit succeeding then failing) — could not be
+counted at all: the extraction matched 2 of that session's not-found edits.
+A null result from a broken instrument is not a null result, so no claim is
+made about its frequency.
+
+**Before any further claim about this loop, the instrument has to be fixed:**
+parse the log records and count each tool result once, in the record where it
+first appears, instead of grepping the concatenated text. That belongs in
+`tool/` next to `triage_session_logs.py` so the next question costs seconds
+rather than a rebuild — the ad-hoc scripts behind this document were thrown
+away, which is part of why it took four attempts to notice they were wrong.
+
+## Proposed next target (not yet built, and not yet justified)
 
 Give the large-file branch what the small-file branch already gives: enough
 current content to copy from, without a full re-read. Rather than inlining a

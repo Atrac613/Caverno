@@ -147,6 +147,20 @@ structured upstream by the LSP bridge).
 
 ## Caveat
 
+**Method risk (added 2026-07-21, after a related count proved contaminated).**
+The traffic figures above come from counting `[Tool: <name>]` markers in the
+concatenated log text. A later investigation
+(`docs/reread_loop_mechanism_2026-07-21.md`) found two failure modes in that
+technique: substring matches against file content inlined into tool payloads,
+and text appearing in sessions that contain no corresponding tool render, most
+plausibly through replayed conversation history. The `[Tool: ]` marker is
+distinctive enough to be immune to the first, and the observed rate (~2.2
+renders per session) is too low to suggest heavy replay inflation, so these
+figures are probably sound — but they were produced by the same throwaway
+technique and have not been re-verified against a record-parsing count. Treat
+the *ranking* as reliable and the *percentages* as approximate until the
+instrument in `tool/` exists.
+
 These logs are one developer's usage on one machine, weighted toward coding
 sessions. The shape (top-heavy, coding tools dominant) is unlikely to invert,
 but the exact percentages should not be quoted as a general property of the
