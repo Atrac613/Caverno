@@ -2868,9 +2868,11 @@ JSON schemas among its execution paths).
 Also shipped: the mutation `changed` fact end to end — `writeFile` compares
 before writing (lengths first, bytes only when they match), the filesystem
 handler lifts it at `_executeMutation`, and the `write_file` operation note
-tells the model the file is UNCHANGED instead of "updated or overwrote". That
-is the one signal behind the dominant measured failure that nothing detected;
-see the correction in `docs/ll34_tool_outcome_census_2026-07-21.md`.
+tells the model the file is UNCHANGED instead of "updated or overwrote". It closes a
+real ambiguity — a byte-identical write was indistinguishable from a real one —
+but it is **not** the dominant failure's driver: counting the logs afterwards
+put no-op mutations at 1 of 23 edit-bearing re-read sessions against anchor
+mismatch at 19 (`docs/reread_loop_mechanism_2026-07-21.md`).
 
 Still open: the `read_file` content hash (coverage and cross-parameter
 comparison, not the causal fix), an equivalent `changed` fact for `edit_file`'s

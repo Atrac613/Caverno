@@ -77,6 +77,13 @@ it at iteration 4" a fact the harness can state, and it extends comparison
 across reads with different parameters (offset 1-100 then 1-200 produce
 different payloads from an unchanged file).
 
+> **Superseded (same day).** The correction below replaced the read hash with
+> the mutation `changed` fact as "the signal behind the dominant failure". That
+> is also wrong: counting the logs shows anchor mismatch (`old_text was not
+> found`) in 19 of 23 edit-bearing re-read sessions versus no-op mutations in 1.
+> See `docs/reread_loop_mechanism_2026-07-21.md`. The reasoning below is kept
+> because the intermediate claim was acted on.
+
 ### Correction (same day): the read hash is not the signal the dominant failure needs
 
 This document first claimed the read hash makes the measured dominant failure —
