@@ -3019,7 +3019,7 @@ Source: Grok Build comparison, class 2; `goal_stop_detector.rs`
 Next action: label and record the `NarratedTranscriptClaimGuard` and deferral
 detector firings first — they are the two with the least evidence behind them.
 
-### LL37: Objective Verification (Single Verifier Inline, Panel At Idle)
+### LL37: Objective Verification (Idle Panel Only)
 
 Status: `later`
 
