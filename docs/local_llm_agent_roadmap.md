@@ -2483,7 +2483,21 @@ graded-decision helper next to `ToolLoopRecoveryPolicy` and rewire the
 
 ### LL30: Compaction Structural Pre-Pass
 
-Status: `next`
+Status: `done`
+
+Shipped 2026-07-21 in two slices. `297d4f52` added
+`ConversationToolResultPruner` (dedupe + one-line outcome summaries) inside
+`buildArtifact`. Measuring it revealed the prune fed the already-capped summary
+half and changed no prompt tokens
+(`docs/ll30_prune_reaches_the_capped_half_2026-07-21.md`); `879b46f9` added the
+protected-tail token budget, which is where post-compaction tokens actually
+fall. The tail degrades overflow content via the same pruner and persists it as
+artifact content overrides, so no message is dropped and the LL6 prefix is only
+invalidated at the compaction boundary that already invalidates it. A binary
+in/budget rule proved sufficient — the pruner reduced the measured tail to 146
+tokens while retaining every message, so the graduated soft-trim shape did not
+earn its complexity. Deferred follow-ups: anti-thrashing back-off, tool-call
+argument truncation inside parsed JSON, and attachment eviction.
 
 Problem:
 - `ConversationCompactionService` summarizes the conversation but does not first
