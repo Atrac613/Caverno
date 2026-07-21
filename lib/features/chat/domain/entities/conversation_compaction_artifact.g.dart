@@ -14,6 +14,11 @@ _ConversationCompactionArtifact _$ConversationCompactionArtifactFromJson(
   sourceMessageCount: (json['sourceMessageCount'] as num?)?.toInt() ?? 0,
   compactedMessageCount: (json['compactedMessageCount'] as num?)?.toInt() ?? 0,
   retainedMessageCount: (json['retainedMessageCount'] as num?)?.toInt() ?? 0,
+  retainedMessageContentOverrides:
+      (json['retainedMessageContentOverrides'] as Map<String, dynamic>?)?.map(
+        (k, e) => MapEntry(k, e as String),
+      ) ??
+      const <String, String>{},
   estimatedPromptTokens: (json['estimatedPromptTokens'] as num?)?.toInt() ?? 0,
   updatedAt: json['updatedAt'] == null
       ? null
@@ -28,6 +33,7 @@ Map<String, dynamic> _$ConversationCompactionArtifactToJson(
   'sourceMessageCount': instance.sourceMessageCount,
   'compactedMessageCount': instance.compactedMessageCount,
   'retainedMessageCount': instance.retainedMessageCount,
+  'retainedMessageContentOverrides': instance.retainedMessageContentOverrides,
   'estimatedPromptTokens': instance.estimatedPromptTokens,
   'updatedAt': instance.updatedAt?.toIso8601String(),
 };

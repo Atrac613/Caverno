@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_compaction_service.dart';
-import 'package:caverno/features/chat/domain/services/conversation_tool_result_pruner.dart';
 
 void main() {
   final fileContent = List<String>.generate(
@@ -16,7 +15,7 @@ void main() {
       'Result:\n'
       '${jsonEncode({'path': 'lib/config.dart', 'content': fileContent})}';
   final messages = List<Message>.generate(
-    12,
+    60,
     (index) => Message(
       id: 'read-$index',
       content: renderedRead,
@@ -25,23 +24,38 @@ void main() {
     ),
   );
 
-  final beforeTokens = ConversationCompactionService.estimatePromptTokens(
-    messages,
+  final artifact = ConversationCompactionService.buildArtifact(
+    messages: messages,
+    now: DateTime(2026, 7, 21, 12, 0),
   );
-  final result = ConversationToolResultPruner.prune(messages);
-  final afterTokens = ConversationCompactionService.estimatePromptTokens(
-    result.messages,
+  if (artifact == null) {
+    stderr.writeln('Expected the synthetic conversation to compact.');
+    exitCode = 1;
+    return;
+  }
+  final retainedBefore = messages.sublist(artifact.compactedMessageCount);
+  final retainedAfter = ConversationCompactionService.retainMessages(
+    messages: messages,
+    artifact: artifact,
   );
-  final tokenSavings = beforeTokens - afterTokens;
-  final tokenSavingsRatio = beforeTokens == 0
-      ? 0.0
-      : tokenSavings / beforeTokens;
+  final summaryTokens = artifact.summary.length ~/ 4;
+  final retainedBeforeTokens =
+      ConversationCompactionService.estimatePromptTokens(retainedBefore);
+  final retainedAfterTokens =
+      ConversationCompactionService.estimatePromptTokens(retainedAfter);
+  final totalBefore = summaryTokens + retainedBeforeTokens;
+  final totalAfter = summaryTokens + retainedAfterTokens;
+  final tokenSavings = totalBefore - totalAfter;
+  final tokenSavingsRatio = totalBefore == 0 ? 0.0 : tokenSavings / totalBefore;
 
-  stdout.writeln('== LL30 structural prune synthetic measurement ==');
+  stdout.writeln('== LL30 post-compaction synthetic measurement ==');
   stdout.writeln('messages: ${messages.length}');
-  stdout.writeln('summarized results: ${result.summarizedResultCount}');
-  stdout.writeln('duplicate results: ${result.duplicateResultCount}');
-  stdout.writeln('estimated prompt tokens: $beforeTokens -> $afterTokens');
+  stdout.writeln('retained tail messages: ${retainedAfter.length}');
+  stdout.writeln('summary tokens: $summaryTokens');
+  stdout.writeln(
+    'retained tail tokens: $retainedBeforeTokens -> $retainedAfterTokens',
+  );
+  stdout.writeln('post-compaction total: $totalBefore -> $totalAfter');
   stdout.writeln(
     'estimated token savings: $tokenSavings '
     '(${(tokenSavingsRatio * 100).toStringAsFixed(1)}%)',

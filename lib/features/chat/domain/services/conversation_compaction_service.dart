@@ -23,9 +23,10 @@ class ConversationTokenPressure {
 class ConversationCompactionService {
   ConversationCompactionService._();
 
-  static const int artifactVersion = 2;
+  static const int artifactVersion = 3;
   static const int minMessagesBeforeCompaction = 14;
   static const int recentMessagesToKeep = 8;
+  static const int retainedTailTokenBudget = 1000;
   static const int maxEstimatedPromptTokens = 6000;
   static const int maxSummaryBullets = 12;
   static const int maxPlanBullets = 4;
@@ -85,12 +86,16 @@ class ConversationCompactionService {
       return null;
     }
 
+    final retainedMessages = normalizedMessages.sublist(compactedMessageCount);
     return ConversationCompactionArtifact(
       version: artifactVersion,
       summary: summary,
       sourceMessageCount: normalizedMessages.length,
       compactedMessageCount: compactedMessageCount,
       retainedMessageCount: normalizedMessages.length - compactedMessageCount,
+      retainedMessageContentOverrides: _buildRetainedContentOverrides(
+        retainedMessages,
+      ),
       estimatedPromptTokens: estimatePromptTokens(normalizedMessages),
       updatedAt: now ?? DateTime.now(),
     );
@@ -150,7 +155,55 @@ class ConversationCompactionService {
       return normalizedMessages;
     }
 
-    return normalizedMessages.sublist(compactedCount);
+    final retainedMessages = normalizedMessages.sublist(compactedCount);
+    final overrides = artifact.retainedMessageContentOverrides;
+    if (overrides.isEmpty) {
+      return retainedMessages;
+    }
+    return retainedMessages
+        .map((message) {
+          final content = overrides[message.id];
+          if (content == null ||
+              content.isEmpty ||
+              content == message.content) {
+            return message;
+          }
+          return message.copyWith(content: content);
+        })
+        .toList(growable: false);
+  }
+
+  static Map<String, String> _buildRetainedContentOverrides(
+    List<Message> retainedMessages,
+  ) {
+    var verbatimTokens = 0;
+    var overflowEnd = 0;
+    for (var index = retainedMessages.length - 1; index >= 0; index--) {
+      final messageTokens = estimatePromptTokens([retainedMessages[index]]);
+      if (verbatimTokens + messageTokens <= retainedTailTokenBudget) {
+        verbatimTokens += messageTokens;
+        continue;
+      }
+      overflowEnd = index + 1;
+      break;
+    }
+    if (overflowEnd == 0) {
+      return const <String, String>{};
+    }
+
+    final overflowMessages = retainedMessages.sublist(0, overflowEnd);
+    final prunedMessages = ConversationToolResultPruner.prune(
+      overflowMessages,
+    ).messages;
+    final overrides = <String, String>{};
+    for (var index = 0; index < overflowMessages.length; index++) {
+      final original = overflowMessages[index];
+      final prunedContent = prunedMessages[index].content;
+      if (prunedContent.isNotEmpty && prunedContent != original.content) {
+        overrides[original.id] = prunedContent;
+      }
+    }
+    return Map<String, String>.unmodifiable(overrides);
   }
 
   static int estimatePromptTokens(List<Message> messages) {

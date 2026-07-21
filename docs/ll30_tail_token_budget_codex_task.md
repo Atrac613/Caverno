@@ -25,6 +25,19 @@ after measuring where the tokens actually are.
   - Do not add anti-thrashing state or attachment eviction; those stay in
     LL30's backlog.
 
+## Work Breakdown
+
+1. Add a retained-tail token budget at the compaction boundary while keeping
+   eight messages as the continuity floor.
+2. Persist content overrides in the compaction artifact so the same degraded
+   tail is reused between boundary changes.
+3. Cover token-heavy, oversized, prose-only, malformed, ordering, storage, and
+   legacy-artifact cases.
+4. Correct the measurement to compare summary plus retained tail before and
+   after the change.
+5. Run focused and full verification, then record the measured result and
+   pressure-threshold interaction here.
+
 ## Context
 
 ### Why this is the next slice
@@ -184,11 +197,28 @@ tool/codex_verify.sh
 
 ## Handoff Notes
 
-- **Summary:** state the measured post-compaction reduction at the corrected
-  stage, and state plainly if it is smaller than expected.
-- **Tests run:**
-- **Coverage or low-coverage notes:**
-- **Risks or follow-ups:** in particular, whether the tail budget and
-  `maxEstimatedPromptTokens` interact badly, and whether the graduated shape
-  earned its complexity over a binary in/out rule. If it did not, say so — a
-  simpler rule that measures the same is the better outcome.
+- **Summary:** implemented a 1,000 estimated-token verbatim suffix inside the
+  eight-message retained floor. Older messages in that floor are passed
+  through the existing structural pruner and stored as artifact content
+  overrides. The corrected synthetic measurement reports summary plus retained
+  tail at 19,924 estimated tokens before the change and 404 after it, a 98.0%
+  reduction. The fixture intentionally uses large repeated file reads, so this
+  is evidence that the firing point works, not a forecast for normal sessions.
+- **Tests run:** focused compaction tests (15 passed), structural-pruner tests
+  (5 passed), corrected measurement, and `tool/codex_verify.sh` (static
+  analysis clean; all 3,944 tests passed).
+- **Coverage or low-coverage notes:** focused coverage includes a partial
+  verbatim suffix, a single result larger than the whole budget, prose-only and
+  malformed tails, ordering and role preservation, message storage round-trip,
+  artifact round-trip, and legacy version-2 artifact deserialization.
+- **Risks or follow-ups:** `maxEstimatedPromptTokens` remains 6,000 and still
+  decides when to compact from the original transcript. The 1,000-token tail
+  budget is applied only after that decision, while prompt pressure is then
+  assessed from the actual summary plus overridden tail, so the thresholds do
+  not double-count the new budget. `estimatedPromptTokens` retains its prior
+  UI-facing meaning. A binary boundary was sufficient: the existing pruner
+  reduced the measured tail to 146 estimated tokens while retaining every
+  message, so a new soft-trim representation did not earn its complexity.
+  Ordinary prose and malformed tool payloads intentionally remain verbatim and
+  can exceed the best-effort tail budget. Anti-thrashing and attachment
+  eviction remain separate LL30 follow-ups.

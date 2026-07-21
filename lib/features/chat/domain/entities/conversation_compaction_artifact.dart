@@ -14,6 +14,8 @@ abstract class ConversationCompactionArtifact
     @Default(0) int sourceMessageCount,
     @Default(0) int compactedMessageCount,
     @Default(0) int retainedMessageCount,
+    @Default(<String, String>{})
+    Map<String, String> retainedMessageContentOverrides,
     @Default(0) int estimatedPromptTokens,
     DateTime? updatedAt,
   }) = _ConversationCompactionArtifact;
@@ -26,6 +28,5 @@ abstract class ConversationCompactionArtifact
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  bool get hasContent =>
-      normalizedSummary != null && compactedMessageCount > 0;
+  bool get hasContent => normalizedSummary != null && compactedMessageCount > 0;
 }
