@@ -165,7 +165,47 @@ exits non-zero in roughly 15% of calls (237 zero against 41 non-zero, dominated
 by 127 "command not found"), and `run_tests` reports Dart's exit 65 sixteen
 times.
 
-## Proposed next target (not yet built, and not yet justified)
+### Why the anchors miss (tool/analyze_edit_anchors.py)
+
+Rather than design a fix for a 37% failure rate, classify the 57 failures first
+by comparing each attempted `old_text` against the `current_content` the error
+returns for files under 4 KB.
+
+| Bucket | Count | Share |
+|--------|------:|------:|
+| No `current_content` (file >4 KB) | 23 | 40.4% |
+| Absent entirely | 19 | 33.3% |
+| First line matches, block drifted | 12 | 21.1% |
+| Already applied (`new_text` is in the file) | 3 | 5.3% |
+| **Whitespace differs** | **0** | **0%** |
+| **Indentation differs** | **0** | **0%** |
+
+**The zeroes are the most useful result.** Whitespace and indentation mismatch
+is the intuitive explanation for anchor failure, and it accounts for none of
+these. A fix aimed at normalizing whitespace would have moved nothing.
+
+Of the 34 failures that can be classified, **91% are the model writing
+`old_text` from memory instead of copying it** — 19 wholly absent, 12 where the
+first line is real but the block below it drifted. A sample from the "absent"
+bucket is a three-line import block: plausible-looking, reconstructed, not
+present. The remaining 3 are repeats of an edit already applied.
+
+This matters for what a fix should be. The failure is not information scarcity:
+the small-file branch already returns the file, and these attempts were made
+anyway. It is that reconstructing a multi-line verbatim anchor from context is
+something the model is bad at. Approaches that make verbatim reproduction
+unnecessary — addressing a region by line and a content hash rather than by
+quoting it back — target the actual mechanism. Grok Build's hashline anchors
+(`docs/grok_build_comparison_2026_07_21.md`, noted there as experimental and
+parked pending "edit-staleness telemetry") are exactly that shape, and this is
+the telemetry.
+
+Still unmeasured, and needed before building: whether the attempt *after* a
+failure succeeds once `current_content` has been supplied. That is the question
+that decides whether the loop is self-correcting or not, and it needs a
+sequential pass rather than a per-failure classification.
+
+## Proposed next target (superseded by the classification above)
 
 Give the large-file branch what the small-file branch already gives: enough
 current content to copy from, without a full re-read. Rather than inlining a
