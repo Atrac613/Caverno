@@ -62,7 +62,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/built_in_filesystem_tool_handler.dart':
       622,
   'lib/features/chat/data/datasources/built_in_local_command_tool_handler.dart':
-      581,
+      341,
   'lib/features/chat/data/datasources/built_in_ble_tool_handler.dart': 360,
   'lib/features/chat/data/datasources/built_in_browser_tool_handler.dart': 395,
   'lib/features/chat/data/datasources/built_in_computer_use_tool_handler.dart':

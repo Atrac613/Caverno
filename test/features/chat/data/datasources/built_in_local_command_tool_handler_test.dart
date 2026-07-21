@@ -158,6 +158,47 @@ void main() {
       expect(result.errorMessage, isNull);
     });
 
+    test('carries the reported exit status without failing the tool', () async {
+      // A command that exits non-zero is a command outcome, not a tool
+      // failure: the result stays successful and the status rides along as a
+      // fact, so downstream consumers stop parsing stdout to find it.
+      final handler = BuiltInLocalCommandToolHandler(
+        foregroundCommandRunner:
+            ({required command, required workingDirectory}) async =>
+                '{"exit_code":2,"stdout":"","stderr":"tests failed"}',
+      );
+
+      final result = await handler.execute(
+        name: 'local_execute_command',
+        arguments: const {
+          'command': 'flutter test',
+          'working_directory': '/tmp/project',
+        },
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(result.outcome?.exitCode, 2);
+      expect(result.outcome?.hasFailingExitCode, isTrue);
+    });
+
+    test('reports no exit status when the command never reached one', () async {
+      final handler = BuiltInLocalCommandToolHandler(
+        foregroundCommandRunner:
+            ({required command, required workingDirectory}) async =>
+                'command runner unavailable',
+      );
+
+      final result = await handler.execute(
+        name: 'local_execute_command',
+        arguments: const {
+          'command': 'flutter test',
+          'working_directory': '/tmp/project',
+        },
+      );
+
+      expect(result.outcome, isNull);
+    });
+
     test('coerces every supported truthy background value', () async {
       final foregroundCalls = <_CommandCall>[];
       final tools = _FakeBackgroundProcessTools(startResult: 'started');
