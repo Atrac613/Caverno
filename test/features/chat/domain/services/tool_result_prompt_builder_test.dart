@@ -1216,6 +1216,45 @@ void main() {
       expect(prompt, contains('"created":false'));
     });
 
+    test('tells the model plainly when a write changed nothing', () {
+      // "updated or overwrote" reads as progress. A byte-identical write has
+      // to say so, or the model re-reads expecting a change that never
+      // happened and writes the same content again.
+      final unchanged = ToolResultPromptBuilder.buildToolOperationNote(
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: const {'path': '/tmp/weather.md'},
+          result: jsonEncode({
+            'path': '/tmp/weather.md',
+            'bytes_written': 128,
+            'created': false,
+            'changed': false,
+          }),
+        ),
+      );
+      final changed = ToolResultPromptBuilder.buildToolOperationNote(
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'write_file',
+          arguments: const {'path': '/tmp/weather.md'},
+          result: jsonEncode({
+            'path': '/tmp/weather.md',
+            'bytes_written': 128,
+            'created': false,
+            'changed': true,
+          }),
+        ),
+      );
+
+      expect(unchanged, contains('UNCHANGED'));
+      expect(unchanged, contains('/tmp/weather.md'));
+      expect(unchanged, isNot(contains('updated or overwrote')));
+      // A payload that predates the flag keeps the existing wording rather
+      // than claiming an unchanged file.
+      expect(changed, contains('updated or overwrote'));
+    });
+
     test('marks write_file created true as a new file creation', () {
       final note = ToolResultPromptBuilder.buildToolOperationNote(
         ToolResultInfo(

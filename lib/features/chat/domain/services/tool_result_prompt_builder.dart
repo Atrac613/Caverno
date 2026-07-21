@@ -1070,6 +1070,16 @@ class ToolResultPromptBuilder {
     if (created) {
       return 'write_file created a new file$pathSuffix.';
     }
+    // A byte-identical write reports success like any other, so without this
+    // the model reads "updated" and re-reads the file expecting a change that
+    // never happened — the loop the `changed` fact exists to break.
+    if (decoded['changed'] == false) {
+      return 'write_file wrote byte-identical content$pathSuffix, so the file '
+          'is UNCHANGED. Re-reading it will return exactly what you already '
+          'have. If you intended a change, the content you wrote was the same '
+          'as what was there — revise the content itself rather than '
+          'repeating the write.';
+    }
     return 'write_file updated or overwrote an existing file$pathSuffix; '
         'mention this existing-file update in the final answer.';
   }
