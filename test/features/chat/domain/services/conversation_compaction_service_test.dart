@@ -159,4 +159,29 @@ void main() {
       ),
     );
   });
+
+  test('buildArtifact summarizes rendered tool results before compaction', () {
+    final messages = buildMessages(16).toList();
+    messages[0] = Message(
+      id: 'tool-result',
+      content:
+          '[Tool: local_execute_command]\n'
+          'Arguments: {"command":"flutter test"}\n'
+          'Result:\n'
+          '{"exit_code":0,"stdout":"all tests passed"}',
+      role: MessageRole.user,
+      timestamp: DateTime(2026, 7, 21),
+    );
+
+    final artifact = ConversationCompactionService.buildArtifact(
+      messages: messages,
+    );
+
+    expect(artifact, isNotNull);
+    expect(
+      artifact!.normalizedSummary,
+      contains('`flutter test` -> exit 0, 1 output lines'),
+    );
+    expect(artifact.normalizedSummary, isNot(contains('all tests passed')));
+  });
 }

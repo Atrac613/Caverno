@@ -1,5 +1,6 @@
 import '../entities/conversation_compaction_artifact.dart';
 import '../entities/message.dart';
+import 'conversation_tool_result_pruner.dart';
 
 enum ConversationTokenPressureLevel { normal, warning, critical }
 
@@ -73,8 +74,11 @@ class ConversationCompactionService {
     final compactedMessages = normalizedMessages
         .sublist(0, compactedMessageCount)
         .toList(growable: false);
-    final summary = _buildSummary(
+    final structurallyPruned = ConversationToolResultPruner.prune(
       compactedMessages,
+    );
+    final summary = _buildSummary(
+      structurallyPruned.messages,
       planDocument: planDocument,
     );
     if (summary.isEmpty) {
