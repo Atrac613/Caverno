@@ -1,6 +1,9 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
+
 import '../../domain/entities/mcp_tool_entity.dart';
+import 'command_payload_facts.dart';
 
 /// Builds compatible tool results from direct, JSON, and command outcomes.
 abstract final class McpToolResultNormalizer {
@@ -8,12 +11,14 @@ abstract final class McpToolResultNormalizer {
     required String toolName,
     required String result,
     bool isExternalMcpResult = false,
+    ToolOutcome? outcome,
   }) {
     return McpToolResult(
       toolName: toolName,
       result: result,
       isSuccess: true,
       isExternalMcpResult: isExternalMcpResult,
+      outcome: outcome,
     );
   }
 
@@ -22,6 +27,7 @@ abstract final class McpToolResultNormalizer {
     String result = '',
     required String errorMessage,
     bool isExternalMcpResult = false,
+    ToolOutcome? outcome,
   }) {
     return McpToolResult(
       toolName: toolName,
@@ -29,6 +35,7 @@ abstract final class McpToolResultNormalizer {
       isSuccess: false,
       errorMessage: errorMessage,
       isExternalMcpResult: isExternalMcpResult,
+      outcome: outcome,
     );
   }
 
@@ -52,7 +59,7 @@ abstract final class McpToolResultNormalizer {
     required String fallbackErrorMessage,
     bool isExternalMcpResult = false,
   }) {
-    final decoded = _tryDecodeMap(result);
+    final decoded = CommandPayloadFacts.tryDecodeMap(result);
     if (decoded == null || decoded['ok'] != false) {
       return success(
         toolName: toolName,
@@ -68,18 +75,24 @@ abstract final class McpToolResultNormalizer {
     );
   }
 
+  /// Normalizes a first-party command tool's payload, lifting the facts it
+  /// reported (see [CommandPayloadFacts]) onto the result so downstream
+  /// consumers read them instead of decoding the payload again.
   static McpToolResult fromCommandPayload({
     required String toolName,
     required String result,
     required String toolLabel,
     bool isExternalMcpResult = false,
   }) {
-    final failureMessage = _commandFailureMessage(result, toolLabel);
+    final facts = CommandPayloadFacts.tryParse(result);
+    final outcome = facts?.toOutcome();
+    final failureMessage = facts?.failureMessage(toolLabel);
     if (failureMessage == null) {
       return success(
         toolName: toolName,
         result: result,
         isExternalMcpResult: isExternalMcpResult,
+        outcome: outcome,
       );
     }
     return failure(
@@ -87,40 +100,7 @@ abstract final class McpToolResultNormalizer {
       result: result,
       errorMessage: failureMessage,
       isExternalMcpResult: isExternalMcpResult,
+      outcome: outcome,
     );
-  }
-
-  static String? _commandFailureMessage(String result, String toolLabel) {
-    final decoded = _tryDecodeMap(result);
-    if (decoded == null) return null;
-
-    final error = decoded['error'];
-    if (error is String && error.trim().isNotEmpty) {
-      return error.trim();
-    }
-
-    final exitCode = decoded['exit_code'];
-    if (exitCode is! num || exitCode.toInt() == 0) {
-      return null;
-    }
-    final stderr = decoded['stderr'];
-    final stdout = decoded['stdout'];
-    final detail = stderr is String && stderr.trim().isNotEmpty
-        ? stderr.trim()
-        : stdout is String && stdout.trim().isNotEmpty
-        ? stdout.trim()
-        : null;
-    return detail == null
-        ? '$toolLabel exited with code ${exitCode.toInt()}'
-        : '$toolLabel exited with code ${exitCode.toInt()}: $detail';
-  }
-
-  static Map<String, dynamic>? _tryDecodeMap(String payload) {
-    try {
-      final decoded = jsonDecode(payload);
-      return decoded is Map<String, dynamic> ? decoded : null;
-    } catch (_) {
-      return null;
-    }
   }
 }

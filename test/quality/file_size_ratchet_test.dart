@@ -71,7 +71,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/built_in_lan_scan_tool_handler.dart': 77,
   'lib/features/chat/data/datasources/built_in_serial_tool_handler.dart': 141,
   'lib/features/chat/data/datasources/built_in_ssh_tool_handler.dart': 183,
-  'lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart': 126,
+  'lib/features/chat/data/datasources/mcp_tool_result_normalizer.dart': 106,
   'lib/features/chat/data/datasources/remote_mcp_connection_manager.dart': 317,
   'lib/features/chat/data/datasources/remote_mcp_tool_name_policy.dart': 120,
   'lib/features/settings/presentation/pages/computer_use_settings_page.dart':

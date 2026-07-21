@@ -146,5 +146,42 @@ void main() {
         expect(result.isExternalMcpResult, isTrue, reason: payload);
       }
     });
+
+    test('lifts the reported exit status onto the result (LL34)', () {
+      final failed = McpToolResultNormalizer.fromCommandPayload(
+        toolName: 'git_execute_command',
+        result: '{"exit_code":1,"stderr":"merge conflict"}',
+        toolLabel: 'Git command',
+      );
+      final succeeded = McpToolResultNormalizer.fromCommandPayload(
+        toolName: 'git_execute_command',
+        result: '{"exit_code":0,"stdout":"clean"}',
+        toolLabel: 'Git command',
+      );
+
+      expect(failed.outcome?.exitCode, 1);
+      expect(failed.outcome?.hasFailingExitCode, isTrue);
+      expect(succeeded.outcome?.exitCode, 0);
+    });
+
+    test('attaches no exit status when the command never reached one', () {
+      // A payload the tool could not describe, and one whose explicit error
+      // means the command failed to run, must both leave the fact absent
+      // rather than inventing a status.
+      final unparseable = McpToolResultNormalizer.fromCommandPayload(
+        toolName: 'git_execute_command',
+        result: 'Command finished.',
+        toolLabel: 'Git command',
+      );
+      final neverRan = McpToolResultNormalizer.fromCommandPayload(
+        toolName: 'git_execute_command',
+        result: '{"exit_code":1,"error":"Working directory missing."}',
+        toolLabel: 'Git command',
+      );
+
+      expect(unparseable.outcome, isNull);
+      expect(neverRan.outcome, isNull);
+      expect(neverRan.errorMessage, 'Working directory missing.');
+    });
   });
 }
