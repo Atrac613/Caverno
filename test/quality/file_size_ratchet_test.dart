@@ -131,13 +131,13 @@ const Map<String, int> _lineBudgets = {
 };
 
 const Map<String, int> _libraryLineBudgets = {
-  // Raised for LL35 update_goal wiring across two slices: +17 for the tool
-  // dispatch (thin handler + import + conversation-module map entry) and +27
-  // for the shadow comparison (completion-outcome tracking + recordGoalComplet-
-  // ionShadow). Not god-file growth: the mcp_tool_service side took an
-  // offsetting definitions extraction and the decision logic lives in the pure
-  // GoalUpdateAckResolver / GoalCompletionShadow services, not here. See LL35.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 23049,
+  // Raised for LL35 update_goal wiring (+17 tool dispatch, +27 shadow
+  // comparison) and LL36 firing audit (+4 to record the coding-continuation
+  // recovery as a countable transform). Not god-file growth: the
+  // mcp_tool_service side took an offsetting definitions extraction and the
+  // decision logic lives in the pure GoalUpdateAckResolver /
+  // GoalCompletionShadow services, not here. See LL35/LL36.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 23053,
   'lib/features/chat/presentation/pages/chat_page.dart': 8857,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1294,
   // +3 for the LL35 return-type change threaded through the goal test doubles.

@@ -27,6 +27,10 @@ extension ChatNotifierCodingContinuationRecovery on ChatNotifier {
       return null;
     }
 
+    // LL36: record the firing so this lexical-detector-driven recovery is
+    // countable in triage (it was previously invisible). Bounded recoveryCode.
+    _appliedTurnTransforms.add('coding_continuation_recovery_$recoveryCode');
+
     appLog('[Tool] Requesting coding continuation recovery: $recoveryCode');
     final recoveryToolResult = _buildCodingContinuationRecoveryToolResult(
       candidateResponse: candidateResponse,
