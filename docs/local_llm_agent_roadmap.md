@@ -2985,10 +2985,29 @@ Source: Grok Build comparison, class 1; `update_goal/mod.rs` (`UpdateGoalAck`),
 `goal_next_step.rs`. The user-confirmation rung is a Caverno addition — Grok
 Build has no equivalent because it can assume tool-call fidelity.
 
-Next action: land the `update_goal` tool plus the ack-carrying reply, with the
-lexical inference still authoritative, and start collecting disagreement
-records. Add the fidelity probe in the same slice as the profile field, before
-any lexical removal.
+Progress (branch `feature/ll35-explicit-goal-state`):
+- **Slice 1 (`0ffb496f`)** — `GoalUpdateAckResolver`, the pure ack computation.
+  The completion verdict reads the LL34 completion evidence, not the response
+  prose; a recorded completion is "not contradicted", not "verified", and the
+  message says so.
+- **Slice 2 (`0b501c08`)** — `update_goal` registered and dispatched through the
+  existing tool-handler path. The reply carries the ack; only an inactive goal
+  is a tool failure. Lexical inference stays authoritative.
+- **Slice 3 (`97cb16b6`)** — `GoalCompletionShadow` records where the tool and
+  the lexical path decided completion differently, as a stable transform label
+  on the turn_exit record. `tool/triage_session_logs.py` counts these under
+  "Post-LLM transforms" with no change, since LL33's transform record is
+  generic.
+
+Next action: **collect shadow evidence before proceeding.** The remaining
+slices are gated on the disagreement counts:
+- The **LL3 fidelity probe** and the **user-confirmation rung** are needed only
+  if the shadow data shows models failing to call the tool (a high
+  `goal_completion_lexical_only` count). Build them when that count justifies
+  it, not before.
+- **Removing the lexical path** waits until `goal_completion_tool_accepted_lexical_missed`
+  and `goal_completion_lexical_only` together show the tool covers what lexical
+  catches. That is the measurement the shadow slice exists to produce.
 
 ### LL36: Heuristic Demotion And Firing Audit
 
