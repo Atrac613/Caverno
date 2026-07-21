@@ -156,10 +156,15 @@ and text appearing in sessions that contain no corresponding tool render, most
 plausibly through replayed conversation history. The `[Tool: ]` marker is
 distinctive enough to be immune to the first, and the observed rate (~2.2
 renders per session) is too low to suggest heavy replay inflation, so these
-figures are probably sound — but they were produced by the same throwaway
-technique and have not been re-verified against a record-parsing count. Treat
-the *ranking* as reliable and the *percentages* as approximate until the
-instrument in `tool/` exists.
+figures are probably sound.
+
+**Resolved the same day: they are.** `tool/analyze_tool_results.py` now counts
+the same population by de-duplicating messages on their stable id and parsing
+payloads, and it reproduces these figures within 0.1 points (`read_file` 26.4%
+vs 26.3%, `local_execute_command` 17.0% vs 16.9%). The technique survived
+because the `[Tool: ]` marker resists payload contamination and tool-result
+messages are barely replayed, even though the surrounding conversation is
+(6.9x overall). The error counts in the companion document were not so lucky.
 
 These logs are one developer's usage on one machine, weighted toward coding
 sessions. The shape (top-heavy, coding tools dominant) is unlikely to invert,

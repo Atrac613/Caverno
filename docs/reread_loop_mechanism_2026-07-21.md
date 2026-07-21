@@ -118,6 +118,53 @@ first appears, instead of grepping the concatenated text. That belongs in
 rather than a rebuild — the ad-hoc scripts behind this document were thrown
 away, which is part of why it took four attempts to notice they were wrong.
 
+## Re-measured with the instrument (tool/analyze_tool_results.py)
+
+The instrument now exists. It de-duplicates messages by their stable id and
+parses payloads instead of grepping, and it reports the replay factor it
+corrected for: **13783 message slots collapse to 2011 distinct messages, 6.9x**.
+
+Corrected counts across 999 session logs:
+
+| Measure | Grep estimate | Instrument | Note |
+|---------|--------------:|-----------:|------|
+| `old_text was not found` errors | 982 | **57** | 17x inflated by replay + payload contamination |
+| `edit_file` results | — | 155 | in 33 sessions |
+| **`edit_file` calls failing on the anchor** | — | **37%** | 57 of 155 |
+| `read_file` share of tool traffic | 26.3% | 26.4% | census technique validated |
+| `local_execute_command` share | 16.9% | 17.0% | census technique validated |
+
+Two conclusions, of opposite sign:
+
+**The traffic census was sound.** Its `[Tool: ]` marker counts land within 0.1
+points of the instrument's, so the LL34 sizing work built on it stands. The
+marker is distinctive enough to resist payload contamination, and tool-result
+messages turn out to be barely replayed even though system and user messages
+are.
+
+**The error counts were not.** 982 was really 57. Anything derived from
+grepping payload prose in this investigation should be treated as withdrawn,
+which is what the section above already does.
+
+### What the corrected numbers show
+
+**Over a third of all `edit_file` calls fail because the anchor does not
+match** (57 of 155, across 33 sessions). That is a large, independently
+verifiable defect rate, and it does not depend on any claim about re-read
+loops: even if anchor failures caused no re-reads at all, a tool that fails 37%
+of the time is worth fixing on its own terms.
+
+What remains unproven is the causal link to re-reads. Co-occurrence is
+established (19 of 23 edit-bearing read-heavy sessions) and one session was
+traced end to end, but no counted evidence connects the two. The honest
+statement is: anchor failure is a confirmed high-rate defect; whether fixing it
+reduces re-reads is a hypothesis the instrument can now test before and after.
+
+For reference, command failure rates from the same run: `local_execute_command`
+exits non-zero in roughly 15% of calls (237 zero against 41 non-zero, dominated
+by 127 "command not found"), and `run_tests` reports Dart's exit 65 sixteen
+times.
+
 ## Proposed next target (not yet built, and not yet justified)
 
 Give the large-file branch what the small-file branch already gives: enough
