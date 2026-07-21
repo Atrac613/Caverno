@@ -7,41 +7,46 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const resolver = GoalUpdateAckResolver();
 
-  group('resolveToolCall (dispatch entry)', () {
+  group('resolveCall + toToolResult (dispatch entry)', () {
     ToolCallInfo call(Map<String, dynamic> args) =>
         ToolCallInfo(id: 't1', name: 'update_goal', arguments: args);
 
     test('a rejected completion is a successful result carrying the gaps', () {
-      final result = resolver.resolveToolCall(
+      final ack = resolver.resolveCall(
         toolCall: call(const {'completed': true}),
         goal: _goal(),
         evidence: const ToolResultCompletionEvidence(unresolvedErrorCount: 1),
       );
+      final result = ack.toToolResult('update_goal');
 
       // Well-formed call the harness answered → success, verdict in the body.
+      expect(ack.isCompletionClaim, isTrue);
       expect(result.isSuccess, isTrue);
       expect(result.result, contains('not recorded'));
       expect(result.result, contains('unresolved error'));
     });
 
     test('no active goal is a tool failure', () {
-      final result = resolver.resolveToolCall(
+      final ack = resolver.resolveCall(
         toolCall: call(const {'completed': true}),
         goal: null,
       );
+      final result = ack.toToolResult('update_goal');
 
+      expect(ack.outcome, GoalUpdateAckOutcome.rejectedInactive);
+      expect(ack.isCompletionClaim, isFalse);
       expect(result.isSuccess, isFalse);
-      expect(result.errorMessage, contains('no active goal harness'));
+      expect(result.errorMessage, contains('no active goal to update'));
     });
 
     test('parses arguments from the raw call', () {
-      final result = resolver.resolveToolCall(
+      final ack = resolver.resolveCall(
         toolCall: call(const {'blocked_reason': 'missing key'}),
         goal: _goal(),
       );
 
-      expect(result.isSuccess, isTrue);
-      expect(result.result, contains('missing key'));
+      expect(ack.outcome, GoalUpdateAckOutcome.blockerLogged);
+      expect(ack.toToolResult('update_goal').result, contains('missing key'));
     });
   });
 

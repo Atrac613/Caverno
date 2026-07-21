@@ -981,10 +981,31 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   /// still owned by [ConversationGoalProgressInference] at turn end; this only
   /// returns the ack the model reads.
   Future<McpToolResult> handleUpdateGoal(ToolCallInfo toolCall) async {
-    return const GoalUpdateAckResolver().resolveToolCall(
+    final ack = const GoalUpdateAckResolver().resolveCall(
       toolCall: toolCall,
       goal: ref.read(conversationsNotifierProvider).currentConversation?.goal,
       evidence: _latestGoalAutoContinueEvidence,
     );
+    // Shadow: remember a completion verdict so turn-end can compare it against
+    // the lexical path. Progress/blocker/inactive are not completion claims.
+    if (ack.isCompletionClaim) {
+      _shadowGoalToolCompletionOutcome = ack.outcome;
+    }
+    return ack.toToolResult(toolCall.name);
+  }
+
+  /// Records where the explicit `update_goal` tool and the lexical completion
+  /// inference disagreed this turn (LL35 shadow). Adds a stable transform
+  /// label so triage can count how often each path decides completion the
+  /// other misses, before the lexical path is removed.
+  void recordGoalCompletionShadow({required bool lexicalCompleted}) {
+    final disagreement = GoalCompletionShadow.compare(
+      toolCompletionOutcome: _shadowGoalToolCompletionOutcome,
+      lexicalCompleted: lexicalCompleted,
+    );
+    if (disagreement != null) {
+      _appliedTurnTransforms.add(GoalCompletionShadow.labelFor(disagreement));
+    }
+    _shadowGoalToolCompletionOutcome = null;
   }
 }

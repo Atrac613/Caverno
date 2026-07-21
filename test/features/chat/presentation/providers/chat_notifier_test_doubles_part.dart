@@ -200,7 +200,7 @@ class _GoalAutoContinueConversationsNotifier
   }
 
   @override
-  Future<void> recordCurrentGoalTurn({
+  Future<bool> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
@@ -209,7 +209,7 @@ class _GoalAutoContinueConversationsNotifier
     final conversation = state.currentConversation;
     final goal = conversation?.goal;
     if (conversation == null || goal == null || !goal.isActive) {
-      return;
+      return false;
     }
     _replaceCurrentConversation(
       conversation.copyWith(
@@ -220,6 +220,7 @@ class _GoalAutoContinueConversationsNotifier
         ),
       ),
     );
+    return false;
   }
 
   @override
@@ -278,7 +279,7 @@ class _TerminalSuccessGoalConversationsNotifier
   }
 
   @override
-  Future<void> recordCurrentGoalTurn({
+  Future<bool> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
@@ -287,7 +288,7 @@ class _TerminalSuccessGoalConversationsNotifier
     recordedAssistantResponse = assistantResponse;
     final conversation = state.currentConversation;
     final goal = conversation?.goal;
-    if (conversation == null || goal == null) return;
+    if (conversation == null || goal == null) return false;
     final summary = assistantResponse
         .split('\n')
         .map((line) => line.trim())
@@ -303,6 +304,7 @@ class _TerminalSuccessGoalConversationsNotifier
         ),
       ),
     );
+    return true;
   }
 }
 
@@ -340,7 +342,7 @@ class _GitLifecycleGoalConversationsNotifier
   }
 
   @override
-  Future<void> recordCurrentGoalTurn({
+  Future<bool> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
@@ -349,7 +351,7 @@ class _GitLifecycleGoalConversationsNotifier
     final current = state.currentConversation;
     final goal = current?.goal;
     if (current == null || goal == null) {
-      return;
+      return false;
     }
     final now = DateTime(2026, 5, 25, 10, goal.turnsUsed + 1);
     final normalized = assistantResponse.toLowerCase();
@@ -372,6 +374,7 @@ class _GitLifecycleGoalConversationsNotifier
           .map((item) => item.id == updated.id ? updated : item)
           .toList(growable: false),
     );
+    return completed;
   }
 }
 

@@ -14,7 +14,9 @@ import 'package:flutter_test/flutter_test.dart';
 /// declared `part` files so a move into shared private state cannot hide
 /// aggregate growth.
 const Map<String, int> _lineBudgets = {
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 9468,
+  // 9468 + 6 for LL35 shadow wiring (completion-outcome field, import, turn-
+  // start clear, and threading the lexical result to the shadow comparison).
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 9474,
   'lib/features/chat/presentation/pages/chat_page.dart': 2045,
   'lib/features/chat/presentation/widgets/message_input.dart': 2332,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':
@@ -129,14 +131,17 @@ const Map<String, int> _lineBudgets = {
 };
 
 const Map<String, int> _libraryLineBudgets = {
-  // Raised +17 for LL35 update_goal wiring (documented thin handler + import +
-  // conversation-module map entry). Not god-file growth: the mcp_tool_service
-  // side took an offsetting definitions extraction, and the handler logic
-  // lives in the pure GoalUpdateAckResolver, not here. See LL35.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 23022,
+  // Raised for LL35 update_goal wiring across two slices: +17 for the tool
+  // dispatch (thin handler + import + conversation-module map entry) and +27
+  // for the shadow comparison (completion-outcome tracking + recordGoalComplet-
+  // ionShadow). Not god-file growth: the mcp_tool_service side took an
+  // offsetting definitions extraction and the decision logic lives in the pure
+  // GoalUpdateAckResolver / GoalCompletionShadow services, not here. See LL35.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 23049,
   'lib/features/chat/presentation/pages/chat_page.dart': 8857,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1294,
-  'test/features/chat/presentation/providers/chat_notifier_test.dart': 33189,
+  // +3 for the LL35 return-type change threaded through the goal test doubles.
+  'test/features/chat/presentation/providers/chat_notifier_test.dart': 33192,
 };
 
 final RegExp _partDirectivePattern = RegExp(

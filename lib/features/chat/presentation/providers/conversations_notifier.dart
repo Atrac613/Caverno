@@ -1088,7 +1088,10 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     await _persistUpdatedConversation(updatedConversation);
   }
 
-  Future<void> recordCurrentGoalTurn({
+  /// Records the goal's turn and returns whether the lexical inference
+  /// completed the goal this turn — the signal LL35 shadow-compares against
+  /// the explicit `update_goal` tool.
+  Future<bool> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
@@ -1097,7 +1100,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final conversation = state.currentConversation;
     final goal = conversation?.goal;
     if (conversation == null || goal == null || !goal.isActive) {
-      return;
+      return false;
     }
 
     final now = DateTime.now();
@@ -1115,7 +1118,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: now,
     );
 
-    if (inference.hasCompletion && !completionEvidence.hasBlockingEvidence) {
+    final lexicalCompleted =
+        inference.hasCompletion && !completionEvidence.hasBlockingEvidence;
+    if (lexicalCompleted) {
       nextGoal = nextGoal.copyWith(
         status: ConversationGoalStatus.completed,
         completionSummary:
@@ -1155,6 +1160,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     }
 
     await _persistCurrentGoal(nextGoal);
+    return lexicalCompleted;
   }
 
   Future<void> _persistCurrentGoal(ConversationGoal goal) async {

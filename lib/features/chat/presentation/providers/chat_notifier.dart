@@ -100,6 +100,7 @@ import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/final_answer_claim_detector.dart';
 import '../../domain/services/final_answer_recovery_policy.dart';
+import '../../domain/services/goal_completion_shadow.dart';
 import '../../domain/services/goal_update_ack.dart';
 import '../../domain/services/pending_action_length_recovery_policy.dart';
 import '../../domain/services/successful_read_result_replay_cache.dart';
@@ -2547,6 +2548,9 @@ class ChatNotifier extends Notifier<ChatState> {
   // final message, recorded on the turn_exit record so the log explains why the
   // on-screen content differs from the raw LLM output.
   final Set<String> _appliedTurnTransforms = <String>{};
+  // LL35 shadow: this turn's `update_goal` completion outcome (or null),
+  // compared against the lexical decision at turn end. See goal_completion_shadow.
+  GoalUpdateAckOutcome? _shadowGoalToolCompletionOutcome;
   // Commands issued through command-execution tools during the current
   // interaction generation. Repair revivals re-enter _executeToolCalls with a
   // fresh executedToolResults list, so the transcript claim guard needs a
@@ -5481,6 +5485,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _turnExitReasonHint = null;
     _finalAnswerFinishReasonOverride = null;
     _appliedTurnTransforms.clear();
+    _shadowGoalToolCompletionOutcome = null;
     final executedToolResults = <ToolResultInfo>[];
     var commandRetryGeneration = 0;
     var attemptedDuplicateInspectionRecovery = false;
@@ -8978,7 +8983,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _clearTurnDiffCapture();
     }
     _reconcileGoalAutoContinueEvidenceForFinalization();
-    await ref
+    final lexicalCompleted = await ref
         .read(conversationsNotifierProvider.notifier)
         .recordCurrentGoalTurn(
           assistantResponse:
@@ -8988,6 +8993,7 @@ class ChatNotifier extends Notifier<ChatState> {
           tokenUsageDelta: _accumulatedTokenUsage.totalTokens,
           completionEvidence: _latestGoalAutoContinueEvidence,
         );
+    recordGoalCompletionShadow(lexicalCompleted: lexicalCompleted);
     if (!_isCurrentInteractionGeneration(generation)) return;
 
     if (_settings.autoReadEnabled && _settings.ttsEnabled) {

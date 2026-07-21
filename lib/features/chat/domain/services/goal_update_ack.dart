@@ -91,6 +91,28 @@ class GoalUpdateAck {
 
   bool get completionRejected =>
       outcome == GoalUpdateAckOutcome.completionRejected;
+
+  /// Whether this ack claimed completion at all (accepted or rejected), as
+  /// opposed to a progress note, a blocker, or an inactive goal.
+  bool get isCompletionClaim => completionAccepted || completionRejected;
+
+  /// The tool result the dispatch layer returns for this ack.
+  ///
+  /// A rejected completion is a well-formed call the harness answered, not a
+  /// tool failure, so it is a successful result whose body is the verdict —
+  /// the model reads the gaps as data. Only a genuinely inactive goal fails.
+  McpToolResult toToolResult(String toolName) {
+    return McpToolResult(
+      toolName: toolName,
+      result: outcome == GoalUpdateAckOutcome.rejectedInactive
+          ? ''
+          : modelMessage,
+      isSuccess: outcome != GoalUpdateAckOutcome.rejectedInactive,
+      errorMessage: outcome == GoalUpdateAckOutcome.rejectedInactive
+          ? modelMessage
+          : null,
+    );
+  }
 }
 
 /// Resolves an `update_goal` call to the ack the model reads.
@@ -104,46 +126,31 @@ class GoalUpdateAck {
 class GoalUpdateAckResolver {
   const GoalUpdateAckResolver();
 
-  /// Resolves an `update_goal` tool call end to end into the tool result the
-  /// dispatch layer returns, keeping the notifier-side handler a thin adapter.
+  /// Resolves an `update_goal` tool call to the ack the harness returns.
   ///
-  /// A rejected completion is a well-formed call the harness answered, not a
-  /// tool failure, so it is a successful result whose body is the verdict —
-  /// the model reads the gaps as data. Only a genuinely inactive goal fails.
-  McpToolResult resolveToolCall({
+  /// A null or inactive goal yields the inactive ack. Callers map it to a tool
+  /// result with [GoalUpdateAck.toToolResult], and LL35 shadow-tracking reads
+  /// [GoalUpdateAck.outcome] from the same ack.
+  GoalUpdateAck resolveCall({
     required ToolCallInfo toolCall,
     required ConversationGoal? goal,
     ToolResultCompletionEvidence evidence =
         const ToolResultCompletionEvidence(),
   }) {
-    if (goal == null) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage:
-            'update_goal has no goal to update (no active goal harness)',
-      );
-    }
-    final ack = resolve(
+    return resolve(
       input: GoalUpdateInput.fromArguments(toolCall.arguments),
       goal: goal,
       evidence: evidence,
-    );
-    return McpToolResult(
-      toolName: toolCall.name,
-      result: ack.modelMessage,
-      isSuccess: ack.outcome != GoalUpdateAckOutcome.rejectedInactive,
     );
   }
 
   GoalUpdateAck resolve({
     required GoalUpdateInput input,
-    required ConversationGoal goal,
+    required ConversationGoal? goal,
     ToolResultCompletionEvidence evidence =
         const ToolResultCompletionEvidence(),
   }) {
-    if (!goal.isActive) {
+    if (goal == null || !goal.isActive) {
       return const GoalUpdateAck(
         outcome: GoalUpdateAckOutcome.rejectedInactive,
         modelMessage:
