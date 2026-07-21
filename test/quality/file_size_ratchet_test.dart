@@ -129,7 +129,11 @@ const Map<String, int> _lineBudgets = {
 };
 
 const Map<String, int> _libraryLineBudgets = {
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 23005,
+  // Raised +17 for LL35 update_goal wiring (documented thin handler + import +
+  // conversation-module map entry). Not god-file growth: the mcp_tool_service
+  // side took an offsetting definitions extraction, and the handler logic
+  // lives in the pure GoalUpdateAckResolver, not here. See LL35.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 23022,
   'lib/features/chat/presentation/pages/chat_page.dart': 8857,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1294,
   'test/features/chat/presentation/providers/chat_notifier_test.dart': 33189,

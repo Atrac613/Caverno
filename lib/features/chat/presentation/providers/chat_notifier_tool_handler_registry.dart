@@ -189,6 +189,10 @@ final class _ConversationToolHandlerModule implements ChatToolHandlerModule {
         interactionGeneration: interactionGeneration,
       ),
       'get_subagent_result': _notifier._handleGetSubagentResult,
+      // LL35: goal-state reporting is conversation-scoped (it reads the
+      // current conversation's goal), so it rides the conversation module
+      // rather than a module of its own.
+      'update_goal': _notifier.handleUpdateGoal,
     };
   }
 }

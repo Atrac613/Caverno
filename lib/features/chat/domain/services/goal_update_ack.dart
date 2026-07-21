@@ -1,4 +1,6 @@
 import '../entities/conversation_goal.dart';
+import '../entities/mcp_tool_entity.dart';
+import '../entities/tool_call_info.dart';
 import 'tool_result_prompt_builder.dart';
 
 /// What the model asked the harness to do with the goal.
@@ -37,6 +39,15 @@ class GoalUpdateInput {
     this.message,
     this.blockedReason,
   });
+
+  /// Reads an `update_goal` tool call's raw JSON arguments.
+  factory GoalUpdateInput.fromArguments(Map<String, dynamic> arguments) {
+    return GoalUpdateInput(
+      completed: arguments['completed'] == true,
+      message: arguments['message'] as String?,
+      blockedReason: arguments['blocked_reason'] as String?,
+    );
+  }
 
   final bool completed;
   final String? message;
@@ -93,6 +104,39 @@ class GoalUpdateAck {
 class GoalUpdateAckResolver {
   const GoalUpdateAckResolver();
 
+  /// Resolves an `update_goal` tool call end to end into the tool result the
+  /// dispatch layer returns, keeping the notifier-side handler a thin adapter.
+  ///
+  /// A rejected completion is a well-formed call the harness answered, not a
+  /// tool failure, so it is a successful result whose body is the verdict —
+  /// the model reads the gaps as data. Only a genuinely inactive goal fails.
+  McpToolResult resolveToolCall({
+    required ToolCallInfo toolCall,
+    required ConversationGoal? goal,
+    ToolResultCompletionEvidence evidence =
+        const ToolResultCompletionEvidence(),
+  }) {
+    if (goal == null) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage:
+            'update_goal has no goal to update (no active goal harness)',
+      );
+    }
+    final ack = resolve(
+      input: GoalUpdateInput.fromArguments(toolCall.arguments),
+      goal: goal,
+      evidence: evidence,
+    );
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: ack.modelMessage,
+      isSuccess: ack.outcome != GoalUpdateAckOutcome.rejectedInactive,
+    );
+  }
+
   GoalUpdateAck resolve({
     required GoalUpdateInput input,
     required ConversationGoal goal,
@@ -146,8 +190,9 @@ class GoalUpdateAckResolver {
     return const GoalUpdateAck(
       outcome: GoalUpdateAckOutcome.completionRecorded,
       modelMessage:
-          'Completion recorded. Note: no mechanical evidence contradicts it, '
-          'but it has not been independently verified.',
+          'Completion accepted: no mechanical evidence contradicts it. It has '
+          'not been independently verified, so state plainly what you did and '
+          'what remains unchecked.',
     );
   }
 

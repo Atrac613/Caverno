@@ -974,4 +974,17 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           },
         );
   }
+
+  /// Handles the `update_goal` tool call (LL35). Thin adapter: gathers the
+  /// current goal and this run's completion evidence and delegates the verdict
+  /// to [GoalUpdateAckResolver]. Shadow phase — the goal-status transition is
+  /// still owned by [ConversationGoalProgressInference] at turn end; this only
+  /// returns the ack the model reads.
+  Future<McpToolResult> handleUpdateGoal(ToolCallInfo toolCall) async {
+    return const GoalUpdateAckResolver().resolveToolCall(
+      toolCall: toolCall,
+      goal: ref.read(conversationsNotifierProvider).currentConversation?.goal,
+      evidence: _latestGoalAutoContinueEvidence,
+    );
+  }
 }

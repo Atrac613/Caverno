@@ -284,6 +284,25 @@ void main() {
       },
     );
 
+    test('offers update_goal but refuses it in a goal-less context', () async {
+      final service = McpToolService();
+
+      final functionNames = service
+          .getOpenAiToolDefinitions()
+          .map(_openAiFunctionName)
+          .toSet();
+      expect(functionNames, contains('update_goal'));
+
+      // Reached directly (no ChatNotifier interception), there is no goal
+      // harness, so the call is refused rather than silently succeeding.
+      final result = await service.executeTool(
+        name: 'update_goal',
+        arguments: const {'completed': true},
+      );
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, contains('no active goal harness'));
+    });
+
     test('preserves required network argument failures', () async {
       final service = McpToolService();
       const cases = [

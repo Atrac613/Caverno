@@ -38,6 +38,7 @@ import 'git_tools.dart';
 import 'installed_dependency_grounding_service.dart';
 import 'local_shell_tools.dart';
 import 'mcp_client.dart';
+import 'mcp_goal_routine_tool_definitions.dart';
 import 'mcp_tool_result_normalizer.dart';
 import 'os_log_tools.dart';
 import 'python_script_tools.dart';
@@ -58,6 +59,7 @@ class McpToolService {
     ...{'ask_user_question', 'spawn_subagent', 'get_subagent_result'},
     ...{'load_skill', 'save_skill'},
     'create_routine',
+    'update_goal',
     ...BuiltInNetworkToolHandler.toolNames,
     ...BuiltInFilesystemToolHandler.toolNames,
     InstalledDependencyGroundingService.toolName,
@@ -244,7 +246,18 @@ class McpToolService {
     }
     // ROUTINE1: scheduling a routine from chat. Intercepted by ChatNotifier for
     // a non-cacheable approval; always offered like other built-ins.
-    _addIfEnabled(toolDefinitions, _createRoutineTool);
+    _addIfEnabled(
+      toolDefinitions,
+      McpGoalRoutineToolDefinitions.createRoutineTool,
+    );
+
+    // LL35: explicit goal-state reporting. Intercepted by ChatNotifier, which
+    // owns the goal lifecycle; the fallback below refuses in contexts with no
+    // goal harness (subagents, routines).
+    _addIfEnabled(
+      toolDefinitions,
+      McpGoalRoutineToolDefinitions.updateGoalTool,
+    );
 
     // Built-in network tools (always available).
     for (final tool in networkToolHandler.definitions) {
@@ -464,6 +477,20 @@ class McpToolService {
         isSuccess: false,
         errorMessage:
             'create_routine requires interactive approval and cannot run in this context',
+      );
+    }
+
+    if (name == 'update_goal') {
+      // update_goal is intercepted by ChatNotifier, which owns the goal
+      // lifecycle and the completion evidence the ack reports. Reaching here
+      // means there is no goal harness (subagent, routine, or background
+      // context), so there is nothing to update.
+      return McpToolResult(
+        toolName: name,
+        result: '',
+        isSuccess: false,
+        errorMessage:
+            'update_goal has no goal to update in this context (no active goal harness)',
       );
     }
 
@@ -848,94 +875,6 @@ class McpToolService {
           },
         },
         'required': ['name', 'content'],
-      },
-    },
-  };
-
-  static Map<String, dynamic> get _createRoutineTool => {
-    'type': 'function',
-    'function': {
-      'name': 'create_routine',
-      'description':
-          'Schedule a recurring routine (an autonomous agent run) from the '
-          'conversation. Use this when the user describes a repeating task on a '
-          'schedule (e.g. "ping a host hourly and report the result"). The user '
-          'must approve every routine; the approval previews the schedule, '
-          'enabled tools, and delivery channels. The routine then runs '
-          'unattended on its schedule.',
-      'parameters': {
-        'type': 'object',
-        'properties': {
-          'name': {
-            'type': 'string',
-            'description': 'Short routine name (e.g. "Ping 192.168.0.1").',
-          },
-          'prompt': {
-            'type': 'string',
-            'description':
-                'The instruction the routine runs each time (e.g. "Ping '
-                '192.168.0.1 and report whether it is reachable").',
-          },
-          'schedule_mode': {
-            'type': 'string',
-            'enum': ['interval', 'daily'],
-            'description':
-                'interval = every N minutes/hours/days; daily = once per day '
-                'at a fixed time. Defaults to interval.',
-          },
-          'interval_value': {
-            'type': 'integer',
-            'description': 'For interval mode: how many units between runs.',
-            'minimum': 1,
-          },
-          'interval_unit': {
-            'type': 'string',
-            'enum': ['minutes', 'hours', 'days'],
-            'description': 'For interval mode: the unit. Defaults to hours.',
-          },
-          'time_of_day': {
-            'type': 'string',
-            'description':
-                'For daily mode: 24h "HH:MM" local time to run (e.g. "08:00").',
-          },
-          'tools_enabled': {
-            'type': 'boolean',
-            'description':
-                'Allow the routine to use tools (required for tasks like ping). '
-                'Defaults to false.',
-          },
-          'notify_on_completion': {
-            'type': 'boolean',
-            'description':
-                'Show a local notification when the run completes. Defaults to '
-                'true.',
-          },
-          'completion_action': {
-            'type': 'string',
-            'enum': ['none', 'google_chat', 'prompt_google_chat'],
-            'description':
-                'External delivery of the result. google_chat posts to the '
-                'configured Google Chat webhook. Defaults to none.',
-          },
-          'google_chat_rule': {
-            'type': 'string',
-            'enum': ['on_success', 'on_failure', 'always'],
-            'description':
-                'When to post to Google Chat (if completion_action uses it). '
-                'Defaults to on_failure.',
-          },
-          'workspace_directory': {
-            'type': 'string',
-            'description': 'Optional working directory for the routine run.',
-          },
-          'allow_workspace_writes': {
-            'type': 'boolean',
-            'description':
-                'Allow the routine to write in the workspace directory. '
-                'Defaults to false.',
-          },
-        },
-        'required': ['name', 'prompt'],
       },
     },
   };

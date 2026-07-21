@@ -1,10 +1,49 @@
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/goal_update_ack.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const resolver = GoalUpdateAckResolver();
+
+  group('resolveToolCall (dispatch entry)', () {
+    ToolCallInfo call(Map<String, dynamic> args) =>
+        ToolCallInfo(id: 't1', name: 'update_goal', arguments: args);
+
+    test('a rejected completion is a successful result carrying the gaps', () {
+      final result = resolver.resolveToolCall(
+        toolCall: call(const {'completed': true}),
+        goal: _goal(),
+        evidence: const ToolResultCompletionEvidence(unresolvedErrorCount: 1),
+      );
+
+      // Well-formed call the harness answered → success, verdict in the body.
+      expect(result.isSuccess, isTrue);
+      expect(result.result, contains('not recorded'));
+      expect(result.result, contains('unresolved error'));
+    });
+
+    test('no active goal is a tool failure', () {
+      final result = resolver.resolveToolCall(
+        toolCall: call(const {'completed': true}),
+        goal: null,
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, contains('no active goal harness'));
+    });
+
+    test('parses arguments from the raw call', () {
+      final result = resolver.resolveToolCall(
+        toolCall: call(const {'blocked_reason': 'missing key'}),
+        goal: _goal(),
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(result.result, contains('missing key'));
+    });
+  });
 
   group('inactive goal', () {
     test('rejects any update when there is no active goal', () {

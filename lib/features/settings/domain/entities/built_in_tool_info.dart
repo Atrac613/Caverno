@@ -130,6 +130,12 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_create_routine',
       category: categoryTasks,
     ),
+    // Goals
+    BuiltInToolInfo(
+      name: 'update_goal',
+      descriptionKey: 'settings.tool_update_goal',
+      category: categoryTasks,
+    ),
     // Memory
     BuiltInToolInfo(
       name: 'search_past_conversations',

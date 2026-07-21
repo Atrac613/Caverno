@@ -100,6 +100,7 @@ import '../../domain/services/dart_project_tooling.dart';
 import '../../domain/services/lsp_diagnostic_feedback_provider.dart';
 import '../../domain/services/final_answer_claim_detector.dart';
 import '../../domain/services/final_answer_recovery_policy.dart';
+import '../../domain/services/goal_update_ack.dart';
 import '../../domain/services/pending_action_length_recovery_policy.dart';
 import '../../domain/services/successful_read_result_replay_cache.dart';
 import '../../domain/services/structured_coding_execution_deferral_detector.dart';
