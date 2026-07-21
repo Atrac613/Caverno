@@ -2834,6 +2834,40 @@ Acceptance criteria:
 
 Non-goal (second): chasing the tail. 33 of the 41 invoked tools stay text-only.
 
+**Implementation note (2026-07-21) — the structure loss starts one level higher
+than this milestone assumed.** Every built-in tool's contract is
+`Future<String>`: the typed facts exist inside the tool function
+(`_LocalCommandResult.exitCode`) and are flattened to JSON before the handler
+wraps them in an `McpToolResult`. So a producer cannot simply "attach" a fact —
+either the tool-function return contract changes (large, touches every tool), or
+the fact is recovered once at the producer boundary.
+
+The shipped approach is the second, via `CommandPayloadFacts`: one adapter that
+decodes a first-party payload against a schema Caverno itself wrote, at the
+single boundary where the result is built. That is materially different from the
+downstream re-parsing this milestone removes — it is a contract with ourselves,
+not inference over prose — but it *is* a staging step, and the adapter should be
+deleted when tool functions return typed results. Recorded so the end state is
+not mistaken for reached.
+
+Consequence for sequencing: `exit_code` producers landed before the `read_file`
+hash, reversing the census's recommendation. Command results already had a
+normalization boundary (`McpToolResultNormalizer.fromCommandPayload`) to lift
+from; `read_file`'s JSON is passed through untouched, so its hash needs a lift
+point built first.
+
+Shipped so far: `ToolOutcome` in `caverno_tool_contracts`, the `outcome` field
+on `McpToolResult`, `ToolFailureClassifier` reading it, and exit-status
+producers for `git_execute_command`, `git_finish_worktree_session`, and
+`local_execute_command` — 26.2% of measured tool traffic. Both producer slices
+needed a ratchet extraction to make room, and in both cases the extraction was
+the structure the file wanted anyway (the normalizer was interpreting payloads
+as well as building results; the local command handler held ~250 lines of inert
+JSON schemas among its execution paths).
+
+Still open: the `read_file` content hash and its `ToolLoopContextDigest`
+consumer — the half that reaches the dominant measured failure.
+
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.
 
