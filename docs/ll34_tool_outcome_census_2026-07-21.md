@@ -72,14 +72,42 @@ framing was wrong. A read has a highly valuable outcome: **the content hash**
 (plus byte and line counts). Today `read_file` returns `content` and
 `truncated` and nothing else (`filesystem_tools.dart:242`).
 
-A content hash on read results is worth more than the pass/fail fields, because
-it makes the project's **measured dominant failure mode** mechanically
-detectable. The LL31 triage found redundant file re-reads in roughly 53% of
-sessions — the largest real failure signal Caverno has. `ToolLoopContextDigest`
-currently detects this by comparing whole result payloads for byte-identity and
-flagging repeats as `unchanged`; a hash field makes that comparison a field
-lookup instead of a heuristic over rendered text, and makes "this file has not
-changed since you read it at iteration 4" a fact the harness can state.
+A content hash on read results makes "this file has not changed since you read
+it at iteration 4" a fact the harness can state, and it extends comparison
+across reads with different parameters (offset 1-100 then 1-200 produce
+different payloads from an unchanged file).
+
+### Correction (same day): the read hash is not the signal the dominant failure needs
+
+This document first claimed the read hash makes the measured dominant failure —
+redundant re-reads in ~53% of sessions — "mechanically detectable". That
+overstated it. `ToolLoopContextDigest` keys results by (tool, arguments) and
+compares the payload bodies for identity
+(`tool_loop_context_digest.dart:67-72`), so **identical re-reads are already
+detected today**. The recorded case behind that statistic — 11 identical
+full-file reads in session 119292cb — is exactly the shape the existing
+comparison catches.
+
+What is *not* detected is the cause of that loop: the no-op edit. The model
+edits, believes the file changed, re-reads, sees the same content, and edits
+again. `FilesystemTools.writeFile` reports `bytes_written` and `created`
+(`filesystem_tools.dart:632-634`) and **never whether the content actually
+changed** — writing byte-identical content is indistinguishable from a real
+mutation. `editFile` has an `already_applied` flag, but that is a precondition
+check (the old text was missing because the new text is already there), not a
+post-write comparison.
+
+So the ranking of the remaining envelope fields is:
+
+| Field | Reaches the dominant failure? |
+|-------|-------------------------------|
+| Mutation `changed` / content hash on `write_file` / `edit_file` (13.9%) | **Yes — this is the undetected cause** |
+| Read content hash on `read_file` (26.3%) | Partly: better robustness and cross-parameter comparison, but the symptom is already caught |
+
+The mutation fact should therefore land before the read hash, even though the
+read hash covers more traffic. Coverage is what this census measured; causal
+value is a separate question, and conflating them is what produced the original
+claim.
 
 Revised coverage with a read outcome (path, hash, bytes, lines) added:
 
@@ -96,13 +124,15 @@ structured upstream by the LSP bridge).
 
 ## Consequences for LL34
 
-1. **Keep the milestone, sharpen the order.** Land the envelope on
-   `local_execute_command` (exit code) and `read_file` (content hash) first —
-   two tools, 43% of traffic, and the second one feeds the known #1 failure.
-2. **`read_file`'s hash reframes LL34's relationship to LL30.** LL34 stops being
-   pure hygiene and becomes a direct contributor to the dominant measured
-   problem, which is the strongest available argument for building it before
-   the speculative half of the track.
+1. **Keep the milestone, sharpen the order.** Land exit status first
+   (`local_execute_command`, `git_execute_command` — 26.2% of traffic, and the
+   boundary to lift from already exists), then the mutation `changed` fact,
+   then the read hash.
+2. **The mutation fact is what reframes LL34's relationship to LL30** (see the
+   correction above). A `changed` fact on writes is the one undetected signal
+   behind the dominant measured problem, which is the strongest available
+   argument for building this milestone before the speculative half of the
+   track. The read hash is coverage and robustness, not the causal fix.
 3. **Do not chase the tail.** 33 of the 41 invoked tools stay text-only. The
    non-goal already recorded in the milestone — never invent an outcome field a
    tool does not genuinely know — is confirmed by the distribution rather than
