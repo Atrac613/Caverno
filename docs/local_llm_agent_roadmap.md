@@ -165,10 +165,15 @@ structurally unmotivated to build:
 | Local LLM | LL26 | later | S-M | LL7, LL8, LL20 | Parallel Best-of-N candidate selection across the mesh (A0): generate candidates concurrently on resident endpoints (PC1/PC2) via LL20 slots over the LL8 mesh, then keep the verifier-passed candidate (LL7). A latency-neutral selection ensemble; concretizes the Best-of-N half of LL8's deferred fan-out. High-confidence and cheap, but sequenced after LL24. |
 | Local LLM | LL27 | later | L | LL26, LL12, LL19, LL1 | Collaborative multi-model orchestration over the mesh: layered aggregation (Mixture-of-Agents), role conductor, and debate so resident models cooperate on one turn. Guiding thesis: a Trinity-style role conductor (small coordinator → Thinker/Worker/Verifier on resident workers). Future research challenge, gated by the LL12/LL19 eval harness on "beats the best currently validated single-model path including latency". |
 | Local LLM | LL28 | done | M | LL1, LL8, LL3 | User-facing multi-participant group discussion: invite a second resident model (PC2) into the same thread as named participants with per-participant roles (facilitator / senior engineer / …), round-robin turn-taking when no facilitator is present, facilitator-managed handoff routing when one is present, and selectable single-round / multi-round depth, reusing the LL8 mesh endpoint resolver (health fallback) and the existing `ToolApprovalMode` (manual / auto / full) for read-only per-participant tools. The manually-driven, *visible* sibling of LL27 — user-judged, no eval gate; an auto-moderator turn policy is the bridge toward LL27. |
-| Local LLM | LL29 | next | S-M | F2, LL23, LL31 | Tool-loop failure recovery (degrade, don't abort), gated on LL31 triage evidence: replace the whole-turn halt on a twice-failing tool call with escalating in-loop recovery — inject an action-oriented, tool-specific hint into the failing tool result and keep iterating (warn), make the hard turn-halt an opt-in circuit breaker, and distinguish exact-arg repeats, same-tool repeats, and read-only no-progress. Hardens the existing `toolFailureCounts` path in `ChatNotifier`. Inspired by the Hermes/Nous agent `tool_guardrails.py`. |
+| Local LLM | LL29 | later | S-M | F2, LL23, LL31 | Tool-loop failure recovery (degrade, don't abort). Demoted 2026-07-21: its LL31 evidence gate came back negative (`tool_failure_abort` 1.6% of 377 turns), so it waits for a triage that shows the abort path rising. Scope, unchanged: replace the whole-turn halt on a twice-failing tool call with escalating in-loop recovery — inject an action-oriented, tool-specific hint into the failing tool result and keep iterating (warn), make the hard turn-halt an opt-in circuit breaker, and distinguish exact-arg repeats, same-tool repeats, and read-only no-progress. Hardens the existing `toolFailureCounts` path in `ChatNotifier`. Inspired by the Hermes/Nous agent `tool_guardrails.py`. |
 | Local LLM | LL30 | next | M | LL14, LL6, LL31 | Compaction structural pre-pass, gated on LL31 triage evidence: before summarization, run a no-LLM tool-result prune — dedupe identical tool outputs, replace old ones with informative one-line summaries that keep *what happened* (`[run_command] \`flutter test\` → exit 0, 47 lines`), truncate oversized tool-call arguments inside parsed JSON so the payload stays valid, and strip stale image payloads; switch the protected tail from a fixed message count to a token budget and add an anti-thrashing back-off. Extends LL14 with the Hermes `context_compressor._prune_old_tool_results` / `_summarize_tool_result` pattern. |
 | Local LLM | LL31 | next | S-M | F2, LL23 | Turn-exit reason and completion explainer: tag every tool-loop exit with a structured reason (`text_response` / `max_iterations` / `guardrail_halt` / `empty` / `partial`), replace an empty or truncated final response with a single user-visible explanation derived from that reason, and log a WARNING when a turn ends on a pending tool result (the "just stops" case). Inspired by the Hermes `turn_finalizer.py`. |
 | Local LLM | LL33 | current | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
+| Local LLM | LL32 | later | S-M | LL4, F6 | Deferred subdirectory instruction and skill discovery: when a tool touches a path outside the startup discovery chain, walk up to the repo root for `CLAUDE.md` / `AGENTS.md` / rules and skill directories, and surface newly found files as **paths only**, once per session (or once per compaction cycle), leaving the read decision to the model. Parked pending corroboration; corroborated 2026-07-21 by Grok Build's `agents_md_tracker.rs` / `skill_discovery.rs` shipping the same design. |
+| Local LLM | LL34 | next | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: give `McpToolResult` typed outcome fields (exit code, mutated files with content hashes, test counts) so first-party tool facts survive the tool boundary, and rewire `ToolFailureClassifier`, `WorkflowToolResultFailureDetector`, `CodingCommandOutputGuardrailService`, and the claim guards to read facts instead of re-parsing result strings. Third-party MCP results stay opaque text on a clearly-marked lexical path. Local-first payoff beyond hygiene: a typed outcome lets the harness render a deterministic one-line summary (`exit 0 · 3 files changed · 47 tests passed`) instead of shipping a 200-line build log a weak model misreads and a small context window cannot afford (LL23-togglable). Lead milestone of the Grounded Verification Track. |
+| Local LLM | LL35 | next | M | LL34, LL3, LL23 | Explicit goal-state tool with a real acknowledgement: replace the lexical `_looksComplete` / `_looksBlocked` goal transitions with an `update_goal(completed:/blocked_reason:/message:)` built-in whose tool reply carries the harness's actual verdict (accepted / still-open gaps / paused at cap), so the model cannot mistake an unverified claim for a received completion. Also mines the plan's first unchecked `## Task checklist` item as the continuation next-step. Local-first addition: `update_goal` call fidelity is an LL3 probe and the completion policy is LL23-declared (`tool` / `tool_or_ask` / `ask`), because removing the lexical path without a fallback turns "false completion" into "goal never closes" on weak models — **user confirmation at budget exhaustion is a first-class completion mechanism**, not an error path. |
+| Local LLM | LL36 | next | S-M | LL33, LL34 | Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; new grounded verdicts run in shadow beside the lexical ones with disagreements logged, so guards are deleted on measurement rather than on argument. Adopted from Grok Build's labeled `GoalPrematureStopDetected` panel. |
+| Local LLM | LL37 | later | L | LL34, LL35, LL36, LL3, LL18, LL19 | Objective verification, split by cost: a **single** cheap verifier inline on a completion claim (bounded budget, fails open, no parallel spawns) and the expensive N-way panel at idle via LL18, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. Local-first inversions vs Grok Build: uncertainty defaults to *not* refuted for weak verifiers (a weak skeptic that refutes correct work is worse than none), a LL3 fidelity gate disables the stage entirely below threshold, and the strategist role is idle-only. Whether a local verifier is good enough at all is an LL19-measured open question. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
@@ -2416,7 +2421,17 @@ land it alongside LL31's loop edits to keep one review surface.
 
 ### LL29: Tool-Loop Failure Recovery (Degrade, Don't Abort)
 
-Status: `next`
+Status: `later`
+
+Demoted 2026-07-21 on its own gate. The LL31 triage this milestone was gated on
+came back against it: over 377 real turns, `tool_failure_abort` accounted for
+1.6% of exits while healthy `text_response` accounted for 94.7%, and the
+dominant real failure mode was redundant file re-reads (~53% of sessions), which
+is LL30/context-digest territory. Keeping a milestone in `next` after its
+evidence gate failed to clear would make the gate decorative. The scope below is
+preserved unchanged: if a later triage shows the abort path rising — most
+plausibly on a weaker model with poorer tool-call fidelity — this is ready to
+promote.
 
 Problem:
 - The current loop ends the *entire turn* when one tool call fails twice with
@@ -2510,6 +2525,27 @@ Source: Hermes/Nous agent `agent/context_compressor.py`
 (`_prune_old_tool_results` three-pass prune, `_summarize_tool_result`,
 `_truncate_tool_call_args_json`, token-budget tail in `_find_tail_cut_by_tokens`,
 anti-thrashing in `should_compress`).
+
+Second source (2026-07-21, `docs/grok_build_comparison_2026_07_21.md`): Grok
+Build ships a graduated version of the same prune in
+`xai-chat-state/src/actor/request_builder.rs:166` — above 50% context
+utilization, the last 3 turns are untouched, older tool results over 4000 chars
+are cut to head 1500 + `[…trimmed…]` + tail 1500, and results older than 10
+turns become `[Tool result omitted — too old]`. No LLM call. The graduated
+age-banded shape (untouched → soft-trim → placeholder) is a better-specified
+version of this milestone's prune passes and is worth adopting directly.
+
+**But not its firing point.** Grok Build applies the prune per-request, to the
+request clone. That mutates history at exactly the moment it fires and
+invalidates the KV prefix — acceptable for a hosted API, wrong for Caverno,
+which has spent LL6 and LL22 on prefix stability and warm caches. Keep the
+firing point at compaction boundaries, matching LL14's existing rule; take the
+graduated shape, not the placement.
+
+Also worth copying in spirit: the same file's image-eviction placeholder tells
+the model the image is gone and not to describe it from memory, because a
+silently stripped image induces confident hallucination of its contents. Any
+image or attachment eviction added here needs that wording.
 
 Gated on: LL31 triage evidence — confirm context bloat on tool-heavy turns
 actually dominates before building this. If confirmed, next action: implement the
@@ -2613,6 +2649,442 @@ what `transforms[]` replaces with a first-class signal.
 Next action: extend `transforms[]` to the remaining finalization transforms
 (file-save notice, max-token truncation, finalization recovery) and consider a
 small triage join that prints the on-screen final content for a flagged turn.
+
+## Grounded Verification Track (LL34-LL37)
+
+These four milestones share one product goal: **no terminal state is decided by
+reading the assistant's prose.** They were scoped from a comparison of
+Caverno's guard surfaces against Grok Build (xAI's published agent CLI source in
+`tmp/grok-build`); the full source record is
+`docs/grok_build_comparison_2026_07_21.md`.
+
+The organizing rule, taken from how Grok Build treats its own regex panel:
+
+> **A heuristic may trigger. It may not judge.**
+
+Grok Build did not delete its bail-phrase regexes. It restricted them to
+choosing which continuation nudge to render and emitting a labeled telemetry
+event, and moved every terminal decision to one of three mechanisms. Caverno's
+guards already follow that rule in the places where the verdict comes from
+execution records — the work here is finishing the job in the places where it
+does not, and removing the regex that only exists because structure was
+discarded at the tool boundary.
+
+**Caverno needs a fourth mechanism.** Grok Build's three are (1) mechanical
+ground truth, (2) a structured self-report with a real acknowledgement, and
+(3) adversarial verification. All three assume a model that reliably calls the
+tool it is told to call and a verifier competent enough to be trusted — a safe
+assumption for a frontier-hosted agent, not one for Caverno (Design Thesis §1,
+capability heterogeneity). So the ladder here ends with (4) **ask the user**.
+At budget exhaustion, "here is what I did and what I could not verify — is this
+done?" is more accurate than any lexical inference and costs nothing. The
+fourth rung is what makes it safe to remove the third rung's assumptions for
+weak models rather than leaving goals permanently unclosable.
+
+Local-first consequences that shaped these milestones:
+
+- **Structured results are a capability compensation, not just hygiene.** Weak
+  models read long tool output poorly and burn scarce context doing it. A typed
+  `exitCode` lets the harness render a deterministic one-line outcome instead
+  of shipping 200 lines of build log for the model to misread (Thesis §2).
+- **Tool-call fidelity varies per model, so the goal tool must be probed.**
+  Whether a model can reliably call `update_goal` belongs in the LL3 capability
+  profile with the fallback selected by LL23 declared policy — not assumed.
+- **Verification is idle work, not inline work.** Thesis §4 (tokens are free
+  locally) and §7 (idle hardware is a scheduled compute budget) say the
+  expensive verification belongs in the LL18 overnight orchestrator, next to
+  LL7 retry-until-green. What runs inline must stay cheap enough not to add
+  prefill latency to the user's turn (Thesis §3).
+- **A weak verifier's default must be the opposite of Grok's.** See LL37.
+
+Sequencing — cheapest ground truth first, judgment last:
+
+1. **LL34** restores structure at the tool boundary. Most of the lexical
+   parsing in the guard layer is not inherent; it exists because
+   `McpToolResult` flattens every outcome to a string. This deletes regex
+   rather than adding heuristics, so it is not gated on triage evidence.
+2. **LL35** removes the two remaining places where prose decides a terminal
+   state, by making the model say so explicitly and making the harness answer
+   honestly.
+3. **LL36** turns the guards that must stay lexical into measured, auditable
+   triggers, and establishes shadow-mode as the removal protocol.
+4. **LL37** is the expensive one and is deliberately last. It is only for the
+   judgment ground truth cannot settle.
+
+Removal protocol — **shadow mode, always.** The false-completion guards are
+known to be load-bearing in real sessions, so no lexical path is deleted on
+the strength of a better design. A replacement runs beside the incumbent with
+both verdicts recorded and disagreements logged (LL33 `transforms[]` is the
+carrier); the lexical path is removed only after its firing record shows it
+adds nothing the grounded path already catches. This makes deletion a
+measurement, which is the same evidence-first discipline the LL29-LL31 track
+follows.
+
+Anti-goal: LL37 must not become a general-purpose "review everything" pass.
+Verifying with subagents what an exit code already proves is pure waste, and
+Grok Build's own verifier prompt spends most of its length preventing exactly
+that failure mode.
+
+### LL34: Structured Tool-Result Envelope
+
+Status: `next`
+
+Problem:
+- `McpToolResult` (`lib/features/chat/domain/entities/mcp_tool_entity.dart:43`)
+  carries `String result` and `bool isSuccess` and nothing else. The real exit
+  code exists — `lib/features/chat/data/datasources/local_shell_tools.dart:585`
+  writes `'exit_code': exitCode` — but only inside the JSON string.
+- Downstream, `ToolFailureClassifier`, `WorkflowToolResultFailureDetector`,
+  `ConversationValidationToolResultInference`, and
+  `CodingCommandOutputGuardrailService` each independently re-parse that string
+  or substring-match phrases (`'no data found'`, `'could not find data'`).
+  `CodingVerificationClaimGuard` re-parses test counts out of command output to
+  compare them against the counts claimed in prose.
+- This is the largest single concentration of lexical matching in the guard
+  layer, and none of it is inherent: it is a consequence of discarding
+  structure at the tool boundary and reconstructing it four times.
+
+Scope:
+- Add typed outcome fields to the tool-result envelope alongside the existing
+  `result` string (which stays — it is what the model sees):
+  - `exitCode` for command-execution tools,
+  - `fileMutations` (path, content hash, byte size) for filesystem writes,
+  - `testOutcome` (passed / failed / skipped counts, command) where a
+    recognized test runner produced the output.
+- Populate them at the tool implementation, not by re-parsing downstream. Each
+  built-in tool owns its own outcome mapping.
+- Rewire the consumers above to read the typed fields, keeping the lexical
+  branch as the fallback for results that carry no envelope.
+- Draw the trust boundary explicitly: first-party built-ins produce envelopes;
+  third-party MCP results stay opaque text and keep a marked lexical path. The
+  split aligns with the SEC2 taint boundary rather than cutting across it.
+- Upgrade `UnwrittenFileClaimGuard` from `dart:io` existence to the turn's
+  mutation set: a file that existed before the turn is not evidence that this
+  turn wrote it. Grok Build's honesty rule is the reference — a claim about a
+  file absent from the changed-file list is fabricated regardless of whether
+  the file exists.
+- **Use the envelope to shrink what the model reads.** Once the outcome is
+  typed, the result text shipped back to the model can lead with a
+  deterministic one-line summary (`exit 0 · 3 files changed · 47 tests passed`)
+  and demote the raw output behind the existing truncation. This is the
+  local-first half of the milestone: weak models misread long build logs and
+  small context windows cannot afford them (Design Thesis §1, §2). Gate the
+  summary-first rendering behind the LL23 declared per-model policy so strong
+  models can keep the raw-first shape, and measure the token delta the way LL14
+  did.
+
+Non-goal: inventing outcome fields for tools that have no natural one. The
+envelope is populated where a tool genuinely knows its outcome (exit status,
+bytes written, parsed runner counts). A tool that does not know stays text-only
+rather than getting a guessed field — a fabricated `isSuccess` is exactly the
+kind of false ground truth this track exists to remove.
+
+Acceptance criteria:
+- A failing command is classified from `exitCode` with the output text empty or
+  unparseable (test asserts classification no longer depends on output prose).
+- `CodingVerificationClaimGuard` compares claimed counts against
+  `testOutcome`, not against re-parsed output, for runners that produce one.
+- A no-op edit (write with identical content) is distinguishable from a real
+  mutation via the content hash — the case behind the repeated
+  edit → re-read → identical-output loop already recorded in triage.
+- Third-party MCP results still flow through the existing path with no
+  behavior change (regression test over an MCP result with no envelope).
+- Every rewired consumer records which path produced its verdict (typed vs
+  lexical) so LL36 can measure the residual.
+- Summary-first rendering reduces measured prompt tokens on a tool-heavy
+  transcript, recorded with a `tool/` measurement script in the LL14 style, and
+  is togglable per model through LL23.
+
+Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`).
+
+Next action: define the envelope type beside `McpToolResult`, populate it in
+`local_shell_tools` (exit code) and the filesystem write path (mutations +
+hashes) first, and rewire `ToolFailureClassifier` as the first consumer.
+
+### LL35: Explicit Goal-State Tool With A Real Acknowledgement
+
+Status: `next`
+
+Problem:
+- `ConversationGoalProgressInference.infer`
+  (`lib/features/chat/domain/services/conversation_goal_progress_inference.dart:225-256`)
+  moves a goal to `completed` or `blocked` from string lists: `_looksComplete`
+  contains `'passed'`, `'complete'`, `'修正しました'`; `_blockedSignals`
+  contains `'permission denied'`, `'waiting for user'`. Any assistant sentence
+  containing one of those can end a goal.
+- `ConversationExecutionProgressInference` infers verification success from
+  `'was successful'` / `'ran successfully'` / `'working as expected'`.
+- These are the only two places where prose alone reaches a terminal state, and
+  they are the reason a truthful-sounding but unverified summary can close a
+  goal.
+
+Scope:
+- Add an `update_goal` built-in with `completed` / `blocked_reason` / `message`,
+  routed through the existing tool-dispatch path.
+- The tool reply must carry the harness's **actual** outcome, not an instant
+  success: accepted-as-progress, completion-recorded, completion-rejected with
+  the outstanding gaps, or paused-at-cap. Grok Build blocks the tool on a
+  `oneshot` ack for exactly this reason — an instant success teaches the model
+  that its claim was received as fact, which is the failure this milestone
+  exists to remove. Until LL37 lands there is no verifier, so the initial
+  outcomes are the mechanical ones (LL34 envelope facts + goal budget state).
+- Retire the lexical transitions behind the shadow-mode protocol: keep
+  `ConversationGoalProgressInference` running, record both verdicts, log
+  disagreements, and remove the lexical path once the record shows the tool
+  path covers it.
+- Fold in the continuation next-step: mine the first unchecked `- [ ]` from the
+  plan's task checklist for the auto-continue nudge. Do **not** mine numbered
+  acceptance criteria — they never get checked off, so they surface the same
+  stale line forever (a failure Grok Build hit and documented in
+  `goal_next_step.rs`). Cap the read and drop a trailing partial line.
+- Existing auto-continue vetoes, budgets, and no-progress detection
+  (`conversation_goal_auto_continue_policy.dart`) are unchanged; this milestone
+  changes who decides completion, not the continuation machinery.
+
+**Local-first: the tool call is a capability bet, so probe it.** This milestone
+makes goal completion depend on the model actually calling a tool, and tool-call
+fidelity is the single most variable property across local models (Design Thesis
+§1). Removing the lexical path without a fallback converts "false completion"
+into "goal never closes", which is the worse failure — an agent that silently
+keeps working is harder to recover from than one that stops early.
+
+- Add `update_goal` call fidelity to the LL3 capability probe: can the model
+  emit the call at all, with valid arguments, at the point it claims completion?
+- Store the verdict in the profile and select the completion policy through the
+  LL23 declared per-model config: `tool` (trust the call), `tool_or_ask`
+  (default — trust the call, fall back to asking at budget exhaustion), or
+  `ask` (weak models: never infer, always confirm).
+- **User confirmation is a first-class completion mechanism, not an error
+  path.** When the turn budget is exhausted with no `update_goal` call, present
+  what was done and what remains unverified and ask. This is more accurate than
+  any lexical inference and costs zero tokens, and it is what makes the lexical
+  removal safe on models that cannot drive the tool.
+- The ask must respect the existing auto-continue veto boundary — it is a
+  pending user decision like any other approval, not a modal interrupt of
+  in-flight work.
+
+Acceptance criteria:
+- A response containing "all tests passed" with no `update_goal` call leaves
+  the goal `active` (test over the exact prose that previously completed it).
+- A model profiled as unable to call `update_goal` reaches a resolved goal
+  through the confirmation path rather than staying active forever (test over
+  the `ask` policy with the tool never called).
+- `update_goal(completed: true)` returns a reply distinguishing recorded from
+  rejected, and a rejected completion leaves the goal `active` with the reason
+  visible to the model.
+- The auto-continue nudge quotes the plan's first unchecked checklist item when
+  one exists, and falls back to the generic line when it does not.
+- Shadow-mode disagreements between the lexical inference and the tool path are
+  recorded in the LL33 transform record.
+
+Depends on LL34 for the mechanical outcomes the ack reports, and on LL3/LL23
+for the per-model completion policy.
+
+Source: Grok Build comparison, class 1; `update_goal/mod.rs` (`UpdateGoalAck`),
+`goal_next_step.rs`. The user-confirmation rung is a Caverno addition — Grok
+Build has no equivalent because it can assume tool-call fidelity.
+
+Next action: land the `update_goal` tool plus the ack-carrying reply, with the
+lexical inference still authoritative, and start collecting disagreement
+records. Add the fidelity probe in the same slice as the profile field, before
+any lexical removal.
+
+### LL36: Heuristic Demotion And Firing Audit
+
+Status: `next`
+
+Problem:
+- The guards that must stay lexical — extracting a *claim* from prose has no
+  structured signal to replace it — are currently invisible in aggregate. LL33
+  landed transform records for two notices; the rest of the guard surface
+  (`NarratedTranscriptClaimGuard`, `StructuredCodingExecutionDeferralDetector`,
+  `FinalAnswerClaimDetector` variants) still fires without a labeled record.
+- Without firing records, "is this guard load-bearing or dead weight?" is
+  settled by argument. With them it is settled by counting.
+
+Scope:
+- Give every lexical guard a stable pattern label and emit a LL33-style
+  transform record on each firing, including the extracted claim and the
+  grounded verdict that followed.
+- Enforce the track rule structurally: a lexical guard may append a notice,
+  inject a recovery hint, or select a nudge; it may not set goal status, mark a
+  workflow task complete, or finalize a turn. Grok Build's stop detector is the
+  model — labeled, telemetered, and decision-free.
+- Extend `tool/triage_session_logs.py` with a per-label firing distribution and
+  a shadow-mode disagreement view (lexical verdict vs grounded verdict from
+  LL34/LL35).
+- Delete-by-measurement: a lexical path whose record shows it never produced a
+  verdict the grounded path missed is removed in a follow-up slice, with the
+  firing distribution attached as the evidence.
+
+Acceptance criteria:
+- Every guard firing appears in `transforms[]` with a stable label; a triage
+  run prints the distribution.
+- A guard cannot reach a terminal-state setter (enforced by the type/API shape,
+  not by convention — covered by a test that the demoted guards return advisory
+  results only).
+- At least one lexical path is removed on the strength of its own firing
+  record, with the triage output recorded as the justification.
+
+Source: Grok Build comparison, class 2; `goal_stop_detector.rs`
+(`GoalPrematureStopDetected { pattern }` and its precision/recall rationale).
+
+Next action: label and record the `NarratedTranscriptClaimGuard` and deferral
+detector firings first — they are the two with the least evidence behind them.
+
+### LL37: Objective Verification (Single Verifier Inline, Panel At Idle)
+
+Status: `later`
+
+Problem:
+- After LL34-LL36 the remaining question is the one no mechanical signal
+  answers: the exit codes are green, the files were written, the model called
+  `update_goal(completed: true)` — but did the change actually satisfy the
+  objective? Today nothing checks, and `RetryUntilGreenCoordinator` /
+  `BestOfNCoordinator` verify *commands pass*, not *the objective is met*.
+
+**Local-first shape — this is where Grok Build's design must not be copied.**
+Grok Build spawns an N-way skeptic panel in parallel on every completion claim.
+That shape assumes frontier models, large context, and elastic hosted capacity.
+Caverno's environment inverts every one of those assumptions: a panel of
+subagents each reading diffs and files is precisely the workload that overflows
+small context windows, and on a shared LAN endpoint concurrent spawns thrash
+model load and stall the user's own session. Copying the panel inline would make
+the product feel worse exactly when a task is hardest.
+
+Two changes follow, and they are the milestone's core design:
+
+1. **Split by cost, using the idle budget.** Inline, on the user's turn, run a
+   **single** verifier — cheap, narrow prompt, LL1 secondary route, bounded
+   token budget, no parallel spawns (Thesis §3: prefill latency is the local UX
+   killer). The expensive multi-verifier panel runs **at idle** through the LL18
+   orchestrator, as the objective-level sibling of LL7 retry-until-green
+   (Thesis §4, §7: tokens are free locally and idle hardware is a scheduled
+   compute budget). An overnight run that reports "three of these five goals do
+   not actually meet their objective" is a better product than a panel that adds
+   40 seconds to every completion.
+2. **Invert the uncertainty default for weak verifiers.** Grok Build instructs
+   its verifier to "default to `refuted` if uncertain" — correct when the
+   verifier is strong, because one more iteration is cheaper than passing broken
+   work. With a weak local verifier that bias is a work generator: an uncertain
+   model refutes almost everything, and the loop never converges on correct
+   work. Select the bias from the LL3 capability profile — strong models keep
+   Grok's skeptical default; weak models default to `not refuted` and may refute
+   only on a *concrete cited* finding (a `path:line`, a failing command, a named
+   missing artifact). A verifier that cannot cite does not get a vote.
+
+A weak verifier that refutes correct work is worse than no verifier at all, so
+the profile gate is a hard prerequisite, not a tuning knob: below the fidelity
+threshold the verification stage is disabled and completion falls back to the
+LL35 confirmation rung.
+
+Scope:
+- **Inline stage.** One verifier pass on `update_goal(completed: true)`, given
+  the objective, the plan, the turn's changed-file set (LL34), and the
+  implementer's captured evidence. Returns the fixed-schema JSON verdict —
+  `refuted`, `findings[]` (kind / location / detail), `evidence`, `confidence`,
+  `blocking`. Bounded by a token budget and a wall-clock timeout; on timeout or
+  unparseable output it fails **open** (records the failure, does not block the
+  user).
+- **Idle stage.** The N-way panel with majority-refute aggregation, scheduled by
+  LL18 over the LL8 mesh using LL20 slots, reporting into the same verdict
+  store. This is where the multi-verifier design earns its cost, because nobody
+  is waiting on it.
+- The verifier **audits** what the implementer produced; it does not build a
+  parallel test suite. An insufficient-evidence finding is refuted back to the
+  implementer as the next gap, not filled in by the verifier.
+- Implement the convergence controls — these are not optional garnish, they are
+  what makes verification terminate, and they matter *more* with a noisier local
+  verifier than they do for Grok:
+  - **Anti-ratchet.** On a re-verification round the job is confirming the
+    prior gaps are fixed. A new objection refutes only when it is a
+    demonstrable defect or an unmet gating criterion, never a stylistic or
+    test-construction preference an earlier round accepted.
+  - **Stall exit.** Identical flagged gaps twice in a row auto-pauses before
+    the cap.
+  - **Run cap.** A runaway-cost backstop, not the primary stop.
+  - **Blocking classification.** `none` / `contradiction` / `unverifiable`;
+    the latter two route to a user decision rather than another attempt.
+- Add the strategist role for non-convergence: after several rounds each
+  flagging a *different* gap, a role investigates the run's own traces and
+  writes one note recommending a structural change — changing the HOW, never
+  the WHAT (objective and acceptance criteria are off-limits). Idle-stage only;
+  it is a whole extra model pass over session traces and has no business on the
+  user's turn.
+- Establish evidence discipline as a prerequisite: a per-goal private scratch
+  directory for captured output (never shared `/tmp`, which collides across
+  concurrent goals and with LL13 worktree agents), and explicit
+  anti-test-theater rules in the implementer prompt.
+- Cost control: verification runs on the LL1 secondary-model route over the LL8
+  mesh, only on an `update_goal(completed: true)`, and only for goals above a
+  size threshold. Never on turns whose outcome LL34 already settles.
+
+Acceptance criteria:
+- A completion claim whose diff does not satisfy a plan criterion is refuted,
+  and the gaps reach the model as the next continuation nudge.
+- A correct, in-scope completion is not refuted for missing edge cases, extra
+  robustness, or test-construction preferences (fixture case asserting the
+  over-reach guard).
+- Repeated identical gaps auto-pause before the run cap; a `contradiction` or
+  `unverifiable` verdict surfaces to the user rather than retrying.
+- Verification does not fire when LL34 ground truth already decides the outcome.
+- The inline stage adds a bounded, measured latency to a completion turn (recorded
+  the way LL22 records cold-vs-warm `prompt_ms`), and fails open on timeout.
+- A model below the verifier fidelity threshold disables the stage entirely
+  rather than emitting low-confidence refutes (test over a profile that fails
+  the gate).
+- Token cost per completion claim is recorded and bounded, separately for the
+  inline and idle stages.
+
+Gated on: LL34-LL36 landing first. This is the most expensive mechanism in the
+track and the easiest to misuse; it is only worth building for the residue that
+ground truth and structured self-report cannot decide. If that residue turns
+out to be small once LL34/LL35 are measured, re-scope or drop this.
+
+Open question to settle with measurement, not argument: whether a local
+verifier is good enough to be worth running at all. LL19 replay is the right
+instrument — score verifier verdicts against recorded tasks with known
+outcomes, and read precision on correct work (false refutes) separately from
+recall on broken work. If false refutes dominate at every available model size,
+the honest conclusion is to ship the idle stage only, or to drop the milestone
+and rely on LL35's confirmation rung.
+
+Source: Grok Build `session/goal_classifier.rs`,
+`session/templates/goal_verifier_prompt.md`, `goal_strategist_prompt.md`. The
+inline/idle split, the fidelity gate, and the inverted uncertainty default are
+Caverno adaptations — see `docs/grok_build_comparison_2026_07_21.md`.
+
+### LL32: Deferred Subdirectory Instruction And Skill Discovery
+
+Status: `later`
+
+Problem:
+- Project instruction files and skills are discovered once, from the startup
+  working directory. Work that reaches into a subdirectory with its own
+  `CLAUDE.md` or skill definitions never learns they exist.
+
+Scope:
+- When a tool touches a path outside the startup discovery chain, walk up from
+  that path to the repo root checking for instruction files
+  (`CLAUDE.md` / `AGENTS.md` / rules directories) and skill definitions.
+- Surface newly discovered files as **paths only**, once per session (or once
+  per compaction cycle), and let the model decide whether to read them.
+  Path-only keeps the context cost near zero and preserves LL6 prefix
+  stability far better than injecting file bodies mid-turn.
+
+Acceptance criteria:
+- Touching a path under a subdirectory with its own instruction file surfaces
+  that path exactly once per session.
+- No re-surfacing on repeat access; the reminder survives compaction according
+  to the chosen cycle rule.
+- Context cost is bounded and measured (paths only, capped count).
+
+History: parked as a speculative idea because Caverno had no evidence the
+missing-instruction case actually hurt. Corroborated 2026-07-21 — Grok Build
+ships the same design (`xai-grok-tools/src/types/agents_md_tracker.rs`,
+`reminders/skill_discovery.rs`), including the path-only choice. Still `later`:
+corroboration justifies keeping it on the roadmap, not jumping it ahead of the
+Grounded Verification Track.
 
 ## Future Platform Vision Milestone Notes
 
