@@ -296,7 +296,14 @@ as String?,
 /// @nodoc
 mixin _$McpToolResult {
 
- String get toolName; String get result; bool get isSuccess;@JsonKey(includeFromJson: false, includeToJson: false) bool get isExternalMcpResult; String? get errorMessage;
+ String get toolName; String get result; bool get isSuccess;@JsonKey(includeFromJson: false, includeToJson: false) bool get isExternalMcpResult; String? get errorMessage;/// Structured facts a first-party tool reported about its own execution.
+///
+/// Null for third-party MCP results, which stay opaque text: only tools
+/// Caverno implements can be trusted to describe their own outcome. It is
+/// runtime-only for the same reason `isExternalMcpResult` is — consumers
+/// read it while a turn runs, and a persisted copy could outlive the facts
+/// it describes. See LL34 in `docs/local_llm_agent_roadmap.md`.
+@JsonKey(includeFromJson: false, includeToJson: false) ToolOutcome? get outcome;
 /// Create a copy of McpToolResult
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -309,16 +316,16 @@ $McpToolResultCopyWith<McpToolResult> get copyWith => _$McpToolResultCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is McpToolResult&&(identical(other.toolName, toolName) || other.toolName == toolName)&&(identical(other.result, result) || other.result == result)&&(identical(other.isSuccess, isSuccess) || other.isSuccess == isSuccess)&&(identical(other.isExternalMcpResult, isExternalMcpResult) || other.isExternalMcpResult == isExternalMcpResult)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is McpToolResult&&(identical(other.toolName, toolName) || other.toolName == toolName)&&(identical(other.result, result) || other.result == result)&&(identical(other.isSuccess, isSuccess) || other.isSuccess == isSuccess)&&(identical(other.isExternalMcpResult, isExternalMcpResult) || other.isExternalMcpResult == isExternalMcpResult)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage)&&(identical(other.outcome, outcome) || other.outcome == outcome));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,toolName,result,isSuccess,isExternalMcpResult,errorMessage);
+int get hashCode => Object.hash(runtimeType,toolName,result,isSuccess,isExternalMcpResult,errorMessage,outcome);
 
 @override
 String toString() {
-  return 'McpToolResult(toolName: $toolName, result: $result, isSuccess: $isSuccess, isExternalMcpResult: $isExternalMcpResult, errorMessage: $errorMessage)';
+  return 'McpToolResult(toolName: $toolName, result: $result, isSuccess: $isSuccess, isExternalMcpResult: $isExternalMcpResult, errorMessage: $errorMessage, outcome: $outcome)';
 }
 
 
@@ -329,7 +336,7 @@ abstract mixin class $McpToolResultCopyWith<$Res>  {
   factory $McpToolResultCopyWith(McpToolResult value, $Res Function(McpToolResult) _then) = _$McpToolResultCopyWithImpl;
 @useResult
 $Res call({
- String toolName, String result, bool isSuccess,@JsonKey(includeFromJson: false, includeToJson: false) bool isExternalMcpResult, String? errorMessage
+ String toolName, String result, bool isSuccess,@JsonKey(includeFromJson: false, includeToJson: false) bool isExternalMcpResult, String? errorMessage,@JsonKey(includeFromJson: false, includeToJson: false) ToolOutcome? outcome
 });
 
 
@@ -346,14 +353,15 @@ class _$McpToolResultCopyWithImpl<$Res>
 
 /// Create a copy of McpToolResult
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? toolName = null,Object? result = null,Object? isSuccess = null,Object? isExternalMcpResult = null,Object? errorMessage = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? toolName = null,Object? result = null,Object? isSuccess = null,Object? isExternalMcpResult = null,Object? errorMessage = freezed,Object? outcome = freezed,}) {
   return _then(_self.copyWith(
 toolName: null == toolName ? _self.toolName : toolName // ignore: cast_nullable_to_non_nullable
 as String,result: null == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
 as String,isSuccess: null == isSuccess ? _self.isSuccess : isSuccess // ignore: cast_nullable_to_non_nullable
 as bool,isExternalMcpResult: null == isExternalMcpResult ? _self.isExternalMcpResult : isExternalMcpResult // ignore: cast_nullable_to_non_nullable
 as bool,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,outcome: freezed == outcome ? _self.outcome : outcome // ignore: cast_nullable_to_non_nullable
+as ToolOutcome?,
   ));
 }
 
@@ -438,10 +446,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String toolName,  String result,  bool isSuccess, @JsonKey(includeFromJson: false, includeToJson: false)  bool isExternalMcpResult,  String? errorMessage)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String toolName,  String result,  bool isSuccess, @JsonKey(includeFromJson: false, includeToJson: false)  bool isExternalMcpResult,  String? errorMessage, @JsonKey(includeFromJson: false, includeToJson: false)  ToolOutcome? outcome)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _McpToolResult() when $default != null:
-return $default(_that.toolName,_that.result,_that.isSuccess,_that.isExternalMcpResult,_that.errorMessage);case _:
+return $default(_that.toolName,_that.result,_that.isSuccess,_that.isExternalMcpResult,_that.errorMessage,_that.outcome);case _:
   return orElse();
 
 }
@@ -459,10 +467,10 @@ return $default(_that.toolName,_that.result,_that.isSuccess,_that.isExternalMcpR
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String toolName,  String result,  bool isSuccess, @JsonKey(includeFromJson: false, includeToJson: false)  bool isExternalMcpResult,  String? errorMessage)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String toolName,  String result,  bool isSuccess, @JsonKey(includeFromJson: false, includeToJson: false)  bool isExternalMcpResult,  String? errorMessage, @JsonKey(includeFromJson: false, includeToJson: false)  ToolOutcome? outcome)  $default,) {final _that = this;
 switch (_that) {
 case _McpToolResult():
-return $default(_that.toolName,_that.result,_that.isSuccess,_that.isExternalMcpResult,_that.errorMessage);case _:
+return $default(_that.toolName,_that.result,_that.isSuccess,_that.isExternalMcpResult,_that.errorMessage,_that.outcome);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -479,10 +487,10 @@ return $default(_that.toolName,_that.result,_that.isSuccess,_that.isExternalMcpR
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String toolName,  String result,  bool isSuccess, @JsonKey(includeFromJson: false, includeToJson: false)  bool isExternalMcpResult,  String? errorMessage)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String toolName,  String result,  bool isSuccess, @JsonKey(includeFromJson: false, includeToJson: false)  bool isExternalMcpResult,  String? errorMessage, @JsonKey(includeFromJson: false, includeToJson: false)  ToolOutcome? outcome)?  $default,) {final _that = this;
 switch (_that) {
 case _McpToolResult() when $default != null:
-return $default(_that.toolName,_that.result,_that.isSuccess,_that.isExternalMcpResult,_that.errorMessage);case _:
+return $default(_that.toolName,_that.result,_that.isSuccess,_that.isExternalMcpResult,_that.errorMessage,_that.outcome);case _:
   return null;
 
 }
@@ -494,7 +502,7 @@ return $default(_that.toolName,_that.result,_that.isSuccess,_that.isExternalMcpR
 @JsonSerializable()
 
 class _McpToolResult implements McpToolResult {
-  const _McpToolResult({required this.toolName, required this.result, required this.isSuccess, @JsonKey(includeFromJson: false, includeToJson: false) this.isExternalMcpResult = false, this.errorMessage});
+  const _McpToolResult({required this.toolName, required this.result, required this.isSuccess, @JsonKey(includeFromJson: false, includeToJson: false) this.isExternalMcpResult = false, this.errorMessage, @JsonKey(includeFromJson: false, includeToJson: false) this.outcome});
   factory _McpToolResult.fromJson(Map<String, dynamic> json) => _$McpToolResultFromJson(json);
 
 @override final  String toolName;
@@ -502,6 +510,14 @@ class _McpToolResult implements McpToolResult {
 @override final  bool isSuccess;
 @override@JsonKey(includeFromJson: false, includeToJson: false) final  bool isExternalMcpResult;
 @override final  String? errorMessage;
+/// Structured facts a first-party tool reported about its own execution.
+///
+/// Null for third-party MCP results, which stay opaque text: only tools
+/// Caverno implements can be trusted to describe their own outcome. It is
+/// runtime-only for the same reason `isExternalMcpResult` is — consumers
+/// read it while a turn runs, and a persisted copy could outlive the facts
+/// it describes. See LL34 in `docs/local_llm_agent_roadmap.md`.
+@override@JsonKey(includeFromJson: false, includeToJson: false) final  ToolOutcome? outcome;
 
 /// Create a copy of McpToolResult
 /// with the given fields replaced by the non-null parameter values.
@@ -516,16 +532,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _McpToolResult&&(identical(other.toolName, toolName) || other.toolName == toolName)&&(identical(other.result, result) || other.result == result)&&(identical(other.isSuccess, isSuccess) || other.isSuccess == isSuccess)&&(identical(other.isExternalMcpResult, isExternalMcpResult) || other.isExternalMcpResult == isExternalMcpResult)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _McpToolResult&&(identical(other.toolName, toolName) || other.toolName == toolName)&&(identical(other.result, result) || other.result == result)&&(identical(other.isSuccess, isSuccess) || other.isSuccess == isSuccess)&&(identical(other.isExternalMcpResult, isExternalMcpResult) || other.isExternalMcpResult == isExternalMcpResult)&&(identical(other.errorMessage, errorMessage) || other.errorMessage == errorMessage)&&(identical(other.outcome, outcome) || other.outcome == outcome));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,toolName,result,isSuccess,isExternalMcpResult,errorMessage);
+int get hashCode => Object.hash(runtimeType,toolName,result,isSuccess,isExternalMcpResult,errorMessage,outcome);
 
 @override
 String toString() {
-  return 'McpToolResult(toolName: $toolName, result: $result, isSuccess: $isSuccess, isExternalMcpResult: $isExternalMcpResult, errorMessage: $errorMessage)';
+  return 'McpToolResult(toolName: $toolName, result: $result, isSuccess: $isSuccess, isExternalMcpResult: $isExternalMcpResult, errorMessage: $errorMessage, outcome: $outcome)';
 }
 
 
@@ -536,7 +552,7 @@ abstract mixin class _$McpToolResultCopyWith<$Res> implements $McpToolResultCopy
   factory _$McpToolResultCopyWith(_McpToolResult value, $Res Function(_McpToolResult) _then) = __$McpToolResultCopyWithImpl;
 @override @useResult
 $Res call({
- String toolName, String result, bool isSuccess,@JsonKey(includeFromJson: false, includeToJson: false) bool isExternalMcpResult, String? errorMessage
+ String toolName, String result, bool isSuccess,@JsonKey(includeFromJson: false, includeToJson: false) bool isExternalMcpResult, String? errorMessage,@JsonKey(includeFromJson: false, includeToJson: false) ToolOutcome? outcome
 });
 
 
@@ -553,14 +569,15 @@ class __$McpToolResultCopyWithImpl<$Res>
 
 /// Create a copy of McpToolResult
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? toolName = null,Object? result = null,Object? isSuccess = null,Object? isExternalMcpResult = null,Object? errorMessage = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? toolName = null,Object? result = null,Object? isSuccess = null,Object? isExternalMcpResult = null,Object? errorMessage = freezed,Object? outcome = freezed,}) {
   return _then(_McpToolResult(
 toolName: null == toolName ? _self.toolName : toolName // ignore: cast_nullable_to_non_nullable
 as String,result: null == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
 as String,isSuccess: null == isSuccess ? _self.isSuccess : isSuccess // ignore: cast_nullable_to_non_nullable
 as bool,isExternalMcpResult: null == isExternalMcpResult ? _self.isExternalMcpResult : isExternalMcpResult // ignore: cast_nullable_to_non_nullable
 as bool,errorMessage: freezed == errorMessage ? _self.errorMessage : errorMessage // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,outcome: freezed == outcome ? _self.outcome : outcome // ignore: cast_nullable_to_non_nullable
+as ToolOutcome?,
   ));
 }
 

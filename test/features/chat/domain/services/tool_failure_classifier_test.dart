@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
@@ -131,6 +132,124 @@ void main() {
       classifier.classify(_commandCall(), result),
       ToolResultDisposition.success,
     );
+  });
+
+  group('structured outcome (LL34)', () {
+    test('classifies from the reported exit code without parsing output', () {
+      // The payload is deliberately unparseable: a tool that reports its own
+      // exit status must not need its prose read back to be classified.
+      const result = McpToolResult(
+        toolName: 'local_execute_command',
+        result: 'Build failed after 3 steps.',
+        isSuccess: false,
+        errorMessage: 'Command exited non-zero.',
+        outcome: ToolOutcome(exitCode: 1),
+      );
+
+      expect(
+        classifier.classify(_commandCall(), result),
+        ToolResultDisposition.actionableCommandFailure,
+      );
+    });
+
+    test('keeps a zero exit code off the actionable path', () {
+      // isSuccess: false with exit 0 is contradictory; the reported status is
+      // the fact, so the failure stays operational rather than becoming a
+      // command failure the model is told to fix.
+      const result = McpToolResult(
+        toolName: 'local_execute_command',
+        result: 'Command completed.',
+        isSuccess: false,
+        errorMessage: 'Result could not be delivered.',
+        outcome: ToolOutcome(exitCode: 0),
+      );
+
+      expect(
+        classifier.classify(_commandCall(), result),
+        ToolResultDisposition.executionFailure,
+      );
+    });
+
+    test('outcome overrides a payload that disagrees with it', () {
+      final result = McpToolResult(
+        toolName: 'local_execute_command',
+        result: jsonEncode({'exit_code': 0, 'stdout': 'ok'}),
+        isSuccess: false,
+        errorMessage: 'Command exited non-zero.',
+        outcome: const ToolOutcome(exitCode: 3),
+      );
+
+      expect(
+        classifier.classify(_commandCall(), result),
+        ToolResultDisposition.actionableCommandFailure,
+      );
+    });
+
+    test('falls back to payload parsing when no outcome is reported', () {
+      // Third-party MCP results and unmigrated first-party tools keep the
+      // lexical path; it must stay byte-for-byte equivalent to today.
+      final result = _failure({
+        'exit_code': 1,
+        'stdout': '',
+        'stderr': 'Acceptance criteria failed.',
+      });
+
+      expect(result.outcome, isNull);
+      expect(
+        classifier.classify(_commandCall(), result),
+        ToolResultDisposition.actionableCommandFailure,
+      );
+    });
+
+    test('an empty outcome is treated as no outcome', () {
+      final result = _failure({
+        'exit_code': 1,
+        'stdout': '',
+        'stderr': 'Acceptance criteria failed.',
+      }).copyWith(outcome: const ToolOutcome());
+
+      expect(
+        classifier.classify(_commandCall(), result),
+        ToolResultDisposition.actionableCommandFailure,
+      );
+    });
+
+    test('approval denial still wins over a reported exit code', () {
+      const result = McpToolResult(
+        toolName: 'local_execute_command',
+        result: 'blocked',
+        isSuccess: false,
+        errorMessage: 'Auto-review denied this command.',
+        outcome: ToolOutcome(exitCode: 1),
+      );
+
+      expect(
+        classifier.classify(_commandCall(), result),
+        ToolResultDisposition.approvalDenied,
+      );
+    });
+
+    test('a non-command tool is unaffected by a reported exit code', () {
+      const result = McpToolResult(
+        toolName: 'read_file',
+        result: 'Read failed.',
+        isSuccess: false,
+        errorMessage: 'Read failed.',
+        outcome: ToolOutcome(exitCode: 1),
+      );
+
+      expect(
+        classifier.classify(
+          ToolCallInfo(
+            id: 'read-1',
+            name: 'read_file',
+            arguments: {'path': 'README.md'},
+          ),
+          result,
+        ),
+        ToolResultDisposition.executionFailure,
+      );
+    });
   });
 }
 

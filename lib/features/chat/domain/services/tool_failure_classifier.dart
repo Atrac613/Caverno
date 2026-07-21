@@ -27,7 +27,7 @@ class ToolFailureClassifier {
       return ToolResultDisposition.approvalDenied;
     }
     if (_toolCallExecutionPolicy.isCommandExecutionTool(toolCall.name) &&
-        _isActionableCommandFailure(result.result)) {
+        _isActionableCommandFailure(result)) {
       return ToolResultDisposition.actionableCommandFailure;
     }
     return ToolResultDisposition.executionFailure;
@@ -51,7 +51,32 @@ class ToolFailureClassifier {
     };
   }
 
-  bool _isActionableCommandFailure(String rawResult) {
+  /// Whether the command ran and reported failure, as opposed to never
+  /// reaching an exit (denied, timed out, failed to spawn) — only the former
+  /// gives the model something it can act on.
+  ///
+  /// Prefers the structured outcome when the tool reported one. Falls back to
+  /// decoding the result payload for third-party MCP results and for
+  /// first-party tools that have not been migrated to report an outcome yet.
+  bool _isActionableCommandFailure(McpToolResult result) {
+    final outcome = result.outcome;
+    if (outcome != null && outcome.exitCode != null) {
+      // A reported exit status already proves the process ran to completion,
+      // which is the only thing the payload inspection below was ever
+      // establishing. Timeouts, denials, and spawn failures never carry an
+      // exit code (see `ToolOutcome.exitCode`), so they cannot reach here.
+      return outcome.hasFailingExitCode;
+    }
+    return _isActionableCommandFailureFromPayload(result.result);
+  }
+
+  /// Fallback for results with no structured outcome: third-party MCP tools,
+  /// and first-party tools not yet migrated to report one.
+  ///
+  /// Infers "a command ran and failed" from the payload's shape — a non-zero
+  /// `exit_code` accompanied by output keys, with timeouts and explicit errors
+  /// excluded. The outcome path above needs none of this because it is told.
+  bool _isActionableCommandFailureFromPayload(String rawResult) {
     try {
       final decoded = jsonDecode(rawResult);
       if (decoded is! Map<String, dynamic>) {

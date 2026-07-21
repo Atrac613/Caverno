@@ -1,3 +1,4 @@
+import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'mcp_tool_entity.freezed.dart';
@@ -49,6 +50,15 @@ abstract class McpToolResult with _$McpToolResult {
     @Default(false)
     bool isExternalMcpResult,
     String? errorMessage,
+
+    /// Structured facts a first-party tool reported about its own execution.
+    ///
+    /// Null for third-party MCP results, which stay opaque text: only tools
+    /// Caverno implements can be trusted to describe their own outcome. It is
+    /// runtime-only for the same reason `isExternalMcpResult` is — consumers
+    /// read it while a turn runs, and a persisted copy could outlive the facts
+    /// it describes. See LL34 in `docs/local_llm_agent_roadmap.md`.
+    @JsonKey(includeFromJson: false, includeToJson: false) ToolOutcome? outcome,
   }) = _McpToolResult;
 
   factory McpToolResult.fromJson(Map<String, dynamic> json) =>
