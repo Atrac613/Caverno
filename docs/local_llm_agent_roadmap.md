@@ -2865,8 +2865,17 @@ the structure the file wanted anyway (the normalizer was interpreting payloads
 as well as building results; the local command handler held ~250 lines of inert
 JSON schemas among its execution paths).
 
-Still open: the `read_file` content hash and its `ToolLoopContextDigest`
-consumer — the half that reaches the dominant measured failure.
+Also shipped: the mutation `changed` fact end to end — `writeFile` compares
+before writing (lengths first, bytes only when they match), the filesystem
+handler lifts it at `_executeMutation`, and the `write_file` operation note
+tells the model the file is UNCHANGED instead of "updated or overwrote". That
+is the one signal behind the dominant measured failure that nothing detected;
+see the correction in `docs/ll34_tool_outcome_census_2026-07-21.md`.
+
+Still open: the `read_file` content hash (coverage and cross-parameter
+comparison, not the causal fix), an equivalent `changed` fact for `edit_file`'s
+own payload, and a second-tier pass over `process_*` and
+`dart_analyze_feedback`.
 
 Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
 traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.
