@@ -170,10 +170,10 @@ structurally unmotivated to build:
 | Local LLM | LL31 | next | S-M | F2, LL23 | Turn-exit reason and completion explainer: tag every tool-loop exit with a structured reason (`text_response` / `max_iterations` / `guardrail_halt` / `empty` / `partial`), replace an empty or truncated final response with a single user-visible explanation derived from that reason, and log a WARNING when a turn ends on a pending tool result (the "just stops" case). Inspired by the Hermes `turn_finalizer.py`. |
 | Local LLM | LL33 | current | S-M | LL31 | Turn provenance — session-log ↔ on-screen conversation correlation: stamp each `turn_exit` record with `turnId` + the `assistantMessageId` it finalized, and record the post-LLM transforms applied to that message (guard notices), so the LLM session log and the conversation the user saw can be traced to each other and guard firings are a direct triage signal instead of being inferred from leaked notice prose. Extends the LL31 instrument; came out of the verification-guard investigation where this gap repeatedly caused mis-diagnosis. |
 | Local LLM | LL32 | later | S-M | LL4, F6 | Deferred subdirectory instruction and skill discovery: when a tool touches a path outside the startup discovery chain, walk up to the repo root for `CLAUDE.md` / `AGENTS.md` / rules and skill directories, and surface newly found files as **paths only**, once per session (or once per compaction cycle), leaving the read decision to the model. Parked pending corroboration; corroborated 2026-07-21 by Grok Build's `agents_md_tracker.rs` / `skill_discovery.rs` shipping the same design. |
-| Local LLM | LL34 | next | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: give `McpToolResult` typed outcome fields (exit code, mutated files with content hashes, test counts) so first-party tool facts survive the tool boundary, and rewire `ToolFailureClassifier`, `WorkflowToolResultFailureDetector`, `CodingCommandOutputGuardrailService`, and the claim guards to read facts instead of re-parsing result strings. Third-party MCP results stay opaque text on a clearly-marked lexical path. Local-first payoff beyond hygiene: a typed outcome lets the harness render a deterministic one-line summary (`exit 0 · 3 files changed · 47 tests passed`) instead of shipping a 200-line build log a weak model misreads and a small context window cannot afford (LL23-togglable). Lead milestone of the Grounded Verification Track. |
+| Local LLM | LL34 | next | M | F2, F6, LL23, SEC2 | Structured tool-result envelope: give `McpToolResult` typed outcome fields (exit code, mutated files with content hashes, **read content hashes**, test counts) so first-party tool facts survive the tool boundary, and rewire `ToolFailureClassifier`, `WorkflowToolResultFailureDetector`, `CodingCommandOutputGuardrailService`, and the claim guards to read facts instead of re-parsing result strings. Third-party MCP results stay opaque text on a clearly-marked lexical path. Local-first payoff beyond hygiene: a typed outcome lets the harness render a deterministic one-line summary (`exit 0 · 3 files changed · 47 tests passed`) instead of shipping a 200-line build log a weak model misreads and a small context window cannot afford (LL23-togglable). Census-backed (`docs/ll34_tool_outcome_census_2026-07-21.md`): 7 tools cover 41.3% of real tool traffic, 8 cover 67.6% once `read_file` hashes are included — and that read hash turns the measured dominant failure (redundant re-reads, ~53% of sessions) into a field comparison. Lead milestone of the Grounded Verification Track; land `local_execute_command` + `read_file` first (43% of traffic, two tools). |
 | Local LLM | LL35 | next | M | LL34, LL3, LL23 | Explicit goal-state tool with a real acknowledgement: replace the lexical `_looksComplete` / `_looksBlocked` goal transitions with an `update_goal(completed:/blocked_reason:/message:)` built-in whose tool reply carries the harness's actual verdict (accepted / still-open gaps / paused at cap), so the model cannot mistake an unverified claim for a received completion. Also mines the plan's first unchecked `## Task checklist` item as the continuation next-step. Local-first addition: `update_goal` call fidelity is an LL3 probe and the completion policy is LL23-declared (`tool` / `tool_or_ask` / `ask`), because removing the lexical path without a fallback turns "false completion" into "goal never closes" on weak models — **user confirmation at budget exhaustion is a first-class completion mechanism**, not an error path. |
-| Local LLM | LL36 | next | S-M | LL33, LL34 | Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; new grounded verdicts run in shadow beside the lexical ones with disagreements logged, so guards are deleted on measurement rather than on argument. Adopted from Grok Build's labeled `GoalPrematureStopDetected` panel. |
-| Local LLM | LL37 | later | L | LL34, LL35, LL36, LL3, LL18, LL19 | Objective verification, split by cost: a **single** cheap verifier inline on a completion claim (bounded budget, fails open, no parallel spawns) and the expensive N-way panel at idle via LL18, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. Local-first inversions vs Grok Build: uncertainty defaults to *not* refuted for weak verifiers (a weak skeptic that refutes correct work is worse than none), a LL3 fidelity gate disables the stage entirely below threshold, and the strategist role is idle-only. Whether a local verifier is good enough at all is an LL19-measured open question. |
+| Local LLM | LL36 | next | S-M | LL33, LL34 | **Instrument for LL37, as LL31 was for LL29/LL30** — Heuristic demotion and firing audit: every remaining lexical guard gets a stable pattern label, emits a LL33-style transform record on each firing, and is barred from setting terminal state; new grounded verdicts run in shadow beside the lexical ones with disagreements logged, so guards are deleted on measurement rather than on argument. Adopted from Grok Build's labeled `GoalPrematureStopDetected` panel. |
+| Local LLM | LL37 | later | L | LL34, LL35, LL36 evidence, LL3, LL18, LL19 | Objective verification for **unattended runs only**: the N-way panel runs at idle via LL18 against goals completed by routines / overnight retry-until-green / LL13 agents, with the convergence controls that make it terminate — anti-ratchet, stall exit on repeated identical gaps, a run cap, and `none`/`contradiction`/`unverifiable` blocking classification. There is deliberately **no inline stage**: while a user is present, LL35's confirmation rung is both cheaper and more accurate than a local verifier, so nothing is added to the interactive turn. Local-first inversions vs Grok Build: uncertainty defaults to *not* refuted for weak verifiers (a weak skeptic that refutes correct work is worse than none) and an LL3 fidelity gate disables the panel entirely below threshold. The convergence controls (anti-ratchet, stall exit, blocking classification) are worth harvesting into the LL7 retry loop independently, and survive even if this milestone is dropped. Whether a local verifier is good enough at all is an LL19-measured open question. |
 | API | API1 | later | M | F3, LL20, LL23 | Responses-compatible Agent Event Core: normalize Chat Completions, Responses-style APIs, and local-provider extensions into one internal event stream. |
 | API | API2 | later | M | API1, COMPAT1 | Chat/Responses/local-provider adapter matrix with provider-specific downgrade paths and deterministic fixtures. |
 | Security | SEC1 | current | M | F2, LL2, LL18 | Local Agent Data Perimeter: classify data sources and tool capabilities before agent execution. |
@@ -2697,19 +2697,33 @@ Local-first consequences that shaped these milestones:
   prefill latency to the user's turn (Thesis §3).
 - **A weak verifier's default must be the opposite of Grok's.** See LL37.
 
-Sequencing — cheapest ground truth first, judgment last:
+Sequencing — **LL34 → LL36 → LL35 → LL37**, observed first, speculative last.
 
-1. **LL34** restores structure at the tool boundary. Most of the lexical
-   parsing in the guard layer is not inherent; it exists because
-   `McpToolResult` flattens every outcome to a string. This deletes regex
-   rather than adding heuristics, so it is not gated on triage evidence.
-2. **LL35** removes the two remaining places where prose decides a terminal
-   state, by making the model say so explicitly and making the harness answer
-   honestly.
-3. **LL36** turns the guards that must stay lexical into measured, auditable
-   triggers, and establishes shadow-mode as the removal protocol.
-4. **LL37** is the expensive one and is deliberately last. It is only for the
-   judgment ground truth cannot settle.
+The track splits by how well-founded each milestone is, and the ordering has to
+respect that split rather than the narrative order:
+
+- **LL34 and LL35 rest on observation.** Four consumers re-parsing the same
+  string is visible in the code; `_looksComplete` containing `'passed'` is
+  visible in the code. Neither is a hypothesis about behavior, so neither needs
+  a triage gate.
+- **LL36 and LL37 rest on hypotheses.** "The lexical guards may be dead weight"
+  and "there is a residue ground truth cannot decide" are both unmeasured. They
+  get the same discipline that demoted LL29.
+
+That makes **LL36 the instrument for LL37, exactly as LL31 was for LL29/LL30**:
+the firing distribution it produces is what says whether a verification stage
+has anything left to decide. So LL36 comes before LL35's removal step (its
+records are the removal evidence), and LL37 is gated on LL36's **measurements**,
+not merely on LL36 having shipped.
+
+1. **LL34** restores structure at the tool boundary — deletes regex rather than
+   adding heuristics, and its highest-value field feeds the dominant measured
+   failure.
+2. **LL36** instruments every remaining lexical guard, producing both the
+   removal evidence for LL35 and the residue measurement that decides LL37.
+3. **LL35** makes the model state completion explicitly and the harness answer
+   honestly, then removes the lexical transitions on LL36's evidence.
+4. **LL37** is the expensive one, deliberately last, and may well not be built.
 
 Removal protocol — **shadow mode, always.** The false-completion guards are
 known to be load-bearing in real sessions, so no lexical path is deleted on
@@ -2744,13 +2758,36 @@ Problem:
   layer, and none of it is inherent: it is a consequence of discarding
   structure at the tool boundary and reconstructing it four times.
 
+Measured payoff (`docs/ll34_tool_outcome_census_2026-07-21.md`, 992 session
+logs): only **41 of 106** registered tools are ever invoked, and tool traffic is
+extremely top-heavy. Seven tools carry the originally-scoped envelope and cover
+**41.3%** of all tool results; adding a read outcome brings it to **67.6%** with
+eight. The implementation surface is small *because* usage is concentrated — the
+99-tool tail of network/BLE/computer-use surfaces has no natural outcome and
+also almost no traffic, so leaving it text-only costs nothing.
+
 Scope:
 - Add typed outcome fields to the tool-result envelope alongside the existing
   `result` string (which stays — it is what the model sees):
-  - `exitCode` for command-execution tools,
-  - `fileMutations` (path, content hash, byte size) for filesystem writes,
+  - `exitCode` for command-execution tools (27.4% of traffic),
+  - `fileMutations` (path, content hash, byte size) for filesystem writes
+    (13.9%),
+  - `readOutcome` (path, content hash, bytes, lines) for file reads — see below,
   - `testOutcome` (passed / failed / skipped counts, command) where a
-    recognized test runner produced the output.
+    recognized test runner produced the output (1.2%).
+- **The read hash is the highest-value field, which the census only made
+  visible.** `read_file` is the single most-invoked tool (26.3%) and was left
+  out of the original scope because a read has no pass/fail outcome. It has a
+  better one: the content hash. Today `read_file` returns `content` and
+  `truncated` only (`filesystem_tools.dart:242`). A hash makes the project's
+  *measured dominant failure* — redundant re-reads in ~53% of sessions per the
+  LL31 triage — a field comparison instead of a heuristic:
+  `ToolLoopContextDigest` currently infers `unchanged` by comparing whole
+  rendered payloads for byte-identity, and with a hash the harness can state
+  "this file is unchanged since iteration 4" as a fact. This is what makes LL34
+  a contributor to the top real failure mode rather than pure hygiene, and it
+  is the strongest argument for building it ahead of the track's speculative
+  half.
 - Populate them at the tool implementation, not by re-parsing downstream. Each
   built-in tool owns its own outcome mapping.
 - Rewire the consumers above to read the typed fields, keeping the lexical
@@ -2795,11 +2832,16 @@ Acceptance criteria:
   transcript, recorded with a `tool/` measurement script in the LL14 style, and
   is togglable per model through LL23.
 
-Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`).
+Non-goal (second): chasing the tail. 33 of the 41 invoked tools stay text-only.
 
-Next action: define the envelope type beside `McpToolResult`, populate it in
-`local_shell_tools` (exit code) and the filesystem write path (mutations +
-hashes) first, and rewire `ToolFailureClassifier` as the first consumer.
+Source: Grok Build comparison, class 3 (`docs/grok_build_comparison_2026_07_21.md`);
+traffic evidence in `docs/ll34_tool_outcome_census_2026-07-21.md`.
+
+Next action: define the envelope type beside `McpToolResult` and populate it for
+**two tools first** — `local_execute_command` (exit code) and `read_file`
+(content hash). That is 43% of tool traffic for two implementations, and the
+read hash feeds the known dominant failure. Rewire `ToolFailureClassifier` as
+the first consumer, then `ToolLoopContextDigest` as the second.
 
 ### LL35: Explicit Goal-State Tool With A Real Acknowledgement
 
@@ -2954,15 +2996,19 @@ the product feel worse exactly when a task is hardest.
 
 Two changes follow, and they are the milestone's core design:
 
-1. **Split by cost, using the idle budget.** Inline, on the user's turn, run a
-   **single** verifier — cheap, narrow prompt, LL1 secondary route, bounded
-   token budget, no parallel spawns (Thesis §3: prefill latency is the local UX
-   killer). The expensive multi-verifier panel runs **at idle** through the LL18
-   orchestrator, as the objective-level sibling of LL7 retry-until-green
-   (Thesis §4, §7: tokens are free locally and idle hardware is a scheduled
-   compute budget). An overnight run that reports "three of these five goals do
-   not actually meet their objective" is a better product than a panel that adds
-   40 seconds to every completion.
+1. **Idle only — there is no inline stage.** The first pass of this design kept
+   a single cheap verifier on the user's turn. The LL35 confirmation rung
+   removes its justification: while a user is present, "here is what I did and
+   what I could not verify — is this done?" is both more accurate and cheaper
+   than any local verifier. What remains is the case where **no user is
+   present** — unattended overnight runs, routines, LL13 worktree agents — and
+   that is exactly the idle budget (Thesis §4, §7: tokens are free locally and
+   idle hardware is a scheduled compute budget). So the panel runs through the
+   LL18 orchestrator as the objective-level sibling of LL7 retry-until-green,
+   and nothing is added to the user's turn (Thesis §3: prefill latency is the
+   local UX killer). An overnight report — "three of these five goals do not
+   actually meet their objective" — is a better product than 40 seconds added
+   to every completion.
 2. **Invert the uncertainty default for weak verifiers.** Grok Build instructs
    its verifier to "default to `refuted` if uncertain" — correct when the
    verifier is strong, because one more iteration is cheaper than passing broken
@@ -2979,17 +3025,16 @@ threshold the verification stage is disabled and completion falls back to the
 LL35 confirmation rung.
 
 Scope:
-- **Inline stage.** One verifier pass on `update_goal(completed: true)`, given
-  the objective, the plan, the turn's changed-file set (LL34), and the
-  implementer's captured evidence. Returns the fixed-schema JSON verdict —
-  `refuted`, `findings[]` (kind / location / detail), `evidence`, `confidence`,
-  `blocking`. Bounded by a token budget and a wall-clock timeout; on timeout or
-  unparseable output it fails **open** (records the failure, does not block the
-  user).
-- **Idle stage.** The N-way panel with majority-refute aggregation, scheduled by
-  LL18 over the LL8 mesh using LL20 slots, reporting into the same verdict
-  store. This is where the multi-verifier design earns its cost, because nobody
-  is waiting on it.
+- **Idle panel only.** N verifiers with majority-refute aggregation, scheduled
+  by LL18 over the LL8 mesh using LL20 slots, run against goals completed by
+  unattended paths (routines, overnight retry-until-green, LL13 worktree
+  agents). Each is given the objective, the plan, the turn's changed-file set
+  (LL34), and the implementer's captured evidence, and returns the fixed-schema
+  JSON verdict — `refuted`, `findings[]` (kind / location / detail),
+  `evidence`, `confidence`, `blocking`. Results land in a verdict store the
+  user reviews, never as a blocking gate on an interactive turn.
+- **Nothing on the user's turn.** An attended completion resolves through LL35:
+  the tool call if the model is capable of it, the confirmation rung otherwise.
 - The verifier **audits** what the implementer produced; it does not build a
   parallel test suite. An insufficient-evidence finding is refuted back to the
   implementer as the next gap, not filled in by the verifier.
@@ -3028,18 +3073,26 @@ Acceptance criteria:
 - Repeated identical gaps auto-pause before the run cap; a `contradiction` or
   `unverifiable` verdict surfaces to the user rather than retrying.
 - Verification does not fire when LL34 ground truth already decides the outcome.
-- The inline stage adds a bounded, measured latency to a completion turn (recorded
-  the way LL22 records cold-vs-warm `prompt_ms`), and fails open on timeout.
-- A model below the verifier fidelity threshold disables the stage entirely
+- No interactive turn gains measurable latency from this milestone (the panel is
+  unreachable from the attended path — enforced by test, not convention).
+- A model below the verifier fidelity threshold disables the panel entirely
   rather than emitting low-confidence refutes (test over a profile that fails
   the gate).
-- Token cost per completion claim is recorded and bounded, separately for the
-  inline and idle stages.
+- Token cost per verified goal is recorded and bounded.
 
-Gated on: LL34-LL36 landing first. This is the most expensive mechanism in the
-track and the easiest to misuse; it is only worth building for the residue that
-ground truth and structured self-report cannot decide. If that residue turns
-out to be small once LL34/LL35 are measured, re-scope or drop this.
+Gated on **LL36's measurements**, not merely on LL34-LL36 having shipped. LL36's
+firing distribution is what says whether a residue exists that ground truth and
+structured self-report cannot decide. This is the same instrument-first
+discipline that LL31 imposed on LL29/LL30 — and LL29's demotion is the reminder
+that the gate is real.
+
+Harvest note — **the convergence controls are worth taking even if this
+milestone never ships.** Anti-ratchet, stall exit, and blocking classification
+are prompt/loop discipline that applies to `RetryUntilGreenCoordinator` today,
+where a repeatedly-failing verification loop has the same non-convergence
+failure mode. Extracting them into the existing LL7 loop is a small, independent
+slice with none of this milestone's cost or risk, and it should not wait on the
+panel. If the LL36 measurement kills LL37, that harvest is what survives.
 
 Open question to settle with measurement, not argument: whether a local
 verifier is good enough to be worth running at all. LL19 replay is the right
