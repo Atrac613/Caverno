@@ -64,6 +64,7 @@ import '../slash_commands/slash_command.dart';
 import '../slash_commands/slash_command_catalog.dart';
 import '../slash_commands/slash_command_prompt_template.dart';
 import '../widgets/conversation_drawer.dart';
+import '../widgets/conversation_goal_status_presentation.dart';
 import '../widgets/approval/ble_connect_approval_sheet.dart';
 import '../widgets/approval/computer_use_action_approval_sheet.dart';
 import '../widgets/approval/file_operation_approval_sheet.dart';

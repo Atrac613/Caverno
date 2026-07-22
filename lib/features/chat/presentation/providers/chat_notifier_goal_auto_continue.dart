@@ -29,6 +29,7 @@ final class _GoalAutoContinueTracker {
     this.pendingPostRepairReplayOutcome = false,
     this.pendingRepairContractOutcome = false,
     this.repairNoMutationRetryUsed = false,
+    this.completionElicitationMutationGeneration,
   });
 
   int consecutiveAutoContinuations;
@@ -46,6 +47,17 @@ final class _GoalAutoContinueTracker {
   bool pendingPostRepairReplayOutcome;
   bool pendingRepairContractOutcome;
   bool repairNoMutationRetryUsed;
+
+  /// The mutation generation at which a completion elicitation was last spent,
+  /// or null when none has been. The goal may be asked again only once work has
+  /// actually advanced past it.
+  ///
+  /// Resetting on any continuation was not enough: in session 76864d26 the
+  /// elicitation turn's own answer produced the incomplete evidence that
+  /// triggered the continuation, which cleared the flag and let the same
+  /// elicitation fire again — six turns, no completion, ending in
+  /// no_progress_stop.
+  int? completionElicitationMutationGeneration;
   final Set<int> replayedMutationGenerations = <int>{};
   final Set<int> replayedInteractionGenerations = <int>{};
   final CommandDiagnosticStreakTracker commandDiagnosticStreakTracker =
@@ -629,13 +641,13 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           tracker != null) {
         tracker.noProgressStreak = candidateNoProgressStreak;
       }
-      final noticeKey = _goalAutoContinueNoticeKeyForStop(decision.stopCause);
+      final noticeKey = GoalAutoContinueStopPresentation.noticeKeyFor(decision.stopCause);
       if (noticeKey != null) {
         if (_goalAutoContinueBudgetNotifiedConversations.add(
           currentConversationId,
         )) {
           await _recordGoalAutoContinueSessionLog(
-            decision: _goalAutoContinueSessionDecisionForStop(
+            decision: GoalAutoContinueStopPresentation.sessionDecisionFor(
               decision.stopCause,
             ),
             reason: decision.reason,
@@ -663,6 +675,35 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           evidence: evidence,
           safeBoundary: safeBoundary,
         );
+      }
+      // Nothing left to schedule, and the harness cannot say the objective was
+      // met. Ask the model once ([GoalCompletionElicitationPrompt] carries the
+      // rationale and the measurement behind it); if that does not settle the
+      // goal, fall through to `awaitingConfirmation` so a stranded goal stops
+      // reading as one still working.
+      if (decision.noRemainingWork &&
+          goal?.status == ConversationGoalStatus.active) {
+        // Only ask about a goal that produced work: a run that mutated
+        // nothing has nothing to confirm, and asking would tax every
+        // conversation that merely carries a goal.
+        final producedWork = currentConversation.mutationGeneration > 0;
+        final mutationGeneration = currentConversation.mutationGeneration;
+        final alreadyAsked =
+            tracker?.completionElicitationMutationGeneration != null &&
+            tracker!.completionElicitationMutationGeneration! >=
+                mutationGeneration;
+        if (producedWork && goal!.autoContinue && tracker != null &&
+            !alreadyAsked) {
+          tracker.completionElicitationMutationGeneration = mutationGeneration;
+          _clearGoalAutoContinueIndicator();
+          await _elicitGoalCompletionReport(languageCode: languageCode);
+          return;
+        }
+        await ref
+            .read(conversationsNotifierProvider.notifier)
+            .markCurrentGoalStatus(
+              status: ConversationGoalStatus.awaitingConfirmation,
+            );
       }
       _clearGoalAutoContinueIndicator();
       return;
@@ -697,7 +738,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       evidence: evidence,
       hasRepairContract: repairContract != null,
     );
-    final continuationPrompt = _buildGoalAutoContinuePrompt(
+    final continuationPrompt = GoalAutoContinuePromptBuilder.build(
       goal: goal!,
       evidence: evidence,
       executionSnapshot: executionSnapshot,
@@ -804,31 +845,6 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         : tracker.noProgressStreak + 1;
   }
 
-  String? _goalAutoContinueNoticeKeyForStop(
-    GoalAutoContinueStopCause? stopCause,
-  ) {
-    switch (stopCause) {
-      case GoalAutoContinueStopCause.turnBudget:
-      case GoalAutoContinueStopCause.goalBudget:
-        return 'chat.goal_auto_continue_budget_reached';
-      case GoalAutoContinueStopCause.noProgress:
-        return 'chat.goal_auto_continue_no_progress';
-      case null:
-        return null;
-    }
-  }
-
-  String _goalAutoContinueSessionDecisionForStop(
-    GoalAutoContinueStopCause? stopCause,
-  ) {
-    return switch (stopCause) {
-      GoalAutoContinueStopCause.noProgress => 'no_progress_stop',
-      GoalAutoContinueStopCause.turnBudget ||
-      GoalAutoContinueStopCause.goalBudget => 'budget_stop',
-      null => 'skip',
-    };
-  }
-
   GoalAutoContinueSafeBoundary _goalAutoContinueSafeBoundaryFromState() {
     return GoalAutoContinueSafeBoundary(
       isLoading: state.isLoading,
@@ -857,76 +873,28 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     return trimmed.endsWith('?') || trimmed.endsWith('？');
   }
 
-  String _buildGoalAutoContinuePrompt({
-    required ConversationGoal goal,
-    required ToolResultCompletionEvidence evidence,
-    required ExecutionSnapshot executionSnapshot,
-    required String? repairContract,
-    required bool repairNoMutationRetry,
-    required GoalAutoContinueCapabilityProfile capabilityProfile,
-    required int nextTurnNumber,
-    required int effectiveTurnBudget,
+  /// Spend one hidden turn asking the model to settle a goal that has run dry.
+  ///
+  /// Restricted to `update_goal` so the turn cannot start new work. Persisted
+  /// like an auto-continuation because finalization drops an unpersisted
+  /// assistant response before the goal turn is recorded, which is where the
+  /// tool's completion claim is read.
+  Future<void> _elicitGoalCompletionReport({
     required String languageCode,
-  }) {
-    final normalizedLanguageCode = languageCode.trim().isEmpty
-        ? 'en'
-        : languageCode.trim();
-    return [
-      'Automatic goal continuation $nextTurnNumber/$effectiveTurnBudget.',
-      '',
-      'Goal objective:',
-      goal.objective.trim(),
-      '',
-      'Concrete incomplete evidence from the previous turn:',
-      evidence.summary,
-      if (executionSnapshot.hasContract) ...[
-        '',
-        'Current execution snapshot:',
-        '<execution_snapshot>',
-        executionSnapshot.toPromptContext(),
-        '</execution_snapshot>',
-      ],
-      if (repairContract != null) ...['', repairContract],
-      if (repairNoMutationRetry) ...[
-        '',
-        'The previous constrained repair turn ended without a file mutation. '
-            'This is the only retry. Do not narrate another future action. '
-            'Use read_file only if essential, then call exactly one available '
-            'write, edit, or delete tool in this turn. If no safe mutation is '
-            'possible, state the concrete blocker instead.',
-      ],
-      '',
-      if (capabilityProfile == GoalAutoContinueCapabilityProfile.repair) ...[
-        'This is a repair-only continuation. Use the available file tools to '
-            'make the contract repair now. Do not run a verification command; '
-            'the harness will replay the saved verifier after a mutation.',
-      ] else if (capabilityProfile ==
-          GoalAutoContinueCapabilityProfile.validation) ...[
-        'This is a validation-only continuation. Only verification-effect '
-            'commands are accepted; inspection, setup, and shell-based file '
-            'mutation will be rejected. Run the available project verifier '
-            'now. A verifier request that was '
-            'left unexecuted by the previous tool-loop boundary must be '
-            'retried before any other work. Finish immediately if it succeeds. '
-            'If it fails, report the concrete failure and finish this turn; '
-            'the next bounded continuation will provide repair tools.',
-      ] else if (evidence.hasUnexecutedActionClaim) ...[
-        'The previous answer claimed file or command actions without tool '
-            'evidence. Do not repeat or summarize those claims. Use the '
-            'available file and command tools now to perform the requested '
-            'work, then verify it with execution evidence.',
-      ] else
-        'Continue the work now. Use the available diagnostics and tools to '
-            'make progress, then verify the result when a verification path '
-            'is available. If you are genuinely blocked, state the blocking '
-            'condition clearly instead of retrying the same action.',
-      'Do not end this turn by saying you will inspect, edit, or verify later; '
-          'call an available tool now unless you are already at a concrete '
-          'blocking condition.',
-      '',
-      'Keep the visible response language aligned with language code '
-          '"$normalizedLanguageCode".',
-    ].join('\n');
+  }) async {
+    appLog('[GoalAutoContinue] eliciting a goal completion report');
+    try {
+      await sendHiddenPrompt(
+        GoalCompletionElicitationPrompt.build(languageCode: languageCode),
+        isVoiceMode: false,
+        languageCode: languageCode,
+        persistAssistantResponse: true,
+        preserveGoalAutoContinueEvidence: true,
+        allowedToolNames: const {'update_goal'},
+      );
+    } on Object catch (error) {
+      appLog('[GoalAutoContinue] completion elicitation failed: $error');
+    }
   }
 
   void _logGoalAutoContinueSkip(String reason) {
@@ -968,82 +936,124 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           nextTurnNumber: nextTurnNumber,
           effectiveTurnBudget: effectiveTurnBudget,
           consecutiveAutoContinuations: tracker?.consecutiveAutoContinuations,
-          evidence: {
-            'summary': evidence.summary,
-            'hasIncompleteEvidence': evidence.hasIncompleteEvidence,
-            // The cadence is the other half of the continuation gate, and its
-            // absence here made a skip undiagnosable from the log alone: a real
-            // session showed cadence `required` in the prompt one second before
-            // auto-continue skipped, with no way to tell what value the policy
-            // actually received. See
-            // docs/session_cfaa8297_cadence_not_observable_2026-07-22.md.
-            'verificationCadence': _currentVerificationCadence().name,
-            'mutationGeneration': ref
+          evidence: GoalAutoContinueEvidenceMarker.build(
+            evidence: evidence,
+            verificationCadence: _currentVerificationCadence(),
+            mutationGeneration: ref
                 .read(conversationsNotifierProvider)
                 .currentConversation
                 ?.mutationGeneration,
-            'verificationGeneration': ref
+            verificationGeneration: ref
                 .read(conversationsNotifierProvider)
                 .currentConversation
                 ?.verificationGeneration,
-            'hasBlockingEvidence': evidence.hasBlockingEvidence,
-            'hasUnexecutedActionClaim': evidence.hasUnexecutedActionClaim,
-            'safeBoundaryVeto': safeBoundary.firstVetoReason,
-            'noProgressStreak': tracker?.noProgressStreak ?? 0,
-            'diagnosticRepairContinuations':
+            safeBoundaryVeto: safeBoundary.firstVetoReason,
+            noProgressStreak: tracker?.noProgressStreak ?? 0,
+            diagnosticRepairContinuations:
                 tracker?.diagnosticRepairContinuations ?? 0,
-            'consecutiveValidationMisses':
+            consecutiveValidationMisses:
                 tracker?.consecutiveValidationMisses ?? 0,
-            'diagnosticRepairExtensionUsed':
+            diagnosticRepairExtensionUsed:
                 tracker?.diagnosticRepairExtensionUsed ?? false,
-            'previousUnresolvedErrorCount':
+            previousUnresolvedErrorCount:
                 tracker?.previousEvidence?.unresolvedErrorCount,
-            'diagnosticSignaturePresent':
-                evidence.diagnosticSignature.isNotEmpty,
-            'identicalDiagnosticSignatureStreak':
+            identicalDiagnosticSignatureStreak:
                 tracker?.identicalDiagnosticSignatureStreak ?? 0,
-            'boundedToolLoopExhausted': evidence.boundedToolLoopExhausted,
-            'unexecutedToolNames': evidence.unexecutedToolNames,
-            'unresolvedErrorCount': evidence.unresolvedErrorCount,
-            'unresolvedErrorPaths': evidence.unresolvedErrorPaths,
-            'unverifiedChangePaths': evidence.unverifiedChangePaths,
-            'mutatedWithoutExecution':
-                evidence.mutatedWithoutExecutionVerification,
-          },
+          ),
         );
   }
 
   /// Handles the `update_goal` tool call (LL35). Thin adapter: gathers the
   /// current goal and this run's completion evidence and delegates the verdict
-  /// to [GoalUpdateAckResolver]. Shadow phase — the goal-status transition is
-  /// still owned by [ConversationGoalProgressInference] at turn end; this only
-  /// returns the ack the model reads.
+  /// to [GoalUpdateAckResolver].
+  ///
+  /// The evidence is recomputed here rather than read from
+  /// `_latestGoalAutoContinueEvidence`, which is only assigned at turn
+  /// finalization. Reading the field meant a completion claimed mid-turn was
+  /// checked against the *previous* turn's evidence — empty on the first turn,
+  /// so the first claim was always accepted. Session `f2a25c20` shows exactly
+  /// that: two commands exiting 254, a failed `edit_file` and a diagnostics
+  /// payload all preceded the call, and the ack still answered "no mechanical
+  /// evidence contradicts it".
+  ///
+  /// The ack is the model's feedback, not the state transition. The goal moves
+  /// at turn end, against the finalization evidence, in
+  /// [takeToolGoalCompletionClaim]'s caller — so a claim accepted here on
+  /// partial evidence is still re-checked against the complete picture.
   Future<McpToolResult> handleUpdateGoal(ToolCallInfo toolCall) async {
     final ack = const GoalUpdateAckResolver().resolveCall(
       toolCall: toolCall,
       goal: ref.read(conversationsNotifierProvider).currentConversation?.goal,
-      evidence: _latestGoalAutoContinueEvidence,
+      evidence: _goalUpdateEvidenceAtCallTime(),
     );
-    // Shadow: remember a completion verdict so turn-end can compare it against
-    // the lexical path. Progress/blocker/inactive are not completion claims.
     if (ack.isCompletionClaim) {
       _shadowGoalToolCompletionOutcome = ack.outcome;
+    }
+    // Only an *accepted* claim carries to finalization. A rejected ack tells
+    // the model "Completion not recorded ... report completion again", so
+    // completing the goal anyway would contradict the message the harness just
+    // sent. The model has to re-claim once it has closed the gaps.
+    if (ack.completionAccepted) {
+      _toolGoalCompletionClaimed = true;
     }
     return ack.toToolResult(toolCall.name);
   }
 
+  /// The completion evidence available at the moment a tool call is answered:
+  /// this turn's completed results so far, carrying forward whatever the
+  /// previous turn left unresolved.
+  ToolResultCompletionEvidence _goalUpdateEvidenceAtCallTime() {
+    return ToolResultPromptBuilder.completionEvidence(
+      _latestCompletedToolResults,
+    ).carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
+  }
+
+  /// Whether the model claimed completion through `update_goal` this turn, and
+  /// clears the flag. Read once at turn end so the claim is re-checked against
+  /// the finalization evidence rather than the partial evidence the ack saw.
+  bool takeToolGoalCompletionClaim() {
+    final claimed = _toolGoalCompletionClaimed;
+    _toolGoalCompletionClaimed = false;
+    return claimed;
+  }
+
   /// Records where the explicit `update_goal` tool and the lexical completion
-  /// inference disagreed this turn (LL35 shadow). Adds a stable transform
-  /// label so triage can count how often each path decides completion the
-  /// other misses, before the lexical path is removed.
-  void recordGoalCompletionShadow({required bool lexicalCompleted}) {
+  /// inference disagreed this turn (LL35 shadow), so triage can count how
+  /// often each path decides a completion the other misses.
+  ///
+  /// Written as its own log record, not as a turn transform. This runs after
+  /// the goal turn is recorded, which is after the `turn_exit` entry is
+  /// written, so a label added to `_appliedTurnTransforms` here landed in a set
+  /// the next turn clears before anything reads it. The disagreement was
+  /// therefore never recorded once — which is why the gate on removing the
+  /// lexical path had no data to open on.
+  Future<void> recordGoalCompletionShadow({
+    required bool lexicalCompleted,
+    required int generation,
+  }) async {
+    final outcome = _shadowGoalToolCompletionOutcome;
+    _shadowGoalToolCompletionOutcome = null;
     final disagreement = GoalCompletionShadow.compare(
-      toolCompletionOutcome: _shadowGoalToolCompletionOutcome,
+      toolCompletionOutcome: outcome,
       lexicalCompleted: lexicalCompleted,
     );
-    if (disagreement != null) {
-      _appliedTurnTransforms.add(GoalCompletionShadow.labelFor(disagreement));
+    if (disagreement == null) {
+      return;
     }
-    _shadowGoalToolCompletionOutcome = null;
+    if (!LlmSessionLogStore.isEnabled(
+      settingsEnabled: _settings.enableLlmSessionLogs,
+    )) {
+      return;
+    }
+    await ref
+        .read(llmSessionLogStoreProvider)
+        .recordGoalCompletionShadow(
+          context: _llmSessionLogContextForGeneration(generation),
+          at: DateTime.now(),
+          label: GoalCompletionShadow.labelFor(disagreement),
+          toolOutcome: outcome?.name,
+          lexicalCompleted: lexicalCompleted,
+          turnId: 'gen-$generation',
+        );
   }
 }

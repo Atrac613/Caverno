@@ -260,6 +260,45 @@ void main() {
       );
     });
   });
+
+
+  group('offersCommandExecution', () {
+    const policy = ToolCallExecutionPolicy();
+
+    test('a full catalog can always execute a command', () {
+      expect(policy.offersCommandExecution(null), isTrue);
+    });
+
+    test('a turn restricted to update_goal cannot', () {
+      // The completion elicitation. A command claim made there is
+      // unexecutable, not unexecuted — session 76864d26.
+      expect(policy.offersCommandExecution(const {'update_goal'}), isFalse);
+    });
+
+    test('a validation-only continuation still can', () {
+      // Restricted, but to the tools that run the verifier: a command claim
+      // there really is unexecuted and must keep being faulted.
+      expect(
+        policy.offersCommandExecution(const {
+          'local_execute_command',
+          'run_tests',
+        }),
+        isTrue,
+      );
+    });
+
+    test('a repair-only continuation cannot', () {
+      expect(
+        policy.offersCommandExecution(const {
+          'read_file',
+          'write_file',
+          'edit_file',
+          'delete_file',
+        }),
+        isFalse,
+      );
+    });
+  });
 }
 
 ToolCallInfo _toolCall(

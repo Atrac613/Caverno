@@ -20,6 +20,7 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/conversation_goal.dart';
+import 'conversation_goal_status_presentation.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../slash_commands/slash_command.dart';
 import 'message_input_slash_suggestion_state.dart';
@@ -1418,29 +1419,14 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     );
   }
 
-  String _goalStatusLabel(ConversationGoalStatus status) {
-    return switch (status) {
-      ConversationGoalStatus.active => 'chat.goal_status_active'.tr(),
-      ConversationGoalStatus.completed => 'chat.goal_status_completed'.tr(),
-      ConversationGoalStatus.blocked => 'chat.goal_status_blocked'.tr(),
-    };
-  }
+  String _goalStatusLabel(ConversationGoalStatus status) =>
+      ConversationGoalStatusPresentation.labelKey(status).tr();
 
-  Color _goalStatusColor(ThemeData theme, ConversationGoalStatus status) {
-    return switch (status) {
-      ConversationGoalStatus.active => theme.colorScheme.primary,
-      ConversationGoalStatus.completed => theme.colorScheme.tertiary,
-      ConversationGoalStatus.blocked => theme.colorScheme.error,
-    };
-  }
+  Color _goalStatusColor(ThemeData theme, ConversationGoalStatus status) =>
+      ConversationGoalStatusPresentation.color(theme.colorScheme, status);
 
-  IconData _goalStatusIcon(ConversationGoalStatus status) {
-    return switch (status) {
-      ConversationGoalStatus.active => Icons.play_circle_outline,
-      ConversationGoalStatus.completed => Icons.check_circle_outline,
-      ConversationGoalStatus.blocked => Icons.block_outlined,
-    };
-  }
+  IconData _goalStatusIcon(ConversationGoalStatus status) =>
+      ConversationGoalStatusPresentation.icon(status);
 
   String _goalBudgetLabel(ConversationGoal goal) {
     final parts = <String>[];

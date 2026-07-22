@@ -652,6 +652,26 @@ void main() {
       expect(decision.reason, 'execute the pending verification call');
     });
   });
+
+  test('flags the nothing-left-to-do skip structurally, not by its text', () {
+    // The caller acts on this skip (it elicits a completion report), so it
+    // must be distinguishable without matching the reason string.
+    final decision = const ConversationGoalAutoContinuePolicy().decide(
+      _input(evidence: const ToolResultCompletionEvidence()),
+    );
+
+    expect(decision.shouldContinue, isFalse);
+    expect(decision.noRemainingWork, isTrue);
+  });
+
+  test('does not flag a skip that stopped for another reason', () {
+    final decision = const ConversationGoalAutoContinuePolicy().decide(
+      _input(goal: _goal(autoContinue: false)),
+    );
+
+    expect(decision.shouldContinue, isFalse);
+    expect(decision.noRemainingWork, isFalse);
+  });
 }
 
 GoalAutoContinuePolicyInput _input({

@@ -233,6 +233,7 @@
     "goal_status_active": "Active",
     "goal_status_completed": "Completed",
     "goal_status_blocked": "Blocked",
+    "goal_status_awaiting_confirmation": "Awaiting confirmation",
     "goal_mark_complete": "Complete",
     "goal_mark_blocked": "Block",
     "goal_reactivate": "Reactivate",

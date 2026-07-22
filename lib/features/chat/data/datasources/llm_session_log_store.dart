@@ -484,6 +484,45 @@ class LlmSessionLogStore {
     }
   }
 
+  /// Append the LL35 goal-completion shadow comparison for one turn.
+  ///
+  /// This is a record of its own rather than a `turn_exit` transform because
+  /// the comparison is only known *after* the goal turn is recorded, which
+  /// happens after the turn-exit entry is written. Adding the label to
+  /// `_appliedTurnTransforms` at that point wrote it into a set that the next
+  /// turn clears before it is ever read, so the disagreement was structurally
+  /// unrecordable — which is why the LL35 removal gate never accumulated data.
+  Future<void> recordGoalCompletionShadow({
+    required LlmSessionLogContext? context,
+    required DateTime at,
+    required String label,
+    required String? toolOutcome,
+    required bool lexicalCompleted,
+    String? turnId,
+  }) async {
+    try {
+      final effectiveContext = context ?? _fallbackContext();
+      final entry = {
+        'schemaName': schemaName,
+        'schemaVersion': schemaVersion,
+        'timestamp': at.toIso8601String(),
+        'build': BuildInfo.toJson(),
+        'context': effectiveContext.toJson(),
+        'operation': 'goal_completion_shadow',
+        'goalCompletionShadow': {
+          'label': label,
+          'toolOutcome': ?toolOutcome,
+          'lexicalCompleted': lexicalCompleted,
+          if (turnId != null && turnId.isNotEmpty) 'turnId': turnId,
+        },
+      };
+      final line = '${jsonEncode(_redactValue(entry))}\n';
+      await _appendLine(context: effectiveContext, line: line, at: at);
+    } catch (error) {
+      appLog('[LlmSessionLog] Failed to record goal completion shadow: $error');
+    }
+  }
+
   /// Append a redacted execution-snapshot decision produced in shadow mode.
   ///
   /// The marker intentionally stores only hashes, enum names, counts, and

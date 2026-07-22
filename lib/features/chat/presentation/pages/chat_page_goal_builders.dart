@@ -367,10 +367,5 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
   }
 }
 
-String _conversationGoalStatusLabel(ConversationGoalStatus status) {
-  return switch (status) {
-    ConversationGoalStatus.active => 'chat.goal_status_active'.tr(),
-    ConversationGoalStatus.completed => 'chat.goal_status_completed'.tr(),
-    ConversationGoalStatus.blocked => 'chat.goal_status_blocked'.tr(),
-  };
-}
+String _conversationGoalStatusLabel(ConversationGoalStatus status) =>
+    ConversationGoalStatusPresentation.labelKey(status).tr();

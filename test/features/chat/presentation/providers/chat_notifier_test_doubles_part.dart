@@ -133,6 +133,9 @@ class _TestConversationsNotifier extends ConversationsNotifier {
 
 class _GoalAutoContinueConversationsNotifier
     extends _TestConversationsNotifier {
+  /// Last value of `toolCompletionClaimed` seen by [recordCurrentGoalTurn].
+  bool? lastToolCompletionClaimed;
+
   @override
   Future<void> updateCurrentWorkflow({
     ConversationWorkflowStage? workflowStage,
@@ -205,7 +208,9 @@ class _GoalAutoContinueConversationsNotifier
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
         const ToolResultCompletionEvidence(),
+    bool toolCompletionClaimed = false,
   }) async {
+    lastToolCompletionClaimed = toolCompletionClaimed;
     final conversation = state.currentConversation;
     final goal = conversation?.goal;
     if (conversation == null || goal == null || !goal.isActive) {
@@ -284,7 +289,9 @@ class _TerminalSuccessGoalConversationsNotifier
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
         const ToolResultCompletionEvidence(),
+    bool toolCompletionClaimed = false,
   }) async {
+    lastToolCompletionClaimed = toolCompletionClaimed;
     recordedAssistantResponse = assistantResponse;
     final conversation = state.currentConversation;
     final goal = conversation?.goal;
@@ -310,6 +317,9 @@ class _TerminalSuccessGoalConversationsNotifier
 
 class _GitLifecycleGoalConversationsNotifier
     extends _TestConversationsNotifier {
+  /// Last value of `toolCompletionClaimed` seen by [recordCurrentGoalTurn].
+  bool? lastToolCompletionClaimed;
+
   @override
   ConversationsState build() {
     final now = DateTime(2026, 5, 25, 10);
@@ -347,7 +357,9 @@ class _GitLifecycleGoalConversationsNotifier
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
         const ToolResultCompletionEvidence(),
+    bool toolCompletionClaimed = false,
   }) async {
+    lastToolCompletionClaimed = toolCompletionClaimed;
     final current = state.currentConversation;
     final goal = current?.goal;
     if (current == null || goal == null) {

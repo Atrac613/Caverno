@@ -164,6 +164,23 @@ class ToolCallExecutionPolicy {
     ).hasMatch(normalized);
   }
 
+  /// Whether a turn restricted to [allowedToolNames] could execute a command
+  /// at all. `null` means the turn had the full catalog.
+  ///
+  /// A claim about running something is *unexecutable* rather than unexecuted
+  /// when the turn was never given a tool that could run it, and faulting it
+  /// makes the harness penalise the model for a restriction the harness
+  /// imposed. Session 76864d26 shows the cost: an elicitation turn limited to
+  /// `update_goal` narrated a verification, the unexecuted-action guard fired,
+  /// and the resulting incomplete evidence overruled the completion that same
+  /// turn had just recorded.
+  bool offersCommandExecution(Set<String>? allowedToolNames) {
+    if (allowedToolNames == null) {
+      return true;
+    }
+    return allowedToolNames.any(isCommandExecutionTool);
+  }
+
   bool isCommandExecutionTool(String toolName) {
     switch (toolName.trim().toLowerCase()) {
       case 'local_execute_command':

@@ -77,6 +77,9 @@ import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
+import '../../domain/services/goal_auto_continue_evidence_marker.dart';
+import '../../domain/services/goal_auto_continue_prompt_builder.dart';
+import '../../domain/services/goal_completion_elicitation_prompt.dart';
 import '../../domain/services/context_surgery_observation_service.dart';
 import '../../domain/services/tool_approval_auto_review_service.dart';
 import '../../../../core/security/conversation_taint_state.dart';
@@ -2552,6 +2555,16 @@ class ChatNotifier extends Notifier<ChatState> {
   // LL35 shadow: this turn's `update_goal` completion outcome (or null),
   // compared against the lexical decision at turn end. See goal_completion_shadow.
   GoalUpdateAckOutcome? _shadowGoalToolCompletionOutcome;
+
+  /// Set when `update_goal(completed: true)` was answered this turn, whatever
+  /// the ack decided. Re-checked at turn end against the finalization
+  /// evidence, which is the only complete picture of the turn (LL35).
+  bool _toolGoalCompletionClaimed = false;
+
+  /// The tool names this turn was restricted to, or null when the turn had the
+  /// full catalog. Read by the unexecuted-action guard: a claim the turn had no
+  /// tool to substantiate is unexecutable, not unexecuted.
+  Set<String>? _activeAllowedToolNames;
   // Commands issued through command-execution tools during the current
   // interaction generation. Repair revivals re-enter _executeToolCalls with a
   // fresh executedToolResults list, so the transcript claim guard needs a
@@ -2740,6 +2753,9 @@ class ChatNotifier extends Notifier<ChatState> {
     // Do not send empty input with no attached image.
     if (content.trim().isEmpty && imageBase64 == null) return;
     if (!ref.mounted) return;
+    // A user turn always has the full catalog; drop any restriction left by a
+    // preceding hidden continuation.
+    _activeAllowedToolNames = null;
 
     // A fresh user message means any unanswered ask_user_question is being
     // bypassed (the user typed the answer instead of using the dialog — common
@@ -2784,6 +2800,12 @@ class ChatNotifier extends Notifier<ChatState> {
 
   Future<void> _sendMessageNow(QueuedChatMessage queuedMessage) async {
     if (!ref.mounted) return;
+    // Queued messages reach here without passing sendMessage again, and an
+    // elicitation or restricted continuation may have run in between. A user
+    // turn always has the full catalog, so a stale restriction here would
+    // silently suppress the unexecuted-command guard on a turn that could
+    // execute commands.
+    _activeAllowedToolNames = null;
 
     final content = queuedMessage.content;
     final imageBase64 = queuedMessage.imageBase64;
@@ -3112,6 +3134,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!ref.mounted) return;
 
     _temporalReferenceContext = null;
+    _activeAllowedToolNames = allowedToolNames;
     _isVoiceMode = isVoiceMode;
     _languageCode = languageCode;
     _toolApprovalCache.clear();
@@ -5487,6 +5510,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _finalAnswerFinishReasonOverride = null;
     _appliedTurnTransforms.clear();
     _shadowGoalToolCompletionOutcome = null;
+    _toolGoalCompletionClaimed = false;
     final executedToolResults = <ToolResultInfo>[];
     var commandRetryGeneration = 0;
     var attemptedDuplicateInspectionRecovery = false;
@@ -8984,6 +9008,10 @@ class ChatNotifier extends Notifier<ChatState> {
       _clearTurnDiffCapture();
     }
     _reconcileGoalAutoContinueEvidenceForFinalization();
+    // Read the claim before recording the turn: the finalization evidence
+    // above is the complete picture, so a completion claimed mid-turn is
+    // judged here rather than by the partial evidence its ack saw (LL35).
+    final toolCompletionClaimed = takeToolGoalCompletionClaim();
     final lexicalCompleted = await ref
         .read(conversationsNotifierProvider.notifier)
         .recordCurrentGoalTurn(
@@ -8993,8 +9021,12 @@ class ChatNotifier extends Notifier<ChatState> {
               : finalizedLastMessage.content,
           tokenUsageDelta: _accumulatedTokenUsage.totalTokens,
           completionEvidence: _latestGoalAutoContinueEvidence,
+          toolCompletionClaimed: toolCompletionClaimed,
         );
-    recordGoalCompletionShadow(lexicalCompleted: lexicalCompleted);
+    await recordGoalCompletionShadow(
+      lexicalCompleted: lexicalCompleted,
+      generation: generation,
+    );
     if (!_isCurrentInteractionGeneration(generation)) return;
 
     if (_settings.autoReadEnabled && _settings.ttsEnabled) {

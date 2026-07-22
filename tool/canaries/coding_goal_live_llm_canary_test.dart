@@ -241,6 +241,38 @@ void main() {
               'tool (local tool-call fidelity is exactly the LL35 risk).\n'
               '${_diagnostic(container, dataSource)}',
         );
+
+        // The ack alone proved only that the handler answered. What the user
+        // sees is the goal chip, so assert the state transition itself.
+        //
+        // This checks the end-to-end outcome, NOT the attribution. Verified by
+        // negative control against the live model: with the tool-completion
+        // wiring disabled this assertion still passes, because the model's
+        // prose after the tool call also satisfies the lexical inference. Use
+        // the unit test in conversations_notifier_goal_test.dart to isolate
+        // the tool path — its own negative control does fail. Do not read a
+        // green run here as proof that the tool completed the goal.
+        final goal = container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.goal;
+        if (observedAck.contains('Completion accepted')) {
+          expect(
+            goal?.status,
+            ConversationGoalStatus.completed,
+            reason:
+                'update_goal accepted the completion but the goal is still '
+                '\${goal?.status}. This is the reported bug: the model is told '
+                'prose is not how a goal is finished, so nothing else will '
+                'finish it.\n'
+                '\${_diagnostic(container, dataSource)}',
+          );
+          expect(goal?.completedAt, isNotNull);
+        } else {
+          // A rejection must not complete the goal — the ack told the model to
+          // close the gaps and report again.
+          expect(goal?.status, isNot(ConversationGoalStatus.completed));
+        }
       } finally {
         container.dispose();
       }

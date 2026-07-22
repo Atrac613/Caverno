@@ -17,17 +17,34 @@ const Map<String, int> _lineBudgets = {
   // 9468 + 6 for LL35 shadow wiring (completion-outcome field, import, turn-
   // start clear, and threading the lexical result to the shadow comparison),
   // +1 for the verification-cadence import used by the auto-continue fix.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 9475,
-  'lib/features/chat/presentation/pages/chat_page.dart': 2045,
-  'lib/features/chat/presentation/widgets/message_input.dart': 2332,
+  // +15 promotes update_goal out of shadow so an accepted completion actually
+  // completes the goal: the turn-scoped claim field (which must live on the
+  // class, not in a part-file extension), its turn-start clear, the import,
+  // and the two finalization call sites. The offsetting extraction is in the
+  // library budget below; nothing here could move without a separate refactor
+  // of this file.
+  // +3 for the completion-elicitation imports and dispatch, +8 for the
+  // turn-scoped allowed-tool set the unexecuted-action guard reads so it
+  // stops faulting claims the turn had no tool to substantiate, +6 to clear
+  // that set on the queued-message drain, which reaches dispatch without
+  // passing sendMessage.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 9507,
+  // +1 import for ConversationGoalStatusPresentation, which absorbed the
+  // status->label/colour/icon mapping duplicated across three files.
+  'lib/features/chat/presentation/pages/chat_page.dart': 2046,
+  // Lowered from 2332 by the same extraction (label, colour and icon).
+  'lib/features/chat/presentation/widgets/message_input.dart': 2318,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':
       131,
   'lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart':
       127,
   'lib/features/chat/presentation/coordinators/feedback_slash_command_coordinator.dart':
       95,
+  // Lowered from 243: the goal status->label mapping was duplicated here, in
+  // the goal builders and in the goal chip; it now lives in
+  // ConversationGoalStatusPresentation.
   'lib/features/chat/presentation/coordinators/goal_slash_command_coordinator.dart':
-      243,
+      239,
   'lib/features/chat/presentation/coordinators/slash_command_action_coordinator.dart':
       364,
   'lib/features/chat/presentation/coordinators/plan_review_action_coordinator.dart':
@@ -144,11 +161,25 @@ const Map<String, int> _libraryLineBudgets = {
   // without them a skip is undiagnosable, as session cfaa8297 showed — and +3
   // documents why the cadence is derived directly rather than read off a
   // snapshot that can early-return.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 23092,
-  'lib/features/chat/presentation/pages/chat_page.dart': 8857,
+  // A net +64 adds the one-shot goal-completion elicitation: the turn-scoped
+  // guard, the trigger, and the dispatcher. Offset by extracting the
+  // session-log evidence marker (a triage-tooling contract, which belongs
+  // beside the policy) and by folding this slice's rationale into
+  // GoalCompletionElicitationPrompt rather than repeating it inline. Earlier
+  // slices in the same session took 73 lines (the prompt builder) and 30 (the
+  // stop presentation) out of this library, so it is net smaller than it
+  // started even though each slice reads as growth.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 23156,
+  // +9 for the awaitingConfirmation status: one import plus the goal-builders
+  // label delegating to the shared presentation. The offsetting extraction
+  // lowered two other budgets above; this library keeps only the call site.
+  'lib/features/chat/presentation/pages/chat_page.dart': 8866,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1294,
   // +3 for the LL35 return-type change threaded through the goal test doubles.
-  'test/features/chat/presentation/providers/chat_notifier_test.dart': 33192,
+  // +35 adds the toolCompletionClaimed parameter and an observable field to
+  // the three goal test doubles, so a test can assert what finalization passed
+  // to recordCurrentGoalTurn.
+  'test/features/chat/presentation/providers/chat_notifier_test.dart': 33227,
 };
 
 final RegExp _partDirectivePattern = RegExp(

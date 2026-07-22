@@ -1091,11 +1091,24 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// Records the goal's turn and returns whether the lexical inference
   /// completed the goal this turn — the signal LL35 shadow-compares against
   /// the explicit `update_goal` tool.
+  /// Records one goal turn and returns whether the **lexical** inference
+  /// completed it — the shadow comparison needs that answer specifically, so it
+  /// stays the return value even though [toolCompletionClaimed] can complete
+  /// the goal too.
+  ///
+  /// [toolCompletionClaimed] is an `update_goal(completed: true)` call made
+  /// this turn (LL35). It completes the goal on the same terms as the lexical
+  /// path — both are gated on the turn's blocking evidence — so a claim made
+  /// while errors are unresolved does not land. Before this, the tool only
+  /// produced an ack and the transition was lexical-only, which meant a model
+  /// that followed the tool's own instruction ("prose is not how the goal is
+  /// finished") could finish the work and leave the goal running forever.
   Future<bool> recordCurrentGoalTurn({
     required String assistantResponse,
     required int tokenUsageDelta,
     ToolResultCompletionEvidence completionEvidence =
         const ToolResultCompletionEvidence(),
+    bool toolCompletionClaimed = false,
   }) async {
     final conversation = state.currentConversation;
     final goal = conversation?.goal;
@@ -1116,11 +1129,28 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       tokenUsage: nextTokenUsage,
       turnsUsed: nextTurnsUsed,
       updatedAt: now,
+      // A turn just ran, so the goal is working again. Reset the
+      // "nothing left to schedule" label before this turn's auto-continue
+      // decision re-evaluates it; otherwise a resumed goal would keep a stale
+      // waiting badge for the rest of the session.
+      status: goal.status == ConversationGoalStatus.awaitingConfirmation
+          ? ConversationGoalStatus.active
+          : goal.status,
     );
 
     final lexicalCompleted =
         inference.hasCompletion && !completionEvidence.hasBlockingEvidence;
-    if (lexicalCompleted) {
+    // The tool path is held to the stricter bar. Completing the goal ends the
+    // run — auto-continue only fires while the goal is active — so this must
+    // agree with "auto-continue would have stopped anyway", which keys on
+    // hasIncompleteEvidence. hasBlockingEvidence is strictly weaker: it admits
+    // a turn that mutated files without verification, left change paths
+    // unverified, or claimed actions it never executed. Gating the tool on it
+    // would have turned the exact failure this track exists to catch into a
+    // reason to stop working.
+    final toolCompleted =
+        toolCompletionClaimed && !completionEvidence.hasIncompleteEvidence;
+    if (lexicalCompleted || toolCompleted) {
       nextGoal = nextGoal.copyWith(
         status: ConversationGoalStatus.completed,
         completionSummary:

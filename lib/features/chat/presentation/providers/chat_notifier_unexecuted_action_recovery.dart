@@ -376,6 +376,19 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     required List<ToolResultInfo> toolResults,
     required int interactionGeneration,
   }) {
+    // A turn restricted to tools that cannot execute commands has no way to
+    // substantiate a command claim, so the claim is unexecutable rather than
+    // unexecuted. Faulting it makes the harness penalise the model for a
+    // restriction the harness imposed — and the resulting "incomplete
+    // evidence" then blocks the very goal completion a restricted elicitation
+    // turn was asking for. Observed in session 76864d26: two elicitation turns
+    // whose accepted update_goal call was overruled this way, ending in
+    // no_progress_stop.
+    if (!_toolCallExecutionPolicy.offersCommandExecution(
+      _activeAllowedToolNames,
+    )) {
+      return null;
+    }
     return _finalAnswerClaimDetector.buildUnexecutedCommandActionToolResult(
       candidateResponse: candidateResponse,
       toolResults: toolResults,

@@ -66,4 +66,5 @@ const _$ConversationGoalStatusEnumMap = {
   ConversationGoalStatus.active: 'active',
   ConversationGoalStatus.completed: 'completed',
   ConversationGoalStatus.blocked: 'blocked',
+  ConversationGoalStatus.awaitingConfirmation: 'awaitingConfirmation',
 };

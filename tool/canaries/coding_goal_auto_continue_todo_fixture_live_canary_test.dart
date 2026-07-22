@@ -18,6 +18,7 @@ import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/filesystem_tools.dart';
 import 'package:caverno/features/chat/data/datasources/llm_session_log_store.dart';
+import 'package:caverno/features/chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/datasources/session_logging_chat_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
@@ -1206,6 +1207,14 @@ void _expectVerifiedGoalNotBlocked(
       .currentConversation
       ?.goal;
   expect(goal, isNotNull, reason: diagnostic);
+  // Measurement, not an assertion: the scenario deliberately does not require
+  // completion, so print where the goal actually landed. Reading a run's
+  // outcome should not require re-instrumenting the canary each time.
+  // ignore: avoid_print
+  print(
+    '[CanaryMeasure] final goal status=${goal?.status.name} '
+    'completedAt=${goal?.completedAt} turnsUsed=${goal?.turnsUsed}',
+  );
   expect(
     goal?.status,
     isNot(ConversationGoalStatus.blocked),
@@ -2749,6 +2758,12 @@ class _TodoToolService extends McpToolService {
         },
         required: const ['command'],
       ),
+      // Production offers update_goal alongside the file and command tools
+      // (session f2a25c20 shows the model calling it), so a fixture without it
+      // measures the lexical completion path only. The definition is all this
+      // service needs to supply: the ChatNotifier handler registry intercepts
+      // the call and answers it with GoalUpdateAckResolver.
+      McpGoalRoutineToolDefinitions.updateGoalTool,
     ];
   }
 

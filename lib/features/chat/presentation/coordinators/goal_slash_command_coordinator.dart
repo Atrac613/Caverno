@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart' show NumberFormat;
 
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_goal.dart';
+import '../widgets/conversation_goal_status_presentation.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../providers/conversations_notifier.dart';
 import '../slash_commands/slash_command.dart';
@@ -226,13 +227,8 @@ final class GoalSlashCommandCoordinator {
     );
   }
 
-  String _statusLabel(ConversationGoalStatus status) {
-    return _text(switch (status) {
-      ConversationGoalStatus.active => 'chat.goal_status_active',
-      ConversationGoalStatus.completed => 'chat.goal_status_completed',
-      ConversationGoalStatus.blocked => 'chat.goal_status_blocked',
-    });
-  }
+  String _statusLabel(ConversationGoalStatus status) =>
+      _text(ConversationGoalStatusPresentation.labelKey(status));
 
   String _formatTokenCount(int count) {
     if (count.abs() < 1000) {

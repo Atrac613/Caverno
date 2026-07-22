@@ -233,6 +233,7 @@
     "goal_status_active": "進行中",
     "goal_status_completed": "完了",
     "goal_status_blocked": "ブロック中",
+    "goal_status_awaiting_confirmation": "確認待ち",
     "goal_mark_complete": "完了にする",
     "goal_mark_blocked": "ブロックする",
     "goal_reactivate": "再開",

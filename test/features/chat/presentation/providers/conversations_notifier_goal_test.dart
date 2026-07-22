@@ -368,4 +368,178 @@ void main() {
     expect(goal.blockerRepeatCount, 3);
     expect(goal.blockedAt, isNotNull);
   });
+
+  test(
+    'recordCurrentGoalTurn completes the goal from an update_goal claim '
+    'when the response carries no completion prose',
+    () async {
+      // The regression from session f2a25c20: the tool tells the model that
+      // prose is not how a goal is finished, so a model that obeys leaves no
+      // completion prose — and the goal ran forever because only the lexical
+      // path could complete it. Verified against a negative control: with
+      // toolCompletionClaimed false this response does not complete the goal.
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await notifier.saveCurrentGoal(
+        objective: 'Fix the login crash',
+        enabled: true,
+        status: ConversationGoalStatus.active,
+        tokenBudget: 1000,
+        turnBudget: 5,
+      );
+
+      await notifier.recordCurrentGoalTurn(
+        assistantResponse: 'Ran the acceptance checks.',
+        tokenUsageDelta: 10,
+        toolCompletionClaimed: true,
+      );
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.completed);
+      expect(goal.completedAt, isNotNull);
+    },
+  );
+
+  test(
+    'recordCurrentGoalTurn keeps the goal active when a tool completion '
+    'claim is contradicted by blocking evidence',
+    () async {
+      // The claim is judged against the finalization evidence, not against the
+      // partial evidence the ack saw mid-turn. In f2a25c20 the claim arrived
+      // with five unresolved errors still outstanding.
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await notifier.saveCurrentGoal(
+        objective: 'Fix the login crash',
+        enabled: true,
+        status: ConversationGoalStatus.active,
+        tokenBudget: 1000,
+        turnBudget: 5,
+      );
+
+      await notifier.recordCurrentGoalTurn(
+        assistantResponse: 'Ran the acceptance checks.',
+        tokenUsageDelta: 10,
+        toolCompletionClaimed: true,
+        completionEvidence: const ToolResultCompletionEvidence(
+          unresolvedErrorCount: 5,
+          unresolvedErrorPaths: ['lib/todo.dart'],
+        ),
+      );
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.active);
+      expect(goal.completedAt, isNull);
+    },
+  );
+
+  test(
+    'recordCurrentGoalTurn keeps the goal active when a tool completion '
+    'claim follows a mutation with no execution verification',
+    () async {
+      // Completing the goal ends the run, because auto-continue only fires
+      // while the goal is active. A mutation with no verification carries no
+      // *blocking* evidence but is exactly the state the grounded-verification
+      // track exists to keep working on, so it must not end the run.
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await notifier.saveCurrentGoal(
+        objective: 'Fix the login crash',
+        enabled: true,
+        status: ConversationGoalStatus.active,
+        tokenBudget: 1000,
+        turnBudget: 5,
+      );
+
+      await notifier.recordCurrentGoalTurn(
+        assistantResponse: 'Edited the handler.',
+        tokenUsageDelta: 10,
+        toolCompletionClaimed: true,
+        completionEvidence: const ToolResultCompletionEvidence(
+          mutatedWithoutExecutionVerification: true,
+          unverifiedChangePaths: ['lib/login.dart'],
+        ),
+      );
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.active);
+      expect(goal.completedAt, isNull);
+    },
+  );
+
+  test(
+    'recordCurrentGoalTurn reactivates a goal that was awaiting confirmation',
+    () async {
+      // The waiting label means "nothing is scheduled". A turn just ran, so
+      // the goal is working again and must not keep a stale badge.
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await notifier.saveCurrentGoal(
+        objective: 'Fix the login crash',
+        enabled: true,
+        status: ConversationGoalStatus.awaitingConfirmation,
+        tokenBudget: 1000,
+        turnBudget: 5,
+      );
+
+      await notifier.recordCurrentGoalTurn(
+        assistantResponse: 'Still working on the handler.',
+        tokenUsageDelta: 10,
+      );
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.active);
+    },
+  );
+
+  test('a goal awaiting confirmation still counts as active', () {
+    // Auto-continue and the turn recorder both gate on isActive; excluding
+    // this status would strand the goal permanently, since the reset that
+    // clears the label lives behind that same gate.
+    final goal = ConversationGoal(
+      id: 'g',
+      objective: 'Fix the login crash',
+      status: ConversationGoalStatus.awaitingConfirmation,
+      createdAt: DateTime(2026, 7, 22),
+      updatedAt: DateTime(2026, 7, 22),
+    );
+    expect(goal.isActive, isTrue);
+    expect(goal.isAwaitingConfirmation, isTrue);
+  });
 }

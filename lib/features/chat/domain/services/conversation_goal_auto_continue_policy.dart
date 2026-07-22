@@ -142,6 +142,7 @@ class GoalAutoContinueDecision {
     this.stopCause,
     this.usesDiagnosticRepairExtension = false,
     this.usesRepairNoMutationRetry = false,
+    this.noRemainingWork = false,
   });
 
   final GoalAutoContinueDecisionKind kind;
@@ -152,6 +153,15 @@ class GoalAutoContinueDecision {
   final GoalAutoContinueStopCause? stopCause;
   final bool usesDiagnosticRepairExtension;
   final bool usesRepairNoMutationRetry;
+
+  /// The run stopped because nothing is left to do — no incomplete evidence
+  /// and no outstanding validation — rather than because of a veto, a budget,
+  /// or a question waiting on the user.
+  ///
+  /// Distinguished structurally rather than by matching [reason], because the
+  /// caller acts on it: the goal is neither finished nor working, and saying
+  /// so is the whole point.
+  final bool noRemainingWork;
 
   bool get shouldContinue => kind == GoalAutoContinueDecisionKind.continueTurn;
 
@@ -177,11 +187,13 @@ class GoalAutoContinueDecision {
   factory GoalAutoContinueDecision.skip(
     String reason, {
     GoalAutoContinueStopCause? stopCause,
+    bool noRemainingWork = false,
   }) {
     return GoalAutoContinueDecision._(
       kind: GoalAutoContinueDecisionKind.skip,
       reason: reason,
       stopCause: stopCause,
+      noRemainingWork: noRemainingWork,
     );
   }
 
@@ -247,7 +259,10 @@ class ConversationGoalAutoContinuePolicy {
       return GoalAutoContinueDecision.skip('final answer asks a question');
     }
     if (!input.evidence.hasIncompleteEvidence && !input.validationOutstanding) {
-      return GoalAutoContinueDecision.skip('no incomplete evidence');
+      return GoalAutoContinueDecision.skip(
+        'no incomplete evidence',
+        noRemainingWork: true,
+      );
     }
 
     if (input.repairContractProducedNoMutation) {
@@ -348,5 +363,39 @@ class ConversationGoalAutoContinuePolicy {
       effectiveTurnBudget: effectiveTurnBudget,
       nextTurnNumber: goal.turnsUsed + 1,
     );
+  }
+}
+
+/// How a [GoalAutoContinueStopCause] is presented: the user-facing notice key
+/// and the stable session-log decision value.
+///
+/// Lives with the policy that owns the enum, so a new stop cause cannot be
+/// added without both mappings being in front of the author.
+abstract final class GoalAutoContinueStopPresentation {
+  /// Translation key for the notice shown when auto-continue stops.
+  static String? noticeKeyFor(
+    GoalAutoContinueStopCause? stopCause,
+  ) {
+    switch (stopCause) {
+      case GoalAutoContinueStopCause.turnBudget:
+      case GoalAutoContinueStopCause.goalBudget:
+        return 'chat.goal_auto_continue_budget_reached';
+      case GoalAutoContinueStopCause.noProgress:
+        return 'chat.goal_auto_continue_no_progress';
+      case null:
+        return null;
+    }
+  }
+
+  /// Stable `decision` value recorded on the session log for a stop.
+  static String sessionDecisionFor(
+    GoalAutoContinueStopCause? stopCause,
+  ) {
+    return switch (stopCause) {
+      GoalAutoContinueStopCause.noProgress => 'no_progress_stop',
+      GoalAutoContinueStopCause.turnBudget ||
+      GoalAutoContinueStopCause.goalBudget => 'budget_stop',
+      null => 'skip',
+    };
   }
 }
