@@ -177,14 +177,24 @@ class ConversationValidationToolResultInference {
         command: command,
         failureDetail: '${outputIssue.summary}\n${outputIssue.excerpt}'.trim(),
         exitCode: exitCode,
+        // A guardrail issue (truncated or unusable output) means the result
+        // cannot be trusted as evidence at all, so it stands regardless of how
+        // the process exited.
+        forcedFailure: true,
       );
     }
 
     return _ParsedValidationToolResult(
       command: command,
-      successDetail: stdout ?? 'The validation command completed successfully.',
+      successDetail:
+          stdout ?? stderr ?? 'The validation command completed successfully.',
       failureDetail: error ?? stderr,
       exitCode: exitCode,
+      // The tool's own `error` field means the invocation itself failed, which
+      // is authoritative. Process `stderr` is not: git, dart test and npm all
+      // write informational output there on success, so it is only a verdict
+      // when no exit code is available. See [_ParsedValidationToolResult].
+      forcedFailure: error != null,
     );
   }
 
@@ -203,7 +213,9 @@ class ConversationValidationToolResultInference {
 
     return _ParsedValidationToolResult(
       successDetail:
-          stdout ?? 'The SSH validation command completed successfully.',
+          stdout ??
+          stderr ??
+          'The SSH validation command completed successfully.',
       failureDetail: stderr,
       exitCode: exitCode,
     );
@@ -638,6 +650,7 @@ class _ParsedValidationToolResult {
     this.successDetail,
     this.failureDetail,
     this.exitCode,
+    this.forcedFailure = false,
   });
 
   final String? command;
@@ -645,6 +658,24 @@ class _ParsedValidationToolResult {
   final String? failureDetail;
   final int? exitCode;
 
-  bool get isFailure =>
-      failureDetail != null || (exitCode != null && exitCode != 0);
+  /// Set when the failure is established independently of how the process
+  /// exited (a tool-level error, or output the guardrails judged unusable).
+  final bool forcedFailure;
+
+  /// The exit code is the ground truth whenever the process actually reached
+  /// an exit: a command that exited 0 succeeded even if it wrote to stderr.
+  ///
+  /// A null exit code is not "exit 0" — it means the process never exited
+  /// (denied, timed out, failed to spawn) or the tool reports no exit status
+  /// at all (ping, dns_lookup, http_*). Only then does the presence of failure
+  /// text decide the verdict.
+  bool get isFailure {
+    if (forcedFailure) {
+      return true;
+    }
+    if (exitCode != null) {
+      return exitCode != 0;
+    }
+    return failureDetail != null;
+  }
 }

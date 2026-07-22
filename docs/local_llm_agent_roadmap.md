@@ -3049,8 +3049,23 @@ Acceptance criteria:
 Source: Grok Build comparison, class 2; `goal_stop_detector.rs`
 (`GoalPrematureStopDetected { pattern }` and its precision/recall rationale).
 
-Next action: label and record the `NarratedTranscriptClaimGuard` and deferral
-detector firings first — they are the two with the least evidence behind them.
+Progress (2026-07-22): both additive halves are done. The firing surface was
+completed 2026-07-21 (`docs/ll36_guard_firing_surface_2026-07-21.md`), and
+structural enforcement landed as
+`test/quality/lexical_guard_advisory_test.dart`
+(`docs/ll36_structural_enforcement_2026-07-22.md`): the eight lexical guards
+measured as already advisory, so the slice locks that in with a transitive
+import-reachability check plus a symbol check, both verified against negative
+controls. One real leak was found and broken
+(`CodingVerificationClaimGuard` reached `conversation_workflow.dart` through
+the feedback service; the shared constants now live in
+`coding_verification_evidence_contract.dart`).
+
+Next action: **delete-by-measurement**, the only part left. Still gated on
+accumulated post-provenance logs — the current distribution (three of ten
+transform labels firing) is a baseline, not evidence. The two prose inferences
+are deliberately excluded from the enforcement until LL35's confirmation rung
+exists to replace them.
 
 ### LL37: Objective Verification (Idle Panel Only)
 

@@ -94,6 +94,7 @@ import '../../domain/services/chat_tool_dispatcher.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/execution_snapshot_projector.dart';
+import '../../domain/services/verification_cadence_policy.dart';
 import '../../domain/services/execution_budget_policy.dart';
 import '../../domain/services/short_prompt_contract_builder.dart';
 import '../../domain/services/dart_project_tooling.dart';

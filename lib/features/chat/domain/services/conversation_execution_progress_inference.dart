@@ -17,6 +17,19 @@ class ConversationExecutionProgressInferenceResult {
   final String? validationSummary;
 }
 
+/// Derives task progress from what the assistant *said*, for the case where no
+/// mechanical evidence exists.
+///
+/// Deliberately has no exit code to consult. Two other paths already ground
+/// `validationStatus` in one and run ahead of this class:
+/// `ConversationValidationToolResultInference` parses `exit_code` out of the
+/// tool result matching the task's `validationCommand`, and
+/// `CodingVerificationFeedbackService` reads the exit code of the test commands
+/// it runs itself. Adding a `validationExitCode` parameter here — as
+/// `04a71756` did, and `52926cc3` reverted — makes this a fourth derivation of
+/// a fact the earlier paths already own, on the very path that exists as their
+/// fallback. Ground the verdict where the command runs instead.
+/// See `docs/validation_status_three_paths_2026-07-22.md`.
 class ConversationExecutionProgressInference {
   static const _blockedSignals = <String>[
     'blocked',
@@ -166,9 +179,10 @@ class ConversationExecutionProgressInference {
         return ConversationExecutionProgressInferenceResult(
           status: ConversationWorkflowTaskStatus.completed,
           summary: summary,
-          validationStatus: hasValidationPassedSignal
-              ? ConversationExecutionValidationStatus.passed
-              : ConversationExecutionValidationStatus.unknown,
+          validationStatus:
+              (hasValidationPassedSignal
+                  ? ConversationExecutionValidationStatus.passed
+                  : ConversationExecutionValidationStatus.unknown),
           validationSummary: summary,
         );
       }
@@ -177,9 +191,10 @@ class ConversationExecutionProgressInference {
             ? ConversationWorkflowTaskStatus.completed
             : ConversationWorkflowTaskStatus.inProgress,
         summary: summary,
-        validationStatus: hasValidationPassedSignal
-            ? ConversationExecutionValidationStatus.passed
-            : ConversationExecutionValidationStatus.unknown,
+        validationStatus:
+            (hasValidationPassedSignal
+                ? ConversationExecutionValidationStatus.passed
+                : ConversationExecutionValidationStatus.unknown),
         validationSummary: summary,
       );
     }

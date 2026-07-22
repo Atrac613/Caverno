@@ -274,6 +274,37 @@ class ExecutionSnapshot {
 class ExecutionSnapshotProjector {
   const ExecutionSnapshotProjector();
 
+  /// Derives the verification cadence for a conversation.
+  ///
+  /// Callers that need only the cadence must use this rather than reading it
+  /// off [project]: `project` returns early for a conversation with no
+  /// workflow context and yields the [ExecutionSnapshot] default `notDue`,
+  /// which is indistinguishable from "computed, and not due". The cadence
+  /// itself is conversation-level — it depends on the mutation and
+  /// verification generations, not on whether a plan exists — so it is
+  /// meaningful even when the snapshot is empty.
+  static VerificationCadence verificationCadenceFor(Conversation conversation) {
+    final activeTask = ConversationPlanExecutionCoordinator.executionFocusTask(
+      conversation,
+    );
+    final progress = activeTask == null
+        ? null
+        : conversation.executionProgressForTask(activeTask.id);
+    final validationStatus =
+        progress?.validationStatus ??
+        ConversationExecutionValidationStatus.unknown;
+    return const VerificationCadencePolicy().decide(
+      mutationGeneration: conversation.mutationGeneration,
+      verificationGeneration: conversation.verificationGeneration,
+      taskRequiresValidation:
+          activeTask?.validationCommand.trim().isNotEmpty ?? false,
+      taskCompleted:
+          activeTask?.status == ConversationWorkflowTaskStatus.completed,
+      validationFailed:
+          validationStatus == ConversationExecutionValidationStatus.failed,
+    );
+  }
+
   ExecutionSnapshot project(Conversation? conversation) {
     if (conversation == null || !conversation.hasWorkflowContext) {
       return const ExecutionSnapshot(
@@ -322,16 +353,7 @@ class ExecutionSnapshotProjector {
     final requiresValidation =
         activeTask?.validationCommand.trim().isNotEmpty ?? false;
     final latestDiagnostic = _latestDiagnostic(progress);
-    final verificationCadence = const VerificationCadencePolicy().decide(
-      mutationGeneration: conversation.mutationGeneration,
-      verificationGeneration: conversation.verificationGeneration,
-      taskRequiresValidation:
-          activeTask?.validationCommand.trim().isNotEmpty ?? false,
-      taskCompleted:
-          activeTask?.status == ConversationWorkflowTaskStatus.completed,
-      validationFailed:
-          validationStatus == ConversationExecutionValidationStatus.failed,
-    );
+    final verificationCadence = verificationCadenceFor(conversation);
 
     return ExecutionSnapshot(
       contractHash: _contractHash(conversation.effectiveWorkflowSpec),

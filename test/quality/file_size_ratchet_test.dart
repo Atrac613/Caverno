@@ -15,8 +15,9 @@ import 'package:flutter_test/flutter_test.dart';
 /// aggregate growth.
 const Map<String, int> _lineBudgets = {
   // 9468 + 6 for LL35 shadow wiring (completion-outcome field, import, turn-
-  // start clear, and threading the lexical result to the shadow comparison).
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 9474,
+  // start clear, and threading the lexical result to the shadow comparison),
+  // +1 for the verification-cadence import used by the auto-continue fix.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 9475,
   'lib/features/chat/presentation/pages/chat_page.dart': 2045,
   'lib/features/chat/presentation/widgets/message_input.dart': 2332,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':
@@ -136,8 +137,14 @@ const Map<String, int> _libraryLineBudgets = {
   // recovery as a countable transform). Not god-file growth: the
   // mcp_tool_service side took an offsetting definitions extraction and the
   // decision logic lives in the pure GoalUpdateAckResolver /
-  // GoalCompletionShadow services, not here. See LL35/LL36.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 23053,
+  // GoalCompletionShadow services, not here. See LL35/LL36. A further +21
+  // wires the verification cadence into goal auto-continue (a reused projector
+  // call plus its doc), fixing a real skip observed in session 2659093b, and
+  // +15 logs the cadence and both generations on the auto-continue record —
+  // without them a skip is undiagnosable, as session cfaa8297 showed — and +3
+  // documents why the cadence is derived directly rather than read off a
+  // snapshot that can early-return.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 23092,
   'lib/features/chat/presentation/pages/chat_page.dart': 8857,
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1294,
   // +3 for the LL35 return-type change threaded through the goal test doubles.

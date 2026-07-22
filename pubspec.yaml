@@ -142,6 +142,10 @@ dev_dependencies:
 
   # Testing
   mocktail: ^1.0.5
+  # Used by test/quality/lexical_guard_advisory_test.dart to resolve relative
+  # imports; hand-rolled path normalization is exactly where that test first
+  # produced a false pass.
+  path: ^1.9.0
   pubspec_parse: ^1.5.0
   test: ^1.31.0
 

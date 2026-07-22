@@ -15,6 +15,7 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/mcp_goal_routine_tool_definitions.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
@@ -144,6 +145,102 @@ void main() {
           ConversationGoalStatus.completed,
         );
         expect(goalAfterCompletedTurn?.turnsUsed, 1);
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
+
+  // LL35: the other goal tests deliberately strip tools to isolate the lexical
+  // completion path, which makes them structurally blind to the `update_goal`
+  // tool. This one offers the tool and asserts the real round trip: the model
+  // calls it, the ChatNotifier handler resolves a real ack, and the ack text
+  // comes back into the conversation. See
+  // docs/grounded_verification_live_canary_gap_2026-07-21.md.
+  test(
+    'live LLM reports goal completion through the update_goal tool',
+    () async {
+      final env = _CodingGoalLiveEnv.fromEnvironment();
+      final dataSource = _CodingGoalLiveDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final container = _buildCodingGoalContainer(
+        env,
+        dataSource,
+        toolService: _UpdateGoalMcpToolService(),
+        mcpEnabled: true,
+      );
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'coding-goal-update-tool-canary',
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'The work for this goal is already finished. Report it by '
+              'calling the update_goal tool with completed set to true and a '
+              'short message. Do not describe the completion in prose instead '
+              'of calling the tool.',
+          enabled: true,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 4000,
+          turnBudget: 3,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'The goal work is done. Report the goal as complete using the '
+          'update_goal tool now.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container);
+
+        // The tool definition must actually have been offered, or the rest of
+        // this test proves nothing about the tool path.
+        final offeredUpdateGoal = dataSource.streamRequests
+            .expand((request) => request)
+            .any((message) => message.content.contains('update_goal'));
+
+        // The ack text is produced only by GoalUpdateAckResolver, so seeing it
+        // anywhere in the conversation proves the model called the tool and the
+        // handler answered with a real verdict.
+        final ackTexts = <String>[
+          'Completion accepted',
+          'Completion not recorded',
+          'Progress logged',
+          'Progress noted',
+          'Logged as blocked',
+        ];
+        final conversationText = [
+          ...dataSource.streamRequests.expand((request) => request),
+        ].map((message) => message.content).join('\n');
+        final observedAck = ackTexts
+            .where(conversationText.contains)
+            .toList(growable: false);
+
+        expect(
+          offeredUpdateGoal,
+          isTrue,
+          reason:
+              'update_goal was never offered to the model.\n'
+              '${_diagnostic(container, dataSource)}',
+        );
+        expect(
+          observedAck,
+          isNotEmpty,
+          reason:
+              'No update_goal ack appeared, so the model never called the '
+              'tool (local tool-call fidelity is exactly the LL35 risk).\n'
+              '${_diagnostic(container, dataSource)}',
+        );
       } finally {
         container.dispose();
       }
@@ -509,13 +606,17 @@ void main() {
 
 ProviderContainer _buildCodingGoalContainer(
   _CodingGoalLiveEnv env,
-  _CodingGoalLiveDataSource dataSource,
-) {
+  _CodingGoalLiveDataSource dataSource, {
+  McpToolService? toolService,
+  bool mcpEnabled = false,
+}) {
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
   return ProviderContainer(
     overrides: [
-      settingsNotifierProvider.overrideWith(() => _LiveSettingsNotifier(env)),
+      settingsNotifierProvider.overrideWith(
+        () => _LiveSettingsNotifier(env, mcpEnabled: mcpEnabled),
+      ),
       conversationRepositoryProvider.overrideWithValue(
         _FakeConversationRepository(),
       ),
@@ -526,7 +627,9 @@ ProviderContainer _buildCodingGoalContainer(
       sessionMemoryServiceProvider.overrideWithValue(
         _NoopSessionMemoryService(),
       ),
-      mcpToolServiceProvider.overrideWithValue(_NoToolsMcpToolService()),
+      mcpToolServiceProvider.overrideWithValue(
+        toolService ?? _NoToolsMcpToolService(),
+      ),
       appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
       backgroundTaskServiceProvider.overrideWithValue(
         _NoopBackgroundTaskService(),
@@ -644,9 +747,14 @@ String _requiredEnv(String name) {
 }
 
 class _LiveSettingsNotifier extends SettingsNotifier {
-  _LiveSettingsNotifier(this.env);
+  _LiveSettingsNotifier(this.env, {this.mcpEnabled = false});
 
   final _CodingGoalLiveEnv env;
+
+  /// Tools are off for the completion-inference tests (they isolate the
+  /// lexical path). The LL35 `update_goal` test turns them on — without this
+  /// the tool catalog is never sent and the tool path is unreachable.
+  final bool mcpEnabled;
 
   @override
   AppSettings build() {
@@ -657,7 +765,7 @@ class _LiveSettingsNotifier extends SettingsNotifier {
       model: env.model,
       temperature: env.temperature,
       maxTokens: env.maxTokens,
-      mcpEnabled: false,
+      mcpEnabled: mcpEnabled,
       demoMode: false,
     );
   }
@@ -764,6 +872,37 @@ class _NoToolsMcpToolService extends McpToolService {
   @override
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
     return const <Map<String, dynamic>>[];
+  }
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    return McpToolResult(
+      toolName: name,
+      result: jsonEncode({'error': 'Tool is not available'}),
+      isSuccess: false,
+      errorMessage: 'Tool is not available',
+    );
+  }
+}
+
+/// Exposes only the `update_goal` definition so the LL35 tool path is actually
+/// reachable in a live run. The definition is all this service needs to
+/// provide — the ChatNotifier handler registry intercepts `update_goal` and
+/// routes it to `handleUpdateGoal`, so `executeTool` is never called for it.
+class _UpdateGoalMcpToolService extends McpToolService {
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    return <Map<String, dynamic>>[McpGoalRoutineToolDefinitions.updateGoalTool];
   }
 
   @override

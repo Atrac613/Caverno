@@ -153,6 +153,120 @@ void main() {
         : 'Set CAVERNO_CODING_OVERWRITE_TRANSPARENCY_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 10)),
   );
+
+  // LL34: a byte-identical write is the case the `changed` fact exists for —
+  // it succeeds and reports the same byte count as a real edit, which is what
+  // lets an edit -> re-read -> edit loop run forever. The existing test above
+  // writes NEW content (`changed: true`), so it never reaches this branch.
+  // See docs/grounded_verification_live_canary_gap_2026-07-21.md.
+  test(
+    '${testNamePrefix}live LLM is told a byte-identical write changed nothing',
+    () async {
+      final env = _OverwriteTransparencyLiveEnv.fromEnvironment();
+      final fixture = _OverwriteTransparencyFixture.create(env.workspaceRoot);
+      final dataSource = ChatRemoteDataSource(
+        baseUrl: env.baseUrl,
+        apiKey: env.apiKey,
+      );
+      final toolService = _OverwriteTransparencyToolService(fixture.root);
+      final container = _buildOverwriteTransparencyContainer(
+        env: env,
+        dataSource: dataSource,
+        toolService: toolService,
+        project: fixture.project,
+      );
+
+      // Reseed with short, newline-free content. The default fixture ends in a
+      // newline, and a model re-emitting the read content reliably drops it —
+      // so the first write-back genuinely differs (`changed: true`, correctly)
+      // and the byte-identical branch is only reached if the model happens to
+      // write twice. That made the test depend on model whim rather than on
+      // the behavior under test.
+      fixture.reportFile.writeAsStringSync('UNCHANGED_CANARY_CONTENT');
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: fixture.project.id,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Read $_fileName with read_file. It contains exactly one short line '
+          'and no trailing newline. Then call write_file once for $_fileName '
+          'passing back that exact content unchanged. Then, based only on the '
+          'write_file tool result, state in your final answer whether the file '
+          'actually changed.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container);
+
+        final writeResults = _decodedResultsFor(
+          toolService,
+          'write_file',
+        ).toList(growable: false);
+
+        expect(
+          writeResults,
+          isNotEmpty,
+          reason: _diagnostic(container, toolService, fixture),
+        );
+
+        // The producer half: writeFile compared before writing and reported
+        // that nothing changed.
+        expect(
+          writeResults.any((result) => result['changed'] == false),
+          isTrue,
+          reason:
+              'No write_file result reported changed:false, so the model never '
+              'wrote byte-identical content and this test did not reach the '
+              'branch it exists to cover.\n'
+              '${_diagnostic(container, toolService, fixture)}',
+        );
+
+        // A no-op write must not corrupt the file: its size on disk still
+        // matches what the changed:false write reported. Comparing against the
+        // ORIGINAL fixture content would be wrong here — the model's first
+        // write-back legitimately drops the fixture's trailing newline, which
+        // `changed: true` correctly reports.
+        final unchangedWrite = writeResults.lastWhere(
+          (result) => result['changed'] == false,
+        );
+        expect(
+          fixture.reportFile.readAsBytesSync().length,
+          unchangedWrite['bytes_written'],
+          reason: _diagnostic(container, toolService, fixture),
+        );
+
+        // The consumer half: the model read the UNCHANGED note and did not
+        // report the write as progress.
+        final finalContent = _lastAssistantContent(container).toLowerCase();
+        expect(
+          finalContent,
+          anyOf(
+            contains('unchanged'),
+            contains('no change'),
+            contains('not change'),
+            contains('identical'),
+            contains('same content'),
+          ),
+          reason:
+              'The final answer did not reflect the UNCHANGED note.\n'
+              '${_diagnostic(container, toolService, fixture)}',
+        );
+      } finally {
+        container.dispose();
+        fixture.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_OVERWRITE_TRANSPARENCY_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 10)),
+  );
 }
 
 ProviderContainer _buildOverwriteTransparencyContainer({

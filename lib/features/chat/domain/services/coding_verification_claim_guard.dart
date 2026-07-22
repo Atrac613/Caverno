@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import '../entities/tool_call_info.dart';
-import 'coding_verification_feedback_service.dart';
+import 'coding_verification_evidence_contract.dart';
 
 class CodingVerificationClaimMismatch {
   const CodingVerificationClaimMismatch({
@@ -157,14 +157,14 @@ class CodingVerificationClaimGuard {
   _VerificationEvidence? _latestEvidence(List<ToolResultInfo> toolResults) {
     for (final toolResult in toolResults.reversed) {
       if (toolResult.name !=
-          CodingVerificationFeedbackService.evidenceToolName) {
+          CodingVerificationEvidenceContract.toolName) {
         continue;
       }
       try {
         final payload = jsonDecode(toolResult.result);
         if (payload is! Map<Object?, Object?> ||
             payload['schema'] !=
-                CodingVerificationFeedbackService.evidenceSchemaName) {
+                CodingVerificationEvidenceContract.schemaName) {
           continue;
         }
         final counts = payload['counts'];

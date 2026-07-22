@@ -1,5 +1,6 @@
 import '../entities/conversation_goal.dart';
 import 'tool_result_prompt_builder.dart';
+import 'verification_cadence_policy.dart';
 
 const int kGoalAutoContinueDefaultTurnBudget = 10;
 const int kGoalAutoContinueDiagnosticRepairBudget = 2;
@@ -91,6 +92,7 @@ class GoalAutoContinuePolicyInput {
     required this.noProgressStreak,
     required this.identicalDiagnosticSignatureStreak,
     required this.finalAnswerEndsWithQuestion,
+    this.verificationCadence = VerificationCadence.notDue,
   });
 
   final ConversationGoal? goal;
@@ -108,6 +110,26 @@ class GoalAutoContinuePolicyInput {
   final int noProgressStreak;
   final int identicalDiagnosticSignatureStreak;
   final bool finalAnswerEndsWithQuestion;
+
+  /// The harness's own verdict on whether verification has caught up with the
+  /// latest mutation, from the generation counters.
+  ///
+  /// [ToolResultCompletionEvidence] answers a different question — "did any
+  /// verification-classified command run this turn" — and a static check such
+  /// as `dart analyze` satisfies it without advancing the verification
+  /// generation. The two can therefore disagree, and a real session did:
+  /// mutations 3, verification generation -1, cadence `required`, while the
+  /// evidence reported nothing incomplete. See
+  /// `docs/session_2659093b_deferred_verification_2026-07-22.md`.
+  final VerificationCadence verificationCadence;
+
+  /// Whether verification is owed, by either measure. Used for the
+  /// continuation gate *and* the miss counter, so the existing escalation
+  /// (continue once, then block) applies to the cadence path too rather than
+  /// letting it continue unbounded.
+  bool get validationOutstanding =>
+      evidence.requiresValidationContinuation ||
+      verificationCadence == VerificationCadence.required;
 }
 
 class GoalAutoContinueDecision {
@@ -224,7 +246,7 @@ class ConversationGoalAutoContinuePolicy {
         input.identicalDiagnosticSignatureStreak == 0) {
       return GoalAutoContinueDecision.skip('final answer asks a question');
     }
-    if (!input.evidence.hasIncompleteEvidence) {
+    if (!input.evidence.hasIncompleteEvidence && !input.validationOutstanding) {
       return GoalAutoContinueDecision.skip('no incomplete evidence');
     }
 
@@ -245,12 +267,14 @@ class ConversationGoalAutoContinuePolicy {
       );
     }
 
-    if (input.evidence.requiresValidationContinuation) {
+    if (input.validationOutstanding) {
       if (input.consecutiveValidationMisses == 0) {
         return GoalAutoContinueDecision.continueTurn(
           reason: input.evidence.hasPendingExecutionVerification
               ? 'execute the pending verification call'
-              : 'validate file changes before further editing',
+              : input.evidence.requiresValidationContinuation
+              ? 'validate file changes before further editing'
+              : 'verification has not caught up with the latest change',
           effectiveTurnBudget: effectiveTurnBudget,
           nextTurnNumber: goal.turnsUsed + 1,
         );

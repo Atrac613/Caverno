@@ -330,4 +330,58 @@ void main() {
     );
     expect(result.blockedReason, isNull);
   });
+
+  group('prose-only validation verdict', () {
+    const validationTask = ConversationWorkflowTask(
+      id: 'task-1',
+      title: 'Ship the execution handoff',
+      status: ConversationWorkflowTaskStatus.inProgress,
+      validationCommand: 'flutter test',
+    );
+
+    // This class is the no-mechanical-evidence fallback and deliberately takes
+    // no exit code: ConversationValidationToolResultInference and
+    // CodingVerificationFeedbackService ground validationStatus in one and run
+    // ahead of it. These tests pin the prose behaviour that remains its job.
+    test('reads a success signal as passed', () {
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse:
+            'The validation command ran successfully and tests passed.',
+        task: validationTask,
+        isValidationRun: true,
+      );
+
+      expect(
+        result.validationStatus,
+        ConversationExecutionValidationStatus.passed,
+      );
+    });
+
+    test('reads prose with no success signal as unknown', () {
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse: 'Ran the validation command.',
+        task: validationTask,
+        isValidationRun: true,
+      );
+
+      expect(
+        result.validationStatus,
+        ConversationExecutionValidationStatus.unknown,
+      );
+    });
+
+    test('reads blocked prose as failed', () {
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse: 'The task is blocked and cannot proceed.',
+        task: validationTask,
+        isValidationRun: true,
+      );
+
+      expect(
+        result.validationStatus,
+        ConversationExecutionValidationStatus.failed,
+      );
+    });
+  });
+
 }

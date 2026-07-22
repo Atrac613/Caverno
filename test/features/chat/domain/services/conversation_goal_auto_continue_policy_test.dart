@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/services/conversation_goal_auto_continue_policy.dart';
+import 'package:caverno/features/chat/domain/services/verification_cadence_policy.dart';
 import 'package:caverno/features/chat/domain/services/tool_result_prompt_builder.dart';
 
 void main() {
@@ -583,6 +584,74 @@ void main() {
     expect(streak, 0);
     expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
   });
+
+  group('verification cadence (LL36 / session 2659093b)', () {
+    test('a required cadence is incomplete evidence on its own', () {
+      // The real regression: mutations happened, verification never did, but
+      // the tool-result evidence was clean because `dart analyze` counts as a
+      // verification-classified command, so the policy skipped.
+      final decision = const ConversationGoalAutoContinuePolicy().decide(
+        _input(
+          evidence: const ToolResultCompletionEvidence(),
+          verificationCadence: VerificationCadence.required,
+        ),
+      );
+
+      expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+      expect(decision.reason, contains('verification has not caught up'));
+    });
+
+    test('notDue with clean evidence still skips', () {
+      final decision = const ConversationGoalAutoContinuePolicy().decide(
+        _input(
+          evidence: const ToolResultCompletionEvidence(),
+          verificationCadence: VerificationCadence.notDue,
+        ),
+      );
+
+      expect(decision.kind, GoalAutoContinueDecisionKind.skip);
+      expect(decision.reason, 'no incomplete evidence');
+    });
+
+    test('due is advisory and does not force a continuation', () {
+      final decision = const ConversationGoalAutoContinuePolicy().decide(
+        _input(
+          evidence: const ToolResultCompletionEvidence(),
+          verificationCadence: VerificationCadence.due,
+        ),
+      );
+
+      expect(decision.kind, GoalAutoContinueDecisionKind.skip);
+    });
+
+    test('the cadence path escalates rather than looping', () {
+      // One continuation is granted; if verification still has not happened the
+      // existing miss counter blocks instead of continuing forever.
+      final decision = const ConversationGoalAutoContinuePolicy().decide(
+        _input(
+          evidence: const ToolResultCompletionEvidence(),
+          verificationCadence: VerificationCadence.required,
+          consecutiveValidationMisses: 1,
+        ),
+      );
+
+      expect(decision.kind, GoalAutoContinueDecisionKind.stopAndBlock);
+    });
+
+    test('evidence-driven reasons keep their own wording', () {
+      final decision = const ConversationGoalAutoContinuePolicy().decide(
+        _input(
+          evidence: const ToolResultCompletionEvidence(
+            unexecutedToolNames: ['local_execute_command'],
+          ),
+          verificationCadence: VerificationCadence.required,
+        ),
+      );
+
+      expect(decision.kind, GoalAutoContinueDecisionKind.continueTurn);
+      expect(decision.reason, 'execute the pending verification call');
+    });
+  });
 }
 
 GoalAutoContinuePolicyInput _input({
@@ -601,6 +670,7 @@ GoalAutoContinuePolicyInput _input({
   int noProgressStreak = 0,
   int identicalDiagnosticSignatureStreak = 0,
   bool finalAnswerEndsWithQuestion = false,
+  VerificationCadence verificationCadence = VerificationCadence.notDue,
 }) {
   return GoalAutoContinuePolicyInput(
     goal: goal ?? _goal(),
@@ -618,6 +688,7 @@ GoalAutoContinuePolicyInput _input({
     noProgressStreak: noProgressStreak,
     identicalDiagnosticSignatureStreak: identicalDiagnosticSignatureStreak,
     finalAnswerEndsWithQuestion: finalAnswerEndsWithQuestion,
+    verificationCadence: verificationCadence,
   );
 }
 

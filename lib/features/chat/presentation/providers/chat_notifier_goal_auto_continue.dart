@@ -450,6 +450,26 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     state = state.copyWith(goalAutoContinueCount: 0, goalAutoContinueBudget: 0);
   }
 
+  /// The harness's verification-cadence verdict for the current conversation.
+  ///
+  /// Reuses [ExecutionSnapshotProjector], which already computes this for the
+  /// execution snapshot shown to the model, so the continuation policy and the
+  /// prompt cannot drift apart.
+  VerificationCadence _currentVerificationCadence() {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (conversation == null) {
+      return VerificationCadence.notDue;
+    }
+    // Derive it directly. Reading it off `project()` looked like the way to
+    // keep the policy and the prompt in step, but `project` returns early for a
+    // conversation with no workflow context and hands back the snapshot default
+    // `notDue` — silently turning "required" into "not due" for a caller that
+    // reads only this field.
+    return ExecutionSnapshotProjector.verificationCadenceFor(conversation);
+  }
+
   Future<void> _maybeAutoContinueCurrentGoal({
     required String finalizedAssistantResponse,
     required String languageCode,
@@ -540,31 +560,34 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         evidence.compareProgress(previousEvidence) ==
             GoalEvidenceProgress.improved;
     final safeBoundary = _goalAutoContinueSafeBoundaryFromState();
-    final decision = _goalAutoContinuePolicy.decide(
-      GoalAutoContinuePolicyInput(
-        goal: goal,
-        safeBoundary: safeBoundary,
-        evidence: evidence,
-        consecutiveAutoContinuations:
-            tracker?.consecutiveAutoContinuations ?? 0,
-        diagnosticRepairContinuations:
-            tracker?.diagnosticRepairContinuations ?? 0,
-        diagnosticRepairExtensionUsed:
-            tracker?.diagnosticRepairExtensionUsed ?? false,
-        diagnosticEvidenceImproved: diagnosticEvidenceImproved,
-        postRepairVerifierAdvanced: postRepairVerifierAdvanced,
-        repairContractProducedNoMutation: repairContractProducedNoMutation,
-        repairNoMutationRetryUsed: tracker?.repairNoMutationRetryUsed ?? false,
-        consecutiveValidationMisses: tracker?.consecutiveValidationMisses ?? 0,
-        failedVerificationObserved:
-            tracker?.failedVerificationObserved ?? false,
-        noProgressStreak: candidateNoProgressStreak,
-        identicalDiagnosticSignatureStreak: candidateDiagnosticSignatureStreak,
-        finalAnswerEndsWithQuestion: _endsWithQuestionMark(
-          finalizedAssistantResponse,
-        ),
+    // The harness's own verification-cadence verdict, from the generation
+    // counters. Without it the policy sees only tool-result evidence, which a
+    // static check satisfies — the gap that let a turn end with mutations 3,
+    // verification generation -1 and cadence `required` while auto-continue
+    // reported "no incomplete evidence".
+    final policyInput = GoalAutoContinuePolicyInput(
+      goal: goal,
+      safeBoundary: safeBoundary,
+      evidence: evidence,
+      consecutiveAutoContinuations: tracker?.consecutiveAutoContinuations ?? 0,
+      diagnosticRepairContinuations:
+          tracker?.diagnosticRepairContinuations ?? 0,
+      diagnosticRepairExtensionUsed:
+          tracker?.diagnosticRepairExtensionUsed ?? false,
+      diagnosticEvidenceImproved: diagnosticEvidenceImproved,
+      postRepairVerifierAdvanced: postRepairVerifierAdvanced,
+      repairContractProducedNoMutation: repairContractProducedNoMutation,
+      repairNoMutationRetryUsed: tracker?.repairNoMutationRetryUsed ?? false,
+      consecutiveValidationMisses: tracker?.consecutiveValidationMisses ?? 0,
+      failedVerificationObserved: tracker?.failedVerificationObserved ?? false,
+      noProgressStreak: candidateNoProgressStreak,
+      identicalDiagnosticSignatureStreak: candidateDiagnosticSignatureStreak,
+      finalAnswerEndsWithQuestion: _endsWithQuestionMark(
+        finalizedAssistantResponse,
       ),
+      verificationCadence: _currentVerificationCadence(),
     );
+    final decision = _goalAutoContinuePolicy.decide(policyInput);
 
     if (decision.shouldBlock) {
       if (tracker != null) {
@@ -723,7 +746,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       if (evidence.hasDiagnosticEvidence) {
         tracker?.diagnosticRepairContinuations += 1;
       }
-      if (evidence.requiresValidationContinuation) {
+      if (policyInput.validationOutstanding) {
         tracker?.consecutiveValidationMisses += 1;
       }
       tracker?.previousEvidence = evidence;
@@ -948,6 +971,21 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           evidence: {
             'summary': evidence.summary,
             'hasIncompleteEvidence': evidence.hasIncompleteEvidence,
+            // The cadence is the other half of the continuation gate, and its
+            // absence here made a skip undiagnosable from the log alone: a real
+            // session showed cadence `required` in the prompt one second before
+            // auto-continue skipped, with no way to tell what value the policy
+            // actually received. See
+            // docs/session_cfaa8297_cadence_not_observable_2026-07-22.md.
+            'verificationCadence': _currentVerificationCadence().name,
+            'mutationGeneration': ref
+                .read(conversationsNotifierProvider)
+                .currentConversation
+                ?.mutationGeneration,
+            'verificationGeneration': ref
+                .read(conversationsNotifierProvider)
+                .currentConversation
+                ?.verificationGeneration,
             'hasBlockingEvidence': evidence.hasBlockingEvidence,
             'hasUnexecutedActionClaim': evidence.hasUnexecutedActionClaim,
             'safeBoundaryVeto': safeBoundary.firstVetoReason,

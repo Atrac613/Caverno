@@ -5,6 +5,7 @@ import 'dart:io';
 import '../entities/conversation_workflow.dart';
 import '../entities/tool_call_info.dart';
 import 'coding_diagnostic_feedback_service.dart';
+import 'coding_verification_evidence_contract.dart';
 import 'dart_project_tooling.dart';
 
 typedef CodingVerificationCommandRunner =
@@ -251,8 +252,9 @@ class CodingVerificationFeedbackService {
 
   static const toolName = 'dart_test_feedback';
   static const schemaName = 'caverno_dart_test_feedback';
-  static const evidenceToolName = 'dart_test_verification_evidence';
-  static const evidenceSchemaName = 'caverno_dart_test_verification_evidence';
+  static const evidenceToolName = CodingVerificationEvidenceContract.toolName;
+  static const evidenceSchemaName =
+      CodingVerificationEvidenceContract.schemaName;
   static const providerName = 'dart_test_runner';
 
   final CodingVerificationCommandRunner _commandRunner;

@@ -14,6 +14,8 @@ void main() {
     ConversationWorkflowSpec workflowSpec = const ConversationWorkflowSpec(),
     List<ConversationExecutionTaskProgress> progress = const [],
     List<ConversationOpenQuestionProgress> questions = const [],
+    int mutationGeneration = 0,
+    int verificationGeneration = -1,
   }) {
     return Conversation(
       id: 'conversation-1',
@@ -25,6 +27,8 @@ void main() {
       workflowSpec: workflowSpec,
       executionProgress: progress,
       openQuestionProgress: questions,
+      mutationGeneration: mutationGeneration,
+      verificationGeneration: verificationGeneration,
     );
   }
 
@@ -486,5 +490,57 @@ void main() {
 
     expect(snapshot.latestDiagnostic, isNull);
     expect(snapshot.toRedactedLogSummary(), contains('hasDiagnostic=false'));
+  });
+
+  group('verification cadence reproduction (session cfaa8297)', () {
+    // Production showed mutation generation 5, verification generation -1 and
+    // cadence `required` in the prompt, one second before goal auto-continue
+    // skipped on "no incomplete evidence" — meaning the policy received some
+    // other cadence. These pin down whether the projector is the culprit.
+    test('reports required for the exact production counters', () {
+      final snapshot = projector.project(
+        conversation(mutationGeneration: 5, verificationGeneration: -1),
+      );
+
+      expect(snapshot.verificationCadence, VerificationCadence.required);
+    });
+
+    test('the shared derivation ignores the workflow-context gate', () {
+      // The fix: callers needing only the cadence use verificationCadenceFor,
+      // which computes from the generations regardless of whether a plan
+      // exists, so "not computed" can no longer masquerade as "not due".
+      final idle = conversation(
+        stage: ConversationWorkflowStage.idle,
+        mutationGeneration: 5,
+        verificationGeneration: -1,
+      );
+
+      expect(
+        ExecutionSnapshotProjector.verificationCadenceFor(idle),
+        VerificationCadence.required,
+      );
+      // …while the snapshot itself still reports the empty default.
+      expect(
+        projector.project(idle).verificationCadence,
+        VerificationCadence.notDue,
+      );
+    });
+
+    test('an idle conversation with no spec silently reports notDue', () {
+      // The early return skips the cadence computation entirely and falls back
+      // to the ExecutionSnapshot default. For the prompt that is harmless (the
+      // whole snapshot is empty), but a caller reading only `verificationCadence`
+      // cannot tell "not due" from "not computed".
+      final snapshot = projector.project(
+        conversation(
+          stage: ConversationWorkflowStage.idle,
+          mutationGeneration: 5,
+          verificationGeneration: -1,
+        ),
+      );
+
+      expect(snapshot.hasContract, isFalse);
+      expect(snapshot.verificationCadence, VerificationCadence.notDue);
+    });
   });
 }

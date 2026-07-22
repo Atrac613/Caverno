@@ -338,6 +338,109 @@ void main() {
       expect(result.validationSummary, contains('Ran 3 tests'));
     },
   );
+
+  test('treats exit 0 as passed even when the command wrote to stderr', () {
+    // git, dart test and npm routinely write informational output to stderr
+    // on success. Before this was grounded in the exit code, a non-empty
+    // stderr made the validation read as failed/blocked.
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-stderr-noise',
+        title: 'Run validation',
+        validationCommand: 'git checkout -b feature/x',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'git_execute_command',
+          rawResult:
+              '{"command":"git checkout -b feature/x","exit_code":0,'
+              '"stdout":"","stderr":"Switched to a new branch \'feature/x\'"}',
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(
+      result!.validationStatus,
+      ConversationExecutionValidationStatus.passed,
+    );
+    expect(result.status, isNot(ConversationWorkflowTaskStatus.blocked));
+    // The stderr text is still surfaced, as detail rather than as a verdict.
+    expect(result.validationSummary, contains('Switched to a new branch'));
+  });
+
+  test('keeps stderr authoritative when no exit code is reported', () {
+    // A missing exit code is not exit 0: the process may never have run.
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-no-exit-code',
+        title: 'Run validation',
+        validationCommand: 'dart test',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'local_execute_command',
+          rawResult:
+              '{"command":"dart test","stderr":"command not found: dart"}',
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(
+      result!.validationStatus,
+      ConversationExecutionValidationStatus.failed,
+    );
+    expect(result.status, ConversationWorkflowTaskStatus.blocked);
+  });
+
+  test('keeps a tool-level error authoritative over a zero exit code', () {
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-tool-error',
+        title: 'Run validation',
+        validationCommand: 'dart test',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'local_execute_command',
+          rawResult:
+              '{"command":"dart test","exit_code":0,'
+              '"error":"approval denied by the user"}',
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(
+      result!.validationStatus,
+      ConversationExecutionValidationStatus.failed,
+    );
+    expect(result.blockedReason, contains('approval denied'));
+  });
+
+  test('treats an ssh exit 0 with stderr output as passed', () {
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-ssh-stderr',
+        title: 'Run validation',
+        validationCommand: 'make check',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'ssh_execute_command',
+          rawResult:
+              'exit_code: 0\nstdout:\n\nstderr:\nwarning: 1 deprecation notice\n',
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(
+      result!.validationStatus,
+      ConversationExecutionValidationStatus.passed,
+    );
+  });
 }
 
 String _cjkErrorLabel() {
@@ -358,4 +461,5 @@ String _cjkDataMissing() {
     0x305b,
     0x3093,
   ]);
+
 }
