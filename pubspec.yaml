@@ -84,7 +84,7 @@ dependencies:
   # Speech I/O
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.0
-  flutter_markdown_plus: ^1.0.7
+  flutter_markdown_plus: ^1.0.12
   markdown: ^7.3.1
   # LaTeX math rendering for `$...$` / `$$...$$` spans in LLM markdown output
   flutter_math_fork: ^0.7.4
