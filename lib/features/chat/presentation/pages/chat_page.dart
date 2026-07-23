@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/browser_session_service.dart';
+import '../../../../core/services/coding_terminal_service.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
@@ -86,11 +87,13 @@ import '../widgets/tool_perimeter_summary.dart';
 import '../widgets/workflow_status_presentation.dart';
 import '../widgets/workflow/workflow_editor_sheet.dart';
 import '../widgets/workflow/workflow_task_editor_sheet.dart';
+import '../widgets/chat_error_banner.dart';
 import '../widgets/chat_image_drop_target.dart';
 import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/queued_messages_strip.dart';
 import '../widgets/session_log_details_section.dart';
 import '../widgets/slash_command_help_sheet.dart';
+import '../widgets/terminal/coding_terminal_dock.dart';
 import '../widgets/token_usage_indicator.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
 import '../widgets/plan/plan_document_editor_sheet.dart';
@@ -748,6 +751,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             (currentConversation != null &&
                 !isRoutinesWorkspace &&
                 (!isCodingWorkspace || activeProject != null)));
+    // Needs a project root and a real PTY; see CodingTerminalDock.
+    final terminalWorkingDirectory =
+        isCodingWorkspace &&
+            !isDashboardVisible &&
+            !isMobileRemoteCoding &&
+            CodingTerminalDock.isSupported
+        ? activeProject?.normalizedRootPath
+        : null;
     final shouldShowCodingDraftComposer =
         isCodingWorkspace &&
         activeProject != null &&
@@ -948,34 +959,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       : null;
                   final chatContent = Column(
                     children: [
-                      // Error banner
                       if (chatState.error != null)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          color: Theme.of(context).colorScheme.errorContainer,
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onErrorContainer,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  chatState.error!,
-                                  style: TextStyle(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onErrorContainer,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        ChatErrorBanner(message: chatState.error!),
                       if (currentConversation?.hasCompactionArtifact ?? false)
                         _buildConversationCompactionBanner(
                           context,
@@ -1121,7 +1106,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             );
     }
 
-    final workspaceBody = buildWorkspaceBody();
+    final workspaceBody = CodingTerminalDock(
+      workingDirectory: terminalWorkingDirectory,
+      threadId: currentConversation?.id,
+      child: buildWorkspaceBody(),
+    );
     final scaffold = usePersistentDrawer
         ? ChatPageScaffold.persistent(
             workspaceBody: workspaceBody,
@@ -1140,6 +1129,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               settings: settings,
               canCompose: canCompose,
               canShowCompanionPanel: canShowCompanionPanel,
+              canShowCodingTerminal: terminalWorkingDirectory != null,
               isWideForCompanion: isWideForCompanion,
               currentConversation: currentConversation,
               selectedRoutine: selectedRoutine,
@@ -1167,6 +1157,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               activeProject: activeProject,
               settings: settings,
               canShowCompanionPanel: canShowCompanionPanel,
+              canShowCodingTerminal: terminalWorkingDirectory != null,
               isWideForCompanion: isWideForCompanion,
               currentConversation: currentConversation,
               selectedRoutine: selectedRoutine,
