@@ -5,6 +5,7 @@ import 'package:caverno/core/services/apple_foundation_models_platform_client.da
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/general_settings_page.dart';
 import 'package:caverno/features/settings/presentation/providers/apple_foundation_models_availability_provider.dart';
+import 'package:caverno/features/settings/presentation/providers/model_capability_auto_probe_notifier.dart';
 import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -13,6 +14,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// The real auto-probe reaches into the chat stack (Hive boxes, MCP tools),
+/// which this page-level test does not bootstrap.
+class _StubModelCapabilityAutoProbeNotifier
+    extends ModelCapabilityAutoProbeNotifier {
+  @override
+  Future<void> runForCurrentModel({
+    bool force = false,
+    String source = 'probe',
+  }) async {}
+}
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();
@@ -153,6 +165,81 @@ void main() {
     expect(find.text('Plan Mode support snapshot copied.'), findsOneWidget);
   });
 
+  testWidgets('registers a second endpoint and switches the primary one', (
+    tester,
+  ) async {
+    final settings = AppSettings.defaults().copyWith(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'selected-model',
+      apiKey: 'no-key',
+    );
+
+    await _pumpGeneralSettingsPage(
+      tester,
+      settings: settings,
+      loadModels: () async => ['selected-model'],
+    );
+
+    expect(find.text('http://localhost:1234/v1 · selected-model · local placeholder'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('settings-add-endpoint')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-endpoint-label-field')),
+      'Workstation',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-endpoint-base-url-field')),
+      'http://192.168.100.241:8080/v1',
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-endpoint-save')));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(GeneralSettingsPage)),
+    );
+    final updated = container.read(settingsNotifierProvider);
+    expect(updated.usableLlmEndpointProfiles, hasLength(2));
+    expect(updated.baseUrl, 'http://192.168.100.241:8080/v1');
+    expect(
+      updated.activeLlmEndpointProfile?.normalizedLabel,
+      'Workstation',
+    );
+    expect(find.text('Workstation'), findsOneWidget);
+  });
+
+  testWidgets('rejects an endpoint without a usable http(s) URL', (
+    tester,
+  ) async {
+    await _pumpGeneralSettingsPage(
+      tester,
+      settings: AppSettings.defaults(),
+      loadModels: () async => [AppSettings.defaults().model],
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-add-endpoint')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-endpoint-base-url-field')),
+      'localhost:1234',
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-endpoint-save')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Enter an http(s) URL, e.g. http://localhost:1234/v1'),
+      findsOneWidget,
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(GeneralSettingsPage)),
+    );
+    expect(
+      container.read(settingsNotifierProvider).usableLlmEndpointProfiles,
+      hasLength(1),
+    );
+  });
+
   testWidgets('shows the full disabled Apple provider status below dropdown', (
     tester,
   ) async {
@@ -214,6 +301,9 @@ Future<void> _pumpGeneralSettingsPage(
           return ProviderScope(
             overrides: [
               sharedPreferencesProvider.overrideWithValue(prefs),
+              modelCapabilityAutoProbeNotifierProvider.overrideWith(
+                _StubModelCapabilityAutoProbeNotifier.new,
+              ),
               modelListProvider(
                 modelConfig,
               ).overrideWith((ref) => loadModels()),

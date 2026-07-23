@@ -22,11 +22,15 @@ class SettingsRepository {
   AppSettings _load({required bool persistMigrations}) {
     final json = _prefs.getString(_settingsKey);
     if (json == null) {
-      return AppSettings.defaults();
+      return AppSettings.defaults().withNormalizedLlmEndpointProfiles();
     }
     try {
       final decoded = jsonDecode(json) as Map<String, dynamic>;
-      final settings = AppSettings.fromJson(decoded);
+      // Seeds the saved-endpoint list from the primary connection fields on
+      // installs that predate multi-endpoint support.
+      final settings = AppSettings.fromJson(
+        decoded,
+      ).withNormalizedLlmEndpointProfiles();
       if (_shouldEnableSessionLogsForDefaultOnMigration(decoded)) {
         final migrated = settings.copyWith(enableLlmSessionLogs: true);
         if (persistMigrations) {
@@ -36,7 +40,7 @@ class SettingsRepository {
       }
       return settings;
     } catch (_) {
-      return AppSettings.defaults();
+      return AppSettings.defaults().withNormalizedLlmEndpointProfiles();
     }
   }
 

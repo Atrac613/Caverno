@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -215,34 +217,147 @@ void main() {
     },
   );
 
-  test(
-    'applyNvidiaNimCloudPreset stores the OpenAI-compatible NIM endpoint',
-    () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final container = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-      );
-      addTearDown(container.dispose);
+  test('seeds a saved endpoint from a pre-multi-endpoint install', () async {
+    SharedPreferences.setMockInitialValues({
+      'app_settings': jsonEncode(
+        AppSettings.defaults()
+            .copyWith(
+              baseUrl: 'http://192.168.0.10:1234/v1',
+              apiKey: 'legacy-key',
+              model: 'legacy-model',
+            )
+            .toJson()
+          ..remove('llmEndpointProfiles')
+          ..remove('activeLlmEndpointId'),
+      ),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
 
-      final notifier = container.read(settingsNotifierProvider.notifier);
+    final settings = container.read(settingsNotifierProvider);
+    final profiles = settings.usableLlmEndpointProfiles;
+    expect(profiles, hasLength(1));
+    expect(profiles.single.normalizedBaseUrl, 'http://192.168.0.10:1234/v1');
+    expect(profiles.single.apiKey, 'legacy-key');
+    expect(profiles.single.normalizedModel, 'legacy-model');
+    expect(settings.activeLlmEndpointProfile?.id, profiles.single.id);
+  });
 
-      await notifier.updateLlmProvider(LlmProvider.appleFoundationModels);
-      await notifier.updateApiKey(ApiConstants.defaultApiKey);
-      await notifier.applyNvidiaNimCloudPreset();
+  test('registering a second endpoint switches the primary connection', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
 
-      final settings = container.read(settingsNotifierProvider);
-      expect(settings.llmProvider, LlmProvider.openAiCompatible);
-      expect(settings.baseUrl, ApiConstants.nvidiaNimBaseUrl);
-      expect(settings.model, ApiConstants.nvidiaNimDefaultModel);
-      expect(settings.apiKey, isEmpty);
+    final notifier = container.read(settingsNotifierProvider.notifier);
+    final firstId = container
+        .read(settingsNotifierProvider)
+        .activeLlmEndpointProfile!
+        .id;
 
-      final reloaded = SettingsRepository(prefs).load();
-      expect(reloaded.baseUrl, ApiConstants.nvidiaNimBaseUrl);
-      expect(reloaded.model, ApiConstants.nvidiaNimDefaultModel);
-      expect(reloaded.apiKey, isEmpty);
-    },
-  );
+    await notifier.upsertLlmEndpointProfile(
+      const LlmEndpointProfile(
+        id: '',
+        label: 'Workstation',
+        baseUrl: 'http://192.168.100.241:8080/v1/',
+        apiKey: 'remote-key',
+        model: 'remote-model',
+      ),
+    );
+
+    final settings = container.read(settingsNotifierProvider);
+    expect(settings.usableLlmEndpointProfiles, hasLength(2));
+    // Trailing slashes are normalized so the same endpoint is not registered
+    // twice under two spellings.
+    expect(settings.baseUrl, 'http://192.168.100.241:8080/v1');
+    expect(settings.apiKey, 'remote-key');
+    expect(settings.model, 'remote-model');
+
+    final reloaded = SettingsRepository(prefs).load();
+    expect(reloaded.baseUrl, 'http://192.168.100.241:8080/v1');
+    expect(reloaded.activeLlmEndpointProfile?.normalizedLabel, 'Workstation');
+
+    // Switching back restores the first endpoint's connection values.
+    await notifier.selectLlmEndpointProfile(firstId);
+    final restored = container.read(settingsNotifierProvider);
+    expect(restored.baseUrl, ApiConstants.defaultBaseUrl);
+    expect(restored.model, ApiConstants.defaultModel);
+    expect(restored.activeLlmEndpointProfile?.id, firstId);
+  });
+
+  test('model changes are remembered per endpoint', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(settingsNotifierProvider.notifier);
+    final localId = container
+        .read(settingsNotifierProvider)
+        .activeLlmEndpointProfile!
+        .id;
+    await notifier.updateModel('local-model');
+
+    await notifier.upsertLlmEndpointProfile(
+      const LlmEndpointProfile(
+        id: '',
+        label: 'Remote',
+        baseUrl: 'http://10.0.0.5:1234/v1',
+        model: 'remote-model',
+      ),
+    );
+    expect(container.read(settingsNotifierProvider).model, 'remote-model');
+
+    await notifier.selectLlmEndpointProfile(localId);
+    expect(container.read(settingsNotifierProvider).model, 'local-model');
+  });
+
+  test('the last remaining endpoint cannot be removed', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(settingsNotifierProvider.notifier);
+    final onlyId = container
+        .read(settingsNotifierProvider)
+        .activeLlmEndpointProfile!
+        .id;
+
+    await notifier.removeLlmEndpointProfile(onlyId);
+    expect(
+      container.read(settingsNotifierProvider).usableLlmEndpointProfiles,
+      hasLength(1),
+    );
+
+    await notifier.upsertLlmEndpointProfile(
+      const LlmEndpointProfile(
+        id: '',
+        label: 'Remote',
+        baseUrl: 'http://10.0.0.5:1234/v1',
+        model: 'remote-model',
+      ),
+    );
+    // Removing the active endpoint falls back to the remaining one.
+    final activeId = container
+        .read(settingsNotifierProvider)
+        .activeLlmEndpointProfile!
+        .id;
+    await notifier.removeLlmEndpointProfile(activeId);
+    final settings = container.read(settingsNotifierProvider);
+    expect(settings.usableLlmEndpointProfiles, hasLength(1));
+    expect(settings.activeLlmEndpointProfile?.id, onlyId);
+    expect(settings.baseUrl, ApiConstants.defaultBaseUrl);
+  });
 
   test('role model updates persist through the repository', () async {
     SharedPreferences.setMockInitialValues({});

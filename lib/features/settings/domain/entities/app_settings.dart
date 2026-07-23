@@ -558,6 +558,77 @@ List<Map<String, dynamic>> _profileRevisionsToJson(
   List<ModelCapabilityProfileRevision> revisions,
 ) => revisions.map((r) => r.toJson()).toList(growable: false);
 
+/// A saved primary LLM endpoint the user can switch between.
+///
+/// Every profile is an OpenAI-compatible endpoint; the provider dropdown still
+/// decides between OpenAI-compatible and the on-device Apple provider, so
+/// profiles carry no provider field. Exactly one profile is active at a time
+/// ([AppSettings.activeLlmEndpointId]) and its values mirror the primary
+/// [AppSettings.baseUrl] / [AppSettings.apiKey] / [AppSettings.model] fields,
+/// which the rest of the app already reads.
+@freezed
+abstract class LlmEndpointProfile with _$LlmEndpointProfile {
+  const LlmEndpointProfile._();
+
+  const factory LlmEndpointProfile({
+    required String id,
+    @Default('') String label,
+    @Default('') String baseUrl,
+    @Default('') String apiKey,
+    @Default('') String model,
+    DateTime? createdAt,
+  }) = _LlmEndpointProfile;
+
+  factory LlmEndpointProfile.fromJson(Map<String, dynamic> json) =>
+      _$LlmEndpointProfileFromJson(json);
+
+  static String normalizeBaseUrl(String baseUrl) =>
+      baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+
+  String get normalizedId => id.trim();
+
+  String get normalizedBaseUrl => normalizeBaseUrl(baseUrl);
+
+  String get normalizedLabel => label.trim();
+
+  String get normalizedModel => model.trim();
+
+  /// Human-readable name for lists, falling back to the base URL.
+  String get displayLabel =>
+      normalizedLabel.isEmpty ? normalizedBaseUrl : normalizedLabel;
+
+  bool get isValid => normalizedId.isNotEmpty && normalizedBaseUrl.isNotEmpty;
+
+  LlmEndpointProfile normalizedForPersistence() => copyWith(
+    id: normalizedId,
+    label: normalizedLabel,
+    baseUrl: normalizedBaseUrl,
+    apiKey: apiKey.trim(),
+    model: normalizedModel,
+  );
+}
+
+List<LlmEndpointProfile> _llmEndpointProfilesFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const <LlmEndpointProfile>[];
+  }
+  return json
+      .whereType<Map>()
+      .map(
+        (item) => LlmEndpointProfile.fromJson(
+          Map<String, dynamic>.from(item),
+        ).normalizedForPersistence(),
+      )
+      .where((profile) => profile.isValid)
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _llmEndpointProfilesToJson(
+  List<LlmEndpointProfile> profiles,
+) => profiles
+    .map((profile) => profile.normalizedForPersistence().toJson())
+    .toList(growable: false);
+
 /// LL8: a user-registered OpenAI-compatible endpoint on the LAN mesh.
 ///
 /// Registration is always explicit and user-confirmed; discovery only proposes
@@ -661,6 +732,17 @@ abstract class AppSettings with _$AppSettings {
     required String baseUrl,
     required String model,
     required String apiKey,
+    // Saved primary endpoints the user can switch between. The entry whose id
+    // is [activeLlmEndpointId] mirrors [baseUrl] / [apiKey] / [model]; the rest
+    // are inactive presets. Kept in sync by
+    // [AppSettings.withNormalizedLlmEndpointProfiles].
+    @JsonKey(
+      fromJson: _llmEndpointProfilesFromJson,
+      toJson: _llmEndpointProfilesToJson,
+    )
+    @Default(<LlmEndpointProfile>[])
+    List<LlmEndpointProfile> llmEndpointProfiles,
+    @Default('') String activeLlmEndpointId,
     required double temperature,
     required int maxTokens,
     @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)
@@ -806,6 +888,75 @@ abstract class AppSettings with _$AppSettings {
   String get effectiveModel => llmProvider == LlmProvider.appleFoundationModels
       ? appleFoundationModelsModelId
       : model;
+
+  /// Id given to the endpoint profile seeded from a pre-multi-endpoint install.
+  static const String seededLlmEndpointId = 'primary';
+
+  /// Saved endpoint profiles that are usable, in registration order.
+  List<LlmEndpointProfile> get usableLlmEndpointProfiles => llmEndpointProfiles
+      .map((profile) => profile.normalizedForPersistence())
+      .where((profile) => profile.isValid)
+      .toList(growable: false);
+
+  /// The profile currently driving [baseUrl] / [apiKey] / [model], or null when
+  /// no profile is registered.
+  LlmEndpointProfile? get activeLlmEndpointProfile {
+    final profiles = usableLlmEndpointProfiles;
+    if (profiles.isEmpty) return null;
+    final targetId = activeLlmEndpointId.trim();
+    for (final profile in profiles) {
+      if (profile.id == targetId) return profile;
+    }
+    return profiles.first;
+  }
+
+  /// Reconciles the saved endpoint list with the primary connection fields.
+  ///
+  /// - Seeds a single profile from [baseUrl] / [apiKey] / [model] when the list
+  ///   is empty, so installs that predate multi-endpoint support keep their
+  ///   configured endpoint as the first entry.
+  /// - Repoints [activeLlmEndpointId] at a real entry when it dangles.
+  /// - Mirrors the primary fields into the active entry, so direct writes to
+  ///   [baseUrl] / [apiKey] / [model] (settings edits, QR import, external
+  ///   config sync) never leave the list showing stale values.
+  AppSettings withNormalizedLlmEndpointProfiles() {
+    final trimmedBaseUrl = LlmEndpointProfile.normalizeBaseUrl(baseUrl);
+    final profiles = usableLlmEndpointProfiles;
+
+    if (profiles.isEmpty) {
+      if (trimmedBaseUrl.isEmpty) return this;
+      return copyWith(
+        llmEndpointProfiles: [
+          LlmEndpointProfile(
+            id: seededLlmEndpointId,
+            baseUrl: trimmedBaseUrl,
+            apiKey: apiKey.trim(),
+            model: model.trim(),
+          ),
+        ],
+        activeLlmEndpointId: seededLlmEndpointId,
+      );
+    }
+
+    final activeId = profiles.any((p) => p.id == activeLlmEndpointId.trim())
+        ? activeLlmEndpointId.trim()
+        : profiles.first.id;
+    final synced = [
+      for (final profile in profiles)
+        if (profile.id == activeId)
+          profile.copyWith(
+            baseUrl: trimmedBaseUrl.isEmpty ? profile.baseUrl : trimmedBaseUrl,
+            apiKey: apiKey.trim(),
+            model: model.trim(),
+          )
+        else
+          profile,
+    ];
+    return copyWith(
+      llmEndpointProfiles: synced,
+      activeLlmEndpointId: activeId,
+    );
+  }
 
   String get effectiveMemoryExtractionModel =>
       _resolveRoleModel(memoryExtractionModel);

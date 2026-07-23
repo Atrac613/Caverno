@@ -298,7 +298,7 @@ void main() {
         catalog,
         contains(
           const ModelCatalogEntry(
-            id: ApiConstants.nvidiaNimDefaultModel,
+            id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
             ownedBy: 'nvidia',
           ),
         ),

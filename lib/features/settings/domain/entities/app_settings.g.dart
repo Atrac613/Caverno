@@ -350,6 +350,28 @@ Map<String, dynamic> _$ModelCapabilityProfileRevisionToJson(
   'capabilityChangeDetected': instance.capabilityChangeDetected,
 };
 
+_LlmEndpointProfile _$LlmEndpointProfileFromJson(Map<String, dynamic> json) =>
+    _LlmEndpointProfile(
+      id: json['id'] as String,
+      label: json['label'] as String? ?? '',
+      baseUrl: json['baseUrl'] as String? ?? '',
+      apiKey: json['apiKey'] as String? ?? '',
+      model: json['model'] as String? ?? '',
+      createdAt: json['createdAt'] == null
+          ? null
+          : DateTime.parse(json['createdAt'] as String),
+    );
+
+Map<String, dynamic> _$LlmEndpointProfileToJson(_LlmEndpointProfile instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'label': instance.label,
+      'baseUrl': instance.baseUrl,
+      'apiKey': instance.apiKey,
+      'model': instance.model,
+      'createdAt': instance.createdAt?.toIso8601String(),
+    };
+
 _NamedEndpoint _$NamedEndpointFromJson(Map<String, dynamic> json) =>
     _NamedEndpoint(
       id: json['id'] as String,
@@ -383,6 +405,10 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   baseUrl: json['baseUrl'] as String,
   model: json['model'] as String,
   apiKey: json['apiKey'] as String,
+  llmEndpointProfiles: json['llmEndpointProfiles'] == null
+      ? const <LlmEndpointProfile>[]
+      : _llmEndpointProfilesFromJson(json['llmEndpointProfiles'] as List?),
+  activeLlmEndpointId: json['activeLlmEndpointId'] as String? ?? '',
   temperature: (json['temperature'] as num).toDouble(),
   maxTokens: (json['maxTokens'] as num).toInt(),
   reasoningEffort:
@@ -537,6 +563,10 @@ Map<String, dynamic> _$AppSettingsToJson(
   'baseUrl': instance.baseUrl,
   'model': instance.model,
   'apiKey': instance.apiKey,
+  'llmEndpointProfiles': _llmEndpointProfilesToJson(
+    instance.llmEndpointProfiles,
+  ),
+  'activeLlmEndpointId': instance.activeLlmEndpointId,
   'temperature': instance.temperature,
   'maxTokens': instance.maxTokens,
   'reasoningEffort':
