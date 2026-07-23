@@ -28,6 +28,9 @@ void main() {
 
   test('desktop quit actions require Flutter confirmation', () {
     final mainSource = File('lib/main.dart').readAsStringSync();
+    final quitDialogSource = File(
+      'lib/core/widgets/quit_confirmation_dialog.dart',
+    ).readAsStringSync();
     final appMenuServiceSource = File(
       'lib/core/services/macos_app_menu_service.dart',
     ).readAsStringSync();
@@ -45,7 +48,10 @@ void main() {
       mainSource,
       contains('SingleActivator(LogicalKeyboardKey.keyQ, control: true)'),
     );
-    expect(mainSource, contains('Quit Caverno?'));
+    // The prompt itself lives in QuitConfirmationDialog; main.dart must still
+    // route every quit through it before touching the window manager.
+    expect(mainSource, contains('QuitConfirmationDialog.show('));
+    expect(quitDialogSource, contains('Quit Caverno?'));
     expect(mainSource, contains('quitApplication()'));
     expect(appMenuServiceSource, contains("case 'quit':"));
     expect(appDelegateSource, contains('@IBAction func requestQuit'));
