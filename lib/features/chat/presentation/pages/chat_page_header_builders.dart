@@ -15,6 +15,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
     required AppSettings settings,
     required bool canCompose,
     required bool canShowCompanionPanel,
+    required bool canShowCodingTerminal,
     required bool isWideForCompanion,
     required Conversation? currentConversation,
     required Routine? selectedRoutine,
@@ -47,6 +48,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
             activeProject: activeProject,
             settings: settings,
             canShowCompanionPanel: canShowCompanionPanel,
+            canShowCodingTerminal: canShowCodingTerminal,
             isWideForCompanion: isWideForCompanion,
             currentConversation: currentConversation,
             selectedRoutine: selectedRoutine,
@@ -135,6 +137,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
     required CodingProject? activeProject,
     required AppSettings settings,
     required bool canShowCompanionPanel,
+    required bool canShowCodingTerminal,
     required bool isWideForCompanion,
     required Conversation? currentConversation,
     required Routine? selectedRoutine,
@@ -206,6 +209,25 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
           tooltip: sessionLoggingEnabled
               ? 'chat.record_personal_eval_case'.tr()
               : 'chat.record_personal_eval_case_requires_logs'.tr(),
+        ),
+      );
+    }
+
+    if (canShowCodingTerminal) {
+      final terminal = ref.read(codingTerminalServiceProvider);
+      actions.add(
+        // The open/closed flag lives on the service, so only this button
+        // rebuilds when the panel is toggled from elsewhere.
+        ListenableBuilder(
+          listenable: terminal,
+          builder: (context, _) => actionButton(
+            key: const ValueKey('coding-terminal-toggle-action'),
+            onPressed: () => terminal.togglePanel(currentConversation?.id),
+            icon: terminal.isPanelOpenFor(currentConversation?.id)
+                ? Icons.terminal_rounded
+                : Icons.terminal_outlined,
+            tooltip: 'chat.terminal_toggle'.tr(),
+          ),
         ),
       );
     }

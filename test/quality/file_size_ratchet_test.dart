@@ -31,7 +31,11 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/providers/chat_notifier.dart': 9507,
   // +1 import for ConversationGoalStatusPresentation, which absorbed the
   // status->label/colour/icon mapping duplicated across three files.
-  'lib/features/chat/presentation/pages/chat_page.dart': 2046,
+  // Lowered from 2046 by the coding-terminal dock slice: the panel, its split
+  // geometry and the session all live outside this library, and the inline
+  // error banner moved to ChatErrorBanner, so the page kept only the dock call
+  // site and the working-directory gate.
+  'lib/features/chat/presentation/pages/chat_page.dart': 2037,
   // Lowered from 2332 by the same extraction (label, colour and icon).
   'lib/features/chat/presentation/widgets/message_input.dart': 2318,
   'lib/features/chat/presentation/widgets/message_input_slash_suggestion_state.dart':

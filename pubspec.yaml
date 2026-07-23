@@ -133,6 +133,11 @@ dependencies:
   serious_python: ^4.2.1
   drift: ^2.34.0
   sqlite3_flutter_libs: ^0.6.0+eol
+  # Embedded terminal for the coding workspace bottom panel (desktop only:
+  # macOS/Windows/Linux). xterm renders the screen buffer, flutter_pty spawns
+  # the login shell behind it; see features/chat/presentation/widgets/terminal.
+  xterm: ^4.0.0
+  flutter_pty: ^0.4.2
 
 dev_dependencies:
   flutter_test:
