@@ -5,9 +5,10 @@ class ApiConstants {
   static const String defaultModel = 'qwen3.6-27b-mtp-vision';
   static const String defaultApiKey = 'no-key';
   static const String appleFoundationModelsModelId = 'apple-foundation-models';
+  // NVIDIA's hosted catalog is registered like any other OpenAI-compatible
+  // endpoint; these constants only drive the model-list fallback for it, whose
+  // /models route needs an API key and is not always OpenAI-shaped.
   static const String nvidiaNimBaseUrl = 'https://integrate.api.nvidia.com/v1';
-  static const String nvidiaNimDefaultModel =
-      'nvidia/llama-3.1-nemotron-ultra-253b-v1';
   static const List<String> nvidiaNimModelIds = [
     'nvidia/llama-3.1-nemotron-nano-8b-v1',
     'nvidia/llama-3.1-nemotron-ultra-253b-v1',

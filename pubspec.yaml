@@ -63,7 +63,7 @@ dependencies:
   json_annotation: ^4.11.0
 
   # Utilities
-  uuid: ^4.5.1
+  uuid: ^4.6.0
   crypto: ^3.0.7
 
   # Local storage
@@ -84,7 +84,7 @@ dependencies:
   # Speech I/O
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.0
-  flutter_markdown_plus: ^1.0.7
+  flutter_markdown_plus: ^1.0.12
   markdown: ^7.3.1
   # LaTeX math rendering for `$...$` / `$$...$$` spans in LLM markdown output
   flutter_math_fork: ^0.7.4
@@ -96,17 +96,17 @@ dependencies:
   path_provider: ^2.1.6
 
   # Local notifications
-  flutter_local_notifications: ^22.0.1
+  flutter_local_notifications: ^22.1.0
   file_picker: ^11.0.2
   super_clipboard: ^0.9.1
   qr_flutter: ^4.1.0
-  mobile_scanner: ^7.2.0
+  mobile_scanner: ^7.3.0
 
   # Desktop window management
   window_manager: ^0.5.2
 
   # SSH remote server tool
-  dartssh2: ^2.22.0
+  dartssh2: ^2.22.2
   flutter_secure_storage: ^10.0.0
 
   # BLE (Bluetooth Low Energy) tool
@@ -119,7 +119,7 @@ dependencies:
 
   # AC/battery power state for the LL18 idle-maintenance gate
   # (macOS/Windows/Linux/iOS/Android)
-  battery_plus: ^7.1.0
+  battery_plus: ^7.1.1
 
   # Serial port tool (desktop only: macOS/Windows/Linux)
   flutter_libserialport: ^0.6.0
@@ -131,8 +131,13 @@ dependencies:
   # (iOS/Android/macOS/Windows/Linux). Runs a long-lived worker that the Dart
   # side drives over a loopback channel; see core/services/script_runtime.
   serious_python: ^4.2.1
-  drift: ^2.34.0
+  drift: ^2.34.2
   sqlite3_flutter_libs: ^0.6.0+eol
+  # Embedded terminal for the coding workspace bottom panel (desktop only:
+  # macOS/Windows/Linux). xterm renders the screen buffer, flutter_pty spawns
+  # the login shell behind it; see features/chat/presentation/widgets/terminal.
+  xterm: ^4.0.0
+  flutter_pty: ^0.4.2
 
 dev_dependencies:
   flutter_test:
@@ -150,7 +155,7 @@ dev_dependencies:
   test: ^1.31.0
 
   # Code generation
-  build_runner: ^2.13.1
+  build_runner: ^2.15.1
   freezed: ^3.2.5
   json_serializable: ^6.13.1
 

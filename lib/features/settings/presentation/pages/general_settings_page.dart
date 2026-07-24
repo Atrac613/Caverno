@@ -25,14 +25,10 @@ class GeneralSettingsPage extends ConsumerStatefulWidget {
 }
 
 class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
-  final _baseUrlController = TextEditingController();
-  final _apiKeyController = TextEditingController();
   final _maxTokensController = TextEditingController();
   final _googleChatWebhookController = TextEditingController();
   final _embeddingsModelController = TextEditingController();
 
-  final _baseUrlDebouncer = Debouncer();
-  final _apiKeyDebouncer = Debouncer();
   final _maxTokensDebouncer = Debouncer();
   final _googleChatWebhookDebouncer = Debouncer();
   final _embeddingsModelDebouncer = Debouncer();
@@ -42,8 +38,6 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   void initState() {
     super.initState();
     final settings = ref.read(settingsNotifierProvider);
-    _baseUrlController.text = settings.baseUrl;
-    _apiKeyController.text = settings.apiKey;
     _maxTokensController.text = settings.maxTokens.toString();
     _googleChatWebhookController.text = settings.googleChatWebhookUrl;
     _embeddingsModelController.text = settings.embeddingsModel;
@@ -51,13 +45,9 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
 
   @override
   void dispose() {
-    _baseUrlDebouncer.dispose();
-    _apiKeyDebouncer.dispose();
     _maxTokensDebouncer.dispose();
     _googleChatWebhookDebouncer.dispose();
     _embeddingsModelDebouncer.dispose();
-    _baseUrlController.dispose();
-    _apiKeyController.dispose();
     _maxTokensController.dispose();
     _googleChatWebhookController.dispose();
     _embeddingsModelController.dispose();
@@ -166,53 +156,146 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     );
   }
 
-  Future<void> _applyNvidiaNimCloudPreset(SettingsNotifier notifier) async {
-    _baseUrlController.text = ApiConstants.nvidiaNimBaseUrl;
-    _maxTokensController.text = ApiConstants.defaultMaxTokens.toString();
-    if (_apiKeyController.text.trim() == ApiConstants.defaultApiKey) {
-      _apiKeyController.clear();
-    }
-    await notifier.applyNvidiaNimCloudPreset();
-    if (!mounted) return;
-    _runModelCapabilityAutoProbe();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('settings.nvidia_nim_preset_applied'.tr())),
-    );
-  }
-
-  Widget _buildEndpointPresetButtons(SettingsNotifier notifier) {
+  /// Registered OpenAI-compatible endpoints. Selecting one switches the primary
+  /// connection (base URL / API key / model) the whole app uses.
+  Widget _buildEndpointList(AppSettings settings, SettingsNotifier notifier) {
     final theme = Theme.of(context);
+    final profiles = settings.usableLlmEndpointProfiles;
+    final activeId = settings.activeLlmEndpointProfile?.id ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'settings.api_preset_label'.tr(),
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        Row(
           children: [
-            OutlinedButton.icon(
-              key: const ValueKey('apply-nvidia-nim-preset'),
-              onPressed: () => _applyNvidiaNimCloudPreset(notifier),
-              icon: const Icon(Icons.cloud_outlined, size: 18),
-              label: Text('settings.nvidia_nim_preset_label'.tr()),
+            Expanded(
+              child: Text(
+                'settings.endpoints_label'.tr(),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            TextButton.icon(
+              key: const ValueKey('settings-add-endpoint'),
+              onPressed: () => _showEndpointEditor(notifier),
+              icon: const Icon(Icons.add, size: 18),
+              label: Text('settings.endpoint_add'.tr()),
             ),
           ],
         ),
         const SizedBox(height: 4),
+        if (profiles.isEmpty)
+          Text(
+            'settings.endpoint_empty'.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+              ),
+            ),
+            child: Column(
+              children: [
+                for (final profile in profiles) ...[
+                  if (profile != profiles.first) const Divider(height: 1),
+                  _buildEndpointTile(
+                    profile: profile,
+                    isActive: profile.id == activeId,
+                    canRemove: profiles.length > 1,
+                    notifier: notifier,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        const SizedBox(height: 4),
         Text(
-          'settings.nvidia_nim_preset_helper'.tr(),
+          'settings.endpoints_helper'.tr(),
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],
     );
+  }
+
+  Widget _buildEndpointTile({
+    required LlmEndpointProfile profile,
+    required bool isActive,
+    required bool canRemove,
+    required SettingsNotifier notifier,
+  }) {
+    final theme = Theme.of(context);
+    final details = <String>[
+      profile.normalizedBaseUrl,
+      if (profile.normalizedModel.isNotEmpty) profile.normalizedModel,
+      _apiKeyStatus(profile.apiKey),
+    ];
+    return ListTile(
+      key: ValueKey('settings-endpoint-${profile.id}'),
+      leading: Icon(
+        isActive ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+        color: isActive
+            ? theme.colorScheme.primary
+            : theme.colorScheme.onSurfaceVariant,
+      ),
+      title: Text(profile.displayLabel, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        details.join(' · '),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      onTap: () => _selectEndpoint(profile, notifier),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            tooltip: 'settings.endpoint_edit'.tr(),
+            onPressed: () => _showEndpointEditor(notifier, existing: profile),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 18),
+            tooltip: 'settings.endpoint_remove'.tr(),
+            onPressed: canRemove
+                ? () => notifier.removeLlmEndpointProfile(profile.id)
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _selectEndpoint(
+    LlmEndpointProfile profile,
+    SettingsNotifier notifier,
+  ) async {
+    await notifier.selectLlmEndpointProfile(profile.id);
+    if (!mounted) return;
+    _runModelCapabilityAutoProbe();
+  }
+
+  /// Add/edit dialog. Endpoints are OpenAI-compatible only, so it collects just
+  /// a display name, a base URL, and an optional API key; the model is picked
+  /// from the fetched model list once the endpoint is active.
+  Future<void> _showEndpointEditor(
+    SettingsNotifier notifier, {
+    LlmEndpointProfile? existing,
+  }) async {
+    final edited = await showDialog<LlmEndpointProfile>(
+      context: context,
+      builder: (dialogContext) => _EndpointEditorDialog(existing: existing),
+    );
+    if (edited == null) return;
+    await notifier.upsertLlmEndpointProfile(edited);
+    if (!mounted) return;
+    _runModelCapabilityAutoProbe();
   }
 
   String _providerEndpointLabel(LlmProvider provider, String baseUrl) {
@@ -819,12 +902,12 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     final visibleSettings = settings.llmProvider == visibleProvider
         ? settings
         : settings.copyWith(llmProvider: visibleProvider);
-    final baseUrl = _baseUrlController.text.trim().isEmpty
+    final baseUrl = visibleSettings.baseUrl.trim().isEmpty
         ? ApiConstants.defaultBaseUrl
-        : _baseUrlController.text.trim();
-    final apiKey = _apiKeyController.text.trim().isEmpty
+        : visibleSettings.baseUrl.trim();
+    final apiKey = visibleSettings.apiKey.trim().isEmpty
         ? ApiConstants.defaultApiKey
-        : _apiKeyController.text.trim();
+        : visibleSettings.apiKey.trim();
     final modelListConfig = ModelListConfig(baseUrl: baseUrl, apiKey: apiKey);
     final isAppleProvider =
         visibleSettings.llmProvider == LlmProvider.appleFoundationModels;
@@ -900,62 +983,24 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                     const SizedBox(height: 8),
                     _buildProviderAvailabilityMessage(appleAvailability),
                   ],
-                  const SizedBox(height: 12),
-                  _buildEndpointPresetButtons(notifier),
                   const SizedBox(height: 16),
                   IgnorePointer(
                     ignoring: isAppleProvider,
                     child: AnimatedOpacity(
                       opacity: isAppleProvider ? 0.45 : 1,
                       duration: const Duration(milliseconds: 200),
-                      child: TextField(
-                        controller: _baseUrlController,
-                        decoration: InputDecoration(
-                          labelText: 'API Base URL',
-                          hintText: 'http://localhost:1234/v1',
-                          border: const OutlineInputBorder(),
-                          helperText: isAppleProvider
-                              ? 'settings.base_url_apple_disabled_helper'.tr()
-                              : 'settings.base_url_helper'.tr(),
-                        ),
-                        keyboardType: TextInputType.url,
-                        onChanged: (_) {
-                          _baseUrlDebouncer.run(() {
-                            notifier.updateBaseUrl(
-                              _baseUrlController.text.trim(),
-                            );
-                          });
-                        },
-                      ),
+                      child: _buildEndpointList(visibleSettings, notifier),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  IgnorePointer(
-                    ignoring: isAppleProvider,
-                    child: AnimatedOpacity(
-                      opacity: isAppleProvider ? 0.45 : 1,
-                      duration: const Duration(milliseconds: 200),
-                      child: TextField(
-                        controller: _apiKeyController,
-                        decoration: InputDecoration(
-                          labelText: 'API Key',
-                          hintText: 'no-key',
-                          border: const OutlineInputBorder(),
-                          helperText: isAppleProvider
-                              ? 'settings.api_key_apple_disabled_helper'.tr()
-                              : 'settings.api_key_helper'.tr(),
-                        ),
-                        obscureText: true,
-                        onChanged: (_) {
-                          _apiKeyDebouncer.run(() {
-                            notifier.updateApiKey(
-                              _apiKeyController.text.trim(),
-                            );
-                          });
-                        },
+                  if (isAppleProvider) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'settings.base_url_apple_disabled_helper'.tr(),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 24),
 
                   // Model settings section
@@ -1185,5 +1230,138 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+/// Owns its text controllers so they outlive the dialog's dismiss animation.
+class _EndpointEditorDialog extends StatefulWidget {
+  const _EndpointEditorDialog({this.existing});
+
+  final LlmEndpointProfile? existing;
+
+  @override
+  State<_EndpointEditorDialog> createState() => _EndpointEditorDialogState();
+}
+
+class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
+  late final TextEditingController _labelController;
+  late final TextEditingController _baseUrlController;
+  late final TextEditingController _apiKeyController;
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    _labelController = TextEditingController(
+      text: existing?.normalizedLabel ?? '',
+    );
+    _baseUrlController = TextEditingController(
+      text: existing?.normalizedBaseUrl ?? ApiConstants.defaultBaseUrl,
+    );
+    _apiKeyController = TextEditingController(text: existing?.apiKey ?? '');
+  }
+
+  @override
+  void dispose() {
+    _labelController.dispose();
+    _baseUrlController.dispose();
+    _apiKeyController.dispose();
+    super.dispose();
+  }
+
+  String? _validateBaseUrl(String? value) {
+    final uri = Uri.tryParse((value ?? '').trim());
+    if (uri == null ||
+        !(uri.isScheme('http') || uri.isScheme('https')) ||
+        uri.host.isEmpty) {
+      return 'settings.endpoint_base_url_invalid'.tr();
+    }
+    return null;
+  }
+
+  void _submit() {
+    if (_formKey.currentState?.validate() != true) return;
+    final existing = widget.existing;
+    final apiKey = _apiKeyController.text.trim();
+    Navigator.of(context).pop(
+      LlmEndpointProfile(
+        id: existing?.id ?? '',
+        label: _labelController.text,
+        baseUrl: _baseUrlController.text,
+        apiKey: apiKey.isEmpty ? ApiConstants.defaultApiKey : apiKey,
+        model: existing?.model ?? '',
+        createdAt: existing?.createdAt,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        widget.existing == null
+            ? 'settings.endpoint_add_title'.tr()
+            : 'settings.endpoint_edit_title'.tr(),
+      ),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              key: const ValueKey('settings-endpoint-label-field'),
+              controller: _labelController,
+              decoration: InputDecoration(
+                labelText: 'settings.endpoint_label_field'.tr(),
+                hintText: 'LM Studio',
+                border: const OutlineInputBorder(),
+              ),
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              key: const ValueKey('settings-endpoint-base-url-field'),
+              controller: _baseUrlController,
+              decoration: InputDecoration(
+                labelText: 'API Base URL',
+                hintText: ApiConstants.defaultBaseUrl,
+                border: const OutlineInputBorder(),
+                helperText: 'settings.base_url_helper'.tr(),
+                helperMaxLines: 2,
+              ),
+              keyboardType: TextInputType.url,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              validator: _validateBaseUrl,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              key: const ValueKey('settings-endpoint-api-key-field'),
+              controller: _apiKeyController,
+              decoration: InputDecoration(
+                labelText: 'API Key',
+                hintText: ApiConstants.defaultApiKey,
+                border: const OutlineInputBorder(),
+                helperText: 'settings.api_key_helper'.tr(),
+                helperMaxLines: 2,
+              ),
+              obscureText: true,
+              onFieldSubmitted: (_) => _submit(),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('settings.endpoint_cancel'.tr()),
+        ),
+        FilledButton(
+          key: const ValueKey('settings-endpoint-save'),
+          onPressed: _submit,
+          child: Text('settings.endpoint_save'.tr()),
+        ),
+      ],
+    );
   }
 }

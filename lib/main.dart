@@ -15,6 +15,7 @@ import 'core/services/window_manager_service.dart';
 import 'core/services/window_settings_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/logger.dart';
+import 'core/widgets/quit_confirmation_dialog.dart';
 import 'features/chat/application/persistence/caverno_persistence_bootstrap.dart';
 import 'features/chat/application/persistence/caverno_chat_memory_mutation_coordinator.dart';
 import 'features/chat/data/datasources/app_database.dart';
@@ -241,29 +242,9 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
 
     _quitDialogOpen = true;
     try {
-      final shouldQuit = await showDialog<bool>(
-        context: navigatorContext,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Quit Caverno?'),
-            content: const Text(
-              'Caverno will stop background routines and active tasks.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Quit'),
-              ),
-            ],
-          );
-        },
-      );
+      final shouldQuit = await QuitConfirmationDialog.show(navigatorContext);
 
-      if (shouldQuit != true) {
+      if (!shouldQuit) {
         return;
       }
 

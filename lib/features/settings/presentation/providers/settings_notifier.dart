@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:caverno_tool_contracts/caverno_tool_contracts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
-import '../../../../core/constants/api_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../data/external_settings_service.dart';
 import '../../data/settings_file_service.dart';
@@ -53,33 +53,105 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateBaseUrl(String baseUrl) async {
-    state = state.copyWith(baseUrl: baseUrl);
+    state = state
+        .copyWith(baseUrl: baseUrl)
+        .withNormalizedLlmEndpointProfiles();
     await _repository.save(state);
   }
 
   Future<void> updateModel(String model) async {
-    state = state.copyWith(model: model);
+    state = state.copyWith(model: model).withNormalizedLlmEndpointProfiles();
     await _repository.save(state);
   }
 
   Future<void> updateApiKey(String apiKey) async {
-    state = state.copyWith(apiKey: apiKey);
+    state = state.copyWith(apiKey: apiKey).withNormalizedLlmEndpointProfiles();
     await _repository.save(state);
   }
 
-  Future<void> applyNvidiaNimCloudPreset() async {
-    final currentApiKey = state.apiKey.trim();
-    state = state.copyWith(
-      llmProvider: LlmProvider.openAiCompatible,
-      baseUrl: ApiConstants.nvidiaNimBaseUrl,
-      model: ApiConstants.nvidiaNimDefaultModel,
-      apiKey: currentApiKey == ApiConstants.defaultApiKey ? '' : state.apiKey,
-      assistantMode: _assistantModeForProvider(
-        provider: LlmProvider.openAiCompatible,
-        assistantMode: state.assistantMode,
-      ),
+  /// Registers a saved OpenAI-compatible endpoint, or updates one in place when
+  /// [profile] carries an existing id. A new profile becomes the active
+  /// endpoint so the user can start chatting against it right away.
+  Future<void> upsertLlmEndpointProfile(LlmEndpointProfile profile) async {
+    final id = profile.id.trim().isEmpty ? const Uuid().v4() : profile.id.trim();
+    final normalized = profile
+        .copyWith(id: id, createdAt: profile.createdAt ?? DateTime.now())
+        .normalizedForPersistence();
+    if (!normalized.isValid) {
+      throw ArgumentError('LlmEndpointProfile base URL is required');
+    }
+
+    final profiles = List<LlmEndpointProfile>.from(
+      state.usableLlmEndpointProfiles,
     );
+    final index = profiles.indexWhere((item) => item.id == normalized.id);
+    final isNew = index == -1;
+    if (isNew) {
+      profiles.add(normalized);
+    } else {
+      // Preserve the original registration time on update.
+      profiles[index] = normalized.copyWith(
+        createdAt: profiles[index].createdAt ?? normalized.createdAt,
+      );
+    }
+
+    state = state.copyWith(llmEndpointProfiles: profiles);
+    if (isNew || normalized.id == state.activeLlmEndpointId.trim()) {
+      state = _withActiveEndpointApplied(normalized.id);
+    }
+    state = state.withNormalizedLlmEndpointProfiles();
     await _repository.save(state);
+  }
+
+  /// Switches the primary connection to a saved endpoint.
+  Future<void> selectLlmEndpointProfile(String endpointId) async {
+    final id = endpointId.trim();
+    if (id.isEmpty || id == state.activeLlmEndpointId.trim()) return;
+    if (!state.usableLlmEndpointProfiles.any((profile) => profile.id == id)) {
+      return;
+    }
+    state = _withActiveEndpointApplied(id).withNormalizedLlmEndpointProfiles();
+    await _repository.save(state);
+  }
+
+  /// Removes a saved endpoint. Removing the active one falls back to the first
+  /// remaining endpoint; the last endpoint cannot be removed, since the app
+  /// always needs a primary connection.
+  Future<void> removeLlmEndpointProfile(String endpointId) async {
+    final id = endpointId.trim();
+    if (id.isEmpty) return;
+    final profiles = state.usableLlmEndpointProfiles;
+    if (profiles.length <= 1) return;
+    final remaining = profiles
+        .where((profile) => profile.id != id)
+        .toList(growable: false);
+    if (remaining.length == profiles.length) return;
+
+    state = state.copyWith(llmEndpointProfiles: remaining);
+    if (state.activeLlmEndpointId.trim() == id) {
+      state = _withActiveEndpointApplied(remaining.first.id);
+    }
+    state = state.withNormalizedLlmEndpointProfiles();
+    await _repository.save(state);
+  }
+
+  /// Copies a saved endpoint's connection values into the primary fields the
+  /// rest of the app reads. An empty stored model keeps the current model, so
+  /// registering an endpoint without picking a model first still works.
+  AppSettings _withActiveEndpointApplied(String endpointId) {
+    final profile = state.usableLlmEndpointProfiles.firstWhere(
+      (item) => item.id == endpointId,
+      orElse: () => const LlmEndpointProfile(id: ''),
+    );
+    if (!profile.isValid) return state;
+    return state.copyWith(
+      activeLlmEndpointId: profile.id,
+      baseUrl: profile.normalizedBaseUrl,
+      apiKey: profile.apiKey,
+      model: profile.normalizedModel.isEmpty
+          ? state.model
+          : profile.normalizedModel,
+    );
   }
 
   Future<void> updateMemoryExtractionModel(String model) async {
@@ -623,7 +695,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
     }
     _isSyncingExternalSettings = true;
     try {
-      final synced = await _externalSettingsService.sync(state);
+      final synced = (await _externalSettingsService.sync(
+        state,
+      )).withNormalizedLlmEndpointProfiles();
       if (synced == state) {
         return false;
       }
@@ -887,12 +961,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateSettings(AppSettings settings) async {
-    state = settings;
+    state = settings.withNormalizedLlmEndpointProfiles();
     await _repository.save(state);
   }
 
   Future<void> resetToDefaults() async {
-    state = AppSettings.defaults();
+    state = AppSettings.defaults().withNormalizedLlmEndpointProfiles();
     await _repository.reset();
   }
 
@@ -903,7 +977,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
   Future<bool> importSettings() async {
     final settings = await _fileService.importSettings();
     if (settings != null) {
-      state = settings;
+      state = settings.withNormalizedLlmEndpointProfiles();
       await _repository.save(state);
       return true;
     }
@@ -916,7 +990,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> importFromQr(String data) async {
     final settings = _qrService.parseQrString(data);
-    state = settings;
+    state = settings.withNormalizedLlmEndpointProfiles();
     await _repository.save(state);
   }
 
