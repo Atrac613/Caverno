@@ -20,7 +20,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
   /// catalog stays selectable via [_RoleModelDropdown]).
   ModelListConfig _endpointConfig(AppSettings settings, String endpointId) {
     if (endpointId.isNotEmpty) {
-      for (final endpoint in settings.namedEndpoints) {
+      for (final endpoint in settings.enabledLlmEndpoints) {
         if (endpoint.id == endpointId) {
           return ModelListConfig(
             baseUrl: endpoint.normalizedBaseUrl,
@@ -81,7 +81,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
           _RoleEndpointDropdown(
             fieldKey: const ValueKey('endpoint-routing-memory-extraction'),
             value: settings.memoryExtractionEndpointId,
-            endpoints: settings.namedEndpoints,
+            endpoints: settings.enabledLlmEndpoints,
             enabled: !isAppleProvider,
             onChanged: notifier.updateMemoryExtractionEndpointId,
           ),
@@ -98,7 +98,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
           _RoleEndpointDropdown(
             fieldKey: const ValueKey('endpoint-routing-subagent'),
             value: settings.subagentEndpointId,
-            endpoints: settings.namedEndpoints,
+            endpoints: settings.enabledLlmEndpoints,
             enabled: !isAppleProvider,
             onChanged: notifier.updateSubagentEndpointId,
           ),
@@ -115,7 +115,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
           _RoleEndpointDropdown(
             fieldKey: const ValueKey('endpoint-routing-goal-suggestion'),
             value: settings.goalSuggestionEndpointId,
-            endpoints: settings.namedEndpoints,
+            endpoints: settings.enabledLlmEndpoints,
             enabled: !isAppleProvider,
             onChanged: notifier.updateGoalSuggestionEndpointId,
           ),
@@ -132,7 +132,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
           _RoleEndpointDropdown(
             fieldKey: const ValueKey('endpoint-routing-approval-auto-review'),
             value: settings.approvalAutoReviewEndpointId,
-            endpoints: settings.namedEndpoints,
+            endpoints: settings.enabledLlmEndpoints,
             enabled: !isAppleProvider,
             onChanged: notifier.updateApprovalAutoReviewEndpointId,
           ),
@@ -155,7 +155,7 @@ class _RoleEndpointDropdown extends StatelessWidget {
 
   final Key fieldKey;
   final String value;
-  final List<NamedEndpoint> endpoints;
+  final List<LlmEndpoint> endpoints;
   final bool enabled;
   final ValueChanged<String> onChanged;
 

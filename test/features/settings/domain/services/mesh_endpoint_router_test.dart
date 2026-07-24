@@ -3,12 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
 
-NamedEndpoint _endpoint(
+LlmEndpoint _endpoint(
   String baseUrl, {
   String apiKey = '',
   bool enabled = true,
-}) => NamedEndpoint(
-  id: NamedEndpoint.buildId(baseUrl),
+}) => LlmEndpoint(
+  id: baseUrl,
   baseUrl: baseUrl,
   apiKey: apiKey,
   enabled: enabled,
@@ -20,7 +20,7 @@ void main() {
   const primaryApiKey = 'primary-key';
 
   ResolvedEndpoint resolve({
-    required List<NamedEndpoint> endpoints,
+    required List<LlmEndpoint> endpoints,
     required String requestedEndpointId,
     String model = 'role-model',
     Set<String> unhealthy = const {},

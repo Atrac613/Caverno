@@ -350,49 +350,41 @@ Map<String, dynamic> _$ModelCapabilityProfileRevisionToJson(
   'capabilityChangeDetected': instance.capabilityChangeDetected,
 };
 
-_LlmEndpointProfile _$LlmEndpointProfileFromJson(Map<String, dynamic> json) =>
-    _LlmEndpointProfile(
-      id: json['id'] as String,
-      label: json['label'] as String? ?? '',
-      baseUrl: json['baseUrl'] as String? ?? '',
-      apiKey: json['apiKey'] as String? ?? '',
-      model: json['model'] as String? ?? '',
-      createdAt: json['createdAt'] == null
-          ? null
-          : DateTime.parse(json['createdAt'] as String),
-    );
+_LlmEndpoint _$LlmEndpointFromJson(Map<String, dynamic> json) => _LlmEndpoint(
+  id: json['id'] as String,
+  label: json['label'] as String? ?? '',
+  baseUrl: json['baseUrl'] as String? ?? '',
+  apiKey: json['apiKey'] as String? ?? '',
+  model: json['model'] as String? ?? '',
+  enabled: json['enabled'] as bool? ?? true,
+  source:
+      $enumDecodeNullable(
+        _$LlmEndpointSourceEnumMap,
+        json['source'],
+        unknownValue: LlmEndpointSource.manual,
+      ) ??
+      LlmEndpointSource.manual,
+  createdAt: json['createdAt'] == null
+      ? null
+      : DateTime.parse(json['createdAt'] as String),
+);
 
-Map<String, dynamic> _$LlmEndpointProfileToJson(_LlmEndpointProfile instance) =>
+Map<String, dynamic> _$LlmEndpointToJson(_LlmEndpoint instance) =>
     <String, dynamic>{
       'id': instance.id,
       'label': instance.label,
       'baseUrl': instance.baseUrl,
       'apiKey': instance.apiKey,
       'model': instance.model,
-      'createdAt': instance.createdAt?.toIso8601String(),
-    };
-
-_NamedEndpoint _$NamedEndpointFromJson(Map<String, dynamic> json) =>
-    _NamedEndpoint(
-      id: json['id'] as String,
-      label: json['label'] as String? ?? '',
-      baseUrl: json['baseUrl'] as String? ?? '',
-      apiKey: json['apiKey'] as String? ?? '',
-      enabled: json['enabled'] as bool? ?? true,
-      createdAt: json['createdAt'] == null
-          ? null
-          : DateTime.parse(json['createdAt'] as String),
-    );
-
-Map<String, dynamic> _$NamedEndpointToJson(_NamedEndpoint instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'label': instance.label,
-      'baseUrl': instance.baseUrl,
-      'apiKey': instance.apiKey,
       'enabled': instance.enabled,
+      'source': _$LlmEndpointSourceEnumMap[instance.source]!,
       'createdAt': instance.createdAt?.toIso8601String(),
     };
+
+const _$LlmEndpointSourceEnumMap = {
+  LlmEndpointSource.manual: 'manual',
+  LlmEndpointSource.discovered: 'discovered',
+};
 
 _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   llmProvider:
@@ -405,9 +397,9 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   baseUrl: json['baseUrl'] as String,
   model: json['model'] as String,
   apiKey: json['apiKey'] as String,
-  llmEndpointProfiles: json['llmEndpointProfiles'] == null
-      ? const <LlmEndpointProfile>[]
-      : _llmEndpointProfilesFromJson(json['llmEndpointProfiles'] as List?),
+  llmEndpoints: json['llmEndpoints'] == null
+      ? const <LlmEndpoint>[]
+      : _llmEndpointsFromJson(json['llmEndpoints'] as List?),
   activeLlmEndpointId: json['activeLlmEndpointId'] as String? ?? '',
   temperature: (json['temperature'] as num).toDouble(),
   maxTokens: (json['maxTokens'] as num).toInt(),
@@ -542,9 +534,6 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
       : _profileRevisionsFromJson(
           json['modelCapabilityProfileRevisions'] as List?,
         ),
-  namedEndpoints: json['namedEndpoints'] == null
-      ? const <NamedEndpoint>[]
-      : _namedEndpointsFromJson(json['namedEndpoints'] as List?),
   idleMaintenanceEnabled: json['idleMaintenanceEnabled'] as bool? ?? false,
   idleMaintenanceWindowStartMinutes:
       (json['idleMaintenanceWindowStartMinutes'] as num?)?.toInt() ?? 120,
@@ -563,9 +552,7 @@ Map<String, dynamic> _$AppSettingsToJson(
   'baseUrl': instance.baseUrl,
   'model': instance.model,
   'apiKey': instance.apiKey,
-  'llmEndpointProfiles': _llmEndpointProfilesToJson(
-    instance.llmEndpointProfiles,
-  ),
+  'llmEndpoints': _llmEndpointsToJson(instance.llmEndpoints),
   'activeLlmEndpointId': instance.activeLlmEndpointId,
   'temperature': instance.temperature,
   'maxTokens': instance.maxTokens,
@@ -633,7 +620,6 @@ Map<String, dynamic> _$AppSettingsToJson(
   'modelCapabilityProfileRevisions': _profileRevisionsToJson(
     instance.modelCapabilityProfileRevisions,
   ),
-  'namedEndpoints': _namedEndpointsToJson(instance.namedEndpoints),
   'idleMaintenanceEnabled': instance.idleMaintenanceEnabled,
   'idleMaintenanceWindowStartMinutes':
       instance.idleMaintenanceWindowStartMinutes,

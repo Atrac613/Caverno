@@ -2083,42 +2083,42 @@ as bool,
 
 
 /// @nodoc
-mixin _$LlmEndpointProfile {
+mixin _$LlmEndpoint {
 
- String get id; String get label; String get baseUrl; String get apiKey; String get model; DateTime? get createdAt;
-/// Create a copy of LlmEndpointProfile
+ String get id; String get label; String get baseUrl; String get apiKey; String get model; bool get enabled;@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource get source; DateTime? get createdAt;
+/// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$LlmEndpointProfileCopyWith<LlmEndpointProfile> get copyWith => _$LlmEndpointProfileCopyWithImpl<LlmEndpointProfile>(this as LlmEndpointProfile, _$identity);
+$LlmEndpointCopyWith<LlmEndpoint> get copyWith => _$LlmEndpointCopyWithImpl<LlmEndpoint>(this as LlmEndpoint, _$identity);
 
-  /// Serializes this LlmEndpointProfile to a JSON map.
+  /// Serializes this LlmEndpoint to a JSON map.
   Map<String, dynamic> toJson();
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LlmEndpointProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LlmEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,createdAt);
+int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,enabled,source,createdAt);
 
 @override
 String toString() {
-  return 'LlmEndpointProfile(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, createdAt: $createdAt)';
+  return 'LlmEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, enabled: $enabled, source: $source, createdAt: $createdAt)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $LlmEndpointProfileCopyWith<$Res>  {
-  factory $LlmEndpointProfileCopyWith(LlmEndpointProfile value, $Res Function(LlmEndpointProfile) _then) = _$LlmEndpointProfileCopyWithImpl;
+abstract mixin class $LlmEndpointCopyWith<$Res>  {
+  factory $LlmEndpointCopyWith(LlmEndpoint value, $Res Function(LlmEndpoint) _then) = _$LlmEndpointCopyWithImpl;
 @useResult
 $Res call({
- String id, String label, String baseUrl, String apiKey, String model, DateTime? createdAt
+ String id, String label, String baseUrl, String apiKey, String model, bool enabled,@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource source, DateTime? createdAt
 });
 
 
@@ -2126,23 +2126,25 @@ $Res call({
 
 }
 /// @nodoc
-class _$LlmEndpointProfileCopyWithImpl<$Res>
-    implements $LlmEndpointProfileCopyWith<$Res> {
-  _$LlmEndpointProfileCopyWithImpl(this._self, this._then);
+class _$LlmEndpointCopyWithImpl<$Res>
+    implements $LlmEndpointCopyWith<$Res> {
+  _$LlmEndpointCopyWithImpl(this._self, this._then);
 
-  final LlmEndpointProfile _self;
-  final $Res Function(LlmEndpointProfile) _then;
+  final LlmEndpoint _self;
+  final $Res Function(LlmEndpoint) _then;
 
-/// Create a copy of LlmEndpointProfile
+/// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? createdAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? enabled = null,Object? source = null,Object? createdAt = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
 as String,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
 as String,apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
-as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
+as LlmEndpointSource,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));
 }
@@ -2150,8 +2152,8 @@ as DateTime?,
 }
 
 
-/// Adds pattern-matching-related methods to [LlmEndpointProfile].
-extension LlmEndpointProfilePatterns on LlmEndpointProfile {
+/// Adds pattern-matching-related methods to [LlmEndpoint].
+extension LlmEndpointPatterns on LlmEndpoint {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -2164,10 +2166,10 @@ extension LlmEndpointProfilePatterns on LlmEndpointProfile {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _LlmEndpointProfile value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _LlmEndpoint value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _LlmEndpointProfile() when $default != null:
+case _LlmEndpoint() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -2186,10 +2188,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _LlmEndpointProfile value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _LlmEndpoint value)  $default,){
 final _that = this;
 switch (_that) {
-case _LlmEndpointProfile():
+case _LlmEndpoint():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -2207,10 +2209,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _LlmEndpointProfile value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _LlmEndpoint value)?  $default,){
 final _that = this;
 switch (_that) {
-case _LlmEndpointProfile() when $default != null:
+case _LlmEndpoint() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -2228,10 +2230,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  DateTime? createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _LlmEndpointProfile() when $default != null:
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.createdAt);case _:
+case _LlmEndpoint() when $default != null:
+return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.source,_that.createdAt);case _:
   return orElse();
 
 }
@@ -2249,10 +2251,10 @@ return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  DateTime? createdAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)  $default,) {final _that = this;
 switch (_that) {
-case _LlmEndpointProfile():
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.createdAt);case _:
+case _LlmEndpoint():
+return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.source,_that.createdAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -2269,10 +2271,10 @@ return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  DateTime? createdAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String label,  String baseUrl,  String apiKey,  String model,  bool enabled, @JsonKey(unknownEnumValue: LlmEndpointSource.manual)  LlmEndpointSource source,  DateTime? createdAt)?  $default,) {final _that = this;
 switch (_that) {
-case _LlmEndpointProfile() when $default != null:
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.createdAt);case _:
+case _LlmEndpoint() when $default != null:
+return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_that.enabled,_that.source,_that.createdAt);case _:
   return null;
 
 }
@@ -2283,51 +2285,53 @@ return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.model,_tha
 /// @nodoc
 @JsonSerializable()
 
-class _LlmEndpointProfile extends LlmEndpointProfile {
-  const _LlmEndpointProfile({required this.id, this.label = '', this.baseUrl = '', this.apiKey = '', this.model = '', this.createdAt}): super._();
-  factory _LlmEndpointProfile.fromJson(Map<String, dynamic> json) => _$LlmEndpointProfileFromJson(json);
+class _LlmEndpoint extends LlmEndpoint {
+  const _LlmEndpoint({required this.id, this.label = '', this.baseUrl = '', this.apiKey = '', this.model = '', this.enabled = true, @JsonKey(unknownEnumValue: LlmEndpointSource.manual) this.source = LlmEndpointSource.manual, this.createdAt}): super._();
+  factory _LlmEndpoint.fromJson(Map<String, dynamic> json) => _$LlmEndpointFromJson(json);
 
 @override final  String id;
 @override@JsonKey() final  String label;
 @override@JsonKey() final  String baseUrl;
 @override@JsonKey() final  String apiKey;
 @override@JsonKey() final  String model;
+@override@JsonKey() final  bool enabled;
+@override@JsonKey(unknownEnumValue: LlmEndpointSource.manual) final  LlmEndpointSource source;
 @override final  DateTime? createdAt;
 
-/// Create a copy of LlmEndpointProfile
+/// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$LlmEndpointProfileCopyWith<_LlmEndpointProfile> get copyWith => __$LlmEndpointProfileCopyWithImpl<_LlmEndpointProfile>(this, _$identity);
+_$LlmEndpointCopyWith<_LlmEndpoint> get copyWith => __$LlmEndpointCopyWithImpl<_LlmEndpoint>(this, _$identity);
 
 @override
 Map<String, dynamic> toJson() {
-  return _$LlmEndpointProfileToJson(this, );
+  return _$LlmEndpointToJson(this, );
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LlmEndpointProfile&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LlmEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.model, model) || other.model == model)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.source, source) || other.source == source)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,createdAt);
+int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,model,enabled,source,createdAt);
 
 @override
 String toString() {
-  return 'LlmEndpointProfile(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, createdAt: $createdAt)';
+  return 'LlmEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, model: $model, enabled: $enabled, source: $source, createdAt: $createdAt)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$LlmEndpointProfileCopyWith<$Res> implements $LlmEndpointProfileCopyWith<$Res> {
-  factory _$LlmEndpointProfileCopyWith(_LlmEndpointProfile value, $Res Function(_LlmEndpointProfile) _then) = __$LlmEndpointProfileCopyWithImpl;
+abstract mixin class _$LlmEndpointCopyWith<$Res> implements $LlmEndpointCopyWith<$Res> {
+  factory _$LlmEndpointCopyWith(_LlmEndpoint value, $Res Function(_LlmEndpoint) _then) = __$LlmEndpointCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String label, String baseUrl, String apiKey, String model, DateTime? createdAt
+ String id, String label, String baseUrl, String apiKey, String model, bool enabled,@JsonKey(unknownEnumValue: LlmEndpointSource.manual) LlmEndpointSource source, DateTime? createdAt
 });
 
 
@@ -2335,301 +2339,25 @@ $Res call({
 
 }
 /// @nodoc
-class __$LlmEndpointProfileCopyWithImpl<$Res>
-    implements _$LlmEndpointProfileCopyWith<$Res> {
-  __$LlmEndpointProfileCopyWithImpl(this._self, this._then);
+class __$LlmEndpointCopyWithImpl<$Res>
+    implements _$LlmEndpointCopyWith<$Res> {
+  __$LlmEndpointCopyWithImpl(this._self, this._then);
 
-  final _LlmEndpointProfile _self;
-  final $Res Function(_LlmEndpointProfile) _then;
+  final _LlmEndpoint _self;
+  final $Res Function(_LlmEndpoint) _then;
 
-/// Create a copy of LlmEndpointProfile
+/// Create a copy of LlmEndpoint
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? createdAt = freezed,}) {
-  return _then(_LlmEndpointProfile(
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? model = null,Object? enabled = null,Object? source = null,Object? createdAt = freezed,}) {
+  return _then(_LlmEndpoint(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
 as String,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
 as String,apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
-as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as DateTime?,
-  ));
-}
-
-
-}
-
-
-/// @nodoc
-mixin _$NamedEndpoint {
-
- String get id; String get label; String get baseUrl; String get apiKey; bool get enabled; DateTime? get createdAt;
-/// Create a copy of NamedEndpoint
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$NamedEndpointCopyWith<NamedEndpoint> get copyWith => _$NamedEndpointCopyWithImpl<NamedEndpoint>(this as NamedEndpoint, _$identity);
-
-  /// Serializes this NamedEndpoint to a JSON map.
-  Map<String, dynamic> toJson();
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is NamedEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
-}
-
-@JsonKey(includeFromJson: false, includeToJson: false)
-@override
-int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,enabled,createdAt);
-
-@override
-String toString() {
-  return 'NamedEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, enabled: $enabled, createdAt: $createdAt)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class $NamedEndpointCopyWith<$Res>  {
-  factory $NamedEndpointCopyWith(NamedEndpoint value, $Res Function(NamedEndpoint) _then) = _$NamedEndpointCopyWithImpl;
-@useResult
-$Res call({
- String id, String label, String baseUrl, String apiKey, bool enabled, DateTime? createdAt
-});
-
-
-
-
-}
-/// @nodoc
-class _$NamedEndpointCopyWithImpl<$Res>
-    implements $NamedEndpointCopyWith<$Res> {
-  _$NamedEndpointCopyWithImpl(this._self, this._then);
-
-  final NamedEndpoint _self;
-  final $Res Function(NamedEndpoint) _then;
-
-/// Create a copy of NamedEndpoint
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? enabled = null,Object? createdAt = freezed,}) {
-  return _then(_self.copyWith(
-id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
-as String,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
-as String,apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
-as bool,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
-as DateTime?,
-  ));
-}
-
-}
-
-
-/// Adds pattern-matching-related methods to [NamedEndpoint].
-extension NamedEndpointPatterns on NamedEndpoint {
-/// A variant of `map` that fallback to returning `orElse`.
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case final Subclass value:
-///     return ...;
-///   case _:
-///     return orElse();
-/// }
-/// ```
-
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _NamedEndpoint value)?  $default,{required TResult orElse(),}){
-final _that = this;
-switch (_that) {
-case _NamedEndpoint() when $default != null:
-return $default(_that);case _:
-  return orElse();
-
-}
-}
-/// A `switch`-like method, using callbacks.
-///
-/// Callbacks receives the raw object, upcasted.
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case final Subclass value:
-///     return ...;
-///   case final Subclass2 value:
-///     return ...;
-/// }
-/// ```
-
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _NamedEndpoint value)  $default,){
-final _that = this;
-switch (_that) {
-case _NamedEndpoint():
-return $default(_that);case _:
-  throw StateError('Unexpected subclass');
-
-}
-}
-/// A variant of `map` that fallback to returning `null`.
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case final Subclass value:
-///     return ...;
-///   case _:
-///     return null;
-/// }
-/// ```
-
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _NamedEndpoint value)?  $default,){
-final _that = this;
-switch (_that) {
-case _NamedEndpoint() when $default != null:
-return $default(_that);case _:
-  return null;
-
-}
-}
-/// A variant of `when` that fallback to an `orElse` callback.
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case _:
-///     return orElse();
-/// }
-/// ```
-
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  bool enabled,  DateTime? createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
-switch (_that) {
-case _NamedEndpoint() when $default != null:
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.enabled,_that.createdAt);case _:
-  return orElse();
-
-}
-}
-/// A `switch`-like method, using callbacks.
-///
-/// As opposed to `map`, this offers destructuring.
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case Subclass2(:final field2):
-///     return ...;
-/// }
-/// ```
-
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String label,  String baseUrl,  String apiKey,  bool enabled,  DateTime? createdAt)  $default,) {final _that = this;
-switch (_that) {
-case _NamedEndpoint():
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.enabled,_that.createdAt);case _:
-  throw StateError('Unexpected subclass');
-
-}
-}
-/// A variant of `when` that fallback to returning `null`
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case _:
-///     return null;
-/// }
-/// ```
-
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String label,  String baseUrl,  String apiKey,  bool enabled,  DateTime? createdAt)?  $default,) {final _that = this;
-switch (_that) {
-case _NamedEndpoint() when $default != null:
-return $default(_that.id,_that.label,_that.baseUrl,_that.apiKey,_that.enabled,_that.createdAt);case _:
-  return null;
-
-}
-}
-
-}
-
-/// @nodoc
-@JsonSerializable()
-
-class _NamedEndpoint extends NamedEndpoint {
-  const _NamedEndpoint({required this.id, this.label = '', this.baseUrl = '', this.apiKey = '', this.enabled = true, this.createdAt}): super._();
-  factory _NamedEndpoint.fromJson(Map<String, dynamic> json) => _$NamedEndpointFromJson(json);
-
-@override final  String id;
-@override@JsonKey() final  String label;
-@override@JsonKey() final  String baseUrl;
-@override@JsonKey() final  String apiKey;
-@override@JsonKey() final  bool enabled;
-@override final  DateTime? createdAt;
-
-/// Create a copy of NamedEndpoint
-/// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-_$NamedEndpointCopyWith<_NamedEndpoint> get copyWith => __$NamedEndpointCopyWithImpl<_NamedEndpoint>(this, _$identity);
-
-@override
-Map<String, dynamic> toJson() {
-  return _$NamedEndpointToJson(this, );
-}
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _NamedEndpoint&&(identical(other.id, id) || other.id == id)&&(identical(other.label, label) || other.label == label)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
-}
-
-@JsonKey(includeFromJson: false, includeToJson: false)
-@override
-int get hashCode => Object.hash(runtimeType,id,label,baseUrl,apiKey,enabled,createdAt);
-
-@override
-String toString() {
-  return 'NamedEndpoint(id: $id, label: $label, baseUrl: $baseUrl, apiKey: $apiKey, enabled: $enabled, createdAt: $createdAt)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class _$NamedEndpointCopyWith<$Res> implements $NamedEndpointCopyWith<$Res> {
-  factory _$NamedEndpointCopyWith(_NamedEndpoint value, $Res Function(_NamedEndpoint) _then) = __$NamedEndpointCopyWithImpl;
-@override @useResult
-$Res call({
- String id, String label, String baseUrl, String apiKey, bool enabled, DateTime? createdAt
-});
-
-
-
-
-}
-/// @nodoc
-class __$NamedEndpointCopyWithImpl<$Res>
-    implements _$NamedEndpointCopyWith<$Res> {
-  __$NamedEndpointCopyWithImpl(this._self, this._then);
-
-  final _NamedEndpoint _self;
-  final $Res Function(_NamedEndpoint) _then;
-
-/// Create a copy of NamedEndpoint
-/// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? label = null,Object? baseUrl = null,Object? apiKey = null,Object? enabled = null,Object? createdAt = freezed,}) {
-  return _then(_NamedEndpoint(
-id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
-as String,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
-as String,apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullable_to_non_nullable
-as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
-as bool,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as bool,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
+as LlmEndpointSource,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));
 }
@@ -2644,11 +2372,11 @@ mixin _$AppSettings {
 @JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider get llmProvider; String get baseUrl; String get model; String get apiKey;// Saved primary endpoints the user can switch between. The entry whose id
 // is [activeLlmEndpointId] mirrors [baseUrl] / [apiKey] / [model]; the rest
 // are inactive presets. Kept in sync by
-// [AppSettings.withNormalizedLlmEndpointProfiles].
-@JsonKey(fromJson: _llmEndpointProfilesFromJson, toJson: _llmEndpointProfilesToJson) List<LlmEndpointProfile> get llmEndpointProfiles; String get activeLlmEndpointId; double get temperature; int get maxTokens;@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference get reasoningEffort;// Per-role model routing (LL1). Empty string means "use the main model".
+// [AppSettings.withNormalizedLlmEndpoints].
+@JsonKey(fromJson: _llmEndpointsFromJson, toJson: _llmEndpointsToJson) List<LlmEndpoint> get llmEndpoints; String get activeLlmEndpointId; double get temperature; int get maxTokens;@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference get reasoningEffort;// Per-role model routing (LL1). Empty string means "use the main model".
 // Lets secondary LLM calls run on a smaller, faster local model.
  String get memoryExtractionModel; String get subagentModel; String get goalSuggestionModel; String get approvalAutoReviewModel;// LL8 per-role endpoint routing. Empty string means "use the primary
-// endpoint". A non-empty value is a NamedEndpoint id; an unreachable mesh
+// endpoint". A non-empty value is a LlmEndpoint id; an unreachable mesh
 // endpoint falls back to the primary at call time (MeshEndpointRouter).
  String get memoryExtractionEndpointId; String get subagentEndpointId; String get goalSuggestionEndpointId; String get approvalAutoReviewEndpointId; String get googleChatWebhookUrl; String get mcpUrl; List<String> get mcpUrls; List<McpServerConfig> get mcpServers; bool get mcpEnabled; bool get externalSettingsSyncEnabled; String get externalSettingsPath; bool get externalToolHooksEnabled;@JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson) List<ExternalToolHook> get externalToolHooks;// Voice settings
  bool get ttsEnabled; bool get autoReadEnabled; double get speechRate;// Voice mode (Whisper + VOICEVOX)
@@ -2657,9 +2385,7 @@ mixin _$AppSettings {
 @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode get chatApprovalMode; bool get confirmFileMutations; bool get confirmLocalCommands; bool get confirmGitWrites; bool get enableCodingVerificationFeedback;@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy get codingVerificationTriggerPolicy; int get codingVerificationTimeoutSeconds; int get codingVerificationMaxFailures; bool get enableAgentsMd; bool get enablePrefixStableToolLoop;// LL5: opt-in local semantic search. When enabled and an embeddings model
 // is configured, conversation history is embedded for semantic search;
 // otherwise search degrades to lexical FTS.
- bool get enableSemanticSearch; String get embeddingsModel; bool get showMemoryUpdates; bool get enableLlmSessionLogs; bool get feedbackUploadEnabled; String get feedbackEndpointUrl; String get feedbackEndpointAuthToken; bool get demoMode; bool get onboardingCompleted; bool get browserToolsEnabled; List<String> get disabledBuiltInTools; List<LocalCommandPermissionRule> get localCommandPermissionRules; List<RoutineComputerUseActionAllowlistEntry> get routineComputerUseActionAllowlist;@JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) List<ModelCapabilityProfile> get modelCapabilityProfiles;@JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson) List<ModelHarnessConfig> get modelHarnessConfigs;@JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson) List<ModelCapabilityProfileRevision> get modelCapabilityProfileRevisions;// LL8: user-registered LAN inference endpoints (the mesh). Discovery only
-// proposes candidates; entries here are explicitly registered.
-@JsonKey(fromJson: _namedEndpointsFromJson, toJson: _namedEndpointsToJson) List<NamedEndpoint> get namedEndpoints;// LL18 idle/overnight maintenance gating (consumed via the maintenance
+ bool get enableSemanticSearch; String get embeddingsModel; bool get showMemoryUpdates; bool get enableLlmSessionLogs; bool get feedbackUploadEnabled; String get feedbackEndpointUrl; String get feedbackEndpointAuthToken; bool get demoMode; bool get onboardingCompleted; bool get browserToolsEnabled; List<String> get disabledBuiltInTools; List<LocalCommandPermissionRule> get localCommandPermissionRules; List<RoutineComputerUseActionAllowlistEntry> get routineComputerUseActionAllowlist;@JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) List<ModelCapabilityProfile> get modelCapabilityProfiles;@JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson) List<ModelHarnessConfig> get modelHarnessConfigs;@JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson) List<ModelCapabilityProfileRevision> get modelCapabilityProfileRevisions;// LL18 idle/overnight maintenance gating (consumed via the maintenance
 // feature's IdleMaintenanceConfig; minutes are since local midnight).
  bool get idleMaintenanceEnabled; int get idleMaintenanceWindowStartMinutes; int get idleMaintenanceWindowEndMinutes; int get idleMaintenanceMinIdleMinutes; bool get idleMaintenanceRequireAcPower;
 /// Create a copy of AppSettings
@@ -2674,16 +2400,16 @@ $AppSettingsCopyWith<AppSettings> get copyWith => _$AppSettingsCopyWithImpl<AppS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.llmProvider, llmProvider) || other.llmProvider == llmProvider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&const DeepCollectionEquality().equals(other.llmEndpointProfiles, llmEndpointProfiles)&&(identical(other.activeLlmEndpointId, activeLlmEndpointId) || other.activeLlmEndpointId == activeLlmEndpointId)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.reasoningEffort, reasoningEffort) || other.reasoningEffort == reasoningEffort)&&(identical(other.memoryExtractionModel, memoryExtractionModel) || other.memoryExtractionModel == memoryExtractionModel)&&(identical(other.subagentModel, subagentModel) || other.subagentModel == subagentModel)&&(identical(other.goalSuggestionModel, goalSuggestionModel) || other.goalSuggestionModel == goalSuggestionModel)&&(identical(other.approvalAutoReviewModel, approvalAutoReviewModel) || other.approvalAutoReviewModel == approvalAutoReviewModel)&&(identical(other.memoryExtractionEndpointId, memoryExtractionEndpointId) || other.memoryExtractionEndpointId == memoryExtractionEndpointId)&&(identical(other.subagentEndpointId, subagentEndpointId) || other.subagentEndpointId == subagentEndpointId)&&(identical(other.goalSuggestionEndpointId, goalSuggestionEndpointId) || other.goalSuggestionEndpointId == goalSuggestionEndpointId)&&(identical(other.approvalAutoReviewEndpointId, approvalAutoReviewEndpointId) || other.approvalAutoReviewEndpointId == approvalAutoReviewEndpointId)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other.mcpUrls, mcpUrls)&&const DeepCollectionEquality().equals(other.mcpServers, mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.externalSettingsSyncEnabled, externalSettingsSyncEnabled) || other.externalSettingsSyncEnabled == externalSettingsSyncEnabled)&&(identical(other.externalSettingsPath, externalSettingsPath) || other.externalSettingsPath == externalSettingsPath)&&(identical(other.externalToolHooksEnabled, externalToolHooksEnabled) || other.externalToolHooksEnabled == externalToolHooksEnabled)&&const DeepCollectionEquality().equals(other.externalToolHooks, externalToolHooks)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.codingApprovalMode, codingApprovalMode) || other.codingApprovalMode == codingApprovalMode)&&(identical(other.chatApprovalMode, chatApprovalMode) || other.chatApprovalMode == chatApprovalMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.enableCodingVerificationFeedback, enableCodingVerificationFeedback) || other.enableCodingVerificationFeedback == enableCodingVerificationFeedback)&&(identical(other.codingVerificationTriggerPolicy, codingVerificationTriggerPolicy) || other.codingVerificationTriggerPolicy == codingVerificationTriggerPolicy)&&(identical(other.codingVerificationTimeoutSeconds, codingVerificationTimeoutSeconds) || other.codingVerificationTimeoutSeconds == codingVerificationTimeoutSeconds)&&(identical(other.codingVerificationMaxFailures, codingVerificationMaxFailures) || other.codingVerificationMaxFailures == codingVerificationMaxFailures)&&(identical(other.enableAgentsMd, enableAgentsMd) || other.enableAgentsMd == enableAgentsMd)&&(identical(other.enablePrefixStableToolLoop, enablePrefixStableToolLoop) || other.enablePrefixStableToolLoop == enablePrefixStableToolLoop)&&(identical(other.enableSemanticSearch, enableSemanticSearch) || other.enableSemanticSearch == enableSemanticSearch)&&(identical(other.embeddingsModel, embeddingsModel) || other.embeddingsModel == embeddingsModel)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.enableLlmSessionLogs, enableLlmSessionLogs) || other.enableLlmSessionLogs == enableLlmSessionLogs)&&(identical(other.feedbackUploadEnabled, feedbackUploadEnabled) || other.feedbackUploadEnabled == feedbackUploadEnabled)&&(identical(other.feedbackEndpointUrl, feedbackEndpointUrl) || other.feedbackEndpointUrl == feedbackEndpointUrl)&&(identical(other.feedbackEndpointAuthToken, feedbackEndpointAuthToken) || other.feedbackEndpointAuthToken == feedbackEndpointAuthToken)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&(identical(other.onboardingCompleted, onboardingCompleted) || other.onboardingCompleted == onboardingCompleted)&&(identical(other.browserToolsEnabled, browserToolsEnabled) || other.browserToolsEnabled == browserToolsEnabled)&&const DeepCollectionEquality().equals(other.disabledBuiltInTools, disabledBuiltInTools)&&const DeepCollectionEquality().equals(other.localCommandPermissionRules, localCommandPermissionRules)&&const DeepCollectionEquality().equals(other.routineComputerUseActionAllowlist, routineComputerUseActionAllowlist)&&const DeepCollectionEquality().equals(other.modelCapabilityProfiles, modelCapabilityProfiles)&&const DeepCollectionEquality().equals(other.modelHarnessConfigs, modelHarnessConfigs)&&const DeepCollectionEquality().equals(other.modelCapabilityProfileRevisions, modelCapabilityProfileRevisions)&&const DeepCollectionEquality().equals(other.namedEndpoints, namedEndpoints)&&(identical(other.idleMaintenanceEnabled, idleMaintenanceEnabled) || other.idleMaintenanceEnabled == idleMaintenanceEnabled)&&(identical(other.idleMaintenanceWindowStartMinutes, idleMaintenanceWindowStartMinutes) || other.idleMaintenanceWindowStartMinutes == idleMaintenanceWindowStartMinutes)&&(identical(other.idleMaintenanceWindowEndMinutes, idleMaintenanceWindowEndMinutes) || other.idleMaintenanceWindowEndMinutes == idleMaintenanceWindowEndMinutes)&&(identical(other.idleMaintenanceMinIdleMinutes, idleMaintenanceMinIdleMinutes) || other.idleMaintenanceMinIdleMinutes == idleMaintenanceMinIdleMinutes)&&(identical(other.idleMaintenanceRequireAcPower, idleMaintenanceRequireAcPower) || other.idleMaintenanceRequireAcPower == idleMaintenanceRequireAcPower));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.llmProvider, llmProvider) || other.llmProvider == llmProvider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&const DeepCollectionEquality().equals(other.llmEndpoints, llmEndpoints)&&(identical(other.activeLlmEndpointId, activeLlmEndpointId) || other.activeLlmEndpointId == activeLlmEndpointId)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.reasoningEffort, reasoningEffort) || other.reasoningEffort == reasoningEffort)&&(identical(other.memoryExtractionModel, memoryExtractionModel) || other.memoryExtractionModel == memoryExtractionModel)&&(identical(other.subagentModel, subagentModel) || other.subagentModel == subagentModel)&&(identical(other.goalSuggestionModel, goalSuggestionModel) || other.goalSuggestionModel == goalSuggestionModel)&&(identical(other.approvalAutoReviewModel, approvalAutoReviewModel) || other.approvalAutoReviewModel == approvalAutoReviewModel)&&(identical(other.memoryExtractionEndpointId, memoryExtractionEndpointId) || other.memoryExtractionEndpointId == memoryExtractionEndpointId)&&(identical(other.subagentEndpointId, subagentEndpointId) || other.subagentEndpointId == subagentEndpointId)&&(identical(other.goalSuggestionEndpointId, goalSuggestionEndpointId) || other.goalSuggestionEndpointId == goalSuggestionEndpointId)&&(identical(other.approvalAutoReviewEndpointId, approvalAutoReviewEndpointId) || other.approvalAutoReviewEndpointId == approvalAutoReviewEndpointId)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other.mcpUrls, mcpUrls)&&const DeepCollectionEquality().equals(other.mcpServers, mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.externalSettingsSyncEnabled, externalSettingsSyncEnabled) || other.externalSettingsSyncEnabled == externalSettingsSyncEnabled)&&(identical(other.externalSettingsPath, externalSettingsPath) || other.externalSettingsPath == externalSettingsPath)&&(identical(other.externalToolHooksEnabled, externalToolHooksEnabled) || other.externalToolHooksEnabled == externalToolHooksEnabled)&&const DeepCollectionEquality().equals(other.externalToolHooks, externalToolHooks)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.codingApprovalMode, codingApprovalMode) || other.codingApprovalMode == codingApprovalMode)&&(identical(other.chatApprovalMode, chatApprovalMode) || other.chatApprovalMode == chatApprovalMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.enableCodingVerificationFeedback, enableCodingVerificationFeedback) || other.enableCodingVerificationFeedback == enableCodingVerificationFeedback)&&(identical(other.codingVerificationTriggerPolicy, codingVerificationTriggerPolicy) || other.codingVerificationTriggerPolicy == codingVerificationTriggerPolicy)&&(identical(other.codingVerificationTimeoutSeconds, codingVerificationTimeoutSeconds) || other.codingVerificationTimeoutSeconds == codingVerificationTimeoutSeconds)&&(identical(other.codingVerificationMaxFailures, codingVerificationMaxFailures) || other.codingVerificationMaxFailures == codingVerificationMaxFailures)&&(identical(other.enableAgentsMd, enableAgentsMd) || other.enableAgentsMd == enableAgentsMd)&&(identical(other.enablePrefixStableToolLoop, enablePrefixStableToolLoop) || other.enablePrefixStableToolLoop == enablePrefixStableToolLoop)&&(identical(other.enableSemanticSearch, enableSemanticSearch) || other.enableSemanticSearch == enableSemanticSearch)&&(identical(other.embeddingsModel, embeddingsModel) || other.embeddingsModel == embeddingsModel)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.enableLlmSessionLogs, enableLlmSessionLogs) || other.enableLlmSessionLogs == enableLlmSessionLogs)&&(identical(other.feedbackUploadEnabled, feedbackUploadEnabled) || other.feedbackUploadEnabled == feedbackUploadEnabled)&&(identical(other.feedbackEndpointUrl, feedbackEndpointUrl) || other.feedbackEndpointUrl == feedbackEndpointUrl)&&(identical(other.feedbackEndpointAuthToken, feedbackEndpointAuthToken) || other.feedbackEndpointAuthToken == feedbackEndpointAuthToken)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&(identical(other.onboardingCompleted, onboardingCompleted) || other.onboardingCompleted == onboardingCompleted)&&(identical(other.browserToolsEnabled, browserToolsEnabled) || other.browserToolsEnabled == browserToolsEnabled)&&const DeepCollectionEquality().equals(other.disabledBuiltInTools, disabledBuiltInTools)&&const DeepCollectionEquality().equals(other.localCommandPermissionRules, localCommandPermissionRules)&&const DeepCollectionEquality().equals(other.routineComputerUseActionAllowlist, routineComputerUseActionAllowlist)&&const DeepCollectionEquality().equals(other.modelCapabilityProfiles, modelCapabilityProfiles)&&const DeepCollectionEquality().equals(other.modelHarnessConfigs, modelHarnessConfigs)&&const DeepCollectionEquality().equals(other.modelCapabilityProfileRevisions, modelCapabilityProfileRevisions)&&(identical(other.idleMaintenanceEnabled, idleMaintenanceEnabled) || other.idleMaintenanceEnabled == idleMaintenanceEnabled)&&(identical(other.idleMaintenanceWindowStartMinutes, idleMaintenanceWindowStartMinutes) || other.idleMaintenanceWindowStartMinutes == idleMaintenanceWindowStartMinutes)&&(identical(other.idleMaintenanceWindowEndMinutes, idleMaintenanceWindowEndMinutes) || other.idleMaintenanceWindowEndMinutes == idleMaintenanceWindowEndMinutes)&&(identical(other.idleMaintenanceMinIdleMinutes, idleMaintenanceMinIdleMinutes) || other.idleMaintenanceMinIdleMinutes == idleMaintenanceMinIdleMinutes)&&(identical(other.idleMaintenanceRequireAcPower, idleMaintenanceRequireAcPower) || other.idleMaintenanceRequireAcPower == idleMaintenanceRequireAcPower));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,llmProvider,baseUrl,model,apiKey,const DeepCollectionEquality().hash(llmEndpointProfiles),activeLlmEndpointId,temperature,maxTokens,reasoningEffort,memoryExtractionModel,subagentModel,goalSuggestionModel,approvalAutoReviewModel,memoryExtractionEndpointId,subagentEndpointId,goalSuggestionEndpointId,approvalAutoReviewEndpointId,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(mcpUrls),const DeepCollectionEquality().hash(mcpServers),mcpEnabled,externalSettingsSyncEnabled,externalSettingsPath,externalToolHooksEnabled,const DeepCollectionEquality().hash(externalToolHooks),ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,codingApprovalMode,chatApprovalMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,enableCodingVerificationFeedback,codingVerificationTriggerPolicy,codingVerificationTimeoutSeconds,codingVerificationMaxFailures,enableAgentsMd,enablePrefixStableToolLoop,enableSemanticSearch,embeddingsModel,showMemoryUpdates,enableLlmSessionLogs,feedbackUploadEnabled,feedbackEndpointUrl,feedbackEndpointAuthToken,demoMode,onboardingCompleted,browserToolsEnabled,const DeepCollectionEquality().hash(disabledBuiltInTools),const DeepCollectionEquality().hash(localCommandPermissionRules),const DeepCollectionEquality().hash(routineComputerUseActionAllowlist),const DeepCollectionEquality().hash(modelCapabilityProfiles),const DeepCollectionEquality().hash(modelHarnessConfigs),const DeepCollectionEquality().hash(modelCapabilityProfileRevisions),const DeepCollectionEquality().hash(namedEndpoints),idleMaintenanceEnabled,idleMaintenanceWindowStartMinutes,idleMaintenanceWindowEndMinutes,idleMaintenanceMinIdleMinutes,idleMaintenanceRequireAcPower]);
+int get hashCode => Object.hashAll([runtimeType,llmProvider,baseUrl,model,apiKey,const DeepCollectionEquality().hash(llmEndpoints),activeLlmEndpointId,temperature,maxTokens,reasoningEffort,memoryExtractionModel,subagentModel,goalSuggestionModel,approvalAutoReviewModel,memoryExtractionEndpointId,subagentEndpointId,goalSuggestionEndpointId,approvalAutoReviewEndpointId,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(mcpUrls),const DeepCollectionEquality().hash(mcpServers),mcpEnabled,externalSettingsSyncEnabled,externalSettingsPath,externalToolHooksEnabled,const DeepCollectionEquality().hash(externalToolHooks),ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,codingApprovalMode,chatApprovalMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,enableCodingVerificationFeedback,codingVerificationTriggerPolicy,codingVerificationTimeoutSeconds,codingVerificationMaxFailures,enableAgentsMd,enablePrefixStableToolLoop,enableSemanticSearch,embeddingsModel,showMemoryUpdates,enableLlmSessionLogs,feedbackUploadEnabled,feedbackEndpointUrl,feedbackEndpointAuthToken,demoMode,onboardingCompleted,browserToolsEnabled,const DeepCollectionEquality().hash(disabledBuiltInTools),const DeepCollectionEquality().hash(localCommandPermissionRules),const DeepCollectionEquality().hash(routineComputerUseActionAllowlist),const DeepCollectionEquality().hash(modelCapabilityProfiles),const DeepCollectionEquality().hash(modelHarnessConfigs),const DeepCollectionEquality().hash(modelCapabilityProfileRevisions),idleMaintenanceEnabled,idleMaintenanceWindowStartMinutes,idleMaintenanceWindowEndMinutes,idleMaintenanceMinIdleMinutes,idleMaintenanceRequireAcPower]);
 
 @override
 String toString() {
-  return 'AppSettings(llmProvider: $llmProvider, baseUrl: $baseUrl, model: $model, apiKey: $apiKey, llmEndpointProfiles: $llmEndpointProfiles, activeLlmEndpointId: $activeLlmEndpointId, temperature: $temperature, maxTokens: $maxTokens, reasoningEffort: $reasoningEffort, memoryExtractionModel: $memoryExtractionModel, subagentModel: $subagentModel, goalSuggestionModel: $goalSuggestionModel, approvalAutoReviewModel: $approvalAutoReviewModel, memoryExtractionEndpointId: $memoryExtractionEndpointId, subagentEndpointId: $subagentEndpointId, goalSuggestionEndpointId: $goalSuggestionEndpointId, approvalAutoReviewEndpointId: $approvalAutoReviewEndpointId, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, externalSettingsSyncEnabled: $externalSettingsSyncEnabled, externalSettingsPath: $externalSettingsPath, externalToolHooksEnabled: $externalToolHooksEnabled, externalToolHooks: $externalToolHooks, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, codingApprovalMode: $codingApprovalMode, chatApprovalMode: $chatApprovalMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, enableCodingVerificationFeedback: $enableCodingVerificationFeedback, codingVerificationTriggerPolicy: $codingVerificationTriggerPolicy, codingVerificationTimeoutSeconds: $codingVerificationTimeoutSeconds, codingVerificationMaxFailures: $codingVerificationMaxFailures, enableAgentsMd: $enableAgentsMd, enablePrefixStableToolLoop: $enablePrefixStableToolLoop, enableSemanticSearch: $enableSemanticSearch, embeddingsModel: $embeddingsModel, showMemoryUpdates: $showMemoryUpdates, enableLlmSessionLogs: $enableLlmSessionLogs, feedbackUploadEnabled: $feedbackUploadEnabled, feedbackEndpointUrl: $feedbackEndpointUrl, feedbackEndpointAuthToken: $feedbackEndpointAuthToken, demoMode: $demoMode, onboardingCompleted: $onboardingCompleted, browserToolsEnabled: $browserToolsEnabled, disabledBuiltInTools: $disabledBuiltInTools, localCommandPermissionRules: $localCommandPermissionRules, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist, modelCapabilityProfiles: $modelCapabilityProfiles, modelHarnessConfigs: $modelHarnessConfigs, modelCapabilityProfileRevisions: $modelCapabilityProfileRevisions, namedEndpoints: $namedEndpoints, idleMaintenanceEnabled: $idleMaintenanceEnabled, idleMaintenanceWindowStartMinutes: $idleMaintenanceWindowStartMinutes, idleMaintenanceWindowEndMinutes: $idleMaintenanceWindowEndMinutes, idleMaintenanceMinIdleMinutes: $idleMaintenanceMinIdleMinutes, idleMaintenanceRequireAcPower: $idleMaintenanceRequireAcPower)';
+  return 'AppSettings(llmProvider: $llmProvider, baseUrl: $baseUrl, model: $model, apiKey: $apiKey, llmEndpoints: $llmEndpoints, activeLlmEndpointId: $activeLlmEndpointId, temperature: $temperature, maxTokens: $maxTokens, reasoningEffort: $reasoningEffort, memoryExtractionModel: $memoryExtractionModel, subagentModel: $subagentModel, goalSuggestionModel: $goalSuggestionModel, approvalAutoReviewModel: $approvalAutoReviewModel, memoryExtractionEndpointId: $memoryExtractionEndpointId, subagentEndpointId: $subagentEndpointId, goalSuggestionEndpointId: $goalSuggestionEndpointId, approvalAutoReviewEndpointId: $approvalAutoReviewEndpointId, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, externalSettingsSyncEnabled: $externalSettingsSyncEnabled, externalSettingsPath: $externalSettingsPath, externalToolHooksEnabled: $externalToolHooksEnabled, externalToolHooks: $externalToolHooks, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, codingApprovalMode: $codingApprovalMode, chatApprovalMode: $chatApprovalMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, enableCodingVerificationFeedback: $enableCodingVerificationFeedback, codingVerificationTriggerPolicy: $codingVerificationTriggerPolicy, codingVerificationTimeoutSeconds: $codingVerificationTimeoutSeconds, codingVerificationMaxFailures: $codingVerificationMaxFailures, enableAgentsMd: $enableAgentsMd, enablePrefixStableToolLoop: $enablePrefixStableToolLoop, enableSemanticSearch: $enableSemanticSearch, embeddingsModel: $embeddingsModel, showMemoryUpdates: $showMemoryUpdates, enableLlmSessionLogs: $enableLlmSessionLogs, feedbackUploadEnabled: $feedbackUploadEnabled, feedbackEndpointUrl: $feedbackEndpointUrl, feedbackEndpointAuthToken: $feedbackEndpointAuthToken, demoMode: $demoMode, onboardingCompleted: $onboardingCompleted, browserToolsEnabled: $browserToolsEnabled, disabledBuiltInTools: $disabledBuiltInTools, localCommandPermissionRules: $localCommandPermissionRules, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist, modelCapabilityProfiles: $modelCapabilityProfiles, modelHarnessConfigs: $modelHarnessConfigs, modelCapabilityProfileRevisions: $modelCapabilityProfileRevisions, idleMaintenanceEnabled: $idleMaintenanceEnabled, idleMaintenanceWindowStartMinutes: $idleMaintenanceWindowStartMinutes, idleMaintenanceWindowEndMinutes: $idleMaintenanceWindowEndMinutes, idleMaintenanceMinIdleMinutes: $idleMaintenanceMinIdleMinutes, idleMaintenanceRequireAcPower: $idleMaintenanceRequireAcPower)';
 }
 
 
@@ -2694,7 +2420,7 @@ abstract mixin class $AppSettingsCopyWith<$Res>  {
   factory $AppSettingsCopyWith(AppSettings value, $Res Function(AppSettings) _then) = _$AppSettingsCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider llmProvider, String baseUrl, String model, String apiKey,@JsonKey(fromJson: _llmEndpointProfilesFromJson, toJson: _llmEndpointProfilesToJson) List<LlmEndpointProfile> llmEndpointProfiles, String activeLlmEndpointId, double temperature, int maxTokens,@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference reasoningEffort, String memoryExtractionModel, String subagentModel, String goalSuggestionModel, String approvalAutoReviewModel, String memoryExtractionEndpointId, String subagentEndpointId, String goalSuggestionEndpointId, String approvalAutoReviewEndpointId, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool externalSettingsSyncEnabled, String externalSettingsPath, bool externalToolHooksEnabled,@JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson) List<ExternalToolHook> externalToolHooks, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode codingApprovalMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode chatApprovalMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool enableCodingVerificationFeedback,@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy codingVerificationTriggerPolicy, int codingVerificationTimeoutSeconds, int codingVerificationMaxFailures, bool enableAgentsMd, bool enablePrefixStableToolLoop, bool enableSemanticSearch, String embeddingsModel, bool showMemoryUpdates, bool enableLlmSessionLogs, bool feedbackUploadEnabled, String feedbackEndpointUrl, String feedbackEndpointAuthToken, bool demoMode, bool onboardingCompleted, bool browserToolsEnabled, List<String> disabledBuiltInTools, List<LocalCommandPermissionRule> localCommandPermissionRules, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist,@JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) List<ModelCapabilityProfile> modelCapabilityProfiles,@JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson) List<ModelHarnessConfig> modelHarnessConfigs,@JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson) List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions,@JsonKey(fromJson: _namedEndpointsFromJson, toJson: _namedEndpointsToJson) List<NamedEndpoint> namedEndpoints, bool idleMaintenanceEnabled, int idleMaintenanceWindowStartMinutes, int idleMaintenanceWindowEndMinutes, int idleMaintenanceMinIdleMinutes, bool idleMaintenanceRequireAcPower
+@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider llmProvider, String baseUrl, String model, String apiKey,@JsonKey(fromJson: _llmEndpointsFromJson, toJson: _llmEndpointsToJson) List<LlmEndpoint> llmEndpoints, String activeLlmEndpointId, double temperature, int maxTokens,@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference reasoningEffort, String memoryExtractionModel, String subagentModel, String goalSuggestionModel, String approvalAutoReviewModel, String memoryExtractionEndpointId, String subagentEndpointId, String goalSuggestionEndpointId, String approvalAutoReviewEndpointId, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool externalSettingsSyncEnabled, String externalSettingsPath, bool externalToolHooksEnabled,@JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson) List<ExternalToolHook> externalToolHooks, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode codingApprovalMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode chatApprovalMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool enableCodingVerificationFeedback,@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy codingVerificationTriggerPolicy, int codingVerificationTimeoutSeconds, int codingVerificationMaxFailures, bool enableAgentsMd, bool enablePrefixStableToolLoop, bool enableSemanticSearch, String embeddingsModel, bool showMemoryUpdates, bool enableLlmSessionLogs, bool feedbackUploadEnabled, String feedbackEndpointUrl, String feedbackEndpointAuthToken, bool demoMode, bool onboardingCompleted, bool browserToolsEnabled, List<String> disabledBuiltInTools, List<LocalCommandPermissionRule> localCommandPermissionRules, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist,@JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) List<ModelCapabilityProfile> modelCapabilityProfiles,@JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson) List<ModelHarnessConfig> modelHarnessConfigs,@JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson) List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions, bool idleMaintenanceEnabled, int idleMaintenanceWindowStartMinutes, int idleMaintenanceWindowEndMinutes, int idleMaintenanceMinIdleMinutes, bool idleMaintenanceRequireAcPower
 });
 
 
@@ -2711,14 +2437,14 @@ class _$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? llmProvider = null,Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? llmEndpointProfiles = null,Object? activeLlmEndpointId = null,Object? temperature = null,Object? maxTokens = null,Object? reasoningEffort = null,Object? memoryExtractionModel = null,Object? subagentModel = null,Object? goalSuggestionModel = null,Object? approvalAutoReviewModel = null,Object? memoryExtractionEndpointId = null,Object? subagentEndpointId = null,Object? goalSuggestionEndpointId = null,Object? approvalAutoReviewEndpointId = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? externalSettingsSyncEnabled = null,Object? externalSettingsPath = null,Object? externalToolHooksEnabled = null,Object? externalToolHooks = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? codingApprovalMode = null,Object? chatApprovalMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? enableCodingVerificationFeedback = null,Object? codingVerificationTriggerPolicy = null,Object? codingVerificationTimeoutSeconds = null,Object? codingVerificationMaxFailures = null,Object? enableAgentsMd = null,Object? enablePrefixStableToolLoop = null,Object? enableSemanticSearch = null,Object? embeddingsModel = null,Object? showMemoryUpdates = null,Object? enableLlmSessionLogs = null,Object? feedbackUploadEnabled = null,Object? feedbackEndpointUrl = null,Object? feedbackEndpointAuthToken = null,Object? demoMode = null,Object? onboardingCompleted = null,Object? browserToolsEnabled = null,Object? disabledBuiltInTools = null,Object? localCommandPermissionRules = null,Object? routineComputerUseActionAllowlist = null,Object? modelCapabilityProfiles = null,Object? modelHarnessConfigs = null,Object? modelCapabilityProfileRevisions = null,Object? namedEndpoints = null,Object? idleMaintenanceEnabled = null,Object? idleMaintenanceWindowStartMinutes = null,Object? idleMaintenanceWindowEndMinutes = null,Object? idleMaintenanceMinIdleMinutes = null,Object? idleMaintenanceRequireAcPower = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? llmProvider = null,Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? llmEndpoints = null,Object? activeLlmEndpointId = null,Object? temperature = null,Object? maxTokens = null,Object? reasoningEffort = null,Object? memoryExtractionModel = null,Object? subagentModel = null,Object? goalSuggestionModel = null,Object? approvalAutoReviewModel = null,Object? memoryExtractionEndpointId = null,Object? subagentEndpointId = null,Object? goalSuggestionEndpointId = null,Object? approvalAutoReviewEndpointId = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? externalSettingsSyncEnabled = null,Object? externalSettingsPath = null,Object? externalToolHooksEnabled = null,Object? externalToolHooks = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? codingApprovalMode = null,Object? chatApprovalMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? enableCodingVerificationFeedback = null,Object? codingVerificationTriggerPolicy = null,Object? codingVerificationTimeoutSeconds = null,Object? codingVerificationMaxFailures = null,Object? enableAgentsMd = null,Object? enablePrefixStableToolLoop = null,Object? enableSemanticSearch = null,Object? embeddingsModel = null,Object? showMemoryUpdates = null,Object? enableLlmSessionLogs = null,Object? feedbackUploadEnabled = null,Object? feedbackEndpointUrl = null,Object? feedbackEndpointAuthToken = null,Object? demoMode = null,Object? onboardingCompleted = null,Object? browserToolsEnabled = null,Object? disabledBuiltInTools = null,Object? localCommandPermissionRules = null,Object? routineComputerUseActionAllowlist = null,Object? modelCapabilityProfiles = null,Object? modelHarnessConfigs = null,Object? modelCapabilityProfileRevisions = null,Object? idleMaintenanceEnabled = null,Object? idleMaintenanceWindowStartMinutes = null,Object? idleMaintenanceWindowEndMinutes = null,Object? idleMaintenanceMinIdleMinutes = null,Object? idleMaintenanceRequireAcPower = null,}) {
   return _then(_self.copyWith(
 llmProvider: null == llmProvider ? _self.llmProvider : llmProvider // ignore: cast_nullable_to_non_nullable
 as LlmProvider,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
 as String,apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullable_to_non_nullable
-as String,llmEndpointProfiles: null == llmEndpointProfiles ? _self.llmEndpointProfiles : llmEndpointProfiles // ignore: cast_nullable_to_non_nullable
-as List<LlmEndpointProfile>,activeLlmEndpointId: null == activeLlmEndpointId ? _self.activeLlmEndpointId : activeLlmEndpointId // ignore: cast_nullable_to_non_nullable
+as String,llmEndpoints: null == llmEndpoints ? _self.llmEndpoints : llmEndpoints // ignore: cast_nullable_to_non_nullable
+as List<LlmEndpoint>,activeLlmEndpointId: null == activeLlmEndpointId ? _self.activeLlmEndpointId : activeLlmEndpointId // ignore: cast_nullable_to_non_nullable
 as String,temperature: null == temperature ? _self.temperature : temperature // ignore: cast_nullable_to_non_nullable
 as double,maxTokens: null == maxTokens ? _self.maxTokens : maxTokens // ignore: cast_nullable_to_non_nullable
 as int,reasoningEffort: null == reasoningEffort ? _self.reasoningEffort : reasoningEffort // ignore: cast_nullable_to_non_nullable
@@ -2775,8 +2501,7 @@ as List<LocalCommandPermissionRule>,routineComputerUseActionAllowlist: null == r
 as List<RoutineComputerUseActionAllowlistEntry>,modelCapabilityProfiles: null == modelCapabilityProfiles ? _self.modelCapabilityProfiles : modelCapabilityProfiles // ignore: cast_nullable_to_non_nullable
 as List<ModelCapabilityProfile>,modelHarnessConfigs: null == modelHarnessConfigs ? _self.modelHarnessConfigs : modelHarnessConfigs // ignore: cast_nullable_to_non_nullable
 as List<ModelHarnessConfig>,modelCapabilityProfileRevisions: null == modelCapabilityProfileRevisions ? _self.modelCapabilityProfileRevisions : modelCapabilityProfileRevisions // ignore: cast_nullable_to_non_nullable
-as List<ModelCapabilityProfileRevision>,namedEndpoints: null == namedEndpoints ? _self.namedEndpoints : namedEndpoints // ignore: cast_nullable_to_non_nullable
-as List<NamedEndpoint>,idleMaintenanceEnabled: null == idleMaintenanceEnabled ? _self.idleMaintenanceEnabled : idleMaintenanceEnabled // ignore: cast_nullable_to_non_nullable
+as List<ModelCapabilityProfileRevision>,idleMaintenanceEnabled: null == idleMaintenanceEnabled ? _self.idleMaintenanceEnabled : idleMaintenanceEnabled // ignore: cast_nullable_to_non_nullable
 as bool,idleMaintenanceWindowStartMinutes: null == idleMaintenanceWindowStartMinutes ? _self.idleMaintenanceWindowStartMinutes : idleMaintenanceWindowStartMinutes // ignore: cast_nullable_to_non_nullable
 as int,idleMaintenanceWindowEndMinutes: null == idleMaintenanceWindowEndMinutes ? _self.idleMaintenanceWindowEndMinutes : idleMaintenanceWindowEndMinutes // ignore: cast_nullable_to_non_nullable
 as int,idleMaintenanceMinIdleMinutes: null == idleMaintenanceMinIdleMinutes ? _self.idleMaintenanceMinIdleMinutes : idleMaintenanceMinIdleMinutes // ignore: cast_nullable_to_non_nullable
@@ -2866,10 +2591,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey, @JsonKey(fromJson: _llmEndpointProfilesFromJson, toJson: _llmEndpointProfilesToJson)  List<LlmEndpointProfile> llmEndpointProfiles,  String activeLlmEndpointId,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String memoryExtractionEndpointId,  String subagentEndpointId,  String goalSuggestionEndpointId,  String approvalAutoReviewEndpointId,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool externalSettingsSyncEnabled,  String externalSettingsPath,  bool externalToolHooksEnabled, @JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson)  List<ExternalToolHook> externalToolHooks,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool enablePrefixStableToolLoop,  bool enableSemanticSearch,  String embeddingsModel,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool feedbackUploadEnabled,  String feedbackEndpointUrl,  String feedbackEndpointAuthToken,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist, @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson)  List<ModelCapabilityProfile> modelCapabilityProfiles, @JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson)  List<ModelHarnessConfig> modelHarnessConfigs, @JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson)  List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions, @JsonKey(fromJson: _namedEndpointsFromJson, toJson: _namedEndpointsToJson)  List<NamedEndpoint> namedEndpoints,  bool idleMaintenanceEnabled,  int idleMaintenanceWindowStartMinutes,  int idleMaintenanceWindowEndMinutes,  int idleMaintenanceMinIdleMinutes,  bool idleMaintenanceRequireAcPower)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey, @JsonKey(fromJson: _llmEndpointsFromJson, toJson: _llmEndpointsToJson)  List<LlmEndpoint> llmEndpoints,  String activeLlmEndpointId,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String memoryExtractionEndpointId,  String subagentEndpointId,  String goalSuggestionEndpointId,  String approvalAutoReviewEndpointId,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool externalSettingsSyncEnabled,  String externalSettingsPath,  bool externalToolHooksEnabled, @JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson)  List<ExternalToolHook> externalToolHooks,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool enablePrefixStableToolLoop,  bool enableSemanticSearch,  String embeddingsModel,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool feedbackUploadEnabled,  String feedbackEndpointUrl,  String feedbackEndpointAuthToken,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist, @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson)  List<ModelCapabilityProfile> modelCapabilityProfiles, @JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson)  List<ModelHarnessConfig> modelHarnessConfigs, @JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson)  List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions,  bool idleMaintenanceEnabled,  int idleMaintenanceWindowStartMinutes,  int idleMaintenanceWindowEndMinutes,  int idleMaintenanceMinIdleMinutes,  bool idleMaintenanceRequireAcPower)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.llmEndpointProfiles,_that.activeLlmEndpointId,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.memoryExtractionEndpointId,_that.subagentEndpointId,_that.goalSuggestionEndpointId,_that.approvalAutoReviewEndpointId,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.externalSettingsSyncEnabled,_that.externalSettingsPath,_that.externalToolHooksEnabled,_that.externalToolHooks,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.enablePrefixStableToolLoop,_that.enableSemanticSearch,_that.embeddingsModel,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.feedbackUploadEnabled,_that.feedbackEndpointUrl,_that.feedbackEndpointAuthToken,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist,_that.modelCapabilityProfiles,_that.modelHarnessConfigs,_that.modelCapabilityProfileRevisions,_that.namedEndpoints,_that.idleMaintenanceEnabled,_that.idleMaintenanceWindowStartMinutes,_that.idleMaintenanceWindowEndMinutes,_that.idleMaintenanceMinIdleMinutes,_that.idleMaintenanceRequireAcPower);case _:
+return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.llmEndpoints,_that.activeLlmEndpointId,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.memoryExtractionEndpointId,_that.subagentEndpointId,_that.goalSuggestionEndpointId,_that.approvalAutoReviewEndpointId,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.externalSettingsSyncEnabled,_that.externalSettingsPath,_that.externalToolHooksEnabled,_that.externalToolHooks,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.enablePrefixStableToolLoop,_that.enableSemanticSearch,_that.embeddingsModel,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.feedbackUploadEnabled,_that.feedbackEndpointUrl,_that.feedbackEndpointAuthToken,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist,_that.modelCapabilityProfiles,_that.modelHarnessConfigs,_that.modelCapabilityProfileRevisions,_that.idleMaintenanceEnabled,_that.idleMaintenanceWindowStartMinutes,_that.idleMaintenanceWindowEndMinutes,_that.idleMaintenanceMinIdleMinutes,_that.idleMaintenanceRequireAcPower);case _:
   return orElse();
 
 }
@@ -2887,10 +2612,10 @@ return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.l
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey, @JsonKey(fromJson: _llmEndpointProfilesFromJson, toJson: _llmEndpointProfilesToJson)  List<LlmEndpointProfile> llmEndpointProfiles,  String activeLlmEndpointId,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String memoryExtractionEndpointId,  String subagentEndpointId,  String goalSuggestionEndpointId,  String approvalAutoReviewEndpointId,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool externalSettingsSyncEnabled,  String externalSettingsPath,  bool externalToolHooksEnabled, @JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson)  List<ExternalToolHook> externalToolHooks,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool enablePrefixStableToolLoop,  bool enableSemanticSearch,  String embeddingsModel,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool feedbackUploadEnabled,  String feedbackEndpointUrl,  String feedbackEndpointAuthToken,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist, @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson)  List<ModelCapabilityProfile> modelCapabilityProfiles, @JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson)  List<ModelHarnessConfig> modelHarnessConfigs, @JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson)  List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions, @JsonKey(fromJson: _namedEndpointsFromJson, toJson: _namedEndpointsToJson)  List<NamedEndpoint> namedEndpoints,  bool idleMaintenanceEnabled,  int idleMaintenanceWindowStartMinutes,  int idleMaintenanceWindowEndMinutes,  int idleMaintenanceMinIdleMinutes,  bool idleMaintenanceRequireAcPower)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey, @JsonKey(fromJson: _llmEndpointsFromJson, toJson: _llmEndpointsToJson)  List<LlmEndpoint> llmEndpoints,  String activeLlmEndpointId,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String memoryExtractionEndpointId,  String subagentEndpointId,  String goalSuggestionEndpointId,  String approvalAutoReviewEndpointId,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool externalSettingsSyncEnabled,  String externalSettingsPath,  bool externalToolHooksEnabled, @JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson)  List<ExternalToolHook> externalToolHooks,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool enablePrefixStableToolLoop,  bool enableSemanticSearch,  String embeddingsModel,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool feedbackUploadEnabled,  String feedbackEndpointUrl,  String feedbackEndpointAuthToken,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist, @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson)  List<ModelCapabilityProfile> modelCapabilityProfiles, @JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson)  List<ModelHarnessConfig> modelHarnessConfigs, @JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson)  List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions,  bool idleMaintenanceEnabled,  int idleMaintenanceWindowStartMinutes,  int idleMaintenanceWindowEndMinutes,  int idleMaintenanceMinIdleMinutes,  bool idleMaintenanceRequireAcPower)  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings():
-return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.llmEndpointProfiles,_that.activeLlmEndpointId,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.memoryExtractionEndpointId,_that.subagentEndpointId,_that.goalSuggestionEndpointId,_that.approvalAutoReviewEndpointId,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.externalSettingsSyncEnabled,_that.externalSettingsPath,_that.externalToolHooksEnabled,_that.externalToolHooks,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.enablePrefixStableToolLoop,_that.enableSemanticSearch,_that.embeddingsModel,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.feedbackUploadEnabled,_that.feedbackEndpointUrl,_that.feedbackEndpointAuthToken,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist,_that.modelCapabilityProfiles,_that.modelHarnessConfigs,_that.modelCapabilityProfileRevisions,_that.namedEndpoints,_that.idleMaintenanceEnabled,_that.idleMaintenanceWindowStartMinutes,_that.idleMaintenanceWindowEndMinutes,_that.idleMaintenanceMinIdleMinutes,_that.idleMaintenanceRequireAcPower);case _:
+return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.llmEndpoints,_that.activeLlmEndpointId,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.memoryExtractionEndpointId,_that.subagentEndpointId,_that.goalSuggestionEndpointId,_that.approvalAutoReviewEndpointId,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.externalSettingsSyncEnabled,_that.externalSettingsPath,_that.externalToolHooksEnabled,_that.externalToolHooks,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.enablePrefixStableToolLoop,_that.enableSemanticSearch,_that.embeddingsModel,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.feedbackUploadEnabled,_that.feedbackEndpointUrl,_that.feedbackEndpointAuthToken,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist,_that.modelCapabilityProfiles,_that.modelHarnessConfigs,_that.modelCapabilityProfileRevisions,_that.idleMaintenanceEnabled,_that.idleMaintenanceWindowStartMinutes,_that.idleMaintenanceWindowEndMinutes,_that.idleMaintenanceMinIdleMinutes,_that.idleMaintenanceRequireAcPower);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -2907,10 +2632,10 @@ return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.l
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey, @JsonKey(fromJson: _llmEndpointProfilesFromJson, toJson: _llmEndpointProfilesToJson)  List<LlmEndpointProfile> llmEndpointProfiles,  String activeLlmEndpointId,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String memoryExtractionEndpointId,  String subagentEndpointId,  String goalSuggestionEndpointId,  String approvalAutoReviewEndpointId,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool externalSettingsSyncEnabled,  String externalSettingsPath,  bool externalToolHooksEnabled, @JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson)  List<ExternalToolHook> externalToolHooks,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool enablePrefixStableToolLoop,  bool enableSemanticSearch,  String embeddingsModel,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool feedbackUploadEnabled,  String feedbackEndpointUrl,  String feedbackEndpointAuthToken,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist, @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson)  List<ModelCapabilityProfile> modelCapabilityProfiles, @JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson)  List<ModelHarnessConfig> modelHarnessConfigs, @JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson)  List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions, @JsonKey(fromJson: _namedEndpointsFromJson, toJson: _namedEndpointsToJson)  List<NamedEndpoint> namedEndpoints,  bool idleMaintenanceEnabled,  int idleMaintenanceWindowStartMinutes,  int idleMaintenanceWindowEndMinutes,  int idleMaintenanceMinIdleMinutes,  bool idleMaintenanceRequireAcPower)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible)  LlmProvider llmProvider,  String baseUrl,  String model,  String apiKey, @JsonKey(fromJson: _llmEndpointsFromJson, toJson: _llmEndpointsToJson)  List<LlmEndpoint> llmEndpoints,  String activeLlmEndpointId,  double temperature,  int maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)  ReasoningEffortPreference reasoningEffort,  String memoryExtractionModel,  String subagentModel,  String goalSuggestionModel,  String approvalAutoReviewModel,  String memoryExtractionEndpointId,  String subagentEndpointId,  String goalSuggestionEndpointId,  String approvalAutoReviewEndpointId,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool externalSettingsSyncEnabled,  String externalSettingsPath,  bool externalToolHooksEnabled, @JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson)  List<ExternalToolHook> externalToolHooks,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode codingApprovalMode, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions)  ToolApprovalMode chatApprovalMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool enableCodingVerificationFeedback, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim)  CodingVerificationTriggerPolicy codingVerificationTriggerPolicy,  int codingVerificationTimeoutSeconds,  int codingVerificationMaxFailures,  bool enableAgentsMd,  bool enablePrefixStableToolLoop,  bool enableSemanticSearch,  String embeddingsModel,  bool showMemoryUpdates,  bool enableLlmSessionLogs,  bool feedbackUploadEnabled,  String feedbackEndpointUrl,  String feedbackEndpointAuthToken,  bool demoMode,  bool onboardingCompleted,  bool browserToolsEnabled,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist, @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson)  List<ModelCapabilityProfile> modelCapabilityProfiles, @JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson)  List<ModelHarnessConfig> modelHarnessConfigs, @JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson)  List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions,  bool idleMaintenanceEnabled,  int idleMaintenanceWindowStartMinutes,  int idleMaintenanceWindowEndMinutes,  int idleMaintenanceMinIdleMinutes,  bool idleMaintenanceRequireAcPower)?  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.llmEndpointProfiles,_that.activeLlmEndpointId,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.memoryExtractionEndpointId,_that.subagentEndpointId,_that.goalSuggestionEndpointId,_that.approvalAutoReviewEndpointId,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.externalSettingsSyncEnabled,_that.externalSettingsPath,_that.externalToolHooksEnabled,_that.externalToolHooks,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.enablePrefixStableToolLoop,_that.enableSemanticSearch,_that.embeddingsModel,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.feedbackUploadEnabled,_that.feedbackEndpointUrl,_that.feedbackEndpointAuthToken,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist,_that.modelCapabilityProfiles,_that.modelHarnessConfigs,_that.modelCapabilityProfileRevisions,_that.namedEndpoints,_that.idleMaintenanceEnabled,_that.idleMaintenanceWindowStartMinutes,_that.idleMaintenanceWindowEndMinutes,_that.idleMaintenanceMinIdleMinutes,_that.idleMaintenanceRequireAcPower);case _:
+return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.llmEndpoints,_that.activeLlmEndpointId,_that.temperature,_that.maxTokens,_that.reasoningEffort,_that.memoryExtractionModel,_that.subagentModel,_that.goalSuggestionModel,_that.approvalAutoReviewModel,_that.memoryExtractionEndpointId,_that.subagentEndpointId,_that.goalSuggestionEndpointId,_that.approvalAutoReviewEndpointId,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.externalSettingsSyncEnabled,_that.externalSettingsPath,_that.externalToolHooksEnabled,_that.externalToolHooks,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.codingApprovalMode,_that.chatApprovalMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.enableCodingVerificationFeedback,_that.codingVerificationTriggerPolicy,_that.codingVerificationTimeoutSeconds,_that.codingVerificationMaxFailures,_that.enableAgentsMd,_that.enablePrefixStableToolLoop,_that.enableSemanticSearch,_that.embeddingsModel,_that.showMemoryUpdates,_that.enableLlmSessionLogs,_that.feedbackUploadEnabled,_that.feedbackEndpointUrl,_that.feedbackEndpointAuthToken,_that.demoMode,_that.onboardingCompleted,_that.browserToolsEnabled,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist,_that.modelCapabilityProfiles,_that.modelHarnessConfigs,_that.modelCapabilityProfileRevisions,_that.idleMaintenanceEnabled,_that.idleMaintenanceWindowStartMinutes,_that.idleMaintenanceWindowEndMinutes,_that.idleMaintenanceMinIdleMinutes,_that.idleMaintenanceRequireAcPower);case _:
   return null;
 
 }
@@ -2922,7 +2647,7 @@ return $default(_that.llmProvider,_that.baseUrl,_that.model,_that.apiKey,_that.l
 @JsonSerializable()
 
 class _AppSettings extends AppSettings {
-  const _AppSettings({@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.llmProvider = LlmProvider.openAiCompatible, required this.baseUrl, required this.model, required this.apiKey, @JsonKey(fromJson: _llmEndpointProfilesFromJson, toJson: _llmEndpointProfilesToJson) final  List<LlmEndpointProfile> llmEndpointProfiles = const <LlmEndpointProfile>[], this.activeLlmEndpointId = '', required this.temperature, required this.maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) this.reasoningEffort = ReasoningEffortPreference.automatic, this.memoryExtractionModel = '', this.subagentModel = '', this.goalSuggestionModel = '', this.approvalAutoReviewModel = '', this.memoryExtractionEndpointId = '', this.subagentEndpointId = '', this.goalSuggestionEndpointId = '', this.approvalAutoReviewEndpointId = '', this.googleChatWebhookUrl = '', this.mcpUrl = '', final  List<String> mcpUrls = const <String>[], final  List<McpServerConfig> mcpServers = const <McpServerConfig>[], this.mcpEnabled = false, this.externalSettingsSyncEnabled = false, this.externalSettingsPath = '~/.caverno/config.json', this.externalToolHooksEnabled = false, @JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson) final  List<ExternalToolHook> externalToolHooks = const <ExternalToolHook>[], this.ttsEnabled = true, this.autoReadEnabled = false, this.speechRate = 0.5, this.voiceModeAutoStop = true, this.whisperUrl = 'http://localhost:8080', this.voicevoxUrl = 'http://localhost:50021', this.voicevoxSpeakerId = 0, this.language = 'system', @JsonKey(unknownEnumValue: AssistantMode.general) this.assistantMode = AssistantMode.general, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) this.codingApprovalMode = ToolApprovalMode.defaultPermissions, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) this.chatApprovalMode = ToolApprovalMode.defaultPermissions, this.confirmFileMutations = true, this.confirmLocalCommands = true, this.confirmGitWrites = true, this.enableCodingVerificationFeedback = true, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) this.codingVerificationTriggerPolicy = CodingVerificationTriggerPolicy.onCompletionClaim, this.codingVerificationTimeoutSeconds = 90, this.codingVerificationMaxFailures = 5, this.enableAgentsMd = true, this.enablePrefixStableToolLoop = false, this.enableSemanticSearch = false, this.embeddingsModel = '', this.showMemoryUpdates = false, this.enableLlmSessionLogs = true, this.feedbackUploadEnabled = true, this.feedbackEndpointUrl = defaultFeedbackEndpointUrl, this.feedbackEndpointAuthToken = '', this.demoMode = false, this.onboardingCompleted = false, this.browserToolsEnabled = false, final  List<String> disabledBuiltInTools = const <String>[], final  List<LocalCommandPermissionRule> localCommandPermissionRules = const <LocalCommandPermissionRule>[], final  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist = const <RoutineComputerUseActionAllowlistEntry>[], @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) final  List<ModelCapabilityProfile> modelCapabilityProfiles = const <ModelCapabilityProfile>[], @JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson) final  List<ModelHarnessConfig> modelHarnessConfigs = const <ModelHarnessConfig>[], @JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson) final  List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions = const <ModelCapabilityProfileRevision>[], @JsonKey(fromJson: _namedEndpointsFromJson, toJson: _namedEndpointsToJson) final  List<NamedEndpoint> namedEndpoints = const <NamedEndpoint>[], this.idleMaintenanceEnabled = false, this.idleMaintenanceWindowStartMinutes = 120, this.idleMaintenanceWindowEndMinutes = 360, this.idleMaintenanceMinIdleMinutes = 10, this.idleMaintenanceRequireAcPower = true}): _llmEndpointProfiles = llmEndpointProfiles,_mcpUrls = mcpUrls,_mcpServers = mcpServers,_externalToolHooks = externalToolHooks,_disabledBuiltInTools = disabledBuiltInTools,_localCommandPermissionRules = localCommandPermissionRules,_routineComputerUseActionAllowlist = routineComputerUseActionAllowlist,_modelCapabilityProfiles = modelCapabilityProfiles,_modelHarnessConfigs = modelHarnessConfigs,_modelCapabilityProfileRevisions = modelCapabilityProfileRevisions,_namedEndpoints = namedEndpoints,super._();
+  const _AppSettings({@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) this.llmProvider = LlmProvider.openAiCompatible, required this.baseUrl, required this.model, required this.apiKey, @JsonKey(fromJson: _llmEndpointsFromJson, toJson: _llmEndpointsToJson) final  List<LlmEndpoint> llmEndpoints = const <LlmEndpoint>[], this.activeLlmEndpointId = '', required this.temperature, required this.maxTokens, @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) this.reasoningEffort = ReasoningEffortPreference.automatic, this.memoryExtractionModel = '', this.subagentModel = '', this.goalSuggestionModel = '', this.approvalAutoReviewModel = '', this.memoryExtractionEndpointId = '', this.subagentEndpointId = '', this.goalSuggestionEndpointId = '', this.approvalAutoReviewEndpointId = '', this.googleChatWebhookUrl = '', this.mcpUrl = '', final  List<String> mcpUrls = const <String>[], final  List<McpServerConfig> mcpServers = const <McpServerConfig>[], this.mcpEnabled = false, this.externalSettingsSyncEnabled = false, this.externalSettingsPath = '~/.caverno/config.json', this.externalToolHooksEnabled = false, @JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson) final  List<ExternalToolHook> externalToolHooks = const <ExternalToolHook>[], this.ttsEnabled = true, this.autoReadEnabled = false, this.speechRate = 0.5, this.voiceModeAutoStop = true, this.whisperUrl = 'http://localhost:8080', this.voicevoxUrl = 'http://localhost:50021', this.voicevoxSpeakerId = 0, this.language = 'system', @JsonKey(unknownEnumValue: AssistantMode.general) this.assistantMode = AssistantMode.general, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) this.codingApprovalMode = ToolApprovalMode.defaultPermissions, @JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) this.chatApprovalMode = ToolApprovalMode.defaultPermissions, this.confirmFileMutations = true, this.confirmLocalCommands = true, this.confirmGitWrites = true, this.enableCodingVerificationFeedback = true, @JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) this.codingVerificationTriggerPolicy = CodingVerificationTriggerPolicy.onCompletionClaim, this.codingVerificationTimeoutSeconds = 90, this.codingVerificationMaxFailures = 5, this.enableAgentsMd = true, this.enablePrefixStableToolLoop = false, this.enableSemanticSearch = false, this.embeddingsModel = '', this.showMemoryUpdates = false, this.enableLlmSessionLogs = true, this.feedbackUploadEnabled = true, this.feedbackEndpointUrl = defaultFeedbackEndpointUrl, this.feedbackEndpointAuthToken = '', this.demoMode = false, this.onboardingCompleted = false, this.browserToolsEnabled = false, final  List<String> disabledBuiltInTools = const <String>[], final  List<LocalCommandPermissionRule> localCommandPermissionRules = const <LocalCommandPermissionRule>[], final  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist = const <RoutineComputerUseActionAllowlistEntry>[], @JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) final  List<ModelCapabilityProfile> modelCapabilityProfiles = const <ModelCapabilityProfile>[], @JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson) final  List<ModelHarnessConfig> modelHarnessConfigs = const <ModelHarnessConfig>[], @JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson) final  List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions = const <ModelCapabilityProfileRevision>[], this.idleMaintenanceEnabled = false, this.idleMaintenanceWindowStartMinutes = 120, this.idleMaintenanceWindowEndMinutes = 360, this.idleMaintenanceMinIdleMinutes = 10, this.idleMaintenanceRequireAcPower = true}): _llmEndpoints = llmEndpoints,_mcpUrls = mcpUrls,_mcpServers = mcpServers,_externalToolHooks = externalToolHooks,_disabledBuiltInTools = disabledBuiltInTools,_localCommandPermissionRules = localCommandPermissionRules,_routineComputerUseActionAllowlist = routineComputerUseActionAllowlist,_modelCapabilityProfiles = modelCapabilityProfiles,_modelHarnessConfigs = modelHarnessConfigs,_modelCapabilityProfileRevisions = modelCapabilityProfileRevisions,super._();
   factory _AppSettings.fromJson(Map<String, dynamic> json) => _$AppSettingsFromJson(json);
 
 @override@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) final  LlmProvider llmProvider;
@@ -2932,16 +2657,16 @@ class _AppSettings extends AppSettings {
 // Saved primary endpoints the user can switch between. The entry whose id
 // is [activeLlmEndpointId] mirrors [baseUrl] / [apiKey] / [model]; the rest
 // are inactive presets. Kept in sync by
-// [AppSettings.withNormalizedLlmEndpointProfiles].
- final  List<LlmEndpointProfile> _llmEndpointProfiles;
+// [AppSettings.withNormalizedLlmEndpoints].
+ final  List<LlmEndpoint> _llmEndpoints;
 // Saved primary endpoints the user can switch between. The entry whose id
 // is [activeLlmEndpointId] mirrors [baseUrl] / [apiKey] / [model]; the rest
 // are inactive presets. Kept in sync by
-// [AppSettings.withNormalizedLlmEndpointProfiles].
-@override@JsonKey(fromJson: _llmEndpointProfilesFromJson, toJson: _llmEndpointProfilesToJson) List<LlmEndpointProfile> get llmEndpointProfiles {
-  if (_llmEndpointProfiles is EqualUnmodifiableListView) return _llmEndpointProfiles;
+// [AppSettings.withNormalizedLlmEndpoints].
+@override@JsonKey(fromJson: _llmEndpointsFromJson, toJson: _llmEndpointsToJson) List<LlmEndpoint> get llmEndpoints {
+  if (_llmEndpoints is EqualUnmodifiableListView) return _llmEndpoints;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_llmEndpointProfiles);
+  return EqualUnmodifiableListView(_llmEndpoints);
 }
 
 @override@JsonKey() final  String activeLlmEndpointId;
@@ -2955,7 +2680,7 @@ class _AppSettings extends AppSettings {
 @override@JsonKey() final  String goalSuggestionModel;
 @override@JsonKey() final  String approvalAutoReviewModel;
 // LL8 per-role endpoint routing. Empty string means "use the primary
-// endpoint". A non-empty value is a NamedEndpoint id; an unreachable mesh
+// endpoint". A non-empty value is a LlmEndpoint id; an unreachable mesh
 // endpoint falls back to the primary at call time (MeshEndpointRouter).
 @override@JsonKey() final  String memoryExtractionEndpointId;
 @override@JsonKey() final  String subagentEndpointId;
@@ -3067,17 +2792,6 @@ class _AppSettings extends AppSettings {
   return EqualUnmodifiableListView(_modelCapabilityProfileRevisions);
 }
 
-// LL8: user-registered LAN inference endpoints (the mesh). Discovery only
-// proposes candidates; entries here are explicitly registered.
- final  List<NamedEndpoint> _namedEndpoints;
-// LL8: user-registered LAN inference endpoints (the mesh). Discovery only
-// proposes candidates; entries here are explicitly registered.
-@override@JsonKey(fromJson: _namedEndpointsFromJson, toJson: _namedEndpointsToJson) List<NamedEndpoint> get namedEndpoints {
-  if (_namedEndpoints is EqualUnmodifiableListView) return _namedEndpoints;
-  // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_namedEndpoints);
-}
-
 // LL18 idle/overnight maintenance gating (consumed via the maintenance
 // feature's IdleMaintenanceConfig; minutes are since local midnight).
 @override@JsonKey() final  bool idleMaintenanceEnabled;
@@ -3099,16 +2813,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.llmProvider, llmProvider) || other.llmProvider == llmProvider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&const DeepCollectionEquality().equals(other._llmEndpointProfiles, _llmEndpointProfiles)&&(identical(other.activeLlmEndpointId, activeLlmEndpointId) || other.activeLlmEndpointId == activeLlmEndpointId)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.reasoningEffort, reasoningEffort) || other.reasoningEffort == reasoningEffort)&&(identical(other.memoryExtractionModel, memoryExtractionModel) || other.memoryExtractionModel == memoryExtractionModel)&&(identical(other.subagentModel, subagentModel) || other.subagentModel == subagentModel)&&(identical(other.goalSuggestionModel, goalSuggestionModel) || other.goalSuggestionModel == goalSuggestionModel)&&(identical(other.approvalAutoReviewModel, approvalAutoReviewModel) || other.approvalAutoReviewModel == approvalAutoReviewModel)&&(identical(other.memoryExtractionEndpointId, memoryExtractionEndpointId) || other.memoryExtractionEndpointId == memoryExtractionEndpointId)&&(identical(other.subagentEndpointId, subagentEndpointId) || other.subagentEndpointId == subagentEndpointId)&&(identical(other.goalSuggestionEndpointId, goalSuggestionEndpointId) || other.goalSuggestionEndpointId == goalSuggestionEndpointId)&&(identical(other.approvalAutoReviewEndpointId, approvalAutoReviewEndpointId) || other.approvalAutoReviewEndpointId == approvalAutoReviewEndpointId)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other._mcpUrls, _mcpUrls)&&const DeepCollectionEquality().equals(other._mcpServers, _mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.externalSettingsSyncEnabled, externalSettingsSyncEnabled) || other.externalSettingsSyncEnabled == externalSettingsSyncEnabled)&&(identical(other.externalSettingsPath, externalSettingsPath) || other.externalSettingsPath == externalSettingsPath)&&(identical(other.externalToolHooksEnabled, externalToolHooksEnabled) || other.externalToolHooksEnabled == externalToolHooksEnabled)&&const DeepCollectionEquality().equals(other._externalToolHooks, _externalToolHooks)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.codingApprovalMode, codingApprovalMode) || other.codingApprovalMode == codingApprovalMode)&&(identical(other.chatApprovalMode, chatApprovalMode) || other.chatApprovalMode == chatApprovalMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.enableCodingVerificationFeedback, enableCodingVerificationFeedback) || other.enableCodingVerificationFeedback == enableCodingVerificationFeedback)&&(identical(other.codingVerificationTriggerPolicy, codingVerificationTriggerPolicy) || other.codingVerificationTriggerPolicy == codingVerificationTriggerPolicy)&&(identical(other.codingVerificationTimeoutSeconds, codingVerificationTimeoutSeconds) || other.codingVerificationTimeoutSeconds == codingVerificationTimeoutSeconds)&&(identical(other.codingVerificationMaxFailures, codingVerificationMaxFailures) || other.codingVerificationMaxFailures == codingVerificationMaxFailures)&&(identical(other.enableAgentsMd, enableAgentsMd) || other.enableAgentsMd == enableAgentsMd)&&(identical(other.enablePrefixStableToolLoop, enablePrefixStableToolLoop) || other.enablePrefixStableToolLoop == enablePrefixStableToolLoop)&&(identical(other.enableSemanticSearch, enableSemanticSearch) || other.enableSemanticSearch == enableSemanticSearch)&&(identical(other.embeddingsModel, embeddingsModel) || other.embeddingsModel == embeddingsModel)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.enableLlmSessionLogs, enableLlmSessionLogs) || other.enableLlmSessionLogs == enableLlmSessionLogs)&&(identical(other.feedbackUploadEnabled, feedbackUploadEnabled) || other.feedbackUploadEnabled == feedbackUploadEnabled)&&(identical(other.feedbackEndpointUrl, feedbackEndpointUrl) || other.feedbackEndpointUrl == feedbackEndpointUrl)&&(identical(other.feedbackEndpointAuthToken, feedbackEndpointAuthToken) || other.feedbackEndpointAuthToken == feedbackEndpointAuthToken)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&(identical(other.onboardingCompleted, onboardingCompleted) || other.onboardingCompleted == onboardingCompleted)&&(identical(other.browserToolsEnabled, browserToolsEnabled) || other.browserToolsEnabled == browserToolsEnabled)&&const DeepCollectionEquality().equals(other._disabledBuiltInTools, _disabledBuiltInTools)&&const DeepCollectionEquality().equals(other._localCommandPermissionRules, _localCommandPermissionRules)&&const DeepCollectionEquality().equals(other._routineComputerUseActionAllowlist, _routineComputerUseActionAllowlist)&&const DeepCollectionEquality().equals(other._modelCapabilityProfiles, _modelCapabilityProfiles)&&const DeepCollectionEquality().equals(other._modelHarnessConfigs, _modelHarnessConfigs)&&const DeepCollectionEquality().equals(other._modelCapabilityProfileRevisions, _modelCapabilityProfileRevisions)&&const DeepCollectionEquality().equals(other._namedEndpoints, _namedEndpoints)&&(identical(other.idleMaintenanceEnabled, idleMaintenanceEnabled) || other.idleMaintenanceEnabled == idleMaintenanceEnabled)&&(identical(other.idleMaintenanceWindowStartMinutes, idleMaintenanceWindowStartMinutes) || other.idleMaintenanceWindowStartMinutes == idleMaintenanceWindowStartMinutes)&&(identical(other.idleMaintenanceWindowEndMinutes, idleMaintenanceWindowEndMinutes) || other.idleMaintenanceWindowEndMinutes == idleMaintenanceWindowEndMinutes)&&(identical(other.idleMaintenanceMinIdleMinutes, idleMaintenanceMinIdleMinutes) || other.idleMaintenanceMinIdleMinutes == idleMaintenanceMinIdleMinutes)&&(identical(other.idleMaintenanceRequireAcPower, idleMaintenanceRequireAcPower) || other.idleMaintenanceRequireAcPower == idleMaintenanceRequireAcPower));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.llmProvider, llmProvider) || other.llmProvider == llmProvider)&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&const DeepCollectionEquality().equals(other._llmEndpoints, _llmEndpoints)&&(identical(other.activeLlmEndpointId, activeLlmEndpointId) || other.activeLlmEndpointId == activeLlmEndpointId)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.reasoningEffort, reasoningEffort) || other.reasoningEffort == reasoningEffort)&&(identical(other.memoryExtractionModel, memoryExtractionModel) || other.memoryExtractionModel == memoryExtractionModel)&&(identical(other.subagentModel, subagentModel) || other.subagentModel == subagentModel)&&(identical(other.goalSuggestionModel, goalSuggestionModel) || other.goalSuggestionModel == goalSuggestionModel)&&(identical(other.approvalAutoReviewModel, approvalAutoReviewModel) || other.approvalAutoReviewModel == approvalAutoReviewModel)&&(identical(other.memoryExtractionEndpointId, memoryExtractionEndpointId) || other.memoryExtractionEndpointId == memoryExtractionEndpointId)&&(identical(other.subagentEndpointId, subagentEndpointId) || other.subagentEndpointId == subagentEndpointId)&&(identical(other.goalSuggestionEndpointId, goalSuggestionEndpointId) || other.goalSuggestionEndpointId == goalSuggestionEndpointId)&&(identical(other.approvalAutoReviewEndpointId, approvalAutoReviewEndpointId) || other.approvalAutoReviewEndpointId == approvalAutoReviewEndpointId)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other._mcpUrls, _mcpUrls)&&const DeepCollectionEquality().equals(other._mcpServers, _mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.externalSettingsSyncEnabled, externalSettingsSyncEnabled) || other.externalSettingsSyncEnabled == externalSettingsSyncEnabled)&&(identical(other.externalSettingsPath, externalSettingsPath) || other.externalSettingsPath == externalSettingsPath)&&(identical(other.externalToolHooksEnabled, externalToolHooksEnabled) || other.externalToolHooksEnabled == externalToolHooksEnabled)&&const DeepCollectionEquality().equals(other._externalToolHooks, _externalToolHooks)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.codingApprovalMode, codingApprovalMode) || other.codingApprovalMode == codingApprovalMode)&&(identical(other.chatApprovalMode, chatApprovalMode) || other.chatApprovalMode == chatApprovalMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.enableCodingVerificationFeedback, enableCodingVerificationFeedback) || other.enableCodingVerificationFeedback == enableCodingVerificationFeedback)&&(identical(other.codingVerificationTriggerPolicy, codingVerificationTriggerPolicy) || other.codingVerificationTriggerPolicy == codingVerificationTriggerPolicy)&&(identical(other.codingVerificationTimeoutSeconds, codingVerificationTimeoutSeconds) || other.codingVerificationTimeoutSeconds == codingVerificationTimeoutSeconds)&&(identical(other.codingVerificationMaxFailures, codingVerificationMaxFailures) || other.codingVerificationMaxFailures == codingVerificationMaxFailures)&&(identical(other.enableAgentsMd, enableAgentsMd) || other.enableAgentsMd == enableAgentsMd)&&(identical(other.enablePrefixStableToolLoop, enablePrefixStableToolLoop) || other.enablePrefixStableToolLoop == enablePrefixStableToolLoop)&&(identical(other.enableSemanticSearch, enableSemanticSearch) || other.enableSemanticSearch == enableSemanticSearch)&&(identical(other.embeddingsModel, embeddingsModel) || other.embeddingsModel == embeddingsModel)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.enableLlmSessionLogs, enableLlmSessionLogs) || other.enableLlmSessionLogs == enableLlmSessionLogs)&&(identical(other.feedbackUploadEnabled, feedbackUploadEnabled) || other.feedbackUploadEnabled == feedbackUploadEnabled)&&(identical(other.feedbackEndpointUrl, feedbackEndpointUrl) || other.feedbackEndpointUrl == feedbackEndpointUrl)&&(identical(other.feedbackEndpointAuthToken, feedbackEndpointAuthToken) || other.feedbackEndpointAuthToken == feedbackEndpointAuthToken)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&(identical(other.onboardingCompleted, onboardingCompleted) || other.onboardingCompleted == onboardingCompleted)&&(identical(other.browserToolsEnabled, browserToolsEnabled) || other.browserToolsEnabled == browserToolsEnabled)&&const DeepCollectionEquality().equals(other._disabledBuiltInTools, _disabledBuiltInTools)&&const DeepCollectionEquality().equals(other._localCommandPermissionRules, _localCommandPermissionRules)&&const DeepCollectionEquality().equals(other._routineComputerUseActionAllowlist, _routineComputerUseActionAllowlist)&&const DeepCollectionEquality().equals(other._modelCapabilityProfiles, _modelCapabilityProfiles)&&const DeepCollectionEquality().equals(other._modelHarnessConfigs, _modelHarnessConfigs)&&const DeepCollectionEquality().equals(other._modelCapabilityProfileRevisions, _modelCapabilityProfileRevisions)&&(identical(other.idleMaintenanceEnabled, idleMaintenanceEnabled) || other.idleMaintenanceEnabled == idleMaintenanceEnabled)&&(identical(other.idleMaintenanceWindowStartMinutes, idleMaintenanceWindowStartMinutes) || other.idleMaintenanceWindowStartMinutes == idleMaintenanceWindowStartMinutes)&&(identical(other.idleMaintenanceWindowEndMinutes, idleMaintenanceWindowEndMinutes) || other.idleMaintenanceWindowEndMinutes == idleMaintenanceWindowEndMinutes)&&(identical(other.idleMaintenanceMinIdleMinutes, idleMaintenanceMinIdleMinutes) || other.idleMaintenanceMinIdleMinutes == idleMaintenanceMinIdleMinutes)&&(identical(other.idleMaintenanceRequireAcPower, idleMaintenanceRequireAcPower) || other.idleMaintenanceRequireAcPower == idleMaintenanceRequireAcPower));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,llmProvider,baseUrl,model,apiKey,const DeepCollectionEquality().hash(_llmEndpointProfiles),activeLlmEndpointId,temperature,maxTokens,reasoningEffort,memoryExtractionModel,subagentModel,goalSuggestionModel,approvalAutoReviewModel,memoryExtractionEndpointId,subagentEndpointId,goalSuggestionEndpointId,approvalAutoReviewEndpointId,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(_mcpUrls),const DeepCollectionEquality().hash(_mcpServers),mcpEnabled,externalSettingsSyncEnabled,externalSettingsPath,externalToolHooksEnabled,const DeepCollectionEquality().hash(_externalToolHooks),ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,codingApprovalMode,chatApprovalMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,enableCodingVerificationFeedback,codingVerificationTriggerPolicy,codingVerificationTimeoutSeconds,codingVerificationMaxFailures,enableAgentsMd,enablePrefixStableToolLoop,enableSemanticSearch,embeddingsModel,showMemoryUpdates,enableLlmSessionLogs,feedbackUploadEnabled,feedbackEndpointUrl,feedbackEndpointAuthToken,demoMode,onboardingCompleted,browserToolsEnabled,const DeepCollectionEquality().hash(_disabledBuiltInTools),const DeepCollectionEquality().hash(_localCommandPermissionRules),const DeepCollectionEquality().hash(_routineComputerUseActionAllowlist),const DeepCollectionEquality().hash(_modelCapabilityProfiles),const DeepCollectionEquality().hash(_modelHarnessConfigs),const DeepCollectionEquality().hash(_modelCapabilityProfileRevisions),const DeepCollectionEquality().hash(_namedEndpoints),idleMaintenanceEnabled,idleMaintenanceWindowStartMinutes,idleMaintenanceWindowEndMinutes,idleMaintenanceMinIdleMinutes,idleMaintenanceRequireAcPower]);
+int get hashCode => Object.hashAll([runtimeType,llmProvider,baseUrl,model,apiKey,const DeepCollectionEquality().hash(_llmEndpoints),activeLlmEndpointId,temperature,maxTokens,reasoningEffort,memoryExtractionModel,subagentModel,goalSuggestionModel,approvalAutoReviewModel,memoryExtractionEndpointId,subagentEndpointId,goalSuggestionEndpointId,approvalAutoReviewEndpointId,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(_mcpUrls),const DeepCollectionEquality().hash(_mcpServers),mcpEnabled,externalSettingsSyncEnabled,externalSettingsPath,externalToolHooksEnabled,const DeepCollectionEquality().hash(_externalToolHooks),ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,codingApprovalMode,chatApprovalMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,enableCodingVerificationFeedback,codingVerificationTriggerPolicy,codingVerificationTimeoutSeconds,codingVerificationMaxFailures,enableAgentsMd,enablePrefixStableToolLoop,enableSemanticSearch,embeddingsModel,showMemoryUpdates,enableLlmSessionLogs,feedbackUploadEnabled,feedbackEndpointUrl,feedbackEndpointAuthToken,demoMode,onboardingCompleted,browserToolsEnabled,const DeepCollectionEquality().hash(_disabledBuiltInTools),const DeepCollectionEquality().hash(_localCommandPermissionRules),const DeepCollectionEquality().hash(_routineComputerUseActionAllowlist),const DeepCollectionEquality().hash(_modelCapabilityProfiles),const DeepCollectionEquality().hash(_modelHarnessConfigs),const DeepCollectionEquality().hash(_modelCapabilityProfileRevisions),idleMaintenanceEnabled,idleMaintenanceWindowStartMinutes,idleMaintenanceWindowEndMinutes,idleMaintenanceMinIdleMinutes,idleMaintenanceRequireAcPower]);
 
 @override
 String toString() {
-  return 'AppSettings(llmProvider: $llmProvider, baseUrl: $baseUrl, model: $model, apiKey: $apiKey, llmEndpointProfiles: $llmEndpointProfiles, activeLlmEndpointId: $activeLlmEndpointId, temperature: $temperature, maxTokens: $maxTokens, reasoningEffort: $reasoningEffort, memoryExtractionModel: $memoryExtractionModel, subagentModel: $subagentModel, goalSuggestionModel: $goalSuggestionModel, approvalAutoReviewModel: $approvalAutoReviewModel, memoryExtractionEndpointId: $memoryExtractionEndpointId, subagentEndpointId: $subagentEndpointId, goalSuggestionEndpointId: $goalSuggestionEndpointId, approvalAutoReviewEndpointId: $approvalAutoReviewEndpointId, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, externalSettingsSyncEnabled: $externalSettingsSyncEnabled, externalSettingsPath: $externalSettingsPath, externalToolHooksEnabled: $externalToolHooksEnabled, externalToolHooks: $externalToolHooks, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, codingApprovalMode: $codingApprovalMode, chatApprovalMode: $chatApprovalMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, enableCodingVerificationFeedback: $enableCodingVerificationFeedback, codingVerificationTriggerPolicy: $codingVerificationTriggerPolicy, codingVerificationTimeoutSeconds: $codingVerificationTimeoutSeconds, codingVerificationMaxFailures: $codingVerificationMaxFailures, enableAgentsMd: $enableAgentsMd, enablePrefixStableToolLoop: $enablePrefixStableToolLoop, enableSemanticSearch: $enableSemanticSearch, embeddingsModel: $embeddingsModel, showMemoryUpdates: $showMemoryUpdates, enableLlmSessionLogs: $enableLlmSessionLogs, feedbackUploadEnabled: $feedbackUploadEnabled, feedbackEndpointUrl: $feedbackEndpointUrl, feedbackEndpointAuthToken: $feedbackEndpointAuthToken, demoMode: $demoMode, onboardingCompleted: $onboardingCompleted, browserToolsEnabled: $browserToolsEnabled, disabledBuiltInTools: $disabledBuiltInTools, localCommandPermissionRules: $localCommandPermissionRules, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist, modelCapabilityProfiles: $modelCapabilityProfiles, modelHarnessConfigs: $modelHarnessConfigs, modelCapabilityProfileRevisions: $modelCapabilityProfileRevisions, namedEndpoints: $namedEndpoints, idleMaintenanceEnabled: $idleMaintenanceEnabled, idleMaintenanceWindowStartMinutes: $idleMaintenanceWindowStartMinutes, idleMaintenanceWindowEndMinutes: $idleMaintenanceWindowEndMinutes, idleMaintenanceMinIdleMinutes: $idleMaintenanceMinIdleMinutes, idleMaintenanceRequireAcPower: $idleMaintenanceRequireAcPower)';
+  return 'AppSettings(llmProvider: $llmProvider, baseUrl: $baseUrl, model: $model, apiKey: $apiKey, llmEndpoints: $llmEndpoints, activeLlmEndpointId: $activeLlmEndpointId, temperature: $temperature, maxTokens: $maxTokens, reasoningEffort: $reasoningEffort, memoryExtractionModel: $memoryExtractionModel, subagentModel: $subagentModel, goalSuggestionModel: $goalSuggestionModel, approvalAutoReviewModel: $approvalAutoReviewModel, memoryExtractionEndpointId: $memoryExtractionEndpointId, subagentEndpointId: $subagentEndpointId, goalSuggestionEndpointId: $goalSuggestionEndpointId, approvalAutoReviewEndpointId: $approvalAutoReviewEndpointId, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, externalSettingsSyncEnabled: $externalSettingsSyncEnabled, externalSettingsPath: $externalSettingsPath, externalToolHooksEnabled: $externalToolHooksEnabled, externalToolHooks: $externalToolHooks, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, codingApprovalMode: $codingApprovalMode, chatApprovalMode: $chatApprovalMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, enableCodingVerificationFeedback: $enableCodingVerificationFeedback, codingVerificationTriggerPolicy: $codingVerificationTriggerPolicy, codingVerificationTimeoutSeconds: $codingVerificationTimeoutSeconds, codingVerificationMaxFailures: $codingVerificationMaxFailures, enableAgentsMd: $enableAgentsMd, enablePrefixStableToolLoop: $enablePrefixStableToolLoop, enableSemanticSearch: $enableSemanticSearch, embeddingsModel: $embeddingsModel, showMemoryUpdates: $showMemoryUpdates, enableLlmSessionLogs: $enableLlmSessionLogs, feedbackUploadEnabled: $feedbackUploadEnabled, feedbackEndpointUrl: $feedbackEndpointUrl, feedbackEndpointAuthToken: $feedbackEndpointAuthToken, demoMode: $demoMode, onboardingCompleted: $onboardingCompleted, browserToolsEnabled: $browserToolsEnabled, disabledBuiltInTools: $disabledBuiltInTools, localCommandPermissionRules: $localCommandPermissionRules, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist, modelCapabilityProfiles: $modelCapabilityProfiles, modelHarnessConfigs: $modelHarnessConfigs, modelCapabilityProfileRevisions: $modelCapabilityProfileRevisions, idleMaintenanceEnabled: $idleMaintenanceEnabled, idleMaintenanceWindowStartMinutes: $idleMaintenanceWindowStartMinutes, idleMaintenanceWindowEndMinutes: $idleMaintenanceWindowEndMinutes, idleMaintenanceMinIdleMinutes: $idleMaintenanceMinIdleMinutes, idleMaintenanceRequireAcPower: $idleMaintenanceRequireAcPower)';
 }
 
 
@@ -3119,7 +2833,7 @@ abstract mixin class _$AppSettingsCopyWith<$Res> implements $AppSettingsCopyWith
   factory _$AppSettingsCopyWith(_AppSettings value, $Res Function(_AppSettings) _then) = __$AppSettingsCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider llmProvider, String baseUrl, String model, String apiKey,@JsonKey(fromJson: _llmEndpointProfilesFromJson, toJson: _llmEndpointProfilesToJson) List<LlmEndpointProfile> llmEndpointProfiles, String activeLlmEndpointId, double temperature, int maxTokens,@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference reasoningEffort, String memoryExtractionModel, String subagentModel, String goalSuggestionModel, String approvalAutoReviewModel, String memoryExtractionEndpointId, String subagentEndpointId, String goalSuggestionEndpointId, String approvalAutoReviewEndpointId, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool externalSettingsSyncEnabled, String externalSettingsPath, bool externalToolHooksEnabled,@JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson) List<ExternalToolHook> externalToolHooks, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode codingApprovalMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode chatApprovalMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool enableCodingVerificationFeedback,@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy codingVerificationTriggerPolicy, int codingVerificationTimeoutSeconds, int codingVerificationMaxFailures, bool enableAgentsMd, bool enablePrefixStableToolLoop, bool enableSemanticSearch, String embeddingsModel, bool showMemoryUpdates, bool enableLlmSessionLogs, bool feedbackUploadEnabled, String feedbackEndpointUrl, String feedbackEndpointAuthToken, bool demoMode, bool onboardingCompleted, bool browserToolsEnabled, List<String> disabledBuiltInTools, List<LocalCommandPermissionRule> localCommandPermissionRules, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist,@JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) List<ModelCapabilityProfile> modelCapabilityProfiles,@JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson) List<ModelHarnessConfig> modelHarnessConfigs,@JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson) List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions,@JsonKey(fromJson: _namedEndpointsFromJson, toJson: _namedEndpointsToJson) List<NamedEndpoint> namedEndpoints, bool idleMaintenanceEnabled, int idleMaintenanceWindowStartMinutes, int idleMaintenanceWindowEndMinutes, int idleMaintenanceMinIdleMinutes, bool idleMaintenanceRequireAcPower
+@JsonKey(unknownEnumValue: LlmProvider.openAiCompatible) LlmProvider llmProvider, String baseUrl, String model, String apiKey,@JsonKey(fromJson: _llmEndpointsFromJson, toJson: _llmEndpointsToJson) List<LlmEndpoint> llmEndpoints, String activeLlmEndpointId, double temperature, int maxTokens,@JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic) ReasoningEffortPreference reasoningEffort, String memoryExtractionModel, String subagentModel, String goalSuggestionModel, String approvalAutoReviewModel, String memoryExtractionEndpointId, String subagentEndpointId, String goalSuggestionEndpointId, String approvalAutoReviewEndpointId, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool externalSettingsSyncEnabled, String externalSettingsPath, bool externalToolHooksEnabled,@JsonKey(fromJson: _externalToolHooksFromJson, toJson: _externalToolHooksToJson) List<ExternalToolHook> externalToolHooks, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode codingApprovalMode,@JsonKey(unknownEnumValue: ToolApprovalMode.defaultPermissions) ToolApprovalMode chatApprovalMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool enableCodingVerificationFeedback,@JsonKey(unknownEnumValue: CodingVerificationTriggerPolicy.onCompletionClaim) CodingVerificationTriggerPolicy codingVerificationTriggerPolicy, int codingVerificationTimeoutSeconds, int codingVerificationMaxFailures, bool enableAgentsMd, bool enablePrefixStableToolLoop, bool enableSemanticSearch, String embeddingsModel, bool showMemoryUpdates, bool enableLlmSessionLogs, bool feedbackUploadEnabled, String feedbackEndpointUrl, String feedbackEndpointAuthToken, bool demoMode, bool onboardingCompleted, bool browserToolsEnabled, List<String> disabledBuiltInTools, List<LocalCommandPermissionRule> localCommandPermissionRules, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist,@JsonKey(fromJson: _modelCapabilityProfilesFromJson, toJson: _modelCapabilityProfilesToJson) List<ModelCapabilityProfile> modelCapabilityProfiles,@JsonKey(fromJson: _modelHarnessConfigsFromJson, toJson: _modelHarnessConfigsToJson) List<ModelHarnessConfig> modelHarnessConfigs,@JsonKey(fromJson: _profileRevisionsFromJson, toJson: _profileRevisionsToJson) List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions, bool idleMaintenanceEnabled, int idleMaintenanceWindowStartMinutes, int idleMaintenanceWindowEndMinutes, int idleMaintenanceMinIdleMinutes, bool idleMaintenanceRequireAcPower
 });
 
 
@@ -3136,14 +2850,14 @@ class __$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? llmProvider = null,Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? llmEndpointProfiles = null,Object? activeLlmEndpointId = null,Object? temperature = null,Object? maxTokens = null,Object? reasoningEffort = null,Object? memoryExtractionModel = null,Object? subagentModel = null,Object? goalSuggestionModel = null,Object? approvalAutoReviewModel = null,Object? memoryExtractionEndpointId = null,Object? subagentEndpointId = null,Object? goalSuggestionEndpointId = null,Object? approvalAutoReviewEndpointId = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? externalSettingsSyncEnabled = null,Object? externalSettingsPath = null,Object? externalToolHooksEnabled = null,Object? externalToolHooks = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? codingApprovalMode = null,Object? chatApprovalMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? enableCodingVerificationFeedback = null,Object? codingVerificationTriggerPolicy = null,Object? codingVerificationTimeoutSeconds = null,Object? codingVerificationMaxFailures = null,Object? enableAgentsMd = null,Object? enablePrefixStableToolLoop = null,Object? enableSemanticSearch = null,Object? embeddingsModel = null,Object? showMemoryUpdates = null,Object? enableLlmSessionLogs = null,Object? feedbackUploadEnabled = null,Object? feedbackEndpointUrl = null,Object? feedbackEndpointAuthToken = null,Object? demoMode = null,Object? onboardingCompleted = null,Object? browserToolsEnabled = null,Object? disabledBuiltInTools = null,Object? localCommandPermissionRules = null,Object? routineComputerUseActionAllowlist = null,Object? modelCapabilityProfiles = null,Object? modelHarnessConfigs = null,Object? modelCapabilityProfileRevisions = null,Object? namedEndpoints = null,Object? idleMaintenanceEnabled = null,Object? idleMaintenanceWindowStartMinutes = null,Object? idleMaintenanceWindowEndMinutes = null,Object? idleMaintenanceMinIdleMinutes = null,Object? idleMaintenanceRequireAcPower = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? llmProvider = null,Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? llmEndpoints = null,Object? activeLlmEndpointId = null,Object? temperature = null,Object? maxTokens = null,Object? reasoningEffort = null,Object? memoryExtractionModel = null,Object? subagentModel = null,Object? goalSuggestionModel = null,Object? approvalAutoReviewModel = null,Object? memoryExtractionEndpointId = null,Object? subagentEndpointId = null,Object? goalSuggestionEndpointId = null,Object? approvalAutoReviewEndpointId = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? externalSettingsSyncEnabled = null,Object? externalSettingsPath = null,Object? externalToolHooksEnabled = null,Object? externalToolHooks = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? codingApprovalMode = null,Object? chatApprovalMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? enableCodingVerificationFeedback = null,Object? codingVerificationTriggerPolicy = null,Object? codingVerificationTimeoutSeconds = null,Object? codingVerificationMaxFailures = null,Object? enableAgentsMd = null,Object? enablePrefixStableToolLoop = null,Object? enableSemanticSearch = null,Object? embeddingsModel = null,Object? showMemoryUpdates = null,Object? enableLlmSessionLogs = null,Object? feedbackUploadEnabled = null,Object? feedbackEndpointUrl = null,Object? feedbackEndpointAuthToken = null,Object? demoMode = null,Object? onboardingCompleted = null,Object? browserToolsEnabled = null,Object? disabledBuiltInTools = null,Object? localCommandPermissionRules = null,Object? routineComputerUseActionAllowlist = null,Object? modelCapabilityProfiles = null,Object? modelHarnessConfigs = null,Object? modelCapabilityProfileRevisions = null,Object? idleMaintenanceEnabled = null,Object? idleMaintenanceWindowStartMinutes = null,Object? idleMaintenanceWindowEndMinutes = null,Object? idleMaintenanceMinIdleMinutes = null,Object? idleMaintenanceRequireAcPower = null,}) {
   return _then(_AppSettings(
 llmProvider: null == llmProvider ? _self.llmProvider : llmProvider // ignore: cast_nullable_to_non_nullable
 as LlmProvider,baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
 as String,apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullable_to_non_nullable
-as String,llmEndpointProfiles: null == llmEndpointProfiles ? _self._llmEndpointProfiles : llmEndpointProfiles // ignore: cast_nullable_to_non_nullable
-as List<LlmEndpointProfile>,activeLlmEndpointId: null == activeLlmEndpointId ? _self.activeLlmEndpointId : activeLlmEndpointId // ignore: cast_nullable_to_non_nullable
+as String,llmEndpoints: null == llmEndpoints ? _self._llmEndpoints : llmEndpoints // ignore: cast_nullable_to_non_nullable
+as List<LlmEndpoint>,activeLlmEndpointId: null == activeLlmEndpointId ? _self.activeLlmEndpointId : activeLlmEndpointId // ignore: cast_nullable_to_non_nullable
 as String,temperature: null == temperature ? _self.temperature : temperature // ignore: cast_nullable_to_non_nullable
 as double,maxTokens: null == maxTokens ? _self.maxTokens : maxTokens // ignore: cast_nullable_to_non_nullable
 as int,reasoningEffort: null == reasoningEffort ? _self.reasoningEffort : reasoningEffort // ignore: cast_nullable_to_non_nullable
@@ -3200,8 +2914,7 @@ as List<LocalCommandPermissionRule>,routineComputerUseActionAllowlist: null == r
 as List<RoutineComputerUseActionAllowlistEntry>,modelCapabilityProfiles: null == modelCapabilityProfiles ? _self._modelCapabilityProfiles : modelCapabilityProfiles // ignore: cast_nullable_to_non_nullable
 as List<ModelCapabilityProfile>,modelHarnessConfigs: null == modelHarnessConfigs ? _self._modelHarnessConfigs : modelHarnessConfigs // ignore: cast_nullable_to_non_nullable
 as List<ModelHarnessConfig>,modelCapabilityProfileRevisions: null == modelCapabilityProfileRevisions ? _self._modelCapabilityProfileRevisions : modelCapabilityProfileRevisions // ignore: cast_nullable_to_non_nullable
-as List<ModelCapabilityProfileRevision>,namedEndpoints: null == namedEndpoints ? _self._namedEndpoints : namedEndpoints // ignore: cast_nullable_to_non_nullable
-as List<NamedEndpoint>,idleMaintenanceEnabled: null == idleMaintenanceEnabled ? _self.idleMaintenanceEnabled : idleMaintenanceEnabled // ignore: cast_nullable_to_non_nullable
+as List<ModelCapabilityProfileRevision>,idleMaintenanceEnabled: null == idleMaintenanceEnabled ? _self.idleMaintenanceEnabled : idleMaintenanceEnabled // ignore: cast_nullable_to_non_nullable
 as bool,idleMaintenanceWindowStartMinutes: null == idleMaintenanceWindowStartMinutes ? _self.idleMaintenanceWindowStartMinutes : idleMaintenanceWindowStartMinutes // ignore: cast_nullable_to_non_nullable
 as int,idleMaintenanceWindowEndMinutes: null == idleMaintenanceWindowEndMinutes ? _self.idleMaintenanceWindowEndMinutes : idleMaintenanceWindowEndMinutes // ignore: cast_nullable_to_non_nullable
 as int,idleMaintenanceMinIdleMinutes: null == idleMaintenanceMinIdleMinutes ? _self.idleMaintenanceMinIdleMinutes : idleMaintenanceMinIdleMinutes // ignore: cast_nullable_to_non_nullable

@@ -10,10 +10,8 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/domain/services/mesh_endpoint_router.dart';
 
-NamedEndpoint _endpoint(String baseUrl) => NamedEndpoint(
-  id: NamedEndpoint.buildId(baseUrl),
-  baseUrl: baseUrl,
-).normalizedForPersistence();
+LlmEndpoint _endpoint(String baseUrl) =>
+    LlmEndpoint(id: baseUrl, baseUrl: baseUrl).normalizedForPersistence();
 
 ConversationParticipant _participant({
   required String endpointId,
@@ -28,14 +26,14 @@ ConversationParticipant _participant({
 );
 
 AppSettings _settings({
-  required List<NamedEndpoint> endpoints,
+  required List<LlmEndpoint> endpoints,
   LlmProvider provider = LlmProvider.openAiCompatible,
 }) => AppSettings.defaults().copyWith(
   llmProvider: provider,
   baseUrl: 'http://primary.example/v1',
   apiKey: 'primary-key',
   model: 'primary-model',
-  namedEndpoints: endpoints,
+  llmEndpoints: endpoints,
 );
 
 Message _message(String id) => Message(

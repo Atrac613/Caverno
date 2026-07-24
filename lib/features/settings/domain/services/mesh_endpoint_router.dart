@@ -46,7 +46,7 @@ class MeshEndpointRouter {
   ResolvedEndpoint resolve({
     required String primaryBaseUrl,
     required String primaryApiKey,
-    required List<NamedEndpoint> endpoints,
+    required List<LlmEndpoint> endpoints,
     required String requestedEndpointId,
     required String model,
     Set<String> unhealthyEndpointIds = const {},
@@ -61,7 +61,7 @@ class MeshEndpointRouter {
       );
     }
 
-    NamedEndpoint? match;
+    LlmEndpoint? match;
     for (final endpoint in endpoints) {
       final normalized = endpoint.normalizedForPersistence();
       if (normalized.id == requested &&

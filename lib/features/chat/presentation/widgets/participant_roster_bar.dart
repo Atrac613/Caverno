@@ -45,7 +45,7 @@ class ParticipantRosterBar extends StatelessWidget {
 
   final List<ConversationParticipant> participants;
   final ParticipantTurnConfig config;
-  final List<NamedEndpoint> endpoints;
+  final List<LlmEndpoint> endpoints;
   final String primaryModel;
   final ParticipantRosterChanged onChanged;
   final Set<String> referencedParticipantIds;
@@ -609,7 +609,7 @@ class _ParticipantEditorSheet extends StatefulWidget {
   });
 
   final ConversationParticipant participant;
-  final List<NamedEndpoint> endpoints;
+  final List<LlmEndpoint> endpoints;
   final String primaryModel;
   final bool isNew;
 

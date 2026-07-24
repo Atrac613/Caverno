@@ -102,18 +102,18 @@ void main() {
     expect(decoded.embeddingsModel, 'text-embedding-local');
   });
 
-  test('defaults to no named endpoints and persists registered ones', () {
-    expect(AppSettings.defaults().namedEndpoints, isEmpty);
+  test('defaults to no endpoints and persists registered ones', () {
+    expect(AppSettings.defaults().llmEndpoints, isEmpty);
 
     final settings = AppSettings.defaults().copyWith(
-      namedEndpoints: [
-        const NamedEndpoint(
+      llmEndpoints: [
+        const LlmEndpoint(
           id: 'will-be-recomputed',
           label: '  Studio Box  ',
           baseUrl: 'http://192.168.100.241:1234/v1/',
           apiKey: '  key  ',
         ),
-        const NamedEndpoint(
+        const LlmEndpoint(
           id: 'disabled',
           baseUrl: 'http://10.0.0.9:8080/v1',
           enabled: false,
@@ -124,27 +124,26 @@ void main() {
       jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
     );
 
-    expect(decoded.namedEndpoints, hasLength(2));
-    final first = decoded.namedEndpoints.first;
-    // normalizedForPersistence trims and strips the trailing slash, and the id
-    // is derived from the normalized base URL.
+    expect(decoded.llmEndpoints, hasLength(2));
+    final first = decoded.llmEndpoints.first;
+    // Persistence normalization keeps the opaque id while trimming values.
     expect(first.baseUrl, 'http://192.168.100.241:1234/v1');
     expect(first.label, 'Studio Box');
     expect(first.apiKey, 'key');
-    expect(first.id, 'http://192.168.100.241:1234/v1');
+    expect(first.id, 'will-be-recomputed');
     expect(first.displayLabel, 'Studio Box');
 
     // Only the enabled, valid endpoint is exposed for routing.
-    expect(decoded.enabledNamedEndpoints, hasLength(1));
+    expect(decoded.enabledLlmEndpoints, hasLength(1));
     expect(
-      decoded.enabledNamedEndpoints.single.baseUrl,
+      decoded.enabledLlmEndpoints.single.baseUrl,
       'http://192.168.100.241:1234/v1',
     );
 
     // Lookup by base URL tolerates a trailing slash / case differences.
     expect(
-      decoded.namedEndpointForBaseUrl('HTTP://192.168.100.241:1234/v1')?.id,
-      'http://192.168.100.241:1234/v1',
+      decoded.llmEndpointForBaseUrl('HTTP://192.168.100.241:1234/v1')?.id,
+      'will-be-recomputed',
     );
   });
 
@@ -166,17 +165,160 @@ void main() {
     expect(decoded.approvalAutoReviewEndpointId, '');
   });
 
-  test('drops invalid named endpoints on parse', () {
+  test('drops invalid endpoints on parse', () {
     final json =
         jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
             as Map<String, dynamic>;
-    json['namedEndpoints'] = [
+    json['llmEndpoints'] = [
       {'id': 'a', 'baseUrl': '   '},
       {'id': 'b', 'baseUrl': 'http://10.0.0.5:1234/v1'},
     ];
     final decoded = AppSettings.fromJson(json);
-    expect(decoded.namedEndpoints, hasLength(1));
-    expect(decoded.namedEndpoints.single.baseUrl, 'http://10.0.0.5:1234/v1');
+    expect(decoded.llmEndpoints, hasLength(1));
+    expect(decoded.llmEndpoints.single.baseUrl, 'http://10.0.0.5:1234/v1');
+  });
+
+  group('legacy endpoint migration', () {
+    Map<String, dynamic> legacyJson() {
+      final json =
+          jsonDecode(jsonEncode(AppSettings.defaults().toJson()))
+              as Map<String, dynamic>;
+      json.remove('llmEndpoints');
+      return json;
+    }
+
+    test('migrates profiles one-to-one and preserves the active id', () {
+      final json = legacyJson()
+        ..['activeLlmEndpointId'] = 'profile-2'
+        ..['llmEndpointProfiles'] = [
+          {
+            'id': 'profile-1',
+            'label': 'Primary',
+            'baseUrl': 'http://primary.example/v1',
+            'apiKey': 'primary-key',
+            'model': 'primary-model',
+          },
+          {
+            'id': 'profile-2',
+            'label': 'Secondary',
+            'baseUrl': 'http://secondary.example/v1',
+            'apiKey': 'secondary-key',
+            'model': 'secondary-model',
+          },
+        ];
+
+      final settings = AppSettings.fromJson(json);
+
+      expect(settings.llmEndpoints.map((endpoint) => endpoint.id), [
+        'profile-1',
+        'profile-2',
+      ]);
+      expect(settings.activeLlmEndpointId, 'profile-2');
+      expect(
+        settings.llmEndpoints.every(
+          (endpoint) =>
+              endpoint.enabled && endpoint.source == LlmEndpointSource.manual,
+        ),
+        isTrue,
+      );
+    });
+
+    test('preserves named endpoint ids and role pins', () {
+      final json = legacyJson()
+        ..['subagentEndpointId'] = 'legacy-mesh-id'
+        ..['namedEndpoints'] = [
+          {
+            'id': 'legacy-mesh-id',
+            'label': 'Mesh',
+            'baseUrl': 'http://mesh.example/v1',
+            'apiKey': 'mesh-key',
+            'enabled': true,
+          },
+        ];
+
+      final settings = AppSettings.fromJson(json);
+
+      expect(settings.llmEndpoints.single.id, 'legacy-mesh-id');
+      expect(settings.llmEndpoints.single.source, LlmEndpointSource.discovered);
+      expect(settings.subagentEndpointId, 'legacy-mesh-id');
+    });
+
+    test('merges overlapping registries and remaps role pins', () {
+      final json = legacyJson()
+        ..['memoryExtractionEndpointId'] = 'legacy-mesh-id'
+        ..['llmEndpointProfiles'] = [
+          {
+            'id': 'profile-id',
+            'label': 'Profile Label',
+            'baseUrl': 'HTTP://MESH.EXAMPLE/v1/',
+            'apiKey': 'profile-key',
+            'model': 'profile-model',
+          },
+        ]
+        ..['namedEndpoints'] = [
+          {
+            'id': 'legacy-mesh-id',
+            'label': 'Discovered Label',
+            'baseUrl': 'http://mesh.example/v1',
+            'apiKey': 'mesh-key',
+            'enabled': false,
+          },
+        ];
+
+      final settings = AppSettings.fromJson(json);
+
+      expect(settings.llmEndpoints, hasLength(1));
+      expect(settings.llmEndpoints.single.id, 'profile-id');
+      expect(settings.llmEndpoints.single.label, 'Profile Label');
+      expect(settings.llmEndpoints.single.apiKey, 'profile-key');
+      expect(settings.llmEndpoints.single.enabled, isTrue);
+      expect(settings.memoryExtractionEndpointId, 'profile-id');
+    });
+
+    test('does not materialize the unified key without legacy keys', () {
+      final json = legacyJson();
+
+      final migrated = AppSettings.migrateLegacyJson(json);
+      final normalized = AppSettings.fromJson(
+        json,
+      ).withNormalizedLlmEndpoints();
+
+      expect(migrated, isNot(contains('llmEndpoints')));
+      expect(normalized.llmEndpoints, hasLength(1));
+      expect(normalized.activeLlmEndpointId, AppSettings.seededLlmEndpointId);
+    });
+
+    test('leaves an existing unified registry untouched', () {
+      final json = legacyJson()
+        ..['llmEndpoints'] = [
+          {
+            'id': 'unified-id',
+            'baseUrl': 'http://unified.example/v1',
+            'source': 'manual',
+          },
+        ]
+        ..['llmEndpointProfiles'] = [
+          {'id': 'legacy-id', 'baseUrl': 'http://legacy.example/v1'},
+        ];
+
+      final migrated = AppSettings.migrateLegacyJson(json);
+
+      expect(migrated['llmEndpoints'], json['llmEndpoints']);
+      expect(migrated, contains('llmEndpointProfiles'));
+    });
+
+    test('runs endpoint migration when coding approval mode exists', () {
+      final json = legacyJson()
+        ..['codingApprovalMode'] = 'defaultPermissions'
+        ..['namedEndpoints'] = [
+          {'id': 'legacy-mesh-id', 'baseUrl': 'http://mesh.example/v1'},
+        ];
+
+      final migrated = AppSettings.migrateLegacyJson(json);
+
+      expect(migrated['llmEndpoints'], hasLength(1));
+      expect(migrated, isNot(contains('namedEndpoints')));
+    });
   });
 
   test('defaults and persists LLM provider selection', () {

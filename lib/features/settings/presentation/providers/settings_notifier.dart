@@ -53,85 +53,130 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateBaseUrl(String baseUrl) async {
-    state = state
-        .copyWith(baseUrl: baseUrl)
-        .withNormalizedLlmEndpointProfiles();
+    state = state.copyWith(baseUrl: baseUrl).withNormalizedLlmEndpoints();
     await _repository.save(state);
   }
 
   Future<void> updateModel(String model) async {
-    state = state.copyWith(model: model).withNormalizedLlmEndpointProfiles();
+    state = state.copyWith(model: model).withNormalizedLlmEndpoints();
     await _repository.save(state);
   }
 
   Future<void> updateApiKey(String apiKey) async {
-    state = state.copyWith(apiKey: apiKey).withNormalizedLlmEndpointProfiles();
+    state = state.copyWith(apiKey: apiKey).withNormalizedLlmEndpoints();
     await _repository.save(state);
   }
 
-  /// Registers a saved OpenAI-compatible endpoint, or updates one in place when
-  /// [profile] carries an existing id. A new profile becomes the active
-  /// endpoint so the user can start chatting against it right away.
-  Future<void> upsertLlmEndpointProfile(LlmEndpointProfile profile) async {
-    final id = profile.id.trim().isEmpty ? const Uuid().v4() : profile.id.trim();
-    final normalized = profile
-        .copyWith(id: id, createdAt: profile.createdAt ?? DateTime.now())
+  /// Registers an endpoint or updates one in place.
+  ///
+  /// Discovery callers may dedupe by base URL and keep the current primary,
+  /// while manual additions remain separate presets and activate by default.
+  Future<void> upsertLlmEndpoint(
+    LlmEndpoint endpoint, {
+    bool dedupeByBaseUrl = false,
+    bool activate = true,
+  }) async {
+    final requestedId = endpoint.id.trim();
+    final generatedId = requestedId.isEmpty ? const Uuid().v4() : requestedId;
+    final normalized = endpoint
+        .copyWith(
+          id: generatedId,
+          createdAt: endpoint.createdAt ?? DateTime.now(),
+        )
         .normalizedForPersistence();
     if (!normalized.isValid) {
-      throw ArgumentError('LlmEndpointProfile base URL is required');
+      throw ArgumentError('LlmEndpoint base URL is required');
     }
 
-    final profiles = List<LlmEndpointProfile>.from(
-      state.usableLlmEndpointProfiles,
-    );
-    final index = profiles.indexWhere((item) => item.id == normalized.id);
+    final endpoints = List<LlmEndpoint>.from(state.usableLlmEndpoints);
+    var index = endpoints.indexWhere((item) => item.id == normalized.id);
+    if (index == -1 && dedupeByBaseUrl) {
+      final targetBaseUrl = normalized.normalizedBaseUrl.toLowerCase();
+      index = endpoints.indexWhere(
+        (item) => item.normalizedBaseUrl.toLowerCase() == targetBaseUrl,
+      );
+    }
     final isNew = index == -1;
+    late final String survivingId;
     if (isNew) {
-      profiles.add(normalized);
+      endpoints.add(normalized);
+      survivingId = normalized.id;
     } else {
       // Preserve the original registration time on update.
-      profiles[index] = normalized.copyWith(
-        createdAt: profiles[index].createdAt ?? normalized.createdAt,
+      final existing = endpoints[index];
+      survivingId = existing.id;
+      endpoints[index] = normalized.copyWith(
+        id: existing.id,
+        createdAt: existing.createdAt ?? normalized.createdAt,
       );
     }
 
-    state = state.copyWith(llmEndpointProfiles: profiles);
-    if (isNew || normalized.id == state.activeLlmEndpointId.trim()) {
-      state = _withActiveEndpointApplied(normalized.id);
+    state = state.copyWith(llmEndpoints: endpoints);
+    final updatesActiveEndpoint =
+        survivingId == state.activeLlmEndpointId.trim();
+    if ((isNew && activate && normalized.enabled) || updatesActiveEndpoint) {
+      state = _withActiveEndpointApplied(survivingId);
     }
-    state = state.withNormalizedLlmEndpointProfiles();
+    state = state.withNormalizedLlmEndpoints();
     await _repository.save(state);
   }
 
   /// Switches the primary connection to a saved endpoint.
-  Future<void> selectLlmEndpointProfile(String endpointId) async {
+  Future<void> selectLlmEndpoint(String endpointId) async {
     final id = endpointId.trim();
     if (id.isEmpty || id == state.activeLlmEndpointId.trim()) return;
-    if (!state.usableLlmEndpointProfiles.any((profile) => profile.id == id)) {
+    if (!state.enabledLlmEndpoints.any((endpoint) => endpoint.id == id)) {
       return;
     }
-    state = _withActiveEndpointApplied(id).withNormalizedLlmEndpointProfiles();
+    state = _withActiveEndpointApplied(id).withNormalizedLlmEndpoints();
     await _repository.save(state);
   }
 
   /// Removes a saved endpoint. Removing the active one falls back to the first
   /// remaining endpoint; the last endpoint cannot be removed, since the app
   /// always needs a primary connection.
-  Future<void> removeLlmEndpointProfile(String endpointId) async {
+  Future<void> removeLlmEndpoint(String endpointId) async {
     final id = endpointId.trim();
     if (id.isEmpty) return;
-    final profiles = state.usableLlmEndpointProfiles;
+    final profiles = state.usableLlmEndpoints;
     if (profiles.length <= 1) return;
     final remaining = profiles
         .where((profile) => profile.id != id)
         .toList(growable: false);
     if (remaining.length == profiles.length) return;
 
-    state = state.copyWith(llmEndpointProfiles: remaining);
+    state = state.copyWith(llmEndpoints: remaining);
     if (state.activeLlmEndpointId.trim() == id) {
       state = _withActiveEndpointApplied(remaining.first.id);
     }
-    state = state.withNormalizedLlmEndpointProfiles();
+    state = state.withNormalizedLlmEndpoints();
+    await _repository.save(state);
+  }
+
+  Future<void> setLlmEndpointEnabled(String endpointId, bool enabled) async {
+    final id = endpointId.trim();
+    if (id.isEmpty) return;
+    if (!enabled && id == state.activeLlmEndpointId.trim()) return;
+
+    var changed = false;
+    final endpoints = [
+      for (final endpoint in state.usableLlmEndpoints)
+        if (endpoint.id == id)
+          endpoint.copyWith(enabled: enabled)
+        else
+          endpoint,
+    ];
+    for (var index = 0; index < endpoints.length; index++) {
+      if (endpoints[index].id == id &&
+          endpoints[index].enabled != state.usableLlmEndpoints[index].enabled) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+    state = state
+        .copyWith(llmEndpoints: endpoints)
+        .withNormalizedLlmEndpoints();
     await _repository.save(state);
   }
 
@@ -139,9 +184,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
   /// rest of the app reads. An empty stored model keeps the current model, so
   /// registering an endpoint without picking a model first still works.
   AppSettings _withActiveEndpointApplied(String endpointId) {
-    final profile = state.usableLlmEndpointProfiles.firstWhere(
+    final profile = state.usableLlmEndpoints.firstWhere(
       (item) => item.id == endpointId,
-      orElse: () => const LlmEndpointProfile(id: ''),
+      orElse: () => const LlmEndpoint(id: ''),
     );
     if (!profile.isValid) return state;
     return state.copyWith(
@@ -345,43 +390,6 @@ class SettingsNotifier extends Notifier<AppSettings> {
         .where((config) => config.id != normalizedId)
         .toList(growable: false);
     state = state.copyWith(modelHarnessConfigs: configs);
-    await _repository.save(state);
-  }
-
-  /// LL8: register or update a LAN mesh endpoint, keyed by its normalized base
-  /// URL so re-registering the same endpoint updates in place. Registration is
-  /// always explicit (called from user-confirmed UI), never from discovery.
-  Future<void> upsertNamedEndpoint(NamedEndpoint endpoint) async {
-    final normalized = endpoint
-        .copyWith(createdAt: endpoint.createdAt ?? DateTime.now())
-        .normalizedForPersistence();
-    if (!normalized.isValid) {
-      throw ArgumentError('NamedEndpoint base URL is required');
-    }
-    final endpoints = List<NamedEndpoint>.from(state.namedEndpoints);
-    final index = endpoints.indexWhere((item) => item.id == normalized.id);
-    if (index == -1) {
-      endpoints.add(normalized);
-    } else {
-      // Preserve the original registration time on update.
-      endpoints[index] = normalized.copyWith(
-        createdAt: endpoints[index].createdAt ?? normalized.createdAt,
-      );
-    }
-    state = state.copyWith(namedEndpoints: endpoints);
-    await _repository.save(state);
-  }
-
-  /// LL8: remove a registered LAN mesh endpoint by id.
-  Future<void> removeNamedEndpoint(String endpointId) async {
-    final normalizedId = endpointId.trim();
-    if (normalizedId.isEmpty) {
-      return;
-    }
-    final endpoints = state.namedEndpoints
-        .where((endpoint) => endpoint.id != normalizedId)
-        .toList(growable: false);
-    state = state.copyWith(namedEndpoints: endpoints);
     await _repository.save(state);
   }
 
@@ -697,7 +705,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
     try {
       final synced = (await _externalSettingsService.sync(
         state,
-      )).withNormalizedLlmEndpointProfiles();
+      )).withNormalizedLlmEndpoints();
       if (synced == state) {
         return false;
       }
@@ -961,12 +969,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateSettings(AppSettings settings) async {
-    state = settings.withNormalizedLlmEndpointProfiles();
+    state = settings.withNormalizedLlmEndpoints();
     await _repository.save(state);
   }
 
   Future<void> resetToDefaults() async {
-    state = AppSettings.defaults().withNormalizedLlmEndpointProfiles();
+    state = AppSettings.defaults().withNormalizedLlmEndpoints();
     await _repository.reset();
   }
 
@@ -977,7 +985,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
   Future<bool> importSettings() async {
     final settings = await _fileService.importSettings();
     if (settings != null) {
-      state = settings.withNormalizedLlmEndpointProfiles();
+      state = settings.withNormalizedLlmEndpoints();
       await _repository.save(state);
       return true;
     }
@@ -990,7 +998,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> importFromQr(String data) async {
     final settings = _qrService.parseQrString(data);
-    state = settings.withNormalizedLlmEndpointProfiles();
+    state = settings.withNormalizedLlmEndpoints();
     await _repository.save(state);
   }
 

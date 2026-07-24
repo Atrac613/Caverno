@@ -11,8 +11,8 @@ class _Call {
   final String model;
 }
 
-NamedEndpoint _endpoint(String baseUrl, {bool enabled = true}) => NamedEndpoint(
-  id: NamedEndpoint.buildId(baseUrl),
+LlmEndpoint _endpoint(String baseUrl, {bool enabled = true}) => LlmEndpoint(
+  id: baseUrl,
   baseUrl: baseUrl,
   enabled: enabled,
 ).normalizedForPersistence();
@@ -39,7 +39,7 @@ void main() {
 
   Future<_Call> run(
     MeshSecondaryCompletionRunner<_FakeDataSource> runner, {
-    required List<NamedEndpoint> endpoints,
+    required List<LlmEndpoint> endpoints,
     required String endpointId,
     String model = 'role-model',
     String fallbackModel = 'primary-model',

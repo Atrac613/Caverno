@@ -22,7 +22,7 @@ extension ChatNotifierMeshRouting on ChatNotifier {
       primary: _dataSource,
       primaryBaseUrl: _settings.baseUrl,
       primaryApiKey: _settings.apiKey,
-      endpoints: _settings.namedEndpoints,
+      endpoints: _settings.enabledLlmEndpoints,
       endpointId: resolvedEndpointId,
       model: model,
       // The assigned model lives on the mesh host; fall back to the primary's

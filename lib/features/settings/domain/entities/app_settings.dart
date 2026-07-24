@@ -558,29 +558,28 @@ List<Map<String, dynamic>> _profileRevisionsToJson(
   List<ModelCapabilityProfileRevision> revisions,
 ) => revisions.map((r) => r.toJson()).toList(growable: false);
 
-/// A saved primary LLM endpoint the user can switch between.
-///
-/// Every profile is an OpenAI-compatible endpoint; the provider dropdown still
-/// decides between OpenAI-compatible and the on-device Apple provider, so
-/// profiles carry no provider field. Exactly one profile is active at a time
-/// ([AppSettings.activeLlmEndpointId]) and its values mirror the primary
-/// [AppSettings.baseUrl] / [AppSettings.apiKey] / [AppSettings.model] fields,
-/// which the rest of the app already reads.
-@freezed
-abstract class LlmEndpointProfile with _$LlmEndpointProfile {
-  const LlmEndpointProfile._();
+enum LlmEndpointSource { manual, discovered }
 
-  const factory LlmEndpointProfile({
+/// A saved OpenAI-compatible endpoint available for primary and role routing.
+@freezed
+abstract class LlmEndpoint with _$LlmEndpoint {
+  const LlmEndpoint._();
+
+  const factory LlmEndpoint({
     required String id,
     @Default('') String label,
     @Default('') String baseUrl,
     @Default('') String apiKey,
     @Default('') String model,
+    @Default(true) bool enabled,
+    @JsonKey(unknownEnumValue: LlmEndpointSource.manual)
+    @Default(LlmEndpointSource.manual)
+    LlmEndpointSource source,
     DateTime? createdAt,
-  }) = _LlmEndpointProfile;
+  }) = _LlmEndpoint;
 
-  factory LlmEndpointProfile.fromJson(Map<String, dynamic> json) =>
-      _$LlmEndpointProfileFromJson(json);
+  factory LlmEndpoint.fromJson(Map<String, dynamic> json) =>
+      _$LlmEndpointFromJson(json);
 
   static String normalizeBaseUrl(String baseUrl) =>
       baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
@@ -597,9 +596,9 @@ abstract class LlmEndpointProfile with _$LlmEndpointProfile {
   String get displayLabel =>
       normalizedLabel.isEmpty ? normalizedBaseUrl : normalizedLabel;
 
-  bool get isValid => normalizedId.isNotEmpty && normalizedBaseUrl.isNotEmpty;
+  bool get isValid => normalizedBaseUrl.isNotEmpty;
 
-  LlmEndpointProfile normalizedForPersistence() => copyWith(
+  LlmEndpoint normalizedForPersistence() => copyWith(
     id: normalizedId,
     label: normalizedLabel,
     baseUrl: normalizedBaseUrl,
@@ -608,14 +607,14 @@ abstract class LlmEndpointProfile with _$LlmEndpointProfile {
   );
 }
 
-List<LlmEndpointProfile> _llmEndpointProfilesFromJson(List<dynamic>? json) {
+List<LlmEndpoint> _llmEndpointsFromJson(List<dynamic>? json) {
   if (json == null) {
-    return const <LlmEndpointProfile>[];
+    return const <LlmEndpoint>[];
   }
   return json
       .whereType<Map>()
       .map(
-        (item) => LlmEndpointProfile.fromJson(
+        (item) => LlmEndpoint.fromJson(
           Map<String, dynamic>.from(item),
         ).normalizedForPersistence(),
       )
@@ -623,82 +622,10 @@ List<LlmEndpointProfile> _llmEndpointProfilesFromJson(List<dynamic>? json) {
       .toList(growable: false);
 }
 
-List<Map<String, dynamic>> _llmEndpointProfilesToJson(
-  List<LlmEndpointProfile> profiles,
-) => profiles
-    .map((profile) => profile.normalizedForPersistence().toJson())
-    .toList(growable: false);
-
-/// LL8: a user-registered OpenAI-compatible endpoint on the LAN mesh.
-///
-/// Registration is always explicit and user-confirmed; discovery only proposes
-/// candidates. The per-endpoint [apiKey] defaults to empty so a discovered host
-/// is stored without credentials until the user supplies one.
-@freezed
-abstract class NamedEndpoint with _$NamedEndpoint {
-  const NamedEndpoint._();
-
-  const factory NamedEndpoint({
-    required String id,
-    @Default('') String label,
-    @Default('') String baseUrl,
-    @Default('') String apiKey,
-    @Default(true) bool enabled,
-    DateTime? createdAt,
-  }) = _NamedEndpoint;
-
-  factory NamedEndpoint.fromJson(Map<String, dynamic> json) =>
-      _$NamedEndpointFromJson(json);
-
-  /// Stable id derived from the normalized base URL so the same endpoint
-  /// registered twice updates in place rather than duplicating.
-  static String buildId(String baseUrl) =>
-      normalizeBaseUrl(baseUrl).toLowerCase();
-
-  static String normalizeBaseUrl(String baseUrl) =>
-      baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
-
-  String get normalizedBaseUrl => normalizeBaseUrl(baseUrl);
-
-  String get normalizedLabel => label.trim();
-
-  String get computedId => buildId(normalizedBaseUrl);
-
-  /// Human-readable name for lists and logs, falling back to the base URL.
-  String get displayLabel =>
-      normalizedLabel.isEmpty ? normalizedBaseUrl : normalizedLabel;
-
-  /// Whether this endpoint has enough data to be used as a target.
-  bool get isValid => normalizedBaseUrl.isNotEmpty;
-
-  NamedEndpoint normalizedForPersistence() => copyWith(
-    id: computedId,
-    label: normalizedLabel,
-    baseUrl: normalizedBaseUrl,
-    apiKey: apiKey.trim(),
-  );
-}
-
-List<NamedEndpoint> _namedEndpointsFromJson(List<dynamic>? json) {
-  if (json == null) {
-    return const <NamedEndpoint>[];
-  }
-  return json
-      .whereType<Map>()
-      .map(
-        (item) => NamedEndpoint.fromJson(
-          Map<String, dynamic>.from(item),
-        ).normalizedForPersistence(),
-      )
-      .where((endpoint) => endpoint.isValid)
-      .toList(growable: false);
-}
-
-List<Map<String, dynamic>> _namedEndpointsToJson(
-  List<NamedEndpoint> endpoints,
-) => endpoints
-    .map((endpoint) => endpoint.normalizedForPersistence().toJson())
-    .toList(growable: false);
+List<Map<String, dynamic>> _llmEndpointsToJson(List<LlmEndpoint> profiles) =>
+    profiles
+        .map((profile) => profile.normalizedForPersistence().toJson())
+        .toList(growable: false);
 
 List<ExternalToolHook> _externalToolHooksFromJson(List<dynamic>? json) {
   if (json == null) {
@@ -735,13 +662,10 @@ abstract class AppSettings with _$AppSettings {
     // Saved primary endpoints the user can switch between. The entry whose id
     // is [activeLlmEndpointId] mirrors [baseUrl] / [apiKey] / [model]; the rest
     // are inactive presets. Kept in sync by
-    // [AppSettings.withNormalizedLlmEndpointProfiles].
-    @JsonKey(
-      fromJson: _llmEndpointProfilesFromJson,
-      toJson: _llmEndpointProfilesToJson,
-    )
-    @Default(<LlmEndpointProfile>[])
-    List<LlmEndpointProfile> llmEndpointProfiles,
+    // [AppSettings.withNormalizedLlmEndpoints].
+    @JsonKey(fromJson: _llmEndpointsFromJson, toJson: _llmEndpointsToJson)
+    @Default(<LlmEndpoint>[])
+    List<LlmEndpoint> llmEndpoints,
     @Default('') String activeLlmEndpointId,
     required double temperature,
     required int maxTokens,
@@ -755,7 +679,7 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String goalSuggestionModel,
     @Default('') String approvalAutoReviewModel,
     // LL8 per-role endpoint routing. Empty string means "use the primary
-    // endpoint". A non-empty value is a NamedEndpoint id; an unreachable mesh
+    // endpoint". A non-empty value is a LlmEndpoint id; an unreachable mesh
     // endpoint falls back to the primary at call time (MeshEndpointRouter).
     @Default('') String memoryExtractionEndpointId,
     @Default('') String subagentEndpointId,
@@ -846,11 +770,6 @@ abstract class AppSettings with _$AppSettings {
     )
     @Default(<ModelCapabilityProfileRevision>[])
     List<ModelCapabilityProfileRevision> modelCapabilityProfileRevisions,
-    // LL8: user-registered LAN inference endpoints (the mesh). Discovery only
-    // proposes candidates; entries here are explicitly registered.
-    @JsonKey(fromJson: _namedEndpointsFromJson, toJson: _namedEndpointsToJson)
-    @Default(<NamedEndpoint>[])
-    List<NamedEndpoint> namedEndpoints,
     // LL18 idle/overnight maintenance gating (consumed via the maintenance
     // feature's IdleMaintenanceConfig; minutes are since local midnight).
     @Default(false) bool idleMaintenanceEnabled,
@@ -893,15 +812,15 @@ abstract class AppSettings with _$AppSettings {
   static const String seededLlmEndpointId = 'primary';
 
   /// Saved endpoint profiles that are usable, in registration order.
-  List<LlmEndpointProfile> get usableLlmEndpointProfiles => llmEndpointProfiles
+  List<LlmEndpoint> get usableLlmEndpoints => llmEndpoints
       .map((profile) => profile.normalizedForPersistence())
       .where((profile) => profile.isValid)
       .toList(growable: false);
 
   /// The profile currently driving [baseUrl] / [apiKey] / [model], or null when
   /// no profile is registered.
-  LlmEndpointProfile? get activeLlmEndpointProfile {
-    final profiles = usableLlmEndpointProfiles;
+  LlmEndpoint? get activeLlmEndpoint {
+    final profiles = usableLlmEndpoints;
     if (profiles.isEmpty) return null;
     final targetId = activeLlmEndpointId.trim();
     for (final profile in profiles) {
@@ -919,15 +838,15 @@ abstract class AppSettings with _$AppSettings {
   /// - Mirrors the primary fields into the active entry, so direct writes to
   ///   [baseUrl] / [apiKey] / [model] (settings edits, QR import, external
   ///   config sync) never leave the list showing stale values.
-  AppSettings withNormalizedLlmEndpointProfiles() {
-    final trimmedBaseUrl = LlmEndpointProfile.normalizeBaseUrl(baseUrl);
-    final profiles = usableLlmEndpointProfiles;
+  AppSettings withNormalizedLlmEndpoints() {
+    final trimmedBaseUrl = LlmEndpoint.normalizeBaseUrl(baseUrl);
+    final profiles = usableLlmEndpoints;
 
     if (profiles.isEmpty) {
       if (trimmedBaseUrl.isEmpty) return this;
       return copyWith(
-        llmEndpointProfiles: [
-          LlmEndpointProfile(
+        llmEndpoints: [
+          LlmEndpoint(
             id: seededLlmEndpointId,
             baseUrl: trimmedBaseUrl,
             apiKey: apiKey.trim(),
@@ -952,10 +871,7 @@ abstract class AppSettings with _$AppSettings {
         else
           profile,
     ];
-    return copyWith(
-      llmEndpointProfiles: synced,
-      activeLlmEndpointId: activeId,
-    );
+    return copyWith(llmEndpoints: synced, activeLlmEndpointId: activeId);
   }
 
   String get effectiveMemoryExtractionModel =>
@@ -1050,19 +966,17 @@ abstract class AppSettings with _$AppSettings {
     return result;
   }
 
-  /// LL8: registered endpoints that are enabled and usable, in registration
-  /// order. The primary endpoint ([baseUrl]) is the implicit fallback and is
-  /// not part of this list.
-  List<NamedEndpoint> get enabledNamedEndpoints => namedEndpoints
+  /// Registered endpoints that are enabled and usable, in registration order.
+  List<LlmEndpoint> get enabledLlmEndpoints => llmEndpoints
       .map((endpoint) => endpoint.normalizedForPersistence())
       .where((endpoint) => endpoint.enabled && endpoint.isValid)
       .toList(growable: false);
 
-  /// Looks up a registered endpoint by base URL (id match), or null.
-  NamedEndpoint? namedEndpointForBaseUrl(String baseUrl) {
-    final targetId = NamedEndpoint.buildId(baseUrl);
-    for (final endpoint in namedEndpoints.reversed) {
-      if (endpoint.computedId == targetId) {
+  /// Looks up a registered endpoint by normalized base URL, or null.
+  LlmEndpoint? llmEndpointForBaseUrl(String baseUrl) {
+    final targetBaseUrl = LlmEndpoint.normalizeBaseUrl(baseUrl).toLowerCase();
+    for (final endpoint in llmEndpoints.reversed) {
+      if (endpoint.normalizedBaseUrl.toLowerCase() == targetBaseUrl) {
         return endpoint.normalizedForPersistence();
       }
     }
@@ -1080,10 +994,13 @@ abstract class AppSettings with _$AppSettings {
   }
 
   static Map<String, dynamic> migrateLegacyJson(Map<String, dynamic> json) {
-    if (json.containsKey('codingApprovalMode')) {
-      return json;
-    }
+    var migrated = _migrateApprovalMode(json);
+    migrated = _migrateUnifiedEndpoints(migrated);
+    return migrated;
+  }
 
+  static Map<String, dynamic> _migrateApprovalMode(Map<String, dynamic> json) {
+    if (json.containsKey('codingApprovalMode')) return json;
     final migrated = Map<String, dynamic>.from(json);
     final confirmFileMutations =
         migrated['confirmFileMutations'] as bool? ?? true;
@@ -1094,6 +1011,100 @@ abstract class AppSettings with _$AppSettings {
         !confirmFileMutations && !confirmLocalCommands && !confirmGitWrites
         ? 'fullAccess'
         : 'defaultPermissions';
+    return migrated;
+  }
+
+  static Map<String, dynamic> _migrateUnifiedEndpoints(
+    Map<String, dynamic> json,
+  ) {
+    if (json.containsKey('llmEndpoints')) return json;
+
+    final hasLegacyEndpoints =
+        json.containsKey('llmEndpointProfiles') ||
+        json.containsKey('namedEndpoints');
+    if (!hasLegacyEndpoints) return json;
+
+    final migrated = Map<String, dynamic>.from(json);
+    final endpoints = <Map<String, dynamic>>[];
+    final normalizedBaseUrlToIndex = <String, int>{};
+    final namedIdMapping = <String, String>{};
+
+    final legacyProfiles = json['llmEndpointProfiles'];
+    if (legacyProfiles is List) {
+      for (final item in legacyProfiles.whereType<Map>()) {
+        final profile = Map<String, dynamic>.from(item);
+        final endpoint = <String, dynamic>{
+          ...profile,
+          'enabled': true,
+          'source': 'manual',
+        };
+        endpoints.add(endpoint);
+        final normalizedBaseUrl = LlmEndpoint.normalizeBaseUrl(
+          profile['baseUrl']?.toString() ?? '',
+        ).toLowerCase();
+        if (normalizedBaseUrl.isNotEmpty) {
+          normalizedBaseUrlToIndex[normalizedBaseUrl] = endpoints.length - 1;
+        }
+      }
+    }
+
+    final legacyNamedEndpoints = json['namedEndpoints'];
+    if (legacyNamedEndpoints is List) {
+      for (final item in legacyNamedEndpoints.whereType<Map>()) {
+        final named = Map<String, dynamic>.from(item);
+        final namedId = named['id']?.toString() ?? '';
+        final normalizedBaseUrl = LlmEndpoint.normalizeBaseUrl(
+          named['baseUrl']?.toString() ?? '',
+        ).toLowerCase();
+        final existingIndex = normalizedBaseUrlToIndex[normalizedBaseUrl];
+        if (normalizedBaseUrl.isNotEmpty && existingIndex != null) {
+          final existing = endpoints[existingIndex];
+          final existingLabel = existing['label']?.toString().trim() ?? '';
+          final existingApiKey = existing['apiKey']?.toString().trim() ?? '';
+          endpoints[existingIndex] = <String, dynamic>{
+            ...existing,
+            if (existingLabel.isEmpty) 'label': named['label'] ?? '',
+            if (existingApiKey.isEmpty) 'apiKey': named['apiKey'] ?? '',
+            // A legacy profile was selectable, so a merged entry stays enabled.
+            'enabled': true,
+          };
+          if (namedId.isNotEmpty) {
+            namedIdMapping[namedId] =
+                endpoints[existingIndex]['id']?.toString() ?? namedId;
+          }
+          continue;
+        }
+
+        endpoints.add(<String, dynamic>{
+          'id': namedId,
+          'label': named['label'] ?? '',
+          'baseUrl': named['baseUrl'] ?? '',
+          'apiKey': named['apiKey'] ?? '',
+          'model': '',
+          'enabled': named['enabled'] ?? true,
+          'source': 'discovered',
+          if (named.containsKey('createdAt')) 'createdAt': named['createdAt'],
+        });
+        if (normalizedBaseUrl.isNotEmpty) {
+          normalizedBaseUrlToIndex[normalizedBaseUrl] = endpoints.length - 1;
+        }
+      }
+    }
+
+    migrated['llmEndpoints'] = endpoints;
+    for (final field in const <String>[
+      'memoryExtractionEndpointId',
+      'subagentEndpointId',
+      'goalSuggestionEndpointId',
+      'approvalAutoReviewEndpointId',
+    ]) {
+      final currentId = migrated[field]?.toString();
+      if (currentId != null && namedIdMapping.containsKey(currentId)) {
+        migrated[field] = namedIdMapping[currentId];
+      }
+    }
+    migrated.remove('llmEndpointProfiles');
+    migrated.remove('namedEndpoints');
     return migrated;
   }
 

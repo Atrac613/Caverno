@@ -180,7 +180,12 @@ void main() {
       loadModels: () async => ['selected-model'],
     );
 
-    expect(find.text('http://localhost:1234/v1 · selected-model · local placeholder'), findsOneWidget);
+    expect(
+      find.text(
+        'http://localhost:1234/v1 · selected-model · local placeholder',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const ValueKey('settings-add-endpoint')));
     await tester.pumpAndSettle();
@@ -200,12 +205,9 @@ void main() {
       tester.element(find.byType(GeneralSettingsPage)),
     );
     final updated = container.read(settingsNotifierProvider);
-    expect(updated.usableLlmEndpointProfiles, hasLength(2));
+    expect(updated.usableLlmEndpoints, hasLength(2));
     expect(updated.baseUrl, 'http://192.168.100.241:8080/v1');
-    expect(
-      updated.activeLlmEndpointProfile?.normalizedLabel,
-      'Workstation',
-    );
+    expect(updated.activeLlmEndpoint?.normalizedLabel, 'Workstation');
     expect(find.text('Workstation'), findsOneWidget);
   });
 
@@ -235,7 +237,7 @@ void main() {
       tester.element(find.byType(GeneralSettingsPage)),
     );
     expect(
-      container.read(settingsNotifierProvider).usableLlmEndpointProfiles,
+      container.read(settingsNotifierProvider).usableLlmEndpoints,
       hasLength(1),
     );
   });

@@ -91,24 +91,27 @@ void main() {
       const firstBaseUrl = 'http://mesh-one:1234/v1';
       const secondBaseUrl = 'http://mesh-two:1234/v1';
       const disabledBaseUrl = 'http://mesh-disabled:1234/v1';
-      final firstEndpointId = NamedEndpoint.buildId(firstBaseUrl);
-      final secondEndpointId = NamedEndpoint.buildId(secondBaseUrl);
-      final disabledEndpointId = NamedEndpoint.buildId(disabledBaseUrl);
+      const firstEndpointId = 'mesh-one';
+      const secondEndpointId = 'mesh-two';
+      const disabledEndpointId = 'mesh-disabled';
       final settingsNotifier = container.read(
         settingsNotifierProvider.notifier,
       );
-      await settingsNotifier.upsertNamedEndpoint(
-        const NamedEndpoint(id: 'mesh-one', baseUrl: firstBaseUrl),
+      await settingsNotifier.upsertLlmEndpoint(
+        const LlmEndpoint(id: 'mesh-one', baseUrl: firstBaseUrl),
+        activate: false,
       );
-      await settingsNotifier.upsertNamedEndpoint(
-        const NamedEndpoint(id: 'mesh-two', baseUrl: secondBaseUrl),
+      await settingsNotifier.upsertLlmEndpoint(
+        const LlmEndpoint(id: 'mesh-two', baseUrl: secondBaseUrl),
+        activate: false,
       );
-      await settingsNotifier.upsertNamedEndpoint(
-        const NamedEndpoint(
+      await settingsNotifier.upsertLlmEndpoint(
+        const LlmEndpoint(
           id: 'mesh-disabled',
           baseUrl: disabledBaseUrl,
           enabled: false,
         ),
+        activate: false,
       );
       await settingsNotifier.updateSubagentEndpointId(firstEndpointId);
 
@@ -159,20 +162,22 @@ void main() {
 
       const enabledBaseUrl = 'http://mesh-enabled:1234/v1';
       const disabledBaseUrl = 'http://mesh-disabled:1234/v1';
-      final enabledEndpointId = NamedEndpoint.buildId(enabledBaseUrl);
-      final disabledEndpointId = NamedEndpoint.buildId(disabledBaseUrl);
+      const enabledEndpointId = 'mesh-enabled';
+      const disabledEndpointId = 'mesh-disabled';
       final settingsNotifier = container.read(
         settingsNotifierProvider.notifier,
       );
-      await settingsNotifier.upsertNamedEndpoint(
-        const NamedEndpoint(id: 'mesh-enabled', baseUrl: enabledBaseUrl),
+      await settingsNotifier.upsertLlmEndpoint(
+        const LlmEndpoint(id: 'mesh-enabled', baseUrl: enabledBaseUrl),
+        activate: false,
       );
-      await settingsNotifier.upsertNamedEndpoint(
-        const NamedEndpoint(
+      await settingsNotifier.upsertLlmEndpoint(
+        const LlmEndpoint(
           id: 'mesh-disabled',
           baseUrl: disabledBaseUrl,
           enabled: false,
         ),
+        activate: false,
       );
       await settingsNotifier.updateSubagentEndpointId(disabledEndpointId);
 

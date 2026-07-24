@@ -197,7 +197,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
       primary: _dataSource,
       primaryBaseUrl: _settings.baseUrl,
       primaryApiKey: _settings.apiKey,
-      endpoints: _settings.namedEndpoints,
+      endpoints: _settings.enabledLlmEndpoints,
       endpointId: _settings.llmProvider == LlmProvider.openAiCompatible
           ? _settings.subagentEndpointId
           : '',

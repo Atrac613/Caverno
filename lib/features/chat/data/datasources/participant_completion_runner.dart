@@ -57,7 +57,7 @@ class ParticipantCompletionRunner {
       primary: primary,
       primaryBaseUrl: settings.baseUrl,
       primaryApiKey: settings.apiKey,
-      endpoints: settings.namedEndpoints,
+      endpoints: settings.enabledLlmEndpoints,
       endpointId: endpointId,
       model: request.model,
       fallbackModel: settings.effectiveModel,

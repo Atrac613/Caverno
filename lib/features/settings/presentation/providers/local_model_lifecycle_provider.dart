@@ -124,10 +124,11 @@ final localModelLifecycleEndpointOptionsProvider =
           baseUrl: settings.baseUrl,
           apiKey: settings.apiKey,
         ),
-        for (final endpoint in settings.namedEndpoints)
-          if (endpoint.isValid)
+        for (final endpoint in settings.enabledLlmEndpoints)
+          if (endpoint.normalizedBaseUrl.toLowerCase() !=
+              LlmEndpoint.normalizeBaseUrl(settings.baseUrl).toLowerCase())
             LocalModelLifecycleEndpointConfig(
-              id: endpoint.computedId,
+              id: endpoint.id,
               baseUrl: endpoint.normalizedBaseUrl,
               apiKey: endpoint.apiKey,
               label: endpoint.displayLabel,

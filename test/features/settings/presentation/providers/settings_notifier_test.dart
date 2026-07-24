@@ -227,7 +227,7 @@ void main() {
               model: 'legacy-model',
             )
             .toJson()
-          ..remove('llmEndpointProfiles')
+          ..remove('llmEndpoints')
           ..remove('activeLlmEndpointId'),
       ),
     });
@@ -238,57 +238,60 @@ void main() {
     addTearDown(container.dispose);
 
     final settings = container.read(settingsNotifierProvider);
-    final profiles = settings.usableLlmEndpointProfiles;
+    final profiles = settings.usableLlmEndpoints;
     expect(profiles, hasLength(1));
     expect(profiles.single.normalizedBaseUrl, 'http://192.168.0.10:1234/v1');
     expect(profiles.single.apiKey, 'legacy-key');
     expect(profiles.single.normalizedModel, 'legacy-model');
-    expect(settings.activeLlmEndpointProfile?.id, profiles.single.id);
+    expect(settings.activeLlmEndpoint?.id, profiles.single.id);
   });
 
-  test('registering a second endpoint switches the primary connection', () async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final container = ProviderContainer(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-    );
-    addTearDown(container.dispose);
+  test(
+    'registering a second endpoint switches the primary connection',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
 
-    final notifier = container.read(settingsNotifierProvider.notifier);
-    final firstId = container
-        .read(settingsNotifierProvider)
-        .activeLlmEndpointProfile!
-        .id;
+      final notifier = container.read(settingsNotifierProvider.notifier);
+      final firstId = container
+          .read(settingsNotifierProvider)
+          .activeLlmEndpoint!
+          .id;
 
-    await notifier.upsertLlmEndpointProfile(
-      const LlmEndpointProfile(
-        id: '',
-        label: 'Workstation',
-        baseUrl: 'http://192.168.100.241:8080/v1/',
-        apiKey: 'remote-key',
-        model: 'remote-model',
-      ),
-    );
+      await notifier.upsertLlmEndpoint(
+        const LlmEndpoint(
+          id: '',
+          label: 'Workstation',
+          baseUrl: 'http://192.168.100.241:8080/v1/',
+          apiKey: 'remote-key',
+          model: 'remote-model',
+        ),
+      );
 
-    final settings = container.read(settingsNotifierProvider);
-    expect(settings.usableLlmEndpointProfiles, hasLength(2));
-    // Trailing slashes are normalized so the same endpoint is not registered
-    // twice under two spellings.
-    expect(settings.baseUrl, 'http://192.168.100.241:8080/v1');
-    expect(settings.apiKey, 'remote-key');
-    expect(settings.model, 'remote-model');
+      final settings = container.read(settingsNotifierProvider);
+      expect(settings.usableLlmEndpoints, hasLength(2));
+      // Trailing slashes are normalized so the same endpoint is not registered
+      // twice under two spellings.
+      expect(settings.baseUrl, 'http://192.168.100.241:8080/v1');
+      expect(settings.apiKey, 'remote-key');
+      expect(settings.model, 'remote-model');
 
-    final reloaded = SettingsRepository(prefs).load();
-    expect(reloaded.baseUrl, 'http://192.168.100.241:8080/v1');
-    expect(reloaded.activeLlmEndpointProfile?.normalizedLabel, 'Workstation');
+      final reloaded = SettingsRepository(prefs).load();
+      expect(reloaded.baseUrl, 'http://192.168.100.241:8080/v1');
+      expect(reloaded.activeLlmEndpoint?.normalizedLabel, 'Workstation');
 
-    // Switching back restores the first endpoint's connection values.
-    await notifier.selectLlmEndpointProfile(firstId);
-    final restored = container.read(settingsNotifierProvider);
-    expect(restored.baseUrl, ApiConstants.defaultBaseUrl);
-    expect(restored.model, ApiConstants.defaultModel);
-    expect(restored.activeLlmEndpointProfile?.id, firstId);
-  });
+      // Switching back restores the first endpoint's connection values.
+      await notifier.selectLlmEndpoint(firstId);
+      final restored = container.read(settingsNotifierProvider);
+      expect(restored.baseUrl, ApiConstants.defaultBaseUrl);
+      expect(restored.model, ApiConstants.defaultModel);
+      expect(restored.activeLlmEndpoint?.id, firstId);
+    },
+  );
 
   test('model changes are remembered per endpoint', () async {
     SharedPreferences.setMockInitialValues({});
@@ -301,12 +304,12 @@ void main() {
     final notifier = container.read(settingsNotifierProvider.notifier);
     final localId = container
         .read(settingsNotifierProvider)
-        .activeLlmEndpointProfile!
+        .activeLlmEndpoint!
         .id;
     await notifier.updateModel('local-model');
 
-    await notifier.upsertLlmEndpointProfile(
-      const LlmEndpointProfile(
+    await notifier.upsertLlmEndpoint(
+      const LlmEndpoint(
         id: '',
         label: 'Remote',
         baseUrl: 'http://10.0.0.5:1234/v1',
@@ -315,7 +318,7 @@ void main() {
     );
     expect(container.read(settingsNotifierProvider).model, 'remote-model');
 
-    await notifier.selectLlmEndpointProfile(localId);
+    await notifier.selectLlmEndpoint(localId);
     expect(container.read(settingsNotifierProvider).model, 'local-model');
   });
 
@@ -330,17 +333,17 @@ void main() {
     final notifier = container.read(settingsNotifierProvider.notifier);
     final onlyId = container
         .read(settingsNotifierProvider)
-        .activeLlmEndpointProfile!
+        .activeLlmEndpoint!
         .id;
 
-    await notifier.removeLlmEndpointProfile(onlyId);
+    await notifier.removeLlmEndpoint(onlyId);
     expect(
-      container.read(settingsNotifierProvider).usableLlmEndpointProfiles,
+      container.read(settingsNotifierProvider).usableLlmEndpoints,
       hasLength(1),
     );
 
-    await notifier.upsertLlmEndpointProfile(
-      const LlmEndpointProfile(
+    await notifier.upsertLlmEndpoint(
+      const LlmEndpoint(
         id: '',
         label: 'Remote',
         baseUrl: 'http://10.0.0.5:1234/v1',
@@ -350,12 +353,12 @@ void main() {
     // Removing the active endpoint falls back to the remaining one.
     final activeId = container
         .read(settingsNotifierProvider)
-        .activeLlmEndpointProfile!
+        .activeLlmEndpoint!
         .id;
-    await notifier.removeLlmEndpointProfile(activeId);
+    await notifier.removeLlmEndpoint(activeId);
     final settings = container.read(settingsNotifierProvider);
-    expect(settings.usableLlmEndpointProfiles, hasLength(1));
-    expect(settings.activeLlmEndpointProfile?.id, onlyId);
+    expect(settings.usableLlmEndpoints, hasLength(1));
+    expect(settings.activeLlmEndpoint?.id, onlyId);
     expect(settings.baseUrl, ApiConstants.defaultBaseUrl);
   });
 
@@ -723,8 +726,8 @@ void main() {
     });
   });
 
-  group('LL8 named endpoints', () {
-    test('upsert registers, dedupes by base URL, and remove deletes', () async {
+  group('unified endpoints', () {
+    test('discovery upsert dedupes without changing the primary', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final container = ProviderContainer(
@@ -732,39 +735,108 @@ void main() {
       );
       addTearDown(container.dispose);
       final notifier = container.read(settingsNotifierProvider.notifier);
+      final primaryId = container
+          .read(settingsNotifierProvider)
+          .activeLlmEndpointId;
 
-      await notifier.upsertNamedEndpoint(
-        const NamedEndpoint(
+      await notifier.upsertLlmEndpoint(
+        const LlmEndpoint(
           id: '',
           label: 'Studio Box',
           baseUrl: 'http://192.168.100.241:1234/v1',
+          source: LlmEndpointSource.discovered,
         ),
+        dedupeByBaseUrl: true,
+        activate: false,
       );
       var settings = container.read(settingsNotifierProvider);
-      expect(settings.namedEndpoints, hasLength(1));
-      final firstCreatedAt = settings.namedEndpoints.single.createdAt;
+      expect(settings.llmEndpoints, hasLength(2));
+      expect(settings.activeLlmEndpointId, primaryId);
+      final discovered = settings.llmEndpoints.last;
+      final discoveredId = discovered.id;
+      final firstCreatedAt = discovered.createdAt;
       expect(firstCreatedAt, isNotNull);
 
       // Re-registering the same base URL (trailing slash) updates in place and
       // preserves the original registration time.
-      await notifier.upsertNamedEndpoint(
-        const NamedEndpoint(
+      await notifier.upsertLlmEndpoint(
+        const LlmEndpoint(
           id: '',
           label: 'Studio Box (renamed)',
           baseUrl: 'http://192.168.100.241:1234/v1/',
+          source: LlmEndpointSource.discovered,
         ),
+        dedupeByBaseUrl: true,
+        activate: false,
       );
       settings = container.read(settingsNotifierProvider);
-      expect(settings.namedEndpoints, hasLength(1));
-      expect(settings.namedEndpoints.single.label, 'Studio Box (renamed)');
-      expect(settings.namedEndpoints.single.createdAt, firstCreatedAt);
+      expect(settings.llmEndpoints, hasLength(2));
+      final updated = settings.llmEndpoints.last;
+      expect(updated.id, discoveredId);
+      expect(updated.label, 'Studio Box (renamed)');
+      expect(updated.createdAt, firstCreatedAt);
 
       // Persisted across a reload.
       final reloaded = SettingsRepository(prefs).load();
-      expect(reloaded.namedEndpoints, hasLength(1));
+      expect(reloaded.llmEndpoints, hasLength(2));
 
-      await notifier.removeNamedEndpoint(settings.namedEndpoints.single.id);
-      expect(container.read(settingsNotifierProvider).namedEndpoints, isEmpty);
+      await notifier.removeLlmEndpoint(discoveredId);
+      expect(
+        container.read(settingsNotifierProvider).llmEndpoints,
+        hasLength(1),
+      );
+      expect(
+        container.read(settingsNotifierProvider).activeLlmEndpointId,
+        primaryId,
+      );
+    });
+
+    test('disabled endpoints cannot become active', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+      final primaryId = container
+          .read(settingsNotifierProvider)
+          .activeLlmEndpointId;
+
+      await notifier.upsertLlmEndpoint(
+        const LlmEndpoint(
+          id: 'disabled-endpoint',
+          baseUrl: 'http://disabled.example/v1',
+          enabled: false,
+        ),
+        activate: false,
+      );
+      await notifier.selectLlmEndpoint('disabled-endpoint');
+
+      expect(
+        container.read(settingsNotifierProvider).activeLlmEndpointId,
+        primaryId,
+      );
+    });
+
+    test('the active endpoint cannot be disabled', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final container = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+      final activeId = container
+          .read(settingsNotifierProvider)
+          .activeLlmEndpointId;
+
+      await notifier.setLlmEndpointEnabled(activeId, false);
+
+      expect(
+        container.read(settingsNotifierProvider).activeLlmEndpoint?.enabled,
+        isTrue,
+      );
     });
 
     test('upsert rejects an endpoint without a base URL', () async {
@@ -777,9 +849,8 @@ void main() {
       final notifier = container.read(settingsNotifierProvider.notifier);
 
       expect(
-        () => notifier.upsertNamedEndpoint(
-          const NamedEndpoint(id: '', baseUrl: ' '),
-        ),
+        () =>
+            notifier.upsertLlmEndpoint(const LlmEndpoint(id: '', baseUrl: ' ')),
         throwsArgumentError,
       );
     });

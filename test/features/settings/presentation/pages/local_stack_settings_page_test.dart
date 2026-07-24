@@ -221,8 +221,8 @@ void main() {
     tester,
   ) async {
     const meshUrl = 'http://mesh-box:1234/v1';
-    final meshEndpoint = NamedEndpoint(
-      id: NamedEndpoint.buildId(meshUrl),
+    final meshEndpoint = LlmEndpoint(
+      id: 'mesh-box',
       label: 'Mesh Box',
       baseUrl: meshUrl,
     ).normalizedForPersistence();
@@ -261,7 +261,15 @@ void main() {
     final settings = AppSettings.defaults().copyWith(
       baseUrl: 'http://localhost:1234/v1',
       apiKey: 'no-key',
-      namedEndpoints: [meshEndpoint],
+      llmEndpoints: [
+        const LlmEndpoint(
+          id: 'primary',
+          baseUrl: 'http://localhost:1234/v1',
+          apiKey: 'no-key',
+        ),
+        meshEndpoint,
+      ],
+      activeLlmEndpointId: 'primary',
       subagentModel: 'mesh-subagent',
       subagentEndpointId: meshEndpoint.id,
     );

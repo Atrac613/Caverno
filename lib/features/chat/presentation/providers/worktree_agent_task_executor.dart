@@ -202,7 +202,7 @@ class WorktreeAgentLlmExecutionDelegate {
       primary: primaryDataSource,
       primaryBaseUrl: settings.baseUrl,
       primaryApiKey: settings.apiKey,
-      endpoints: settings.namedEndpoints,
+      endpoints: settings.enabledLlmEndpoints,
       endpointId: endpointId,
       model: settings.effectiveSubagentModel,
       fallbackModel: settings.effectiveModel,

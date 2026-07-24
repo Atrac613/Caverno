@@ -90,15 +90,21 @@ class _DiscoveredSection extends ConsumerWidget {
               _DiscoveredTile(
                 endpoint: endpoint,
                 isRegistered:
-                    settings.namedEndpointForBaseUrl(endpoint.baseUrl) != null,
+                    settings.llmEndpointForBaseUrl(endpoint.baseUrl) != null,
                 onRegister: () => ref
                     .read(settingsNotifierProvider.notifier)
-                    .upsertNamedEndpoint(
-                      NamedEndpoint(
+                    .upsertLlmEndpoint(
+                      LlmEndpoint(
                         id: '',
                         label: '${endpoint.serverHint} (${endpoint.host})',
                         baseUrl: endpoint.baseUrl,
+                        model: endpoint.modelIds.isEmpty
+                            ? ''
+                            : endpoint.modelIds.first,
+                        source: LlmEndpointSource.discovered,
                       ),
+                      dedupeByBaseUrl: true,
+                      activate: false,
                     ),
               ),
           ],
@@ -151,7 +157,7 @@ class _RegisteredSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(settingsNotifierProvider.notifier);
-    final endpoints = settings.namedEndpoints;
+    final endpoints = settings.llmEndpoints;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -177,14 +183,13 @@ class _RegisteredSection extends ConsumerWidget {
                 children: [
                   Switch(
                     value: endpoint.enabled,
-                    onChanged: (value) => notifier.upsertNamedEndpoint(
-                      endpoint.copyWith(enabled: value),
-                    ),
+                    onChanged: (value) =>
+                        notifier.setLlmEndpointEnabled(endpoint.id, value),
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline),
                     tooltip: 'settings.mesh_remove'.tr(),
-                    onPressed: () => notifier.removeNamedEndpoint(endpoint.id),
+                    onPressed: () => notifier.removeLlmEndpoint(endpoint.id),
                   ),
                 ],
               ),

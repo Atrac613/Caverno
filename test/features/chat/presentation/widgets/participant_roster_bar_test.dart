@@ -24,7 +24,7 @@ class _TestTranslationLoader extends AssetLoader {
 Future<void> _pumpRoster(
   WidgetTester tester, {
   required List<ConversationParticipant> participants,
-  List<NamedEndpoint> endpoints = const [],
+  List<LlmEndpoint> endpoints = const [],
   Set<String> referencedParticipantIds = const <String>{},
   ParticipantTurnRuntime? runtime,
   ParticipantRosterChanged? onChanged,
@@ -135,8 +135,8 @@ void main() {
   });
 
   testWidgets('adds a mesh participant from the invite sheet', (tester) async {
-    final endpoint = NamedEndpoint(
-      id: NamedEndpoint.buildId('http://pc2.example/v1'),
+    final endpoint = LlmEndpoint(
+      id: 'pc2',
       label: 'PC2',
       baseUrl: 'http://pc2.example/v1',
     ).normalizedForPersistence();
@@ -190,8 +190,8 @@ void main() {
   testWidgets('facilitator preset marks the participant as turn manager', (
     tester,
   ) async {
-    final endpoint = NamedEndpoint(
-      id: NamedEndpoint.buildId('http://pc2.example/v1'),
+    final endpoint = LlmEndpoint(
+      id: 'pc2',
       label: 'PC2',
       baseUrl: 'http://pc2.example/v1',
     ).normalizedForPersistence();

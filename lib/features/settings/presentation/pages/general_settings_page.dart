@@ -57,9 +57,9 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   Widget _buildSectionHeader(String title) {
     return Text(
       title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.bold,
-      ),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
     );
   }
 
@@ -160,8 +160,8 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   /// connection (base URL / API key / model) the whole app uses.
   Widget _buildEndpointList(AppSettings settings, SettingsNotifier notifier) {
     final theme = Theme.of(context);
-    final profiles = settings.usableLlmEndpointProfiles;
-    final activeId = settings.activeLlmEndpointProfile?.id ?? '';
+    final profiles = settings.usableLlmEndpoints;
+    final activeId = settings.activeLlmEndpoint?.id ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -225,7 +225,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   }
 
   Widget _buildEndpointTile({
-    required LlmEndpointProfile profile,
+    required LlmEndpoint profile,
     required bool isActive,
     required bool canRemove,
     required SettingsNotifier notifier,
@@ -264,7 +264,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
             icon: const Icon(Icons.delete_outline, size: 18),
             tooltip: 'settings.endpoint_remove'.tr(),
             onPressed: canRemove
-                ? () => notifier.removeLlmEndpointProfile(profile.id)
+                ? () => notifier.removeLlmEndpoint(profile.id)
                 : null,
           ),
         ],
@@ -273,10 +273,10 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   }
 
   Future<void> _selectEndpoint(
-    LlmEndpointProfile profile,
+    LlmEndpoint profile,
     SettingsNotifier notifier,
   ) async {
-    await notifier.selectLlmEndpointProfile(profile.id);
+    await notifier.selectLlmEndpoint(profile.id);
     if (!mounted) return;
     _runModelCapabilityAutoProbe();
   }
@@ -286,14 +286,14 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   /// from the fetched model list once the endpoint is active.
   Future<void> _showEndpointEditor(
     SettingsNotifier notifier, {
-    LlmEndpointProfile? existing,
+    LlmEndpoint? existing,
   }) async {
-    final edited = await showDialog<LlmEndpointProfile>(
+    final edited = await showDialog<LlmEndpoint>(
       context: context,
       builder: (dialogContext) => _EndpointEditorDialog(existing: existing),
     );
     if (edited == null) return;
-    await notifier.upsertLlmEndpointProfile(edited);
+    await notifier.upsertLlmEndpoint(edited);
     if (!mounted) return;
     _runModelCapabilityAutoProbe();
   }
@@ -1237,7 +1237,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
 class _EndpointEditorDialog extends StatefulWidget {
   const _EndpointEditorDialog({this.existing});
 
-  final LlmEndpointProfile? existing;
+  final LlmEndpoint? existing;
 
   @override
   State<_EndpointEditorDialog> createState() => _EndpointEditorDialogState();
@@ -1285,7 +1285,7 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
     final existing = widget.existing;
     final apiKey = _apiKeyController.text.trim();
     Navigator.of(context).pop(
-      LlmEndpointProfile(
+      LlmEndpoint(
         id: existing?.id ?? '',
         label: _labelController.text,
         baseUrl: _baseUrlController.text,

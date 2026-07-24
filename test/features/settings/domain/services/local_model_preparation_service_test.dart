@@ -70,13 +70,13 @@ void main() {
     });
 
     test('plans role models for a selected named endpoint', () {
-      final meshEndpoint = NamedEndpoint(
-        id: NamedEndpoint.buildId('http://mesh-box:1234/v1'),
+      final meshEndpoint = LlmEndpoint(
+        id: 'mesh-box',
         label: 'Mesh Box',
         baseUrl: 'http://mesh-box:1234/v1',
       ).normalizedForPersistence();
       final settings = AppSettings.defaults().copyWith(
-        namedEndpoints: [meshEndpoint],
+        llmEndpoints: [meshEndpoint],
         memoryExtractionModel: 'primary-small',
         subagentModel: 'mesh-subagent',
         subagentEndpointId: meshEndpoint.id,
