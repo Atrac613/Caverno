@@ -773,6 +773,86 @@ void main() {
     expect(settings.effectiveApprovalAutoReviewModel, 'main-model');
   });
 
+  test('a pinned endpoint supplies the default model for an empty role', () {
+    const settings = AppSettings(
+      baseUrl: 'http://primary.example/v1',
+      model: 'primary-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      subagentEndpointId: 'mesh-endpoint',
+      llmEndpoints: [
+        LlmEndpoint(
+          id: 'mesh-endpoint',
+          baseUrl: 'http://mesh.example/v1',
+          model: 'mesh-model',
+        ),
+      ],
+    );
+
+    expect(settings.effectiveSubagentModel, 'mesh-model');
+  });
+
+  test('a pinned endpoint without a model falls back to the primary', () {
+    const settings = AppSettings(
+      baseUrl: 'http://primary.example/v1',
+      model: 'primary-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      subagentEndpointId: 'mesh-endpoint',
+      llmEndpoints: [
+        LlmEndpoint(id: 'mesh-endpoint', baseUrl: 'http://mesh.example/v1'),
+      ],
+    );
+
+    expect(settings.effectiveSubagentModel, 'primary-model');
+  });
+
+  test('an explicit role model wins over the pinned endpoint default', () {
+    const settings = AppSettings(
+      baseUrl: 'http://primary.example/v1',
+      model: 'primary-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      subagentModel: 'role-model',
+      subagentEndpointId: 'mesh-endpoint',
+      llmEndpoints: [
+        LlmEndpoint(
+          id: 'mesh-endpoint',
+          baseUrl: 'http://mesh.example/v1',
+          model: 'mesh-model',
+        ),
+      ],
+    );
+
+    expect(settings.effectiveSubagentModel, 'role-model');
+  });
+
+  test('a missing or disabled pin falls back to the primary model', () {
+    const settings = AppSettings(
+      baseUrl: 'http://primary.example/v1',
+      model: 'primary-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      subagentEndpointId: 'disabled-endpoint',
+      goalSuggestionEndpointId: 'missing-endpoint',
+      llmEndpoints: [
+        LlmEndpoint(
+          id: 'disabled-endpoint',
+          baseUrl: 'http://mesh.example/v1',
+          model: 'mesh-model',
+          enabled: false,
+        ),
+      ],
+    );
+
+    expect(settings.effectiveSubagentModel, 'primary-model');
+    expect(settings.effectiveGoalSuggestionModel, 'primary-model');
+  });
+
   test('role models are ignored for the Apple Foundation Models provider', () {
     const settings = AppSettings(
       llmProvider: LlmProvider.appleFoundationModels,

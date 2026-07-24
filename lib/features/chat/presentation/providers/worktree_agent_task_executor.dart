@@ -205,7 +205,7 @@ class WorktreeAgentLlmExecutionDelegate {
       endpoints: settings.enabledLlmEndpoints,
       endpointId: endpointId,
       model: settings.effectiveSubagentModel,
-      fallbackModel: settings.effectiveModel,
+      fallbackModel: settings.model,
     );
   }
 

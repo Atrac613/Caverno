@@ -875,15 +875,16 @@ abstract class AppSettings with _$AppSettings {
   }
 
   String get effectiveMemoryExtractionModel =>
-      _resolveRoleModel(memoryExtractionModel);
+      _resolveRoleModel(memoryExtractionModel, memoryExtractionEndpointId);
 
-  String get effectiveSubagentModel => _resolveRoleModel(subagentModel);
+  String get effectiveSubagentModel =>
+      _resolveRoleModel(subagentModel, subagentEndpointId);
 
   String get effectiveGoalSuggestionModel =>
-      _resolveRoleModel(goalSuggestionModel);
+      _resolveRoleModel(goalSuggestionModel, goalSuggestionEndpointId);
 
   String get effectiveApprovalAutoReviewModel =>
-      _resolveRoleModel(approvalAutoReviewModel);
+      _resolveRoleModel(approvalAutoReviewModel, approvalAutoReviewEndpointId);
 
   String get normalizedFeedbackEndpointUrl => feedbackEndpointUrl.trim();
 
@@ -985,12 +986,22 @@ abstract class AppSettings with _$AppSettings {
 
   /// Role models only apply to OpenAI-compatible endpoints; the Apple
   /// Foundation Models provider has a single on-device model.
-  String _resolveRoleModel(String roleModel) {
+  String _resolveRoleModel(String roleModel, String roleEndpointId) {
     if (llmProvider == LlmProvider.appleFoundationModels) {
       return effectiveModel;
     }
     final trimmed = roleModel.trim();
-    return trimmed.isEmpty ? effectiveModel : trimmed;
+    if (trimmed.isNotEmpty) return trimmed;
+
+    final endpointId = roleEndpointId.trim();
+    if (endpointId.isNotEmpty) {
+      for (final endpoint in enabledLlmEndpoints) {
+        if (endpoint.id == endpointId && endpoint.normalizedModel.isNotEmpty) {
+          return endpoint.normalizedModel;
+        }
+      }
+    }
+    return effectiveModel;
   }
 
   static Map<String, dynamic> migrateLegacyJson(Map<String, dynamic> json) {

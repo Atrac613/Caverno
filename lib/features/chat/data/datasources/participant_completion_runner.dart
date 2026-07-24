@@ -60,7 +60,7 @@ class ParticipantCompletionRunner {
       endpoints: settings.enabledLlmEndpoints,
       endpointId: endpointId,
       model: request.model,
-      fallbackModel: settings.effectiveModel,
+      fallbackModel: settings.model,
       call: (dataSource, resolvedModel) async {
         if (request.hasToolSupport) {
           await _streamWithTools(

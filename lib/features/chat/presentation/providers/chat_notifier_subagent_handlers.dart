@@ -202,7 +202,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
           ? _settings.subagentEndpointId
           : '',
       model: _settings.effectiveSubagentModel,
-      fallbackModel: _settings.effectiveModel,
+      fallbackModel: _settings.model,
     );
     final service = SubagentExecutionService(dataSource: resolved.dataSource);
     final task = await service.run(
