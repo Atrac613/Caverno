@@ -4,31 +4,21 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// F1 line-count ratchet (docs/local_llm_agent_roadmap.md).
 ///
-/// Each budgeted file may only shrink. When a refactor slice reduces a file,
-/// lower its budget here in the same PR so growth cannot creep back. Never
-/// raise a budget to make this test pass; extract code instead, following
+/// Each budget may only shrink. When a refactor slice reduces a file, lower its
+/// budget here in the same PR so growth cannot creep back. Never raise a budget
+/// to make this test pass; extract code instead, following
 /// docs/large_file_refactor_plan.md.
 ///
-/// Budgets match the latest tracked boundaries from the 2026-07-18 inventory.
+/// Budgets are tight non-increasing ceilings refreshed after each extraction.
 /// Primary-file budgets prevent local regrowth, while library budgets include
 /// declared `part` files so a move into shared private state cannot hide
-/// aggregate growth.
+/// aggregate growth. A small explicit margin may remain below a lowered ceiling
+/// so adjacent maintenance does not require raising the ratchet.
 const Map<String, int> _lineBudgets = {
-  // 9468 + 6 for LL35 shadow wiring (completion-outcome field, import, turn-
-  // start clear, and threading the lexical result to the shadow comparison),
-  // +1 for the verification-cadence import used by the auto-continue fix.
-  // +15 promotes update_goal out of shadow so an accepted completion actually
-  // completes the goal: the turn-scoped claim field (which must live on the
-  // class, not in a part-file extension), its turn-start clear, the import,
-  // and the two finalization call sites. The offsetting extraction is in the
-  // library budget below; nothing here could move without a separate refactor
-  // of this file.
-  // +3 for the completion-elicitation imports and dispatch, +8 for the
-  // turn-scoped allowed-tool set the unexecuted-action guard reads so it
-  // stops faulting claims the turn had no tool to substantiate, +6 to clear
-  // that set on the queued-message drain, which reaches dispatch without
-  // passing sendMessage.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 9507,
+  // Lowered from 9507 after project-scoped argument resolution moved to an
+  // independent data-layer service. The 9378-line file retains 22 lines of
+  // bounded maintenance margin.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 9400,
   // +1 import for ConversationGoalStatusPresentation, which absorbed the
   // status->label/colour/icon mapping duplicated across three files.
   'lib/features/chat/presentation/pages/chat_page.dart': 2046,
@@ -75,6 +65,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/data/datasources/mcp_tool_service.dart': 1202,
   'lib/features/chat/data/datasources/filesystem_tools.dart': 1243,
   'lib/features/chat/data/datasources/filesystem_diff_builder.dart': 213,
+  'lib/features/chat/data/datasources/project_scoped_tool_argument_resolver.dart':
+      152,
   'lib/features/chat/data/datasources/chat_remote_datasource.dart': 1164,
   'lib/features/chat/data/datasources/chat_completion_response_normalizer.dart':
       183,
@@ -149,27 +141,10 @@ const Map<String, int> _lineBudgets = {
 };
 
 const Map<String, int> _libraryLineBudgets = {
-  // Raised for LL35 update_goal wiring (+17 tool dispatch, +27 shadow
-  // comparison) and LL36 firing audit (+4 to record the coding-continuation
-  // recovery as a countable transform). Not god-file growth: the
-  // mcp_tool_service side took an offsetting definitions extraction and the
-  // decision logic lives in the pure GoalUpdateAckResolver /
-  // GoalCompletionShadow services, not here. See LL35/LL36. A further +21
-  // wires the verification cadence into goal auto-continue (a reused projector
-  // call plus its doc), fixing a real skip observed in session 2659093b, and
-  // +15 logs the cadence and both generations on the auto-continue record —
-  // without them a skip is undiagnosable, as session cfaa8297 showed — and +3
-  // documents why the cadence is derived directly rather than read off a
-  // snapshot that can early-return.
-  // A net +64 adds the one-shot goal-completion elicitation: the turn-scoped
-  // guard, the trigger, and the dispatcher. Offset by extracting the
-  // session-log evidence marker (a triage-tooling contract, which belongs
-  // beside the policy) and by folding this slice's rationale into
-  // GoalCompletionElicitationPrompt rather than repeating it inline. Earlier
-  // slices in the same session took 73 lines (the prompt builder) and 30 (the
-  // stop presentation) out of this library, so it is net smaller than it
-  // started even though each slice reads as growth.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 23156,
+  // Lowered from 23156 after project-scoped argument resolution left the
+  // notifier library. The 23018-line aggregate retains 32 lines of bounded
+  // maintenance margin.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 23050,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

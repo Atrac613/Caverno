@@ -60,6 +60,7 @@ import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/local_shell_tools.dart';
 import '../../data/datasources/lsp_json_rpc_session_registry.dart';
 import '../../data/datasources/mcp_tool_service.dart';
+import '../../data/datasources/project_scoped_tool_argument_resolver.dart';
 import '../../data/datasources/python_input_staging.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/session_logging_chat_datasource.dart';
@@ -2190,7 +2191,9 @@ class ChatNotifier extends Notifier<ChatState> {
   Map<String, dynamic> normalizeWriteFileArgumentsForTest(
     Map<String, dynamic> arguments,
   ) {
-    return _normalizeWriteFileArgumentAliases(arguments);
+    return ProjectScopedToolArgumentResolver.normalizeWriteFileArguments(
+      arguments,
+    );
   }
 
   @visibleForTesting
@@ -2205,143 +2208,11 @@ class ChatNotifier extends Notifier<ChatState> {
     String toolName,
     Map<String, dynamic> arguments,
   ) {
-    String? projectRoot;
-    var projectRootLoaded = false;
-
-    String? loadProjectRoot() {
-      if (!projectRootLoaded) {
-        projectRoot = _getActiveProjectRootPath();
-        projectRootLoaded = true;
-      }
-      return projectRoot;
-    }
-
-    String? resolvePathArg(
-      String key, {
-      bool allowEmpty = false,
-      List<String> aliases = const [],
-      String? fallbackWhenMissing,
-    }) {
-      String? rawValue = (arguments[key] as String?)?.trim();
-      for (final alias in aliases) {
-        if (rawValue != null && rawValue.isNotEmpty) {
-          break;
-        }
-        rawValue = (arguments[alias] as String?)?.trim();
-      }
-      final hasExplicitValue = rawValue != null && rawValue.isNotEmpty;
-      if (!hasExplicitValue && fallbackWhenMissing != null) {
-        rawValue = fallbackWhenMissing;
-      }
-      if ((rawValue == null || rawValue.isEmpty) && !allowEmpty) {
-        return null;
-      }
-      final resolved = FilesystemTools.resolvePath(
-        rawValue,
-        defaultRoot: loadProjectRoot(),
-      );
-      if (resolved == null &&
-          !hasExplicitValue &&
-          fallbackWhenMissing != null) {
-        return fallbackWhenMissing;
-      }
-      return resolved;
-    }
-
-    return switch (toolName) {
-      'list_directory' || 'find_files' || 'search_files' => () {
-        final resolvedPath = resolvePathArg(
-          'path',
-          allowEmpty: true,
-          fallbackWhenMissing: '.',
-        );
-        final resolvedArguments = <String, dynamic>{...arguments};
-        if (resolvedPath != null) {
-          resolvedArguments['path'] = resolvedPath;
-        }
-        return resolvedArguments;
-      }(),
-      'resolve_installed_dependency' => () {
-        final resolvedProjectPath = resolvePathArg(
-          'project_path',
-          allowEmpty: true,
-          aliases: const ['path', 'working_directory', 'cwd'],
-          fallbackWhenMissing: '.',
-        );
-        final resolvedArguments = <String, dynamic>{...arguments};
-        if (resolvedProjectPath != null) {
-          resolvedArguments['project_path'] = resolvedProjectPath;
-        }
-        return resolvedArguments;
-      }(),
-      'read_file' ||
-      'inspect_file' ||
-      'write_file' ||
-      'edit_file' ||
-      'delete_file' ||
-      'lsp_go_to_definition' => () {
-        final resolvedPath = resolvePathArg('path');
-        final resolvedArguments = toolName == 'write_file'
-            ? _normalizeWriteFileArgumentAliases(arguments)
-            : <String, dynamic>{...arguments};
-        if (resolvedPath != null) {
-          resolvedArguments['path'] = resolvedPath;
-        }
-        return resolvedArguments;
-      }(),
-      'local_execute_command' || 'process_start' => () {
-        final resolvedWorkingDirectory = resolvePathArg(
-          'working_directory',
-          allowEmpty: true,
-          aliases: const ['cwd'],
-        );
-        final resolvedArguments = <String, dynamic>{...arguments};
-        final command = (resolvedArguments['command'] as String?)?.trim();
-        if (command != null && command.isNotEmpty) {
-          resolvedArguments['command'] = LocalShellTools.normalizeCommand(
-            command,
-          );
-        }
-        if (resolvedWorkingDirectory != null) {
-          resolvedArguments['working_directory'] = resolvedWorkingDirectory;
-        }
-        return resolvedArguments;
-      }(),
-      'git_execute_command' || 'git_finish_worktree_session' => () {
-        final resolvedWorkingDirectory = resolvePathArg(
-          'working_directory',
-          allowEmpty: true,
-          aliases: const ['cwd'],
-        );
-        final resolvedWorktreePath = resolvePathArg(
-          'worktree_path',
-          allowEmpty: true,
-        );
-        final resolvedArguments = <String, dynamic>{...arguments};
-        if (resolvedWorkingDirectory != null) {
-          resolvedArguments['working_directory'] = resolvedWorkingDirectory;
-        }
-        if (resolvedWorktreePath != null) {
-          resolvedArguments['worktree_path'] = resolvedWorktreePath;
-        }
-        return resolvedArguments;
-      }(),
-      _ => arguments,
-    };
-  }
-
-  Map<String, dynamic> _normalizeWriteFileArgumentAliases(
-    Map<String, dynamic> arguments,
-  ) {
-    final normalizedArguments = <String, dynamic>{...arguments};
-    final content = (normalizedArguments['content'] as String?)?.trim();
-    final contents = (normalizedArguments['contents'] as String?)?.trim();
-    if ((content == null || content.isEmpty) &&
-        contents != null &&
-        contents.isNotEmpty) {
-      normalizedArguments['content'] = contents;
-    }
-    return normalizedArguments;
+    return ProjectScopedToolArgumentResolver.resolve(
+      toolName: toolName,
+      arguments: arguments,
+      loadProjectRoot: _getActiveProjectRootPath,
+    );
   }
 
   /// Prepares the message list sent to the LLM, including system messages.

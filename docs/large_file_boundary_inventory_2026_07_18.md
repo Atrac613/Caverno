@@ -47,6 +47,10 @@ boundary is selected.
 The full gate passed analysis, 3,905 root tests, and 13 internal-package tests
 at 74.98% line coverage (53,368/71,175).
 
+The tables below preserve their dated baseline unless a later outcome section
+explicitly supersedes a row. The project-scoped argument resolver outcome
+records the latest ChatNotifier counts and ratchets.
+
 The ranked coordinator, MessageInput, and ChatNotifier rows are refreshed below
 from the successful 2026-07-19 route-policy branch gate. The ChatPage row uses
 the later navigation extraction gate. The ChatRemoteDataSource and response
@@ -63,8 +67,9 @@ coverage values remain the integrated `main` snapshot described above.
 | `lib/features/chat/data/datasources/mcp_tool_service.dart` | 1,202 | 1 | 1,294 |
 | `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18,648 | 22 | 33,189 |
 
-The aggregates match their current non-increasing ratchets. Moving code to a
-new `part` file would not reduce these totals.
+At the time of this snapshot, the aggregates matched their then-current
+non-increasing ratchets. Moving code to a new `part` file would not reduce these
+totals. Later outcome sections record lower current boundaries.
 
 ## Standalone Production Boundaries
 
@@ -573,6 +578,30 @@ The slash suggestion state extraction is complete on
 - Re-characterize one remaining MessageInput composer action before another
   extraction. Do not widen this helper into execution, history, attachments, or
   goal controls.
+
+## Project-Scoped Tool Argument Resolver Outcome
+
+The ChatNotifier project-scoped tool argument resolver extraction is complete.
+
+- `ProjectScopedToolArgumentResolver` owns lazy active-root lookup, path and
+  working-directory aliases, write-content compatibility, and local-command
+  normalization without depending on Riverpod or notifier state.
+- `chat_notifier.dart` fell from 9,507 to 9,378 physical lines. Its 43 declared
+  parts remain unchanged, and the same-library aggregate fell from 23,147 to
+  23,018 lines.
+- The primary ceiling fell from 9,507 to 9,400 lines, leaving 22 lines of
+  bounded maintenance margin. The aggregate ceiling fell from 23,156 to 23,050
+  lines, leaving 32 lines of bounded maintenance margin.
+- The independent resolver is 152 lines and has its own exact non-increasing
+  line budget.
+- Direct tests freeze read-only defaults, project-root resolution, dependency
+  and command aliases, write-content compatibility, Git worktree paths, command
+  normalization, and lazy behavior for unrelated tools.
+- The focused gate passed analysis and 400 root tests. The repository-wide
+  no-codegen gate passed analysis, all internal-package suites, and 4,022 root
+  tests.
+- Broader tool dispatch, filesystem containment, approval policy, and project
+  selection remain unchanged and outside this slice.
 
 ## Stack Integration Outcome
 

@@ -5,18 +5,21 @@ to slow review, increase merge risk, or make Codex tasks harder to scope. Treat
 each slice as a behavior-preserving move unless the task explicitly says
 otherwise.
 
-## Current Inventory
+## Tracked Boundary Inventory
 
-The live tracked-boundary inventory below was refreshed on 2026-07-18 with
-`wc -l`. The complete non-generated 1,000-line production scan, test scan,
-coverage ranking, same-library aggregates, and active-worktree ownership audit
-are recorded in `docs/large_file_boundary_inventory_2026_07_18.md`. On
-2026-07-19, the user confirmed that the listed auxiliary worktrees are inactive
-and must not block refactor selection; the audit remains historical context.
+The baseline tracked-boundary inventory below was created on 2026-07-18 with
+`wc -l`, then selected rows were refreshed as focused extraction outcomes
+landed. The complete baseline production scan, test scan, coverage ranking,
+same-library aggregates, and active-worktree ownership audit are recorded in
+`docs/large_file_boundary_inventory_2026_07_18.md`. On 2026-07-19, the user
+confirmed that the listed auxiliary worktrees are inactive and must not block
+refactor selection; the audit remains historical context. The ChatNotifier row
+was refreshed on 2026-07-24 after the project-scoped argument resolver
+extraction.
 
 | File | Lines | Primary concern |
 |------|------:|-----------------|
-| `lib/features/chat/presentation/providers/chat_notifier.dart` | 9468 | Chat orchestration, tool loops, memory, workflows, persistence |
+| `lib/features/chat/presentation/providers/chat_notifier.dart` | 9378 | Chat orchestration, tool loops, memory, workflows, persistence |
 | `lib/features/chat/presentation/pages/chat_page.dart` | 2045 | Chat provider composition, dashboard and sidebar state, modals, input wiring, and plan UI |
 | `lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart` | 127 | Workspace, project, conversation, and assistant-mode routing |
 | `lib/features/chat/presentation/coordinators/slash_command_action_coordinator.dart` | 364 | Slash command loading policy, action dispatch, mode changes, conversation actions, and worktree queueing |
@@ -90,10 +93,11 @@ and must not block refactor selection; the audit remains historical context.
 | `test/features/chat/presentation/providers/chat_notifier_test.dart` | 18648 | Broad chat orchestration regression coverage |
 
 The primary files understate the effective library size because Dart `part`
-files share private state and compile as one library. Current aggregate sizes
-are 23,005 lines for the ChatNotifier library, 8,857 for the ChatPage library,
-1,294 for the McpToolService library, and 33,189 for the ChatNotifier test
-library. Ratchets must cover both the primary file and its aggregate library.
+files share private state and compile as one library. The refreshed
+ChatNotifier aggregate is 23,018 lines. The refreshed aggregates for the other
+listed libraries are 8,853 for ChatPage, 1,233 for McpToolService, and 33,204
+for the ChatNotifier test library. Ratchets must cover both the primary
+file and its aggregate library.
 
 The 2026-07-18 re-inventory selected the `network_tools.dart` route, interface,
 and path-MTU cluster, followed by the routine run-history, LAN IP network,
@@ -242,7 +246,7 @@ Candidate slices:
    - Destination: existing conversation plan execution services where possible.
    - Tests: Plan Mode proposal, guardrail, and execution coordinator tests.
 
-Tranche 1 status (2026-07-02):
+Tranche 1 status (started 2026-07-02; updated 2026-07-24):
 
 - `PlanningResearchCollector` plus `chat_notifier_planning_research.dart`
   extracted task-research context assembly.
@@ -256,19 +260,20 @@ Tranche 1 status (2026-07-02):
   paths.
 - `ActiveResponseRegistry` moved generation-keyed active-response conversation
   and message tracking out of the notifier.
-- The `chat_notifier.dart` ratchet budget is now 9468 lines and should continue
-  shrinking as each follow-up slice lands.
+- `ProjectScopedToolArgumentResolver` moved deterministic filesystem, command,
+  dependency, and Git argument normalization into an independent data-layer
+  service.
+- `chat_notifier.dart` is now 9,378 lines with a 9,400-line ceiling. Its
+  declared-part aggregate is 23,018 lines with a 23,050-line ceiling.
 
 Deferred follow-up candidates:
 
 - Conversation persistence and title update helpers, plus assistant-response
   memory extraction orchestration, remain valid characterization candidates.
 - Tool-loop request preparation, result-prompt construction, and workflow
-  coordination now span several extracted services and active worktrees.
+  coordination now span several extracted services.
   Re-characterize their current ownership before treating the older candidate
   wording as an implementation task.
-- `chat_notifier.dart` remains deferred while its active worktree overlaps are
-  unresolved.
 
 Exit criteria:
 
@@ -1172,12 +1177,14 @@ Next slice:
 - The ChatRemoteDataSource response-normalization extraction is complete. Keep
   its remaining request-building and streaming transformations separate from
   ChatPage, tool-loop, and workflow recovery changes.
-- MessageInput remains the next newly unblocked candidate at 2,332 lines and
-  65.62% coverage. Slash suggestion state is complete; re-characterize one
-  remaining composer action contract before moving more code.
-  ChatNotifier is also eligible, but its 83.15% root-file coverage and 23,005-
-  line same-library aggregate require a smaller named concern and aggregate
-  ratchet before any move. Do not split only the notifier test root.
+- MessageInput remains the next newly unblocked candidate at 2,318 lines.
+  Slash suggestion state is complete; re-characterize one remaining composer
+  action contract before moving more code.
+- The project-scoped tool argument resolver extraction is complete.
+  `chat_notifier.dart` fell from 9,507 to 9,378 lines and its same-library
+  aggregate fell from 23,147 to 23,018 lines. Re-characterize conversation
+  persistence or memory extraction as the next narrow concern; do not split
+  only the notifier test root.
 - Do not widen `ChatPageWorkspaceNavigationCoordinator` into dashboard,
   sidebar, Files-tab, workflow, approval, composer, or persistence state.
 - Keep `routine_detail_view.dart` and
