@@ -50,6 +50,7 @@ import 'test_support/plan_mode_screenshot_policy.dart';
 import 'test_support/plan_mode_scenario_reporting.dart';
 import 'test_support/plan_mode_scenario_seed_files.dart';
 import 'test_support/plan_mode_suite_report.dart';
+import 'test_support/plan_mode_temp_storage.dart';
 import 'test_support/plan_mode_warning_policy.dart';
 import 'test_support/plan_mode_scenario_config.dart';
 import 'test_support/plan_mode_workflow_execution_completion.dart';
@@ -597,7 +598,7 @@ void registerPlanModeScenarioSuite() {
   group(config.suiteName, () {
     Box<String>? conversationBox;
     Box<String>? memoryBox;
-    Directory? headlessHiveDirectory;
+    Directory? hiveDirectory;
     late DebugPrintCallback originalDebugPrint;
     late PlanModePlanningReadyObserver planningReadyObserver;
     late List<String> logs;
@@ -629,14 +630,10 @@ void registerPlanModeScenarioSuite() {
         originalDebugPrint(message, wrapWidth: wrapWidth);
       };
 
+      hiveDirectory = await createPlanModeTemporaryDirectory('plan_mode_hive_');
+      Hive.init(hiveDirectory!.path);
       if (config.usesHeadlessRunner) {
-        headlessHiveDirectory = await Directory.systemTemp.createTemp(
-          'caverno_plan_mode_headless_hive_',
-        );
-        Hive.init(headlessHiveDirectory!.path);
         SharedPreferences.setMockInitialValues(const <String, Object>{});
-      } else {
-        await Hive.initFlutter();
       }
       await EasyLocalization.ensureInitialized();
 
@@ -652,10 +649,11 @@ void registerPlanModeScenarioSuite() {
       await memoryBox?.close();
       conversationBox = null;
       memoryBox = null;
-      final hiveDirectory = headlessHiveDirectory;
-      headlessHiveDirectory = null;
-      if (hiveDirectory != null && hiveDirectory.existsSync()) {
-        hiveDirectory.deleteSync(recursive: true);
+      final temporaryHiveDirectory = hiveDirectory;
+      hiveDirectory = null;
+      if (temporaryHiveDirectory != null &&
+          temporaryHiveDirectory.existsSync()) {
+        temporaryHiveDirectory.deleteSync(recursive: true);
       }
     });
 
@@ -690,7 +688,7 @@ void registerPlanModeScenarioSuite() {
     for (final scenario in scenarios) {
       testWidgets('runs ${scenario.name}', (tester) async {
         final startedAt = DateTime.now();
-        final scenarioDir = await Directory.systemTemp.createTemp(
+        final scenarioDir = await createPlanModeTemporaryDirectory(
           'caverno_plan_mode_${scenario.name}_',
         );
         final heartbeatPath =
@@ -753,6 +751,9 @@ void registerPlanModeScenarioSuite() {
             failure: failure,
             failureStackTrace: failureStackTrace,
           );
+          if (scenarioDir.existsSync()) {
+            scenarioDir.deleteSync(recursive: true);
+          }
           suiteResults.add(archived.suiteResult);
         }
       });
