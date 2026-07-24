@@ -9,9 +9,11 @@ import 'package:flutter/services.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/apple_foundation_models_platform_client.dart';
 import '../../../../core/services/google_chat_delivery_service.dart';
+import '../../../../core/services/lan_endpoint_discovery.dart';
 import '../../../../core/utils/debouncer.dart';
 import '../../domain/entities/app_settings.dart';
 import '../providers/apple_foundation_models_availability_provider.dart';
+import '../providers/mesh_endpoint_provider.dart';
 import '../providers/model_capability_auto_probe_notifier.dart';
 import '../providers/model_list_provider.dart';
 import '../providers/settings_notifier.dart';
@@ -33,6 +35,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   final _googleChatWebhookDebouncer = Debouncer();
   final _embeddingsModelDebouncer = Debouncer();
   bool _isSendingGoogleChatTest = false;
+  bool _hasScannedLan = false;
 
   @override
   void initState() {
@@ -162,6 +165,8 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     final theme = Theme.of(context);
     final profiles = settings.usableLlmEndpoints;
     final activeId = settings.activeLlmEndpoint?.id ?? '';
+    final discovery = ref.watch(meshDiscoveryProvider);
+    final isScanning = discovery.isLoading;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -175,11 +180,37 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                 ),
               ),
             ),
-            TextButton.icon(
-              key: const ValueKey('settings-add-endpoint'),
-              onPressed: () => _showEndpointEditor(notifier),
-              icon: const Icon(Icons.add, size: 18),
-              label: Text('settings.endpoint_add'.tr()),
+            Wrap(
+              spacing: 4,
+              children: [
+                TextButton.icon(
+                  key: const ValueKey('settings-scan-endpoints'),
+                  onPressed: isScanning
+                      ? null
+                      : () async {
+                          setState(() => _hasScannedLan = true);
+                          await ref.read(meshDiscoveryProvider.notifier).scan();
+                        },
+                  icon: isScanning
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.wifi_find_outlined, size: 18),
+                  label: Text(
+                    isScanning
+                        ? 'settings.endpoint_scan_scanning'.tr()
+                        : 'settings.endpoint_scan'.tr(),
+                  ),
+                ),
+                TextButton.icon(
+                  key: const ValueKey('settings-add-endpoint'),
+                  onPressed: () => _showEndpointEditor(notifier),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text('settings.endpoint_add'.tr()),
+                ),
+              ],
             ),
           ],
         ),
@@ -220,7 +251,65 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
+        if (_hasScannedLan) ...[
+          const SizedBox(height: 16),
+          _buildDiscoveredEndpoints(discovery, settings, notifier),
+        ],
       ],
+    );
+  }
+
+  Widget _buildDiscoveredEndpoints(
+    AsyncValue<List<DiscoveredEndpoint>> discovery,
+    AppSettings settings,
+    SettingsNotifier notifier,
+  ) {
+    final theme = Theme.of(context);
+    return discovery.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => Text(
+        'settings.endpoint_scan_error'.tr(),
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.error,
+        ),
+      ),
+      data: (endpoints) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'settings.endpoint_discovered_section'.tr(),
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          if (endpoints.isEmpty)
+            Text(
+              'settings.endpoint_scan_no_results'.tr(),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            )
+          else
+            for (final endpoint in endpoints)
+              _DiscoveredEndpointTile(
+                endpoint: endpoint,
+                isRegistered:
+                    settings.llmEndpointForBaseUrl(endpoint.baseUrl) != null,
+                onRegister: () => notifier.upsertLlmEndpoint(
+                  LlmEndpoint(
+                    id: '',
+                    label: '${endpoint.serverHint} (${endpoint.host})',
+                    baseUrl: endpoint.baseUrl,
+                    model: endpoint.modelIds.isEmpty
+                        ? ''
+                        : endpoint.modelIds.first,
+                    source: LlmEndpointSource.discovered,
+                  ),
+                  dedupeByBaseUrl: true,
+                  activate: false,
+                ),
+              ),
+        ],
+      ),
     );
   }
 
@@ -236,38 +325,68 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
       if (profile.normalizedModel.isNotEmpty) profile.normalizedModel,
       _apiKeyStatus(profile.apiKey),
     ];
-    return ListTile(
-      key: ValueKey('settings-endpoint-${profile.id}'),
-      leading: Icon(
-        isActive ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-        color: isActive
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurfaceVariant,
-      ),
-      title: Text(profile.displayLabel, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        details.join(' · '),
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
+    return Opacity(
+      opacity: profile.enabled ? 1 : 0.55,
+      child: ListTile(
+        key: ValueKey('settings-endpoint-${profile.id}'),
+        leading: Icon(
+          isActive ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+          color: isActive
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurfaceVariant,
         ),
-      ),
-      onTap: () => _selectEndpoint(profile, notifier),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            tooltip: 'settings.endpoint_edit'.tr(),
-            onPressed: () => _showEndpointEditor(notifier, existing: profile),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                profile.displayLabel,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (profile.source == LlmEndpointSource.discovered) ...[
+              const SizedBox(width: 6),
+              Tooltip(
+                message: 'settings.endpoint_discovered_badge'.tr(),
+                child: const Icon(Icons.wifi_find_outlined, size: 16),
+              ),
+            ],
+            const SizedBox(width: 6),
+            Text(
+              profile.enabled
+                  ? 'settings.endpoint_enabled'.tr()
+                  : 'settings.endpoint_disabled'.tr(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: profile.enabled
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        subtitle: Text(
+          details.join(' · '),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            tooltip: 'settings.endpoint_remove'.tr(),
-            onPressed: canRemove
-                ? () => notifier.removeLlmEndpoint(profile.id)
-                : null,
-          ),
-        ],
+        ),
+        onTap: () => _selectEndpoint(profile, notifier),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              tooltip: 'settings.endpoint_edit'.tr(),
+              onPressed: () => _showEndpointEditor(notifier, existing: profile),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 18),
+              tooltip: 'settings.endpoint_remove'.tr(),
+              onPressed: canRemove
+                  ? () => notifier.removeLlmEndpoint(profile.id)
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -276,6 +395,12 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     LlmEndpoint profile,
     SettingsNotifier notifier,
   ) async {
+    if (!profile.enabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('settings.endpoint_disabled_selection'.tr())),
+      );
+      return;
+    }
     await notifier.selectLlmEndpoint(profile.id);
     if (!mounted) return;
     _runModelCapabilityAutoProbe();
@@ -1233,6 +1358,45 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   }
 }
 
+class _DiscoveredEndpointTile extends StatelessWidget {
+  const _DiscoveredEndpointTile({
+    required this.endpoint,
+    required this.isRegistered,
+    required this.onRegister,
+  });
+
+  final DiscoveredEndpoint endpoint;
+  final bool isRegistered;
+  final VoidCallback onRegister;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: ValueKey('settings-discovered-${endpoint.baseUrl}'),
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.dns_outlined),
+      title: Text('${endpoint.serverHint} · ${endpoint.host}:${endpoint.port}'),
+      subtitle: Text(
+        'settings.endpoint_models_count'.tr(
+          args: ['${endpoint.modelIds.length}'],
+        ),
+      ),
+      trailing: isRegistered
+          ? Text(
+              'settings.endpoint_registered_badge'.tr(),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            )
+          : TextButton(
+              key: ValueKey('settings-register-${endpoint.baseUrl}'),
+              onPressed: onRegister,
+              child: Text('settings.endpoint_register'.tr()),
+            ),
+    );
+  }
+}
+
 /// Owns its text controllers so they outlive the dialog's dismiss animation.
 class _EndpointEditorDialog extends StatefulWidget {
   const _EndpointEditorDialog({this.existing});
@@ -1247,6 +1411,8 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
   late final TextEditingController _labelController;
   late final TextEditingController _baseUrlController;
   late final TextEditingController _apiKeyController;
+  late final TextEditingController _modelController;
+  late bool _enabled;
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -1260,6 +1426,10 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
       text: existing?.normalizedBaseUrl ?? ApiConstants.defaultBaseUrl,
     );
     _apiKeyController = TextEditingController(text: existing?.apiKey ?? '');
+    _modelController = TextEditingController(
+      text: existing?.normalizedModel ?? '',
+    );
+    _enabled = existing?.enabled ?? true;
   }
 
   @override
@@ -1267,6 +1437,7 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
     _labelController.dispose();
     _baseUrlController.dispose();
     _apiKeyController.dispose();
+    _modelController.dispose();
     super.dispose();
   }
 
@@ -1290,7 +1461,9 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
         label: _labelController.text,
         baseUrl: _baseUrlController.text,
         apiKey: apiKey.isEmpty ? ApiConstants.defaultApiKey : apiKey,
-        model: existing?.model ?? '',
+        model: _modelController.text,
+        enabled: _enabled,
+        source: existing?.source ?? LlmEndpointSource.manual,
         createdAt: existing?.createdAt,
       ),
     );
@@ -1346,7 +1519,23 @@ class _EndpointEditorDialogState extends State<_EndpointEditorDialog> {
                 helperMaxLines: 2,
               ),
               obscureText: true,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              key: const ValueKey('settings-endpoint-model-field'),
+              controller: _modelController,
+              decoration: InputDecoration(
+                labelText: 'settings.endpoint_model_field'.tr(),
+                border: const OutlineInputBorder(),
+              ),
               onFieldSubmitted: (_) => _submit(),
+            ),
+            SwitchListTile(
+              key: const ValueKey('settings-endpoint-enabled-toggle'),
+              contentPadding: EdgeInsets.zero,
+              title: Text('settings.endpoint_enabled_field'.tr()),
+              value: _enabled,
+              onChanged: (value) => setState(() => _enabled = value),
             ),
           ],
         ),

@@ -107,6 +107,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
       survivingId = existing.id;
       endpoints[index] = normalized.copyWith(
         id: existing.id,
+        enabled:
+            existing.id == state.activeLlmEndpointId.trim() &&
+                !normalized.enabled
+            ? true
+            : normalized.enabled,
         createdAt: existing.createdAt ?? normalized.createdAt,
       );
     }

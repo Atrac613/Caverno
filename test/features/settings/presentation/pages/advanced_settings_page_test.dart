@@ -43,6 +43,7 @@ void main() {
     expect(find.text('Advanced'), findsOneWidget);
     expect(find.text('Computer Use'), findsOneWidget);
     expect(find.text('Local Stack'), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-menu-mesh')), findsNothing);
     expect(
       find.text('Helper permissions, smoke checks, and manual sign-off'),
       findsOneWidget,

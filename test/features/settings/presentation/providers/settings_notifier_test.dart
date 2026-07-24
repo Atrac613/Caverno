@@ -832,6 +832,10 @@ void main() {
           .activeLlmEndpointId;
 
       await notifier.setLlmEndpointEnabled(activeId, false);
+      final activeEndpoint = container
+          .read(settingsNotifierProvider)
+          .activeLlmEndpoint!;
+      await notifier.upsertLlmEndpoint(activeEndpoint.copyWith(enabled: false));
 
       expect(
         container.read(settingsNotifierProvider).activeLlmEndpoint?.enabled,

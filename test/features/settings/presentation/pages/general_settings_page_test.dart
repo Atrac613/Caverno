@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/core/services/apple_foundation_models_platform_client.dart';
+import 'package:caverno/core/services/lan_endpoint_discovery.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/pages/general_settings_page.dart';
 import 'package:caverno/features/settings/presentation/providers/apple_foundation_models_availability_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/model_capability_auto_probe_notifier.dart';
+import 'package:caverno/features/settings/presentation/providers/mesh_endpoint_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -24,6 +26,22 @@ class _StubModelCapabilityAutoProbeNotifier
     bool force = false,
     String source = 'probe',
   }) async {}
+}
+
+class _StubMeshDiscoveryNotifier extends MeshDiscoveryNotifier {
+  _StubMeshDiscoveryNotifier(this.endpoints);
+
+  final List<DiscoveredEndpoint> endpoints;
+  int scanCalls = 0;
+
+  @override
+  AsyncValue<List<DiscoveredEndpoint>> build() => AsyncValue.data(endpoints);
+
+  @override
+  Future<void> scan() async {
+    scanCalls++;
+    state = AsyncValue.data(endpoints);
+  }
 }
 
 class _TestTranslationLoader extends AssetLoader {
@@ -242,6 +260,141 @@ void main() {
     );
   });
 
+  testWidgets(
+    'scans and registers a discovered endpoint without activating it',
+    (tester) async {
+      final discovery = _StubMeshDiscoveryNotifier(const [
+        DiscoveredEndpoint(
+          host: '192.168.100.241',
+          port: 1234,
+          modelIds: ['mesh-model', 'backup-model'],
+          responseMs: 4,
+          serverHint: 'LM Studio',
+        ),
+      ]);
+      await _pumpGeneralSettingsPage(
+        tester,
+        settings: AppSettings.defaults(),
+        loadModels: () async => [AppSettings.defaults().model],
+        meshDiscoveryNotifier: discovery,
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(GeneralSettingsPage)),
+      );
+      final originalActiveId = container
+          .read(settingsNotifierProvider)
+          .activeLlmEndpointId;
+
+      await tester.tap(find.byKey(const ValueKey('settings-scan-endpoints')));
+      await tester.pumpAndSettle();
+
+      expect(discovery.scanCalls, 1);
+      expect(find.text('Discovered on LAN'), findsOneWidget);
+      await tester.tap(
+        find.byKey(
+          const ValueKey('settings-register-http://192.168.100.241:1234/v1'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final settings = container.read(settingsNotifierProvider);
+      expect(settings.llmEndpoints, hasLength(2));
+      expect(settings.activeLlmEndpointId, originalActiveId);
+      final registered = settings.llmEndpointForBaseUrl(
+        'http://192.168.100.241:1234/v1',
+      );
+      expect(registered?.source, LlmEndpointSource.discovered);
+      expect(registered?.model, 'mesh-model');
+    },
+  );
+
+  testWidgets('shows registered state for an already saved LAN endpoint', (
+    tester,
+  ) async {
+    const lanEndpoint = LlmEndpoint(
+      id: 'lan-endpoint',
+      label: 'Saved LAN server',
+      baseUrl: 'http://192.168.100.241:1234/v1',
+      source: LlmEndpointSource.discovered,
+    );
+    final settings = AppSettings.defaults().copyWith(
+      llmEndpoints: [
+        const LlmEndpoint(
+          id: 'primary',
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'primary-model',
+        ),
+        lanEndpoint,
+      ],
+      activeLlmEndpointId: 'primary',
+    );
+    final discovery = _StubMeshDiscoveryNotifier(const [
+      DiscoveredEndpoint(
+        host: '192.168.100.241',
+        port: 1234,
+        modelIds: ['mesh-model'],
+        responseMs: 4,
+        serverHint: 'LM Studio',
+      ),
+    ]);
+
+    await _pumpGeneralSettingsPage(
+      tester,
+      settings: settings,
+      loadModels: () async => ['primary-model'],
+      meshDiscoveryNotifier: discovery,
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-scan-endpoints')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Registered'), findsOneWidget);
+    expect(
+      find.byKey(
+        const ValueKey('settings-register-http://192.168.100.241:1234/v1'),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('does not activate a disabled endpoint', (tester) async {
+    final settings = AppSettings.defaults().copyWith(
+      llmEndpoints: [
+        const LlmEndpoint(
+          id: 'primary',
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'primary-model',
+        ),
+        const LlmEndpoint(
+          id: 'disabled',
+          label: 'Disabled server',
+          baseUrl: 'http://disabled.example/v1',
+          enabled: false,
+        ),
+      ],
+      activeLlmEndpointId: 'primary',
+    );
+    await _pumpGeneralSettingsPage(
+      tester,
+      settings: settings,
+      loadModels: () async => ['primary-model'],
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-endpoint-disabled')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Enable this endpoint before selecting it as primary.'),
+      findsOneWidget,
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(GeneralSettingsPage)),
+    );
+    expect(
+      container.read(settingsNotifierProvider).activeLlmEndpointId,
+      'primary',
+    );
+  });
+
   testWidgets('shows the full disabled Apple provider status below dropdown', (
     tester,
   ) async {
@@ -273,6 +426,7 @@ Future<void> _pumpGeneralSettingsPage(
   required AppSettings settings,
   required Future<List<String>> Function() loadModels,
   AppleFoundationModelsAvailability? appleAvailability,
+  _StubMeshDiscoveryNotifier? meshDiscoveryNotifier,
   Size physicalSize = const Size(1200, 1800),
 }) async {
   SharedPreferences.setMockInitialValues({
@@ -306,6 +460,8 @@ Future<void> _pumpGeneralSettingsPage(
               modelCapabilityAutoProbeNotifierProvider.overrideWith(
                 _StubModelCapabilityAutoProbeNotifier.new,
               ),
+              if (meshDiscoveryNotifier != null)
+                meshDiscoveryProvider.overrideWith(() => meshDiscoveryNotifier),
               modelListProvider(
                 modelConfig,
               ).overrideWith((ref) => loadModels()),

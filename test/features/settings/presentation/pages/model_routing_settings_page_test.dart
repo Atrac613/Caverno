@@ -40,7 +40,7 @@ void main() {
     );
 
     expect(
-      find.text('Default (main model)'),
+      find.text('Default (main-model)'),
       findsNWidgets(4),
       reason: 'all four roles start on the main-model fallback',
     );
@@ -75,6 +75,36 @@ void main() {
     );
 
     expect(find.text('offline-model'), findsOneWidget);
+  });
+
+  testWidgets('shows the pinned endpoint default model', (tester) async {
+    final settings = AppSettings.defaults().copyWith(
+      model: 'main-model',
+      llmEndpoints: const [
+        LlmEndpoint(
+          id: 'primary',
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'main-model',
+        ),
+        LlmEndpoint(
+          id: 'mesh',
+          label: 'Mesh server',
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'mesh-model',
+        ),
+      ],
+      activeLlmEndpointId: 'primary',
+      subagentEndpointId: 'mesh',
+    );
+
+    await _pumpModelRoutingPage(
+      tester,
+      settings: settings,
+      loadModels: () async => ['main-model', 'mesh-model'],
+    );
+
+    expect(find.text('Default (mesh-model)'), findsOneWidget);
+    expect(find.text('Mesh server'), findsOneWidget);
   });
 }
 

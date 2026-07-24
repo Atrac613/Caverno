@@ -74,6 +74,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_memory_extraction'.tr(),
             helper: 'settings.model_routing_memory_extraction_desc'.tr(),
             value: settings.memoryExtractionModel,
+            effectiveDefaultModel: settings.effectiveMemoryExtractionModel,
             asyncModels: modelsFor(settings.memoryExtractionEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateMemoryExtractionModel,
@@ -91,6 +92,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_subagent'.tr(),
             helper: 'settings.model_routing_subagent_desc'.tr(),
             value: settings.subagentModel,
+            effectiveDefaultModel: settings.effectiveSubagentModel,
             asyncModels: modelsFor(settings.subagentEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateSubagentModel,
@@ -108,6 +110,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_goal_suggestion'.tr(),
             helper: 'settings.model_routing_goal_suggestion_desc'.tr(),
             value: settings.goalSuggestionModel,
+            effectiveDefaultModel: settings.effectiveGoalSuggestionModel,
             asyncModels: modelsFor(settings.goalSuggestionEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateGoalSuggestionModel,
@@ -125,6 +128,7 @@ class ModelRoutingSettingsPage extends ConsumerWidget {
             label: 'settings.model_routing_approval_auto_review'.tr(),
             helper: 'settings.model_routing_approval_auto_review_desc'.tr(),
             value: settings.approvalAutoReviewModel,
+            effectiveDefaultModel: settings.effectiveApprovalAutoReviewModel,
             asyncModels: modelsFor(settings.approvalAutoReviewEndpointId),
             enabled: !isAppleProvider,
             onChanged: notifier.updateApprovalAutoReviewModel,
@@ -209,6 +213,7 @@ class _RoleModelDropdown extends StatelessWidget {
     required this.label,
     required this.helper,
     required this.value,
+    required this.effectiveDefaultModel,
     required this.asyncModels,
     required this.enabled,
     required this.onChanged,
@@ -218,6 +223,7 @@ class _RoleModelDropdown extends StatelessWidget {
   final String label;
   final String helper;
   final String value;
+  final String effectiveDefaultModel;
   final AsyncValue<List<String>> asyncModels;
   final bool enabled;
   final ValueChanged<String> onChanged;
@@ -248,7 +254,9 @@ class _RoleModelDropdown extends StatelessWidget {
               value: model,
               child: Text(
                 model.isEmpty
-                    ? 'settings.model_routing_default_option'.tr()
+                    ? 'settings.model_routing_default_option_with_model'.tr(
+                        namedArgs: {'model': effectiveDefaultModel},
+                      )
                     : model,
                 overflow: TextOverflow.ellipsis,
               ),
