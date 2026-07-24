@@ -207,8 +207,7 @@ class WorktreeAgentTaskLauncher {
 
   List<String> _endpointCandidates(AppSettings settings) {
     final candidates = <String>[];
-    final enabledEndpointIds = settings.enabledLlmEndpoints
-        .where((endpoint) => endpoint.id != settings.activeLlmEndpointId.trim())
+    final enabledEndpointIds = settings.enabledAdditionalLlmEndpoints
         .map((endpoint) => endpoint.id.trim())
         .where((id) => id.isNotEmpty)
         .toList(growable: false);

@@ -973,6 +973,14 @@ abstract class AppSettings with _$AppSettings {
       .where((endpoint) => endpoint.enabled && endpoint.isValid)
       .toList(growable: false);
 
+  /// Enabled endpoints other than the active primary endpoint.
+  List<LlmEndpoint> get enabledAdditionalLlmEndpoints {
+    final activeId = activeLlmEndpointId.trim();
+    return enabledLlmEndpoints
+        .where((endpoint) => endpoint.id != activeId)
+        .toList(growable: false);
+  }
+
   /// Looks up a registered endpoint by normalized base URL, or null.
   LlmEndpoint? llmEndpointForBaseUrl(String baseUrl) {
     final targetBaseUrl = LlmEndpoint.normalizeBaseUrl(baseUrl).toLowerCase();

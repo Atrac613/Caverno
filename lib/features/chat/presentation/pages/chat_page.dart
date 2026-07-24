@@ -878,12 +878,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           ParticipantRosterBar(
             participants: currentConversation.participants,
             config: currentConversation.participantTurnConfig,
-            endpoints: settings.enabledLlmEndpoints
-                .where(
-                  (endpoint) =>
-                      endpoint.id != settings.activeLlmEndpointId.trim(),
-                )
-                .toList(growable: false),
+            endpoints: settings.enabledAdditionalLlmEndpoints,
             primaryModel: settings.effectiveModel,
             referencedParticipantIds: {
               for (final message in currentConversation.messages)
