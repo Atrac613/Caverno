@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-DEFAULT_DOWNLOAD_URL_PREFIX="https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos"
+DEFAULT_DOWNLOAD_URL_PREFIX="https://d1ap7clvx8zf86.cloudfront.net/caverno/macos"
 DEFAULT_S3_URI="s3://caverno-macos-releases/caverno/macos"
 
 DOWNLOAD_URL_PREFIX="${CAVERNO_SPARKLE_DOWNLOAD_URL_PREFIX:-${DEFAULT_DOWNLOAD_URL_PREFIX}}"
@@ -11,7 +11,7 @@ AWS_BIN="${AWS_BIN:-aws}"
 APPCAST_FILENAME="${CAVERNO_SPARKLE_APPCAST_FILENAME:-appcast.xml}"
 CHECK_STS="yes"
 CHECK_BUCKET_POLICY="yes"
-ALLOW_PRIVATE_BUCKET="no"
+ALLOW_PRIVATE_BUCKET="yes"
 DRY_RUN="no"
 
 usage() {
@@ -25,7 +25,8 @@ Options:
   --aws-bin PATH             AWS CLI executable, default aws.
   --skip-sts                 Skip aws sts get-caller-identity.
   --skip-bucket-policy       Skip optional bucket public-access policy probes.
-  --allow-private-bucket     Do not fail when direct S3 public read is blocked.
+  --allow-private-bucket     Allow a CloudFront-only private S3 origin (default).
+  --require-direct-s3-read   Require legacy direct S3 public read.
   --dry-run                  Print commands without executing AWS CLI calls.
   --help                     Show this help.
 
@@ -75,6 +76,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --allow-private-bucket)
       ALLOW_PRIVATE_BUCKET="yes"
+      shift 1
+      ;;
+    --require-direct-s3-read)
+      ALLOW_PRIVATE_BUCKET="no"
       shift 1
       ;;
     --dry-run)
@@ -181,13 +186,13 @@ if [[ "${DRY_RUN}" != "yes" &&
     --query 'PublicAccessBlockConfiguration.[BlockPublicPolicy,RestrictPublicBuckets]' \
     --output text 2>/dev/null || true)"
   if [[ "${PUBLIC_BLOCK_FLAGS}" == *True* || "${PUBLIC_BLOCK_FLAGS}" == *true* ]]; then
-    echo "Direct S3 hosting requires BlockPublicPolicy=false and RestrictPublicBuckets=false." >&2
-    echo "Run tool/configure_macos_sparkle_s3_public_read.sh to review the required policy update." >&2
+    echo "Legacy direct S3 hosting requires BlockPublicPolicy=false and RestrictPublicBuckets=false." >&2
+    echo "Run tool/configure_macos_sparkle_cloudfront.sh to review the migration policy." >&2
     exit 65
   fi
   if ! "${AWS_BIN}" s3api get-bucket-policy-status --bucket "${S3_BUCKET}" >/dev/null 2>&1; then
-    echo "Direct S3 hosting requires a bucket policy that allows public read for the update prefix." >&2
-    echo "Run tool/configure_macos_sparkle_s3_public_read.sh to review the required policy update." >&2
+    echo "Legacy direct S3 hosting requires a public-read statement for the update prefix." >&2
+    echo "Run tool/configure_macos_sparkle_cloudfront.sh to review the migration policy." >&2
     exit 65
   fi
 fi

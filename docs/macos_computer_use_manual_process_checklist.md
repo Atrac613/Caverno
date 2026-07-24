@@ -163,7 +163,7 @@ Before rerunning the M7 release artifact sign-off after a signing blocker:
 For Sparkle distribution after M7/M33 readiness, use the release driver:
 
 ```bash
-bash tool/configure_macos_sparkle_s3_public_read.sh
+bash tool/configure_macos_sparkle_cloudfront.sh
 ```
 
 ```bash
@@ -174,7 +174,7 @@ bash tool/run_macos_sparkle_s3_preflight.sh
 bash tool/build_macos_sparkle_release.sh \
   --notary-profile caverno-notary \
   --package zip \
-  --download-url-prefix https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos \
+  --download-url-prefix https://d1ap7clvx8zf86.cloudfront.net/caverno/macos \
   --s3-uri s3://caverno-macos-releases/caverno/macos
 ```
 

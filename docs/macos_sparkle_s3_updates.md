@@ -1,21 +1,22 @@
-# macOS Sparkle S3 Updates
+# macOS Sparkle Updates with CloudFront and S3
 
 This runbook describes the direct-distribution update lane for Caverno macOS
 builds. Sparkle owns update discovery, signature validation, download, install
-handoff, and user-facing update prompts. S3 only hosts static update files.
+handoff, and user-facing update prompts. S3 stores static update files and
+CloudFront is the public delivery endpoint.
 
 ## App Configuration
 
 Sparkle is integrated through the macOS Runner target and exposed to Flutter
 with the `com.caverno/sparkle_updates` method channel.
 
-Release builders must provide these local values in the ignored
-`macos/Runner/Configs/Signing.local.xcconfig` file:
+The production feed is committed in `macos/Runner/Configs/Release.xcconfig`.
+Release builders must provide the signing identity and Sparkle public key in
+the ignored `macos/Runner/Configs/Signing.local.xcconfig` file:
 
 ```xcconfig
 DEVELOPMENT_TEAM = YOURTEAMID
 CODE_SIGN_IDENTITY = Developer ID Application
-SPARKLE_FEED_URL = https:/$()/caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml
 SPARKLE_PUBLIC_ED_KEY = BASE64_PUBLIC_ED25519_KEY_FROM_SPARKLE
 ```
 
@@ -23,7 +24,9 @@ The `https:/$()/` form is intentional in `.xcconfig` files. It expands to
 `https://` while avoiding `//` comment parsing.
 
 Repository defaults keep `SPARKLE_FEED_URL` and `SPARKLE_PUBLIC_ED_KEY` blank
-so debug builds do not contact the production appcast.
+at the project level so unsigned debug builds do not receive a production feed
+unless a developer explicitly adds one locally. The Release target supplies
+the production CloudFront feed.
 
 Sparkle defaults for Caverno:
 
@@ -72,38 +75,34 @@ xcrun notarytool store-credentials caverno-notary \
   --password APP_SPECIFIC_PASSWORD
 ```
 
-Prepare the S3 bucket before the first real publish. A minimal direct-S3
-hosting policy for this lane is:
+Provision the CloudFront origin access control, cache policy, distribution, and
+S3 bucket policy before the first CloudFront-backed publish. The helper is
+dry-run by default:
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "PublicReadCavernoMacosUpdates",
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::caverno-macos-releases/caverno/macos/*"
-    }
-  ]
-}
+```bash
+bash tool/configure_macos_sparkle_cloudfront.sh
 ```
+
+Apply it only after confirming the account, bucket, and prefix:
+
+```bash
+bash tool/configure_macos_sparkle_cloudfront.sh --apply
+```
+
+The production resources created on 2026-07-24 are:
+
+- Distribution ID: `EOCWRBPNV21ED`
+- Distribution domain: `d1ap7clvx8zf86.cloudfront.net`
+- Origin access control ID: `E1CP3XQOX3L7FD`
+- Cache policy ID: `5dfefe02-8edb-43a4-82d5-d1ede8c8dfe6`
+- S3 origin: `caverno-macos-releases.s3.ap-northeast-1.amazonaws.com`
+
+The cache policy has a zero minimum TTL so the S3
+`Cache-Control: no-cache,max-age=0` appcast response is not forced into a
+CloudFront cache. Artifacts continue to use `max-age=300,public`.
 
 Keep write access limited to the release operator or release automation role.
-Review the direct-S3 public read update before applying it:
-
-```bash
-bash tool/configure_macos_sparkle_s3_public_read.sh
-```
-
-Apply it only after confirming the bucket and prefix:
-
-```bash
-bash tool/configure_macos_sparkle_s3_public_read.sh --apply
-```
-
-Run the S3 preflight before the first upload:
+Run the S3 upload and CloudFront delivery preflight before the first upload:
 
 ```bash
 bash tool/run_macos_sparkle_s3_preflight.sh
@@ -117,7 +116,7 @@ Then run the Sparkle release driver:
 bash tool/build_macos_sparkle_release.sh \
   --notary-profile caverno-notary \
   --package zip \
-  --download-url-prefix https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos \
+  --download-url-prefix https://d1ap7clvx8zf86.cloudfront.net/caverno/macos \
   --s3-uri s3://caverno-macos-releases/caverno/macos \
   --release-notes docs/releases/caverno-1.3.2.md
 ```
@@ -197,7 +196,7 @@ notarized, and stapled:
 bash tool/publish_macos_sparkle_release.sh \
   --artifact build/release/Caverno-1.3.2.dmg \
   --release-notes docs/releases/caverno-1.3.2.md \
-  --download-url-prefix https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos \
+  --download-url-prefix https://d1ap7clvx8zf86.cloudfront.net/caverno/macos \
   --s3-uri s3://caverno-macos-releases/caverno/macos
 ```
 
@@ -224,14 +223,15 @@ appcast and artifact unless `--skip-public-verify` is provided. When
 `--expected-version` and `--expected-build` are provided, the artifact filename
 must contain the `VERSION-BUILD` token before any upload starts.
 
-To repeat the public verification manually, check the appcast, linked artifact,
-release notes, Sparkle signature field, and S3 cache headers:
+To repeat the public verification manually, check the CloudFront appcast,
+linked artifact, release notes, Sparkle signature field, and origin cache
+headers:
 
 ```bash
 bash tool/verify_macos_sparkle_public_release.sh \
   --expected-version 1.3.2 \
   --expected-build 13 \
-  --expected-artifact-url https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/Caverno-1.3.2-13.zip \
+  --expected-artifact-url https://d1ap7clvx8zf86.cloudfront.net/caverno/macos/Caverno-1.3.2-13.zip \
   --expected-min-length 30000000
 ```
 
@@ -242,7 +242,7 @@ bash tool/run_macos_sparkle_s3_preflight.sh
 bash tool/build_macos_sparkle_release.sh \
   --notary-profile caverno-notary \
   --package zip \
-  --download-url-prefix https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos \
+  --download-url-prefix https://d1ap7clvx8zf86.cloudfront.net/caverno/macos \
   --s3-uri s3://caverno-macos-releases/caverno/macos \
   --release-notes docs/releases/caverno-1.3.2.md \
   --dry-run
@@ -266,3 +266,31 @@ To stop rollout, replace the hosted `appcast.xml` with the previous known-good
 appcast or remove the newest item from the appcast and upload it with no-cache
 headers. Leave old artifacts available until clients have moved past the bad
 feed.
+
+## Legacy Direct S3 Migration
+
+Existing Caverno builds have the direct S3 appcast URL compiled into
+`SUFeedURL`. The bucket policy therefore retains a legacy public-read statement
+during the migration window. A CloudFront-backed publish writes CloudFront
+enclosure and release-note URLs into the appcast, allowing those clients to
+download the update through CloudFront and install a build whose feed URL also
+uses CloudFront.
+
+Do not remove the legacy statement during the first CloudFront release. After
+adoption evidence shows the old builds no longer need the S3 feed, review the
+exact policy change:
+
+```bash
+bash tool/configure_macos_sparkle_cloudfront.sh --retire-direct-s3-read
+```
+
+Then apply it:
+
+```bash
+bash tool/configure_macos_sparkle_cloudfront.sh \
+  --retire-direct-s3-read \
+  --apply
+```
+
+That mode blocks public S3 policies and leaves only the distribution-scoped
+CloudFront service principal.

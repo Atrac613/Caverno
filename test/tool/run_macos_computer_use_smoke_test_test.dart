@@ -67,7 +67,7 @@ void main() {
   late String sparkleStagingReleaseNotes;
   late String sparklePublishScript;
   late String sparkleS3PreflightScript;
-  late String sparkleS3PublicReadScript;
+  late String sparkleCloudFrontConfigScript;
   late String sparklePublicReleaseVerifierScript;
   late String sparkleS3Runbook;
   late String releaseSigningPreflightWrapper;
@@ -86,6 +86,7 @@ void main() {
   late String xcodeProject;
   late String podfile;
   late String appInfoConfig;
+  late String releaseConfig;
   late String signingConfig;
   late String architectureDoc;
   late String manualProcessChecklist;
@@ -254,8 +255,8 @@ void main() {
     sparkleS3PreflightScript = File(
       'tool/run_macos_sparkle_s3_preflight.sh',
     ).readAsStringSync();
-    sparkleS3PublicReadScript = File(
-      'tool/configure_macos_sparkle_s3_public_read.sh',
+    sparkleCloudFrontConfigScript = File(
+      'tool/configure_macos_sparkle_cloudfront.sh',
     ).readAsStringSync();
     sparklePublicReleaseVerifierScript = File(
       'tool/verify_macos_sparkle_public_release.sh',
@@ -299,6 +300,9 @@ void main() {
     podfile = File('macos/Podfile').readAsStringSync();
     appInfoConfig = File(
       'macos/Runner/Configs/AppInfo.xcconfig',
+    ).readAsStringSync();
+    releaseConfig = File(
+      'macos/Runner/Configs/Release.xcconfig',
     ).readAsStringSync();
     signingConfig = File(
       'macos/Runner/Configs/Signing.xcconfig',
@@ -611,6 +615,12 @@ void main() {
     expect(appInfoConfig, contains('SPARKLE_FEED_URL ='));
     expect(appInfoConfig, contains('SPARKLE_PUBLIC_ED_KEY ='));
     expect(
+      releaseConfig,
+      contains(
+        r'SPARKLE_FEED_URL = https:/$()/d1ap7clvx8zf86.cloudfront.net/caverno/macos/appcast.xml',
+      ),
+    );
+    expect(
       appInfoConfig.indexOf('SPARKLE_PUBLIC_ED_KEY ='),
       lessThan(appInfoConfig.indexOf('#include "Signing.xcconfig"')),
     );
@@ -619,8 +629,6 @@ void main() {
     expect(signingConfig, isNot(contains('DEVELOPMENT_TEAM =')));
     expect(signingLocalTemplate, contains('DEVELOPMENT_TEAM = YOURTEAMID'));
     expect(signingLocalTemplate, contains('CODE_SIGN_STYLE = Manual'));
-    expect(signingLocalTemplate, contains('SPARKLE_FEED_URL'));
-    expect(signingLocalTemplate, contains(r'https:/$()/'));
     expect(signingLocalTemplate, contains('SPARKLE_PUBLIC_ED_KEY'));
     expect(sparklePublishScript, contains('generate_appcast'));
     expect(sparklePublishScript, contains('run_generate_appcast'));
@@ -642,24 +650,34 @@ void main() {
     expect(sparkleS3PreflightScript, contains('head-bucket'));
     expect(sparkleS3PreflightScript, contains('s3 cp'));
     expect(sparkleS3PreflightScript, contains('--dryrun'));
-    expect(sparkleS3PreflightScript, contains('BlockPublicPolicy=false'));
+    expect(sparkleS3PreflightScript, contains('ALLOW_PRIVATE_BUCKET="yes"'));
     expect(
       sparkleS3PreflightScript,
       contains('s3://caverno-macos-releases/caverno/macos'),
     );
     expect(sparkleS3PreflightScript, contains('get-public-access-block'));
-    expect(sparkleS3PublicReadScript, contains('--apply'));
-    expect(sparkleS3PublicReadScript, contains('put-public-access-block'));
-    expect(sparkleS3PublicReadScript, contains('put-bucket-policy'));
+    expect(sparkleCloudFrontConfigScript, contains('--apply'));
     expect(
-      sparkleS3PublicReadScript,
-      contains('PublicReadCavernoMacosUpdates'),
+      sparkleCloudFrontConfigScript,
+      contains('create-origin-access-control'),
+    );
+    expect(sparkleCloudFrontConfigScript, contains('create-cache-policy'));
+    expect(sparkleCloudFrontConfigScript, contains('create-distribution'));
+    expect(sparkleCloudFrontConfigScript, contains('put-public-access-block'));
+    expect(sparkleCloudFrontConfigScript, contains('put-bucket-policy'));
+    expect(
+      sparkleCloudFrontConfigScript,
+      contains('AllowCloudFrontReadCavernoMacosUpdates'),
+    );
+    expect(
+      sparkleCloudFrontConfigScript,
+      contains('LegacyPublicReadCavernoMacosUpdates'),
     );
     expect(sparklePublicReleaseVerifierScript, contains('curl'));
     expect(
       sparklePublicReleaseVerifierScript,
       contains(
-        'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml',
+        'https://d1ap7clvx8zf86.cloudfront.net/caverno/macos/appcast.xml',
       ),
     );
     expect(sparklePublicReleaseVerifierScript, contains('sparkle:edSignature'));
@@ -762,7 +780,7 @@ void main() {
     );
     expect(
       manualProcessChecklist,
-      contains('bash tool/configure_macos_sparkle_s3_public_read.sh'),
+      contains('bash tool/configure_macos_sparkle_cloudfront.sh'),
     );
     expect(
       sparkleS3Runbook,
@@ -787,15 +805,20 @@ void main() {
     expect(stdout, contains('Sparkle S3 preflight completed.'));
   });
 
-  test('Sparkle S3 public read config supports dry runs', () async {
+  test('Sparkle CloudFront config supports dry runs', () async {
     final result = await Process.run('bash', [
-      'tool/configure_macos_sparkle_s3_public_read.sh',
+      'tool/configure_macos_sparkle_cloudfront.sh',
     ]);
 
     expect(result.exitCode, 0, reason: '${result.stderr}');
     final stdout = '${result.stdout}';
-    expect(stdout, contains('Configuring macOS Sparkle S3 public read'));
-    expect(stdout, contains('PublicReadCavernoMacosUpdates'));
+    expect(
+      stdout,
+      contains('Configuring CloudFront for macOS Sparkle updates'),
+    );
+    expect(stdout, contains('aws cloudfront create-origin-access-control'));
+    expect(stdout, contains('aws cloudfront create-cache-policy'));
+    expect(stdout, contains('aws cloudfront create-distribution'));
     expect(stdout, contains('aws s3api put-public-access-block'));
     expect(stdout, contains('aws s3api put-bucket-policy'));
     expect(stdout, contains('Dry run only.'));
@@ -815,7 +838,7 @@ void main() {
     expect(
       stdout,
       contains(
-        'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml',
+        'https://d1ap7clvx8zf86.cloudfront.net/caverno/macos/appcast.xml',
       ),
     );
     expect(
@@ -832,7 +855,7 @@ void main() {
         '--artifact',
         '/tmp/Caverno-1.3.2-13.zip',
         '--download-url-prefix',
-        'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos',
+        'https://d1ap7clvx8zf86.cloudfront.net/caverno/macos',
         '--s3-uri',
         's3://caverno-macos-releases/caverno/macos',
         '--expected-version',
@@ -862,7 +885,7 @@ void main() {
       '--artifact',
       '/tmp/Caverno-1.3.1-12.zip',
       '--download-url-prefix',
-      'https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos',
+      'https://d1ap7clvx8zf86.cloudfront.net/caverno/macos',
       '--s3-uri',
       's3://caverno-macos-releases/caverno/macos',
       '--expected-version',

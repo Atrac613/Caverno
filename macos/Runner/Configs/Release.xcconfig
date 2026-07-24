@@ -1,2 +1,6 @@
 #include "../../Flutter/Flutter-Release.xcconfig"
 #include "Warnings.xcconfig"
+
+// Production Sparkle feed. A release operator can still override this build
+// setting explicitly for a controlled staging build.
+SPARKLE_FEED_URL = https:/$()/d1ap7clvx8zf86.cloudfront.net/caverno/macos/appcast.xml

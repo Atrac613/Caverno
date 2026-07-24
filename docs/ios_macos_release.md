@@ -132,7 +132,7 @@ Defaults:
 - Notary profile: `caverno-notary`
 - Package: `zip`
 - Download URL prefix:
-  `https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos`
+  `https://d1ap7clvx8zf86.cloudfront.net/caverno/macos`
 - S3 URI: `s3://caverno-macos-releases/caverno/macos`
 - Release notes: `docs/releases/caverno-VERSION.md` when that file exists
 
@@ -142,7 +142,7 @@ Useful overrides:
 bash tool/release_ios_macos.sh --only macos \
   --macos-notary-profile caverno-notary \
   --macos-package zip \
-  --macos-download-url-prefix https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos \
+  --macos-download-url-prefix https://d1ap7clvx8zf86.cloudfront.net/caverno/macos \
   --macos-s3-uri s3://caverno-macos-releases/caverno/macos \
   --macos-release-notes docs/releases/caverno-1.3.3.md
 ```

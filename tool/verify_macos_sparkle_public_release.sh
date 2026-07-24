@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-DEFAULT_APPCAST_URL="https://caverno-macos-releases.s3.ap-northeast-1.amazonaws.com/caverno/macos/appcast.xml"
+DEFAULT_APPCAST_URL="https://d1ap7clvx8zf86.cloudfront.net/caverno/macos/appcast.xml"
 
 APPCAST_URL="${CAVERNO_SPARKLE_APPCAST_URL:-${DEFAULT_APPCAST_URL}}"
 EXPECTED_ARTIFACT_URL="${CAVERNO_SPARKLE_EXPECTED_ARTIFACT_URL:-}"
@@ -26,10 +26,10 @@ Options:
   --dry-run                     Print verification commands without network I/O.
   --help                        Show this help.
 
-This verifier checks the public Sparkle appcast after an S3 publish. It fetches
-the appcast, verifies required Sparkle signature and release-note fields, then
-checks public HTTP headers for the appcast, enclosure artifact, and release
-notes.
+This verifier checks the public Sparkle appcast after an S3 publish through
+CloudFront. It fetches the appcast, verifies required Sparkle signature and
+release-note fields, then checks public HTTP headers for the appcast, enclosure
+artifact, and release notes.
 USAGE
 }
 
