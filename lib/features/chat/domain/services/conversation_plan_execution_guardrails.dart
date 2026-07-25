@@ -586,6 +586,46 @@ class ConversationPlanExecutionGuardrails {
         _looksLikeLightValidationCommand(validationCommand);
   }
 
+  /// Whether the task's own saved validation command is among the commands that
+  /// actually succeeded.
+  ///
+  /// [ConversationPlanExecutionCompletionAssessment.successfulValidationCommands]
+  /// holds *any* validation-looking command that passed, so without this a task
+  /// can be completed on a neighbouring task's evidence — observed live: an
+  /// acceptance-verification task whose walk-through was never run was reported
+  /// complete while the only command executed was the previous task's
+  /// `dart analyze`. A task that saved no command keeps the previous behaviour.
+  ///
+  /// Comparison is normalized for the wrappers a run legitimately adds: a
+  /// `cd <dir> &&` prefix and whitespace differences.
+  static bool savedValidationCommandSucceeded({
+    required ConversationWorkflowTask task,
+    required Iterable<String> successfulValidationCommands,
+  }) {
+    final saved = _normalizeValidationCommandForMatch(task.validationCommand);
+    if (saved.isEmpty) return true;
+    for (final command in successfulValidationCommands) {
+      final candidate = _normalizeValidationCommandForMatch(command);
+      if (candidate.isEmpty) continue;
+      if (candidate == saved ||
+          candidate.contains(saved) ||
+          saved.contains(candidate)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static final RegExp _leadingCdPrefix = RegExp(r'^cd\s+\S+\s*&&\s*');
+
+  static String _normalizeValidationCommandForMatch(String command) {
+    var normalized = command.trim();
+    while (_leadingCdPrefix.hasMatch(normalized)) {
+      normalized = normalized.replaceFirst(_leadingCdPrefix, '').trim();
+    }
+    return normalized.replaceAll(RegExp(r'\s+'), ' ');
+  }
+
   static bool canPromoteScaffoldCompletionFromWorkspaceValidation({
     required ConversationWorkflowTask task,
     required List<ToolResultInfo> toolResults,
@@ -631,7 +671,12 @@ class ConversationPlanExecutionGuardrails {
     if (completionAssessment.hasFailure ||
         !completionAssessment.hasTargetFiles ||
         completionAssessment.successfulValidationCommands.isEmpty ||
-        completionAssessment.scaffoldCommands.isNotEmpty) {
+        completionAssessment.scaffoldCommands.isNotEmpty ||
+        !savedValidationCommandSucceeded(
+          task: task,
+          successfulValidationCommands:
+              completionAssessment.successfulValidationCommands,
+        )) {
       return false;
     }
 

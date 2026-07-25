@@ -8,6 +8,65 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/services/conversation_plan_execution_guardrails.dart';
 
 void main() {
+  group('savedValidationCommandSucceeded', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-verify',
+      title: 'Verify the acceptance criteria',
+      validationCommand:
+          'rm -f todo_state.json && dart run bin/todo.dart add "task one" '
+          '&& dart run bin/todo.dart list',
+    );
+
+    test('a neighbouring task\'s success is not this task\'s evidence', () {
+      expect(
+        ConversationPlanExecutionGuardrails.savedValidationCommandSucceeded(
+          task: task,
+          successfulValidationCommands: const [
+            'dart analyze bin/todo.dart && dart run bin/todo.dart help',
+          ],
+        ),
+        isFalse,
+        reason:
+            'the acceptance walk-through never ran, so another command '
+            'passing says nothing about this task',
+      );
+    });
+
+    test('the saved command counts through a cd wrapper', () {
+      expect(
+        ConversationPlanExecutionGuardrails.savedValidationCommandSucceeded(
+          task: task,
+          successfulValidationCommands: [
+            'cd /tmp/todo && ${task.validationCommand}',
+          ],
+        ),
+        isTrue,
+      );
+    });
+
+    test('whitespace differences still match', () {
+      expect(
+        ConversationPlanExecutionGuardrails.savedValidationCommandSucceeded(
+          task: task,
+          successfulValidationCommands: [
+            task.validationCommand.replaceAll(' && ', '  &&  '),
+          ],
+        ),
+        isTrue,
+      );
+    });
+
+    test('a task without a saved command keeps the previous behaviour', () {
+      expect(
+        ConversationPlanExecutionGuardrails.savedValidationCommandSucceeded(
+          task: const ConversationWorkflowTask(id: 't', title: 'No command'),
+          successfulValidationCommands: const ['dart analyze'],
+        ),
+        isTrue,
+      );
+    });
+  });
+
   List<ToolResultInfo> loadFixtureToolResults(String fixtureName) {
     final fixture =
         jsonDecode(File('test/fixtures/$fixtureName').readAsStringSync())

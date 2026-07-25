@@ -235,11 +235,16 @@ class CodingCommandOutputGuardrailService {
         _normalizeText(decoded['working_directory']) ??
         fallbackWorkingDirectory ??
         '';
-    final preflightIssue = detectPreflightIssue(
-      toolName: toolName,
-      command: command,
-      workingDirectory: workingDirectory,
-    );
+    final preflightIssue =
+        detectPreflightIssue(
+          toolName: toolName,
+          command: command,
+          workingDirectory: workingDirectory,
+        ) ??
+        detectMaskedExitStatusIssue(
+          command: command,
+          workingDirectory: workingDirectory,
+        );
     if (preflightIssue != null) {
       return CodingCommandOutputIssue(
         toolName: toolName,
@@ -341,6 +346,64 @@ class CodingCommandOutputGuardrailService {
     }
     return null;
   }
+
+  /// Detects a chain whose exit status cannot report what the chain did.
+  ///
+  /// A shell chain reports the status of its **last** segment. When that
+  /// segment cannot fail (`true`, `exit 0`, `echo $?`) or asserts that the
+  /// previous command failed (`test $? -ne 0`), a reported exit 0 says nothing
+  /// about the commands before it — so the result must not count as evidence
+  /// that they succeeded. Observed live: a full acceptance walk-through broke
+  /// at its second command yet reported exit 0 because it ended in
+  /// `; test $? -ne 0`, and the model read that 0 as "all criteria verified".
+  ///
+  /// Evidence-only: this never blocks execution (`|| true` is legitimate in a
+  /// cleanup command), it only refuses to treat the exit code as proof.
+  /// `test $? -eq 0` is *not* flagged — that propagates a failure correctly.
+  ///
+  /// Nor is a single command plus an assertion (`todo done 999; test $? -ne 0`):
+  /// there the assertion *is* the check, and exit 0 genuinely means "that one
+  /// command failed as required". The guard needs two or more commands ahead of
+  /// the swallowing tail, because then a reported 0 says only that *something*
+  /// in the chain failed, while the model reads it as "all steps passed".
+  static CodingCommandPreflightIssue? detectMaskedExitStatusIssue({
+    required String command,
+    String workingDirectory = '',
+  }) {
+    final normalizedCommand = _normalizeText(command);
+    if (normalizedCommand == null) return null;
+    final segments = _splitShellSegments(normalizedCommand);
+    if (segments.length < 3) return null;
+
+    final last = segments.last.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (!_maskedExitStatusPattern.hasMatch(last)) return null;
+
+    return CodingCommandPreflightIssue(
+      code: 'masked_exit_status',
+      command: normalizedCommand,
+      workingDirectory: workingDirectory,
+      segment: segments.last,
+      summary:
+          'The command ends with "$last", so its exit status reports that '
+          'segment instead of whether the earlier commands succeeded. This '
+          'result is not evidence that the chain passed.',
+      instruction:
+          'Re-run the checks so a failure propagates: drop the trailing '
+          '"$last", or assert an expected failure in its own command, such as '
+          '"! <command that must fail>".',
+      targets: const [],
+    );
+  }
+
+  static final RegExp _maskedExitStatusPattern = RegExp(
+    r'^(?:'
+    r'true|:'
+    r'|exit\s+0'
+    r'|echo\b[^|]*\$\?'
+    r'|(?:test|\[)\s+\$\?\s*(?:-ne|!=)\s*0\s*\]?'
+    r')$',
+    caseSensitive: false,
+  );
 
   static CodingCommandPreflightIssue? _detectMalformedDartCreateCommand({
     required String command,

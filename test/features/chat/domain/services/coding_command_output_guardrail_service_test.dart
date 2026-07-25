@@ -7,6 +7,107 @@ import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/coding_command_output_guardrail_service.dart';
 
 void main() {
+  group('masked exit status', () {
+    // The command a live run actually issued: the chain broke at the id
+    // extraction, yet it reported exit 0 because it ended in an assertion that
+    // the previous command had failed — and the model read that 0 as "every
+    // acceptance criterion verified".
+    const observedCommand =
+        'rm -f todo_state.json && dart run bin/todo.dart list '
+        '&& dart run bin/todo.dart add "task one" '
+        '&& ID1=\$(dart run bin/todo.dart list | sed -n \'1p\' | awk \'{print \$1}\') '
+        '&& dart run bin/todo.dart done "\$ID1" '
+        '&& dart run bin/todo.dart done missing-id; test \$? -ne 0';
+
+    test('refuses a chain that ends by asserting the previous failure', () {
+      final issue =
+          CodingCommandOutputGuardrailService.detectMaskedExitStatusIssue(
+            command: observedCommand,
+          );
+
+      expect(issue, isNotNull);
+      expect(issue!.code, 'masked_exit_status');
+      expect(issue.segment, 'test \$? -ne 0');
+      expect(issue.instruction, contains('drop the trailing'));
+    });
+
+    test('a masked chain that exited 0 is not usable evidence', () {
+      final issue =
+          CodingCommandOutputGuardrailService.detectIssueFromDecodedCommandResult(
+            toolName: 'local_execute_command',
+            decoded: {
+              'command': observedCommand,
+              'working_directory': '/tmp/todo',
+              'exit_code': 0,
+              'stdout': 'No tasks.',
+              'stderr': '',
+            },
+          );
+
+      expect(issue, isNotNull);
+      expect(issue!.exitCode, 0);
+      expect(issue.source, 'command');
+      expect(issue.summary, contains('not evidence'));
+    });
+
+    test('flags the other status-swallowing endings', () {
+      for (final tail in [
+        '|| true',
+        '; true',
+        '; :',
+        '; exit 0',
+        '; echo \$?',
+      ]) {
+        expect(
+          CodingCommandOutputGuardrailService.detectMaskedExitStatusIssue(
+            command: 'dart analyze && dart test $tail',
+          ),
+          isNotNull,
+          reason: 'a chain ending in "$tail" cannot report an earlier failure',
+        );
+      }
+    });
+
+    test('a single command plus an assertion is a real negative check', () {
+      expect(
+        CodingCommandOutputGuardrailService.detectMaskedExitStatusIssue(
+          command: 'dart run bin/todo.dart done 999; test \$? -ne 0',
+        ),
+        isNull,
+        reason:
+            'the assertion is the check itself: exit 0 means that command '
+            'failed as the acceptance criterion requires',
+      );
+    });
+
+    test('leaves chains that propagate a failure alone', () {
+      const propagating = [
+        'dart analyze && dart test',
+        'dart run bin/todo.dart list; test \$? -eq 0',
+        'rm -f state.json && dart run bin/todo.dart list',
+        'test -f pubspec.yaml && dart analyze bin/todo.dart',
+      ];
+      for (final command in propagating) {
+        expect(
+          CodingCommandOutputGuardrailService.detectMaskedExitStatusIssue(
+            command: command,
+          ),
+          isNull,
+          reason: '"$command" still fails when a step fails',
+        );
+      }
+    });
+
+    test('a bare non-failing command masks nothing on its own', () {
+      expect(
+        CodingCommandOutputGuardrailService.detectMaskedExitStatusIssue(
+          command: 'true',
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('CodingCommandOutputGuardrailService', () {
     test('builds feedback from a zero-exit artifact error replay', () {
       final fixture = _loadReplayFixture(

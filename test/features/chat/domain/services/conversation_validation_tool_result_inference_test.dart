@@ -6,6 +6,40 @@ import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart
 import 'package:caverno/features/chat/domain/services/conversation_validation_tool_result_inference.dart';
 
 void main() {
+  test('a masked exit status does not pass validation', () {
+    const command =
+        'dart run bin/todo.dart add "task one" '
+        '&& dart run bin/todo.dart done missing-id; test \$? -ne 0';
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-verify',
+        title: 'Verify the acceptance criteria',
+        validationCommand: command,
+      ),
+      toolResults: [
+        ConversationValidationToolResultInput(
+          toolName: 'local_execute_command',
+          rawResult: jsonEncode({
+            'command': command,
+            'exit_code': 0,
+            'stdout': 'Added: "task one" (id: 1)',
+            'stderr': 'Error: invalid id "missing-id".',
+          }),
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(
+      result!.validationStatus,
+      ConversationExecutionValidationStatus.failed,
+      reason:
+          'the chain reported 0 from its trailing assertion, so it proves '
+          'nothing about the commands before it',
+    );
+    expect(result.status, ConversationWorkflowTaskStatus.blocked);
+  });
+
   test('infers failed validation from tool exit codes', () {
     final result = ConversationValidationToolResultInference.infer(
       task: const ConversationWorkflowTask(
@@ -461,5 +495,4 @@ String _cjkDataMissing() {
     0x305b,
     0x3093,
   ]);
-
 }
