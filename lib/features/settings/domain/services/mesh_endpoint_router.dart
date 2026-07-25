@@ -120,19 +120,49 @@ class EndpointHealth {
 
   /// Unknown (never probed) endpoints are treated as healthy so they are tried
   /// at least once rather than pre-emptively demoted.
-  bool isUnhealthy(int failureThreshold) =>
-      consecutiveFailures >= failureThreshold;
+  ///
+  /// With [recoveryDelay], a demoted endpoint becomes eligible again once that
+  /// long has passed since its last failure (half-open): the next call is
+  /// attempted, and its outcome either clears the failures or starts a fresh
+  /// cooldown. Without it, demotion is permanent for the tracker's lifetime —
+  /// correct for a LAN host that is really down, wrong for a cloud endpoint
+  /// that rate-limited twice.
+  bool isUnhealthy(
+    int failureThreshold, {
+    Duration? recoveryDelay,
+    DateTime? now,
+  }) {
+    if (consecutiveFailures < failureThreshold) return false;
+    final failedAt = lastFailureAt;
+    if (recoveryDelay == null || failedAt == null) return true;
+    return (now ?? DateTime.now()).difference(failedAt) < recoveryDelay;
+  }
 }
 
 /// LL8: tracks endpoint reachability from probe results and reports which
 /// endpoints should currently be demoted. Pure and in-memory; the runtime
 /// health-check loop (slice 4) feeds it [recordSuccess] / [recordFailure].
 class EndpointHealthTracker {
-  EndpointHealthTracker({this.failureThreshold = 2})
-    : assert(failureThreshold >= 1);
+  EndpointHealthTracker({
+    this.failureThreshold = 2,
+    this.recoveryDelay = defaultRecoveryDelay,
+    DateTime Function()? clock,
+  }) : assert(failureThreshold >= 1),
+       _clock = clock ?? DateTime.now;
+
+  /// How long a demoted endpoint stays demoted before one call is allowed
+  /// through again. Sized for the cost of being wrong in either direction: a
+  /// dead LAN host costs one fast connection-refused per window, while a
+  /// rate-limited cloud endpoint recovers without restarting the app.
+  static const Duration defaultRecoveryDelay = Duration(minutes: 2);
 
   /// Consecutive failures before an endpoint is considered unhealthy.
   final int failureThreshold;
+
+  /// Cooldown before a demoted endpoint is retried once (half-open).
+  final Duration recoveryDelay;
+
+  final DateTime Function() _clock;
 
   final Map<String, EndpointHealth> _byId = <String, EndpointHealth>{};
 
@@ -140,7 +170,7 @@ class EndpointHealthTracker {
       _byId[endpointId] ?? const EndpointHealth();
 
   void recordSuccess(String endpointId, {DateTime? at}) {
-    final now = at ?? DateTime.now();
+    final now = at ?? _clock();
     _byId[endpointId] = EndpointHealth(
       consecutiveFailures: 0,
       lastSuccessAt: now,
@@ -158,7 +188,7 @@ class EndpointHealthTracker {
   /// accrue gradually so a briefly flapping endpoint is not demoted on a single
   /// blip.
   void recordFailure(String endpointId, {DateTime? at, bool hard = false}) {
-    final now = at ?? DateTime.now();
+    final now = at ?? _clock();
     final previous = _byId[endpointId] ?? const EndpointHealth();
     final nextFailures = hard
         ? (previous.consecutiveFailures + 1 < failureThreshold
@@ -175,12 +205,22 @@ class EndpointHealthTracker {
   /// Forget an endpoint (e.g. when it is unregistered).
   void forget(String endpointId) => _byId.remove(endpointId);
 
-  bool isUnhealthy(String endpointId) =>
-      healthFor(endpointId).isUnhealthy(failureThreshold);
+  bool isUnhealthy(String endpointId) => healthFor(
+    endpointId,
+  ).isUnhealthy(failureThreshold, recoveryDelay: recoveryDelay, now: _clock());
 
-  /// Ids currently at or above the failure threshold.
-  Set<String> get unhealthyEndpointIds => {
-    for (final entry in _byId.entries)
-      if (entry.value.isUnhealthy(failureThreshold)) entry.key,
-  };
+  /// Ids currently demoted: at or above the failure threshold and still inside
+  /// their recovery window.
+  Set<String> get unhealthyEndpointIds {
+    final now = _clock();
+    return {
+      for (final entry in _byId.entries)
+        if (entry.value.isUnhealthy(
+          failureThreshold,
+          recoveryDelay: recoveryDelay,
+          now: now,
+        ))
+          entry.key,
+    };
+  }
 }

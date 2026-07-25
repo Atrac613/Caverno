@@ -145,6 +145,60 @@ void main() {
       expect(tracker.isUnhealthy('x'), isFalse);
     });
 
+    test('retries a demoted endpoint once the recovery window passes', () {
+      var now = DateTime(2026, 7, 25, 12);
+      final tracker = EndpointHealthTracker(
+        failureThreshold: 2,
+        recoveryDelay: const Duration(minutes: 2),
+        clock: () => now,
+      );
+
+      tracker.recordFailure('x');
+      tracker.recordFailure('x');
+      expect(tracker.isUnhealthy('x'), isTrue);
+
+      now = now.add(const Duration(minutes: 1));
+      expect(
+        tracker.isUnhealthy('x'),
+        isTrue,
+        reason: 'still inside the cooldown',
+      );
+
+      now = now.add(const Duration(minutes: 1, seconds: 1));
+      expect(
+        tracker.isUnhealthy('x'),
+        isFalse,
+        reason: 'a rate-limited cloud endpoint must get another chance',
+      );
+      expect(tracker.unhealthyEndpointIds, isEmpty);
+    });
+
+    test('a failed half-open retry starts a fresh cooldown', () {
+      var now = DateTime(2026, 7, 25, 12);
+      final tracker = EndpointHealthTracker(
+        failureThreshold: 2,
+        recoveryDelay: const Duration(minutes: 2),
+        clock: () => now,
+      );
+      tracker.recordFailure('x');
+      tracker.recordFailure('x');
+
+      now = now.add(const Duration(minutes: 3));
+      expect(tracker.isUnhealthy('x'), isFalse);
+
+      tracker.recordFailure('x');
+      expect(
+        tracker.isUnhealthy('x'),
+        isTrue,
+        reason: 'the retry failed, so the endpoint is demoted again',
+      );
+
+      now = now.add(const Duration(minutes: 3));
+      tracker.recordSuccess('x');
+      expect(tracker.healthFor('x').consecutiveFailures, 0);
+      expect(tracker.isUnhealthy('x'), isFalse);
+    });
+
     test('drives router demotion end to end', () {
       final tracker = EndpointHealthTracker(failureThreshold: 1);
       final endpoint = _endpoint('http://192.168.100.241:1234/v1');
