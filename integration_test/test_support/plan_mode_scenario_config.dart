@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+
 import 'plan_mode_scenario_spec.dart';
 
 enum PlanModeScenarioExecutionMode { fake, live }
@@ -18,6 +20,9 @@ class PlanModeScenarioTestConfig {
     this.baseUrl,
     this.apiKey,
     this.model,
+    this.planningBaseUrl,
+    this.planningApiKey,
+    this.planningModel,
   });
 
   final String deviceName;
@@ -33,9 +38,63 @@ class PlanModeScenarioTestConfig {
   final String? apiKey;
   final String? model;
 
+  /// Optional planning-role endpoint (LL1 model routing). When set, plan
+  /// drafting runs on this endpoint/model while execution stays on the primary
+  /// one, which is the arm under test in a planner A/B.
+  final String? planningBaseUrl;
+  final String? planningApiKey;
+  final String? planningModel;
+
+  /// True when plan drafting is routed away from the primary model.
+  bool get routesPlanningRole =>
+      (planningBaseUrl?.trim().isNotEmpty ?? false) &&
+      (planningModel?.trim().isNotEmpty ?? false);
+
   bool get usesLiveLlm => mode == PlanModeScenarioExecutionMode.live;
 
   bool get usesHeadlessRunner => deviceName == 'headless';
+}
+
+/// Endpoint id given to the canary's primary (execution) endpoint when the
+/// planner arm registers a second one.
+const String planModeCanaryPrimaryEndpointId = 'canary-primary';
+
+/// Endpoint id given to the canary's planning endpoint.
+const String planModeCanaryPlannerEndpointId = 'canary-planner';
+
+/// Applies the planner A/B routing to [settings].
+///
+/// Both endpoints must be registered with the primary marked active: with only
+/// the planner in the list, `withNormalizedLlmEndpoints()` adopts it as the
+/// active entry and mirrors the primary base URL/model into it, which silently
+/// sends the planner model to the execution server — the exact "measured the
+/// wrong arm" failure this A/B must not have.
+AppSettings applyPlanModeRoleRouting(
+  AppSettings settings,
+  PlanModeScenarioTestConfig config,
+) {
+  if (!config.routesPlanningRole) return settings;
+  return settings.copyWith(
+    llmEndpoints: [
+      LlmEndpoint(
+        id: planModeCanaryPrimaryEndpointId,
+        label: 'Canary primary',
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+        model: settings.model,
+      ),
+      LlmEndpoint(
+        id: planModeCanaryPlannerEndpointId,
+        label: 'Canary planner',
+        baseUrl: config.planningBaseUrl!.trim(),
+        apiKey: config.planningApiKey?.trim() ?? '',
+        model: config.planningModel!.trim(),
+      ),
+    ],
+    activeLlmEndpointId: planModeCanaryPrimaryEndpointId,
+    planningEndpointId: planModeCanaryPlannerEndpointId,
+    planningModel: config.planningModel!.trim(),
+  );
 }
 
 bool planModeEnvFlagEnabled(Map<String, String> environment, String name) {
@@ -247,6 +306,11 @@ PlanModeScenarioTestConfig resolvePlanModeScenarioTestConfig({
       'CAVERNO_LLM_API_KEY',
     ),
     model: requireNonEmptyPlanModeEnv(resolvedEnvironment, 'CAVERNO_LLM_MODEL'),
+    // Absent by default: that is the baseline arm, where the primary model
+    // drafts the plan it will execute.
+    planningBaseUrl: resolvedEnvironment['CAVERNO_PLANNING_BASE_URL']?.trim(),
+    planningApiKey: resolvedEnvironment['CAVERNO_PLANNING_API_KEY']?.trim(),
+    planningModel: resolvedEnvironment['CAVERNO_PLANNING_MODEL']?.trim(),
   );
 }
 

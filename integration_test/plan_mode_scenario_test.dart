@@ -167,22 +167,28 @@ Future<_ScenarioRunResult> _runScenario({
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
   );
-  final settings = AppSettings.defaults().copyWith(
-    baseUrl: config.baseUrl ?? AppSettings.defaults().baseUrl,
-    model: config.model ?? AppSettings.defaults().model,
-    apiKey: config.apiKey ?? AppSettings.defaults().apiKey,
-    temperature: scenario.temperature ?? AppSettings.defaults().temperature,
-    maxTokens: scenario.maxTokens ?? AppSettings.defaults().maxTokens,
-    assistantMode: AssistantMode.plan,
-    language: scenario.languageCode,
-    mcpEnabled: true,
-    mcpUrl: '',
-    mcpUrls: const [],
-    mcpServers: const [],
-    confirmFileMutations: false,
-    confirmLocalCommands: false,
-    confirmGitWrites: false,
-    showMemoryUpdates: false,
+  // Planner A/B: with a planning endpoint configured, plan drafting runs on it
+  // while execution stays on the primary model. Without one, both stay on the
+  // primary — the baseline arm.
+  final settings = applyPlanModeRoleRouting(
+    AppSettings.defaults().copyWith(
+      baseUrl: config.baseUrl ?? AppSettings.defaults().baseUrl,
+      model: config.model ?? AppSettings.defaults().model,
+      apiKey: config.apiKey ?? AppSettings.defaults().apiKey,
+      temperature: scenario.temperature ?? AppSettings.defaults().temperature,
+      maxTokens: scenario.maxTokens ?? AppSettings.defaults().maxTokens,
+      assistantMode: AssistantMode.plan,
+      language: scenario.languageCode,
+      mcpEnabled: true,
+      mcpUrl: '',
+      mcpUrls: const [],
+      mcpServers: const [],
+      confirmFileMutations: false,
+      confirmLocalCommands: false,
+      confirmGitWrites: false,
+      showMemoryUpdates: false,
+    ),
+    config,
   );
 
   SharedPreferences.setMockInitialValues({
