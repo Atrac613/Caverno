@@ -9,6 +9,7 @@ import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
 import '../../domain/services/model_capability_profile_builder.dart';
+import 'model_context_window_resolver.dart';
 import 'settings_notifier.dart';
 
 final modelCapabilityAutoProbeNotifierProvider =
@@ -85,7 +86,13 @@ class ModelCapabilityAutoProbeNotifier
       );
       return;
     }
-    if (!force && settings.effectiveModelCapabilityProfile != null) {
+    final storedProfile = settings.effectiveModelCapabilityProfile;
+    if (!force && storedProfile != null) {
+      // Profiles stored before the context window was measured carry 0. Backfill
+      // it from the endpoint rather than forcing a full re-probe: the catalog
+      // lookup is a plain HTTP read, so this costs no LLM tokens.
+      await _backfillContextWindow(settings, storedProfile);
+      if (!ref.mounted) return;
       state = ModelCapabilityAutoProbeState(
         status: ModelCapabilityAutoProbeStatus.skipped,
         profileId: profileId,
@@ -119,6 +126,10 @@ class ModelCapabilityAutoProbeNotifier
             ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
               report: report,
               provider: settings.llmProvider,
+              usableContextTokens: await resolveUsableContextTokens(
+                ref,
+                settings,
+              ),
             ),
             source: source,
           );
@@ -140,5 +151,23 @@ class ModelCapabilityAutoProbeNotifier
         error: error.toString(),
       );
     }
+  }
+
+  /// Fills in a stored profile's context window when it was never measured.
+  /// A profile that already carries one is left alone: re-measuring belongs to
+  /// a real probe, where drift detection can act on it.
+  Future<void> _backfillContextWindow(
+    AppSettings settings,
+    ModelCapabilityProfile storedProfile,
+  ) async {
+    if (storedProfile.usableContextTokens > 0) return;
+    final tokens = await resolveUsableContextTokens(ref, settings);
+    if (tokens <= 0 || !ref.mounted) return;
+    await ref
+        .read(settingsNotifierProvider.notifier)
+        .upsertModelCapabilityProfile(
+          storedProfile.copyWith(usableContextTokens: tokens),
+          source: 'context_backfill',
+        );
   }
 }

@@ -6,9 +6,14 @@ import 'llm_sampler_preset_profile.dart';
 class ModelCapabilityProfileBuilder {
   const ModelCapabilityProfileBuilder._();
 
+  /// [usableContextTokens] is the endpoint-reported context window for the
+  /// probed model (llama.cpp `n_ctx`, LM Studio loaded context, Ollama
+  /// `num_ctx`, OpenAI `context_length`). Zero means the endpoint advertised
+  /// none; consumers must treat it as unmeasured rather than assume a default.
   static ModelCapabilityProfile fromLiveDiagnosticReport({
     required LiveLlmDiagnosticReport report,
     required LlmProvider provider,
+    int usableContextTokens = 0,
     Iterable<LlmSamplerCalibrationTrial> samplerTrials = const [],
   }) {
     final effectiveSamplerTrials = [
@@ -35,7 +40,7 @@ class ModelCapabilityProfileBuilder {
       toolCallStyle: _toolCallStyle(report, provider),
       structuredOutputSupport: _structuredOutputSupport(report),
       editFormatPreference: ModelEditFormatPreference.unknown,
-      usableContextTokens: 0,
+      usableContextTokens: usableContextTokens,
       probedAt: report.finishedAt ?? report.startedAt,
       probeSummary:
           '${report.overallStatus.label}: '

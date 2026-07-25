@@ -251,4 +251,34 @@ void main() {
     );
     expect(profile.probeMetadata['probe.instruction_echo.status'], 'passed');
   });
+
+  test('persists the endpoint-reported context window', () {
+    final report = LiveLlmDiagnosticReport(
+      startedAt: DateTime.utc(2026, 7, 25),
+      finishedAt: DateTime.utc(2026, 7, 25, 0, 0, 2),
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'qwen-test',
+      demoMode: false,
+      mcpEnabled: false,
+      toolCatalog: const LiveLlmDiagnosticToolCatalog(),
+      results: const [],
+    );
+
+    expect(
+      ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+        report: report,
+        provider: LlmProvider.openAiCompatible,
+        usableContextTokens: 32768,
+      ).usableContextTokens,
+      32768,
+    );
+    expect(
+      ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
+        report: report,
+        provider: LlmProvider.openAiCompatible,
+      ).usableContextTokens,
+      0,
+      reason: 'an endpoint that advertises no context window stays unmeasured',
+    );
+  });
 }

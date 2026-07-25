@@ -7,6 +7,7 @@ import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/live_llm_diagnostic.dart';
 import '../../domain/services/live_llm_diagnostic_service.dart';
 import '../../domain/services/model_capability_profile_builder.dart';
+import 'model_context_window_resolver.dart';
 import 'settings_notifier.dart';
 
 final liveLlmDiagnosticNotifierProvider =
@@ -50,6 +51,10 @@ class LiveLlmDiagnosticNotifier extends Notifier<LiveLlmDiagnosticState> {
             ModelCapabilityProfileBuilder.fromLiveDiagnosticReport(
               report: report,
               provider: settings.llmProvider,
+              usableContextTokens: await resolveUsableContextTokens(
+                ref,
+                settings,
+              ),
             ),
             source: 'calibrate',
           );

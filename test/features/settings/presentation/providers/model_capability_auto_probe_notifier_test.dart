@@ -11,8 +11,10 @@ import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart'
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/data/settings_repository.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
+import 'package:caverno/features/settings/domain/entities/model_catalog_entry.dart';
 import 'package:caverno/features/settings/domain/services/llm_sampler_preset_profile.dart';
 import 'package:caverno/features/settings/presentation/providers/model_capability_auto_probe_notifier.dart';
+import 'package:caverno/features/settings/presentation/providers/model_list_provider.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 void main() {
@@ -107,6 +109,13 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(prefs),
         chatRemoteDataSourceProvider.overrideWithValue(dataSource),
         mcpToolServiceProvider.overrideWithValue(null),
+        modelCatalogProvider(
+          ModelListConfig(
+            baseUrl: AppSettings.defaults().baseUrl,
+            apiKey: AppSettings.defaults().apiKey,
+            selectedModelId: 'known-model',
+          ),
+        ).overrideWith((ref) async => const <ModelCatalogEntry>[]),
       ],
     );
     addTearDown(container.dispose);
@@ -118,6 +127,71 @@ void main() {
     final state = container.read(modelCapabilityAutoProbeNotifierProvider);
     expect(state.status, ModelCapabilityAutoProbeStatus.skipped);
     expect(dataSource.requestCount, 0);
+  });
+
+  test('backfills a stored profile that never measured its context', () async {
+    final initialSettings = AppSettings.defaults().copyWith(
+      model: 'known-model',
+      modelCapabilityProfiles: [
+        ModelCapabilityProfile(
+          id: '',
+          baseUrl: AppSettings.defaults().baseUrl,
+          model: 'known-model',
+          toolCallStyle: ModelToolCallStyle.nativeToolCalls,
+        ).normalizedForPersistence(),
+      ],
+    );
+    SharedPreferences.setMockInitialValues({
+      'app_settings': jsonEncode(initialSettings.toJson()),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final dataSource = _InstructionOnlyDataSource();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+        mcpToolServiceProvider.overrideWithValue(null),
+        modelCatalogProvider(
+          ModelListConfig(
+            baseUrl: AppSettings.defaults().baseUrl,
+            apiKey: AppSettings.defaults().apiKey,
+            selectedModelId: 'known-model',
+          ),
+        ).overrideWith(
+          (ref) async => const [
+            ModelCatalogEntry(id: 'known-model', contextWindowTokens: 32768),
+          ],
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container
+        .read(modelCapabilityAutoProbeNotifierProvider.notifier)
+        .runForCurrentModel();
+
+    expect(
+      container.read(modelCapabilityAutoProbeNotifierProvider).status,
+      ModelCapabilityAutoProbeStatus.skipped,
+    );
+    expect(
+      dataSource.requestCount,
+      0,
+      reason: 'the backfill must not spend LLM calls',
+    );
+    expect(
+      SettingsRepository(
+        prefs,
+      ).load().effectiveModelCapabilityProfile?.usableContextTokens,
+      32768,
+    );
+    expect(
+      SettingsRepository(
+        prefs,
+      ).load().effectiveModelCapabilityProfile?.toolCallStyle,
+      ModelToolCallStyle.nativeToolCalls,
+      reason: 'the backfill only adds the context window',
+    );
   });
 }
 

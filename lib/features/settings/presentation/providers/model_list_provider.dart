@@ -38,6 +38,31 @@ final modelCatalogProvider = FutureProvider.autoDispose
       );
     });
 
+/// Server-reported context window for [ModelListConfig.selectedModelId], or
+/// null when the endpoint advertises none.
+///
+/// The catalog already resolves this per server family (llama.cpp `/props` +
+/// `/slots`, LM Studio loaded instances, Ollama `num_ctx`, OpenAI
+/// `context_length`), so capability probing reads ground truth here instead of
+/// estimating a context budget. Never throws: an unreachable or silent endpoint
+/// is reported as "unmeasured" (null), never as a guessed number.
+final modelContextWindowProvider = FutureProvider.autoDispose
+    .family<int?, ModelListConfig>((ref, config) async {
+      final selectedModelId = config.selectedModelId?.trim();
+      if (selectedModelId == null || selectedModelId.isEmpty) return null;
+      try {
+        final catalog = await ref.watch(modelCatalogProvider(config).future);
+        for (final entry in catalog) {
+          if (entry.id.trim() == selectedModelId) {
+            return entry.contextWindowTokens;
+          }
+        }
+      } on Object {
+        return null;
+      }
+      return null;
+    });
+
 final modelListProvider = FutureProvider.autoDispose
     .family<List<String>, ModelListConfig>((ref, config) async {
       final catalog = await ref.watch(modelCatalogProvider(config).future);
