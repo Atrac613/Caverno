@@ -291,6 +291,17 @@ class LocalShellTools {
       if (char == ';') {
         return false;
       }
+      // A subshell or a negated check owns its own exit status: under `-e` the
+      // shell can abort inside `(...)` before `!` inverts the result, turning a
+      // passing acceptance check such as `(! prog bad-id)` into a false
+      // failure — and a run that cannot trust its own exit codes starts
+      // explaining them away instead.
+      if (char == '(') {
+        return false;
+      }
+      if (char == '!' && _startsNegatedCommand(command, index)) {
+        return false;
+      }
       if (char == '|' &&
           index + 1 < command.length &&
           command[index + 1] == '|') {
@@ -308,6 +319,19 @@ class LocalShellTools {
       multiLine: true,
     ).hasMatch(command);
     return !containsMultilineControlFlow;
+  }
+
+  /// Whether `!` at [index] negates a command rather than appearing inside a
+  /// word (`foo!bar`) or a history-style token.
+  static bool _startsNegatedCommand(String command, int index) {
+    final next = index + 1 < command.length ? command[index + 1] : ' ';
+    if (next != ' ' && next != '\t') return false;
+    for (var i = index - 1; i >= 0; i--) {
+      final char = command[i];
+      if (char == ' ' || char == '\t') continue;
+      return char == '&' || char == '|' || char == ';' || char == '\n';
+    }
+    return true;
   }
 
   static bool _startsShellComment(String command, int index) {

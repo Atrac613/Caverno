@@ -5,6 +5,54 @@ import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('implicit errexit', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('caverno_shell_');
+    });
+
+    tearDown(() {
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+
+    Future<int?> exitCodeOf(String command) async {
+      final raw = await LocalShellTools.execute(
+        command: command,
+        workingDirectory: tempDir.path,
+      );
+      return (jsonDecode(raw) as Map<String, dynamic>)['exit_code'] as int?;
+    }
+
+    test('a negated check inside a subshell still reports success', () async {
+      // Observed live: an acceptance walk-through ending in
+      // `(! prog unknown-id)` passed every step yet reported exit 1, because
+      // `sh -e` aborts inside the subshell before `!` inverts the status. The
+      // model then explained the failure away instead of trusting it.
+      expect(
+        await exitCodeOf('true && (! false) && (! false)'),
+        0,
+        reason: 'the negated checks passed, so the chain passed',
+      );
+    });
+
+    test('a bare negated command reports success', () async {
+      expect(await exitCodeOf('true && ! false'), 0);
+    });
+
+    test('a genuine failure in an && chain still fails', () async {
+      expect(
+        await exitCodeOf('true && false && true'),
+        isNot(0),
+        reason: 'dropping -e must not hide a real failure',
+      );
+    });
+
+    test('a failing negated check fails', () async {
+      expect(await exitCodeOf('true && (! true)'), isNot(0));
+    });
+  });
+
   test('normalizes model control tokens from commands', () {
     expect(
       LocalShellTools.normalizeCommand('<|"|>pip install psutil<|"|>'),
