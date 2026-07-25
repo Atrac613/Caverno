@@ -41,8 +41,8 @@ void main() {
 
     expect(
       find.text('Default (main-model)'),
-      findsNWidgets(4),
-      reason: 'all four roles start on the main-model fallback',
+      findsNWidgets(5),
+      reason: 'all five roles start on the main-model fallback',
     );
 
     await tester.tap(
@@ -58,6 +58,38 @@ void main() {
     expect(updated.memoryExtractionModel, 'small-model');
     expect(updated.effectiveMemoryExtractionModel, 'small-model');
     expect(updated.effectiveSubagentModel, 'main-model');
+  });
+
+  testWidgets('assigning the planning model persists it in settings', (
+    tester,
+  ) async {
+    final settings = AppSettings.defaults().copyWith(model: 'main-model');
+
+    await _pumpModelRoutingPage(
+      tester,
+      settings: settings,
+      loadModels: () async => ['main-model', 'planner-model'],
+    );
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('model-routing-planning')),
+      200,
+    );
+    await tester.tap(find.byKey(const ValueKey('model-routing-planning')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('planner-model').last);
+    await tester.pumpAndSettle();
+
+    final element = tester.element(find.byType(ModelRoutingSettingsPage));
+    final container = ProviderScope.containerOf(element);
+    final updated = container.read(settingsNotifierProvider);
+    expect(updated.planningModel, 'planner-model');
+    expect(updated.effectivePlanningModel, 'planner-model');
+    expect(
+      updated.effectiveSubagentModel,
+      'main-model',
+      reason: 'the planning assignment must not leak into other roles',
+    );
   });
 
   testWidgets('a configured model stays selectable when not in the catalog', (

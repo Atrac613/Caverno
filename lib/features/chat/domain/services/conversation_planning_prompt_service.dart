@@ -5,6 +5,7 @@ import '../entities/conversation.dart';
 import '../entities/conversation_workflow.dart';
 import '../entities/message.dart';
 import 'conversation_execution_summary_service.dart';
+import 'planning_executor_profile.dart';
 
 class ConversationPlanningPromptService {
   ConversationPlanningPromptService._();
@@ -22,6 +23,7 @@ class ConversationPlanningPromptService {
     String? researchContextBlock,
     List<String> selectedDecisionLines = const <String>[],
     String? additionalPlanningContext,
+    PlanningExecutorProfile? executorProfile,
     bool compact = false,
   }) {
     final savedSpec = currentConversation.effectiveWorkflowSpec;
@@ -104,6 +106,7 @@ class ConversationPlanningPromptService {
         ..writeln('- name: ${project.name}')
         ..writeln('- rootPath: ${project.normalizedRootPath}');
     }
+    _writeExecutorProfileBlock(buffer, executorProfile, compact: compact);
     if (currentConversation.hasWorkflowContext) {
       buffer
         ..writeln()
@@ -166,6 +169,21 @@ class ConversationPlanningPromptService {
     return buffer.toString().trimRight();
   }
 
+  /// Discloses the executing model's measured budget to the planner. Emits
+  /// nothing when planner and executor are the same model, so an unrouted
+  /// planning session keeps its previous prompt exactly.
+  static void _writeExecutorProfileBlock(
+    StringBuffer buffer,
+    PlanningExecutorProfile? executorProfile, {
+    required bool compact,
+  }) {
+    final block = executorProfile?.toPromptBlock(compact: compact);
+    if (block == null || block.isEmpty) return;
+    buffer
+      ..writeln()
+      ..writeln(block);
+  }
+
   static String buildTaskProposalRequest({
     required Conversation currentConversation,
     required List<Message> messages,
@@ -175,6 +193,7 @@ class ConversationPlanningPromptService {
     ConversationWorkflowStage? workflowStageOverride,
     ConversationWorkflowSpec? workflowSpecOverride,
     String? additionalPlanningContext,
+    PlanningExecutorProfile? executorProfile,
     bool compact = false,
   }) {
     final savedSpec =
@@ -291,6 +310,8 @@ class ConversationPlanningPromptService {
         ..writeln('- name: ${project.name}')
         ..writeln('- rootPath: ${project.normalizedRootPath}');
     }
+
+    _writeExecutorProfileBlock(buffer, executorProfile, compact: compact);
 
     buffer
       ..writeln()

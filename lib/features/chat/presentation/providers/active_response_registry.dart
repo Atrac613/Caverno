@@ -1,4 +1,5 @@
 import '../../domain/entities/message.dart';
+import 'chat_state.dart';
 
 class ActiveResponseRegistry {
   int _currentGeneration = 0;
@@ -30,6 +31,13 @@ class ActiveResponseRegistry {
     return _currentConversationId != null &&
         visibleConversationId != _currentConversationId;
   }
+
+  /// Conversations that currently have a running response, for surfacing the
+  /// busy state in the UI. Mirrored into [ChatState] by the notifier: the
+  /// registry itself is not observable, so a listener that rebuilt before the
+  /// last entry was cleared would otherwise keep rendering "busy" forever.
+  Set<String> get activeConversationIds =>
+      _conversationIdsByGeneration.values.toSet();
 
   int? generationForConversation(String? targetConversationId) {
     if (targetConversationId == null) return null;
@@ -102,4 +110,23 @@ class ActiveResponseRegistry {
     _currentConversationId = null;
     _currentMessages = null;
   }
+}
+
+/// Whether the thread list should show [targetConversationId] as working.
+///
+/// Reads only the state so the answer changes observably: background threads
+/// come from [ChatState.busyConversationIds], while the visible thread is also
+/// busy during plan drafting, which runs without registering a response.
+bool chatStateReportsConversationBusy({
+  required ChatState state,
+  required String targetConversationId,
+  required String? visibleConversationId,
+}) {
+  final normalized = targetConversationId.trim();
+  if (normalized.isEmpty) return false;
+  if (state.busyConversationIds.contains(normalized)) return true;
+  if (visibleConversationId != normalized) return false;
+  return state.isLoading ||
+      state.isGeneratingWorkflowProposal ||
+      state.isGeneratingTaskProposal;
 }

@@ -91,6 +91,10 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
           isLoading: state.isLoading,
           isGeneratingWorkflowProposal: state.isGeneratingWorkflowProposal,
           isGeneratingTaskProposal: state.isGeneratingTaskProposal,
+          // A background thread finishing changes only this set, and the
+          // finished state for the visible thread is emitted before it — so
+          // without watching it the spinner never stops.
+          busyConversationIds: state.busyConversationIds,
         ),
       ),
     );

@@ -31,4 +31,27 @@ extension ChatNotifierMeshRouting on ChatNotifier {
       call: call,
     );
   }
+
+  /// Run a plan-drafting completion (workflow / task proposal) on the planning
+  /// role's model and endpoint; an unassigned role keeps the main model. Logs
+  /// the model each attempt ran on: a mid-call demotion to the primary would
+  /// otherwise draft the plan on another model invisibly.
+  Future<T> _runPlanningCompletion<T>(
+    Future<T> Function(ChatDataSource dataSource, String model) call,
+  ) {
+    final endpointId = _settings.planningEndpointId.trim();
+    final planner = _settings.effectivePlanningModel;
+    final target = endpointId.isEmpty ? 'primary' : endpointId;
+    return _runSecondaryCompletion<T>(
+      endpointId: endpointId,
+      model: planner,
+      call: (dataSource, model) {
+        appLog(
+          '[Planning] plan_draft model=$model endpoint=$target '
+          'fallback=${model != planner}',
+        );
+        return call(dataSource, model);
+      },
+    );
+  }
 }

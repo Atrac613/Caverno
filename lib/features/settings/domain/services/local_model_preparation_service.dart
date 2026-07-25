@@ -104,6 +104,8 @@ class LocalModelPreparationService {
         settings.goalSuggestionModel.trim(),
       if (settings.approvalAutoReviewEndpointId.trim() == selectedEndpointId)
         settings.approvalAutoReviewModel.trim(),
+      if (settings.planningEndpointId.trim() == selectedEndpointId)
+        settings.planningModel.trim(),
     ];
     final seen = <String>{};
     final result = <String>[];

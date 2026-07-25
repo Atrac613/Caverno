@@ -678,6 +678,10 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String subagentModel,
     @Default('') String goalSuggestionModel,
     @Default('') String approvalAutoReviewModel,
+    // Plan drafting (workflow + task proposals) in a planning session. Unlike
+    // the other roles this usually wants a stronger model than the main one,
+    // since the plan shapes the whole execution run.
+    @Default('') String planningModel,
     // LL8 per-role endpoint routing. Empty string means "use the primary
     // endpoint". A non-empty value is a LlmEndpoint id; an unreachable mesh
     // endpoint falls back to the primary at call time (MeshEndpointRouter).
@@ -685,6 +689,7 @@ abstract class AppSettings with _$AppSettings {
     @Default('') String subagentEndpointId,
     @Default('') String goalSuggestionEndpointId,
     @Default('') String approvalAutoReviewEndpointId,
+    @Default('') String planningEndpointId,
     @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
     @Default(<String>[]) List<String> mcpUrls,
@@ -885,6 +890,9 @@ abstract class AppSettings with _$AppSettings {
 
   String get effectiveApprovalAutoReviewModel =>
       _resolveRoleModel(approvalAutoReviewModel, approvalAutoReviewEndpointId);
+
+  String get effectivePlanningModel =>
+      _resolveRoleModel(planningModel, planningEndpointId);
 
   String get normalizedFeedbackEndpointUrl => feedbackEndpointUrl.trim();
 
@@ -1116,6 +1124,7 @@ abstract class AppSettings with _$AppSettings {
       'subagentEndpointId',
       'goalSuggestionEndpointId',
       'approvalAutoReviewEndpointId',
+      'planningEndpointId',
     ]) {
       final currentId = migrated[field]?.toString();
       if (currentId != null && namedIdMapping.containsKey(currentId)) {

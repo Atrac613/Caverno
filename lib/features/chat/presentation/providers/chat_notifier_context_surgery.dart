@@ -176,10 +176,10 @@ extension ChatNotifierContextSurgery on ChatNotifier {
   }
 
   /// Collects the tool definitions offered for the current request plus the
-  /// external MCP tool names, appending discovered names to [toolNames] when no
-  /// override is supplied. Feeds the context window breakdown's System tools /
-  /// MCP tools rows. Lives here (not in chat_notifier.dart) to keep that file
-  /// within its F1 line-count budget.
+  /// external MCP tool names. Read-only with respect to [toolNames]: it reports
+  /// what the catalog holds, it never decides what the prompt advertises. Feeds
+  /// the context window breakdown's System tools / MCP tools rows. Lives here
+  /// (not in chat_notifier.dart) to keep that file within its F1 budget.
   ({List<Map<String, dynamic>> definitions, Set<String> mcpNames})
   _collectRequestToolObservation({
     required List<String>? toolNamesOverride,
@@ -196,15 +196,11 @@ extension ChatNotifierContextSurgery on ChatNotifier {
     final allDefinitions = mcpToolService.getOpenAiToolDefinitions();
     final mcpNames = _externalMcpToolNames(mcpToolService);
     if (toolNamesOverride == null) {
-      for (final tool in allDefinitions) {
-        final function = tool['function'];
-        if (function is Map) {
-          final name = function['name'];
-          if (name is String && name.isNotEmpty) {
-            toolNames.add(name);
-          }
-        }
-      }
+      // Observation only — never write back into [toolNames]. The callers that
+      // pass no override (plan drafting) attach no tools to the request, so
+      // filling their list here used to advertise the whole catalog in a
+      // system prompt whose request carried none, and models answered the
+      // JSON-only proposal request with a tool call instead.
       return (definitions: allDefinitions, mcpNames: mcpNames);
     }
 

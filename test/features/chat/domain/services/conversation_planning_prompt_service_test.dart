@@ -4,6 +4,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_planning_prompt_service.dart';
+import 'package:caverno/features/chat/domain/services/planning_executor_profile.dart';
 
 void main() {
   test('workflow proposal prompt includes execution and open question state', () {
@@ -310,5 +311,92 @@ void main() {
         '- constraints: Keep dependencies minimal | Support continuous mode',
       ),
     );
+  });
+
+  group('plan executor disclosure', () {
+    final conversation = Conversation(
+      id: 'conversation-executor',
+      title: 'Plan thread',
+      messages: const [],
+      createdAt: DateTime(2026, 7, 25, 10),
+      updatedAt: DateTime(2026, 7, 25, 10, 5),
+      workflowStage: ConversationWorkflowStage.tasks,
+      workflowSpec: const ConversationWorkflowSpec(goal: 'Build a ping CLI'),
+    );
+    const executorProfile = PlanningExecutorProfile(
+      model: 'executor-model',
+      usableContextTokens: 32768,
+      toolLoopMaxIterations: 12,
+    );
+
+    test('both prompts stay unchanged when planner and executor match', () {
+      final workflowPrompt =
+          ConversationPlanningPromptService.buildWorkflowProposalRequest(
+            currentConversation: conversation,
+            messages: const [],
+            languageCode: 'en',
+          );
+      final taskPrompt =
+          ConversationPlanningPromptService.buildTaskProposalRequest(
+            currentConversation: conversation,
+            messages: const [],
+            languageCode: 'en',
+          );
+
+      expect(workflowPrompt, isNot(contains('Plan executor')));
+      expect(taskPrompt, isNot(contains('Plan executor')));
+    });
+
+    test('task prompt carries the executor budget when routed', () {
+      final prompt = ConversationPlanningPromptService.buildTaskProposalRequest(
+        currentConversation: conversation,
+        messages: const [],
+        languageCode: 'en',
+        executorProfile: executorProfile,
+      );
+
+      expect(prompt, contains('Plan executor:'));
+      expect(prompt, contains('- model: executor-model'));
+      expect(prompt, contains('- usableContextTokens: 32768'));
+      expect(prompt, contains('- toolLoopMaxIterations: 12'));
+      expect(
+        prompt,
+        contains('Prefer more, smaller tasks over few large ones.'),
+      );
+    });
+
+    test('workflow prompt carries the executor budget when routed', () {
+      final prompt =
+          ConversationPlanningPromptService.buildWorkflowProposalRequest(
+            currentConversation: conversation,
+            messages: const [],
+            languageCode: 'en',
+            executorProfile: executorProfile,
+          );
+
+      expect(prompt, contains('Plan executor:'));
+      expect(prompt, contains('- model: executor-model'));
+    });
+
+    test('compact retries keep a one-line executor disclosure', () {
+      final prompt = ConversationPlanningPromptService.buildTaskProposalRequest(
+        currentConversation: conversation,
+        messages: const [],
+        languageCode: 'en',
+        executorProfile: executorProfile,
+        compact: true,
+      );
+
+      expect(
+        prompt,
+        contains('Plan executor (a different model runs this plan)'),
+      );
+      expect(prompt, contains('context: 32768 tokens'));
+      expect(
+        prompt,
+        isNot(contains('- usableContextTokens:')),
+        reason: 'the compact retry budget must not re-expand the block',
+      );
+    });
   });
 }

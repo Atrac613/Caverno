@@ -549,6 +549,11 @@ abstract class ChatState with _$ChatState {
     required List<Message> messages,
     @Default([]) List<QueuedChatMessage> queuedMessages,
     required bool isLoading,
+    // Conversations with a running response, including ones the user is not
+    // looking at. Lives in the state (not only in ActiveResponseRegistry) so
+    // clearing the last entry notifies listeners; the thread list renders its
+    // busy spinner from this.
+    @Default(<String>{}) Set<String> busyConversationIds,
     String? error,
     @Default(0) int promptTokens,
     @Default(0) int completionTokens,

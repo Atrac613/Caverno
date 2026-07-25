@@ -414,12 +414,14 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   subagentModel: json['subagentModel'] as String? ?? '',
   goalSuggestionModel: json['goalSuggestionModel'] as String? ?? '',
   approvalAutoReviewModel: json['approvalAutoReviewModel'] as String? ?? '',
+  planningModel: json['planningModel'] as String? ?? '',
   memoryExtractionEndpointId:
       json['memoryExtractionEndpointId'] as String? ?? '',
   subagentEndpointId: json['subagentEndpointId'] as String? ?? '',
   goalSuggestionEndpointId: json['goalSuggestionEndpointId'] as String? ?? '',
   approvalAutoReviewEndpointId:
       json['approvalAutoReviewEndpointId'] as String? ?? '',
+  planningEndpointId: json['planningEndpointId'] as String? ?? '',
   googleChatWebhookUrl: json['googleChatWebhookUrl'] as String? ?? '',
   mcpUrl: json['mcpUrl'] as String? ?? '',
   mcpUrls:
@@ -562,10 +564,12 @@ Map<String, dynamic> _$AppSettingsToJson(
   'subagentModel': instance.subagentModel,
   'goalSuggestionModel': instance.goalSuggestionModel,
   'approvalAutoReviewModel': instance.approvalAutoReviewModel,
+  'planningModel': instance.planningModel,
   'memoryExtractionEndpointId': instance.memoryExtractionEndpointId,
   'subagentEndpointId': instance.subagentEndpointId,
   'goalSuggestionEndpointId': instance.goalSuggestionEndpointId,
   'approvalAutoReviewEndpointId': instance.approvalAutoReviewEndpointId,
+  'planningEndpointId': instance.planningEndpointId,
   'googleChatWebhookUrl': instance.googleChatWebhookUrl,
   'mcpUrl': instance.mcpUrl,
   'mcpUrls': instance.mcpUrls,

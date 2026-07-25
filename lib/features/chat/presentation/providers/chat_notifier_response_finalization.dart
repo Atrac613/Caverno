@@ -114,6 +114,9 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
         isLoading: false,
         pendingAskUserQuestion: null,
       );
+    } else if (!state.busyConversationIds.contains(conversationId)) {
+      // Nothing runs on the visible thread: stale isLoading strands its spinner.
+      state = state.copyWith(isLoading: false);
     }
 
     String completedContent = '';

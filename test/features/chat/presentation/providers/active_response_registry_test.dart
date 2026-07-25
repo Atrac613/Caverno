@@ -2,8 +2,82 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/active_response_registry.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 
 void main() {
+  group('chatStateReportsConversationBusy', () {
+    ChatState stateWith({
+      Set<String> busy = const <String>{},
+      bool isLoading = false,
+      bool isGeneratingTaskProposal = false,
+    }) {
+      return ChatState.initial().copyWith(
+        busyConversationIds: busy,
+        isLoading: isLoading,
+        isGeneratingTaskProposal: isGeneratingTaskProposal,
+      );
+    }
+
+    test('a background thread stays busy while it is registered', () {
+      expect(
+        chatStateReportsConversationBusy(
+          state: stateWith(busy: {'conversation-b'}),
+          targetConversationId: 'conversation-b',
+          visibleConversationId: 'conversation-a',
+        ),
+        isTrue,
+      );
+    });
+
+    test('clearing the registry mirror stops the spinner', () {
+      expect(
+        chatStateReportsConversationBusy(
+          state: stateWith(),
+          targetConversationId: 'conversation-b',
+          visibleConversationId: 'conversation-a',
+        ),
+        isFalse,
+        reason:
+            'a finished background thread must not keep animating once its '
+            'entry left the state',
+      );
+    });
+
+    test('the visible thread is busy while a plan proposal is drafting', () {
+      expect(
+        chatStateReportsConversationBusy(
+          state: stateWith(isGeneratingTaskProposal: true),
+          targetConversationId: 'conversation-a',
+          visibleConversationId: 'conversation-a',
+        ),
+        isTrue,
+        reason: 'plan drafting runs without registering an active response',
+      );
+    });
+
+    test('an idle visible thread is not busy', () {
+      expect(
+        chatStateReportsConversationBusy(
+          state: stateWith(),
+          targetConversationId: 'conversation-a',
+          visibleConversationId: 'conversation-a',
+        ),
+        isFalse,
+      );
+    });
+
+    test('an empty id is never busy', () {
+      expect(
+        chatStateReportsConversationBusy(
+          state: stateWith(busy: {'conversation-a'}, isLoading: true),
+          targetConversationId: '   ',
+          visibleConversationId: 'conversation-a',
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('ActiveResponseRegistry', () {
     test('registers a response and mirrors the current generation', () {
       final registry = ActiveResponseRegistry();

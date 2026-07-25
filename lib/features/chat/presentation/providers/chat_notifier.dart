@@ -122,6 +122,7 @@ import '../../domain/services/proposal_option_extraction.dart';
 import '../../domain/services/proposal_parsing_text_utils.dart';
 import '../../domain/services/task_proposal_parser.dart';
 import '../../domain/services/workflow_proposal_parser.dart';
+import '../../domain/services/planning_executor_profile.dart';
 import '../../domain/services/planning_tool_policy.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_definition_search_service.dart';
@@ -545,6 +546,8 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
+    // Bounded: an unanswered load/unload stalled the turn before the runtime.
+    appLog('[LL9] Primary model auto-prepare started: ${settings.model}');
     try {
       final outcome = await ref
           .read(primaryModelPreparationServiceProvider)
@@ -552,7 +555,8 @@ class ChatNotifier extends Notifier<ChatState> {
             settings: settings,
             previousPrimaryModelId: pending.previousModelId,
             refreshCatalog: true,
-          );
+          )
+          .timeout(const Duration(seconds: 60));
       _logPrimaryModelPreparationOutcome(outcome);
     } on Object catch (error, stackTrace) {
       appLog(
@@ -1472,22 +1476,24 @@ class ChatNotifier extends Notifier<ChatState> {
     String? lastError;
     for (var index = 0; index < attempts.length; index++) {
       final attempt = attempts[index];
-      final result = await _dataSource.createChatCompletion(
-        messages: _buildWorkflowProposalMessages(
-          currentConversation: currentConversation,
-          languageCode: languageCode,
-          researchContext: researchContext,
-          decisionAnswers: decisionAnswers,
-          additionalPlanningContext: _buildWorkflowProposalRetryContext(
-            additionalPlanningContext,
-            minimalRetry: attempt.minimalRetry,
-            projectLooksEmpty: projectLooksEmpty,
+      final result = await _runPlanningCompletion(
+        (dataSource, model) => dataSource.createChatCompletion(
+          messages: _buildWorkflowProposalMessages(
+            currentConversation: currentConversation,
+            languageCode: languageCode,
+            researchContext: researchContext,
+            decisionAnswers: decisionAnswers,
+            additionalPlanningContext: _buildWorkflowProposalRetryContext(
+              additionalPlanningContext,
+              minimalRetry: attempt.minimalRetry,
+              projectLooksEmpty: projectLooksEmpty,
+            ),
+            compact: attempt.compact,
           ),
-          compact: attempt.compact,
+          model: model,
+          temperature: 0.1,
+          maxTokens: attempt.maxTokens,
         ),
-        model: _settings.model,
-        temperature: 0.1,
-        maxTokens: attempt.maxTokens,
       );
 
       final response = _parseWorkflowProposalResponseWithFallback(
@@ -1611,24 +1617,26 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
     for (var index = 0; index < attempts.length; index++) {
       final attempt = attempts[index];
-      final result = await _dataSource.createChatCompletion(
-        messages: _buildTaskProposalMessages(
-          currentConversation: currentConversation,
-          languageCode: languageCode,
-          researchContext: researchContext,
-          workflowStageOverride: workflowStageOverride,
-          workflowSpecOverride: workflowSpecOverride,
-          additionalPlanningContext: _buildTaskProposalRetryContext(
-            additionalPlanningContext,
-            minimalRetry: attempt.minimalRetry,
-            projectLooksEmpty: projectLooksEmpty,
-            workflowSpec: workflowSpec,
+      final result = await _runPlanningCompletion(
+        (dataSource, model) => dataSource.createChatCompletion(
+          messages: _buildTaskProposalMessages(
+            currentConversation: currentConversation,
+            languageCode: languageCode,
+            researchContext: researchContext,
+            workflowStageOverride: workflowStageOverride,
+            workflowSpecOverride: workflowSpecOverride,
+            additionalPlanningContext: _buildTaskProposalRetryContext(
+              additionalPlanningContext,
+              minimalRetry: attempt.minimalRetry,
+              projectLooksEmpty: projectLooksEmpty,
+              workflowSpec: workflowSpec,
+            ),
+            compact: attempt.compact,
           ),
-          compact: attempt.compact,
+          model: model,
+          temperature: 0.1,
+          maxTokens: attempt.maxTokens,
         ),
-        model: _settings.model,
-        temperature: 0.1,
-        maxTokens: attempt.maxTokens,
       );
 
       final proposal = _parseTaskProposalWithFallback(result.content);
@@ -1847,6 +1855,7 @@ class ChatNotifier extends Notifier<ChatState> {
           .map((answer) => '${answer.question}: ${answer.optionLabel}')
           .toList(growable: false),
       additionalPlanningContext: additionalPlanningContext,
+      executorProfile: PlanningExecutorProfile.fromSettings(_settings),
       compact: compact,
     );
   }
@@ -1871,6 +1880,7 @@ class ChatNotifier extends Notifier<ChatState> {
       workflowStageOverride: workflowStageOverride,
       workflowSpecOverride: workflowSpecOverride,
       additionalPlanningContext: additionalPlanningContext,
+      executorProfile: PlanningExecutorProfile.fromSettings(_settings),
       compact: compact,
     );
   }
@@ -2516,22 +2526,12 @@ class ChatNotifier extends Notifier<ChatState> {
         _activeResponseRegistry.isCurrentOrRegistered(generation);
   }
 
-  bool isConversationBusy(String targetConversationId) {
-    final normalizedConversationId = targetConversationId.trim();
-    if (normalizedConversationId.isEmpty) {
-      return false;
-    }
-    if (_activeResponseGenerationForConversation(normalizedConversationId) !=
-        null) {
-      return true;
-    }
-    if (conversationId != normalizedConversationId) {
-      return false;
-    }
-    return state.isLoading ||
-        state.isGeneratingWorkflowProposal ||
-        state.isGeneratingTaskProposal;
-  }
+  bool isConversationBusy(String targetConversationId) =>
+      chatStateReportsConversationBusy(
+        state: state,
+        targetConversationId: targetConversationId,
+        visibleConversationId: conversationId,
+      );
 
   bool get _hasActiveResponse => _activeResponseRegistry.hasActiveResponse;
 
@@ -2569,6 +2569,14 @@ class ChatNotifier extends Notifier<ChatState> {
       targetConversationId: targetConversationId,
       messages: messages,
     );
+    _syncBusyConversationIds();
+  }
+
+  void _syncBusyConversationIds() {
+    if (!ref.mounted) return;
+    final active = _activeResponseRegistry.activeConversationIds;
+    if (setEquals(active, state.busyConversationIds)) return;
+    state = state.copyWith(busyConversationIds: active);
   }
 
   void _cacheActiveResponseMessagesForGeneration(
@@ -2587,6 +2595,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _askUserQuestionTurnCache.removeGeneration(generation);
     _responseMetricTimersByGeneration.remove(generation)?.stop();
     _turnFinalizationRecoveryGenerations.remove(generation);
+    _syncBusyConversationIds();
   }
 
   void _clearAllActiveResponses() {
@@ -2603,6 +2612,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _turnFinalizationRecoveryGenerations.clear();
     _participantTurnStopRequested = false;
     _pausedParticipantTurnCursor = null;
+    _syncBusyConversationIds();
     _pausedParticipantTurnParticipants = const [];
     _pausedParticipantTurnConfig = null;
     _pausedParticipantTurnConversationId = null;
@@ -5347,9 +5357,9 @@ class ChatNotifier extends Notifier<ChatState> {
     var currentAssistantContent = assistantContent;
     var maxIterations =
         _settings.effectiveModelHarnessConfig?.resolveToolLoopMaxIterations(
-          12,
+          PlanningExecutorProfile.defaultToolLoopMaxIterations,
         ) ??
-        12;
+        PlanningExecutorProfile.defaultToolLoopMaxIterations;
     const executionBudgetPolicy = ExecutionBudgetPolicy();
     var totalExtensionGranted = 0;
     void requestBudgetExtension(
