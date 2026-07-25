@@ -530,18 +530,17 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
         ref.read(conversationsNotifierProvider).currentConversation ??
         currentConversation;
     final initialArtifact = latestConversation.effectivePlanArtifact;
-    final initialDraftState =
-        isPlanMode ||
-        initialArtifact.hasPendingEdits ||
-        !initialArtifact.hasApproved;
-    if (!initialArtifact.hasContent ||
-        (initialDraftState && !_planArtifactHasPreviewTasks(initialArtifact))) {
-      return;
-    }
+    // A task-less draft still opens (approval stays gated below) so an explicit
+    // tap never looks dead; auto-presentation keeps its own task check.
+    if (!initialArtifact.hasContent) return;
     final initialDraftKey = _planReviewDraftKey(
       latestConversation.id,
       initialArtifact,
     );
+    final initialDraftState =
+        isPlanMode ||
+        initialArtifact.hasPendingEdits ||
+        !initialArtifact.hasApproved;
     if (initialDraftState && initialDraftKey != null) {
       _lastAutoPresentedPlanReviewDraftKey = initialDraftKey;
     }

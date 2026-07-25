@@ -169,8 +169,8 @@ final class SlashCommandActionCoordinator {
         );
         return _modeChangedResult('settings.assistant_coding');
       case SlashCommandAction.plan:
-        if (!commandContext.isCodingWorkspace ||
-            commandContext.currentConversation == null) {
+        // enterPlanningSession starts the conversation on a brand-new thread.
+        if (!commandContext.isCodingWorkspace) {
           return SlashCommandExecutionResult.keepInput(
             feedbackMessage: _text('chat.slash_plan_unavailable'),
           );

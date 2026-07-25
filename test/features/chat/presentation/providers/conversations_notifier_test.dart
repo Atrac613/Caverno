@@ -533,6 +533,30 @@ void main() {
     },
   );
 
+  test('entering planning starts a coding thread when none exists', () async {
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+
+    // The state the drawer's "new coding thread" action produces.
+    notifier.startDraftConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    expect(
+      container.read(conversationsNotifierProvider).currentConversation,
+      isNull,
+      reason: 'this is the new-thread screen: no conversation started yet',
+    );
+
+    await notifier.enterPlanningSession();
+
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    expect(conversation, isNotNull);
+    expect(conversation!.isPlanningSession, isTrue);
+    expect(conversation.workspaceMode, WorkspaceMode.coding);
+  });
+
   test('planning session state is persisted per conversation', () async {
     final notifier = container.read(conversationsNotifierProvider.notifier);
 

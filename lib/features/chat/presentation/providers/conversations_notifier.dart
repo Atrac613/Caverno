@@ -1666,7 +1666,13 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     }
   }
 
+  /// Puts the current conversation into planning mode, creating a coding
+  /// conversation first when the thread has not started yet — entering plan
+  /// mode from the new-thread screen is a normal way to begin, not an error.
   Future<void> enterPlanningSession() async {
+    if (state.currentConversation == null) {
+      ensureCurrentConversation(workspaceMode: WorkspaceMode.coding);
+    }
     await _updateCurrentExecutionMode(ConversationExecutionMode.planning);
   }
 

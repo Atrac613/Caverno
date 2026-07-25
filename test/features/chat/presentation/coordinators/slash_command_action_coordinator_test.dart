@@ -254,6 +254,25 @@ void main() {
     expect(result.feedbackMessage, 'chat.slash_plan_unavailable');
   });
 
+  test(
+    'plan enters planning on a coding thread with no conversation',
+    () async {
+      final harness = _Harness();
+
+      final result = await harness.handle(
+        SlashCommandAction.plan,
+        context: _context(isCoding: true, project: _project()),
+      );
+
+      expect(
+        harness.operations,
+        ['enter-plan'],
+        reason: 'plan mode must be reachable from a brand-new coding thread',
+      );
+      expect(result.feedbackMessage, 'chat.slash_plan_started');
+    },
+  );
+
   test('plan enters planning for a coding conversation', () async {
     final harness = _Harness();
 

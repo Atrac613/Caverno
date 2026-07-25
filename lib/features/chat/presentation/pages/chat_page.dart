@@ -38,6 +38,7 @@ import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/turn_diff.dart';
+import '../../domain/services/composer_assistant_mode_resolver.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
@@ -48,6 +49,7 @@ import '../coordinators/chat_page_workspace_navigation_coordinator.dart';
 import '../coordinators/feedback_slash_command_coordinator.dart';
 import '../coordinators/goal_slash_command_coordinator.dart';
 import '../coordinators/plan_review_action_coordinator.dart';
+import '../coordinators/composer_assistant_mode_coordinator.dart';
 import '../coordinators/slash_command_action_coordinator.dart';
 import '../coordinators/workflow_editor_action_coordinator.dart';
 import '../coordinators/workflow_task_action_coordinator.dart';
@@ -349,24 +351,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     AssistantMode mode, {
     required bool isCodingWorkspace,
     required Conversation? currentConversation,
-  }) async {
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
+  }) {
+    return ComposerAssistantModeCoordinator(
+      conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
+      updateAssistantMode: ref
+          .read(settingsNotifierProvider.notifier)
+          .updateAssistantMode,
+      dismissPlanProposal: ref
+          .read(chatNotifierProvider.notifier)
+          .dismissPlanProposal,
+    ).select(
+      mode,
+      isCodingWorkspace: isCodingWorkspace,
+      hasConversation: currentConversation != null,
+      isPlanningSession: currentConversation?.isPlanningSession ?? false,
     );
-    final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
-    if (mode == AssistantMode.plan) {
-      if (!isCodingWorkspace || currentConversation == null) {
-        return;
-      }
-      await conversationsNotifier.enterPlanningSession();
-      return;
-    }
-
-    if (currentConversation?.isPlanningSession ?? false) {
-      await conversationsNotifier.exitPlanningSession();
-      ref.read(chatNotifierProvider.notifier).dismissPlanProposal();
-    }
-    await settingsNotifier.updateAssistantMode(mode);
   }
 
   Future<SlashCommandExecutionResult> _handleSlashCommand(
@@ -705,13 +704,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final isPlanMode =
         !isDashboardVisible &&
         (currentConversation?.isPlanningSession ?? false);
-    final effectiveAssistantMode = isPlanMode
-        ? AssistantMode.plan
-        : switch (settings.assistantMode) {
-            AssistantMode.plan =>
-              isCodingWorkspace ? AssistantMode.coding : AssistantMode.general,
-            final mode => mode,
-          };
+    final effectiveAssistantMode = ComposerAssistantModeResolver.resolve(
+      settingsMode: settings.assistantMode,
+      isPlanningSession: isPlanMode,
+      isCodingWorkspace: isCodingWorkspace,
+      hasConversation: currentConversation != null,
+    );
     final rawTitle = isDashboardVisible
         ? 'dashboard.title'.tr()
         : currentConversation?.title ??
