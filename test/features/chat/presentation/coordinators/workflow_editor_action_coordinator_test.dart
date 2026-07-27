@@ -52,6 +52,7 @@ class _WorkflowEditorConversationsNotifier extends ConversationsNotifier {
   Future<void> updateCurrentPlanArtifact({
     ConversationPlanArtifact? planArtifact,
     bool clearPlanArtifact = false,
+    String? conversationId,
   }) async {
     operations.add('plan');
     lastClearPlanArtifact = clearPlanArtifact;

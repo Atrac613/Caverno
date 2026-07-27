@@ -19,8 +19,8 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
     ToolCallInfo toolCall, {
     int? interactionGeneration,
   }) async {
-    final description = _trimStringArgument(toolCall.arguments, 'description');
-    final prompt = _trimStringArgument(toolCall.arguments, 'prompt');
+    final description = trimStringArgument(toolCall.arguments, 'description');
+    final prompt = trimStringArgument(toolCall.arguments, 'prompt');
     if (prompt.isEmpty) {
       return McpToolResult(
         toolName: toolCall.name,
@@ -284,7 +284,7 @@ extension ChatNotifierSubagentHandlers on ChatNotifier {
   }
 
   Future<McpToolResult> _handleGetSubagentResult(ToolCallInfo toolCall) async {
-    final taskId = _trimStringArgument(toolCall.arguments, 'task_id');
+    final taskId = trimStringArgument(toolCall.arguments, 'task_id');
     if (taskId.isEmpty) {
       return McpToolResult(
         toolName: toolCall.name,

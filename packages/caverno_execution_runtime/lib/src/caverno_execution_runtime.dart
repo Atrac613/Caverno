@@ -254,6 +254,20 @@ final class CavernoExecutionRuntime {
     return terminal;
   }
 
+  /// Completes once every finished turn has handed its lease back.
+  ///
+  /// A terminal event means the model round-trip ended, not that ownership was
+  /// released: the runtime first drains persistence, deliberately, so a new
+  /// turn cannot race the previous one's writes. A caller that starts the next
+  /// turn on the terminal event alone collides with the lease the finished
+  /// turn still holds — on 2026-07-26 a queued plan approval drained 2 ms
+  /// after run_completed and failed with a workspace ownership conflict.
+  Future<void> get ownershipSettled async {
+    while (_pendingOwnershipReleases.isNotEmpty) {
+      await Future.wait(_pendingOwnershipReleases.toList(growable: false));
+    }
+  }
+
   Future<void> close() => _closeFuture ??= _close();
 
   Future<void> _close() async {

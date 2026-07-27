@@ -52,6 +52,14 @@ class ParseResult {
     this.incompleteTagType,
     this.incompleteTagContent,
   });
+
+  /// The prose the user actually sees, with reasoning and tool-call blocks
+  /// dropped. Streaming consumers diff successive values of this, so it must
+  /// stay a pure concatenation of the text segments in order.
+  String get text => segments
+      .where((segment) => segment.type == ContentType.text)
+      .map((segment) => segment.content)
+      .join();
 }
 
 /// Content parser

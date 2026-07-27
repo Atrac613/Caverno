@@ -1318,7 +1318,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       completer: completer,
       origin: _activeInteractionOrigin,
     );
-    state = state.copyWith(pendingLocalCommand: pending);
+    _routeApproval((s) => s.copyWith(pendingLocalCommand: pending));
     _emitRuntimeApprovalRequired(
       id: pending.id,
       capability: 'command_execution',
@@ -1357,7 +1357,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       completer: completer,
       origin: _activeInteractionOrigin,
     );
-    state = state.copyWith(pendingFileOperation: pending);
+    _routeApproval((s) => s.copyWith(pendingFileOperation: pending));
     _emitRuntimeApprovalRequired(
       id: pending.id,
       capability: 'file_mutation',

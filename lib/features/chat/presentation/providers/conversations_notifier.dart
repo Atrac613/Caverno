@@ -937,11 +937,19 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     await ensureCurrentPlanArtifactBackfilled();
   }
 
+  /// Writes the plan artifact to [conversationId], or to the visible thread
+  /// when it is null. A plan drafted in the background must land on the thread
+  /// it was drafted for, not on whichever thread the user opened meanwhile.
   Future<void> updateCurrentPlanArtifact({
     ConversationPlanArtifact? planArtifact,
     bool clearPlanArtifact = false,
+    String? conversationId,
   }) async {
-    final conversation = state.currentConversation;
+    final conversation = conversationId == null
+        ? state.currentConversation
+        : state.conversations
+              .where((candidate) => candidate.id == conversationId)
+              .firstOrNull;
     if (conversation == null) return;
 
     final nextPlanArtifact = clearPlanArtifact

@@ -395,7 +395,7 @@ extension ChatNotifierComputerUseHandlers on ChatNotifier {
       reason: reason,
       completer: completer,
     );
-    state = state.copyWith(pendingComputerUseAction: pending);
+    _routeApproval((s) => s.copyWith(pendingComputerUseAction: pending));
     _emitRuntimeApprovalRequired(
       id: pending.id,
       capability: 'computer_use',

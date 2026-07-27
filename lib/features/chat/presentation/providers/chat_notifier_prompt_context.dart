@@ -8,12 +8,13 @@ extension ChatNotifierPromptContext on ChatNotifier {
   Message _createSystemMessage({
     List<String>? toolNamesOverride,
     String? participantRolePrompt,
+    Conversation? conversation,
   }) {
     final now = DateTime.now();
-    final activeCodingProject = _getEffectiveCodingProject();
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
+    final currentConversation =
+        conversation ??
+        ref.read(conversationsNotifierProvider).currentConversation;
+    final activeCodingProject = _codingProjectForTurn(currentConversation);
     final toolNames = toolNamesOverride == null
         ? <String>[]
         : List<String>.from(toolNamesOverride);
@@ -222,20 +223,22 @@ extension ChatNotifierPromptContext on ChatNotifier {
     );
   }
 
-  CodingProject? _getEffectiveCodingProject() {
-    final project = _getActiveCodingProject();
-    if (project == null) {
-      return null;
-    }
-    final worktreePath = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation
-        ?.normalizedWorktreePath;
-    if (worktreePath == null || worktreePath.isEmpty) {
-      return project;
-    }
-    return project.copyWith(rootPath: worktreePath);
+  CodingProject? _codingProjectForTurn(Conversation? conversation) =>
+      _codingProjects.forConversation(conversation);
+
+  /// Null leaves the visible-project fallback in place: only a turn that
+  /// resolves to a project of its own overrides it.
+  TurnProjectRoot? _turnProjectRootFor(int? generation) {
+    if (generation == null) return null;
+    final id = _activeResponseConversationIdForGeneration(generation);
+    final conversation = id == null ? null : _conversationForId(id);
+    if (conversation == null) return null;
+    final rootPath = _codingProjectForTurn(conversation)?.rootPath.trim();
+    if (rootPath == null || rootPath.isEmpty) return null;
+    return TurnProjectRoot(rootPath);
   }
+
+  CodingProject? _getEffectiveCodingProject() => _codingProjects.effective;
 
   String? _loadAgentsMd(AssistantMode assistantMode, CodingProject? project) {
     if (!_settings.enableAgentsMd || assistantMode == AssistantMode.general) {

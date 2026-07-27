@@ -61,6 +61,7 @@ import '../../data/datasources/local_shell_tools.dart';
 import '../../data/datasources/lsp_json_rpc_session_registry.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/datasources/project_scoped_tool_argument_resolver.dart';
+import '../../data/datasources/turn_project_root.dart';
 import '../../data/datasources/python_input_staging.dart';
 import '../../data/datasources/llm_session_log_store.dart';
 import '../../data/datasources/session_logging_chat_datasource.dart';
@@ -88,6 +89,8 @@ import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
 import '../../domain/services/truncation_notice.dart';
+import 'tool_argument_json.dart';
+import 'turn_final_message.dart';
 import '../../domain/services/analysis_options_lint_edit_guard.dart';
 import '../../domain/services/coding_command_output_guardrail_service.dart';
 import '../../domain/services/coding_diagnostic_feedback_service.dart';
@@ -119,6 +122,7 @@ import '../../domain/services/participant_turn_coordinator.dart';
 import '../../domain/services/secondary_call_budget.dart';
 import '../../domain/services/planning_research_collector.dart';
 import '../../domain/services/proposal_option_extraction.dart';
+import '../../domain/services/background_process_follow_up_policy.dart';
 import '../../domain/services/proposal_parsing_text_utils.dart';
 import '../../domain/services/task_proposal_parser.dart';
 import '../../domain/services/workflow_proposal_parser.dart';
@@ -150,7 +154,12 @@ import 'macos_computer_use_approval_copy.dart';
 import 'mcp_tool_provider.dart';
 import 'repo_map_precompute_cache_provider.dart';
 import 'skills_notifier.dart';
+import 'thread_scoped_chat_state.dart';
+import 'thread_scoped_message_queue.dart';
 import 'tool_approval_cache.dart';
+import 'turn_coding_project_resolver.dart';
+import 'turn_thread_scope.dart';
+import 'turn_tool_result_ledger.dart';
 import 'subagent_task_notifier.dart';
 
 part 'chat_notifier_approval_handlers.dart';
@@ -322,14 +331,13 @@ class ChatNotifier extends Notifier<ChatState> {
   TokenUsage _accumulatedTokenUsage = TokenUsage.zero;
   String? _finalAnswerFinishReasonOverride;
   AssistantMode? _assistantModeOverride;
-  List<ToolResultInfo> _latestCompletedToolResults = const [];
   String? _latestObservedSystemPrompt;
   String? _latestExecutionSnapshotObservationKey;
   List<ToolResultInfo> _latestObservedToolResults = const [];
   List<Map<String, dynamic>> _latestObservedToolDefinitions = const [];
   Set<String> _latestObservedMcpToolNames = const {};
   String? _modelSwitchHandoffBrief, _modelSwitchHandoffConversationId;
-  final List<ToolResultInfo> _latestContentToolResults = [];
+  final TurnToolResultLedger _turnToolResults = TurnToolResultLedger();
   final List<TurnDiffFile> _pendingTurnDiffFiles = [];
   late ToolResultArtifactStore _toolResultArtifactStore;
   String? _latestHiddenAssistantResponse;
@@ -456,10 +464,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Persists messages to the conversation store. Replaces the previous
   /// `onMessagesChanged` callback wired in via the provider builder.
-  Future<void> _onMessagesChanged(List<Message> messages) {
-    final targetConversationId = ref
-        .read(conversationsNotifierProvider)
-        .currentConversationId;
+  Future<void> _onMessagesChanged(
+    List<Message> messages, {
+    String? conversationId,
+  }) {
+    final targetConversationId =
+        conversationId ??
+        ref.read(conversationsNotifierProvider).currentConversationId;
     if (targetConversationId == null) {
       return Future<void>.value();
     }
@@ -793,9 +804,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _pendingContentToolContinuationFallback = null;
       _pendingToolExecutions.clear();
       if (!sameConversation) {
-        _queuedChatMessages.clear();
-        _latestContentToolResults.clear();
-        _latestCompletedToolResults = const [];
+        _turnToolResults.clearResults();
         _latestObservedSystemPrompt = null;
         _latestObservedToolResults = const [];
         _latestObservedToolDefinitions = const [];
@@ -821,15 +830,17 @@ class ChatNotifier extends Notifier<ChatState> {
     final restoredMessages = restoredActiveMessages ?? messages;
     final restoredLoading = restoredActiveMessages != null;
 
+    ThreadScopedChatState.remember(_threadStates, this.conversationId, state);
     this.conversationId = conversationId;
-    state = ChatState(
-      messages: restoredMessages,
-      queuedMessages: restoredLoading
-          ? List<QueuedChatMessage>.unmodifiable(_queuedChatMessages)
-          : const <QueuedChatMessage>[],
-      isLoading: restoredLoading,
-      error: null,
-      pendingAskUserQuestion: restoredPendingQuestion,
+    state = ThreadScopedChatState.take(_threadStates, conversationId).applyTo(
+      approvalThreads: ThreadScopedChatState.awaitingApproval(_threadStates),
+      ChatState(
+        messages: restoredMessages,
+        queuedMessages: _queuedChatMessages.forThread(conversationId),
+        isLoading: restoredLoading,
+        error: null,
+        pendingAskUserQuestion: restoredPendingQuestion,
+      ),
     );
     _refreshContextTokenPressureFromState();
     if (!preservingActiveResponse) {
@@ -1206,18 +1217,20 @@ class ChatNotifier extends Notifier<ChatState> {
         !currentConversation.hasWorkflowContext;
   }
 
-  CodingProject? _getActiveCodingProject() {
-    final conversationsState = ref.read(conversationsNotifierProvider);
-    if (conversationsState.activeProjectId == null) {
-      return null;
-    }
-    final projectsState = ref.read(codingProjectsNotifierProvider);
-    return projectsState.findById(conversationsState.activeProjectId);
-  }
+  TurnCodingProjectResolver get _codingProjects => TurnCodingProjectResolver(
+    () => ref.read(codingProjectsNotifierProvider),
+    ref.read(conversationsNotifierProvider),
+  );
+
+  CodingProject? _getActiveCodingProject() => _codingProjects.active;
 
   String? _getActiveProjectRootPath() {
+    final scoped = TurnProjectRoot.current;
+    if (scoped != null) return scoped.rootPath;
     return _getEffectiveCodingProject()?.rootPath.trim();
   }
+
+  /// The project a dispatching turn resolves its relative paths against.
 
   void _dispatchExternalToolHook(
     String event, {
@@ -1282,10 +1295,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     final now = DateTime.now();
     return [
-      _createSystemMessage().copyWith(
-        id: 'workflow_proposal_system',
-        timestamp: now,
-      ),
+      _createSystemMessage(
+        conversation: currentConversation,
+      ).copyWith(id: 'workflow_proposal_system', timestamp: now),
       Message(
         id: 'workflow_proposal_user',
         role: MessageRole.user,
@@ -1313,10 +1325,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     final now = DateTime.now();
     return [
-      _createSystemMessage().copyWith(
-        id: 'task_proposal_system',
-        timestamp: now,
-      ),
+      _createSystemMessage(
+        conversation: currentConversation,
+      ).copyWith(id: 'task_proposal_system', timestamp: now),
       Message(
         id: 'task_proposal_user',
         role: MessageRole.user,
@@ -1737,6 +1748,19 @@ class ChatNotifier extends Notifier<ChatState> {
       return qualityGateFallback;
     }
 
+    // The gate may ask for a better proposal; it may not destroy the only one
+    // there is. On 2026-07-25 it rejected three usable drafts for a
+    // single-file CLI project, the heuristic fallback tripped the same rules,
+    // and the whole plan run failed — the user was shown an error instead of a
+    // plan they could have edited in the review sheet.
+    if (bestRetryCandidate != null) {
+      appLog(
+        '[Workflow] Task proposal quality gate exhausted; presenting the best '
+        'rejected candidate for review',
+      );
+      return bestRetryCandidate;
+    }
+
     throw FormatException(lastError ?? 'task proposal parse failed');
   }
 
@@ -1845,9 +1869,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     return ConversationPlanningPromptService.buildWorkflowProposalRequest(
       currentConversation: currentConversation,
-      messages: state.messages,
+      messages: currentConversation.messages,
       languageCode: languageCode,
-      project: _getEffectiveCodingProject(),
+      project: _codingProjectForTurn(currentConversation),
       researchContextBlock: researchContext.hasContent
           ? researchContext.toPromptBlock()
           : null,
@@ -1871,9 +1895,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     return ConversationPlanningPromptService.buildTaskProposalRequest(
       currentConversation: currentConversation,
-      messages: state.messages,
+      messages: currentConversation.messages,
       languageCode: languageCode,
-      project: _getEffectiveCodingProject(),
+      project: _codingProjectForTurn(currentConversation),
       researchContextBlock: researchContext.hasContent
           ? researchContext.toPromptBlock()
           : null,
@@ -2264,6 +2288,7 @@ class ChatNotifier extends Notifier<ChatState> {
     );
     final promptMessages = <Message>[
       _createSystemMessage(
+        conversation: currentConversation,
         participantRolePrompt: participantRolePrompt,
         toolNamesOverride: toolDefinitionsOverride == null
             ? null
@@ -2418,7 +2443,13 @@ class ChatNotifier extends Notifier<ChatState> {
   final Set<String> _seenContentToolCallHashes = {};
   final List<String> _pendingContentToolResults = [];
   String? _pendingContentToolContinuationFallback;
-  final List<QueuedChatMessage> _queuedChatMessages = [];
+  final ThreadScopedMessageQueue _queuedChatMessages =
+      ThreadScopedMessageQueue();
+
+  /// Plan drafting survives leaving the thread, so returning to it presents
+  /// the review sheet instead of looking idle.
+  final Map<String, ThreadScopedChatState> _threadStates =
+      <String, ThreadScopedChatState>{};
   final ToolApprovalCache _toolApprovalCache = ToolApprovalCache();
   final SuccessfulReadResultReplayCache _successfulReadResultReplayCache =
       SuccessfulReadResultReplayCache();
@@ -2429,6 +2460,10 @@ class ChatNotifier extends Notifier<ChatState> {
   // break sites where it cannot be derived from terminal state and consumed by
   // `_logTurnExitReason` during finalization.
   ToolLoopExitReason? _turnExitReasonHint;
+  // Generations whose exit reason has been classified and recorded. The turn's
+  // terminal funnel records a fallback for anything missing, so a path that
+  // never classifies still leaves a record instead of silence.
+  final Set<int> _classifiedTurnExitGenerations = <int>{};
   // Turn provenance: transforms (guard notices, ...) applied to the turn's
   // final message, recorded on the turn_exit record so the log explains why the
   // on-screen content differs from the raw LLM output.
@@ -2446,13 +2481,6 @@ class ChatNotifier extends Notifier<ChatState> {
   /// full catalog. Read by the unexecuted-action guard: a claim the turn had no
   /// tool to substantiate is unexecutable, not unexecuted.
   Set<String>? _activeAllowedToolNames;
-  // Commands issued through command-execution tools during the current
-  // interaction generation. Repair revivals re-enter _executeToolCalls with a
-  // fresh executedToolResults list, so the transcript claim guard needs a
-  // generation-scoped ledger to avoid flagging commands that ran before the
-  // revival.
-  int? _turnCommandLedgerGeneration;
-  final List<String> _turnCommandLedger = <String>[];
   // Tool call ids whose arguments were lost to an output-token-limit
   // truncation (finish_reason=length with empty parsed arguments). The batch
   // executor answers these with a truncation-specific diagnostic instead of a
@@ -2526,6 +2554,52 @@ class ChatNotifier extends Notifier<ChatState> {
         _activeResponseRegistry.isCurrentOrRegistered(generation);
   }
 
+  /// Whether [targetConversationId] is blocked on the user rather than
+  /// working. Takes precedence over the busy spinner in the thread list.
+  bool isConversationAwaitingApproval(String targetConversationId) =>
+      state.approvalRequiredConversationIds.contains(targetConversationId);
+
+  /// Applies a turn's own state update to [threadId] rather than to whichever
+  /// thread the user is reading.
+  void _routeThreadState(String threadId, ChatState Function(ChatState) apply) {
+    state = ThreadScopedChatState.routeToThread(
+      byThread: _threadStates,
+      turnThread: threadId,
+      visibleThread: conversationId,
+      current: state,
+      apply: apply,
+    );
+  }
+
+  /// Raises an approval prompt on the thread whose turn asked for it.
+  void _routeApproval(ChatState Function(ChatState) apply) {
+    final turnThread = TurnThread.currentId;
+    state = ThreadScopedChatState.routeToThread(
+      byThread: _threadStates,
+      turnThread: turnThread,
+      visibleThread: conversationId,
+      current: state,
+      apply: apply,
+    );
+    if (turnThread == null || turnThread == conversationId) return;
+    // The user is reading another thread, so nothing on screen says this one
+    // has stopped and is waiting for them.
+    // Plain strings: localization lives in the widget layer, and the existing
+    // response-complete notification does the same.
+    final threadTitle = _conversationForId(turnThread)?.title.trim() ?? '';
+    unawaited(
+      ref
+          .read(notificationServiceProvider)
+          .showApprovalRequiredNotification(
+            conversationId: turnThread,
+            title: 'Caverno',
+            body: threadTitle.isEmpty
+                ? 'A thread is waiting for your approval.'
+                : '$threadTitle is waiting for your approval.',
+          ),
+    );
+  }
+
   bool isConversationBusy(String targetConversationId) =>
       chatStateReportsConversationBusy(
         state: state,
@@ -2559,15 +2633,17 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  void _registerActiveResponse({
-    required int generation,
-    required String? targetConversationId,
-    required List<Message> messages,
-  }) {
+  /// Makes [generation] traceable to its own thread. An untracked turn is
+  /// cancelled by the conversation-change reset after its tools already ran,
+  /// and its requests log under whichever thread happens to be visible.
+  void _trackActiveResponse(int generation, String? targetConversationId) {
+    _llmSessionLogContextsByGeneration[generation] = _buildLlmSessionLogContext(
+      targetConversationId: targetConversationId,
+    );
     _activeResponseRegistry.register(
       generation: generation,
       targetConversationId: targetConversationId,
-      messages: messages,
+      messages: state.messages,
     );
     _syncBusyConversationIds();
   }
@@ -2656,6 +2732,7 @@ class ChatNotifier extends Notifier<ChatState> {
       isVoiceMode: isVoiceMode,
       bypassPlanMode: bypassPlanMode,
       origin: origin,
+      conversationId: conversationId,
     );
     if (state.isLoading) {
       final participantRuntime = state.participantTurnRuntime;
@@ -2726,8 +2803,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _pendingContentToolResults.clear();
     _pendingContentToolContinuationFallback = null;
     _pendingToolExecutions.clear();
-    _latestContentToolResults.clear();
-    _latestCompletedToolResults = const [];
+    _turnToolResults.clearResults();
     _latestObservedSystemPrompt = null;
     _latestObservedToolResults = const [];
     _latestObservedToolDefinitions = const [];
@@ -2800,13 +2876,7 @@ class ChatNotifier extends Notifier<ChatState> {
       goalAutoContinueNotice: null,
     );
     _refreshContextTokenPressureFromState();
-    _llmSessionLogContextsByGeneration[interactionGeneration] =
-        _buildLlmSessionLogContext(targetConversationId: conversationId);
-    _registerActiveResponse(
-      generation: interactionGeneration,
-      targetConversationId: conversationId,
-      messages: state.messages,
-    );
+    _trackActiveResponse(interactionGeneration, conversationId);
     _persistCurrentNonStreamingMessages();
     if (isFirstTurn) {
       _dispatchExternalToolHook(
@@ -2953,9 +3023,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void removeQueuedMessage(String id) {
-    final beforeLength = _queuedChatMessages.length;
-    _queuedChatMessages.removeWhere((message) => message.id == id);
-    if (_queuedChatMessages.length == beforeLength) {
+    if (!_queuedChatMessages.remove(id)) {
       return;
     }
     _syncQueuedChatMessagesState();
@@ -2970,24 +3038,24 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
     state = state.copyWith(
-      queuedMessages: List<QueuedChatMessage>.unmodifiable(_queuedChatMessages),
+      queuedMessages: _queuedChatMessages.forThread(conversationId),
     );
   }
 
   Future<void> _drainQueuedChatMessagesIfIdle() async {
-    if (_isDrainingQueuedMessages || state.isLoading) {
-      return;
-    }
-    if (_queuedChatMessages.isEmpty) {
+    if (_isDrainingQueuedMessages || state.isLoading) return;
+    await _executionRuntime.ownershipSettled;
+    if (_queuedChatMessages.pendingFor(conversationId) == 0) {
       return;
     }
 
     _isDrainingQueuedMessages = true;
     try {
-      while (ref.mounted &&
-          !state.isLoading &&
-          _queuedChatMessages.isNotEmpty) {
-        final queuedMessage = _queuedChatMessages.removeAt(0);
+      while (ref.mounted && !state.isLoading) {
+        final queuedMessage = _queuedChatMessages.takeNextForThread(
+          conversationId,
+        );
+        if (queuedMessage == null) break;
         _syncQueuedChatMessagesState();
         appLog(
           '[ChatNotifier] Sending queued user message '
@@ -3026,8 +3094,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _pendingContentToolResults.clear();
     _pendingContentToolContinuationFallback = null;
     _pendingToolExecutions.clear();
-    _latestContentToolResults.clear();
-    _latestCompletedToolResults = const [];
+    _turnToolResults.clearResults();
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _accumulatedTokenUsage = TokenUsage.zero;
@@ -3065,6 +3132,7 @@ class ChatNotifier extends Notifier<ChatState> {
       isLoading: true,
       error: null,
     );
+    _trackActiveResponse(interactionGeneration, conversationId);
 
     _startResponseMetricsTimer(interactionGeneration);
 
@@ -3206,15 +3274,7 @@ class ChatNotifier extends Notifier<ChatState> {
     await generatePlanProposalWithContext(languageCode: languageCode);
   }
 
-  List<ToolResultInfo> takeLatestToolResults() {
-    final snapshot = List<ToolResultInfo>.unmodifiable([
-      ..._latestCompletedToolResults,
-      ..._latestContentToolResults,
-    ]);
-    _latestCompletedToolResults = const [];
-    _latestContentToolResults.clear();
-    return snapshot;
-  }
+  List<ToolResultInfo> takeLatestToolResults() => _turnToolResults.takeAll();
 
   String? takeLatestHiddenAssistantResponse() {
     final snapshot = _latestHiddenAssistantResponse;
@@ -3285,6 +3345,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (currentConversation == null) return;
     conversationId = currentConversation.id;
     final interactionGeneration = _beginInteractionGeneration();
+    _trackActiveResponse(interactionGeneration, conversationId);
     if (!await _startRuntimeTurn(
       generation: interactionGeneration,
       hidden: false,
@@ -3389,11 +3450,18 @@ class ChatNotifier extends Notifier<ChatState> {
       decision: decision,
       completer: completer,
     );
-    state = state.copyWith(
-      isLoading: false,
-      isGeneratingWorkflowProposal: false,
-      isGeneratingTaskProposal: false,
-      pendingWorkflowDecision: pending,
+    // Route to the drafting thread: writing the visible thread's state put a
+    // background plan's question in front of whoever was on screen, and that
+    // thread's own flow then cleared it. The completer nobody could reach kept
+    // the turn — with its registration, runtime handle and workspace lease —
+    // alive until the app was quit (measured live 2026-07-27, gen-5).
+    _routeApproval(
+      (s) => s.copyWith(
+        isLoading: false,
+        isGeneratingWorkflowProposal: false,
+        isGeneratingTaskProposal: false,
+        pendingWorkflowDecision: pending,
+      ),
     );
     _emitRuntimeQuestionRequired(
       CavernoRuntimeQuestionRequest(
@@ -3419,25 +3487,6 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(pendingWorkflowDecision: null);
   }
 
-  Map<String, dynamic>? _decodeJsonObject(String value) {
-    try {
-      final decoded = jsonDecode(value);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-      if (decoded is Map) {
-        return Map<String, dynamic>.from(decoded);
-      }
-    } catch (_) {
-      return null;
-    }
-    return null;
-  }
-
-  String _trimStringArgument(Map<String, dynamic> arguments, String key) {
-    return (arguments[key] as String?)?.trim() ?? '';
-  }
-
   Future<void> _runPlanProposalFlow({
     required Conversation currentConversation,
     required String languageCode,
@@ -3446,16 +3495,19 @@ class ChatNotifier extends Notifier<ChatState> {
   }) async {
     if (!ref.mounted) return;
 
-    state = state.copyWith(
-      isLoading: true,
-      error: null,
-      isGeneratingWorkflowProposal: true,
-      isGeneratingTaskProposal: true,
-      workflowProposalDraft: null,
-      taskProposalDraft: null,
-      workflowProposalError: null,
-      taskProposalError: null,
-      pendingWorkflowDecision: null,
+    _routeThreadState(
+      currentConversation.id,
+      (s) => s.copyWith(
+        isLoading: true,
+        error: null,
+        isGeneratingWorkflowProposal: true,
+        isGeneratingTaskProposal: true,
+        workflowProposalDraft: null,
+        taskProposalDraft: null,
+        workflowProposalError: null,
+        taskProposalError: null,
+        pendingWorkflowDecision: null,
+      ),
     );
 
     final researchContext = await _buildPlanningResearchContext(
@@ -3464,35 +3516,53 @@ class ChatNotifier extends Notifier<ChatState> {
 
     WorkflowProposalDraft? workflowDraft;
     try {
-      workflowDraft = await _requestWorkflowProposal(
-        currentConversation: currentConversation,
-        languageCode: languageCode,
-        researchContext: researchContext,
-        additionalPlanningContext: additionalPlanningContext,
-      );
+      workflowDraft =
+          await _runWithLlmSessionLogContextForGeneration<
+            Future<WorkflowProposalDraft>
+          >(
+            interactionGeneration,
+            // Plan drafting raises its decision prompt several frames down, so
+            // it needs the same thread identity tool dispatch carries.
+            () => TurnThread.runScoped(
+              currentConversation.id,
+              () => _requestWorkflowProposal(
+                currentConversation: currentConversation,
+                languageCode: languageCode,
+                researchContext: researchContext,
+                additionalPlanningContext: additionalPlanningContext,
+              ),
+            ),
+          );
       if (!ref.mounted) return;
-      state = state.copyWith(
-        isGeneratingWorkflowProposal: false,
-        workflowProposalDraft: workflowDraft,
-        workflowProposalError: null,
+      _routeThreadState(
+        currentConversation.id,
+        (s) => s.copyWith(
+          isGeneratingWorkflowProposal: false,
+          workflowProposalDraft: workflowDraft,
+          workflowProposalError: null,
+        ),
       );
       appLog('[Workflow] Workflow proposal ready');
       await _persistPlanArtifactDraft(
         workflowStage: workflowDraft.workflowStage,
         workflowSpec: workflowDraft.workflowSpec,
+        planConversationId: currentConversation.id,
       );
       appLog('[Workflow] Workflow plan artifact draft persisted');
     } on _WorkflowProposalCancelled {
       if (!ref.mounted) return;
-      state = state.copyWith(
-        isLoading: false,
-        isGeneratingWorkflowProposal: false,
-        isGeneratingTaskProposal: false,
-        workflowProposalDraft: null,
-        taskProposalDraft: null,
-        workflowProposalError: null,
-        taskProposalError: null,
-        pendingWorkflowDecision: null,
+      _routeThreadState(
+        currentConversation.id,
+        (s) => s.copyWith(
+          isLoading: false,
+          isGeneratingWorkflowProposal: false,
+          isGeneratingTaskProposal: false,
+          workflowProposalDraft: null,
+          taskProposalDraft: null,
+          workflowProposalError: null,
+          taskProposalError: null,
+          pendingWorkflowDecision: null,
+        ),
       );
       _failRuntimeTurn(
         interactionGeneration,
@@ -3503,14 +3573,17 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     } catch (error) {
       if (!ref.mounted) return;
-      state = state.copyWith(
-        isLoading: false,
-        isGeneratingWorkflowProposal: false,
-        isGeneratingTaskProposal: false,
-        workflowProposalDraft: null,
-        taskProposalDraft: null,
-        workflowProposalError: error.toString(),
-        pendingWorkflowDecision: null,
+      _routeThreadState(
+        currentConversation.id,
+        (s) => s.copyWith(
+          isLoading: false,
+          isGeneratingWorkflowProposal: false,
+          isGeneratingTaskProposal: false,
+          workflowProposalDraft: null,
+          taskProposalDraft: null,
+          workflowProposalError: error.toString(),
+          pendingWorkflowDecision: null,
+        ),
       );
       _failRuntimeTurn(
         interactionGeneration,
@@ -3520,47 +3593,64 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
+    // Promotion does not survive capture by the closure below.
+    final resolvedWorkflowDraft = workflowDraft;
+
     try {
-      final taskDraft = await _requestTaskProposal(
-        currentConversation: currentConversation,
-        languageCode: languageCode,
-        researchContext: researchContext,
-        workflowStageOverride: workflowDraft.workflowStage,
-        workflowSpecOverride: workflowDraft.workflowSpec,
-        additionalPlanningContext: additionalPlanningContext,
+      final taskDraft = await _runWithLlmSessionLogContextForGeneration(
+        interactionGeneration,
+        () => _requestTaskProposal(
+          currentConversation: currentConversation,
+          languageCode: languageCode,
+          researchContext: researchContext,
+          workflowStageOverride: resolvedWorkflowDraft.workflowStage,
+          workflowSpecOverride: resolvedWorkflowDraft.workflowSpec,
+          additionalPlanningContext: additionalPlanningContext,
+        ),
       );
       if (!ref.mounted) return;
       appLog('[Workflow] Task proposal ready');
       await _persistPlanArtifactDraft(
-        workflowStage: workflowDraft.workflowStage,
-        workflowSpec: workflowDraft.workflowSpec,
+        workflowStage: resolvedWorkflowDraft.workflowStage,
+        workflowSpec: resolvedWorkflowDraft.workflowSpec,
         tasks: taskDraft.tasks,
+        planConversationId: currentConversation.id,
       );
       appLog('[Workflow] Task plan artifact draft persisted');
       if (!ref.mounted) return;
-      state = state.copyWith(
-        isLoading: false,
-        isGeneratingTaskProposal: false,
-        taskProposalDraft: taskDraft,
-        taskProposalError: null,
+      _routeThreadState(
+        currentConversation.id,
+        (s) => s.copyWith(
+          isLoading: false,
+          isGeneratingTaskProposal: false,
+          taskProposalDraft: taskDraft,
+          taskProposalError: null,
+        ),
       );
       _emitRuntimeWorkflowTransition(
         stage: taskDraft.tasks.isEmpty ? 'tasks' : 'implement',
         taskStatus: 'proposal_ready',
       );
       final planMarkdown = ConversationPlanDocumentBuilder.build(
-        workflowStage: workflowDraft.workflowStage,
-        workflowSpec: workflowDraft.workflowSpec,
+        workflowStage: resolvedWorkflowDraft.workflowStage,
+        workflowSpec: resolvedWorkflowDraft.workflowSpec,
         tasks: taskDraft.tasks,
       );
-      _completeRuntimeTurn(interactionGeneration, content: planMarkdown);
+      _completeRuntimeTurn(
+        interactionGeneration,
+        content: planMarkdown,
+        exitReason: ChatNotifierTurnExit.planDraftedExitReason,
+      );
     } catch (error) {
       if (!ref.mounted) return;
-      state = state.copyWith(
-        isLoading: false,
-        isGeneratingTaskProposal: false,
-        taskProposalDraft: null,
-        taskProposalError: error.toString(),
+      _routeThreadState(
+        currentConversation.id,
+        (s) => s.copyWith(
+          isLoading: false,
+          isGeneratingTaskProposal: false,
+          taskProposalDraft: null,
+          taskProposalError: error.toString(),
+        ),
       );
       _failRuntimeTurn(
         interactionGeneration,
@@ -3573,17 +3663,16 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<void> _persistPlanArtifactDraft({
     required ConversationWorkflowStage workflowStage,
     required ConversationWorkflowSpec workflowSpec,
+    required String planConversationId,
     List<ConversationWorkflowTask> tasks = const [],
   }) async {
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (currentConversation == null) {
+    final planConversation = _conversationForId(planConversationId);
+    if (planConversation == null) {
       return;
     }
 
     final existingArtifact =
-        currentConversation.planArtifact ?? const ConversationPlanArtifact();
+        planConversation.planArtifact ?? const ConversationPlanArtifact();
     final markdown = ConversationPlanDocumentBuilder.build(
       workflowStage: workflowStage,
       workflowSpec: workflowSpec,
@@ -3604,6 +3693,7 @@ class ChatNotifier extends Notifier<ChatState> {
         .updateCurrentPlanArtifact(
           planArtifact: nextArtifact.hasContent ? nextArtifact : null,
           clearPlanArtifact: !nextArtifact.hasContent,
+          conversationId: planConversationId,
         );
   }
 
@@ -3972,11 +4062,13 @@ class ChatNotifier extends Notifier<ChatState> {
           prefixStableToolLoop || allowedToolNames != null
           ? initialToolSelection.toolDefinitions
           : null;
-      final streamedMessageIndex = state.messages.isEmpty
+      final streamedMessages =
+          _activeResponseMessagesForGeneration(generation) ?? state.messages;
+      final streamedMessageIndex = streamedMessages.isEmpty
           ? -1
-          : state.messages.length - 1;
+          : streamedMessages.length - 1;
       final streamedContentStart = streamedMessageIndex >= 0
-          ? state.messages[streamedMessageIndex].content.length
+          ? streamedMessages[streamedMessageIndex].content.length
           : 0;
 
       // Stream the initial request to show thinking/content in real-time
@@ -4169,10 +4261,10 @@ class ChatNotifier extends Notifier<ChatState> {
           interactionGeneration: generation,
         );
         if (unexecutedCommandAction != null) {
-          _latestCompletedToolResults = [unexecutedCommandAction];
+          _turnToolResults.setCompleted([unexecutedCommandAction]);
           _latestGoalAutoContinueEvidence =
               ToolResultPromptBuilder.completionEvidence(
-                _latestCompletedToolResults,
+                _turnToolResults.completed,
               ).carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
           _appendUnexecutedCommandActionNoticeIfNeeded(
             toolResults: [unexecutedCommandAction],
@@ -4185,7 +4277,7 @@ class ChatNotifier extends Notifier<ChatState> {
                 toolResults: const [],
               );
           if (unverifiedInspectionClaim != null) {
-            _latestCompletedToolResults = [unverifiedInspectionClaim];
+            _turnToolResults.setCompleted([unverifiedInspectionClaim]);
             _appendUnverifiedReadOnlyInspectionClaimNoticeIfNeeded(
               toolResults: [unverifiedInspectionClaim],
               interactionGeneration: generation,
@@ -4298,6 +4390,38 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  /// The conversation and project a coding turn belongs to, or null when the
+  /// turn is not a coding turn at all.
+  ///
+  /// Three tool-loop builders needed exactly this pair and each resolved it
+  /// from the visible thread, so a turn running in the background judged its
+  /// workspace mode against another thread and ran verification against
+  /// another project's root.
+  /// The conversation a turn belongs to. Falls back to the visible thread only
+  /// when the turn is untracked, which is the user-initiated path.
+  Conversation? _conversationForGeneration(int generation) {
+    final threadId = _activeResponseConversationIdForGeneration(generation);
+    return threadId == null
+        ? ref.read(conversationsNotifierProvider).currentConversation
+        : _conversationForId(threadId);
+  }
+
+  ({Conversation conversation, String projectRoot})? _codingTurnContext(
+    int generation,
+  ) {
+    final conversation = _conversationForGeneration(generation);
+    if (conversation == null ||
+        conversation.workspaceMode != WorkspaceMode.coding ||
+        conversation.isPlanningSession) {
+      return null;
+    }
+    final projectRoot = _codingProjectForTurn(conversation)?.rootPath.trim();
+    if (projectRoot == null || projectRoot.isEmpty) {
+      return null;
+    }
+    return (conversation: conversation, projectRoot: projectRoot);
+  }
+
   Future<ToolResultInfo?> _buildCodingDiagnosticFeedbackToolResult(
     List<ToolResultInfo> toolResults, {
     required int interactionGeneration,
@@ -4306,17 +4430,11 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
       return null;
     }
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (currentConversation?.workspaceMode != WorkspaceMode.coding ||
-        (currentConversation?.isPlanningSession ?? false)) {
+    final turn = _codingTurnContext(interactionGeneration);
+    if (turn == null) {
       return null;
     }
-    final projectRoot = _getActiveProjectRootPath();
-    if (projectRoot == null || projectRoot.isEmpty) {
-      return null;
-    }
+    final projectRoot = turn.projectRoot;
 
     final changedPaths = _changedFileMutationPaths(
       toolResults,
@@ -4384,17 +4502,11 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
       return null;
     }
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (currentConversation?.workspaceMode != WorkspaceMode.coding ||
-        (currentConversation?.isPlanningSession ?? false)) {
+    final turn = _codingTurnContext(interactionGeneration);
+    if (turn == null) {
       return null;
     }
-    final projectRoot = _getActiveProjectRootPath();
-    if (projectRoot == null || projectRoot.isEmpty) {
-      return null;
-    }
+    final projectRoot = turn.projectRoot;
 
     final changedPaths = _changedFileMutationCallPaths(
       toolCalls,
@@ -4491,11 +4603,9 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
       return null;
     }
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (currentConversation?.workspaceMode != WorkspaceMode.coding ||
-        (currentConversation?.isPlanningSession ?? false)) {
+    final conversation = _conversationForGeneration(interactionGeneration);
+    if (conversation?.workspaceMode != WorkspaceMode.coding ||
+        (conversation?.isPlanningSession ?? false)) {
       return null;
     }
 
@@ -4776,69 +4886,6 @@ class ChatNotifier extends Notifier<ChatState> {
         ],
       }),
     );
-  }
-
-  ToolCallInfo? _buildBackgroundProcessFollowUpToolCall(
-    List<ToolResultInfo> toolResults, {
-    required int waitMs,
-  }) {
-    final latestStatusesByJobId = <String, String>{};
-    for (final result in toolResults.reversed) {
-      final name = result.name.trim().toLowerCase();
-      final decoded = _tryDecodeMap(result.result);
-      if (decoded == null) {
-        continue;
-      }
-      if (name == 'background_process_monitor' &&
-          decoded['code'] == 'background_process_still_running') {
-        final jobs = decoded['jobs'];
-        if (jobs is! List) {
-          continue;
-        }
-        for (final job in jobs) {
-          if (job is! Map) {
-            continue;
-          }
-          final jobId = job['job_id']?.toString().trim();
-          if (jobId == null || jobId.isEmpty) {
-            continue;
-          }
-          latestStatusesByJobId.putIfAbsent(
-            jobId,
-            () => job['status']?.toString().trim().toLowerCase() ?? '',
-          );
-        }
-        continue;
-      }
-      if (name == 'process_start' ||
-          name == 'process_status' ||
-          name == 'process_wait' ||
-          name == 'local_execute_command') {
-        final jobId = decoded['job_id']?.toString().trim();
-        if (jobId == null || jobId.isEmpty) {
-          continue;
-        }
-        latestStatusesByJobId.putIfAbsent(
-          jobId,
-          () => decoded['status']?.toString().trim().toLowerCase() ?? '',
-        );
-      }
-    }
-    for (final entry in latestStatusesByJobId.entries) {
-      if (entry.value != 'running') {
-        continue;
-      }
-      return ToolCallInfo(
-        id: 'background_process_monitor_followup_${DateTime.now().microsecondsSinceEpoch}',
-        name: 'process_wait',
-        arguments: {'job_id': entry.key, 'wait_ms': waitMs},
-      );
-    }
-    return null;
-  }
-
-  int _backgroundProcessMonitorFollowUpWaitMs(int iteration) {
-    return (5000 + iteration * 1000).clamp(5000, 15000).toInt();
   }
 
   ToolResultInfo? _buildSubagentMonitorFeedbackToolResult({
@@ -5564,9 +5611,7 @@ class ChatNotifier extends Notifier<ChatState> {
             _appendToLastMessageForGeneration(interactionGeneration, '<think>');
             final mcpToolService = _mcpToolService;
             if (mcpToolService == null) {
-              _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
-                executedToolResults,
-              );
+              _turnToolResults.setCompleted(executedToolResults);
               await _sendWithoutTools(
                 interactionGeneration: interactionGeneration,
               );
@@ -5645,9 +5690,7 @@ class ChatNotifier extends Notifier<ChatState> {
             _appendToLastMessageForGeneration(interactionGeneration, '<think>');
             final mcpToolService = _mcpToolService;
             if (mcpToolService == null) {
-              _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
-                executedToolResults,
-              );
+              _turnToolResults.setCompleted(executedToolResults);
               await _sendWithoutTools(
                 interactionGeneration: interactionGeneration,
               );
@@ -5754,9 +5797,7 @@ class ChatNotifier extends Notifier<ChatState> {
       // Use a non-streaming request with tool definitions included.
       final mcpToolService = _mcpToolService;
       if (mcpToolService == null) {
-        _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
-          executedToolResults,
-        );
+        _turnToolResults.setCompleted(executedToolResults);
         await _sendWithoutTools(interactionGeneration: interactionGeneration);
         return;
       }
@@ -5952,9 +5993,7 @@ class ChatNotifier extends Notifier<ChatState> {
           _appendToLastMessageForGeneration(interactionGeneration, '<think>');
           final mcpToolService = _mcpToolService;
           if (mcpToolService == null) {
-            _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
-              executedToolResults,
-            );
+            _turnToolResults.setCompleted(executedToolResults);
             await _sendWithoutTools(
               interactionGeneration: interactionGeneration,
             );
@@ -6171,10 +6210,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
           final monitorResponse = backgroundProcessRepairResult.content.trim();
           _recordHiddenAssistantResponse(monitorResponse);
-          final monitorFollowUp = _buildBackgroundProcessFollowUpToolCall(
-            executedToolResults,
-            waitMs: _backgroundProcessMonitorFollowUpWaitMs(iteration),
-          );
+          final monitorFollowUp =
+              BackgroundProcessFollowUpPolicy.followUpToolCall(
+                executedToolResults,
+                waitMs: BackgroundProcessFollowUpPolicy.waitMsForIteration(
+                  iteration,
+                ),
+              );
           if (monitorFollowUp != null &&
               forcedBackgroundProcessFollowUpCount < 2) {
             appLog(
@@ -6204,10 +6246,13 @@ class ChatNotifier extends Notifier<ChatState> {
           }
           break;
         }
-        final runningProcessFollowUp = _buildBackgroundProcessFollowUpToolCall(
-          executedToolResults,
-          waitMs: _backgroundProcessMonitorFollowUpWaitMs(iteration),
-        );
+        final runningProcessFollowUp =
+            BackgroundProcessFollowUpPolicy.followUpToolCall(
+              executedToolResults,
+              waitMs: BackgroundProcessFollowUpPolicy.waitMsForIteration(
+                iteration,
+              ),
+            );
         if (runningProcessFollowUp != null &&
             forcedBackgroundProcessFollowUpCount < 2) {
           appLog(
@@ -6645,10 +6690,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
           final monitorResponse = backgroundProcessRepairResult.content.trim();
           _recordHiddenAssistantResponse(monitorResponse);
-          final monitorFollowUp = _buildBackgroundProcessFollowUpToolCall(
-            executedToolResults,
-            waitMs: _backgroundProcessMonitorFollowUpWaitMs(maxIterations),
-          );
+          final monitorFollowUp =
+              BackgroundProcessFollowUpPolicy.followUpToolCall(
+                executedToolResults,
+                waitMs: BackgroundProcessFollowUpPolicy.waitMsForIteration(
+                  maxIterations,
+                ),
+              );
           if (monitorFollowUp != null) {
             appLog(
               '[BackgroundProcess] Streamed final answer monitor prose '
@@ -6825,9 +6873,7 @@ class ChatNotifier extends Notifier<ChatState> {
       finalCompletionEvidence,
     );
     _latestGoalAutoContinueEvidence = finalCompletionEvidence;
-    _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
-      finalToolResults,
-    );
+    _turnToolResults.setCompleted(finalToolResults);
     await _finishStreaming(interactionGeneration: interactionGeneration);
   }
 
@@ -6896,16 +6942,23 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  String? _lastMessageContentForGeneration(int generation) {
-    if (_isActiveResponseDetachedForGeneration(generation)) {
+  /// The turn's last message, taken from its own thread. A recovery pass that
+  /// inspects the visible thread and then patches the turn's message is
+  /// repairing one message from what it read on another.
+  Message? _lastMessageForGeneration(int? generation) {
+    if (generation != null &&
+        _isActiveResponseDetachedForGeneration(generation)) {
       final activeMessages = _activeResponseMessagesForGeneration(generation);
-      if (activeMessages == null || activeMessages.isEmpty) return null;
-      return activeMessages.last.content;
+      return activeMessages == null || activeMessages.isEmpty
+          ? null
+          : activeMessages.last;
     }
-
     if (!ref.mounted || state.messages.isEmpty) return null;
-    return state.messages.last.content;
+    return state.messages.last;
   }
+
+  String? _lastMessageContentForGeneration(int generation) =>
+      _lastMessageForGeneration(generation)?.content;
 
   void _replaceLastMessageContentForGeneration(
     int generation,
@@ -7053,13 +7106,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
   ToolResultInfo? _latestSuccessfulContentToolResultFor(ToolCallData toolCall) {
     final toolCallKey = _contentToolCallHash(toolCall);
-    for (final result in _latestContentToolResults.reversed) {
-      if (_toolResultDedupKey(result) == toolCallKey &&
-          !_toolResultLooksFailed(result.result)) {
-        return result;
-      }
-    }
-    return null;
+    return _turnToolResults.lastContentResultWhere((result) {
+      return _toolResultDedupKey(result) == toolCallKey &&
+          !_toolResultLooksFailed(result.result);
+    });
   }
 
   bool _toolResultLooksFailed(String result) {
@@ -7293,7 +7343,7 @@ class ChatNotifier extends Notifier<ChatState> {
         validationArgs.first.split('/').last.toLowerCase() != 'cat') {
       return false;
     }
-    final decoded = _decodeJsonObject(result.result);
+    final decoded = decodeJsonObject(result.result);
     if (decoded == null || decoded['error'] != null) {
       return false;
     }
@@ -7585,17 +7635,12 @@ class ChatNotifier extends Notifier<ChatState> {
           result.errorMessage,
         );
         _recordContentToolResult(toolCall: toolCall, result: failureResult);
-        if (ref.mounted && state.messages.isNotEmpty) {
-          final updatedMessages = [...state.messages];
-          final lastIndex = updatedMessages.length - 1;
-          final lastMessage = updatedMessages[lastIndex];
-
-          updatedMessages[lastIndex] = lastMessage.copyWith(
-            content:
-                '${lastMessage.content}\n\n${_buildContentToolResultTag(tc.name, failureResult)}',
+        if (ref.mounted) {
+          _appendToLastMessageForGeneration(
+            interactionGeneration,
+            '\n\n${_buildContentToolResultTag(tc.name, failureResult)}',
+            scanForTools: false,
           );
-
-          state = state.copyWith(messages: updatedMessages);
           appLog('[ContentTool] Appended failure result to message');
         }
         _pendingContentToolResults.add(
@@ -7620,17 +7665,12 @@ class ChatNotifier extends Notifier<ChatState> {
       final promptResult = contentToolResult.result;
 
       // Append results without triggering recursive tool-call checks.
-      if (ref.mounted && state.messages.isNotEmpty) {
-        final updatedMessages = [...state.messages];
-        final lastIndex = updatedMessages.length - 1;
-        final lastMessage = updatedMessages[lastIndex];
-
-        updatedMessages[lastIndex] = lastMessage.copyWith(
-          content:
-              '${lastMessage.content}\n\n${_buildContentToolResultTag(tc.name, promptResult)}',
+      if (ref.mounted) {
+        _appendToLastMessageForGeneration(
+          interactionGeneration,
+          '\n\n${_buildContentToolResultTag(tc.name, promptResult)}',
+          scanForTools: false,
         );
-
-        state = state.copyWith(messages: updatedMessages);
         appLog('[ContentTool] Appended result to message');
       }
 
@@ -7640,18 +7680,13 @@ class ChatNotifier extends Notifier<ChatState> {
       appLog('[ContentTool] Error: $e');
       final failureResult = _buildContentToolFailureResult(tc.name, '$e');
       _recordContentToolResult(toolCall: toolCall, result: failureResult);
-      if (ref.mounted && state.messages.isNotEmpty) {
-        final updatedMessages = [...state.messages];
-        final lastIndex = updatedMessages.length - 1;
-        final lastMessage = updatedMessages[lastIndex];
-
-        updatedMessages[lastIndex] = lastMessage.copyWith(
-          content:
-              '${lastMessage.content}\n\n${_buildContentToolResultTag(tc.name, failureResult)}',
+      if (ref.mounted) {
+        _appendToLastMessageForGeneration(
+          interactionGeneration,
+          '\n\n${_buildContentToolResultTag(tc.name, failureResult)}',
+          scanForTools: false,
         );
-
-        state = state.copyWith(messages: updatedMessages);
-        appLog('[ContentTool] Appended thrown failure result to message');
+        appLog('[ContentTool] Appended failure result to message');
       }
       _pendingContentToolResults.add('[Result of ${tc.name}]\n$failureResult');
     }
@@ -7703,20 +7738,28 @@ class ChatNotifier extends Notifier<ChatState> {
     ToolCallInfo toolCall, {
     int? interactionGeneration,
   }) async {
-    return ChatToolDispatcher(
-      enforcePlanningPolicy: _enforcePlanningToolPolicy,
-      handleComputerUseAction: _handleComputerUseAction,
-      handleComputerUseObservation: _handleComputerUseActionWithoutApproval,
-      handleBrowserAction: _handleBrowserAction,
-      handleBrowserObservation: _handleBrowserActionWithoutApproval,
-      handlerRegistry: _buildToolHandlerRegistry(
-        interactionGeneration: interactionGeneration,
+    return TurnProjectRoot.runScoped(
+      _turnProjectRootFor(interactionGeneration),
+      () => TurnThread.runScoped(
+        interactionGeneration == null
+            ? null
+            : _activeResponseConversationIdForGeneration(interactionGeneration),
+        () => ChatToolDispatcher(
+          enforcePlanningPolicy: _enforcePlanningToolPolicy,
+          handleComputerUseAction: _handleComputerUseAction,
+          handleComputerUseObservation: _handleComputerUseActionWithoutApproval,
+          handleBrowserAction: _handleBrowserAction,
+          handleBrowserObservation: _handleBrowserActionWithoutApproval,
+          handlerRegistry: _buildToolHandlerRegistry(
+            interactionGeneration: interactionGeneration,
+          ),
+          executeFallbackTool: (toolCall) => _mcpToolService!.executeTool(
+            name: toolCall.name,
+            arguments: toolCall.arguments,
+          ),
+        ).dispatch(toolCall),
       ),
-      executeFallbackTool: (toolCall) => _mcpToolService!.executeTool(
-        name: toolCall.name,
-        arguments: toolCall.arguments,
-      ),
-    ).dispatch(toolCall);
+    );
   }
 
   Future<McpToolResult> _handleProjectScopedTool(ToolCallInfo toolCall) async {
@@ -7807,12 +7850,14 @@ class ChatNotifier extends Notifier<ChatState> {
   void _recoverIncompleteContentToolCallsFromLastMessage({
     required int interactionGeneration,
   }) {
-    if (!_isCurrentInteractionGeneration(interactionGeneration) ||
-        state.messages.isEmpty) {
+    if (!_isCurrentInteractionGeneration(interactionGeneration)) {
       return;
     }
 
-    final lastMessage = state.messages.last;
+    final lastMessage = _lastMessageForGeneration(interactionGeneration);
+    if (lastMessage == null) {
+      return;
+    }
     if (lastMessage.role != MessageRole.assistant ||
         !ContentParser.hasIncompleteToolCall(lastMessage.content)) {
       return;
@@ -7857,10 +7902,8 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _recoverUntrustedAssistantToolResultsFromLastMessage({
     int? interactionGeneration,
   }) {
-    if (!ref.mounted || state.messages.isEmpty) return false;
-
-    final lastMessage = state.messages.last;
-    if (lastMessage.role != MessageRole.assistant) {
+    final lastMessage = _lastMessageForGeneration(interactionGeneration);
+    if (lastMessage == null || lastMessage.role != MessageRole.assistant) {
       return false;
     }
 
@@ -7920,10 +7963,8 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _recoverAssistantToolNameBlocksFromLastMessage({
     int? interactionGeneration,
   }) {
-    if (!ref.mounted || state.messages.isEmpty) return false;
-
-    final lastMessage = state.messages.last;
-    if (lastMessage.role != MessageRole.assistant) {
+    final lastMessage = _lastMessageForGeneration(interactionGeneration);
+    if (lastMessage == null || lastMessage.role != MessageRole.assistant) {
       return false;
     }
 
@@ -8511,69 +8552,11 @@ class ChatNotifier extends Notifier<ChatState> {
     return match?.group(1);
   }
 
-  bool _looksLikePlanOnlyFinalToolAnswer(String content) {
-    if (content.isEmpty || content.length > 1600) {
-      return false;
-    }
-
-    final numberedStepMatches = RegExp(
-      r'^\s*\d+[.)]\s+\S',
-      multiLine: true,
-    ).allMatches(content).toList(growable: false);
-    final numberedStepCount = numberedStepMatches.length;
-    final lowerContent = content.toLowerCase();
-    final hasPlanHeading = RegExp(
-      r'^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:investigation\s+plan|plan|next\s+steps?|checklist)\b',
-      caseSensitive: false,
-      multiLine: true,
-    ).hasMatch(content);
-    final futureActionScanStart = hasPlanHeading || numberedStepMatches.isEmpty
-        ? 0
-        : numberedStepMatches.first.start;
-    final hasFutureAction = _containsAnyAtOrAfter(lowerContent, const [
-      'i will inspect',
-      'i will check',
-      'i will confirm',
-      'i will trace',
-      'i will verify',
-      "i'll inspect",
-      "i'll check",
-      'we will inspect',
-      'we will check',
-      'need to inspect',
-      'need to check',
-      'need to confirm',
-      'first, i will',
-      'next, i will',
-    ], futureActionScanStart);
-    final hasCjkFutureAction = _containsCjkFutureActionMarker(
-      content,
-      startIndex: futureActionScanStart,
-    );
-
-    if ((hasPlanHeading || numberedStepCount >= 2) &&
-        (hasFutureAction || hasCjkFutureAction)) {
-      return true;
-    }
-    return hasPlanHeading && numberedStepCount >= 2 && content.length <= 600;
-  }
+  bool _looksLikePlanOnlyFinalToolAnswer(String content) =>
+      _finalAnswerClaimDetector.looksLikePlanOnlyFinalToolAnswer(content);
 
   bool _containsAny(String value, List<String> markers) {
     return markers.any(value.contains);
-  }
-
-  bool _containsAnyAtOrAfter(
-    String value,
-    List<String> markers,
-    int startIndex,
-  ) {
-    final clampedStart = startIndex.clamp(0, value.length).toInt();
-    for (final marker in markers) {
-      if (value.indexOf(marker, clampedStart) >= 0) {
-        return true;
-      }
-    }
-    return false;
   }
 
   bool _containsCjkBlockerMarker(String value) {
@@ -8757,52 +8740,18 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
-    final updatedMessages = [...state.messages];
-    final lastIndex = updatedMessages.length - 1;
-    final lastMessage = updatedMessages[lastIndex];
-    final fallbackContent = _pendingContentToolContinuationFallback?.trim();
-    final shouldUseContentToolContinuationFallback =
-        lastMessage.role == MessageRole.assistant &&
-        !_assistantMessageHasVisibleContent(lastMessage.content) &&
-        fallbackContent != null &&
-        fallbackContent.isNotEmpty;
-    final shouldDropLastAssistant =
-        lastMessage.role == MessageRole.assistant &&
-        !_assistantMessageHasVisibleContent(lastMessage.content) &&
-        !shouldUseContentToolContinuationFallback;
+    final lastIndex = state.messages.length - 1;
+    final finalMessage = _resolveTurnFinalMessage(state.messages.last);
+    final shouldDropLastAssistant = finalMessage.dropLastAssistant;
 
     // Capture token usage before building per-message metrics so both the
     // global usage indicator and completed bubble agree on the same response.
     _updateTokenUsage();
-    final responseMetrics = shouldDropLastAssistant
-        ? null
-        : _takeResponseMetricsForGeneration(generation);
-    if (shouldDropLastAssistant) {
-      _discardResponseMetricsForGeneration(generation);
-    }
-
-    if (shouldUseContentToolContinuationFallback) {
-      updatedMessages[lastIndex] = lastMessage.copyWith(
-        content: fallbackContent,
-        isStreaming: false,
-        responseMetrics: responseMetrics,
-      );
-    } else if (shouldDropLastAssistant) {
-      updatedMessages.removeAt(lastIndex);
-    } else {
-      // UX: if the answer was cut off at the max-token limit, flag it so the
-      // user knows the response (and any code/file content in it) is incomplete
-      // rather than silently presenting a truncated answer.
-      final finalizedContent =
-          _isCompletionTruncated(_latestFinishReason() ?? '')
-          ? TruncationNotice.withMaxTokenNotice(lastMessage.content)
-          : lastMessage.content;
-      updatedMessages[lastIndex] = lastMessage.copyWith(
-        content: finalizedContent,
-        isStreaming: false,
-        responseMetrics: responseMetrics,
-      );
-    }
+    final updatedMessages = finalMessage.apply(
+      state.messages,
+      metrics: _turnResponseMetrics(generation, finalMessage),
+      truncated: _isCompletionTruncated(_latestFinishReason() ?? ''),
+    );
     _pendingContentToolContinuationFallback = null;
 
     if (!_isCurrentInteractionGeneration(generation)) return;
@@ -8820,6 +8769,13 @@ class ChatNotifier extends Notifier<ChatState> {
       state = state.copyWith(messages: cleaned);
       _hiddenPrompt = null;
       _persistHiddenPromptAssistantResponse = false;
+      // A continuation turn is a tool-calling turn; dropping its answer from
+      // the visible history is no reason to drop its exit reason too.
+      await _logTurnExitReason(
+        generation: generation,
+        finalizedMessages: updatedMessages,
+        shouldDropLastAssistant: shouldDropLastAssistant,
+      );
       _onResponseCompleted('');
       _completeRuntimeTurn(generation, content: '');
       if (!_isCurrentInteractionGeneration(generation)) return;
@@ -8861,14 +8817,25 @@ class ChatNotifier extends Notifier<ChatState> {
       shouldDropLastAssistant: shouldDropLastAssistant,
     );
     if (!_isCurrentInteractionGeneration(generation)) return;
-    state = state.copyWith(messages: updatedMessages, isLoading: false);
+    // Resolve the thread before the registration is cleared below, and keep a
+    // detached turn's transcript with the turn rather than pushing it onto the
+    // thread the user is reading.
+    final turnThreadId = _activeResponseConversationIdForGeneration(generation);
+    if (_isActiveResponseDetachedForGeneration(generation)) {
+      _cacheActiveResponseMessagesForGeneration(generation, updatedMessages);
+    } else {
+      state = state.copyWith(messages: updatedMessages, isLoading: false);
+    }
     final explicitTerminalSuccessSummary =
         _explicitTerminalSuccessSummariesByGeneration.remove(generation);
 
     // Persist messages.
     _contentToolContinuationCount = 0;
     _clearActiveResponseForGeneration(generation);
-    await _saveMessages();
+    await _saveMessages(
+      messages: updatedMessages,
+      conversationId: turnThreadId,
+    );
     if (!_isCurrentInteractionGeneration(generation)) return;
 
     if (shouldDropLastAssistant || updatedMessages.isEmpty) {
@@ -8937,6 +8904,26 @@ class ChatNotifier extends Notifier<ChatState> {
       finalizedAssistantResponse: finalizedLastMessage.content,
       languageCode: _languageCode,
     );
+  }
+
+  TurnFinalMessage _resolveTurnFinalMessage(Message lastMessage) =>
+      TurnFinalMessage.resolve(
+        lastMessage: lastMessage,
+        contentToolFallback: _pendingContentToolContinuationFallback,
+        hasVisibleContent: _assistantMessageHasVisibleContent,
+      );
+
+  /// Takes the turn's metrics, or discards them when nothing visible was
+  /// produced so a dropped bubble cannot leave its timing behind.
+  MessageResponseMetrics? _turnResponseMetrics(
+    int generation,
+    TurnFinalMessage finalMessage,
+  ) {
+    if (finalMessage.dropLastAssistant) {
+      _discardResponseMetricsForGeneration(generation);
+      return null;
+    }
+    return _takeResponseMetricsForGeneration(generation);
   }
 
   bool _assistantMessageHasVisibleContent(String content) {
@@ -9266,7 +9253,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final extractionInput = MemoryExtractionDraftService.buildInput(
       messages,
       profile,
-      toolResults: _latestCompletedToolResults,
+      toolResults: _turnToolResults.completed,
     );
 
     final extractionMessages = [
@@ -9363,7 +9350,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _pendingContentToolContinuationFallback = null;
     _pendingToolExecutions.clear();
     _queuedChatMessages.clear();
-    _latestContentToolResults.clear();
+    _turnToolResults.clearContentResults();
     _latestGoalAutoContinueEvidence = const ToolResultCompletionEvidence();
     _goalAutoContinueTrackers.clear();
     _goalAutoContinueBudgetNotifiedConversations.clear();

@@ -367,7 +367,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
       completer: completer,
       origin: _activeInteractionOrigin,
     );
-    state = state.copyWith(pendingGitCommand: pending);
+    _routeApproval((s) => s.copyWith(pendingGitCommand: pending));
     _emitRuntimeApprovalRequired(
       id: pending.id,
       capability: 'git_mutation',

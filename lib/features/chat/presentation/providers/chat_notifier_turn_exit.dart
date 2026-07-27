@@ -31,6 +31,7 @@ extension ChatNotifierTurnExit on ChatNotifier {
   }) async {
     final hint = _turnExitReasonHint;
     _turnExitReasonHint = null;
+    _classifiedTurnExitGenerations.add(generation);
 
     final hasVisibleFinal =
         !shouldDropLastAssistant && finalizedMessages.isNotEmpty;
@@ -38,8 +39,9 @@ extension ChatNotifierTurnExit on ChatNotifier {
     // Turn-provenance correlation keys: the assistant message id ties this
     // record to the on-screen conversation message (which holds the final,
     // post-transform content); `generation` identifies the turn.
-    final assistantMessageId =
-        hasVisibleFinal ? finalizedMessages.last.id : null;
+    final assistantMessageId = hasVisibleFinal
+        ? finalizedMessages.last.id
+        : null;
     final reason = _toolLoopExitClassifier.classify(
       ToolLoopExitState(
         finalResponseText: finalText,
@@ -72,5 +74,43 @@ extension ChatNotifierTurnExit on ChatNotifier {
           assistantMessageId: assistantMessageId,
           transforms: _appliedTurnTransforms.toList(growable: false),
         );
+  }
+
+  /// Plan drafting is not a tool-calling turn, so it has no tool-loop exit
+  /// reason to give. Saying so keeps `unknown` meaning "nobody classified this
+  /// and nobody knows why" — which is then worth looking at, rather than
+  /// something to explain away each time.
+  static const String planDraftedExitReason = 'plan_drafted';
+
+  /// Records [reason], or `unknown(<outcome>)` when the caller has none, for a
+  /// turn nothing classified — and reports whether it had been. Only
+  /// [_finishStreaming] and the detached path classify, so the rest ended in
+  /// silence: four of six live turns on 2026-07-27, including the two that did
+  /// the most work. A turn that ends is a turn that reports. [outcome] names
+  /// the terminal, because which call site skipped classification was not
+  /// derivable by reading — the record has to identify itself.
+  bool _recordTurnExitIfUnclassified(
+    int generation, {
+    required String outcome,
+    String? reason,
+  }) {
+    if (_classifiedTurnExitGenerations.remove(generation)) return true;
+    if (!LlmSessionLogStore.isEnabled(
+      settingsEnabled: _settings.enableLlmSessionLogs,
+    )) {
+      return false;
+    }
+    unawaited(
+      ref
+          .read(llmSessionLogStoreProvider)
+          .recordTurnExit(
+            context: _llmSessionLogContextForGeneration(generation),
+            reason: reason ?? 'unknown($outcome)',
+            noVisibleAnswer: false,
+            at: DateTime.now(),
+            turnId: 'gen-$generation',
+          ),
+    );
+    return false;
   }
 }

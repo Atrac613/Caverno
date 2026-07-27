@@ -147,6 +147,8 @@ class _ConversationDrawerState extends ConsumerState<ConversationDrawer> {
                               conversationsState: conversationsState,
                               isConversationBusy:
                                   chatNotifier.isConversationBusy,
+                              isConversationAwaitingApproval:
+                                  chatNotifier.isConversationAwaitingApproval,
                               expandedProjectIds: _expandedProjectIds,
                               collapsedProjectIds: _collapsedProjectIds,
                               collapsedThreadLimit:
@@ -639,6 +641,7 @@ class _CodingProjectsSection extends StatelessWidget {
     required this.projectsState,
     required this.conversationsState,
     required this.isConversationBusy,
+    required this.isConversationAwaitingApproval,
     required this.expandedProjectIds,
     required this.collapsedProjectIds,
     required this.collapsedThreadLimit,
@@ -657,6 +660,7 @@ class _CodingProjectsSection extends StatelessWidget {
   final CodingProjectsState projectsState;
   final ConversationsState conversationsState;
   final bool Function(String conversationId) isConversationBusy;
+  final bool Function(String conversationId) isConversationAwaitingApproval;
   final Set<String> expandedProjectIds;
   final Set<String> collapsedProjectIds;
   final int collapsedThreadLimit;
@@ -715,6 +719,8 @@ class _CodingProjectsSection extends StatelessWidget {
                       selectedConversationId:
                           conversationsState.currentConversationId,
                       isConversationBusy: isConversationBusy,
+                      isConversationAwaitingApproval:
+                          isConversationAwaitingApproval,
                       isExpanded: expandedProjectIds.contains(project.id),
                       isCollapsed: collapsedProjectIds.contains(project.id),
                       collapsedThreadLimit: collapsedThreadLimit,
@@ -754,6 +760,7 @@ class _ProjectThreadGroup extends StatelessWidget {
     required this.isSelected,
     required this.selectedConversationId,
     required this.isConversationBusy,
+    required this.isConversationAwaitingApproval,
     required this.isExpanded,
     required this.isCollapsed,
     required this.collapsedThreadLimit,
@@ -772,6 +779,7 @@ class _ProjectThreadGroup extends StatelessWidget {
   final bool isSelected;
   final String? selectedConversationId;
   final bool Function(String conversationId) isConversationBusy;
+  final bool Function(String conversationId) isConversationAwaitingApproval;
   final bool isExpanded;
   final bool isCollapsed;
   final int collapsedThreadLimit;
@@ -811,6 +819,7 @@ class _ProjectThreadGroup extends StatelessWidget {
             conversation: thread,
             isSelected: thread.id == selectedConversationId,
             isWorking: isConversationBusy(thread.id),
+            needsApproval: isConversationAwaitingApproval(thread.id),
             onTap: () => onConversationSelected(thread.id),
             onDelete: () => onDeleteConversation(thread),
           ),
@@ -1194,6 +1203,7 @@ class _ProjectThreadTile extends StatefulWidget {
     required this.conversation,
     required this.isSelected,
     required this.isWorking,
+    required this.needsApproval,
     required this.onTap,
     required this.onDelete,
   });
@@ -1201,6 +1211,7 @@ class _ProjectThreadTile extends StatefulWidget {
   final Conversation conversation;
   final bool isSelected;
   final bool isWorking;
+  final bool needsApproval;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
@@ -1255,6 +1266,23 @@ class _ProjectThreadTileState extends State<_ProjectThreadTile> {
                       height: 32,
                     ),
                     onPressed: widget.onDelete,
+                  )
+                : widget.needsApproval
+                ? Tooltip(
+                    message: 'drawer.thread_approval_required_tooltip'.tr(),
+                    child: Text(
+                      key: ValueKey(
+                        'drawer-thread-${conversation.id}-approval-label',
+                      ),
+                      'drawer.thread_approval_required'.tr(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
                   )
                 : widget.isWorking
                 ? Tooltip(

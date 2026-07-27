@@ -300,6 +300,45 @@ void main() {
       handle.complete(content: 'done');
       await fixture.runtime.close();
     });
+
+    test('ownershipSettled waits for the lease, not the terminal event', () async {
+      // Live 2026-07-26: a queued plan approval drained 2 ms after
+      // run_completed and failed with a workspace ownership conflict. The
+      // terminal event means the model round-trip ended; the runtime still
+      // has to drain persistence before it hands the lease back.
+      final fixture = _RuntimeFixture();
+      final flushGate = Completer<void>();
+      fixture.repository.flushGate = flushGate;
+
+      final handle = await fixture.runtime.startTurn(
+        const CavernoRuntimeTurnRequest(turnId: 'turn-1'),
+      );
+      handle.complete(content: 'done');
+      await handle.done;
+
+      var settled = false;
+      unawaited(fixture.runtime.ownershipSettled.then((_) => settled = true));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        fixture.ownership.handles.single.released,
+        isFalse,
+        reason: 'the lease is still held while persistence drains',
+      );
+      expect(
+        settled,
+        isFalse,
+        reason:
+            'starting the next turn here is what produced the ownership '
+            'conflict',
+      );
+
+      flushGate.complete();
+      await fixture.runtime.ownershipSettled;
+
+      expect(fixture.ownership.handles.single.released, isTrue);
+      await fixture.runtime.close();
+    });
   });
 }
 

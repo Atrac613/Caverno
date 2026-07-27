@@ -98,10 +98,7 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     }
     final assessment = _codingVerificationClaimGuard.assess(
       candidateResponse: content,
-      toolResults: [
-        ..._latestCompletedToolResults,
-        ..._latestContentToolResults,
-      ],
+      toolResults: _turnToolResults.all,
     );
     if (!assessment.hasMismatch) {
       return content;
@@ -123,11 +120,8 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     }
     final assessment = _narratedTranscriptClaimGuard.assess(
       candidateResponse: content,
-      toolResults: [
-        ..._latestCompletedToolResults,
-        ..._latestContentToolResults,
-      ],
-      additionalExecutedCommands: _turnCommandLedger,
+      toolResults: _turnToolResults.all,
+      additionalExecutedCommands: _turnToolResults.commands,
     );
     if (!assessment.hasUnexecutedCommands) {
       return content;
@@ -170,7 +164,7 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     final assessment = _narratedTranscriptClaimGuard.assess(
       candidateResponse: candidateResponse,
       toolResults: executedToolResults,
-      additionalExecutedCommands: _turnCommandLedger,
+      additionalExecutedCommands: _turnToolResults.commands,
     );
     if (!assessment.hasUnexecutedCommands) {
       return null;
@@ -327,10 +321,7 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
     }
     final assessment = _unwrittenFileClaimGuard.assess(
       candidateResponse: content,
-      toolResults: [
-        ..._latestCompletedToolResults,
-        ..._latestContentToolResults,
-      ],
+      toolResults: _turnToolResults.all,
       projectRoot: projectRoot,
     );
     if (!assessment.hasClaims) {
@@ -563,13 +554,6 @@ extension ChatNotifierUnexecutedActionRecovery on ChatNotifier {
   bool _looksLikeFutureFileSideEffectAction(String content) {
     return _finalAnswerClaimDetector.looksLikeFutureFileSideEffectAction(
       content,
-    );
-  }
-
-  bool _containsCjkFutureActionMarker(String value, {int startIndex = 0}) {
-    return _finalAnswerClaimDetector.containsCjkFutureActionMarker(
-      value,
-      startIndex: startIndex,
     );
   }
 }

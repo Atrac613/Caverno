@@ -12,7 +12,11 @@ extension ChatNotifierPlanningResearch on ChatNotifier {
     ConversationWorkflowSpec? workflowSpecOverride,
   }) async {
     final toolService = _mcpToolService;
-    final projectRoot = _getActiveProjectRootPath();
+    // The turn's own project: a draft running while the user reads another
+    // thread must research the project it is planning for, not the visible one.
+    final projectRoot = _codingProjectForTurn(
+      currentConversation,
+    )?.rootPath.trim();
     if (toolService == null ||
         currentConversation.workspaceMode != WorkspaceMode.coding ||
         projectRoot == null ||

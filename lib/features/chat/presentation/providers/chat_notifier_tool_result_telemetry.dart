@@ -138,7 +138,7 @@ extension ChatNotifierToolResultTelemetry on ChatNotifier {
   }
 
   void _recordContentToolResultInfo(ToolResultInfo toolResult) {
-    _latestContentToolResults.add(toolResult);
+    _turnToolResults.addContentResult(toolResult);
   }
 
   String _buildContentToolFailureResult(String toolName, String? errorMessage) {

@@ -31,7 +31,7 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     if (candidateResponse.isEmpty) {
       return false;
     }
-    if (_hasTerminalGoalSuccessToolResults(_latestCompletedToolResults)) {
+    if (_hasTerminalGoalSuccessToolResults(_turnToolResults.completed)) {
       appLog(
         '[TurnFinalization] Skipping coding continuation recovery after terminal goal success',
       );
@@ -40,7 +40,7 @@ extension ChatNotifierTurnFinalizationRecovery on ChatNotifier {
     if (_shouldSkipCompletedToolResultFinalAnswerRecovery(
       generation: generation,
       candidateResponse: candidateResponse,
-      toolResults: _latestCompletedToolResults,
+      toolResults: _turnToolResults.completed,
     )) {
       appLog(
         '[TurnFinalization] Skipping coding continuation recovery after completed tool-result final answer',

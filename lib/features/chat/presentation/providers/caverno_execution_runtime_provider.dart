@@ -9,6 +9,7 @@ import '../../application/runtime/caverno_execution_lease.dart';
 import 'package:caverno_execution_runtime/caverno_execution_runtime.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import 'coding_projects_notifier.dart';
+import 'turn_coding_project_resolver.dart';
 import 'chat_notifier.dart';
 import 'conversations_notifier.dart';
 import 'mcp_tool_provider.dart';
@@ -32,12 +33,18 @@ final cavernoRuntimeSettingsPortProvider = Provider<CavernoRuntimeSettingsPort>(
     );
     return _CallbackRuntimeSettingsPort(() {
       final settings = ref.read(settingsNotifierProvider);
+      final conversations = ref.read(conversationsNotifierProvider);
+      final conversation = conversations.currentConversation;
+      // Resolve the project from the thread, not from the sidebar selection:
+      // on 2026-07-25 a plan run on run20 leased run19's workspace because
+      // selectedProjectId still pointed at the thread opened before it, and
+      // the run failed as "workspace:todo is already owned".
       final project = settings.assistantMode == AssistantMode.general
           ? null
-          : ref.read(codingProjectsNotifierProvider).selectedProject;
-      final conversation = ref
-          .read(conversationsNotifierProvider)
-          .currentConversation;
+          : TurnCodingProjectResolver(
+              () => ref.read(codingProjectsNotifierProvider),
+              conversations,
+            ).forConversation(conversation);
       final worktree = conversation?.normalizedWorktreePath ?? '';
       return CavernoRuntimeSettingsSnapshot(
         mode: settings.assistantMode.name,
@@ -220,8 +227,23 @@ final class _ExecutionLeaseRuntimeOwnershipPort
     }
 
     try {
-      return _ExecutionLeaseRuntimeOwnershipHandle(_service.acquire(resources));
+      final handle = _ExecutionLeaseRuntimeOwnershipHandle(
+        _service.acquire(resources),
+      );
+      appLog(
+        '[Lease] acquired mode=${request.mode} conversation=$conversationId '
+        'workspace=$workspace',
+      );
+      return handle;
     } on CavernoExecutionLeaseConflict catch (conflict) {
+      // The error the user sees names only the last path segment, so log the
+      // full identity: a conflict between two different projects means the
+      // workspace was resolved from the wrong thread.
+      appLog(
+        '[Lease] conflict on ${conflict.resource.identity} '
+        '(mode=${request.mode} conversation=$conversationId '
+        'workspace=$workspace) owner=${conflict.owner?.processId}',
+      );
       throw CavernoRuntimeOwnershipConflict(conflict.message);
     }
   }

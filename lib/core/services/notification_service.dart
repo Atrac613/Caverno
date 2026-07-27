@@ -86,6 +86,22 @@ class NotificationService {
     );
   }
 
+  /// Show a notification that a thread the user is not looking at has stopped
+  /// to ask for approval. Keyed per thread so two waiting threads both show.
+  Future<void> showApprovalRequiredNotification({
+    required String conversationId,
+    required String title,
+    required String body,
+  }) async {
+    await _showNotification(
+      id: conversationId.hashCode & 0x7fffffff,
+      title: title,
+      body: body,
+      channelId: 'approval_required',
+      channelName: 'Approval Required',
+    );
+  }
+
   /// Show a notification for a scheduled routine completion.
   Future<void> showRoutineCompletionNotification({
     required String routineId,

@@ -42,7 +42,7 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
   }
 
   bool _isGoalValidationProbeCommandGuardResult(McpToolResult result) {
-    return _decodeJsonObject(result.result)?['code'] ==
+    return decodeJsonObject(result.result)?['code'] ==
         _goalValidationProbeRequiresVerifierCode;
   }
 
@@ -136,7 +136,7 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
   }
 
   bool _isUnchangedVerifierReplayBeforeRepairGuardResult(McpToolResult result) {
-    return _decodeJsonObject(result.result)?['code'] ==
+    return decodeJsonObject(result.result)?['code'] ==
         _unchangedVerifierReplayBeforeRepairBlockedCode;
   }
 
@@ -679,7 +679,7 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
     if (!_isGitTagFormatInspectionCommand(command)) {
       return false;
     }
-    final decoded = _decodeJsonObject(toolResult.result);
+    final decoded = decodeJsonObject(toolResult.result);
     if (decoded == null || decoded['exit_code'] != 0) {
       return false;
     }
@@ -812,7 +812,7 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
     if (!answerResult.isSuccess) {
       return false;
     }
-    final decoded = _decodeJsonObject(answerResult.result);
+    final decoded = decodeJsonObject(answerResult.result);
     if (decoded == null || decoded['status'] != 'answered') {
       return false;
     }

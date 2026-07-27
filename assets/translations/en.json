@@ -496,6 +496,8 @@
     "new_conversation": "New Conversation",
     "new_thread": "New Thread",
     "thread_working_tooltip": "Assistant is working in this thread",
+    "thread_approval_required": "Approval needed",
+    "thread_approval_required_tooltip": "This thread is waiting for your approval",
     "no_conversations": "No conversations",
     "no_threads": "No threads",
     "no_projects": "No projects yet",

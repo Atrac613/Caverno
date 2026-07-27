@@ -9,7 +9,7 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
     ToolCallInfo toolCall, {
     int? interactionGeneration,
   }) async {
-    final question = _trimStringArgument(toolCall.arguments, 'question');
+    final question = trimStringArgument(toolCall.arguments, 'question');
     if (question.isEmpty) {
       return McpToolResult(
         toolName: toolCall.name,
@@ -71,11 +71,11 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
 
     final answer = await requestAskUserQuestion(
       question: question,
-      help: _trimStringArgument(toolCall.arguments, 'help'),
+      help: trimStringArgument(toolCall.arguments, 'help'),
       options: options,
       allowMultiple: toolCall.arguments['allow_multiple'] as bool? ?? false,
       allowOther: allowOther,
-      otherPlaceholder: _trimStringArgument(
+      otherPlaceholder: trimStringArgument(
         toolCall.arguments,
         'other_placeholder',
       ),
@@ -118,7 +118,7 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
   }
 
   McpToolResult _buildRepeatedAskUserQuestionResult(McpToolResult previous) {
-    final decoded = _decodeJsonObject(previous.result);
+    final decoded = decodeJsonObject(previous.result);
     final result = decoded == null
         ? previous.result
         : jsonEncode({

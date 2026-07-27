@@ -1,3 +1,4 @@
+import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
 import 'chat_state.dart';
 
@@ -39,6 +40,11 @@ class ActiveResponseRegistry {
   Set<String> get activeConversationIds =>
       _conversationIdsByGeneration.values.toSet();
 
+  /// Open registrations, for the lifecycle gate: after every turn has ended
+  /// this must be zero, or some thread is stranded looking busy on a stale
+  /// snapshot until the app restarts.
+  int get openRegistrationCount => _conversationIdsByGeneration.length;
+
   int? generationForConversation(String? targetConversationId) {
     if (targetConversationId == null) return null;
     int? matchedGeneration;
@@ -70,18 +76,55 @@ class ActiveResponseRegistry {
         visibleConversationId != targetConversationId;
   }
 
+  /// The open registrations, as `gen:thread(messageCount)`, newest last.
+  ///
+  /// A registration is what makes a thread look busy and what a thread switch
+  /// shows instead of the persisted transcript, so one that outlives its turn
+  /// strands the thread on a stale snapshot under a spinner that never stops —
+  /// exactly what two threads did on 2026-07-26 until the app was relaunched.
+  /// The store was correct throughout, which is why a restart healed it and
+  /// why the session log, written per request, showed nothing at all.
+  String describeOpenRegistrations() {
+    final generations = _conversationIdsByGeneration.keys.toList()..sort();
+    return generations
+        .map((generation) {
+          final thread = _conversationIdsByGeneration[generation] ?? '?';
+          final count = _messagesByGeneration[generation]?.length ?? 0;
+          return 'gen-$generation:${thread.substring(0, thread.length.clamp(0, 8))}'
+              '($count)';
+        })
+        .join(' ');
+  }
+
   void register({
     required int generation,
     required String? targetConversationId,
     required List<Message> messages,
   }) {
     if (targetConversationId == null) return;
+    // One thread, one open registration: a turn registers and releases before
+    // the next one on that thread starts. A second open registration means the
+    // previous turn never handed the thread back, and since lookups take the
+    // newest generation the older one can no longer be reached to release it.
+    final stranded = generationForConversation(targetConversationId);
+    if (stranded != null && stranded != generation) {
+      appLog(
+        '[ActiveResponse][WARN] gen-$stranded never released '
+        'thread=${targetConversationId.substring(0, targetConversationId.length.clamp(0, 8))} '
+        'before gen-$generation started',
+      );
+    }
     _conversationIdsByGeneration[generation] = targetConversationId;
     cacheMessages(generation, messages);
     if (generation == _currentGeneration) {
       _currentConversationId = targetConversationId;
       _currentMessages = List<Message>.unmodifiable(messages);
     }
+    appLog(
+      '[ActiveResponse] register gen-$generation '
+      'thread=${targetConversationId.substring(0, targetConversationId.length.clamp(0, 8))} '
+      'messages=${messages.length} open=[${describeOpenRegistrations()}]',
+    );
   }
 
   void cacheMessages(int generation, List<Message> messages) {
@@ -96,15 +139,28 @@ class ActiveResponseRegistry {
   }
 
   void clearGeneration(int generation) {
-    _conversationIdsByGeneration.remove(generation);
+    final released = _conversationIdsByGeneration.remove(generation);
     _messagesByGeneration.remove(generation);
     if (generation == _currentGeneration) {
       _currentConversationId = null;
       _currentMessages = null;
     }
+    if (released != null) {
+      appLog(
+        '[ActiveResponse] release gen-$generation '
+        'thread=${released.substring(0, released.length.clamp(0, 8))} '
+        'open=[${describeOpenRegistrations()}]',
+      );
+    }
   }
 
   void clearAll() {
+    if (_conversationIdsByGeneration.isNotEmpty) {
+      appLog(
+        '[ActiveResponse] release all '
+        'open=[${describeOpenRegistrations()}]',
+      );
+    }
     _conversationIdsByGeneration.clear();
     _messagesByGeneration.clear();
     _currentConversationId = null;

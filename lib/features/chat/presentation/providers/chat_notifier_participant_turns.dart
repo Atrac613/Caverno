@@ -50,13 +50,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
     _participantTurnStopRequested = false;
     final interactionGeneration = _beginInteractionGeneration();
     conversationId = targetConversationId;
-    _llmSessionLogContextsByGeneration[interactionGeneration] =
-        _buildLlmSessionLogContext(targetConversationId: targetConversationId);
-    _registerActiveResponse(
-      generation: interactionGeneration,
-      targetConversationId: targetConversationId,
-      messages: state.messages,
-    );
+    _trackActiveResponse(interactionGeneration, targetConversationId);
     state = state.copyWith(
       isLoading: true,
       error: null,
@@ -465,7 +459,7 @@ extension ChatNotifierParticipantTurns on ChatNotifier {
       reason: reason,
       completer: completer,
     );
-    state = state.copyWith(pendingParticipantToolApproval: pending);
+    _routeApproval((s) => s.copyWith(pendingParticipantToolApproval: pending));
     _emitRuntimeApprovalRequired(
       id: pending.id,
       capability: 'participant_tool',

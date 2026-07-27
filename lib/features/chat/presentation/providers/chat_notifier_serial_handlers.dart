@@ -130,7 +130,7 @@ extension ChatNotifierSerialHandlers on ChatNotifier {
       baudRate: baudRate,
       completer: completer,
     );
-    state = state.copyWith(pendingSerialOpen: pending);
+    _routeApproval((s) => s.copyWith(pendingSerialOpen: pending));
     _emitRuntimeApprovalRequired(
       id: pending.id,
       capability: 'serial_connection',

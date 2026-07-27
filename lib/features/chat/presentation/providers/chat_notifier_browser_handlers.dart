@@ -149,7 +149,7 @@ extension ChatNotifierBrowserHandlers on ChatNotifier {
       reason: reason,
       completer: completer,
     );
-    state = state.copyWith(pendingBrowserAction: pending);
+    _routeApproval((s) => s.copyWith(pendingBrowserAction: pending));
     _emitRuntimeApprovalRequired(
       id: pending.id,
       capability: 'browser_action',

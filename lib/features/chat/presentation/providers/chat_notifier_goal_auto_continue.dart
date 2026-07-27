@@ -247,9 +247,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     if (!evidence.mutatedWithoutExecutionVerification) {
       return null;
     }
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
+    final conversation = _conversationForGeneration(interactionGeneration);
     if (conversation == null ||
         conversation.workspaceMode != WorkspaceMode.coding ||
         conversation.verificationGeneration >=
@@ -299,9 +297,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     );
     if (replay == null) return false;
 
-    final conversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
+    final conversation = _conversationForGeneration(interactionGeneration);
     final tracker = conversation == null
         ? null
         : _goalAutoContinueTrackers[conversation.id];
@@ -407,8 +403,8 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     _latestGoalAutoContinueEvidence =
         ToolResultPromptBuilder.reconcileFinalizationEvidence(
           authoritativeEvidence: _latestGoalAutoContinueEvidence,
-          completedToolResults: _latestCompletedToolResults,
-          contentToolResults: _latestContentToolResults,
+          completedToolResults: _turnToolResults.completed,
+          contentToolResults: _turnToolResults.content,
         );
     final conversation = ref
         .read(conversationsNotifierProvider)
@@ -641,7 +637,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
           tracker != null) {
         tracker.noProgressStreak = candidateNoProgressStreak;
       }
-      final noticeKey = GoalAutoContinueStopPresentation.noticeKeyFor(decision.stopCause);
+      final noticeKey = GoalAutoContinueStopPresentation.noticeKeyFor(
+        decision.stopCause,
+      );
       if (noticeKey != null) {
         if (_goalAutoContinueBudgetNotifiedConversations.add(
           currentConversationId,
@@ -692,7 +690,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             tracker?.completionElicitationMutationGeneration != null &&
             tracker!.completionElicitationMutationGeneration! >=
                 mutationGeneration;
-        if (producedWork && goal!.autoContinue && tracker != null &&
+        if (producedWork &&
+            goal!.autoContinue &&
+            tracker != null &&
             !alreadyAsked) {
           tracker.completionElicitationMutationGeneration = mutationGeneration;
           _clearGoalAutoContinueIndicator();
@@ -709,7 +709,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       return;
     }
 
-    if (!ref.mounted || state.isLoading || _queuedChatMessages.isNotEmpty) {
+    if (!ref.mounted ||
+        state.isLoading ||
+        _queuedChatMessages.pendingFor(conversationId) > 0) {
       _logGoalAutoContinueSkip(
         'state changed before continuation dispatch; '
         'conversation=$currentConversationId',
@@ -849,7 +851,8 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     return GoalAutoContinueSafeBoundary(
       isLoading: state.isLoading,
       hasQueuedUserInput:
-          _queuedChatMessages.isNotEmpty || state.queuedMessages.isNotEmpty,
+          _queuedChatMessages.pendingFor(conversationId) > 0 ||
+          state.queuedMessages.isNotEmpty,
       hasPendingSshConnect: state.pendingSshConnect != null,
       hasPendingSshCommand: state.pendingSshCommand != null,
       hasPendingGitCommand: state.pendingGitCommand != null,
@@ -1004,7 +1007,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
   /// previous turn left unresolved.
   ToolResultCompletionEvidence _goalUpdateEvidenceAtCallTime() {
     return ToolResultPromptBuilder.completionEvidence(
-      _latestCompletedToolResults,
+      _turnToolResults.completed,
     ).carryForwardIncompleteFrom(_latestGoalAutoContinueEvidence);
   }
 

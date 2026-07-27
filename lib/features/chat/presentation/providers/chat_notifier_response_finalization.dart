@@ -5,9 +5,15 @@
 part of 'chat_notifier.dart';
 
 extension ChatNotifierResponseFinalization on ChatNotifier {
-  /// Persists the current conversation messages.
-  Future<void> _saveMessages({bool updateSessionMemory = true}) async {
-    final messagesToSave = state.messages
+  /// Persists a turn's messages to the thread they belong to. Both arguments
+  /// default to the visible thread; a turn finalizing in the background must
+  /// pass its own, or its work lands on whichever thread is on screen.
+  Future<void> _saveMessages({
+    bool updateSessionMemory = true,
+    List<Message>? messages,
+    String? conversationId,
+  }) async {
+    final messagesToSave = (messages ?? state.messages)
         .where((message) => !message.isStreaming)
         .where(_shouldKeepVisibleMessage)
         .toList();
@@ -19,7 +25,7 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
       }
     }
 
-    await _onMessagesChanged(messagesToSave);
+    await _onMessagesChanged(messagesToSave, conversationId: conversationId);
 
     final currentConversationId = conversationId;
     if (!updateSessionMemory ||
@@ -59,46 +65,24 @@ extension ChatNotifierResponseFinalization on ChatNotifier {
       return;
     }
 
-    final updatedMessages = [...activeMessages];
-    final lastIndex = updatedMessages.length - 1;
-    final lastMessage = updatedMessages[lastIndex];
-    final fallbackContent = _pendingContentToolContinuationFallback?.trim();
-    final shouldUseContentToolContinuationFallback =
-        lastMessage.role == MessageRole.assistant &&
-        !_assistantMessageHasVisibleContent(lastMessage.content) &&
-        fallbackContent != null &&
-        fallbackContent.isNotEmpty;
-    final shouldDropLastAssistant =
-        lastMessage.role == MessageRole.assistant &&
-        !_assistantMessageHasVisibleContent(lastMessage.content) &&
-        !shouldUseContentToolContinuationFallback;
-    final responseMetrics = shouldDropLastAssistant
-        ? null
-        : _takeResponseMetricsForGeneration(generation);
-    if (shouldDropLastAssistant) {
-      _discardResponseMetricsForGeneration(generation);
-    }
-
-    if (shouldUseContentToolContinuationFallback) {
-      updatedMessages[lastIndex] = lastMessage.copyWith(
-        content: fallbackContent,
-        isStreaming: false,
-        responseMetrics: responseMetrics,
-      );
-    } else if (shouldDropLastAssistant) {
-      updatedMessages.removeAt(lastIndex);
-    } else {
-      final finalizedContent =
-          _isCompletionTruncated(_latestFinishReason() ?? '')
-          ? TruncationNotice.withMaxTokenNotice(lastMessage.content)
-          : lastMessage.content;
-      updatedMessages[lastIndex] = lastMessage.copyWith(
-        content: finalizedContent,
-        isStreaming: false,
-        responseMetrics: responseMetrics,
-      );
-    }
+    final finalMessage = _resolveTurnFinalMessage(activeMessages.last);
+    final shouldDropLastAssistant = finalMessage.dropLastAssistant;
+    final updatedMessages = finalMessage.apply(
+      activeMessages,
+      metrics: _turnResponseMetrics(generation, finalMessage),
+      truncated: _isCompletionTruncated(_latestFinishReason() ?? ''),
+    );
     _pendingContentToolContinuationFallback = null;
+
+    // A background turn ends here rather than in _finishStreaming, so without
+    // this its exit reason never reached the session log and the triage
+    // tooling saw only the turns that happened to finish on screen.
+    await _logTurnExitReason(
+      generation: generation,
+      finalizedMessages: updatedMessages,
+      shouldDropLastAssistant: shouldDropLastAssistant,
+    );
+    if (!_isCurrentInteractionGeneration(generation)) return;
 
     final messagesToSave = updatedMessages
         .where((message) => !message.isStreaming)

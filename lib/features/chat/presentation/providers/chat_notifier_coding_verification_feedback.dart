@@ -18,17 +18,11 @@ extension ChatNotifierCodingVerificationFeedback on ChatNotifier {
     if (!_isCurrentInteractionGeneration(interactionGeneration)) {
       return null;
     }
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (currentConversation?.workspaceMode != WorkspaceMode.coding ||
-        (currentConversation?.isPlanningSession ?? false)) {
+    final turn = _codingTurnContext(interactionGeneration);
+    if (turn == null) {
       return null;
     }
-    final projectRoot = _getActiveProjectRootPath();
-    if (projectRoot == null || projectRoot.isEmpty) {
-      return null;
-    }
+    final projectRoot = turn.projectRoot;
 
     final changedPaths = _changedFileMutationPaths(toolResults);
     if (changedPaths.isEmpty) {

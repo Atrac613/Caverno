@@ -71,6 +71,7 @@ class _WorkflowConversationsNotifier extends ConversationsNotifier {
   Future<void> updateCurrentPlanArtifact({
     ConversationPlanArtifact? planArtifact,
     bool clearPlanArtifact = false,
+    String? conversationId,
   }) async {
     final current = state.currentConversation;
     if (current == null) {

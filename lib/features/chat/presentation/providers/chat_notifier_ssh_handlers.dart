@@ -273,7 +273,7 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       savedPassword: savedPassword,
       completer: completer,
     );
-    state = state.copyWith(pendingSshConnect: pending);
+    _routeApproval((s) => s.copyWith(pendingSshConnect: pending));
     _emitRuntimeApprovalRequired(
       id: pending.id,
       capability: 'ssh_connection',
@@ -306,7 +306,7 @@ extension ChatNotifierSshHandlers on ChatNotifier {
       username: session?.username ?? '',
       completer: completer,
     );
-    state = state.copyWith(pendingSshCommand: pending);
+    _routeApproval((s) => s.copyWith(pendingSshCommand: pending));
     _emitRuntimeApprovalRequired(
       id: pending.id,
       capability: 'remote_command',

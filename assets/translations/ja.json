@@ -496,6 +496,8 @@
     "new_conversation": "新しい会話",
     "new_thread": "新しいスレッド",
     "thread_working_tooltip": "このスレッドでアシスタントが作業中です",
+    "thread_approval_required": "承認が必要です",
+    "thread_approval_required_tooltip": "このスレッドがあなたの承認を待っています",
     "no_conversations": "会話がありません",
     "no_threads": "スレッドがありません",
     "no_projects": "プロジェクトがまだありません",

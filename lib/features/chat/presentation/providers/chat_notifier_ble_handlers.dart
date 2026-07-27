@@ -120,7 +120,7 @@ extension ChatNotifierBleHandlers on ChatNotifier {
       deviceName: deviceName,
       completer: completer,
     );
-    state = state.copyWith(pendingBleConnect: pending);
+    _routeApproval((s) => s.copyWith(pendingBleConnect: pending));
     _emitRuntimeApprovalRequired(
       id: pending.id,
       capability: 'ble_connection',

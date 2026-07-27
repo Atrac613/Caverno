@@ -466,7 +466,13 @@ class QueuedChatMessage {
     this.originalImagePath,
     this.originalImageMimeType,
     this.origin = ChatInteractionOrigin.local,
+    this.conversationId,
   });
+
+  /// The thread this message was typed in. A message queued behind another
+  /// thread's turn must come back to its own thread, never to whichever one
+  /// the user is looking at when the queue drains.
+  final String? conversationId;
 
   final String id;
   final String content;
@@ -494,7 +500,8 @@ class QueuedChatMessage {
             languageCode == other.languageCode &&
             isVoiceMode == other.isVoiceMode &&
             bypassPlanMode == other.bypassPlanMode &&
-            origin == other.origin;
+            origin == other.origin &&
+            conversationId == other.conversationId;
   }
 
   @override
@@ -509,6 +516,7 @@ class QueuedChatMessage {
     isVoiceMode,
     bypassPlanMode,
     origin,
+    conversationId,
   );
 }
 
@@ -554,6 +562,9 @@ abstract class ChatState with _$ChatState {
     // clearing the last entry notifies listeners; the thread list renders its
     // busy spinner from this.
     @Default(<String>{}) Set<String> busyConversationIds,
+    // Threads blocked on an approval the user has not answered. Such a thread
+    // is not working, so the sidebar says so instead of spinning forever.
+    @Default(<String>{}) Set<String> approvalRequiredConversationIds,
     String? error,
     @Default(0) int promptTokens,
     @Default(0) int completionTokens,

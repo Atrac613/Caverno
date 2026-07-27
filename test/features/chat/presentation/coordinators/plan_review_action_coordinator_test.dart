@@ -73,6 +73,7 @@ class _CoordinatorConversationsNotifier extends ConversationsNotifier {
   Future<void> updateCurrentPlanArtifact({
     ConversationPlanArtifact? planArtifact,
     bool clearPlanArtifact = false,
+    String? conversationId,
   }) async {
     planArtifactWriteCount += 1;
     lastClearPlanArtifact = clearPlanArtifact;

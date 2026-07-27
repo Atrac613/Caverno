@@ -112,6 +112,7 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
 
     return const VoiceModeState(status: VoiceModeStatus.idle);
   }
+
   String _currentlySynthesizingText = '';
   final _sentenceSplitRegExp = RegExp(r'[。！？\n]+');
   final ValueNotifier<double> audioLevel = ValueNotifier(0.0);
@@ -141,13 +142,13 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
   /// Patterns that Whisper outputs for non-speech audio (music, noise, etc.).
   /// These should be discarded rather than sent to the LLM.
   static final RegExp _nonSpeechPattern = RegExp(
-    r'^\s*'                          // leading whitespace
-    r'[\[\(（【]'                     // opening bracket
-    r'[^\]\)）】]*'                   // content inside brackets
+    r'^\s*' // leading whitespace
+    r'[\[\(（【]' // opening bracket
+    r'[^\]\)）】]*' // content inside brackets
     r'(music|musik|musique|音楽|歌|bgm|blank.audio|noise|silence|applause|laughter|拍手|笑)'
-    r'[^\]\)）】]*'                   // content inside brackets
-    r'[\]\)）】]'                     // closing bracket
-    r'\s*$',                          // trailing whitespace
+    r'[^\]\)）】]*' // content inside brackets
+    r'[\]\)）】]' // closing bracket
+    r'\s*$', // trailing whitespace
     caseSensitive: false,
   );
 
@@ -203,7 +204,10 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
 
     // Known Whisper hallucination phrases from silence/noise
     // and own TTS phrases that may be picked up as echo.
-    final lower = trimmed.toLowerCase().replaceAll(RegExp(r'[。！？!?.、,\s]+$'), '');
+    final lower = trimmed.toLowerCase().replaceAll(
+      RegExp(r'[。！？!?.、,\s]+$'),
+      '',
+    );
     for (final phrase in _whisperHallucinations) {
       if (lower == phrase.toLowerCase()) return true;
     }
@@ -273,21 +277,23 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
     Future.delayed(_postTtsGrace, () {
       _speechDetectionArmed = true;
     });
-    
+
     _silencePromptTimer?.cancel();
     if (_isFirstListen) {
       _silencePromptTimer = Timer(const Duration(seconds: 6), () {
         if (state.status == VoiceModeStatus.listening) {
-          appLog('[VoiceModeNotifier] Initial silence detected (6s). Sending hidden prompt.');
+          appLog(
+            '[VoiceModeNotifier] Initial silence detected (6s). Sending hidden prompt.',
+          );
           _isFirstListen = false;
           state = state.copyWith(status: VoiceModeStatus.processing);
-          
+
           final settings = _getSettings();
           final resolvedLang = resolveAppLanguageCode(
             preference: settings.language,
             systemLocale: PlatformDispatcher.instance.locale,
           );
-          
+
           _llmStopwatch = Stopwatch()..start();
           _isFirstTokenLogged = false;
 
@@ -302,7 +308,9 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
       if (_getSettings().voiceModeAutoStop) {
         _silencePromptTimer = Timer(const Duration(seconds: 60), () {
           if (state.status == VoiceModeStatus.listening) {
-            appLog('[VoiceModeNotifier] Subsequent silence detected (60s). Stopping voice mode.');
+            appLog(
+              '[VoiceModeNotifier] Subsequent silence detected (60s). Stopping voice mode.',
+            );
             stop();
           }
         });
@@ -332,12 +340,16 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
       final sttStopwatch = Stopwatch()..start();
       final text = await _whisperService.transcribe(wavBytes);
       sttStopwatch.stop();
-      appLog('[Performance] STT (Whisper) latency: ${sttStopwatch.elapsedMilliseconds}ms');
+      appLog(
+        '[Performance] STT (Whisper) latency: ${sttStopwatch.elapsedMilliseconds}ms',
+      );
 
       if (text.isEmpty || _isNonSpeechTranscription(text)) {
         // Nothing heard or non-speech audio (music, noise, etc.).
         if (text.isNotEmpty) {
-          appLog('[VoiceModeNotifier] Filtered non-speech transcription: "$text"');
+          appLog(
+            '[VoiceModeNotifier] Filtered non-speech transcription: "$text"',
+          );
         }
         await _startListening();
         return;
@@ -345,14 +357,14 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
 
       state = state.copyWith(transcript: text);
       _currentlySynthesizingText = '';
-      
+
       // Send the text to the chat.
       final settings = _getSettings();
       final resolvedLang = resolveAppLanguageCode(
         preference: settings.language,
         systemLocale: PlatformDispatcher.instance.locale,
       );
-      
+
       _llmStopwatch = Stopwatch()..start();
       _isFirstTokenLogged = false;
 
@@ -361,7 +373,6 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
         isVoiceMode: true,
         languageCode: resolvedLang,
       );
-      
     } catch (e) {
       appLog('[VoiceModeNotifier] STT Error: $e');
       state = state.copyWith(
@@ -386,14 +397,20 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
 
     final isFinal = !chatState.isLoading && !lastMsg.isStreaming;
 
-    if (_llmStopwatch != null && !_isFirstTokenLogged && lastMsg.content.isNotEmpty) {
+    if (_llmStopwatch != null &&
+        !_isFirstTokenLogged &&
+        lastMsg.content.isNotEmpty) {
       _isFirstTokenLogged = true;
-      appLog('[Performance] LLM TTFT (Time To First Token): ${_llmStopwatch!.elapsedMilliseconds}ms');
+      appLog(
+        '[Performance] LLM TTFT (Time To First Token): ${_llmStopwatch!.elapsedMilliseconds}ms',
+      );
     }
 
     if (_llmStopwatch != null && isFinal) {
       _llmStopwatch!.stop();
-      appLog('[Performance] LLM Total latency: ${_llmStopwatch!.elapsedMilliseconds}ms');
+      appLog(
+        '[Performance] LLM Total latency: ${_llmStopwatch!.elapsedMilliseconds}ms',
+      );
       _llmStopwatch = null;
     }
 
@@ -429,26 +446,33 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
     }
   }
 
-  Future<void> _processStreamingText(String rawContent, {required bool isFinal}) async {
+  Future<void> _processStreamingText(
+    String rawContent, {
+    required bool isFinal,
+  }) async {
     // 1. Strip out tool calls and thought blocks using the parser.
     final parsedChunks = ContentParser.parse(rawContent);
 
     // 2. Play a brief notification if we just detected the start of a tool call
     if (!_hasNotifiedToolUseThisTurn) {
-      final hasToolCall = parsedChunks.segments.any((s) => s.type == ContentType.toolCall) ||
-          (parsedChunks.hasIncompleteTag && parsedChunks.incompleteTagType == 'tool_call');
-      
+      final hasToolCall =
+          parsedChunks.segments.any((s) => s.type == ContentType.toolCall) ||
+          (parsedChunks.hasIncompleteTag &&
+              parsedChunks.incompleteTagType == 'tool_call');
+
       if (hasToolCall) {
         _hasNotifiedToolUseThisTurn = true;
-        
+
         final settings = _getSettings();
         final resolvedLang = resolveAppLanguageCode(
           preference: settings.language,
           systemLocale: PlatformDispatcher.instance.locale,
         );
-        
+
         final phrase = _getToolNotificationPhrase(resolvedLang);
-        appLog('[VoiceModeNotifier] Tool use detected. Playing notification: $phrase');
+        appLog(
+          '[VoiceModeNotifier] Tool use detected. Playing notification: $phrase',
+        );
         await _synthesizeAndQueue(phrase);
       }
     }
@@ -469,9 +493,11 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
       // If the prefix string doesn't match perfectly (e.g. whitespace changes
       // from ContentParser incrementally stripping tags), just trust the length.
       // This explicitly prevents the double-playback/re-synthesizing bug!
-      appLog('[VoiceModeNotifier] Minor mismatch detected, skipping reset to avoid double synthesis.');
+      appLog(
+        '[VoiceModeNotifier] Minor mismatch detected, skipping reset to avoid double synthesis.',
+      );
     }
-    
+
     final newText = cleanText.substring(matchLen);
     if (newText.isEmpty) {
       if (isFinal && _audioPlayer.isActive == false) {
@@ -484,7 +510,7 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
     // Look for sentence boundaries in the new text
     int lastSentenceEnd = 0;
     final matches = _sentenceSplitRegExp.allMatches(newText);
-    
+
     for (final match in matches) {
       final sentence = newText.substring(lastSentenceEnd, match.end);
       lastSentenceEnd = match.end;
@@ -498,9 +524,9 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
       _currentlySynthesizingText += remainder;
       await _synthesizeAndQueue(remainder);
     }
-    
+
     if (isFinal && _audioPlayer.isActive == false) {
-       await _startListening();
+      await _startListening();
     }
   }
 
@@ -521,13 +547,17 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
         speakerId: _getSettings().voicevoxSpeakerId,
       );
       ttsStopwatch.stop();
-      appLog('[Performance] TTS (Voicevox) latency for ${cleanSentence.length} chars: ${ttsStopwatch.elapsedMilliseconds}ms');
+      appLog(
+        '[Performance] TTS (Voicevox) latency for ${cleanSentence.length} chars: ${ttsStopwatch.elapsedMilliseconds}ms',
+      );
 
       _consecutiveSynthesisErrors = 0;
       _audioPlayer.enqueue(wavBytes);
     } catch (e) {
       _consecutiveSynthesisErrors++;
-      appLog('[VoiceModeNotifier] Synthesis error ($_consecutiveSynthesisErrors/$_maxConsecutiveSynthesisErrors): $e');
+      appLog(
+        '[VoiceModeNotifier] Synthesis error ($_consecutiveSynthesisErrors/$_maxConsecutiveSynthesisErrors): $e',
+      );
       if (_consecutiveSynthesisErrors >= _maxConsecutiveSynthesisErrors) {
         await _audioPlayer.stop();
         await _recorder.stopRecording();
@@ -546,23 +576,23 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
     if (state.status != VoiceModeStatus.speaking) return;
 
     appLog('[VoiceModeNotifier] Barge-in! Interrupting LLM and TTS.');
-    
+
     // Stop audio.
     _audioPlayer.stop();
-    
+
     // Cancel LLM streaming.
     _chatNotifier.cancelStreaming();
-    
+
     // Restart listening.
     _startListening();
   }
 
   void _onAudioPlaybackComplete() {
     if (state.status != VoiceModeStatus.speaking) return;
-    
+
     // Only restart listening if the LLM has also finished streaming its output.
     if (!_chatNotifier.state.isLoading) {
-       _startListening();
+      _startListening();
     }
   }
 
@@ -570,9 +600,9 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
     if (languageCode.startsWith('ja')) {
       return '調べてみますね'; // "Let me check that for you"
     } else if (languageCode.startsWith('zh')) {
-      return '我来查一下';     // "I'll check it"
+      return '我来查一下'; // "I'll check it"
     } else if (languageCode.startsWith('ko')) {
-      return '확인해 볼게요';   // "I'll look into it"
+      return '확인해 볼게요'; // "I'll look into it"
     } else {
       return 'Let me check that for you.';
     }

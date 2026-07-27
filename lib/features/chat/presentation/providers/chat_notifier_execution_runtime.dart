@@ -48,7 +48,7 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
   }
 
   void _emitRuntimeAssistantContent(int generation, String content) {
-    final visibleContent = _runtimeVisibleAssistantContent(content);
+    final visibleContent = ContentParser.parse(content).text;
     final previous =
         _runtimeVisibleAssistantContentByGeneration[generation] ?? '';
     if (visibleContent == previous) {
@@ -61,14 +61,6 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
     _runtimeTurnForGeneration(
       generation,
     )?.emitAssistantDelta(visibleContent.substring(previous.length));
-  }
-
-  String _runtimeVisibleAssistantContent(String content) {
-    final parsed = ContentParser.parse(content);
-    return parsed.segments
-        .where((segment) => segment.type == ContentType.text)
-        .map((segment) => segment.content)
-        .join();
   }
 
   void _emitRuntimeToolLifecycle({
@@ -139,13 +131,28 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
     );
   }
 
-  void _completeRuntimeTurn(int generation, {required String content}) {
+  /// Ends [generation] for good: the runtime turn and the active-response
+  /// registration are released together, because a registration outliving its
+  /// turn strands the thread on a stale snapshot under a spinner until the app
+  /// restarts. Clearing is idempotent, so earlier releases stay correct.
+  /// See docs/multi_thread_architecture_study.md.
+  void _completeRuntimeTurn(
+    int generation, {
+    required String content,
+    String? exitReason,
+  }) {
     final handle = _runtimeTurnsByGeneration.remove(generation);
     _runtimeVisibleAssistantContentByGeneration.remove(generation);
+    _recordTurnExitIfUnclassified(
+      generation,
+      outcome: 'completed',
+      reason: exitReason,
+    );
+    _clearActiveResponseForGeneration(generation);
     if (handle == null) {
       return;
     }
-    handle.complete(content: _runtimeVisibleAssistantContent(content));
+    handle.complete(content: ContentParser.parse(content).text);
   }
 
   void _failRuntimeTurn(
@@ -156,6 +163,8 @@ extension ChatNotifierExecutionRuntime on ChatNotifier {
   }) {
     final handle = _runtimeTurnsByGeneration.remove(generation);
     _runtimeVisibleAssistantContentByGeneration.remove(generation);
+    _recordTurnExitIfUnclassified(generation, outcome: 'failed:$code');
+    _clearActiveResponseForGeneration(generation);
     if (handle == null) {
       return;
     }

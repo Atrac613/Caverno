@@ -709,16 +709,13 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     ToolResultInfo toolResult, {
     required int interactionGeneration,
   }) {
-    if (_turnCommandLedgerGeneration != interactionGeneration) {
-      _turnCommandLedgerGeneration = interactionGeneration;
-      _turnCommandLedger.clear();
-    }
+    _turnToolResults.beginCommandGeneration(interactionGeneration);
     if (!_isCommandExecutionTool(toolResult.name)) {
       return;
     }
     final command = _toolCommandArgument(toolResult.arguments);
     if (command != null) {
-      _turnCommandLedger.add(command);
+      _turnToolResults.recordCommand(command);
     }
   }
 }

@@ -876,6 +876,67 @@ class FinalAnswerClaimDetector {
     ]);
   }
 
+  bool looksLikePlanOnlyFinalToolAnswer(String content) {
+    if (content.isEmpty || content.length > 1600) {
+      return false;
+    }
+
+    final numberedStepMatches = RegExp(
+      r'^\s*\d+[.)]\s+\S',
+      multiLine: true,
+    ).allMatches(content).toList(growable: false);
+    final numberedStepCount = numberedStepMatches.length;
+    final lowerContent = content.toLowerCase();
+    final hasPlanHeading = RegExp(
+      r'^\s*(?:#{1,6}\s*)?(?:\*\*)?\s*(?:investigation\s+plan|plan|next\s+steps?|checklist)\b',
+      caseSensitive: false,
+      multiLine: true,
+    ).hasMatch(content);
+    final futureActionScanStart = hasPlanHeading || numberedStepMatches.isEmpty
+        ? 0
+        : numberedStepMatches.first.start;
+    final hasFutureAction = _containsAnyAtOrAfter(lowerContent, const [
+      'i will inspect',
+      'i will check',
+      'i will confirm',
+      'i will trace',
+      'i will verify',
+      "i'll inspect",
+      "i'll check",
+      'we will inspect',
+      'we will check',
+      'need to inspect',
+      'need to check',
+      'need to confirm',
+      'first, i will',
+      'next, i will',
+    ], futureActionScanStart);
+    final hasCjkFutureAction = containsCjkFutureActionMarker(
+      content,
+      startIndex: futureActionScanStart,
+    );
+
+    if ((hasPlanHeading || numberedStepCount >= 2) &&
+        (hasFutureAction || hasCjkFutureAction)) {
+      return true;
+    }
+    return hasPlanHeading && numberedStepCount >= 2 && content.length <= 600;
+  }
+
+  bool _containsAnyAtOrAfter(
+    String value,
+    List<String> markers,
+    int startIndex,
+  ) {
+    final clampedStart = startIndex.clamp(0, value.length).toInt();
+    for (final marker in markers) {
+      if (value.indexOf(marker, clampedStart) >= 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool containsCjkFutureActionMarker(String value, {int startIndex = 0}) {
     final markers = [
       String.fromCharCodes([0x78ba, 0x8a8d, 0x3057, 0x307e, 0x3059]),

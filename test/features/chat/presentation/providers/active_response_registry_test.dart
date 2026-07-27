@@ -173,6 +173,34 @@ void main() {
       expect(registry.hasActiveResponse, isFalse);
     });
 
+    test('a released turn leaves no open registration behind', () {
+      // The lifecycle gate: a registration outliving its turn is what a thread
+      // switch shows instead of the persisted transcript, and what the
+      // thread's spinner is derived from, so the thread is stranded until the
+      // app restarts. Two threads running at once must both come back to zero.
+      final registry = ActiveResponseRegistry();
+      final first = registry.beginGeneration();
+      registry.register(
+        generation: first,
+        targetConversationId: 'conversation-a',
+        messages: [_message('a', MessageRole.user)],
+      );
+      final second = registry.beginGeneration();
+      registry.register(
+        generation: second,
+        targetConversationId: 'conversation-b',
+        messages: [_message('b', MessageRole.user)],
+      );
+
+      expect(registry.openRegistrationCount, 2);
+
+      registry.clearGeneration(first);
+      registry.clearGeneration(second);
+
+      expect(registry.openRegistrationCount, isZero);
+      expect(registry.activeConversationIds, isEmpty);
+    });
+
     test('ignores cache updates for unknown generations', () {
       final registry = ActiveResponseRegistry();
 

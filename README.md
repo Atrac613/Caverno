@@ -324,6 +324,27 @@ only after a fresh live smoke pass when you need a faster ping-only rediscovery
 loop. On failure, the gate prints the latest live suite, ping canary, and
 background-process canary artifact paths plus the investigation order.
 
+### Multi-thread live canary
+
+Two coding threads on two projects draft a plan at the same time against a real
+model, checking that neither thread prompts for the other's project, logs under
+the other's session, resolves a tool path into the other's root, or loses its
+plan. The canary asserts the overlap itself first, so a run that happened to go
+sequentially fails loudly instead of passing for the wrong reason.
+
+```bash
+CAVERNO_MULTI_THREAD_LIVE_CANARY=1 \
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+fvm flutter test tool/canaries/multi_thread_plan_live_canary_test.dart
+```
+
+On macOS point `CAVERNO_LLM_BASE_URL` at a loopback relay: Local Network Privacy
+stops the test binary from reaching a LAN address directly. Two concurrent
+threads issue two concurrent requests, so a single-slot server serialises them —
+allow for a slow run rather than assuming a hang.
+
 ### Deterministic suite
 
 ```bash
