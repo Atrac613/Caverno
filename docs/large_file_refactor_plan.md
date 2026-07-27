@@ -14,12 +14,11 @@ same-library aggregates, and active-worktree ownership audit are recorded in
 `docs/large_file_boundary_inventory_2026_07_18.md`. On 2026-07-19, the user
 confirmed that the listed auxiliary worktrees are inactive and must not block
 refactor selection; the audit remains historical context. The ChatNotifier row
-was refreshed on 2026-07-24 after the project-scoped argument resolver
-extraction.
+was refreshed on 2026-07-28 after the content tool-result formatter extraction.
 
 | File | Lines | Primary concern |
 |------|------:|-----------------|
-| `lib/features/chat/presentation/providers/chat_notifier.dart` | 9378 | Chat orchestration, tool loops, memory, workflows, persistence |
+| `lib/features/chat/presentation/providers/chat_notifier.dart` | 9375 | Chat orchestration, tool loops, memory, workflows, persistence |
 | `lib/features/chat/presentation/pages/chat_page.dart` | 2045 | Chat provider composition, dashboard and sidebar state, modals, input wiring, and plan UI |
 | `lib/features/chat/presentation/coordinators/chat_page_workspace_navigation_coordinator.dart` | 127 | Workspace, project, conversation, and assistant-mode routing |
 | `lib/features/chat/presentation/coordinators/slash_command_action_coordinator.dart` | 364 | Slash command loading policy, action dispatch, mode changes, conversation actions, and worktree queueing |
@@ -94,7 +93,7 @@ extraction.
 
 The primary files understate the effective library size because Dart `part`
 files share private state and compile as one library. The refreshed
-ChatNotifier aggregate is 23,018 lines. The refreshed aggregates for the other
+ChatNotifier aggregate is 22,900 lines. The refreshed aggregates for the other
 listed libraries are 8,853 for ChatPage, 1,233 for McpToolService, and 33,204
 for the ChatNotifier test library. Ratchets must cover both the primary
 file and its aggregate library.
@@ -263,8 +262,21 @@ Tranche 1 status (started 2026-07-02; updated 2026-07-24):
 - `ProjectScopedToolArgumentResolver` moved deterministic filesystem, command,
   dependency, and Git argument normalization into an independent data-layer
   service.
-- `chat_notifier.dart` is now 9,378 lines with a 9,400-line ceiling. Its
-  declared-part aggregate is 23,018 lines with a 23,050-line ceiling.
+- `chat_notifier.dart` ended the tranche at 9,378 lines with a 9,400-line
+  ceiling. Its declared-part aggregate was 23,018 lines with a 23,050-line
+  ceiling.
+
+Tranche 2 status (started 2026-07-28):
+
+- Slice 1 from `docs/chat_notifier_decomposition_codex_task.md` moved compact
+  `<tool_result>` payload and tag formatting into the independent
+  `ContentToolResultFormatter` domain service. The declared-part count fell
+  from 43 to 42.
+- `chat_notifier.dart` is now 9,375 lines with a 9,380-line ceiling. Its
+  declared-part aggregate is 22,900 lines with a 22,900-line ceiling.
+- The reproducible audit, structural boundary, thread-scope ratchet repair, and
+  two-thread regression slices remain pending before the next stateful
+  extraction.
 
 Deferred follow-up candidates:
 
@@ -1180,11 +1192,11 @@ Next slice:
 - MessageInput remains the next newly unblocked candidate at 2,318 lines.
   Slash suggestion state is complete; re-characterize one remaining composer
   action contract before moving more code.
-- The project-scoped tool argument resolver extraction is complete.
-  `chat_notifier.dart` fell from 9,507 to 9,378 lines and its same-library
-  aggregate fell from 23,147 to 23,018 lines. Re-characterize conversation
-  persistence or memory extraction as the next narrow concern; do not split
-  only the notifier test root.
+- The project-scoped tool argument resolver and content tool-result formatter
+  extractions are complete. `chat_notifier.dart` fell from 9,507 to 9,375 lines
+  and its same-library aggregate fell from 23,147 to 22,900 lines. Complete the
+  decomposition audit and regression-gate slices before another stateful
+  extraction; do not split only the notifier test root.
 - Do not widen `ChatPageWorkspaceNavigationCoordinator` into dashboard,
   sidebar, Files-tab, workflow, approval, composer, or persistence state.
 - Keep `routine_detail_view.dart` and

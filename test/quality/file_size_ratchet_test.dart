@@ -15,8 +15,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// aggregate growth. A small explicit margin may remain below a lowered ceiling
 /// so adjacent maintenance does not require raising the ratchet.
 const Map<String, int> _lineBudgets = {
-  // Lowered from 9400 after the turn tool-result ledger moved to its own
-  // class. The 9357-line file retains 23 lines of bounded maintenance margin.
+  // The 9375-line file retains five lines of bounded maintenance margin. The
+  // content tool-result formatter extraction changed no primary-file lines.
   'lib/features/chat/presentation/providers/chat_notifier.dart': 9380,
   // +1 import for ConversationGoalStatusPresentation, which absorbed the
   // status->label/colour/icon mapping duplicated across three files.
@@ -48,6 +48,7 @@ const Map<String, int> _lineBudgets = {
       258,
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
       2380,
+  'lib/features/chat/domain/services/content_tool_result_formatter.dart': 132,
   'lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart':
       56,
   'lib/features/chat/domain/services/workflow_task_turn_route_policy.dart': 43,
@@ -144,11 +145,9 @@ const Map<String, int> _lineBudgets = {
 };
 
 const Map<String, int> _libraryLineBudgets = {
-  // Lowered from 23050 after TurnToolResultLedger left the notifier library:
-  // the two result lists, the executed-command ledger and their lifecycle now
-  // live in an independent class. The 23007-line aggregate retains 23 lines of
-  // bounded maintenance margin.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 23030,
+  // Lowered from 23030 after the 149-line content tool-result formatter part
+  // moved to an independent domain service. The achieved aggregate is exact.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 22900,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

@@ -77,6 +77,7 @@ import '../../domain/entities/skill.dart';
 import '../../domain/entities/turn_diff.dart';
 import '../../domain/entities/subagent_task.dart';
 import '../../domain/entities/conversation_workflow.dart';
+import '../../domain/services/content_tool_result_formatter.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_goal_auto_continue_policy.dart';
 import '../../domain/services/goal_auto_continue_evidence_marker.dart';
@@ -186,7 +187,6 @@ part 'chat_notifier_ssh_handlers.dart';
 part 'chat_notifier_subagent_handlers.dart';
 part 'chat_notifier_python_attachment_repair.dart';
 part 'chat_notifier_unexecuted_action_recovery.dart';
-part 'chat_notifier_content_tool_result_format.dart';
 part 'chat_notifier_coding_verification_feedback.dart';
 part 'chat_notifier_python_handlers.dart';
 part 'chat_notifier_planning_research.dart';
@@ -7638,7 +7638,7 @@ class ChatNotifier extends Notifier<ChatState> {
         if (ref.mounted) {
           _appendToLastMessageForGeneration(
             interactionGeneration,
-            '\n\n${_buildContentToolResultTag(tc.name, failureResult)}',
+            '\n\n${ContentToolResultFormatter.format(tc.name, failureResult)}',
             scanForTools: false,
           );
           appLog('[ContentTool] Appended failure result to message');
@@ -7668,7 +7668,7 @@ class ChatNotifier extends Notifier<ChatState> {
       if (ref.mounted) {
         _appendToLastMessageForGeneration(
           interactionGeneration,
-          '\n\n${_buildContentToolResultTag(tc.name, promptResult)}',
+          '\n\n${ContentToolResultFormatter.format(tc.name, promptResult)}',
           scanForTools: false,
         );
         appLog('[ContentTool] Appended result to message');
@@ -7683,7 +7683,7 @@ class ChatNotifier extends Notifier<ChatState> {
       if (ref.mounted) {
         _appendToLastMessageForGeneration(
           interactionGeneration,
-          '\n\n${_buildContentToolResultTag(tc.name, failureResult)}',
+          '\n\n${ContentToolResultFormatter.format(tc.name, failureResult)}',
           scanForTools: false,
         );
         appLog('[ContentTool] Appended failure result to message');

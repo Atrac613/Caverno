@@ -1,6 +1,11 @@
 # ChatNotifier Library Decomposition Program (Phase 1, Tranche 2)
 
-Status: program planned; Slice 1 not started.
+Status: program in progress; Slice 1 complete.
+
+Slice 1 completed on 2026-07-28 with a 9,375-line primary file, 42 declared
+parts, a 22,900-line same-library aggregate, and a 132-line independent
+formatter with 100% direct line coverage. Later slices remain separately gated
+by the execution rule below.
 
 This is an umbrella plan, not one implementation task. It continues
 `docs/large_file_refactor_plan.md` Phase 1 after Tranche 1

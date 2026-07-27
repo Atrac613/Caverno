@@ -1,31 +1,23 @@
-// Same-library extension on [ChatNotifier]: formatting helpers that turn a raw
-// tool result into the compact <tool_result> payload/tag shown inline (map
-// summarization, value compaction, truncation). Pure relocation from
-// chat_notifier.dart (F5), no behavior change.
-part of 'chat_notifier.dart';
+import 'dart:convert';
 
-extension ChatNotifierContentToolResultFormat on ChatNotifier {
-  String _buildContentToolResultTag(String toolName, String result) {
-    final payload = _buildContentToolResultPayload(toolName, result);
+// ChatNotifier decomposition collaborator: content-tool-result-formatter
+abstract final class ContentToolResultFormatter {
+  static String format(String toolName, String result) {
+    final payload = _buildPayload(toolName, result);
     return '<tool_result>${jsonEncode(payload)}</tool_result>';
   }
 
-  Map<String, dynamic> _buildContentToolResultPayload(
-    String toolName,
-    String result,
-  ) {
+  static Map<String, dynamic> _buildPayload(String toolName, String result) {
     final details = <String>[];
     String? summary;
 
     try {
       final decoded = jsonDecode(result);
       if (decoded is Map<String, dynamic>) {
-        summary = _summarizeToolResultMap(decoded, details);
+        summary = _summarizeMap(decoded, details);
       } else if (decoded is List) {
         summary = '${decoded.length} item(s)';
-        details.addAll(
-          decoded.take(3).map((item) => _compactToolResultValue(item)),
-        );
+        details.addAll(decoded.take(3).map(_compactValue));
       }
     } catch (_) {
       final lines = result
@@ -34,12 +26,12 @@ extension ChatNotifierContentToolResultFormat on ChatNotifier {
           .where((line) => line.isNotEmpty)
           .toList();
       if (lines.isNotEmpty) {
-        summary = _truncateToolResultText(lines.first, maxLength: 72);
+        summary = _truncateText(lines.first, maxLength: 72);
         details.addAll(
           lines
               .skip(1)
               .take(2)
-              .map((line) => _truncateToolResultText(line, maxLength: 96)),
+              .map((line) => _truncateText(line, maxLength: 96)),
         );
       }
     }
@@ -52,10 +44,7 @@ extension ChatNotifierContentToolResultFormat on ChatNotifier {
     };
   }
 
-  String _summarizeToolResultMap(
-    Map<String, dynamic> data,
-    List<String> details,
-  ) {
+  static String _summarizeMap(Map<String, dynamic> data, List<String> details) {
     final path = data['path'];
     final entries = data['entries'];
     final matches = data['matches'];
@@ -63,26 +52,22 @@ extension ChatNotifierContentToolResultFormat on ChatNotifier {
 
     if (entries is List) {
       details.addAll(
-        entries
-            .take(3)
-            .map((entry) => _truncateToolResultText(entry.toString())),
+        entries.take(3).map((entry) => _truncateText(entry.toString())),
       );
       final count = data['entry_count'] ?? entries.length;
-      return '$count item(s) in ${_compactToolResultValue(path)}';
+      return '$count item(s) in ${_compactValue(path)}';
     }
 
     if (matches is List) {
       details.addAll(
-        matches
-            .take(3)
-            .map((match) => _truncateToolResultText(match.toString())),
+        matches.take(3).map((match) => _truncateText(match.toString())),
       );
       final count = data['match_count'] ?? matches.length;
       if (data.containsKey('query')) {
-        return '$count match(es) for ${_compactToolResultValue(data['query'])}';
+        return '$count match(es) for ${_compactValue(data['query'])}';
       }
       if (data.containsKey('pattern')) {
-        return '$count file(s) for ${_compactToolResultValue(data['pattern'])}';
+        return '$count file(s) for ${_compactValue(data['pattern'])}';
       }
       return '$count match(es)';
     }
@@ -94,11 +79,9 @@ extension ChatNotifierContentToolResultFormat on ChatNotifier {
           .where((line) => line.isNotEmpty)
           .toList();
       details.addAll(
-        lines
-            .take(2)
-            .map((line) => _truncateToolResultText(line, maxLength: 96)),
+        lines.take(2).map((line) => _truncateText(line, maxLength: 96)),
       );
-      return _compactToolResultValue(path);
+      return _compactValue(path);
     }
 
     if (data.containsKey('bytes_written')) {
@@ -106,7 +89,7 @@ extension ChatNotifierContentToolResultFormat on ChatNotifier {
       if (data['created'] == true) {
         details.add('created');
       }
-      return _compactToolResultValue(path);
+      return _compactValue(path);
     }
 
     if (data.containsKey('replacements')) {
@@ -114,7 +97,7 @@ extension ChatNotifierContentToolResultFormat on ChatNotifier {
       if (data['replace_all'] == true) {
         details.add('replace all');
       }
-      return _compactToolResultValue(path);
+      return _compactValue(path);
     }
 
     final prioritizedEntries = data.entries
@@ -125,21 +108,21 @@ extension ChatNotifierContentToolResultFormat on ChatNotifier {
     details.addAll(
       prioritizedEntries.map(
         (entry) =>
-            '${entry.key}: ${_truncateToolResultText(_compactToolResultValue(entry.value), maxLength: 72)}',
+            '${entry.key}: ${_truncateText(_compactValue(entry.value), maxLength: 72)}',
       ),
     );
-    return _compactToolResultValue(
+    return _compactValue(
       path ?? data['query'] ?? data['pattern'] ?? 'Completed',
     );
   }
 
-  String _compactToolResultValue(dynamic value) {
+  static String _compactValue(dynamic value) {
     if (value == null) return 'unknown';
     if (value is String) return value;
     return jsonEncode(value);
   }
 
-  String _truncateToolResultText(String value, {int maxLength = 88}) {
+  static String _truncateText(String value, {int maxLength = 88}) {
     final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (normalized.length <= maxLength) {
       return normalized;
