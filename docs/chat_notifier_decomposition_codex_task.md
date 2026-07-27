@@ -1,291 +1,562 @@
-# Codex Task: ChatNotifier Library Decomposition (Phase 1, Tranche 2)
+# ChatNotifier Library Decomposition Program (Phase 1, Tranche 2)
 
-Status: not started. Continues `docs/large_file_refactor_plan.md` Phase 1 after
-Tranche 1 (`PlanningResearchCollector`, `WorkflowProposalParser`,
-`ActiveResponseRegistry`, `ProjectScopedToolArgumentResolver`, …).
+Status: program planned; Slice 1 not started.
 
-## Motivating Evidence (do not skip)
+This is an umbrella plan, not one implementation task. It continues
+`docs/large_file_refactor_plan.md` Phase 1 after Tranche 1
+(`PlanningResearchCollector`, `WorkflowProposalParser`,
+`ActiveResponseRegistry`, `ProjectScopedToolArgumentResolver`, and related
+extractions).
 
-On 2026-07-25/27 roughly twenty defects were fixed on
-`fix/cross-thread-tool-result-contamination`, squashed as `b0c19fdb`. Every one
-had the same shape:
+## Execution Rule
 
-> `ChatNotifier` serves every thread from one object and `ChatState` belongs to
-> the thread **on screen**, so turn-scoped code that reads it gets the wrong
-> value for free.
+- If a request says only "implement this document", execute **Slice 1 only**.
+- Every later slice requires its own task specification based on
+  `docs/codex_task_template.md`.
+- Keep each slice within one focused review pass. The workstreams below are
+  ordering constraints and risk groupings, not permission to combine them into
+  one PR.
+- Target at most roughly 500 changed production lines per slice. Split sooner
+  when one file contains more than one risk domain.
+- A slice is complete when its own acceptance criteria pass. The program-wide
+  criteria apply only after every approved slice is complete.
+- Before starting a slice, remeasure its named files and compare the current
+  call sites with this plan. If the baseline has drifted, update that slice's
+  task and acceptance arithmetic before editing production code.
+
+## Motivating Evidence
+
+On 2026-07-25/27, roughly twenty defects were fixed on
+`fix/cross-thread-tool-result-contamination`, squashed as `b0c19fdb`. They
+shared one cause:
+
+> `ChatNotifier` serves every thread from one object, while `ChatState` belongs
+> to the thread on screen. Turn-scoped code that reads visible-thread state can
+> therefore receive another turn's value without any type error.
 
 A background turn quoted another thread's history, resolved relative tool paths
 against the visible project, leased the wrong workspace, persisted its
-transcript onto whoever was being read, lost its queue and plan draft on a
-switch, and — the last one, read out of a running app over the VM service —
-raised a plan question on the visible thread, where that thread's own flow
-cleared it, stranding the turn with its registration, runtime handle and
-workspace lease held until the app was quit.
+transcript onto the visible conversation, lost queued work and plan state on a
+switch, and stranded lifecycle resources after a plan question crossed threads.
 
-Two ratchets now guard this (`test/quality/thread_scoped_state_ratchet_test.dart`
-and the line budgets), but a call-graph pass found **45 methods that read
-visible-thread state, take no turn identity, and are reachable from a turn**.
-The thread-scope ratchet cannot see them: they have no argument to key on. No
-rule can catch them while they live inside the library.
+The durable boundary is a library boundary:
 
-**A file that is `part of 'chat_notifier.dart'` can reach `state`, `ref`, and
-every private field. A file that is not, cannot.** That is the point of this
-task. Line count is the measurement, not the goal.
+> A file that is `part of 'chat_notifier.dart'` can reach `state`, `ref`, and
+> every private field. An independently importable collaborator cannot.
 
-## Task
+The objective is to remove ambient capability, not merely move lines. Line
+counts measure progress but do not prove the architecture.
 
-- Goal: convert the `chat_notifier.dart` same-library part files into
-  independently importable collaborators that take explicit inputs, halving the
-  library as a consequence.
-- User-visible behavior: none. This is extraction only.
+A one-off call-graph review reported 45 turn-reachable methods that read visible
+state without accepting turn identity. That number is historical evidence, not
+an acceptance baseline: no checked-in tool currently reproduces it. Slices
+2a1-2a3 must establish the canonical measurement and enforcement before later
+extractions use it.
+
+## Program Scope
+
+- Goal: replace same-library helper and handler code with independently
+  importable collaborators that receive explicit, immutable turn inputs.
+- User-visible behavior: none. Every extraction is behavior-preserving.
+- Expected architectural result:
+  - the notifier remains the orchestration and lifecycle shell;
+  - extracted code cannot import or receive the notifier or ambient UI state;
+  - turn identity, project, messages, settings, and approval capabilities are
+    explicit at each boundary;
+  - each independently moved concern has direct tests and a shrink-only size
+    budget.
 - Non-goals:
-  - Any behavior change, including "obvious" improvements noticed in passing.
-  - The per-thread notifier split (stage 3 in
-    `docs/multi_thread_architecture_study.md`). Tranches A–E are deliberately
-    independent of that decision and make it safer to attempt later.
-  - Renaming providers, changing `ChatState` shape, or touching persistence
-    schemas.
-  - Raising any ratchet budget. See Constraints.
+  - opportunistic behavior fixes found during an extraction;
+  - the per-thread notifier split described as stage 3 in
+    `docs/multi_thread_architecture_study.md`;
+  - provider renames, `ChatState` schema changes, or persistence migrations;
+  - raising a ratchet budget;
+  - forcing a whole current `part` file to become one collaborator.
 
-## Baseline (measured 2026-07-27, at `b0c19fdb`)
+## Measured Baseline
 
-| | lines |
-|---|---|
-| `chat_notifier.dart` (orchestrator) | 9,376 |
-| 43 declared part files | 13,717 |
-| **same-library aggregate** | **23,093** |
-| budget in `test/quality/file_size_ratchet_test.dart` | 23,030 |
+Measured on 2026-07-27 at `b0c19fdb`, using the same physical-line semantics as
+`File.readAsLinesSync()` in `test/quality/file_size_ratchet_test.dart`:
 
-**The library is currently 19 lines over budget and the ratchet test fails.**
-That debt was taken deliberately at the end of `b0c19fdb`; Tranche A clears it.
+| Boundary | Physical lines |
+|---|---:|
+| `chat_notifier.dart` orchestrator | 9,375 |
+| 43 declared part files | 13,674 |
+| **Same-library aggregate** | **23,049** |
+| Aggregate ratchet budget | 23,030 |
+| **Current ratchet debt** | **19** |
+| Five lifecycle `keep` parts | 644 |
+| Candidate part lines outside the `keep` set | 13,030 |
+| Exact half-of-baseline reference point | 11,524.5 |
 
-### Part-file inventory, by coupling
+The aggregate ratchet is intentionally red at the start of Slice 1:
+`23,049 > 23,030`. Do not change the budget to make the baseline green.
 
-`state` counts bare `state` references, `ref` counts `ref.`, `settings` counts
-`_settings`. Low numbers mean the file barely uses the notifier and is mostly a
-move; high numbers mean it needs an explicit context object first.
+The previous inventory counted the trailing empty split result once per file,
+inflating the aggregate by 44 lines. All program measurements must use the
+ratchet's physical-line method.
 
-| file | lines | state | ref | settings | tranche |
-|---|---:|---:|---:|---:|---|
-| `chat_notifier_local_file_handlers.dart` | 1381 | 6 | 0 | 9 | C |
-| `chat_notifier_goal_auto_continue.dart` | 1063 | 27 | 6 | 2 | E |
-| `chat_notifier_command_guardrails.dart` | 1045 | 5 | 0 | 0 | D |
-| `chat_notifier_computer_use_handlers.dart` | 782 | 4 | 0 | 0 | C |
-| `chat_notifier_participant_turns.dart` | 763 | 35 | 1 | 6 | E |
-| `chat_notifier_tool_loop_batch.dart` | 722 | 1 | 0 | 0 | B |
-| `chat_notifier_unexecuted_action_recovery.dart` | 560 | 1 | 2 | 0 | B |
-| `chat_notifier_coding_verification_feedback.dart` | 484 | 0 | 1 | 4 | B |
-| `chat_notifier_coding_continuation_recovery.dart` | 458 | 0 | 0 | 1 | B |
-| `chat_notifier_ask_user_question.dart` | 403 | 14 | 0 | 0 | E |
-| `chat_notifier_git_handlers.dart` | 391 | 6 | 0 | 2 | C |
-| `chat_notifier_turn_finalization_recovery.dart` | 375 | 3 | 2 | 2 | B |
-| `chat_notifier_approval_handlers.dart` | 344 | 1 | 0 | 2 | C |
-| `chat_notifier_ssh_handlers.dart` | 330 | 8 | 2 | 2 | C |
-| `chat_notifier_subagent_handlers.dart` | 326 | 0 | 4 | 8 | C |
-| `chat_notifier_browser_handlers.dart` | 281 | 3 | 2 | 1 | C |
-| `chat_notifier_routine_handlers.dart` | 280 | 1 | 2 | 0 | C |
-| `chat_notifier_final_answer_recovery.dart` | 279 | 1 | 2 | 6 | B |
-| `chat_notifier_context_surgery.dart` | 271 | 6 | 3 | 3 | D |
-| `chat_notifier_prompt_context.dart` | 267 | 0 | 2 | 7 | A |
-| `chat_notifier_python_attachment_repair.dart` | 235 | 0 | 0 | 2 | A |
-| `chat_notifier_tool_handler_registry.dart` | 199 | 1 | 0 | 0 | C |
-| `chat_notifier_execution_runtime.dart` | 187 | 9 | 2 | 0 | keep |
-| `chat_notifier_tool_result_telemetry.dart` | 167 | 0 | 6 | 11 | D |
-| `chat_notifier_proposal_parsing.dart` | 163 | 0 | 0 | 0 | A |
-| `chat_notifier_serial_handlers.dart` | 162 | 4 | 0 | 1 | C |
-| `chat_notifier_skill_handlers.dart` | 161 | 1 | 2 | 0 | C |
-| `chat_notifier_content_tool_result_format.dart` | 150 | 0 | 0 | 0 | A |
-| `chat_notifier_ble_handlers.dart` | 143 | 4 | 1 | 1 | C |
-| `chat_notifier_proposal_option_extraction.dart` | 137 | 0 | 0 | 0 | A |
-| `chat_notifier_python_handlers.dart` | 125 | 1 | 0 | 1 | C |
-| `chat_notifier_workflow_proposal_parser.dart` | 121 | 0 | 0 | 0 | A |
-| `chat_notifier_response_finalization.dart` | 120 | 6 | 0 | 0 | keep |
-| `chat_notifier_error_handling.dart` | 120 | 5 | 2 | 2 | keep |
-| `chat_notifier_turn_exit.dart` | 117 | 0 | 0 | 2 | keep |
-| `chat_notifier_task_proposal_quality.dart` | 112 | 0 | 0 | 0 | A |
-| `chat_notifier_terminal_tool_response_policy.dart` | 111 | 0 | 0 | 0 | A |
-| `chat_notifier_cancellation.dart` | 105 | 1 | 0 | 0 | keep |
-| `chat_notifier_duplicate_recovery.dart` | 80 | 0 | 0 | 0 | A |
-| `chat_notifier_task_proposal_parser.dart` | 61 | 0 | 0 | 0 | A |
-| `chat_notifier_mesh_routing.dart` | 58 | 0 | 0 | 7 | A |
-| `chat_notifier_planning_research.dart` | 53 | 1 | 0 | 0 | A |
-| `chat_notifier_turn_rollback_handlers.dart` | 25 | 0 | 0 | 0 | A |
+### Planning Inventory
 
-`keep` marks the turn lifecycle — `_startRuntimeTurn`, `_completeRuntimeTurn`,
-`_failRuntimeTurn`, `_finishStreaming`'s finalization, cancellation, error
-handling, turn-exit recording. These belong with the orchestrator; they are the
-one place a turn's registration, runtime handle and workspace lease are released
-together, and splitting them re-opens the defect class this task exists to
-close. Do not extract them.
+This table is an exposure and sequencing inventory. It is not an instruction to
+move each listed file wholesale.
 
-## Tranches
+| Group | Part lines | Current files | Required treatment |
+|---|---:|---|---|
+| Lifecycle `keep` set | 644 | `execution_runtime`, `response_finalization`, `error_handling`, `turn_exit`, `cancellation` | Keep with the orchestrator |
+| Slice 1 formatter | 149 | `content_tool_result_format` | Move to an independent chat-domain service |
+| DTO- or callback-blocked proposal facades | 699 | `proposal_parsing`, `proposal_option_extraction`, `workflow_proposal_parser`, `task_proposal_quality`, `terminal_tool_response_policy`, `task_proposal_parser` | Defer until draft DTOs leave `ChatState` and JSON-repair or terminal-policy callbacks become explicit result values or narrow typed ports |
+| Low-state but side-effecting or callback-driven | 712 | `prompt_context`, `python_attachment_repair`, `duplicate_recovery`, `mesh_routing`, `planning_research`, `turn_rollback_handlers` | Split by responsibility; require explicit turn inputs |
+| Recovery and verification | 2,872 | `tool_loop_batch`, `unexecuted_action_recovery`, `coding_verification_feedback`, `coding_continuation_recovery`, `turn_finalization_recovery`, `final_answer_recovery` | Characterize each recovery route before extraction |
+| Tool execution and approval | 4,892 | `local_file_handlers`, `computer_use_handlers`, `git_handlers`, `ssh_handlers`, `subagent_handlers`, `browser_handlers`, `routine_handlers`, `serial_handlers`, `skill_handlers`, `ble_handlers`, `python_handlers`, `approval_handlers`, `tool_handler_registry` | Separate execution from notifier-owned approval/UI ports before moving code |
+| Guardrails and telemetry | 1,480 | `command_guardrails`, `context_surgery`, `tool_result_telemetry` | Add deterministic two-thread poison tests first |
+| High-coupling orchestration | 2,226 | `goal_auto_continue`, `participant_turns`, `ask_user_question` | Narrow interfaces only; keep unextractable orchestration in place |
+| **All declared parts** | **13,674** | **43 files** | |
 
-Land one tranche per PR. Within a tranche, land one file (or one cohesive group)
-per commit. Never mix an extraction with a behavior change.
+Do not use raw `state`, `ref.`, or `_settings` occurrence counts as a coupling
+classifier. They miss line-wrapped member access and ignore private fields,
+private methods, callbacks, file I/O, persistence, and other side effects. For
+example, `prompt_context` contains provider reads, persistence, file loading,
+logging, project resolution, and an optional visible-conversation fallback. It
+is not a pure helper.
 
-### Tranche A — pure helpers (1,573 lines, 13 files)
+## Safety Contract
 
-`prompt_context`, `python_attachment_repair`, `proposal_parsing`,
-`content_tool_result_format`, `proposal_option_extraction`,
-`workflow_proposal_parser`, `task_proposal_quality`,
-`terminal_tool_response_policy`, `duplicate_recovery`, `task_proposal_parser`,
-`mesh_routing`, `planning_research`, `turn_rollback_handlers`.
+### Collaborator boundary
 
-These reference no notifier state. Most become top-level functions or small
-value classes. Start here: it is close to a pure move, it clears the 19-line
-debt in the first commit, and it establishes the pattern for reviewers.
+Every extracted collaborator must satisfy all of these rules:
 
-### Tranche B — recovery and verification services (2,878 lines, 6 files)
+1. It is an independent library and does not use `part of`.
+2. It does not import, extend, accept, store, or return `ChatNotifier`,
+   `ChatState`, Riverpod `Ref`/`WidgetRef`, or `ProviderContainer`.
+3. It does not read `TurnThread`, `TurnProjectRoot`, or another Zone-scoped
+   value internally. The notifier resolves those values at the call site and
+   passes plain immutable inputs.
+4. It does not receive a broad closure that merely captures the notifier or
+   visible-thread state. Side effects cross narrow typed ports whose methods
+   include the owning turn identity.
+5. It receives the smallest settings snapshot it needs. Passing all
+   `AppSettings` requires an explicit justification in that slice's task.
+6. Public notifier APIs may remain as thin delegates when external callers need
+   them. A delegate must not reintroduce an ambient lookup.
+7. Every program collaborator carries an exact discovery marker:
+   `// ChatNotifier decomposition collaborator: <collaborator-id>`.
+8. Every new production file is added to
+   `test/quality/file_size_ratchet_test.dart`, or to an equivalent
+   shrink-only package budget, at its achieved size.
+9. Every collaborator with executable logic has a direct test. Overall
+   repository coverage alone is not sufficient.
 
-`tool_loop_batch`, `unexecuted_action_recovery`,
-`coding_verification_feedback`, `coding_continuation_recovery`,
-`turn_finalization_recovery`, `final_answer_recovery`.
+### Lifecycle `keep` set
 
-Each takes the tool results, the turn's messages and the settings it needs as
-arguments. `turn_finalization_recovery` touches `state` three times — resolve
-those into explicit parameters rather than passing the notifier.
+Keep `_startRuntimeTurn`, `_completeRuntimeTurn`, `_failRuntimeTurn`,
+`_finishStreaming` finalization, cancellation, error handling, and turn-exit
+recording with the orchestrator. They release the active-response registration,
+runtime handle, and workspace lease together. Splitting that ownership can
+reopen the lifecycle leak this program is intended to prevent.
 
-### Tranche C — tool handlers (4,905 lines, 13 files)
+### Stop conditions
 
-`local_file`, `computer_use`, `git`, `ssh`, `subagent`, `browser`, `routine`,
-`serial`, `skill`, `ble`, `python`, `approval_handlers`,
-`tool_handler_registry`.
+Stop the current slice and record a follow-up when any of these is true:
 
-The largest tranche and the one that removes the most ambient-read capability.
-Handlers need three things: the tool service, an approval port, and the turn's
-project root. Give them a single explicit context:
+- extraction requires passing the notifier, `ChatState`, `Ref`, or a broad
+  notifier-capturing callback;
+- preserving behavior requires an ambient visible-conversation fallback on a
+  turn-reachable path;
+- the current file mixes execution with approval or UI state and no narrow port
+  exists yet;
+- an extraction needs a behavior fix, schema change, or provider rename;
+- the destination would exceed an existing budget;
+- the slice cannot remain one focused review pass or would move roughly 500
+  production lines without a smaller cohesive boundary.
 
-```dart
-/// What a tool handler is allowed to know. Deliberately not the notifier:
-/// a handler that can reach ChatState can resolve a path against the thread
-/// the user happens to be reading, which is how 2026-07-25 happened.
-class ToolHandlerContext {
-  const ToolHandlerContext({
-    required this.projectRoot,
-    required this.conversationId,
-    required this.settings,
-    required this.requestApproval,
-  });
-  ...
-}
-```
+Do not hide a stop condition by widening the context object.
 
-`TurnProjectRoot` and `TurnThread` (Zone-scoped, in
-`turn_project_root.dart` / `turn_thread_scope.dart`) already carry the identity
-these need; read them at the call site and pass the values in, rather than
-reading the Zone inside the extracted class.
+## Measurement and Regression Gates
 
-### Tranche D — guardrails and telemetry (1,483 lines, 3 files)
+Slices 2a1-2a3 must make the central safety claim reproducible before any
+post-Slice-1 production extraction starts.
 
-`command_guardrails`, `context_surgery`, `tool_result_telemetry`.
+### Static audit
 
-`tool_result_telemetry` reads `_settings` eleven times — pass a settings
-snapshot, not the notifier.
+Add a checked-in audit, tentatively
+`tool/audit_chat_notifier_turn_scope.dart`, that:
 
-### Tranche E — explicit-context conversions (2,229 lines, 3 files)
+- reads a checked-in `tool/chat_notifier_decomposition_manifest.json` shared by
+  the audit and structural tests;
+- preserves one entry per original part with stable `id`, `partPath`,
+  `entrypoints`, `status`, and `collaborators` fields; every collaborator record
+  has its own stable `id`, `path`, and `sizeBudgetKey`;
+- reconstructs the original 43-part inventory and entrypoints from `b0c19fdb`;
+  because Slice 1 runs first, its formatter entry starts as `extracted` with the
+  Slice 1 collaborator record, while the other current parts start as
+  `remaining`, `keep`, or a justified `deferred`;
+- uses only `remaining`, `partial`, `extracted`, `keep`, or `deferred` as status
+  values; extraction transitions the status and appends collaborator records
+  but never deletes the historical part entry;
+- records the exact files, entrypoints, and call-graph assumptions it scans;
+- parses complete method signatures rather than a fixed number of lines;
+- reports each ambient read independently instead of skipping a whole method
+  after finding one turn-scoped accessor;
+- scans every currently declared `partPath` whose status is `remaining`,
+  `partial`, `keep`, or `deferred`, plus every collaborator record attached to
+  a `partial` or `extracted` entry;
+- emits a deterministic method/read inventory suitable for review;
+- establishes a canonical baseline committed with the tool.
 
-`goal_auto_continue`, `participant_turns`, `ask_user_question`.
+The historical count of 45 must not be copied into a ratchet until this audit
+reproduces and explains it.
 
-Highest coupling, do last. These are genuine orchestration and may keep some
-notifier surface; the goal here is to reduce them to a narrow, named interface
-rather than to move them wholesale. If a file cannot be extracted without
-passing the notifier itself, **stop and leave it** — record why in this document
-instead of forcing it.
+### Structural test
 
-### Expected outcome
+Add `test/quality/chat_notifier_collaborator_boundary_test.dart` to:
 
-Tranches A–E move **13,068** of the 13,717 part-file lines out of the library,
-leaving the 649-line `keep` set. Extraction adds some back — class scaffolding,
-explicit parameters, the doc comments this repo expects — so the aggregate
-should land near **10,500–12,000** against a half-of-baseline mark of 11,546.
+- freeze all original `partPath` values, reject any new notifier part, and
+  require the currently declared parts to equal the entries whose status is
+  `remaining`, `partial`, `keep`, or `deferred`;
+- require an `extracted` entry's old part to be absent, a `partial` entry's old
+  part to remain, and every declared collaborator path and size-budget key to
+  exist;
+- scan Dart files under `lib/features/chat` for the discovery marker
+  independently of the manifest and require a one-to-one marker ID/path match;
+- use syntax-aware whole-file checks on every collaborator record attached to
+  a `partial` or `extracted` entry to reject `part of`, forbidden imports or
+  references to `ChatNotifier`, `ChatState`, Riverpod reference types, and
+  direct turn Zone reads;
+- separately reject forbidden types in public collaborator signatures;
+- ensure every new collaborator is size-budgeted;
+- fail when a completed slice silently adds another notifier part.
 
-Halving is therefore reachable without touching `chat_notifier.dart` itself.
-**Do not force it if the arithmetic comes out short.** Going further means
-shrinking the orchestrator, which is the per-thread notifier split, not an
-extraction. Tighten the budget to whatever is achieved and record the number.
+### Existing thread-scope ratchet
 
-## Constraints
+Strengthen `test/quality/thread_scoped_state_ratchet_test.dart`. Its current
+implementation inspects only the first six signature lines and skips the entire
+method when any turn-scoped accessor appears. Both behaviors can hide another
+ambient read in the same method.
 
-- **Budgets may only shrink.** After each tranche, lower the entries in
-  `test/quality/file_size_ratchet_test.dart` to the achieved counts. Never raise
-  a budget to make a change fit — extract instead. This rule has held through
-  three prior extractions and is why the ratchet still means something.
-- **Check the destination's budget before moving code into it.** On 2026-07-26
-  an extraction targeted `project_scoped_tool_argument_resolver.dart`, which is
-  itself ratcheted at 152, and had to be redone into its own file.
-- **Take providers lazily.** An extracted collaborator that calls
-  `ref.read(...)` eagerly in its constructor broke 167 tests with
-  "SharedPreferences must be overridden". Pass a closure
-  (`() => ref.read(fooProvider)`) and read on use.
-- **Private names cross the `part` boundary; extracted ones do not.** A moved
-  `_foo` used by other part files must become public (`foo`) with every call
-  site updated in the same commit.
-- **Never `git checkout` a whole file to undo part of an edit.** It silently
-  discards unrelated work in the same file. Use targeted edits.
-- All code, comments, docs and commit messages in English. Conventional Commits,
-  imperative subject, ≤72 chars, no period, no AI attribution
-  (see `CLAUDE.md`).
+When the stronger implementation surfaces a pre-existing read, reconcile it
+exactly with the reviewed Slice 2a1 audit and label the ratchet change as a
+baseline migration. After Slice 2a3 establishes that migrated baseline, forbid
+new production reads; do not require an out-of-scope behavior fix merely to keep
+the old blind baseline numerically unchanged.
 
-## Verification
+### Deterministic two-thread coverage
 
-Run per commit:
+Slices 2b2-2b7 must add or extend tests that poison the visible thread with
+different project, task, approval, queue, question, and protected-path values.
+The owning turn must continue to use only its own values.
+
+At minimum, cover:
+
+- production-release approval cannot cross threads;
+- approval from an earlier interaction generation cannot authorize a later
+  generation;
+- saved validation and target scope come from the owning turn;
+- pending approvals, questions, and queued work block only their owning turn;
+- compact-result protected paths come from the owning turn;
+- participant turns retain their messages, approval, handoff, and lifecycle
+  while another thread is visible.
+
+### Live canary
+
+Before using the live canary as a program gate, Slice 2b1 must make all four
+scenarios assert both:
+
+- no thread remains in `busyConversationIds`;
+- every completed turn records a `turn_exit` entry.
+
+The current shared lifecycle helper checks only busy registrations, and the
+queued-turn and handback scenarios do not independently assert an exit entry.
+Each scenario must define its expected completed turns and assert exactly one
+exit per conversation and interaction generation; a non-empty exit list is not
+sufficient.
+
+Run the corrected live canary after any slice that touches prompt context,
+recovery, tool execution, approval, guardrails, telemetry, participant turns,
+questions, or goal continuation.
+
+Record the exact model and reachable base URL used for each run. Verify the
+model endpoint before starting; on macOS, use a loopback relay when the Flutter
+test process cannot reach the LAN endpoint.
+
+Example command shape (replace the endpoint and model with the warmed target):
 
 ```bash
-fvm flutter analyze lib packages test tool
-fvm flutter test test/features/chat test/quality test/core
+curl -fsS http://127.0.0.1:11434/v1/models
+CAVERNO_MULTI_THREAD_LIVE_CANARY=1 \
+CAVERNO_LLM_BASE_URL=http://127.0.0.1:11434/v1 \
+CAVERNO_LLM_API_KEY=no-key \
+CAVERNO_LLM_MODEL=qwen3.6-27b-vision \
+fvm flutter test integration_test/multi_thread_plan_live_canary_test.dart -d flutter-tester
 ```
 
-Run per tranche, additionally:
+## Ordered Work Plan
+
+Slices 1, 2a1-2a3, and 2b1-2b7 each require one task specification and PR.
+Workstreams 4-8 require further sub-slice task documents; a workstream row is
+never one PR. Deferred-boundary rows are not approved implementation slices.
+
+| Slice or workstream | Scope | Review boundary | Live canary |
+|---|---|---|---|
+| **1** | Extract `content_tool_result_format` | One pure formatter and direct domain-service tests | Not required |
+| **2a1** | Reproducible turn-scope audit and shared decomposition manifest | One audit tool and named baseline | Not required |
+| **2a2** | Collaborator structural boundary test | One manifest-backed architecture gate | Not required |
+| **2a3** | Repair the existing thread-scope ratchet | Complete-signature and per-read detection only | Not required |
+| **2b1** | Complete live-canary exit accounting | Exact expected exits per conversation/generation | Required to validate the gate |
+| **2b2** | Approval isolation tests | Cross-thread and cross-generation approval only | Not required |
+| **2b3** | Pending-question isolation tests | Question ownership and clearing only | Not required |
+| **2b4** | Queued-work isolation tests | Queue blocking and resumption only | Not required |
+| **2b5** | Saved-validation and target-scope isolation tests | Validation and target ownership only | Not required |
+| **2b6** | Compact-result protected-path isolation tests | Protected-path ownership only | Not required |
+| **2b7** | Participant-turn isolation tests | Participant messages, approval, handoff, and lifecycle only | Not required |
+| **Deferred boundary** | Proposal parsing, option, workflow, task-parser, and quality facades | Blocked because draft DTOs are declared in `ChatState` and JSON-repair uses notifier-bound callbacks; both prerequisites are outside this tranche | Not applicable |
+| **Deferred boundary** | Terminal tool-response facade | Blocked until its notifier-capturing callback bag becomes a narrow explicit-input API | Not applicable |
+| **Workstream 4** | Low-state and prompt-context concerns | Extract one independent concern per sub-slice; leave unrelated code in its existing part | Required for prompt, planning, mesh, Python repair, or rollback paths |
+| **Workstream 5** | Recovery and verification services | One recovery route or tightly coupled pair per sub-slice | Required |
+| **Workstream 6** | Tool handlers | Separate execution from approval/UI; split local-file and Computer Use into sub-500-line concern tasks; registry moves last | Required |
+| **Workstream 7** | Guardrails, context surgery, and telemetry | One concern per sub-slice after poison tests exist | Required |
+| **Workstream 8** | Goal continuation, participant turns, and user questions | Narrow interface extraction only; leave justified orchestration in place | Required |
+
+Do not begin any Workstream 4-8 sub-slice until Slices 2a1-2a3 and 2b1-2b7 are
+green.
+
+## Slice 1 Codex Task: Extract ContentToolResultFormatter
+
+### Task
+
+- Goal: move the compact `<tool_result>` payload and tag formatting logic out of
+  the `ChatNotifier` library into an independent chat-domain service.
+- User-visible behavior: none. Output strings and JSON payloads remain exactly
+  compatible for the same inputs.
+- Non-goals:
+  - changing summary wording, truncation limits, JSON keys, or tag syntax;
+  - refactoring other proposal, prompt, recovery, or tool-loop code;
+  - adding the Slice 2 audit and structural gates;
+  - changing the content parser.
+
+### Context
+
+- Source:
+  `lib/features/chat/presentation/providers/chat_notifier_content_tool_result_format.dart`
+  (149 physical lines).
+- Current callers: three `_buildContentToolResultTag` calls in
+  `lib/features/chat/presentation/providers/chat_notifier.dart`.
+- Destination:
+  `lib/features/chat/domain/services/content_tool_result_formatter.dart`.
+- Direct tests:
+  `test/features/chat/domain/services/content_tool_result_formatter_test.dart`.
+- Quality budget:
+  `test/quality/file_size_ratchet_test.dart`.
+- Related plan:
+  `docs/large_file_refactor_plan.md`.
+- Reference boundary:
+  `lib/features/chat/domain/services/goal_completion_elicitation_prompt.dart`
+  and
+  `test/features/chat/domain/services/goal_completion_elicitation_prompt_test.dart`.
+
+### Implementation Notes
+
+- Add an `abstract final class ContentToolResultFormatter` with exactly one
+  public member:
+  `static String format(String toolName, String result)`.
+  Keep payload construction, map summarization, value compaction, and
+  truncation private to that service.
+- Add
+  `// ChatNotifier decomposition collaborator: content-tool-result-formatter`
+  as the exact discovery marker for the later structural gate.
+- Import the service directly from `chat_notifier.dart`; do not add a package,
+  barrel export, provider, notifier field, or dependency-injection binding.
+- Preserve the existing behavior for:
+  - entry maps with implicit or explicit counts;
+  - match maps with query, pattern, or neither and implicit or explicit counts;
+  - content maps, byte-write maps including `created`, and replacement maps
+    including `replace_all`;
+  - generic JSON maps;
+  - JSON lists;
+  - valid JSON scalar values;
+  - plain-text and malformed JSON results;
+  - empty results;
+  - whitespace normalization and truncation;
+  - final `<tool_result>{json}</tool_result>` construction.
+- Replace the three notifier call sites with the public formatter API.
+- Remove the old part directive and part file after all callers move.
+- Add the new domain-service source file to a shrink-only size budget at its
+  physical line count.
+- Never increase either ChatNotifier size budget. Lower the aggregate budget to
+  its achieved count. Lower the primary-file budget only if the primary file's
+  measured physical count decreases.
+- Keep each direct replacement call on one physical line. The intended edit
+  swaps one part directive for one import and preserves the three call-site line
+  counts, producing a zero notifier line delta and an expected aggregate of
+  22,900 before measurement.
+- Calculate the expected aggregate as
+  `23,049 - 149 + notifier physical-line delta`, where the notifier delta is
+  its achieved count minus 9,375 and includes the removed part directive, new
+  import, and call-site rewrites. Record the achieved count rather than
+  assuming the delta.
+- Refresh the ChatNotifier counts and Slice 1 status in
+  `docs/large_file_refactor_plan.md`.
+- No generated files or data migrations are required.
+
+### Similar-Pattern Search
+
+Before finishing, search for:
+
+```text
+_buildContentToolResultTag
+_buildContentToolResultPayload
+<tool_result>
+```
+
+Inspect all matches, but do not widen the slice. Record non-equivalent formatters
+or protocol follow-ups in the handoff.
+
+### Acceptance Criteria
+
+1. The old formatter part is no longer declared or present, and the declared
+   part count falls from 43 to 42.
+2. The three notifier callers use
+   `ContentToolResultFormatter.format(toolName, result)` directly.
+3. Direct tests cover every existing formatter branch and exact tag output.
+4. The new collaborator has no dependency on `ChatNotifier`, `ChatState`,
+   Riverpod, providers, turn Zones, settings, persistence, or file I/O.
+5. The ChatNotifier primary and aggregate size tests pass; neither budget
+   increases, the aggregate budget is lowered to its achieved count, and the
+   primary budget is lowered only when its measured count decreases.
+6. The new domain-service source file has a shrink-only size budget.
+7. The new source file has the exact decomposition discovery marker.
+8. The thread-scope ratchet still passes with no allowlist growth.
+9. `docs/large_file_refactor_plan.md` records the achieved physical counts.
+10. No unrelated production behavior or files enter the change.
+
+### Verification
+
+Run focused checks:
+
+```bash
+fvm dart format \
+  lib/features/chat/domain/services/content_tool_result_formatter.dart \
+  lib/features/chat/presentation/providers/chat_notifier.dart \
+  test/features/chat/domain/services/content_tool_result_formatter_test.dart \
+  test/quality/file_size_ratchet_test.dart \
+  --set-exit-if-changed
+fvm flutter analyze
+fvm flutter test \
+  test/features/chat/domain/services/content_tool_result_formatter_test.dart
+fvm flutter test test/quality/file_size_ratchet_test.dart test/quality/thread_scoped_state_ratchet_test.dart
+```
+
+Run the repository gate:
 
 ```bash
 tool/codex_verify.sh --coverage
+git diff --check
 ```
 
-Tranches B, C and E touch tool execution, recovery and approval, so the live
-multi-thread canary is the gate that has repeatedly caught what unit tests
-missed. It needs a warmed model and, on macOS, a loopback relay because the test
-binary cannot reach a LAN address:
+The live multi-thread canary is not required for this pure formatter move.
 
-```bash
-CAVERNO_MULTI_THREAD_LIVE_CANARY=1 CAVERNO_LLM_BASE_URL=http://127.0.0.1:11434/v1 CAVERNO_LLM_API_KEY=no-key CAVERNO_LLM_MODEL=qwen3.6-27b-vision fvm flutter test integration_test/multi_thread_plan_live_canary_test.dart -d flutter-tester
+### Handoff Notes
+
+Record:
+
+- old and new primary, part, and aggregate physical line counts;
+- old and new ratchet budgets;
+- direct formatter branch cases and the target file's hit/line counts from
+  `coverage/lcov.info`;
+- the final declared-part count;
+- searches performed and any deferred follow-up.
+
+Use one focused Conventional Commit, for example:
+
+```text
+refactor: Extract content tool result formatter
 ```
 
-All four scenarios must pass, and each ends on the lifecycle gate: no thread
-still listed busy, and every turn recording an exit reason.
+## Requirements for Later Slice Specifications
 
-## Acceptance Criteria
+Every later concrete slice or workstream sub-slice task document must state:
 
-1. `test/quality/file_size_ratchet_test.dart` passes, with the chat_notifier
-   entries **lowered** to the achieved counts. No budget anywhere is higher than
-   it is today.
-2. The declared-part count falls from 43 to at most 8 — the five `keep` files
-   plus whatever Tranche E could not safely convert, each with a recorded
-   reason.
-3. `test/quality/thread_scoped_state_ratchet_test.dart` still passes with **at
-   most** its current one reviewed entry. Extraction must not add turn-scoped
-   readers of visible state.
-4. Re-running the blind-spot count finds fewer methods than the 45 recorded on
-   2026-07-26. Report the new number; this is the measurement that matters more
-   than the line count.
-5. `fvm flutter analyze lib packages test tool` is clean.
-6. `fvm flutter test test/features/chat test/quality test/core` passes — 2,329
-   chat tests at baseline, none removed. Tests move with the code they cover.
-7. The live multi-thread canary passes on all four scenarios after Tranches B,
-   C and E.
-8. `docs/large_file_refactor_plan.md` Phase 1 is updated with the achieved
-   counts and the Tranche 2 status.
+- one concrete concern and destination API;
+- exact source methods and call sites, not only a current part filename;
+- explicit immutable inputs and typed side-effect ports;
+- expected part-count and aggregate-line deltas;
+- manifest status, collaborator records, and discovery markers;
+- direct test file and a target-file coverage expectation with a checked
+  verification command;
+- deterministic two-thread cases when turn ownership is relevant;
+- whether the corrected live canary is required;
+- stop conditions and deferred adjacent findings;
+- focused verification plus `tool/codex_verify.sh --coverage`.
 
-## Handoff Notes
+`tool/codex_verify.sh --coverage` generates a report and lists files below the
+display threshold; it does not fail on that threshold. Do not describe it as a
+numerical coverage gate. If a slice requires a minimum percentage, its task
+must provide and check an explicit target-file command.
 
-- The extraction pattern is already established, with five examples from this
-  week to copy: `TurnToolResultLedger`, `TurnCodingProjectResolver`,
-  `BackgroundProcessFollowUpPolicy`, `TurnFinalMessage`, and
-  `tool_argument_json.dart`. Match their shape — explicit inputs, a doc comment
-  naming the defect the boundary prevents, focused tests.
-- `docs/multi_thread_architecture_study.md` records why the boundary matters and
-  compares Codex's thread model. Read it before Tranche E.
-- Do not "fix" anything you notice while moving code. Note it and move on. Every
-  mixed commit this week cost more to review than it saved.
-- If a tranche turns out to need a behavior change to proceed, stop and write
-  down what and why rather than proceeding. The extraction is worth less than
-  the guarantee that it changed nothing.
+Within a slice, use one commit per independently reviewable concern. Never mix
+an extraction with a behavior fix.
+
+## Program Completion Criteria
+
+The program is complete only when:
+
+1. Every remaining part belongs to the five-file lifecycle set or is an
+   explicitly justified high-coupling deferral covered by the structural
+   boundary test. Report the final count. The currently scoped floor is 11
+   parts: five lifecycle parts plus six proposal/callback deferrals. Lowering
+   that floor requires separately approved prerequisite work.
+2. No completed slice leaves an undocumented notifier part or collaborator
+   boundary exception.
+3. The canonical turn-scope audit reports no unreviewed ambient reads in
+   extracted collaborators and no increase in remaining notifier exposure.
+4. The repaired thread-scope ratchet exactly reconciles any newly detected
+   pre-existing reads with the Slice 2a1 audit, then has no production-read
+   baseline growth after Slice 2a3.
+5. Every extracted production file has a shrink-only size budget and direct
+   tests.
+6. The ChatNotifier primary and aggregate budgets never increase. After each
+   production extraction, every measured boundary that actually shrinks has
+   its budget lowered to the achieved count; test-only gate slices do not
+   invent a reduction.
+7. The final aggregate is reported against the exact 11,524.5 half-baseline
+   reference. Halving is directional, not permission to force unsafe
+   extraction.
+8. The corrected four-scenario live canary passes after every applicable slice,
+   with no busy thread and exactly one `turn_exit` entry for each expected
+   completed conversation and interaction generation.
+9. `tool/codex_verify.sh --coverage` completes for every slice, and the handoff
+   records target-file coverage for each new collaborator. Any numerical
+   threshold is enforced by an explicit checked command in that slice.
+10. `docs/large_file_refactor_plan.md` records the final counts, exceptions, and
+    Tranche 2 status.
+
+## Reference and Warning Notes
+
+- Read `docs/multi_thread_architecture_study.md` before any turn-context or
+  high-coupling slice.
+- For the pure Slice 1 API shape, use the directly tested
+  `GoalCompletionElicitationPrompt` or `WorkflowTaskTurnRoutePolicy` as a
+  reference: both are stateless `abstract final` classes with static methods.
+- Other directly tested boundaries demonstrate only individual techniques.
+  `ProjectScopedToolArgumentResolver` shows a narrow lazy input and
+  `PlanningResearchCollector` shows a typed side-effect callback, but their
+  callers still require ownership review.
+- `ActiveResponseRegistry`, `WorkflowProposalParser`, and
+  `PlanningDecisionPromotion` import `chat_state.dart`; they do not satisfy this
+  program's strict collaborator contract as written.
+- Do **not** use `TurnToolResultLedger` as the finished concurrency pattern while
+  it remains a single flat ledger. Its own documentation says interaction-
+  generation keying is still required.
+- Do not call `TurnCodingProjectResolver.effective` from turn-scoped code; it
+  intentionally retains a visible-conversation fallback for UI-scoped callers.
+- Do not preserve `prompt_context`'s optional visible-conversation fallback on a
+  turn-reachable path merely to keep an extraction mechanical. Characterize the
+  callers and stop for a separate behavior fix if explicit ownership would
+  change behavior.
+- Do not fix adjacent findings inside an extraction. Record them and create a
+  follow-up task.
+- Never use whole-file checkout or another destructive rollback to undo a
+  partial edit in a dirty file.
+- All code, comments, docs, commit messages, and PR text must be English.
+  Commits and PR titles use Conventional Commits, imperative subjects no longer
+  than 72 characters, no trailing period, and no AI attribution.
