@@ -178,6 +178,16 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     ToolCallInfo toolCall,
   ) => _recordExecutedVerifierReplayCandidate(owner, toolCall);
 
+  /// The diagnostic plateau length the turn reached, for canaries that need to
+  /// assert the harness observed a plateau without depending on how many
+  /// continuations the model happened to need.
+  @visibleForTesting
+  int commandDiagnosticStreakForTest(String conversationId) =>
+      _goalAutoContinueTrackers[conversationId]
+          ?.activeCommandDiagnosticRepairFocus
+          ?.streak ??
+      0;
+
   @visibleForTesting
   bool hasVerifierReplayCandidateForOwnerForTest(ChatTurnOwner owner) {
     final conversation = _conversationForId(owner.conversationId);

@@ -1,3 +1,7 @@
+// Live canary: reads visible-for-testing harness state to assert what the
+// model cannot be relied on to produce.
+// ignore_for_file: invalid_use_of_visible_for_testing_member
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -1669,11 +1673,29 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
       isTrue,
       reason: diagnostic,
     );
-    expect(repairToolRequests, isNotEmpty, reason: diagnostic);
+    // Assert what the harness controls, not what the model chooses. The repair
+    // contract is only offered inside a goal auto-continue decision, so whether
+    // one is issued depends on how many continuations the model needs — two
+    // runs with identical staging produced four continuations and eight
+    // contracts, then one continuation and none. Contract construction itself
+    // is pinned deterministically in
+    // goal_auto_continue_decision_coordinator_test.dart; what only a live run
+    // can show is that a real turn reaches it, which is the plateau below.
+    expect(
+      container
+          .read(chatNotifierProvider.notifier)
+          .commandDiagnosticStreakForTest(conversation.id),
+      greaterThanOrEqualTo(2),
+      reason:
+          '$diagnostic\nThe harness never observed the same command failing '
+          'twice with the same diagnostics.',
+    );
     expect(
       repairToolRequests.every(_usesOnlyRepairTools),
       isTrue,
-      reason: diagnostic,
+      reason:
+          '$diagnostic\nA repair contract that is issued must restrict the '
+          'tools it offers, whether or not this run issued one.',
     );
     expect(
       verifierRuns.any((run) => run['exit_code'] == 0),

@@ -386,7 +386,7 @@ const Map<String, int> _libraryLineBudgets = {
   // command that exits non-zero is normalized to a successful tool result,
   // which used to reset the diagnostic streak on exactly the runs it counts.
   // The comment explaining that is most of the addition and is load-bearing.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19673,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19683,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
