@@ -9,7 +9,6 @@ extension ChatNotifierProposalParsing on ChatNotifier {
     jsonRepairFeedback: _planningJsonRepairFeedbackBinding(),
   );
 
-
   Map<String, dynamic>? _tryDecodeMap(String value) {
     return ProposalParsingTextUtils.tryDecodeMap(value);
   }

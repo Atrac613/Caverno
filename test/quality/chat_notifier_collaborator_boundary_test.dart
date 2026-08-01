@@ -237,6 +237,7 @@ void main() {
         'timed-out-command-retry-guard',
         'tool-loop-exhaustion-policy',
         'turn-finalization-recovery-policy',
+        'truncated-tool-call-arguments-guard',
         'turn-tool-approval-coordinator',
         'unexecuted-file-mutation-before-command-guard',
         'unexecuted-final-answer-tool-request-policy',

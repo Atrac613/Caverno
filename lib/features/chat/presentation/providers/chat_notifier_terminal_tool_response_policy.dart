@@ -23,8 +23,6 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
         containsCjkMissingEvidenceMarker: _containsCjkMissingEvidenceMarker,
       );
 
-
-
   bool _shouldAcceptTerminalToolRoleFinalTextResponse(String response) {
     return _terminalToolResponsePolicy
         .shouldAcceptTerminalToolRoleFinalTextResponse(response);
@@ -49,7 +47,6 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
         .shouldAcceptTerminalBrowserSaveDataResponse(response, toolResults);
   }
 
-
   bool _shouldAcceptTerminalSkillToolRoleResponse(
     String response,
     List<ToolResultInfo> toolResults,
@@ -70,9 +67,6 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
           followUpToolCalls,
         );
   }
-
-
-
 
   bool _shouldAcceptTerminalToolRoleBlockerResponse(String response) {
     return _terminalToolResponsePolicy

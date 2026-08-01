@@ -95,6 +95,7 @@ import '../../../../core/security/conversation_taint_state.dart';
 import '../../domain/services/tool_call_execution_policy.dart';
 import '../../domain/services/tool_loop_context_digest.dart';
 import '../../domain/services/tool_loop_exit_reason.dart';
+import '../../domain/services/truncated_tool_call_arguments_guard.dart';
 import '../../domain/services/truncation_notice.dart';
 import 'tool_argument_json.dart';
 import 'turn_final_message.dart';
@@ -4007,7 +4008,7 @@ class ChatNotifier extends Notifier<ChatState> {
       );
 
       if (result.hasToolCalls) {
-        _lengthTruncatedToolCallIds = _truncationCasualtyToolCallIds(result);
+        _lengthTruncatedToolCallIds = _truncationCasualties(result);
         await _executeToolCalls(
           result.toolCalls!,
           assistantContent: result.content.isNotEmpty ? result.content : null,
@@ -5656,7 +5657,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       _removeTrailingThinkTagForGeneration(interactionGeneration);
 
-      _lengthTruncatedToolCallIds = _truncationCasualtyToolCallIds(nextResult);
+      _lengthTruncatedToolCallIds = _truncationCasualties(nextResult);
 
       if (validationEvidenceRequiresRepair) {
         savedValidationSucceededInLoop = false;
@@ -7196,8 +7197,6 @@ class ChatNotifier extends Notifier<ChatState> {
       normalizedValidationCommand: normalizedValidationCommand,
     );
   }
-
-
 
   List<ToolResultInfo> _buildUnexecutedPendingToolResults({
     required List<ToolCallInfo> toolCalls,

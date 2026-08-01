@@ -15,8 +15,6 @@ extension ChatNotifierTaskProposalParser on ChatNotifier {
     );
   }
 
-
-
   WorkflowTaskProposalDraft? _buildTaskProposalTruncationFallback({
     required Conversation currentConversation,
     required String rawContent,
@@ -36,7 +34,5 @@ extension ChatNotifierTaskProposalParser on ChatNotifier {
   ) {
     return _taskProposalParser.parseTaskProposalMap(decoded);
   }
-
-
 
 }

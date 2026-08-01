@@ -17,8 +17,6 @@ extension ChatNotifierWorkflowProposalParser on ChatNotifier {
     );
   }
 
-
-
   WorkflowProposalDraft? _buildWorkflowProposalFallback({
     WorkflowProposalDraft? latestProposal,
     required List<WorkflowPlanningDecision> outstandingDecisions,
@@ -41,7 +39,6 @@ extension ChatNotifierWorkflowProposalParser on ChatNotifier {
     );
   }
 
-
   ConversationWorkflowStage? _inferWorkflowStageFromProposal(
     Map<String, dynamic> decoded,
   ) {
@@ -59,12 +56,6 @@ extension ChatNotifierWorkflowProposalParser on ChatNotifier {
   ) {
     return _workflowProposalParser.parseWorkflowDecisionResponseMap(decoded);
   }
-
-
-
-
-
-
 
   List<String> _extractNarrativeWorkflowList(
     String rawContent, {

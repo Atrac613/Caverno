@@ -1129,6 +1129,11 @@
           "id": "process-start-result-policy",
           "path": "lib/features/chat/domain/services/process_start_result_policy.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/process_start_result_policy.dart"
+        },
+        {
+          "id": "truncated-tool-call-arguments-guard",
+          "path": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart"
         }
       ]
     },

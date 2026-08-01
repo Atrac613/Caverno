@@ -592,30 +592,24 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     );
   }
 
-  /// Tool calls carried by a length-truncated completion whose arguments
-  /// parsed empty — the truncation ate them mid-generation. Recorded so the
-  /// batch executor can answer them with a truncation diagnostic.
-  Set<String> _truncationCasualtyToolCallIds(ChatCompletionResult result) {
-    if (!result.hasToolCalls || !_isCompletionTruncated(result.finishReason)) {
-      return const <String>{};
-    }
-    return result.toolCalls!
-        .where((toolCall) => toolCall.arguments.isEmpty)
-        .map((toolCall) => toolCall.id)
-        .toSet();
-  }
+  /// Supplies the guard with this notifier's notion of a truncated completion.
+  Set<String> _truncationCasualties(ChatCompletionResult result) =>
+      truncatedToolCallArgumentsGuard.casualtyToolCallIds(
+        result,
+        truncated: _isCompletionTruncated(result.finishReason),
+      );
 
   /// Answers a tool call whose arguments were lost to an output-token-limit
-  /// truncation with a diagnostic that names the real cause. Without this the
-  /// call falls through to a generic missing-argument error and the model
-  /// cannot know its own generation was cut off, so the originally intended
-  /// action (often a long verification chain) is silently abandoned.
+  /// truncation. Recording the transform and the log line stays here: the
+  /// guard itself is stateless so it can be tested without a notifier.
   McpToolResult? _buildTruncatedToolCallArgumentsGuardResult(
     ToolCallInfo toolCall, {
     required ChatTurnOwner owner,
   }) {
-    if (!_lengthTruncatedToolCallIds.contains(toolCall.id) ||
-        toolCall.arguments.isNotEmpty) {
+    if (!truncatedToolCallArgumentsGuard.isCasualty(
+      toolCall,
+      _lengthTruncatedToolCallIds,
+    )) {
       return null;
     }
     _turnEnd.addTransform(owner, 'truncated_tool_call_arguments_feedback');
@@ -623,25 +617,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       '[Tool] ${toolCall.name} arguments were truncated by the output token '
       'limit; returning truncation diagnostic instead of executing',
     );
-    return McpToolResult(
-      toolName: toolCall.name,
-      result: jsonEncode({
-        'ok': false,
-        'code': 'tool_call_arguments_truncated',
-        'error':
-            'The ${toolCall.name} arguments were lost because the response '
-            'hit the output token limit (finish_reason=length) while '
-            'generating them.',
-        'required_action':
-            'Re-issue the ${toolCall.name} call you intended. If the '
-            'arguments were long, split the work into several smaller tool '
-            'calls instead of one large call, and keep each command short.',
-      }),
-      isSuccess: false,
-      errorMessage:
-          'Tool call arguments were truncated by the output token limit; '
-          're-issue the intended call as smaller separate calls.',
-    );
+    return truncatedToolCallArgumentsGuard.diagnosticFor(toolCall);
   }
 
   Future<ToolResultInfo?> _persistToolResultForPrompt(
@@ -688,9 +664,6 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
 
   // Tool execution-policy delegates and process-start bookkeeping.
 
-
-
-
   void _recordBackgroundProcessStartResult(
     ChatTurnOwner owner,
     ToolResultInfo result,
@@ -732,7 +705,6 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     }
     return false;
   }
-
 
   /// Accumulates executed commands for the exact turn owner.
   void _recordTurnCommandLedgerEntry(

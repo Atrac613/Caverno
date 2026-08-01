@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// so adjacent maintenance does not require raising the ratchet.
 const Map<String, int> _lineBudgets = {
   // WS7-20 moves runtime sampler feedback behind immutable owner events.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8908,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8907,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -49,6 +49,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/ssh_session_ownership_coordinator.dart': 493,
   'lib/features/chat/domain/services/ssh_tool_handler.dart': 348,
   'lib/features/chat/domain/services/subagent_tool_handler.dart': 419,
+  'lib/features/chat/domain/services/truncated_tool_call_arguments_guard.dart': 69,
   'lib/features/chat/domain/services/turn_tool_approval_coordinator.dart': 489,
   'lib/features/chat/domain/services/lsp_go_to_definition_tool_contract.dart':
       252,
@@ -374,7 +375,7 @@ const Map<String, int> _lineBudgets = {
 
 const Map<String, int> _libraryLineBudgets = {
   // WS6-5 moves local command policy and execution into an owner-aware handler.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19798,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19742,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.
