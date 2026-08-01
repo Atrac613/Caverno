@@ -15,16 +15,33 @@ The decomposition program (71 collaborators, ~90 commits, several weeks)
 extracted what could be extracted and closed with the aggregate at 19,647 —
 against a 23,049 baseline, a 14.8% reduction for a very large effort.
 
-The proposed diagnosis: **a turn is not an object.** It is a phase in the
-notifier's life, identified by a `(conversationId, interactionGeneration)` pair
-that every participant must be handed and must re-establish for itself.
+The proposed diagnosis, **corrected after review**: the notifier has no
+**turn-scoped composition root**. An earlier draft said "a turn is not an
+object", which was wrong in a way worth recording — it collapsed two scopes.
+`CavernoRuntimeTurnHandle` already exists, and plenty of state deliberately
+outlives a turn: `ThreadScopedChatState` is explicitly retained when the user
+leaves a thread, and the goal auto-continue trackers span several turns by
+design. Those are not leaks.
+
+The target is three layers, not two:
+
+```
+app / notifier scope        settings, registries, cross-conversation services
+conversation / thread scope thread state, goal trackers, plan progress
+turn scope                  the tool loop, its evidence, its guards  ← no root
+```
+
+Only the third layer is missing a home. Everything that participates in one
+turn must therefore be handed a `(conversationId, interactionGeneration)` pair
+and re-establish its own context from it.
 
 Three consequences follow, and all three are measured:
 
 1. **Everything that participates in a turn becomes a notifier method.** The
-   manifest records 414 entrypoints across 43 historical parts (271 still
-   resolvable in the current tree). A new tool, guard or recovery path has
-   nowhere else to land.
+   manifest records 414 entrypoints across 43 historical parts; the audit
+   resolves **271** in the current tree, of which **82 carry an identity
+   parameter** and 139 are turn-reachable. A new tool, guard or recovery path
+   has nowhere else to land.
 2. **Turn-scoped state lives in conversation-keyed maps on the notifier** —
    `_goalAutoContinueTrackers`, `_threadStates` and others — because a turn
    cannot own its own state.
@@ -76,41 +93,87 @@ ChatNotifier            thread routing and UI projection only;
                         creates and disposes TurnRuntime
 TurnRuntime             owner and generation are `this`
   ├─ tool loop, completion evidence, trackers
-  ├─ ToolHandlerRegistry     handlers register; the loop does not name them
+  ├─ ToolHandlerRegistry     ALREADY EXISTS as ChatToolHandlerCatalog,
+  │                          unwired in production (see below)
   └─ PolicyPipeline          guards report fired / did-not-fire structurally
 ```
 
-**Why this does not repeat the 5.8× tax.** That tax was the cost of pulling
-logic away from the state it needed, which required rebuilding the inputs at
-every call site. This moves in the opposite direction: methods migrate *onto*
-the object that owns their state, and the `owner` / `interactionGeneration`
-parameters threaded through 414 entrypoints become `this`. Parameter
-elimination reduces lines.
+**Why this may not repeat the 5.8× tax — and how to check rather than assume.**
+That tax was the cost of pulling logic away from the state it needed, which
+meant rebuilding the inputs at every call site. This moves the other way:
+methods migrate *onto* the object that owns their state, and identity
+parameters become `this`.
 
-**The groundwork is mostly built.** `ChatTurnOwner`, the `TurnThread` and
+An earlier draft claimed 414 entrypoints' parameters collapse. That was the
+historical record used as an effect. The honest figure is **82 entrypoints
+carrying an identity parameter** out of 271 resolvable, so parameter
+elimination alone is worth low hundreds of lines, not thousands. Whether the
+migration is net-negative on lines depends on how many ports and callbacks a
+`TurnRuntime` needs to reach back into notifier scope — which is unknown and
+is exactly what the prototype below exists to measure.
+
+**One piece is built and not connected.** `ChatToolHandlerCatalog` exists with
+its own tests and is used by the subagent adapter, while the production loop
+still builds `ChatToolHandlerRegistry.fromModules`, which captures the
+notifier. Workstream 6 slice 19 specifies the migration and it was never
+completed. Wiring it is a fraction of the renewal's cost and delivers the
+"adding a tool touches no notifier code" goal on its own — and learning **why
+it was skipped** may reveal an obstacle that also blocks the renewal.
+
+**The rest of the groundwork is mostly built.** `ChatTurnOwner`, the `TurnThread` and
 `TurnGeneration` zones, `ActiveResponseRegistry`,
 `TurnOwnerSnapshotRegistry`, `CavernoRuntimeTurnHandle`, the owner-fenced
 mutation runtimes and `ThreadScopedChatState` were all built during the
 thread-independence work. They amount to treating a turn as an identity with
 fenced resources. What is missing is the object to hang them on.
 
+## Prerequisite: reconcile the existing program's state
+
+`docs/chat_notifier_decomposition_task_index.md` still lists workstreams 4-7 as
+in progress and 8 as planned, while this plan and the decomposition doc treat
+the program as closed. One of those is wrong and the index is the authoritative
+one. Before any phase starts, either close the index or move its open items
+into this plan explicitly. The turn-scope baseline also needs re-checking; it
+reportedly no longer matches.
+
 ## Proposed phases
 
-**Phase 0 — make reachability-deciding guards observable.** Small.
-376 of 377 `return null;` statements in `domain/services` have no log within six
-lines. Instrumenting all of them would be noise; the proposal is to instrument
-only guards whose silent non-firing can render a feature unreachable. Adding
-one such field (`hasVerifierReplayCandidate`) on 2026-08-01 resolved in a single
-run a question that had been invisible for as long as the feature existed. This
-is the safety net for every later phase.
+An earlier draft had Phase 0 instrument "guards whose silent non-firing decides
+reachability" and Phase 1 inventory the guards. That is circular — the
+selection needs the inventory. Split:
 
-**Phase 1 — inventory.** See `docs/chat_notifier_inventory_codex_task.md`.
-Deletion is the only reduction that does not pay the extraction tax, and the
-design must know what will not be migrated.
+**Phase 0A — static guard inventory.** Enumerate the guards and recovery paths
+and, for each, whether a silent non-fire can make a feature unreachable. Static
+reading only. 376 of 377 `return null;` statements in `domain/services` have no
+log within six lines, so the population is large and must be filtered by
+consequence, not instrumented wholesale.
+
+**Phase 0B — telemetry for the subset 0A selects.** Adding one such field
+(`hasVerifierReplayCandidate`) on 2026-08-01 resolved in a single run a question
+that had been invisible for as long as the feature existed.
+
+**Phase 1 — inventory against a pinned corpus.** See
+`docs/chat_notifier_inventory_codex_task.md`. Fix the date range, file set and
+build revisions first; a re-measurement during review produced 33 invoked tools
+where an earlier note recorded 41, and without a pinned corpus there is no way
+to distinguish drift from a different sample.
+
+**Phase 1.5 — the two cheap experiments, and the decision point.** Before
+committing to a renewal:
+
+- **Wire `ChatToolHandlerCatalog` into the production loop** (workstream 6
+  slice 19). Delivers the "adding a tool touches no notifier code" goal by
+  itself, and answers why it was skipped.
+- **Prototype `TurnRuntime` on exactly one high-coupling part.** Measure lines
+  removed, parameters eliminated, and ports or callbacks introduced.
+
+**Proceed to Phase 2 only if that measurement supports it.** If the prototype
+shows the ports cost more than the parameters save, this plan should be
+abandoned in favour of wiring the catalogue and stopping there.
 
 **Phase 2 — design document.** Under the same discipline as the decomposition
 program: explicit safety contract, regression gate, live-canary gate, slice
-definitions with acceptance criteria. Not written until Phase 1 reports.
+definitions with acceptance criteria.
 
 **Phase 3 — sliced execution.**
 

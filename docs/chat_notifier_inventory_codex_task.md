@@ -27,8 +27,9 @@ the reverse question: how much code exists for paths that never execute?
 
 **Never grep the session logs.** They contain a full tool catalogue per
 request, replay history and payload text, so grep counts are inflated by
-roughly an order of magnitude and mix declarations with executions. Use
-`tool/analyze_tool_results.py`, which parses them structurally. This is a
+roughly an order of magnitude and mix declarations with executions. Parse them
+structurally instead — `tool/analyze_tool_results.py` is the existing starting
+point, though investigation 1 needs more than it currently reads. This is a
 recorded lesson, not a preference.
 
 **Distinguish three states for every candidate**, and never collapse them:
@@ -69,14 +70,24 @@ cannot fire at all?
 and the one most likely to contain unreachable paths. It is also where the
 2026-08-01 defects lived.
 
-**Where to look.**
+**Where to look, and what the existing tool cannot do.**
 
-- `tool/analyze_tool_results.py` over the session log corpus
-  (`CAVERNO_SESSION_LOG_DIR` / `~/.caverno`).
-- `turn_exit.transforms[]` and the `trigger` field on tool results record guard
-  firings — `completionClaim` is the documented example.
-- `docs/` contains dated measurement notes for several mechanisms; use them to
-  cross-check rather than as the primary source.
+`tool/analyze_tool_results.py` parses tool results and some payload fields. It
+does **not** read `turn_exit.transforms[]`, arbitrary `trigger` values, or
+tool definitions that were never invoked, so it cannot produce this deliverable
+on its own. Either extend it or add a sibling analyser; do not fall back to
+grep for the reasons above.
+
+`turn_exit.transforms[]` and the `trigger` field on tool results record guard
+firings — `completionClaim` is the documented example. `docs/` contains dated
+measurement notes for several mechanisms; use them to cross-check rather than
+as the primary source.
+
+**Pin the corpus before measuring.** Record the date range, the exact file set
+and the build revisions represented, and report them with every count. Without
+that, results cannot be compared across runs — a re-measurement during review
+produced 33 invoked tools where an earlier note recorded 41, and there is no
+way to tell drift from a different corpus.
 
 **Deliverable.** A table of every named guard/recovery mechanism with: where it
 lives, what triggers it, observed firing count in the corpus, and a state of
@@ -96,13 +107,22 @@ ever been invoked, and 8 account for 67.6% of all tool results. Recorded in
 `caverno-tool-traffic-concentration`. Re-derive with
 `tool/analyze_tool_results.py`.
 
-**Why it matters.** The renewal introduces a `ToolHandlerRegistry` so that
-adding a tool stops requiring an edit to the notifier. That design needs to
-know what a handler actually depends on. Note that the full catalogue is sent
-on every request deliberately, for KV-cache prefix stability
-(`caverno-prefix-stable-tool-loop`) — this investigation is about **code
-residency, not payload composition**, and must not propose subsetting the
-payload.
+**Why it matters.** `ChatToolHandlerCatalog` already exists, with its own
+tests, and is used by `subagent_catalog_child_tool_execution_adapter`. The
+production tool loop does not use it: it still builds
+`ChatToolHandlerRegistry.fromModules`, which captures the notifier. The
+migration is specified in workstream 6 slice 19 and was never completed.
+
+**Answer this first: why is the catalogue unwired?** A step that was specified
+and skipped may have been skipped for a reason, and that reason would also
+obstruct the wider renewal. This is cheaper to learn here than in Phase 3.
+
+On payload composition, which this investigation must not touch: sending the
+whole catalogue every request is a deliberate KV-cache prefix-stability
+trade-off **only when `enablePrefixStableToolLoop` is on, and it defaults to
+false**. With it off, `ToolDefinitionSearchService` already subsets above its
+threshold. This investigation is about **code residency, not payload
+composition**.
 
 **Deliverable.** For each tool handler: invocation count, which notifier state
 it reads, whether it needs approval/owner plumbing, and whether it could be
@@ -136,11 +156,12 @@ files-touched and behaviours-at-risk is enough; a guess is not.
 
 ## Consolidated deliverable
 
-One document ranking every candidate by **(confidence it is safe to remove or
-merge) × (lines it would remove)**, with the delete candidates separated from
-the investigate candidates. Deletion is the only reduction that does not pay
-the 5.8× extraction tax, so a confident small deletion outranks a speculative
-large one.
+One document, stratified by confidence first and ordered by size within each
+band — not a confidence × lines product, which lets a large speculative
+candidate outrank a small certain one. Keep delete candidates separate from
+investigate candidates throughout. Deletion is the only reduction that does not
+pay the 5.8× extraction tax, so the highest-confidence band is the one worth
+acting on regardless of how little it removes.
 
 ## What success looks like
 
