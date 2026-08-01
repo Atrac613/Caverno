@@ -1550,9 +1550,14 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
   // relied on to plateau, so the plateau is staged: the fixture service used
   // to do this, but local_execute_command reaches Caverno's built-in handler,
   // not the fixture, so the staging has to live where the model actually runs.
+  // Four, not two. The repair contract is only ever offered inside a goal
+  // auto-continue decision, so a run where the model recovers within one turn
+  // never reaches the code under test — measured: one run continued twice and
+  // another continued zero times with the same staging. A longer plateau makes
+  // the turn run out before the model can escape it.
   _writeVerifierScript(fixture.root, [
-    _stableRepairProbeOutcome(fixture.root),
-    _stableRepairProbeOutcome(fixture.root),
+    for (var i = 0; i < _stableDiagnosticFailureTurns * 2; i++)
+      _stableRepairProbeOutcome(fixture.root),
   ]);
   final container = _buildContainer(
     env: env,
@@ -2330,7 +2335,11 @@ Future<void> _waitForGoalTerminalOrIdle(
 List<Map<String, dynamic>> _orderedToolResults(
   List<Map<String, dynamic>> entries,
 ) {
+  // Deduplicated by id, first occurrence wins. Every request carries the tool
+  // results of the turns before it, so walking requests naively repeats each
+  // result once per later request and makes "did X happen before Y" nonsense.
   final results = <Map<String, dynamic>>[];
+  final seen = <String>{};
   for (final entry in entries) {
     final request = entry['request'];
     final toolResults = request is Map<String, dynamic>
@@ -2341,7 +2350,10 @@ List<Map<String, dynamic>> _orderedToolResults(
     }
     for (final result in toolResults) {
       if (result is Map<String, dynamic>) {
-        results.add(result);
+        final id = (result['id'] ?? '').toString();
+        if (id.isEmpty || seen.add(id)) {
+          results.add(result);
+        }
       }
     }
   }
