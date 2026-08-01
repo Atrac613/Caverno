@@ -49,17 +49,25 @@ const _verifyCommand = 'dart run tool/verify_todo_app.dart';
 /// `createVerificationRoot` leaves it out of the copy it checks.
 const _verifierInvocationLogName = '.verifier_invocations.jsonl';
 
-/// Where a scenario stages the first verifier outcomes it needs. Also a
-/// dot-file, and written before the turn starts, so the model never sees it
-/// appear.
-const _verifierScriptFileName = '.verifier_script.jsonl';
+/// Where a scenario stages the first verifier outcomes it needs.
+///
+/// Deliberately outside the workspace. The first version of this put the file
+/// in the project root and explained the mechanism in the generated verifier's
+/// own doc comment — which the model read, since reading its verifier is a
+/// reasonable thing to do, and the file did not survive the turn. Staging must
+/// live somewhere the model has no reason to visit and nothing to gain from
+/// editing.
+String _verifierScriptPathFor(String rootPath) {
+  final key = rootPath.hashCode.toUnsigned(32).toRadixString(16);
+  return '${Directory.systemTemp.path}/caverno_verifier_script_$key.jsonl';
+}
 
 /// Stages [outcomes] as the first verifier results, one per run.
 void _writeVerifierScript(
   Directory root,
   List<Map<String, dynamic>> outcomes,
 ) {
-  File('${root.path}/$_verifierScriptFileName').writeAsStringSync(
+  File(_verifierScriptPathFor(root.absolute.path)).writeAsStringSync(
     outcomes.map(jsonEncode).join('\n'),
   );
 }
@@ -141,15 +149,8 @@ Directory _projectRoot() {
   return Directory.current;
 }
 
-/// Outcomes the canary forced for the first runs, if any.
-///
-/// Some scenarios exist to test how the harness reacts to a verifier that
-/// keeps reporting the same problem, which real checks on a real artifact
-/// cannot be relied on to produce. The canary writes the first few outcomes it
-/// needs; everything after them is a genuine check. The model is not told, and
-/// cannot tell: the output shape is identical.
 List<Map<String, dynamic>> _scriptedOutcomes(Directory root) {
-  final script = File('\${root.path}/$_verifierScriptFileName');
+  final script = File(_scriptPath(root));
   if (!script.existsSync()) {
     return const [];
   }
@@ -166,6 +167,11 @@ int _priorRunCount(Directory root) {
     return 0;
   }
   return log.readAsLinesSync().where((line) => line.trim().isNotEmpty).length;
+}
+
+String _scriptPath(Directory root) {
+  final key = root.absolute.path.hashCode.toUnsigned(32).toRadixString(16);
+  return '\${Directory.systemTemp.path}/caverno_verifier_script_\$key.jsonl';
 }
 
 Future<void> main() async {
@@ -1597,11 +1603,6 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
         .where(_containsRepairContractRequest)
         .where(_advertisesTools)
         .toList(growable: false);
-    final unresolvedErrorCounts = entries
-        .map(_unresolvedErrorCount)
-        .whereType<int>()
-        .toList(growable: false);
-
     expect(verifierRuns.length, greaterThanOrEqualTo(3), reason: diagnostic);
     expect(
       verifierRuns[0]['diagnostics'],
@@ -1610,11 +1611,16 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
           '$diagnostic\nThe staged plateau must report the same diagnostic '
           'twice, which is what the stalled-repair path detects.',
     );
-    expect(
-      unresolvedErrorCounts.take(2),
-      orderedEquals(const [1, 1]),
-      reason: diagnostic,
-    );
+    // This used to assert goalAutoContinue evidence reported one unresolved
+    // error for each plateau run. It did, while the fixture served the
+    // verifier: ToolResultPromptBuilder counts a `diagnostics` list on the
+    // tool result, and the fixture's fake result carried one. A real
+    // local_execute_command returns exit_code, stdout and stderr, and that is
+    // correct for a general command runner -- in production the count comes
+    // from the tools that do speak that contract, the diagnostic feedback
+    // service and the language diagnostics bridge. Asserting it here was
+    // measuring the fixture's shape, not the harness. The plateau itself is
+    // asserted directly above, from the verifier's own record.
     expect(
       entries.any(
         (entry) => _requestContainsToolResult(
