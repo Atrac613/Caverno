@@ -1575,14 +1575,22 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
     );
     final entries = await _readSessionLogEntries(logFile);
     final diagnostic = _diagnostic(container, dataSource, toolService, fixture);
-    final verifierCalls = toolService.executedCalls
-        .where(_isTodoVerifierCall)
-        .toList(growable: false);
-    final mutations = toolService.executedCalls
+    // Ordering comes from the session log and diagnostics from the verifier's
+    // own record: the fixture service saw neither, since this scenario runs
+    // local_execute_command and the mutation tools through Caverno's built-in
+    // handlers.
+    final toolResults = _orderedToolResults(entries);
+    final verifierIndices = toolResults
         .asMap()
         .entries
-        .where((entry) => toolService._isMutation(entry.value.name))
-        .where((entry) => entry.value.success)
+        .where((entry) => _isVerifierToolResult(entry.value))
+        .map((entry) => entry.key)
+        .toList(growable: false);
+    final verifierRuns = _recordedVerifierRuns(fixture.root);
+    final mutations = toolResults
+        .asMap()
+        .entries
+        .where((entry) => _isMutationToolResult(entry.value))
         .map((entry) => entry.key)
         .toList(growable: false);
     final repairToolRequests = entries
@@ -1594,11 +1602,13 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
         .whereType<int>()
         .toList(growable: false);
 
-    expect(verifierCalls.length, greaterThanOrEqualTo(3), reason: diagnostic);
+    expect(verifierRuns.length, greaterThanOrEqualTo(3), reason: diagnostic);
     expect(
-      _diagnosticsFromCall(verifierCalls[0]),
-      _diagnosticsFromCall(verifierCalls[1]),
-      reason: diagnostic,
+      verifierRuns[0]['diagnostics'],
+      verifierRuns[1]['diagnostics'],
+      reason:
+          '$diagnostic\nThe staged plateau must report the same diagnostic '
+          'twice, which is what the stalled-repair path detects.',
     );
     expect(
       unresolvedErrorCounts.take(2),
@@ -1615,12 +1625,13 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
       isFalse,
       reason: diagnostic,
     );
-    final secondFailureIndex = toolService.executedCalls.indexOf(
-      verifierCalls[1],
-    );
-    final successIndex = toolService.executedCalls.lastIndexWhere((call) {
-      return _isTodoVerifierCall(call) &&
-          _tryDecodeObject(call.result)['exit_code'] == 0;
+    final secondFailureIndex = verifierIndices[1];
+    final successIndex = toolResults.lastIndexWhere((result) {
+      if (!_isVerifierToolResult(result)) {
+        return false;
+      }
+      final payload = result['result'];
+      return payload is Map && payload['exit_code'] == 0;
     });
     expect(
       mutations.any(
@@ -1635,7 +1646,11 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
       isTrue,
       reason: diagnostic,
     );
-    expect(toolService.hasSuccessfulVerifierCall, isTrue, reason: diagnostic);
+    expect(
+      verifierRuns.any((run) => run['exit_code'] == 0),
+      isTrue,
+      reason: '$diagnostic\nverifierRuns=$verifierRuns',
+    );
     _expectVerifiedGoalNotBlocked(container, diagnostic);
     final completedGoal = container
         .read(conversationsNotifierProvider)
@@ -1670,10 +1685,6 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
   }
 }
 
-List<dynamic> _diagnosticsFromCall(_TodoToolCall call) {
-  return _tryDecodeObject(call.result)['diagnostics'] as List<dynamic>? ??
-      const <dynamic>[];
-}
 
 _TodoToolCall _fixtureVerifierCall({
   required String command,
@@ -1747,13 +1758,6 @@ bool _hasPathBackedDiagnostics(Object? rawDiagnostics) {
   });
 }
 
-bool _isTodoVerifierCall(_TodoToolCall call) {
-  if (call.name != 'local_execute_command') return false;
-  final command = (call.arguments['command'] as String? ?? _verifyCommand)
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
-  return command == _verifyCommand;
-}
 
 bool _containsRepairContractRequest(Map<String, dynamic> entry) {
   final request = entry['request'];
@@ -2290,6 +2294,51 @@ Future<void> _waitForGoalTerminalOrIdle(
     'Timed out waiting for TODO auto-continue live canary completion.\n'
     '${_diagnostic(container, null, null, null)}',
   );
+}
+
+/// Every tool result the turn produced, in order, taken from the session log.
+///
+/// The fixture service records only what it served, and in the live scenarios
+/// that is reads alone — `local_execute_command` and the mutation tools reach
+/// Caverno's built-in handlers instead. The session log is the one ordered
+/// record holding all of them, so any assertion about what happened *before*
+/// what has to be built from here.
+List<Map<String, dynamic>> _orderedToolResults(
+  List<Map<String, dynamic>> entries,
+) {
+  final results = <Map<String, dynamic>>[];
+  for (final entry in entries) {
+    final request = entry['request'];
+    final toolResults = request is Map<String, dynamic>
+        ? request['toolResults']
+        : entry['toolResults'];
+    if (toolResults is! List) {
+      continue;
+    }
+    for (final result in toolResults) {
+      if (result is Map<String, dynamic>) {
+        results.add(result);
+      }
+    }
+  }
+  return results;
+}
+
+bool _isVerifierToolResult(Map<String, dynamic> result) {
+  if ((result['name'] ?? result['toolName']) != 'local_execute_command') {
+    return false;
+  }
+  final arguments = result['arguments'];
+  if (arguments is! Map) {
+    return false;
+  }
+  return (arguments['command'] as String? ?? '').trim() == _verifyCommand;
+}
+
+const _mutationToolNames = {'write_file', 'edit_file', 'delete_file'};
+
+bool _isMutationToolResult(Map<String, dynamic> result) {
+  return _mutationToolNames.contains(result['name'] ?? result['toolName']);
 }
 
 Future<List<Map<String, dynamic>>> _readSessionLogEntries(File file) async {
