@@ -32,6 +32,7 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/services/coding_diagnostic_feedback_service.dart';
+import 'package:caverno/features/chat/domain/services/language_diagnostics_bridge.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
@@ -1542,7 +1543,10 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
     dataSource: dataSource,
     toolService: toolService,
     logStore: logStore,
-    disableCodingDiagnosticFeedback: true,
+    diagnosticFeedbackProvider: _PlateauCodingDiagnosticFeedbackProvider(
+      entrypointAbsolutePath: '${fixture.root.absolute.path}/bin/todo_cli.dart',
+      plateauSnapshots: _stableDiagnosticFailureTurns,
+    ),
   );
   final prompt = _exactShortMvpPrompt('todo_app.md');
 
@@ -2200,6 +2204,7 @@ ProviderContainer _buildContainer({
   required _TodoToolService toolService,
   required LlmSessionLogStore logStore,
   bool disableCodingDiagnosticFeedback = false,
+  CodingDiagnosticFeedbackProvider? diagnosticFeedbackProvider,
 }) {
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
@@ -2215,10 +2220,13 @@ ProviderContainer _buildContainer({
       chatRemoteDataSourceProvider.overrideWithValue(dataSource),
       mcpToolServiceProvider.overrideWithValue(toolService),
       llmSessionLogStoreProvider.overrideWithValue(logStore),
-      if (disableCodingDiagnosticFeedback)
+      if (disableCodingDiagnosticFeedback ||
+          diagnosticFeedbackProvider != null)
         codingDiagnosticFeedbackServiceProvider.overrideWithValue(
           CodingDiagnosticFeedbackService(
-            provider: const _NoopCodingDiagnosticFeedbackProvider(),
+            provider:
+                diagnosticFeedbackProvider ??
+                const _NoopCodingDiagnosticFeedbackProvider(),
           ),
         ),
       sessionMemoryServiceProvider.overrideWithValue(
@@ -2667,6 +2675,62 @@ class _NoopBackgroundTaskService extends BackgroundTaskService {
 
   @override
   void dispose() {}
+}
+
+/// Reports the same error for its first [plateauSnapshots] collections, then
+/// nothing.
+///
+/// The stalled-repair path keys off a diagnostic signature that repeats, and
+/// that signature is built from the `diagnostics` list on a tool result. Only
+/// the tools that speak that contract produce one -- in production, this
+/// service and the language diagnostics bridge. Staging the plateau in the
+/// verifier could not work: a real `local_execute_command` returns exit code,
+/// stdout and stderr, so the signature never forms. Staging it here puts the
+/// repetition where the feature actually reads it, and keeps it out of the
+/// workspace, where the model can see and delete things.
+class _PlateauCodingDiagnosticFeedbackProvider
+    implements CodingDiagnosticFeedbackProvider {
+  _PlateauCodingDiagnosticFeedbackProvider({
+    required this.entrypointAbsolutePath,
+    this.plateauSnapshots = 2,
+  });
+
+  final String entrypointAbsolutePath;
+  final int plateauSnapshots;
+  int collections = 0;
+
+  @override
+  String get providerName => 'plateau';
+
+  @override
+  Future<CodingDiagnosticSnapshot?> collectSnapshot({
+    required String projectRoot,
+    required Iterable<String> changedPaths,
+  }) async {
+    collections += 1;
+    if (collections > plateauSnapshots) {
+      return null;
+    }
+    return CodingDiagnosticSnapshot(
+      providerName: providerName,
+      projectRoot: projectRoot,
+      changedPaths: changedPaths.toList(growable: false),
+      diagnostics: [
+        CodeDiagnostic(
+          absolutePath: entrypointAbsolutePath,
+          severity: 'Error',
+          line: 1,
+          column: 1,
+          message:
+              'The TODO implementation still requires one concrete repair '
+              'before final verification.',
+          code: 'todo_cli_stable_repair_probe',
+        ),
+      ],
+      telemetry: const CodingDiagnosticTelemetry(durationMs: 1, attempts: []),
+      bridge: LanguageDiagnosticsBridgeMetadata.dartAnalyzerCli(),
+    );
+  }
 }
 
 class _NoopCodingDiagnosticFeedbackProvider
