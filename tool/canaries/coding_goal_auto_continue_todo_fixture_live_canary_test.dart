@@ -2708,14 +2708,19 @@ class _PlateauCodingDiagnosticFeedbackProvider
     required Iterable<String> changedPaths,
   }) async {
     collections += 1;
-    if (collections > plateauSnapshots) {
+    // The first collection is the baseline the service diffs against. Reporting
+    // the plateau there would make it pre-existing, and a diagnostic already in
+    // the baseline is never fed back -- which is exactly how the first attempt
+    // at this produced no feedback at all.
+    final isBaseline = collections == 1;
+    if (!isBaseline && collections > plateauSnapshots + 1) {
       return null;
     }
     return CodingDiagnosticSnapshot(
       providerName: providerName,
       projectRoot: projectRoot,
       changedPaths: changedPaths.toList(growable: false),
-      diagnostics: [
+      diagnostics: isBaseline ? const [] : [
         CodeDiagnostic(
           absolutePath: entrypointAbsolutePath,
           severity: 'Error',
