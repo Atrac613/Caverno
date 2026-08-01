@@ -1149,8 +1149,40 @@ Workstream 7, 449 lines across three parts: `command_guardrails` fell 1,045 ->
 311, `context_surgery` 271 -> 79, and `tool_result_telemetry` 167 -> 59 as
 their policies were extracted. What is left adapts notifier state into them.
 
-Workstream 8 (2,296 lines) is the only remaining body with extractable mass,
-and its own row already limits it to narrow interface extraction.
+### Workstream 8: what is deliberately left in place
+
+Measured on 2026-08-01, after the ask-user-question option parser and the
+verifier replay candidate policy came out. Where workstreams 5 and 7 were
+judged by reading, this one was judged by parsing: every member of the three
+parts was walked, and a member counted as extractable only when its body
+reached nothing — no `state`, no `ref`, no instance field, no other notifier
+member. That is the population a domain collaborator can take whole.
+
+| Part | Members | Lines in members | Extractable |
+| --- | --- | --- | --- |
+| `ask_user_question` (337) | 6 | 225 | 1 member, 17 lines |
+| `participant_turns` (854) | 21 | 825 | 2 members, 10 lines |
+| `goal_auto_continue` (1,009) | 31 | 910 | 6 members, 55 lines |
+
+Nine members and 82 lines remain, averaging nine lines each, and they are not a
+cluster: they are null guards and defaults sitting beside the state they serve.
+`_effectiveGoalAutoContinueBudget` is a null check and a fallback constant.
+`_verificationCadenceFor` is a null check around a static call, and the comment
+above it explaining why it does not read `project()` is longer than the method.
+`_participantTurnOwner` is four lines. Extracting these would produce six files
+averaging fourteen lines, each with a manifest entry, a budget key, a boundary
+marker, a test file, and an import line charged to the head — the 5.8 new lines
+per line removed that criterion 7 retired the line target over.
+
+The other 1,878 lines are orchestration by measurement, not by assertion:
+`_handleAskUserQuestion` alone reaches `_savedTaskForGeneration`, the terminal
+tool response policy, the turn cache and the generation's conversation id, and
+suspends mid-body on the user. Extracting it means passing the notifier, which
+the stop conditions forbid.
+
+Workstream 8 is therefore complete under the narrow-interface rule its row
+sets. Further aggregate reduction needs the per-thread notifier split, which
+this program lists as a non-goal.
 
 Do not begin any Workstream 4-8 sub-slice until Slices 2a1-2a3 and 2b1-2b7 are
 green. After that gate, satisfy every prerequisite named by an extraction
