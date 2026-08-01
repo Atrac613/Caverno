@@ -170,6 +170,7 @@ void main() {
       expect(report.statusSelectedPartCount, 37);
       expect(report.markerIds, {
         'analysis-options-lint-edit-guard',
+        'ask-user-question-option-parser',
         'ask-user-question-policy',
         'ask-user-question-turn-cache',
         'background-process-tool-handler',

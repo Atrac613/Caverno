@@ -26,6 +26,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
+import '../../domain/services/ask_user_question_option_parser.dart';
 import '../../domain/services/conversation_goal_suggestion_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_planning_prompt_service.dart';
@@ -1105,7 +1106,6 @@ class ChatNotifier extends Notifier<ChatState> {
     ref.read(conversationsNotifierProvider),
   );
 
-  CodingProject? _getActiveCodingProject() => _codingProjects.active;
 
   String? _getActiveProjectRootPath() {
     final scoped = TurnProjectRoot.current;
@@ -8514,7 +8514,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<McpToolResult?> _ensureActiveProjectAccess(String toolName) async {
     final scopedRoot = TurnProjectRoot.current?.rootPath.trim();
     final project = scopedRoot == null
-        ? _getActiveCodingProject()
+        ? _codingProjects.active
         : scopedRoot.isEmpty
         ? null
         : ref.read(codingProjectsNotifierProvider).findByRootPath(scopedRoot);

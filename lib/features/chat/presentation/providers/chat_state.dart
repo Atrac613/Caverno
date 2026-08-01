@@ -1,3 +1,7 @@
+import '../../domain/services/ask_user_question_policy.dart';
+export '../../domain/services/ask_user_question_policy.dart'
+    show AskUserQuestionOption;
+
 import 'dart:async';
 
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -505,20 +509,6 @@ class PendingParticipantToolApproval extends PendingToolApproval<bool> {
 
   @override
   bool get cancellationValue => false;
-}
-
-class AskUserQuestionOption {
-  const AskUserQuestionOption({
-    required this.id,
-    required this.label,
-    this.description = '',
-    this.preview = '',
-  });
-
-  final String id;
-  final String label;
-  final String description;
-  final String preview;
 }
 
 class AskUserQuestionSelection {

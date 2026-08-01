@@ -54,6 +54,11 @@
           "id": "ask-user-question-turn-cache",
           "path": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_turn_cache.dart"
+        },
+        {
+          "id": "ask-user-question-option-parser",
+          "path": "lib/features/chat/domain/services/ask_user_question_option_parser.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/ask_user_question_option_parser.dart"
         }
       ]
     },

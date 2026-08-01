@@ -22,6 +22,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
   'lib/features/chat/domain/services/content_tool_formatters.dart': 2,
   'lib/features/chat/domain/services/chat_tool_handler_catalog.dart': 271,
+  'lib/features/chat/domain/services/ask_user_question_option_parser.dart': 99,
   'lib/features/chat/domain/services/ask_user_question_policy.dart': 383,
   'lib/features/chat/domain/services/ask_user_question_turn_cache.dart': 99,
   'lib/features/chat/domain/services/background_process_tool_handler.dart': 450,
@@ -375,7 +376,7 @@ const Map<String, int> _lineBudgets = {
 
 const Map<String, int> _libraryLineBudgets = {
   // WS6-5 moves local command policy and execution into an owner-aware handler.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19742,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19671,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

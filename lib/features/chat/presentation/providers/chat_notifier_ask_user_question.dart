@@ -18,7 +18,7 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
       );
     }
 
-    final options = _parseAskUserQuestionOptions(toolCall.arguments['options']);
+    final options = askUserQuestionOptionParser.parse(toolCall.arguments['options']);
     // An untracked dispatcher has no owner and must not inherit visible policy.
     final savedTask = interactionGeneration == null
         ? null
@@ -235,77 +235,6 @@ extension ChatNotifierAskUserQuestion on ChatNotifier {
     state = state.copyWith(pendingAskUserQuestion: null);
   }
 
-  List<AskUserQuestionOption> _parseAskUserQuestionOptions(dynamic rawOptions) {
-    if (rawOptions is! List) {
-      return const [];
-    }
-
-    final options = <AskUserQuestionOption>[];
-    final usedIds = <String>{};
-    for (
-      var index = 0;
-      index < rawOptions.length && options.length < 8;
-      index++
-    ) {
-      final rawOption = rawOptions[index];
-      String label;
-      String id;
-      String description = '';
-      String preview = '';
-
-      if (rawOption is String) {
-        label = rawOption.trim();
-        id = _askUserQuestionOptionId(label, index);
-      } else if (rawOption is Map) {
-        label = (rawOption['label'] as String?)?.trim() ?? '';
-        id = (rawOption['id'] as String?)?.trim().isNotEmpty == true
-            ? (rawOption['id'] as String).trim()
-            : _askUserQuestionOptionId(label, index);
-        description = (rawOption['description'] as String?)?.trim() ?? '';
-        preview = (rawOption['preview'] as String?)?.trim() ?? '';
-      } else {
-        continue;
-      }
-
-      if (label.isEmpty) {
-        continue;
-      }
-      var uniqueId = id;
-      var suffix = 2;
-      while (!usedIds.add(uniqueId)) {
-        uniqueId = '$id-$suffix';
-        suffix++;
-      }
-      options.add(
-        AskUserQuestionOption(
-          id: uniqueId,
-          label: _clipAskUserQuestionText(label, 120),
-          description: _clipAskUserQuestionText(description, 500),
-          preview: _clipAskUserQuestionText(preview, 2000),
-        ),
-      );
-    }
-    return options;
-  }
-
-  String _askUserQuestionOptionId(String label, int index) {
-    final normalized = label
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
-        .replaceAll(RegExp(r'^-+|-+$'), '');
-    if (normalized.isNotEmpty) {
-      return normalized.length > 40 ? normalized.substring(0, 40) : normalized;
-    }
-    return 'option-${index + 1}';
-  }
-
-  String _clipAskUserQuestionText(String value, int maxLength) {
-    final normalized = value.trim();
-    if (normalized.length <= maxLength) {
-      return normalized;
-    }
-    return '${normalized.substring(0, maxLength - 3)}...';
-  }
 }
 
 class _AskUserQuestionTurnCache {
