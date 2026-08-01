@@ -1554,13 +1554,13 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
   // relied on to plateau, so the plateau is staged: the fixture service used
   // to do this, but local_execute_command reaches Caverno's built-in handler,
   // not the fixture, so the staging has to live where the model actually runs.
-  // Four, not two. The repair contract is only ever offered inside a goal
-  // auto-continue decision, so a run where the model recovers within one turn
-  // never reaches the code under test — measured: one run continued twice and
-  // another continued zero times with the same staging. A longer plateau makes
-  // the turn run out before the model can escape it.
+  // Two. A longer plateau was tried to force the auto-continue decision that
+  // offers a repair contract, and it backfired: the scenario also requires the
+  // model to recover and complete the goal, and four identical failures pushed
+  // recovery out of reach. The contract is asserted at the unit level now, so
+  // the staging only has to be long enough for the harness to see a plateau.
   _writeVerifierScript(fixture.root, [
-    for (var i = 0; i < _stableDiagnosticFailureTurns * 2; i++)
+    for (var i = 0; i < _stableDiagnosticFailureTurns; i++)
       _stableRepairProbeOutcome(fixture.root),
   ]);
   final container = _buildContainer(
