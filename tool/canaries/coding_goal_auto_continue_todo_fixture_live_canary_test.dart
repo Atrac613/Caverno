@@ -49,6 +49,43 @@ const _verifyCommand = 'dart run tool/verify_todo_app.dart';
 /// `createVerificationRoot` leaves it out of the copy it checks.
 const _verifierInvocationLogName = '.verifier_invocations.jsonl';
 
+/// Where a scenario stages the first verifier outcomes it needs. Also a
+/// dot-file, and written before the turn starts, so the model never sees it
+/// appear.
+const _verifierScriptFileName = '.verifier_script.jsonl';
+
+/// Stages [outcomes] as the first verifier results, one per run.
+void _writeVerifierScript(
+  Directory root,
+  List<Map<String, dynamic>> outcomes,
+) {
+  File('${root.path}/$_verifierScriptFileName').writeAsStringSync(
+    outcomes.map(jsonEncode).join('\n'),
+  );
+}
+
+/// One verifier failure asking for a repair, identical every time it is used,
+/// so two of them form the plateau the stalled-repair path is meant to detect.
+Map<String, dynamic> _stableRepairProbeOutcome(Directory root) {
+  return <String, dynamic>{
+    'stdout': '',
+    'stderr': 'Stable TODO verifier diagnostic plateau.\n',
+    'diagnostics': [
+      {
+        'severity': 'Error',
+        'path': File('${root.path}/bin/todo_cli.dart').absolute.path,
+        'relative_path': 'bin/todo_cli.dart',
+        'line': 1,
+        'column': 1,
+        'code': 'todo_cli_stable_repair_probe',
+        'message':
+            'The TODO implementation still requires one concrete repair '
+            'before final verification.',
+      },
+    ],
+  };
+}
+
 /// Every verifier run the model actually performed, oldest first.
 List<Map<String, dynamic>> _recordedVerifierRuns(Directory root) {
   final log = File('${root.path}/$_verifierInvocationLogName');
@@ -104,31 +141,78 @@ Directory _projectRoot() {
   return Directory.current;
 }
 
+/// Outcomes the canary forced for the first runs, if any.
+///
+/// Some scenarios exist to test how the harness reacts to a verifier that
+/// keeps reporting the same problem, which real checks on a real artifact
+/// cannot be relied on to produce. The canary writes the first few outcomes it
+/// needs; everything after them is a genuine check. The model is not told, and
+/// cannot tell: the output shape is identical.
+List<Map<String, dynamic>> _scriptedOutcomes(Directory root) {
+  final script = File('\${root.path}/$_verifierScriptFileName');
+  if (!script.existsSync()) {
+    return const [];
+  }
+  return script
+      .readAsLinesSync()
+      .where((line) => line.trim().isNotEmpty)
+      .map((line) => jsonDecode(line) as Map<String, dynamic>)
+      .toList(growable: false);
+}
+
+int _priorRunCount(Directory root) {
+  final log = File('\${root.path}/$_verifierInvocationLogName');
+  if (!log.existsSync()) {
+    return 0;
+  }
+  return log.readAsLinesSync().where((line) => line.trim().isNotEmpty).length;
+}
+
 Future<void> main() async {
   final root = _projectRoot();
-  final result = await $className(
-    root: root,
-    entrypointPolicy: DartCliEntrypointPolicy.$entrypointPolicy,
-  ).verify();
-  // Ground truth for the canary: whether the model ran this at all, recorded
-  // where no tool-routing decision can hide it.
+  final scripted = _scriptedOutcomes(root);
+  final runIndex = _priorRunCount(root);
+
+  List<Map<String, dynamic>> diagnostics;
+  String transcript;
+  String failureStderr;
+  if (runIndex < scripted.length) {
+    final outcome = scripted[runIndex];
+    diagnostics = (outcome['diagnostics'] as List)
+        .cast<Map<String, dynamic>>();
+    transcript = (outcome['stdout'] as String?) ?? '';
+    failureStderr =
+        (outcome['stderr'] as String?) ?? 'Verifier reported a problem.';
+  } else {
+    final result = await $className(
+      root: root,
+      entrypointPolicy: DartCliEntrypointPolicy.$entrypointPolicy,
+    ).verify();
+    diagnostics = result.diagnostics;
+    transcript = result.transcript;
+    failureStderr = 'Fixture acceptance criteria failed.';
+  }
+
+  // Ground truth for the canary: what this run reported, recorded where no
+  // tool-routing decision can hide it.
   File('\${root.path}/$_verifierInvocationLogName').writeAsStringSync(
     '\${jsonEncode({
       'at': DateTime.now().toIso8601String(),
-      'exit_code': result.passed ? 0 : 1,
-      'diagnostic_count': result.diagnostics.length,
+      'exit_code': diagnostics.isEmpty ? 0 : 1,
+      'diagnostic_count': diagnostics.length,
+      'scripted': runIndex < scripted.length,
+      'diagnostics': diagnostics,
     })}\\n',
     mode: FileMode.append,
   );
-  stdout.write(result.transcript);
-  if (result.passed) {
+
+  stdout.write(transcript);
+  if (diagnostics.isEmpty) {
     stdout.writeln('All acceptance criteria passed.');
     return;
   }
-  stdout.writeln(
-    const JsonEncoder.withIndent('  ').convert(result.diagnostics),
-  );
-  stderr.writeln('TODO fixture acceptance criteria failed.');
+  stdout.writeln(const JsonEncoder.withIndent('  ').convert(diagnostics));
+  stderr.writeln(failureStderr);
   exitCode = 1;
 }
 ''';
@@ -1437,6 +1521,15 @@ Future<void> _runStalledDiagnosticRepairLiveScenario() async {
     stagedFailureTurns: 0,
     stableDiagnosticFailureTurns: _stableDiagnosticFailureTurns,
   );
+  // This scenario is about how the harness reacts to a verifier that keeps
+  // reporting the same problem. Real checks on a real artifact cannot be
+  // relied on to plateau, so the plateau is staged: the fixture service used
+  // to do this, but local_execute_command reaches Caverno's built-in handler,
+  // not the fixture, so the staging has to live where the model actually runs.
+  _writeVerifierScript(fixture.root, [
+    _stableRepairProbeOutcome(fixture.root),
+    _stableRepairProbeOutcome(fixture.root),
+  ]);
   final container = _buildContainer(
     env: env,
     fixture: fixture,
