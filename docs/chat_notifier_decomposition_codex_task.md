@@ -865,7 +865,7 @@ Measured on 2026-07-27 at `b0c19fdb`, using the same physical-line semantics as
 | **Current ratchet debt** | **19** |
 | Five lifecycle `keep` parts | 644 |
 | Candidate part lines outside the `keep` set | 13,030 |
-| Exact half-of-baseline reference point | 11,524.5 |
+| Exact half-of-baseline reference point (retired as a target, see criterion 7) | 11,524.5 |
 
 The aggregate ratchet is intentionally red at the start of Slice 1:
 `23,049 > 23,030`. Do not change the budget to make the baseline green.
@@ -1118,10 +1118,39 @@ never one PR. Deferred-boundary rows are not approved implementation slices.
 | **Deferred boundary** | Proposal parsing, option, workflow, task-parser, and quality facades | Blocked because draft DTOs are declared in `ChatState` and JSON-repair uses notifier-bound callbacks; both prerequisites are outside this tranche | Not applicable |
 | **Deferred boundary** | Terminal tool-response facade | Blocked until its notifier-capturing callback bag becomes a narrow explicit-input API | Not applicable |
 | **Workstream 4** | Low-state and prompt-context concerns; WS4-1 and WS4-2 focused acceptance complete | Extract one independent concern per sub-slice; leave unrelated code in its existing part | Required for prompt, planning, mesh, Python repair, or rollback paths |
-| **Workstream 5** | Recovery and verification services | One recovery route or tightly coupled pair per sub-slice | Required |
+| **Workstream 5** | Recovery and verification services — **substantially complete**, 2,878 -> 2,009 lines | One recovery route or tightly coupled pair per sub-slice | Required |
 | **Workstream 6** | Tool handlers; WS6-1, WS6-2, WS6-5, WS6-12, and WS6-13 focused acceptance complete | Separate execution from approval/UI; split local-file and Computer Use into sub-500-line concern tasks; registry moves last | Required |
-| **Workstream 7** | Guardrails, context surgery, and telemetry | One concern per sub-slice after poison tests exist | Required |
+| **Workstream 7** | Guardrails, context surgery, and telemetry — **substantially complete**, 1,483 -> 449 lines | One concern per sub-slice after poison tests exist | Required |
 | **Workstream 8** | Goal continuation, participant turns, and user questions | Narrow interface extraction only; leave justified orchestration in place | Required |
+
+### Workstreams 5 and 7: what is deliberately left in place
+
+Reviewed file by file on 2026-08-01. Both are substantially complete, and the
+remainder is the orchestration this plan says to leave alone. Recording it so
+the next reader does not manufacture extractions to move a number.
+
+Workstream 5, 2,009 lines across six parts:
+
+- `tool_loop_batch` (748) is one 520-line orchestration method plus its
+  adapters. The loop is not a recovery service.
+- `final_answer_recovery` (288) is a single recovery routine that drives the
+  datasource directly.
+- `turn_finalization_recovery` (280) and `unexecuted_action_recovery` (228)
+  already delegate to `TurnFinalizationRecoveryPolicy` and
+  `UnexecutedFinalAnswerToolRequestPolicy`; what remains builds their inputs
+  from notifier state.
+- `coding_verification_feedback` (313) is asynchronous orchestration. Its one
+  genuinely pure decision is 16 lines, and extracting it would add roughly 40
+  lines of file, manifest entry, budget and tests to remove about 10 — the
+  ratio this program is trying to get away from.
+- `coding_continuation_recovery` (127) already delegates.
+
+Workstream 7, 449 lines across three parts: `command_guardrails` fell 1,045 ->
+311, `context_surgery` 271 -> 79, and `tool_result_telemetry` 167 -> 59 as
+their policies were extracted. What is left adapts notifier state into them.
+
+Workstream 8 (2,296 lines) is the only remaining body with extractable mass,
+and its own row already limits it to narrow interface extraction.
 
 Do not begin any Workstream 4-8 sub-slice until Slices 2a1-2a3 and 2b1-2b7 are
 green. After that gate, satisfy every prerequisite named by an extraction
@@ -1326,8 +1355,21 @@ The program is complete only when:
    its budget lowered to the achieved count; test-only gate slices do not
    invent a reduction.
 7. The final aggregate is reported against the exact 11,524.5 half-baseline
-   reference. Halving is directional, not permission to force unsafe
-   extraction.
+   reference, and **the reference is retired as a target**. Measured
+   2026-08-01: the aggregate is 19,742, of which 8,907 is the orchestrator
+   itself and 10,835 sits in 37 declared parts. Reaching 11,546 therefore means
+   extracting roughly 8,200 of those 10,835 part lines — 76% of everything
+   left — while Workstreams 5, 7 and 8 have just been reviewed as mostly the
+   orchestration this plan says to keep. The arithmetic and the safety rule
+   cannot both be satisfied by extraction, so anything approaching half
+   requires shrinking the orchestrator, which is the per-thread notifier split
+   and an explicit non-goal here.
+
+   Steer by the two measures a rewrite cannot satisfy instead: declared-part
+   count (43 -> 37) and the turn-scope audit (132 -> 67 ambient reads, 118 ->
+   50 turn-reachable). Report the aggregate as an outcome. This tranche spent
+   5.8 new collaborator lines per line the library lost; a target expressed in
+   lines rewards exactly that trade.
 8. The corrected four-scenario live canary passes after every applicable slice,
    with no busy thread and exactly one `turn_exit` entry for each expected
    completed conversation and interaction generation.

@@ -499,6 +499,25 @@ Tranche 2 status (landed on `main` as 7e66f3d9, 2026-08-01):
   analysis clean across lib, packages, test and tool, and the four-scenario
   live multi-thread canary green against `qwen3.6-27b-vision`.
 
+Tranche 3 status (in progress, 2026-08-01):
+
+- Removed 36 forwarding shims — private methods left behind by earlier
+  extractions that did nothing but call the collaborator. The one change in
+  this program that shrinks the library without writing anything.
+- Extracted `TruncatedToolCallArgumentsGuard`, which answers tool calls whose
+  arguments the output-token limit ate.
+- Reviewed Workstreams 5 and 7 file by file and recorded them as substantially
+  complete: 2,878 -> 2,009 and 1,483 -> 449 lines, the remainder being
+  orchestration the plan says to leave. See "Workstreams 5 and 7: what is
+  deliberately left in place" in the codex task document.
+- Retired the half-baseline line count as a target. The aggregate is 19,742,
+  of which 8,907 is the orchestrator; halving would mean extracting 76% of
+  everything left in the parts, which the same review says to keep. Steer by
+  declared-part count (43 -> 37) and the turn-scope audit (132 -> 67 ambient
+  reads, 118 -> 50 turn-reachable), and report the aggregate as an outcome.
+- Workstream 8 (2,296 lines) is the only remaining body with extractable mass,
+  and its own rules limit it to narrow interface extraction.
+
 Deferred follow-up candidates:
 
 - Conversation message persistence is isolated in
