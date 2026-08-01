@@ -132,7 +132,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
     ChatTurnOwner owner,
     ToolCallInfo toolCall,
   ) {
-    if (!_isReplayEligibleVerifierToolCall(toolCall)) {
+    if (!verifierReplayCandidatePolicy.isEligible(toolCall)) {
       return;
     }
     final capability = const ToolCapabilityClassifier().classify(
@@ -159,7 +159,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
       tracker.verifierReplayCandidate = null;
       tracker.verifierReplayCandidatePriority = 0;
     }
-    final priority = _verifierReplayPriority(toolCall);
+    final priority = verifierReplayCandidatePolicy.priority(toolCall);
     if (priority < tracker.verifierReplayCandidatePriority) {
       return;
     }
@@ -193,34 +193,9 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
         tracker?.verifierReplayCandidateTaskId == activeTaskId;
   }
 
-  bool _isReplayEligibleVerifierToolCall(ToolCallInfo toolCall) {
-    final name = toolCall.name.trim().toLowerCase();
-    if (name == 'run_tests') {
-      return true;
-    }
-    if (name != 'local_execute_command' ||
-        toolCall.arguments['background'] == true) {
-      return false;
-    }
-    final command = (toolCall.arguments['command'] as String? ?? '').trim();
-    if (command.isEmpty || RegExp(r'[\r\n;&|`<>]|\$\(').hasMatch(command)) {
-      return false;
-    }
-    return true;
-  }
-
-  int _verifierReplayPriority(ToolCallInfo toolCall) {
-    if (toolCall.name.trim().toLowerCase() == 'run_tests') {
-      return 2;
-    }
-    final command = (toolCall.arguments['command'] as String? ?? '')
-        .toLowerCase();
-    return RegExp(r'(^|[/_-])verif(y|ier)').hasMatch(command) ? 2 : 1;
-  }
-
   @visibleForTesting
   bool isVerifierReplayEligibleForTest(ToolCallInfo toolCall) {
-    return _isReplayEligibleVerifierToolCall(toolCall) &&
+    return verifierReplayCandidatePolicy.isEligible(toolCall) &&
         const ToolCapabilityClassifier()
                 .classify(toolCall.name, arguments: toolCall.arguments)
                 .commandEffect ==

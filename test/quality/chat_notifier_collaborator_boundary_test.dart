@@ -242,6 +242,7 @@ void main() {
         'turn-tool-approval-coordinator',
         'unexecuted-file-mutation-before-command-guard',
         'unexecuted-final-answer-tool-request-policy',
+        'verifier-replay-candidate-policy',
       });
       expect(
         report.budgetKeys,

@@ -16,7 +16,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// so adjacent maintenance does not require raising the ratchet.
 const Map<String, int> _lineBudgets = {
   // WS7-20 moves runtime sampler feedback behind immutable owner events.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8907,
+  // The head carries one import line the extracted verifier-replay policy needs
+  // on the part's behalf: parts share the library's import scope, so a
+  // collaborator used only by a part is still paid for here. The library
+  // aggregate below records the offsetting removal.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8908,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -254,6 +258,8 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/presentation/coordinators/workflow_task_run_coordinator.dart':
       2380,
   'lib/features/chat/domain/services/content_tool_result_formatter.dart': 132,
+  'lib/features/chat/domain/services/verifier_replay_candidate_policy.dart':
+      56,
   'lib/features/chat/domain/services/workflow_task_run_lifecycle_policy.dart':
       56,
   'lib/features/chat/domain/services/workflow_task_turn_route_policy.dart': 43,
@@ -376,7 +382,7 @@ const Map<String, int> _lineBudgets = {
 
 const Map<String, int> _libraryLineBudgets = {
   // WS6-5 moves local command policy and execution into an owner-aware handler.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19671,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19647,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

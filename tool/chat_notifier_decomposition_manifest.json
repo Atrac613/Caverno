@@ -1066,6 +1066,11 @@
           "id": "goal-update-tool-handler",
           "path": "lib/features/chat/domain/services/goal_update_tool_handler.dart",
           "sizeBudgetKey": "lib/features/chat/domain/services/goal_update_tool_handler.dart"
+        },
+        {
+          "id": "verifier-replay-candidate-policy",
+          "path": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart",
+          "sizeBudgetKey": "lib/features/chat/domain/services/verifier_replay_candidate_policy.dart"
         }
       ]
     },
