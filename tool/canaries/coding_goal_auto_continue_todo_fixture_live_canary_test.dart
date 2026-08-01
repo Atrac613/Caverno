@@ -165,6 +165,8 @@ const _expenseTrackerFixtureSpec = _MvpFixtureSpec(
   terminalMessage:
       'The Expense tracker verifier passed. The requested work is complete.',
   toolFailureMessage: 'Expense tracker verifier failed.',
+  verifierSupportLibrary: 'expense_tracker_behavior_verifier.dart',
+  verifierClassName: 'ExpenseTrackerBehaviorVerifier',
 );
 const _markdownTocFixtureSpec = _MvpFixtureSpec(
   canaryId: 'markdown_toc',
@@ -178,6 +180,8 @@ const _markdownTocFixtureSpec = _MvpFixtureSpec(
   terminalMessage:
       'The Markdown TOC verifier passed. The requested work is complete.',
   toolFailureMessage: 'Markdown TOC verifier failed.',
+  verifierSupportLibrary: 'markdown_toc_behavior_verifier.dart',
+  verifierClassName: 'MarkdownTocBehaviorVerifier',
 );
 const _stagedFailureTurns = 2;
 const _stableDiagnosticFailureTurns = 2;
