@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../../../core/services/login_shell_environment.dart';
+import '../../domain/services/dart_diagnostic_line_parser.dart';
 import 'filesystem_tools.dart';
 import 'git_tools.dart';
 
@@ -231,12 +232,20 @@ class LocalShellTools {
     Duration? timeout,
     bool? processTerminated,
   }) {
+    final diagnostics = timedOut || exitCode == null || exitCode == 0
+        ? const <Map<String, dynamic>>[]
+        : _diagnosticsFromOutput(
+            command: command,
+            workingDirectory: workingDirectory,
+            output: '${stdout.text}\n${stderr.text}',
+          );
     return jsonEncode({
       'command': command,
       'working_directory': workingDirectory,
       'exit_code': ?exitCode,
       'stdout': stdout.text,
       'stderr': stderr.text,
+      if (diagnostics.isNotEmpty) 'diagnostics': diagnostics,
       if (stdout.truncated) 'stdout_truncated': true,
       if (stderr.truncated) 'stderr_truncated': true,
       if (timedOut) ...{
@@ -246,6 +255,58 @@ class LocalShellTools {
         'process_terminated': processTerminated ?? false,
       },
     });
+  }
+
+  /// Diagnostics a failed Dart or Flutter command reported in its own output.
+  ///
+  /// Caverno's completion evidence counts a `diagnostics` list on a tool
+  /// result, and until now only the tools that generate diagnostics themselves
+  /// produced one — so a model that verified by running `dart analyze` through
+  /// this tool got errors the harness could read as prose but not as evidence.
+  ///
+  /// Deliberately restricted to `dart` and `flutter`. The parsers recognise
+  /// only those two output syntaxes, so widening the command set would add
+  /// misparse risk without adding coverage, and every command that reaches
+  /// here starts contributing to the unresolved-error count that goal
+  /// completion gaps are built from. Keeping it to commands whose failure
+  /// really does mean unresolved Dart errors keeps that claim true.
+  static List<Map<String, dynamic>> _diagnosticsFromOutput({
+    required String command,
+    required String workingDirectory,
+    required String output,
+  }) {
+    if (!_isDartToolingCommand(command)) {
+      return const [];
+    }
+    const parser = DartDiagnosticLineParser();
+    final diagnostics = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    for (final line in const LineSplitter().convert(output)) {
+      final diagnostic = parser.parse(line, pathBase: workingDirectory);
+      if (diagnostic == null || !seen.add(diagnostic.dedupeKey)) {
+        continue;
+      }
+      diagnostics.add({
+        'severity': diagnostic.severity,
+        'path': diagnostic.absolutePath,
+        'relative_path': diagnostic.relativePath(workingDirectory),
+        'line': diagnostic.line,
+        'column': diagnostic.column,
+        if (diagnostic.code != null) 'code': diagnostic.code,
+        'message': diagnostic.message,
+      });
+    }
+    return diagnostics;
+  }
+
+  /// Whether the command is run by the Dart or Flutter CLI, allowing an `fvm`
+  /// prefix, which this repository uses everywhere.
+  static bool _isDartToolingCommand(String command) {
+    final tokens = command.trim().split(RegExp(r'\s+'));
+    final executable = tokens.isNotEmpty && tokens.first == 'fvm' && tokens.length > 1
+        ? tokens[1]
+        : (tokens.isEmpty ? '' : tokens.first);
+    return executable == 'dart' || executable == 'flutter';
   }
 
   static String _formatTimeout(Duration timeout) {

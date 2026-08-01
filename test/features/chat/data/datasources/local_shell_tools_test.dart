@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  _diagnosticsTests();
   group('implicit errexit', () {
     late Directory tempDir;
 
@@ -502,5 +503,76 @@ fi
             )
             as Map<String, dynamic>;
     expect(rg['stdout'], contains('nested/feature.txt:2:second line'));
+  });
+}
+
+void _diagnosticsTests() {
+  group('diagnostics attached to a failing command', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('caverno_shell_diag_');
+      File('${tempDir.path}/pubspec.yaml').writeAsStringSync(
+        'name: diag_fixture\nenvironment:\n  sdk: ">=3.0.0 <4.0.0"\n',
+      );
+    });
+
+    tearDown(() {
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+
+    Future<Map<String, dynamic>> run(String command) async {
+      final raw = await LocalShellTools.execute(
+        command: command,
+        workingDirectory: tempDir.path,
+        timeout: const Duration(seconds: 90),
+      );
+      return jsonDecode(raw) as Map<String, dynamic>;
+    }
+
+    void writeSource(String body) {
+      Directory('${tempDir.path}/lib').createSync(recursive: true);
+      File('${tempDir.path}/lib/main.dart').writeAsStringSync(body);
+    }
+
+    // Completion evidence counts a `diagnostics` list on a tool result. Until
+    // this existed, a model that verified by running the analyzer through this
+    // tool produced errors the harness could show but not count.
+    test('reads them out of a failing dart analyze', () async {
+      writeSource('void main() { undefinedFunction(); }\n');
+
+      final result = await run('dart analyze');
+      expect(result['exit_code'], isNot(0));
+
+      final diagnostics = result['diagnostics'] as List?;
+      expect(diagnostics, isNotNull, reason: '${result['stdout']}');
+      final first = diagnostics!.first as Map<String, dynamic>;
+      expect(first['severity'], 'Error');
+      expect(first['relative_path'], 'lib/main.dart');
+      expect(first['line'], 1);
+    });
+
+    test('stays absent when dart analyze passes', () async {
+      writeSource('void main() {}\n');
+
+      final result = await run('dart analyze');
+      expect(result['exit_code'], 0);
+      expect(result['diagnostics'], isNull);
+    });
+
+    test('stays absent for a failing command that is not dart or flutter', () async {
+      // The parsers only know Dart and Flutter syntax, and every diagnostic
+      // raises the unresolved-error count that goal completion gaps are built
+      // from. A command that happens to print an analyzer-shaped line must not
+      // become evidence of unresolved Dart errors.
+      const analyzerLine =
+          'ERROR|COMPILE_TIME_ERROR|UNDEFINED_METHOD|'
+          'lib/main.dart|12|7|9|The method is not defined.';
+
+      final result = await run("printf '%s\\n' '$analyzerLine'; exit 1");
+      expect(result['exit_code'], 1);
+      expect(result['stdout'], contains('UNDEFINED_METHOD'));
+      expect(result['diagnostics'], isNull);
+    });
   });
 }
