@@ -281,7 +281,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
         continue;
       }
       if (name != 'git_execute_command' ||
-          !_toolResultHasSuccessfulExit(result)) {
+          !_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) {
         continue;
       }
       final command = _normalizedGitSubcommand(result);
@@ -324,7 +324,7 @@ extension ChatNotifierGitHandlers on ChatNotifier {
   }
 
   String? _normalizedGitSubcommand(ToolResultInfo result) {
-    var command = _toolCommandArgument(result.arguments);
+    var command = _toolCallExecutionPolicy.toolCommandArgument(result.arguments);
     final decoded = _tryDecodeMap(result.result);
     final decodedCommand = decoded?['command'];
     if ((command == null || command.trim().isEmpty) &&

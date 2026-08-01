@@ -15,13 +15,7 @@ extension ChatNotifierTaskProposalParser on ChatNotifier {
     );
   }
 
-  WorkflowTaskProposalDraft? _parseTaskProposal(String rawContent) {
-    return _taskProposalParser.parse(rawContent);
-  }
 
-  WorkflowTaskProposalDraft? _parseTaskProposalWithFallback(String rawContent) {
-    return _taskProposalParser.parseWithFallback(rawContent);
-  }
 
   WorkflowTaskProposalDraft? _buildTaskProposalTruncationFallback({
     required Conversation currentConversation,
@@ -43,21 +37,6 @@ extension ChatNotifierTaskProposalParser on ChatNotifier {
     return _taskProposalParser.parseTaskProposalMap(decoded);
   }
 
-  WorkflowTaskProposalDraft? _parseTaskProposalFromLooseJson(
-    String rawContent,
-  ) {
-    return _taskProposalParser.parseTaskProposalFromLooseJson(rawContent);
-  }
 
-  WorkflowTaskProposalDraft? _parseTaskProposalFromSections(String rawContent) {
-    return _taskProposalParser.parseTaskProposalFromSections(rawContent);
-  }
 
-  WorkflowTaskProposalDraft? _parseTaskProposalFromInlineReasoningPlan(
-    String rawContent,
-  ) {
-    return _taskProposalParser.parseTaskProposalFromInlineReasoningPlan(
-      rawContent,
-    );
-  }
 }

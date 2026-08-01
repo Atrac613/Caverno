@@ -451,7 +451,7 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
       if (const CommandDiagnosticVerifierReplayGuard().matches(result)) {
         toolFailureCounts.remove(toolFailureKey);
       } else if (disposition == ToolResultDisposition.success) {
-        if (_isCommandExecutionTool(toolCall.name)) {
+        if (_toolCallExecutionPolicy.isCommandExecutionTool(toolCall.name)) {
           _resetCommandDiagnosticStreak(owner, toolFailureKey);
         }
         final isMutationTool =
@@ -687,21 +687,9 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
   }
 
   // Tool execution-policy delegates and process-start bookkeeping.
-  bool _isCommandExecutionTool(String toolName) {
-    return _toolCallExecutionPolicy.isCommandExecutionTool(toolName);
-  }
 
-  String? _toolCommandArgument(Map<String, dynamic> arguments) {
-    return _toolCallExecutionPolicy.toolCommandArgument(arguments);
-  }
 
-  bool _toolResultHasSuccessfulExit(ToolResultInfo result) {
-    return _toolCallExecutionPolicy.toolResultHasSuccessfulExit(result);
-  }
 
-  int? _exitCodeValue(Object? value) {
-    return _toolCallExecutionPolicy.exitCodeValue(value);
-  }
 
   void _recordBackgroundProcessStartResult(
     ChatTurnOwner owner,
@@ -745,9 +733,6 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
     return false;
   }
 
-  bool _toolResultTimedOut(ToolResultInfo result) {
-    return _toolCallExecutionPolicy.toolResultTimedOut(result);
-  }
 
   /// Accumulates executed commands for the exact turn owner.
   void _recordTurnCommandLedgerEntry(
@@ -756,10 +741,10 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
   }) {
     final owner = _turnOwnerForGeneration(interactionGeneration);
     if (owner == null) return;
-    if (!_isCommandExecutionTool(toolResult.name)) {
+    if (!_toolCallExecutionPolicy.isCommandExecutionTool(toolResult.name)) {
       return;
     }
-    final command = _toolCommandArgument(toolResult.arguments);
+    final command = _toolCallExecutionPolicy.toolCommandArgument(toolResult.arguments);
     if (command != null) {
       _turnToolResults.recordCommand(owner, command);
     }

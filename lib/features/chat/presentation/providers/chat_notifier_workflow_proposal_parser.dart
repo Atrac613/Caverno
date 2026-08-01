@@ -17,17 +17,7 @@ extension ChatNotifierWorkflowProposalParser on ChatNotifier {
     );
   }
 
-  WorkflowProposalParseResult? _parseWorkflowProposalResponse(
-    String rawContent,
-  ) {
-    return _workflowProposalParser.parse(rawContent);
-  }
 
-  WorkflowProposalParseResult? _parseWorkflowProposalResponseWithFallback(
-    String rawContent,
-  ) {
-    return _workflowProposalParser.parseWithFallback(rawContent);
-  }
 
   WorkflowProposalDraft? _buildWorkflowProposalFallback({
     WorkflowProposalDraft? latestProposal,
@@ -51,9 +41,6 @@ extension ChatNotifierWorkflowProposalParser on ChatNotifier {
     );
   }
 
-  ConversationWorkflowStage? _parseWorkflowStage(Object? rawStage) {
-    return _workflowProposalParser.parseWorkflowStage(rawStage);
-  }
 
   ConversationWorkflowStage? _inferWorkflowStageFromProposal(
     Map<String, dynamic> decoded,
@@ -73,39 +60,11 @@ extension ChatNotifierWorkflowProposalParser on ChatNotifier {
     return _workflowProposalParser.parseWorkflowDecisionResponseMap(decoded);
   }
 
-  WorkflowProposalDraft? _parseWorkflowProposalFromSections(String rawContent) {
-    return _workflowProposalParser.parseWorkflowProposalFromSections(
-      rawContent,
-    );
-  }
 
-  WorkflowProposalDraft? _parseWorkflowProposalFromLooseJson(
-    String rawContent,
-  ) {
-    return _workflowProposalParser.parseWorkflowProposalFromLooseJson(
-      rawContent,
-    );
-  }
 
-  WorkflowProposalDraft? _parseWorkflowProposalFromNarrative(
-    String rawContent,
-  ) {
-    return _workflowProposalParser.parseWorkflowProposalFromNarrative(
-      rawContent,
-    );
-  }
 
-  String? _extractNarrativeWorkflowGoal(String rawContent) {
-    return _workflowProposalParser.extractNarrativeWorkflowGoal(rawContent);
-  }
 
-  String _trimNarrativeWorkflowGoalCandidate(String rawValue) {
-    return _workflowProposalParser.trimNarrativeWorkflowGoalCandidate(rawValue);
-  }
 
-  String? _sanitizeNarrativeWorkflowGoal(String rawValue) {
-    return _workflowProposalParser.sanitizeNarrativeWorkflowGoal(rawValue);
-  }
 
   List<String> _extractNarrativeWorkflowList(
     String rawContent, {
@@ -117,11 +76,4 @@ extension ChatNotifierWorkflowProposalParser on ChatNotifier {
     );
   }
 
-  String? _deriveWorkflowFallbackGoalFromConversation(
-    Conversation currentConversation,
-  ) {
-    return _workflowProposalParser.deriveWorkflowFallbackGoalFromConversation(
-      currentConversation,
-    );
-  }
 }

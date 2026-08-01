@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// so adjacent maintenance does not require raising the ratchet.
 const Map<String, int> _lineBudgets = {
   // WS7-20 moves runtime sampler feedback behind immutable owner events.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 8916,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 8908,
   'lib/features/chat/domain/services/coding_continuation_recovery_policy.dart':
       423,
   'lib/features/chat/domain/services/content_tool_failure_formatter.dart': 32,
@@ -374,7 +374,7 @@ const Map<String, int> _lineBudgets = {
 
 const Map<String, int> _libraryLineBudgets = {
   // WS6-5 moves local command policy and execution into an owner-aware handler.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 20029,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19798,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

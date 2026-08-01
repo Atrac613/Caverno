@@ -23,15 +23,7 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
         containsCjkMissingEvidenceMarker: _containsCjkMissingEvidenceMarker,
       );
 
-  int _hiddenAssistantEvidenceScore(String response) {
-    return _terminalToolResponsePolicy.hiddenAssistantEvidenceScore(response);
-  }
 
-  bool _shouldAcceptRecoveryFinalTextResponse(String response) {
-    return _terminalToolResponsePolicy.shouldAcceptRecoveryFinalTextResponse(
-      response,
-    );
-  }
 
   bool _shouldAcceptTerminalToolRoleFinalTextResponse(String response) {
     return _terminalToolResponsePolicy
@@ -57,11 +49,6 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
         .shouldAcceptTerminalBrowserSaveDataResponse(response, toolResults);
   }
 
-  String _normalizeTerminalBrowserSaveDataResponse(String response) {
-    return _terminalToolResponsePolicy.normalizeTerminalBrowserSaveDataResponse(
-      response,
-    );
-  }
 
   bool _shouldAcceptTerminalSkillToolRoleResponse(
     String response,
@@ -84,27 +71,8 @@ extension ChatNotifierTerminalToolResponsePolicy on ChatNotifier {
         );
   }
 
-  bool _looksLikeSkillContinuationWorkIntent(String response) {
-    return _terminalToolResponsePolicy.looksLikeSkillContinuationWorkIntent(
-      response,
-    );
-  }
 
-  String _normalizeTerminalSkillToolRoleResponse(
-    String response,
-    List<ToolResultInfo> toolResults,
-  ) {
-    return _terminalToolResponsePolicy.normalizeTerminalSkillToolRoleResponse(
-      response,
-      toolResults,
-    );
-  }
 
-  bool _hasSuccessfulLoadSkillResult(List<ToolResultInfo> toolResults) {
-    return _terminalToolResponsePolicy.hasSuccessfulLoadSkillResult(
-      toolResults,
-    );
-  }
 
   bool _shouldAcceptTerminalToolRoleBlockerResponse(String response) {
     return _terminalToolResponsePolicy

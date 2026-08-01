@@ -19,7 +19,7 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
       return null;
     }
 
-    final command = _toolCommandArgument(toolCall.arguments) ?? '';
+    final command = _toolCallExecutionPolicy.toolCommandArgument(toolCall.arguments) ?? '';
     final payload = jsonEncode({
       'ok': false,
       'code': 'production_release_explicit_approval_required',
@@ -52,10 +52,10 @@ extension ChatNotifierCommandGuardrails on ChatNotifier {
     if (toolName != 'local_execute_command' && toolName != 'process_start') {
       return false;
     }
-    if (_isReadOnlyCommandExecutionToolCall(toolCall)) {
+    if (_toolCallExecutionPolicy.isReadOnlyCommandExecutionToolCall(toolCall)) {
       return false;
     }
-    final command = _toolCommandArgument(toolCall.arguments);
+    final command = _toolCallExecutionPolicy.toolCommandArgument(toolCall.arguments);
     if (command == null) {
       return false;
     }

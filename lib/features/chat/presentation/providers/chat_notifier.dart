@@ -1391,7 +1391,7 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
       );
 
-      final response = _parseWorkflowProposalResponseWithFallback(
+      final response = _workflowProposalParser.parseWithFallback(
         result.content,
       );
       if (response != null) {
@@ -1536,13 +1536,13 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
       );
 
-      final proposal = _parseTaskProposalWithFallback(result.content);
+      final proposal = _taskProposalParser.parseWithFallback(result.content);
       if (proposal != null) {
         final finalizedProposal = _finalizeTaskProposalDraft(
           proposal,
           researchContext: researchContext,
         );
-        if (_taskProposalNeedsRetryForWorkflow(
+        if (_taskProposalQualityService.taskProposalNeedsRetryForWorkflow(
           proposal,
           finalizedProposal,
           projectLooksEmpty,
@@ -1581,7 +1581,7 @@ class ChatNotifier extends Notifier<ChatState> {
             fallbackProposal,
             researchContext: researchContext,
           );
-          if (!_taskProposalNeedsRetryForWorkflow(
+          if (!_taskProposalQualityService.taskProposalNeedsRetryForWorkflow(
             fallbackProposal,
             finalizedFallback,
             projectLooksEmpty,
@@ -1610,7 +1610,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     if (bestRetryCandidate != null &&
-        !_taskProposalNeedsRetryForWorkflow(
+        !_taskProposalQualityService.taskProposalNeedsRetryForWorkflow(
           bestRetryCandidate,
           bestRetryCandidate,
           projectLooksEmpty,
@@ -1660,7 +1660,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final prefersSingleTask =
         workflowSpec != null &&
-        _workflowPrefersExplicitSingleTask(workflowSpec);
+        _taskProposalQualityService.workflowPrefersExplicitSingleTask(workflowSpec);
 
     final retryHint = StringBuffer()
       ..writeln('Retry hint:')
@@ -1693,7 +1693,7 @@ class ChatNotifier extends Notifier<ChatState> {
     } else {
       final requiredFirstSliceTargets = workflowSpec == null
           ? const <String>{}
-          : _explicitFirstSliceTargetFiles(workflowSpec);
+          : _taskProposalQualityService.explicitFirstSliceTargetFiles(workflowSpec);
       retryHint
         ..writeln('- Return two to four concrete tasks.')
         ..writeln('- Do not stop at a single generic setup or scaffold task.');
@@ -1803,13 +1803,13 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
     final rawGoal = workflowSpec.goal.trim().isNotEmpty
         ? workflowSpec.goal.trim()
-        : _deriveWorkflowFallbackGoalFromConversation(currentConversation);
+        : _workflowProposalParser.deriveWorkflowFallbackGoalFromConversation(currentConversation);
     if (rawGoal == null || rawGoal.isEmpty) {
       return null;
     }
 
     if (bestRetryCandidate != null &&
-        !_taskProposalNeedsRetryForWorkflow(
+        !_taskProposalQualityService.taskProposalNeedsRetryForWorkflow(
           bestRetryCandidate,
           bestRetryCandidate,
           projectLooksEmpty,
@@ -1847,7 +1847,7 @@ class ChatNotifier extends Notifier<ChatState> {
       fallbackProposal,
       researchContext: researchContext,
     );
-    if (_taskProposalNeedsRetryForWorkflow(
+    if (_taskProposalQualityService.taskProposalNeedsRetryForWorkflow(
       fallbackProposal,
       finalizedFallback,
       projectLooksEmpty,
@@ -1876,7 +1876,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   @visibleForTesting
   WorkflowProposalDraft? parseWorkflowProposalForTest(String rawContent) {
-    final response = _parseWorkflowProposalResponseWithFallback(rawContent);
+    final response = _workflowProposalParser.parseWithFallback(rawContent);
     return switch (response) {
       WorkflowProposalParsedDraft(:final proposal) => proposal,
       _ => null,
@@ -1887,7 +1887,7 @@ class ChatNotifier extends Notifier<ChatState> {
   List<WorkflowPlanningDecision>? parseWorkflowDecisionsForTest(
     String rawContent,
   ) {
-    final response = _parseWorkflowProposalResponseWithFallback(rawContent);
+    final response = _workflowProposalParser.parseWithFallback(rawContent);
     return switch (response) {
       WorkflowProposalParsedDecisions(:final decisions) => decisions,
       _ => null,
@@ -1907,7 +1907,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   @visibleForTesting
   WorkflowTaskProposalDraft? parseTaskProposalForTest(String rawContent) {
-    return _parseTaskProposalWithFallback(rawContent);
+    return _taskProposalParser.parseWithFallback(rawContent);
   }
 
   @visibleForTesting
@@ -1932,7 +1932,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     return WorkflowTaskProposalDraft(
       tasks: _reorderTaskProposalTasks(
-        _sanitizeTaskProposalTasks(proposal.tasks),
+        _taskProposalQualityService.sanitizeTaskProposalTasks(proposal.tasks),
         projectLooksEmpty: projectLooksEmpty,
       ),
     );
@@ -1944,7 +1944,7 @@ class ChatNotifier extends Notifier<ChatState> {
     WorkflowTaskProposalDraft finalized,
     bool projectLooksEmpty,
   ) {
-    return _taskProposalNeedsRetry(original, finalized, projectLooksEmpty);
+    return _taskProposalQualityService.taskProposalNeedsRetry(original, finalized, projectLooksEmpty);
   }
 
   @visibleForTesting
@@ -1954,7 +1954,7 @@ class ChatNotifier extends Notifier<ChatState> {
     bool projectLooksEmpty,
     ConversationWorkflowSpec workflowSpec,
   ) {
-    return _taskProposalNeedsRetryForWorkflow(
+    return _taskProposalQualityService.taskProposalNeedsRetryForWorkflow(
       original,
       finalized,
       projectLooksEmpty,
@@ -3191,7 +3191,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _hiddenAssistantEvidence.record(
         owner,
         response,
-        evidenceScore: _hiddenAssistantEvidenceScore,
+        evidenceScore: _terminalToolResponsePolicy.hiddenAssistantEvidenceScore,
       );
 
   void _appendRecoveredAssistantResponse(
@@ -4698,7 +4698,7 @@ class ChatNotifier extends Notifier<ChatState> {
           name != 'process_start') {
         continue;
       }
-      if (!_toolResultHasSuccessfulExit(result)) {
+      if (!_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) {
         continue;
       }
       final decoded = _tryDecodeMap(result.result);
@@ -4711,7 +4711,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _toolResultContainsReleaseFailureMarker(ToolResultInfo result) {
-    if (!_isCommandExecutionTool(result.name)) {
+    if (!_toolCallExecutionPolicy.isCommandExecutionTool(result.name)) {
       return false;
     }
     final normalized = result.result.toLowerCase();
@@ -4943,7 +4943,7 @@ class ChatNotifier extends Notifier<ChatState> {
     ])) {
       return false;
     }
-    return _hiddenAssistantEvidenceScore(candidate) >= 2 ||
+    return _terminalToolResponsePolicy.hiddenAssistantEvidenceScore(candidate) >= 2 ||
         _containsAny(normalized, const [
           'complete',
           'completed',
@@ -5478,7 +5478,7 @@ class ChatNotifier extends Notifier<ChatState> {
             currentToolCalls = [];
             final fallbackResponse = recoveryResult.content.trim();
             _recordHiddenEvidence(turnOwner, fallbackResponse);
-            if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
+            if (_terminalToolResponsePolicy.shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
               _appendRecoveredAssistantResponse(
                 fallbackResponse,
                 interactionGeneration: interactionGeneration,
@@ -5557,7 +5557,7 @@ class ChatNotifier extends Notifier<ChatState> {
             currentToolCalls = [];
             final fallbackResponse = recoveryResult.content.trim();
             _recordHiddenEvidence(turnOwner, fallbackResponse);
-            if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
+            if (_terminalToolResponsePolicy.shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
               _appendRecoveredAssistantResponse(
                 fallbackResponse,
                 interactionGeneration: interactionGeneration,
@@ -5711,7 +5711,7 @@ class ChatNotifier extends Notifier<ChatState> {
           );
           currentToolCalls = [];
           final completionResponse =
-              _shouldAcceptRecoveryFinalTextResponse(fallbackResponse)
+              _terminalToolResponsePolicy.shouldAcceptRecoveryFinalTextResponse(fallbackResponse)
               ? fallbackResponse
               : _buildGitLifecycleCompletionResponse(executedToolResults);
           _recordHiddenEvidence(turnOwner, completionResponse);
@@ -5748,7 +5748,7 @@ class ChatNotifier extends Notifier<ChatState> {
           );
           currentToolCalls = [];
           final normalizedSkillResponse =
-              _normalizeTerminalSkillToolRoleResponse(
+              _terminalToolResponsePolicy.normalizeTerminalSkillToolRoleResponse(
                 fallbackResponse,
                 batchToolResults,
               );
@@ -5763,9 +5763,9 @@ class ChatNotifier extends Notifier<ChatState> {
         }
         appLog('[Tool] LLM requested additional tool calls');
         final assistantPreambleContent =
-            _hasSuccessfulLoadSkillResult(batchToolResults) &&
-                _looksLikeSkillContinuationWorkIntent(fallbackResponse)
-            ? _normalizeTerminalSkillToolRoleResponse(
+            _terminalToolResponsePolicy.hasSuccessfulLoadSkillResult(batchToolResults) &&
+                _terminalToolResponsePolicy.looksLikeSkillContinuationWorkIntent(fallbackResponse)
+            ? _terminalToolResponsePolicy.normalizeTerminalSkillToolRoleResponse(
                 fallbackResponse,
                 batchToolResults,
               )
@@ -5873,7 +5873,7 @@ class ChatNotifier extends Notifier<ChatState> {
             currentToolCalls = [];
             final fallbackResponse = recoveryResult.content.trim();
             _recordHiddenEvidence(turnOwner, fallbackResponse);
-            if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
+            if (_terminalToolResponsePolicy.shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
               _appendRecoveredAssistantResponse(
                 fallbackResponse,
                 interactionGeneration: interactionGeneration,
@@ -6217,7 +6217,7 @@ class ChatNotifier extends Notifier<ChatState> {
             '[Tool] Accepting terminal browser save response without final answer fallback',
           );
           final normalizedBrowserSaveResponse =
-              _normalizeTerminalBrowserSaveDataResponse(fallbackResponse);
+              _terminalToolResponsePolicy.normalizeTerminalBrowserSaveDataResponse(fallbackResponse);
           _appendRecoveredAssistantResponse(
             normalizedBrowserSaveResponse,
             interactionGeneration: interactionGeneration,
@@ -6242,7 +6242,7 @@ class ChatNotifier extends Notifier<ChatState> {
           break;
         }
         final skillTerminalToolResults =
-            _hasSuccessfulLoadSkillResult(batchToolResults)
+            _terminalToolResponsePolicy.hasSuccessfulLoadSkillResult(batchToolResults)
             ? batchToolResults
             : executedToolResults;
         if (_shouldAcceptTerminalSkillToolRoleResponse(
@@ -6253,7 +6253,7 @@ class ChatNotifier extends Notifier<ChatState> {
             '[Tool] Accepting terminal skill tool-role response without final answer fallback',
           );
           final normalizedSkillResponse =
-              _normalizeTerminalSkillToolRoleResponse(
+              _terminalToolResponsePolicy.normalizeTerminalSkillToolRoleResponse(
                 fallbackResponse,
                 skillTerminalToolResults,
               );
@@ -7034,7 +7034,7 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _containsOnlyReadOnlyInspectionToolCalls(List<ToolCallInfo> toolCalls) =>
       _toolLoopRecoveryPolicy.containsOnlyReadOnlyInspectionToolCalls(
         toolCalls,
-        isReadOnlyInspectionToolCall: _isReadOnlyInspectionToolCall,
+        isReadOnlyInspectionToolCall: _toolCallExecutionPolicy.isReadOnlyInspectionToolCall,
       );
 
   bool _looksLikePendingToolActionResponse(String response) {
@@ -7066,7 +7066,7 @@ class ChatNotifier extends Notifier<ChatState> {
         return previousToolResults.any((result) {
           if (result.name != toolCall.name ||
               _runTestsPathArgument(result.arguments) != testPath ||
-              !_toolResultHasSuccessfulExit(result)) {
+              !_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) {
             return false;
           }
           return _runTestsMatchesSavedValidation(
@@ -7075,18 +7075,18 @@ class ChatNotifier extends Notifier<ChatState> {
           );
         });
       }
-      if (!_isCommandExecutionTool(toolCall.name)) {
+      if (!_toolCallExecutionPolicy.isCommandExecutionTool(toolCall.name)) {
         return false;
       }
-      final command = _toolCommandArgument(toolCall.arguments);
+      final command = _toolCallExecutionPolicy.toolCommandArgument(toolCall.arguments);
       if (command == null) return false;
       final normalizedCommand = _normalizeToolCommandForComparison(command);
       return previousToolResults.any((result) {
         if (result.name != toolCall.name ||
-            !_toolResultHasSuccessfulExit(result)) {
+            !_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) {
           return false;
         }
-        final resultCommand = _toolCommandArgument(result.arguments);
+        final resultCommand = _toolCallExecutionPolicy.toolCommandArgument(result.arguments);
         if (resultCommand == null ||
             _normalizeToolCommandForComparison(resultCommand) !=
                 normalizedCommand) {
@@ -7123,14 +7123,14 @@ class ChatNotifier extends Notifier<ChatState> {
       )) {
         return true;
       }
-      if (!_toolResultHasSuccessfulExit(result)) return false;
+      if (!_toolCallExecutionPolicy.toolResultHasSuccessfulExit(result)) return false;
       if (result.name == 'run_tests') {
         return _runTestsMatchesSavedValidation(
           arguments: result.arguments,
           normalizedValidationCommand: normalizedValidationCommand,
         );
       }
-      final command = _toolCommandArgument(result.arguments);
+      final command = _toolCallExecutionPolicy.toolCommandArgument(result.arguments);
       if (command == null) return false;
       return _toolCommandMatchesSavedValidation(
         result: result,
@@ -7197,15 +7197,7 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
-  bool _isReadOnlyInspectionToolCall(ToolCallInfo toolCall) {
-    return _toolCallExecutionPolicy.isReadOnlyInspectionToolCall(toolCall);
-  }
 
-  bool _isReadOnlyCommandExecutionToolCall(ToolCallInfo toolCall) {
-    return _toolCallExecutionPolicy.isReadOnlyCommandExecutionToolCall(
-      toolCall,
-    );
-  }
 
   List<ToolResultInfo> _buildUnexecutedPendingToolResults({
     required List<ToolCallInfo> toolCalls,
@@ -8176,12 +8168,12 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _hasTimedOutCommandResult(List<ToolResultInfo> toolResults) =>
-      toolResults.any(_toolResultTimedOut);
+      toolResults.any(_toolCallExecutionPolicy.toolResultTimedOut);
 
   int? _firstFailedCommandExitCode(List<ToolResultInfo> toolResults) {
     int? unrecoveredExitCode;
     for (final toolResult in toolResults) {
-      if (!_isCommandExecutionTool(toolResult.name)) {
+      if (!_toolCallExecutionPolicy.isCommandExecutionTool(toolResult.name)) {
         continue;
       }
       final normalizedName = toolResult.name.trim().toLowerCase();
@@ -8190,11 +8182,11 @@ class ChatNotifier extends Notifier<ChatState> {
           normalizedName == 'process_wait') {
         continue;
       }
-      if (_toolResultTimedOut(toolResult)) {
+      if (_toolCallExecutionPolicy.toolResultTimedOut(toolResult)) {
         continue;
       }
       final decoded = _tryDecodeMap(toolResult.result);
-      final exitCode = _exitCodeValue(decoded?['exit_code']);
+      final exitCode = _toolCallExecutionPolicy.exitCodeValue(decoded?['exit_code']);
       if (exitCode != null && exitCode != 0) {
         unrecoveredExitCode ??= exitCode;
       } else if (exitCode == 0) {

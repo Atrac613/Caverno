@@ -9,17 +9,7 @@ extension ChatNotifierTaskProposalQuality on ChatNotifier {
   WorkflowTaskProposalQualityService get _taskProposalQualityService =>
       WorkflowTaskProposalQualityService(createId: _uuid.v4);
 
-  bool _isReasoningWorkflowProposalPlausible(WorkflowProposalDraft proposal) {
-    return _taskProposalQualityService.isReasoningWorkflowProposalPlausible(
-      proposal,
-    );
-  }
 
-  bool _isReasoningTaskProposalPlausible(WorkflowTaskProposalDraft proposal) {
-    return _taskProposalQualityService.isReasoningTaskProposalPlausible(
-      proposal,
-    );
-  }
 
   WorkflowTaskProposalDraft? _preferTaskProposalRetryCandidate({
     required WorkflowTaskProposalDraft? current,
@@ -51,53 +41,10 @@ extension ChatNotifierTaskProposalQuality on ChatNotifier {
     );
   }
 
-  List<ConversationWorkflowTask> _sanitizeTaskProposalTasks(
-    Iterable<ConversationWorkflowTask> tasks,
-  ) {
-    return _taskProposalQualityService.sanitizeTaskProposalTasks(tasks);
-  }
 
-  bool _taskProposalNeedsRetry(
-    WorkflowTaskProposalDraft original,
-    WorkflowTaskProposalDraft finalized,
-    bool projectLooksEmpty,
-  ) {
-    return _taskProposalQualityService.taskProposalNeedsRetry(
-      original,
-      finalized,
-      projectLooksEmpty,
-    );
-  }
 
-  bool _taskProposalNeedsRetryForWorkflow(
-    WorkflowTaskProposalDraft original,
-    WorkflowTaskProposalDraft finalized,
-    bool projectLooksEmpty,
-    ConversationWorkflowSpec workflowSpec,
-  ) {
-    return _taskProposalQualityService.taskProposalNeedsRetryForWorkflow(
-      original,
-      finalized,
-      projectLooksEmpty,
-      workflowSpec,
-    );
-  }
 
-  bool _workflowPrefersExplicitSingleTask(
-    ConversationWorkflowSpec workflowSpec,
-  ) {
-    return _taskProposalQualityService.workflowPrefersExplicitSingleTask(
-      workflowSpec,
-    );
-  }
 
-  Set<String> _explicitFirstSliceTargetFiles(
-    ConversationWorkflowSpec workflowSpec,
-  ) {
-    return _taskProposalQualityService.explicitFirstSliceTargetFiles(
-      workflowSpec,
-    );
-  }
 
   List<ConversationWorkflowTask> _reorderTaskProposalTasks(
     List<ConversationWorkflowTask> tasks, {
