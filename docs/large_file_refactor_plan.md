@@ -474,6 +474,31 @@ Tranche 2 status (started 2026-07-28):
   locally corrected test-library size ratchet, and the exact-model live canary
   awaits explicit approval; neither is claimed by these focused records.
 
+Tranche 2 status (landed on `main` as 7e66f3d9, 2026-08-01):
+
+- Every turn now carries an explicit `ChatTurnOwner`, and the resources a turn
+  holds are keyed by it: approval caches and pending approval requests, tool
+  result ledgers, file rollback checkpoints, SSH sessions, BLE and serial
+  connections, background processes, subagent tasks, response metadata, and
+  conversation taint. Filesystem mutations run behind a path fence with
+  receipt-backed settlement.
+- 71 collaborators holding 18,107 lines replaced same-library parts, each with
+  a shrink-only budget, a manifest entry and direct tests.
+- The notifier library is 19,978 lines across 37 declared parts, from 23,093
+  across 43 — 27% of the way to the 11,546-line half-baseline. The ratio is
+  5.8 new collaborator lines per line the library lost, because the
+  owner-fencing work rewrote what it extracted rather than moving it. Treat
+  line count as a measurement, not the goal: declared-part count and the
+  turn-scope audit are the metrics that cannot be satisfied by rewriting.
+- Closing the tranche required repairing eight production regressions that
+  every slice's own acceptance had passed. `docs/chat_notifier_decomposition_codex_task.md`
+  now requires the existing repository suite to be green before a slice counts
+  as complete; see its "Regression gate" section for why the slices' own tests
+  structurally cannot establish behavior preservation.
+- Verified on the merged tree: 4,905 tests across chat, quality and core,
+  analysis clean across lib, packages, test and tool, and the four-scenario
+  live multi-thread canary green against `qwen3.6-27b-vision`.
+
 Deferred follow-up candidates:
 
 - Conversation message persistence is isolated in

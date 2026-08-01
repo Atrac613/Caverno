@@ -1,10 +1,24 @@
 # ChatNotifier Library Decomposition Program (Phase 1, Tranche 2)
 
-Status: program in progress; Slice 1, Slices 2a1-2a3 and 2b1-2b7, and
-corrective prerequisites P1a-P6, P12, and P14 are complete. P7-P11, P13, and
-WS4-1, WS4-2, WS6-12, and WS6-13 have completed focused acceptance and remain
-in progress pending the integrated full verifier and exact-model live canary.
-Workstreams 4 and 6 are in progress.
+Status: Tranche 2 landed on `main` as 7e66f3d9 on 2026-08-01. Slice 1, Slices
+2a1-2a3 and 2b1-2b7, corrective prerequisites P1a-P14, and the WS4 and WS6
+sub-slices are complete: the integrated verification and exact-model live
+canary those were waiting on both ran green on the merged tree — 4,905 tests
+across chat, quality and core, analysis clean, and all four canary scenarios
+passing against `qwen3.6-27b-vision`, the tranche's first end-to-end run.
+
+Closing it required repairing eight production regressions the slices' own
+acceptance could not see, and reconciling three ledgers — the manifest, the
+size budgets, and the boundary test's frozen marker set — with 27 collaborator
+files that had been created without entries in any of them. Read "Regression
+gate" before starting Workstream 5, 7 or 8; the rule that allowed those
+regressions has been changed.
+
+Achieved: the notifier library is 19,978 lines across 37 declared parts, down
+from 23,093 and 43, with 71 collaborators holding 18,107 lines. That is 27% of
+the way to the 11,546-line half-baseline. Note the ratio: 5.8 lines of new
+collaborator per line the library lost, because the owner-fencing work rewrote
+what it extracted rather than moving it. Workstreams 5, 7 and 8 remain.
 
 Slice 1 completed on 2026-07-28 with a 9,375-line primary file, 42 declared
 parts, a 22,900-line same-library aggregate, and a 132-line independent
@@ -772,8 +786,15 @@ extractions).
   one PR.
 - Target at most roughly 500 changed production lines per slice. Split sooner
   when one file contains more than one risk domain.
-- A slice is complete when its own acceptance criteria pass. The program-wide
-  criteria apply only after every approved slice is complete.
+- A slice is complete when its own acceptance criteria pass **and the existing
+  repository suite is still green**: `fvm flutter analyze lib packages test
+  tool` clean, and `fvm flutter test test/features/chat test/quality test/core`
+  with no failures. A slice's own tests cannot establish that it preserved
+  behavior — see "Regression gate" below. The remaining program-wide criteria
+  apply only after every approved slice is complete.
+- Never leave the branch uncompilable or uncommitted between slices. Tranche 2
+  accumulated 309 uncommitted files with no rollback point, and the SSH slice
+  left the library referencing a production transport that was never written.
 - Before starting a slice, remeasure its named files and compare the current
   call sites with this plan. If the baseline has drifted, update that slice's
   task and acceptance arithmetic before editing production code.
@@ -933,6 +954,33 @@ Do not hide a stop condition by widening the context object.
 
 Slices 2a1-2a3 must make the central safety claim reproducible before any
 post-Slice-1 production extraction starts.
+
+### Regression gate
+
+Run the existing repository suite before calling a slice complete. This is the
+only gate that has ever caught the failure mode this program actually produces.
+
+Tranche 2 introduced eight production regressions. Every one passed its own
+slice's focused acceptance, and most passed an exact-model live canary; the
+integrated tree meanwhile did not compile and failed 101 chat tests. That is
+not bad luck, it is structural: a new collaborator's tests are written against
+the preconditions the extraction introduced — a coding project root, a
+registered owner snapshot, telemetry wiring, settlement evidence, a synchronous
+approval path — so they can confirm the new contract and never notice that the
+paths without those preconditions stopped working. Local commands and file
+mutations outside a coding project, plan drafting, proposal parsing, and
+content tools requiring approval all broke this way.
+
+Two corollaries worth stating, because both cost real time:
+
+- A test double that models something the real system cannot produce is the
+  test's defect, not the code's. Four failures were doubles reporting a
+  mutation without performing it, a completion without settlement evidence, or
+  a hand-built snapshot missing the resolved path key production always sets.
+- A symptom that looks exactly like a production bug still needs its inputs
+  checked. A discarded best-of-N candidate left on disk looked like a rollback
+  defect, and the resolved-versus-lexical path key mismatch behind it was real;
+  the fault was one step further back, in the test's snapshot.
 
 ### Static audit
 

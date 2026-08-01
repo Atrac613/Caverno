@@ -1,9 +1,10 @@
 # ChatNotifier Decomposition Corrective Prerequisite Task Catalog
 
-Status: P1a-P6, P12, and P14 complete. P7-P11 and P13 have completed focused
-acceptance and remain in progress pending integrated full verification and the
-exact-model live canary. P3 and P10 remain split into their separately reviewed
-`a` and `b` slices.
+Status: P1a-P14 complete. The integrated verification and exact-model live
+canary that P7-P11 and P13 were waiting on ran green on the merged tree
+(7e66f3d9, 2026-08-01): 4,905 tests across chat, quality and core, analysis
+clean, and all four canary scenarios passing. P3 and P10 remain split into
+their separately reviewed `a` and `b` slices.
 
 The 2026-07-28 Workstream 4-8 audit found ownership, atomic-completion,
 shared-policy, and size stop conditions that cannot be hidden inside
