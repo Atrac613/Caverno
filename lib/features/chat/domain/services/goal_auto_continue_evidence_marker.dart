@@ -16,6 +16,7 @@ abstract final class GoalAutoContinueEvidenceMarker {
     required int? verificationGeneration,
     required String? safeBoundaryVeto,
     required int noProgressStreak,
+    required bool hasVerifierReplayCandidate,
     required int diagnosticRepairContinuations,
     required int consecutiveValidationMisses,
     required bool diagnosticRepairExtensionUsed,
@@ -37,6 +38,11 @@ abstract final class GoalAutoContinueEvidenceMarker {
       'hasUnexecutedActionClaim': evidence.hasUnexecutedActionClaim,
       'safeBoundaryVeto': safeBoundaryVeto,
       'noProgressStreak': noProgressStreak,
+      // The stalled-repair contract is handed 0 for its streak unless a
+      // verifier replay candidate exists, so a run can satisfy every other
+      // condition and still never see a contract. Record the fact that
+      // decides it.
+      'hasVerifierReplayCandidate': hasVerifierReplayCandidate,
       'diagnosticRepairContinuations': diagnosticRepairContinuations,
       'consecutiveValidationMisses': consecutiveValidationMisses,
       'diagnosticRepairExtensionUsed': diagnosticRepairExtensionUsed,

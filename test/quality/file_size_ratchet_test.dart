@@ -41,7 +41,7 @@ const Map<String, int> _lineBudgets = {
   'lib/features/chat/domain/services/goal_auto_continue_decision_coordinator.dart': 494,
   'lib/features/chat/domain/services/goal_auto_continue_safe_boundary_builder.dart': 72,
   'lib/features/chat/domain/services/goal_auto_continue_tracker_registry.dart': 486,
-  'lib/features/chat/domain/services/goal_continuation_log_record_builder.dart': 136,
+  'lib/features/chat/domain/services/goal_continuation_log_record_builder.dart': 137,
   'lib/features/chat/domain/services/goal_update_tool_handler.dart': 64,
   'lib/features/chat/domain/services/participant_message_finalizer.dart': 364,
   'lib/features/chat/domain/services/participant_tool_executor.dart': 349,
@@ -386,7 +386,7 @@ const Map<String, int> _libraryLineBudgets = {
   // command that exits non-zero is normalized to a successful tool result,
   // which used to reset the diagnostic streak on exactly the runs it counts.
   // The comment explaining that is most of the addition and is load-bearing.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19672,
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19673,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

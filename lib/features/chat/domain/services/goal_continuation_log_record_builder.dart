@@ -91,6 +91,7 @@ final class GoalContinuationLogRecordBuilder {
       verificationGeneration: verificationGeneration,
       safeBoundaryVeto: safeBoundary.firstVetoReason,
       noProgressStreak: tracker?.noProgressStreak ?? 0,
+      hasVerifierReplayCandidate: tracker?.verifierReplayCandidate != null,
       diagnosticRepairContinuations:
           tracker?.diagnosticRepairContinuations ?? 0,
       consecutiveValidationMisses: tracker?.consecutiveValidationMisses ?? 0,

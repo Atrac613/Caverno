@@ -934,6 +934,7 @@ extension ChatNotifierGoalAutoContinue on ChatNotifier {
             verificationGeneration: conversation?.verificationGeneration,
             safeBoundaryVeto: safeBoundary.firstVetoReason,
             noProgressStreak: tracker?.noProgressStreak ?? 0,
+            hasVerifierReplayCandidate: tracker?.verifierReplayCandidate != null,
             diagnosticRepairContinuations:
                 tracker?.diagnosticRepairContinuations ?? 0,
             consecutiveValidationMisses:
