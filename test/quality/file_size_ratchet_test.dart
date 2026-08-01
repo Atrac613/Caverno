@@ -382,7 +382,11 @@ const Map<String, int> _lineBudgets = {
 
 const Map<String, int> _libraryLineBudgets = {
   // WS6-5 moves local command policy and execution into an owner-aware handler.
-  'lib/features/chat/presentation/providers/chat_notifier.dart': 19647,
+  // +15 to make the stalled-diagnostic-repair feature reachable: a shell
+  // command that exits non-zero is normalized to a successful tool result,
+  // which used to reset the diagnostic streak on exactly the runs it counts.
+  // The comment explaining that is most of the addition and is load-bearing.
+  'lib/features/chat/presentation/providers/chat_notifier.dart': 19662,
   // +9 for the awaitingConfirmation status: one import plus the goal-builders
   // label delegating to the shared presentation. The offsetting extraction
   // lowered two other budgets above; this library keeps only the call site.

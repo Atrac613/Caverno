@@ -452,7 +452,22 @@ extension ChatNotifierToolLoopBatch on ChatNotifier {
         toolFailureCounts.remove(toolFailureKey);
       } else if (disposition == ToolResultDisposition.success) {
         if (_toolCallExecutionPolicy.isCommandExecutionTool(toolCall.name)) {
-          _resetCommandDiagnosticStreak(owner, toolFailureKey);
+          // A shell command that exits non-zero is normalized to a successful
+          // tool result on purpose — the call worked, the command reported a
+          // problem. That is right for everything else here, but it used to
+          // reset the diagnostic streak on exactly the runs the streak exists
+          // to count, so a verifier could report the same error forever and
+          // never register as a plateau. Read the command's own exit status
+          // rather than the tool call's.
+          if (result.outcome?.hasFailingExitCode ?? false) {
+            _recordCommandDiagnosticStreak(
+              owner: owner,
+              commandKey: toolFailureKey,
+              toolResult: promptToolResult,
+            );
+          } else {
+            _resetCommandDiagnosticStreak(owner, toolFailureKey);
+          }
         }
         final isMutationTool =
             !const GoalValidationProbeGuard().matches(result) &&
