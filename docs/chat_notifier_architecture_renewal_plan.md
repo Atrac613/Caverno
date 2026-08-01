@@ -1,8 +1,10 @@
 # ChatNotifier Architecture Renewal: Plan for Review
 
 **Status: proposal, seeking review. Nothing here is agreed.** Written
-2026-08-02, after the decomposition program completed and its line-count target
-was retired on measured grounds.
+2026-08-02. The decomposition documents currently disagree about whether the
+program is complete. The decomposition task explicitly retires the line-count
+target; reconciliation must determine whether its recorded close-out
+measurements remain representative, not re-open that target by implication.
 
 Codex: the review questions are at the bottom. The most useful thing you can do
 is attack the diagnosis in the first section — everything downstream depends on
@@ -11,9 +13,11 @@ it, and if it is wrong the plan is wrong.
 ## The problem, stated as a diagnosis rather than a size
 
 `chat_notifier.dart` and its 37 parts total 19,683 lines and keep growing back.
-The decomposition program (71 collaborators, ~90 commits, several weeks)
-extracted what could be extracted and closed with the aggregate at 19,647 —
-against a 23,049 baseline, a 14.8% reduction for a very large effort.
+The decomposition close-out material records 71 collaborators, ~90 commits,
+several weeks of work, and a 19,647-line aggregate against a 23,049 baseline —
+a 14.8% reduction for a very large effort. The authoritative task index still
+shows open work, so these are historical measurements rather than proof that
+the program completed.
 
 The proposed diagnosis, **corrected after review**: the notifier has no
 **turn-scoped composition root**. An earlier draft said "a turn is not an
@@ -35,21 +39,26 @@ Only the third layer is missing a home. Everything that participates in one
 turn must therefore be handed a `(conversationId, interactionGeneration)` pair
 and re-establish its own context from it.
 
-Three consequences follow, and all three are measured:
+Three consequences follow. The first and third are measured; the second is
+directly visible in the current ownership boundaries:
 
 1. **Everything that participates in a turn becomes a notifier method.** The
-   manifest records 414 entrypoints across 43 historical parts; the audit
-   resolves **271** in the current tree, of which **82 carry an identity
-   parameter** and 139 are turn-reachable. A new tool, guard or recovery path
-   has nowhere else to land.
-2. **Turn-scoped state lives in conversation-keyed maps on the notifier** —
-   `_goalAutoContinueTrackers`, `_threadStates` and others — because a turn
-   cannot own its own state.
-3. **Turn identity is re-derived by hand, everywhere.** 798 lines (4% of the
-   library) touch `interactionGeneration`, `ChatTurnOwner`,
+   manifest records 414 entrypoints across 43 historical parts; the latest
+   recorded audit resolves **271**, of which **82 carry an identity parameter**
+   and 139 are turn-reachable. Reconcile the audit baseline before treating
+   those figures as current. A new tool, guard or recovery path has nowhere
+   else to land.
+2. **Turn operations reach longer-lived state through implicit notifier
+   access.** `_goalAutoContinueTrackers`, `_threadStates` and similar maps are
+   deliberately conversation- or thread-scoped; they are not candidates for
+   ownership by a turn. The architectural problem is that turn-scoped code
+   reaches them through the notifier instead of an explicit scoped port.
+3. **Turn identity is re-derived by hand, everywhere.** A historical scan found
+   798 lines (4% of the library) touching `interactionGeneration`, `ChatTurnOwner`,
    `_turnOwnerForGeneration`, `TurnThread`/`TurnGeneration` zones or the
-   ambient-read accessors. The turn-scope audit still reports 67 ambient reads,
-   50 of them turn-reachable.
+   ambient-read accessors. The latest recorded turn-scope audit reported 67
+   ambient reads, 50 of them turn-reachable. Both figures require fresh,
+   reproducible measurement before they become decision inputs.
 
 **The bugs follow the same shape.** The cross-thread contamination class, and
 all three defects found on 2026-08-01, lived at seams between components rather
@@ -62,10 +71,12 @@ nowhere to land except inside the library, so **the ratchet collides with what
 the structure forces**. Treating the ratchet as the problem would be treating
 the smoke alarm as the fire.
 
-## Why the line target was retired, and what replaces it
+## Recorded rationale for retiring the line target
 
-The 11,524.5 half-baseline was retired on measured grounds, recorded in the
-decomposition doc's criterion 7:
+The decomposition close-out records the following rationale for retiring the
+11,524.5 half-baseline in criterion 7. The retirement is explicit; the
+prerequisite reconciliation below must re-measure the inputs before the renewal
+relies on the recorded cost case:
 
 - The program's realised ratio was **5.8 lines created per line removed**
   (18,107 created vs 3,115 removed across 71 collaborators). Extraction moves
@@ -76,11 +87,12 @@ decomposition doc's criterion 7:
 - The owner/generation plumbing that a per-turn split would directly eliminate
   is **798 lines**. Even a full split does not produce 8,000.
 
-**The remaining 8,000 lines do not exist as extractable mass.** They are the
-behaviour. Proposed replacement goals, all measurable and all achievable:
+On that evidence, **the remaining 8,000 lines do not exist as extractable
+mass.** They are the behaviour. Proposed replacement goals, subject to the
+prerequisite reconciliation and fresh measurement:
 
 - Adding a tool handler requires **zero** edits to `chat_notifier.dart`.
-- Ambient reads: 67 → **0**.
+- Recorded ambient reads: 67 → **0**, after re-establishing the baseline.
 - Guards whose non-firing decides feature reachability: **observable**.
 - Unreachable code: **0**.
 
@@ -92,7 +104,7 @@ Aggregate line count becomes a reported consequence, not a target.
 ChatNotifier            thread routing and UI projection only;
                         creates and disposes TurnRuntime
 TurnRuntime             owner and generation are `this`
-  ├─ tool loop, completion evidence, trackers
+  ├─ tool loop, completion evidence, turn-local trackers
   ├─ ToolHandlerRegistry     ALREADY EXISTS as ChatToolHandlerCatalog,
   │                          unwired in production (see below)
   └─ PolicyPipeline          guards report fired / did-not-fire structurally
@@ -112,20 +124,22 @@ migration is net-negative on lines depends on how many ports and callbacks a
 `TurnRuntime` needs to reach back into notifier scope — which is unknown and
 is exactly what the prototype below exists to measure.
 
-**One piece is built and not connected.** `ChatToolHandlerCatalog` exists with
-its own tests and is used by the subagent adapter, while the production loop
-still builds `ChatToolHandlerRegistry.fromModules`, which captures the
-notifier. Workstream 6 slice 19 specifies the migration and it was never
-completed. Wiring it is a fraction of the renewal's cost and delivers the
-"adding a tool touches no notifier code" goal on its own — and learning **why
-it was skipped** may reveal an obstacle that also blocks the renewal.
+**One piece is built and not connected.** `ChatToolHandlerCatalog` and
+`SubagentCatalogChildToolExecutionAdapter` exist with tests, but neither is
+wired into the production loop. Production still builds
+`ChatToolHandlerRegistry.fromModules`, whose module callbacks capture the
+notifier. Workstream 6 slice 19 specifies a registry-last migration with
+explicit prerequisites and stop conditions. Learning **why it remains
+unwired** may reveal an obstacle that also blocks the renewal; the catalogue's
+existence alone does not prove that production wiring is cheap or safe.
 
 **The rest of the groundwork is mostly built.** `ChatTurnOwner`, the `TurnThread` and
 `TurnGeneration` zones, `ActiveResponseRegistry`,
 `TurnOwnerSnapshotRegistry`, `CavernoRuntimeTurnHandle`, the owner-fenced
 mutation runtimes and `ThreadScopedChatState` were all built during the
 thread-independence work. They amount to treating a turn as an identity with
-fenced resources. What is missing is the object to hang them on.
+fenced resources. What is missing is a composition root for turn-local state
+that reaches longer-lived state only through explicit boundaries.
 
 ## Prerequisite: reconcile the existing program's state
 
@@ -133,8 +147,41 @@ fenced resources. What is missing is the object to hang them on.
 in progress and 8 as planned, while this plan and the decomposition doc treat
 the program as closed. One of those is wrong and the index is the authoritative
 one. Before any phase starts, either close the index or move its open items
-into this plan explicitly. The turn-scope baseline also needs re-checking; it
-reportedly no longer matches.
+into this plan explicitly.
+
+The same prerequisite must reconcile the checked-in turn-scope baseline. Run:
+
+```bash
+fvm dart run tool/audit_chat_notifier_turn_scope.dart \
+  --manifest tool/chat_notifier_decomposition_manifest.json \
+  --check-baseline tool/chat_notifier_turn_scope_baseline.json
+```
+
+If it differs, review the report before changing the baseline. Regenerate only
+after explaining the drift, inspect the diff, and then re-run the check:
+
+```bash
+fvm dart run tool/audit_chat_notifier_turn_scope.dart \
+  --manifest tool/chat_notifier_decomposition_manifest.json \
+  --write-baseline tool/chat_notifier_turn_scope_baseline.json
+git diff -- tool/chat_notifier_turn_scope_baseline.json
+fvm dart run tool/audit_chat_notifier_turn_scope.dart \
+  --manifest tool/chat_notifier_decomposition_manifest.json \
+  --check-baseline tool/chat_notifier_turn_scope_baseline.json
+```
+
+Do not refresh the baseline merely to make the gate green. Record whether the
+drift is expected, which open workstream caused it, and which document becomes
+the resulting source of truth.
+
+## Prerequisite: make the inventory reproducible
+
+The existing session analyser cannot enumerate uninvoked tools, parse all guard
+telemetry, or replay an exact corpus manifest. Before Phase 1, implement and
+test the measurement tooling contract specified in
+`docs/chat_notifier_inventory_codex_task.md`. Phase 0A may define the static
+guard manifest in the same tooling slice. Behavioural refactoring remains out
+of scope until both prerequisites are satisfied.
 
 ## Proposed phases
 
@@ -142,11 +189,12 @@ An earlier draft had Phase 0 instrument "guards whose silent non-firing decides
 reachability" and Phase 1 inventory the guards. That is circular — the
 selection needs the inventory. Split:
 
-**Phase 0A — static guard inventory.** Enumerate the guards and recovery paths
-and, for each, whether a silent non-fire can make a feature unreachable. Static
-reading only. 376 of 377 `return null;` statements in `domain/services` have no
-log within six lines, so the population is large and must be filtered by
-consequence, not instrumented wholesale.
+**Phase 0A — static guard inventory.** Create the finite checked-in inventory
+defined by the investigation task. Enumerate the guards and recovery paths and,
+for each, whether a silent non-fire can make a feature unreachable. Static
+reading only. Historical notes counted 376 of 377 `return null;` statements in
+`domain/services` without a nearby log, but that heuristic is not a reachability
+proof and must not define the inventory by itself.
 
 **Phase 0B — telemetry for the subset 0A selects.** Adding one such field
 (`hasVerifierReplayCandidate`) on 2026-08-01 resolved in a single run a question
@@ -158,18 +206,93 @@ build revisions first; a re-measurement during review produced 33 invoked tools
 where an earlier note recorded 41, and without a pinned corpus there is no way
 to distinguish drift from a different sample.
 
-**Phase 1.5 — the two cheap experiments, and the decision point.** Before
-committing to a renewal:
+**Phase 1.5 — bounded experiments and the decision point.** Before committing
+to a renewal:
 
-- **Wire `ChatToolHandlerCatalog` into the production loop** (workstream 6
-  slice 19). Delivers the "adding a tool touches no notifier code" goal by
-  itself, and answers why it was skipped.
+- **Investigate why `ChatToolHandlerCatalog` is unwired** during Phase 1. Wire
+  it in Phase 1.5 only if reconciliation proves that workstream 6 slices 1-18
+  and workstream 8 slices 2 and 7 satisfy the existing WS6-19 gate. The
+  migration must also meet the WS6-19 stop conditions: remove the old registry
+  path, capture no `ChatNotifier` callback in catalogue bindings, and pass the
+  binding/poison tests. Otherwise finish those prerequisites or separately
+  review an explicit replacement safety contract; do not silently bypass the
+  gate.
 - **Prototype `TurnRuntime` on exactly one high-coupling part.** Measure lines
-  removed, parameters eliminated, and ports or callbacks introduced.
+  removed, parameters eliminated, longer-lived state accessed through ports,
+  and ports or callbacks introduced. It must not absorb thread-scoped state.
 
-**Proceed to Phase 2 only if that measurement supports it.** If the prototype
-shows the ports cost more than the parameters save, this plan should be
-abandoned in favour of wiring the catalogue and stopping there.
+Make the prototype selection and decision reproducible. Before editing, add
+`tool/measure_chat_notifier_turn_runtime_prototype.py` and
+`test/python/measure_chat_notifier_turn_runtime_prototype_test.py`. Its `select`
+mode ranks current declared part files by these keys, in order:
+
+1. most turn-reachable entrypoints carrying an explicit owner or generation
+   parameter;
+2. most turn-reachable ambient reads;
+3. most production lines; and
+4. lexical path order as the final tie-breaker.
+
+Do not hand-pick an easier part. Run `select` from a clean commit after the
+baseline reconciliation; the tool must resolve `HEAD` to its full Git SHA:
+
+```bash
+python3 test/python/measure_chat_notifier_turn_runtime_prototype_test.py
+python3 tool/measure_chat_notifier_turn_runtime_prototype.py select \
+  --audit tool/chat_notifier_turn_scope_baseline.json \
+  --manifest tool/chat_notifier_decomposition_manifest.json \
+  --source-revision HEAD \
+  --require-clean \
+  --output /tmp/chat_notifier_turn_runtime_candidate.json
+```
+
+If the selected part lacks a real focused test or live canary, create and
+validate that gate in a separate preparatory commit; do not move to the next
+part. Record the selected part, exact focused-test command, exact live-canary
+command, canary contract and expected evidence in the checked-in
+`tool/chat_notifier_turn_runtime_prototype_verification.json`. Re-run `select`
+from that clean commit, then make the tool join and validate the mapping:
+
+```bash
+python3 tool/measure_chat_notifier_turn_runtime_prototype.py validate-gates \
+  --selection /tmp/chat_notifier_turn_runtime_candidate.json \
+  --verification-manifest tool/chat_notifier_turn_runtime_prototype_verification.json \
+  --output /tmp/chat_notifier_turn_runtime_selection.json
+```
+
+`validate-gates` must fail if the manifest part differs from the selected part,
+either command is missing, or the canary contract does not identify evidence
+from the migrated path.
+
+Run the prototype as an isolated slice; do not mix catalogue wiring or unrelated
+changes into its diff. The tool's `compare` mode must report a before/after
+table with production line delta across every touched or added non-generated
+`lib/` file, identity parameters removed, port or callback methods introduced,
+turn-reachable ambient-read delta, and callbacks that capture `ChatNotifier`.
+
+```bash
+python3 tool/measure_chat_notifier_turn_runtime_prototype.py compare \
+  --selection /tmp/chat_notifier_turn_runtime_selection.json \
+  --before-revision HEAD \
+  --after-worktree . \
+  --output /tmp/chat_notifier_turn_runtime_comparison.json
+tool/codex_verify.sh --coverage
+```
+
+Also run the exact focused test and live-canary commands recorded by `select`,
+and confirm the canary exercises the migrated path rather than a placeholder.
+Do not refresh the global turn-scope baseline inside the experiment; compare
+the worktree audit to it so regressions remain visible.
+
+**Proceed to Phase 2 only if all gates pass and the comparison shows:**
+
+- production line delta is at most zero;
+- at least one identity parameter is removed;
+- turn-reachable ambient reads do not increase;
+- no new callback captures `ChatNotifier`; and
+- the focused test, coverage gate and live canary preserve behaviour.
+
+If any condition fails, abandon the full `TurnRuntime` renewal. Catalogue wiring
+may still proceed independently, but only under its existing WS6-19 gate.
 
 **Phase 2 — design document.** Under the same discipline as the decomposition
 program: explicit safety contract, regression gate, live-canary gate, slice
@@ -197,14 +320,16 @@ lesson stands — before trusting a canary as a gate, confirm what it measures.
 
 ## Review questions
 
-1. **Is the diagnosis right?** Is "a turn is not an object" the cause of the
-   regrowth, or a plausible story fitted to the symptoms? What would falsify
-   it? Specifically: is there a large body of code in the library that is
-   *not* turn-scoped and would therefore not move?
+1. **Is the diagnosis right?** Is the missing turn-scoped composition root the
+   cause of the regrowth, or a plausible story fitted to the symptoms? What
+   would falsify it? Specifically: how much code is app-, conversation-, or
+   thread-scoped and therefore must not move?
 2. **Does the parameter-elimination argument hold?** The claim that this
    migration reduces lines where extraction increased them is central. Check it
    against a real part file rather than in principle.
-3. **Is Phase 0 worth doing first**, or does it delay the work that matters?
+3. **Are Phase 0A and Phase 0B ordered correctly?** Does the finite static
+   inventory justify the telemetry slice, and can any selected telemetry wait
+   until after the prototype?
 4. **Is the phasing right?** Inventory before design assumes the design depends
    on what survives. Is that true, or could both proceed in parallel?
 5. **What is missing?** In particular, is there a cheaper intervention that
